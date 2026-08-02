@@ -1,0 +1,164 @@
+# BBLBB — 后台任务与 Transactional Outbox
+
+> 版本：v0.3
+> v1 使用数据库任务表和同一 Rust 进程内的 Tokio worker，避免在小机器上强制部署消息队列。
+
+## 1. 适用任务
+
+- 邮箱验证、重置密码和通知邮件。
+- 站内通知聚合。
+- 搜索索引更新。
+- 图片检测、重编码和缩略图。
+- 定时发布。
+- Session、OAuth code/token、验证码过期清理。
+- 账号延迟删除。
+- 计数器修复。
+- 配置型插件 after-event。
+- 数据导出和低优先级维护。
+
+不进入异步任务的关键路径：权限判定、余额校验、内容 grant、授权码消费和处罚生效。
+
+## 2. Outbox 模式
+
+业务事务中同时写：
+
+```text
+业务表变更 + audit_logs + outbox_events
+```
+
+事务提交后 worker 才处理事件。这样避免：
+
+- 帖子已发布但通知事件丢失。
+- 余额已增加但等级/通知永远没触发。
+- 事务回滚却发出了邮件。
+
+事件 envelope 见 `PLUGIN.md`。Outbox payload 必须最小化，不复制密码、Token、完整隐藏正文等敏感数据。
+
+## 3. Job 生命周期
+
+```text
+queued → running → succeeded
+   └────→ retry_wait → running
+   └────→ dead
+running ──lease timeout──→ queued/retry_wait
+```
+
+字段见 `SCHEMA.md`：`available_at`、`locked_by`、`locked_until`、`attempts`、`max_attempts`、`last_error`。
+
+- worker 通过租约领取任务。
+- 任务开始前增加 attempts 或按明确语义记录。
+- 进程崩溃后，租约过期可重新领取。
+- 完成写 `completed_at`，失败按策略设置下次 `available_at`。
+- 超过最大重试进入 dead-letter 状态并告警。
+
+## 4. 数据库领取策略
+
+### MySQL/MariaDB
+
+- 事务中使用适用的行锁/`SKIP LOCKED` 能力；需分别验证最低版本行为。
+- 批量领取数量小，快速提交租约，不在锁事务内执行任务。
+
+### SQLite
+
+- 使用 `BEGIN IMMEDIATE` 完成短暂领取和租约更新。
+- 单机默认一个 worker coordinator，按 queue 限制并发。
+- 不在写事务内发 SMTP、访问 S3 或处理图片。
+- 配置 `busy_timeout`，监控锁等待。
+
+## 5. 幂等
+
+- Job handler 必须按“至少一次执行”设计。
+- `deduplication_key` 用于能安全合并的任务，例如同一文章最新搜索索引。
+- 邮件可记录 message logical ID，避免重试重复发送；SMTP 最终仍可能出现极少数重复，模板应容忍。
+- 积分、付费解锁等调用核心服务时传业务幂等键。
+- 图片处理输出使用内容/参数哈希 key，重复执行覆盖同一目标或无副作用。
+
+## 6. 重试
+
+建议：指数退避 + jitter。
+
+- 临时网络、SMTP 4xx、S3 超时：重试。
+- 输入无效、附件格式不支持、模板缺失：直接 dead 或低次数重试。
+- 数据库暂时不可用：进程级退避，不快速刷日志。
+- 每类任务定义最大尝试、超时和并发，不能只有全局值。
+
+错误日志存安全摘要；不把邮件正文、Token 和隐藏内容写入 `last_error`。
+
+## 7. 队列与优先级
+
+建议队列：
+
+| Queue | 任务 | 优先级 |
+|---|---|---|
+| `security` | 登录安全通知、Token 重用通知 | 高 |
+| `mail` | 验证、重置、普通通知 | 高/中 |
+| `media` | 图片检查、缩略图 | 中 |
+| `search` | 索引更新 | 中/低 |
+| `plugins` | 配置型插件 | 低 |
+| `maintenance` | 清理、计数修复、导出 | 低 |
+
+小机器限制媒体和导出并发，防止内存峰值影响 HTTP。
+
+## 8. 定时任务
+
+- scheduler 周期性将到期工作插入 jobs。
+- 使用数据库 lease 保证多实例下一个周期任务只有一个调度者。
+- 定时发布的正确性以 `scheduled_at <= now` 查询为准，任务可重复扫描。
+- 清理任务采用小批量和游标，避免长事务。
+- 任务时间全部为 UTC；显示时转换时区。
+
+## 9. Outbox 清理
+
+- `published_at` 表示所有必要消费者已确认或已转换为独立 job。
+- 已发布事件保留可配置窗口，便于审计和故障排查。
+- 清理小批量执行。
+- 插件后来启用不默认回放全部历史；回放需显式范围和管理员确认。
+
+## 10. 可观测性
+
+指标：
+
+- 各 queue queued/running/dead 数量。
+- 最老待处理任务年龄。
+- 成功/失败/重试速率。
+- 处理耗时分位数。
+- SQLite busy/锁等待。
+- Outbox 未发布数量和年龄。
+
+每次执行日志包含 `job_id`、`kind`、`attempt`、`request_id/event_id`，不含敏感 payload。
+
+告警建议：
+
+- security/mail 队列最老任务超过 5 分钟。
+- dead-letter 新增。
+- Outbox 堆积持续增长。
+- media 任务内存/超时异常。
+
+## 11. 管理操作
+
+后台支持：
+
+- 查看聚合统计和安全错误摘要。
+- 重试单个/筛选后的 dead job。
+- 取消尚未运行的可取消任务。
+- 暂停低优先级 queue。
+- 不能在 UI 任意编辑 payload 后重试。
+- 所有重试/取消写审计。
+
+## 12. 优雅停机
+
+1. readiness 置失败，停止接收新外部流量。
+2. 停止领取新任务。
+3. 等待运行中任务到配置期限。
+4. 可取消任务安全释放；不可取消任务让 lease 到期后重试。
+5. 关闭连接池。
+
+## 13. 未来外部队列
+
+只有出现明确瓶颈时才引入 Redis Streams/NATS/RabbitMQ。迁移条件：
+
+- 数据库队列显著影响业务事务。
+- 需要大量独立 worker 或跨服务消费。
+- 已有成熟的消息备份、监控和运维能力。
+
+即使迁移外部消息系统，Transactional Outbox 仍可保留以连接业务事务和发布过程。

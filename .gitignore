@@ -1,0 +1,43 @@
+# macOS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Rust
+/backend/target/
+target/
+
+# Node / SvelteKit
+/frontend/node_modules/
+/frontend/.svelte-kit/
+/frontend/build/
+/frontend/.vite/
+/frontend/coverage/
+node_modules/
+
+# Local databases and runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+/data/
+/uploads/
+/backups/
+
+# Logs and temporary files
+*.log
+/tmp/
+.cache/
+
+# Test artifacts
+/playwright-report/
+/test-results/
