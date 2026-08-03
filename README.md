@@ -47,11 +47,23 @@ Caddy
 | [`SECURITY.md`](docs/SECURITY.md) | 威胁模型和安全基线 |
 | [`FRONTEND.md`](docs/FRONTEND.md) | SvelteKit、SSR、SEO 与可访问性 |
 | [`THEME.md`](docs/THEME.md) | 数据型和可信代码型主题 |
+| [`PROTOTYPE-IA.md`](docs/PROTOTYPE-IA.md) | 原型信息架构、路由与页面流程 |
+| [`PROTOTYPE-UI.md`](docs/PROTOTYPE-UI.md) | 设计 Token 与组件系统规格 |
 | [`PLUGIN.md`](docs/PLUGIN.md) | 配置型插件与未来 WASM 边界 |
 | [`JOBS.md`](docs/JOBS.md) | 后台任务、Outbox 与重试 |
 | [`STORAGE.md`](docs/STORAGE.md) | 本地/S3 附件和媒体处理 |
 | [`OPERATIONS.md`](docs/OPERATIONS.md) | 部署、升级、备份与恢复 |
 | [`TESTING.md`](docs/TESTING.md) | 三数据库与安全验收矩阵 |
+
+## 原型
+
+[`prototype/`](prototype/) 是无需构建的静态高保真原型，直接用浏览器打开 `prototype/index.html` 即可查看，对应 `docs/PROTOTYPE-IA.md` 与 `docs/PROTOTYPE-UI.md` 两份规格。
+
+- 纯 HTML + CSS + 原生 JavaScript，无构建步骤、无依赖安装。
+- `js/mock.js` 提供全部演示数据，原型不访问真实后端。
+- 图标通过 CDN 加载 Lucide，离线环境下图标不显示，功能不受影响。
+
+原型仅用于设计验证，不是生产代码；正式前端按 `docs/FRONTEND.md` 以 SvelteKit 实现。
 
 ## 当前状态
 
