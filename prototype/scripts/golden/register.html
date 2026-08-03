@@ -1,0 +1,39 @@
+
+      <div class="auth-wrapper">
+        <div class="auth-card">
+          <div class="auth-header">
+            <div class="auth-logo">BBLBB</div>
+            <div class="auth-title">创建账号</div>
+            <div class="auth-subtitle">加入我们，开启你的社区之旅</div>
+          </div>
+          <div class="auth-body">
+            <form class="auth-form" onsubmit="event.preventDefault(); handleRegister();">
+              <div class="input-wrapper">
+                <label class="input-label">用户名</label>
+                <input type="text" class="input-field" placeholder="3-20 个字符" id="reg-username">
+              </div>
+              <div class="input-wrapper">
+                <label class="input-label">邮箱</label>
+                <input type="email" class="input-field" placeholder="用于找回密码" id="reg-email">
+              </div>
+              <div class="input-wrapper">
+                <label class="input-label">密码</label>
+                <input type="password" class="input-field" placeholder="至少 6 位" id="reg-password">
+              </div>
+              <div class="input-wrapper">
+                <label class="input-label">确认密码</label>
+                <input type="password" class="input-field" placeholder="再次输入密码" id="reg-confirm">
+              </div>
+              <label style="display: flex; align-items: flex-start; gap: 6px; font-size: var(--text-sm); cursor: pointer;">
+                <input type="checkbox" style="margin-top: 3px;">
+                <span class="text-secondary">我已阅读并同意 <a href="#">用户协议</a> 和 <a href="#">隐私政策</a></span>
+              </label>
+              <button type="button" class="btn btn-primary btn-lg" data-action="handleRegister()">注册</button>
+            </form>
+          </div>
+          <div class="auth-footer">
+            已有账号？<a href="#/login">立即登录</a>
+          </div>
+        </div>
+      </div>
+    

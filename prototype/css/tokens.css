@@ -1,0 +1,193 @@
+/* ============================================================
+   BBLBB Design Tokens — 现代开发者社区（Geist / GitHub Primer 系）
+   Layer 1: semantic tokens. Components map these into their own
+   component tokens (Layer 2) in components.css.
+   ============================================================ */
+
+:root {
+  /* ---- Colors: Background ---- */
+  --color-bg-page: #F3F1EA;
+  --color-bg-card: #FFFEFA;
+  --color-bg-subtle: #ECEAE2;
+  --color-bg-inset: #E7E4DA;
+
+  /* ---- Colors: Text ---- */
+  --color-text-primary: #17211F;
+  --color-text-secondary: #59635F;
+  --color-text-tertiary: #838B86;
+  --color-text-on-brand: #FFFFFF;
+
+  /* ---- Colors: Brand (warm coral + deep ink identity) ---- */
+  --color-brand: #E85D3F;
+  --color-brand-hover: #D64B30;
+  --color-brand-pressed: #B83A24;
+  --color-brand-soft: #FCE5DD;
+  --color-accent: #147D74;
+  --color-accent-soft: #DDF1EC;
+  --color-ink: #122522;
+
+  /* ---- Colors: Border ---- */
+  --color-border: #DCD9CF;
+  --color-border-strong: #BDB9AD;
+
+  /* ---- Colors: Semantic ---- */
+  --color-success: #1A7F37;
+  --color-success-soft: #D1F7DF;
+  --color-warning: #9A6700;
+  --color-warning-soft: #FFF8C5;
+  --color-danger: #CF222E;
+  --color-danger-soft: #FFEBE9;
+
+  /* ---- Colors: Code / Focus / List states ---- */
+  --color-code-bg: #EFF2F5;
+  --color-focus-ring: rgba(9, 105, 218, 0.4);
+  --color-visited: #6E6E6E;
+  --color-highlight-soft: #FFF8C5;
+
+  /* ---- Typography ---- */
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-family-mono: "SF Mono", "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  --text-xs: 12px;
+  --text-xs-leading: 18px;
+  --text-sm: 13px;
+  --text-sm-leading: 20px;
+  --text-base: 14px;
+  --text-base-leading: 22px;
+  --text-md: 16px;
+  --text-md-leading: 26px;
+  --text-lg: 18px;
+  --text-lg-leading: 28px;
+  --text-xl: 20px;
+  --text-xl-leading: 30px;
+  --text-2xl: 24px;
+  --text-2xl-leading: 34px;
+  --text-3xl: 28px;
+  --text-3xl-leading: 40px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---- Spacing (4px base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---- Radius ---- */
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
+
+  /* ---- Border ---- */
+  --border-default: 1px solid var(--color-border);
+  --border-input: 1px solid var(--color-border-strong);
+  --border-strong: 1px solid var(--color-border-strong);
+
+  /* ---- Shadow (floating layers only) ---- */
+  --shadow-pop: 0 12px 32px rgba(23, 33, 31, 0.08);
+  --shadow-modal: 0 24px 70px rgba(23, 33, 31, 0.2);
+  --shadow-header: 0 1px 0 rgba(23, 33, 31, 0.08);
+
+  /* ---- Motion ---- */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- Z-index ---- */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-drawer: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  /* ---- Layout ---- */
+  --container-max: 1280px;
+  --content-max: 860px;
+  --reading-max: 740px;
+  --side-col: 300px;
+  --header-h: 60px;
+}
+
+/* ============================================================
+   Dark theme — GitHub dark palette (no pure black / pure white)
+   ============================================================ */
+html.dark {
+  --color-bg-page: #101B19;
+  --color-bg-card: #172522;
+  --color-bg-subtle: #20332F;
+  --color-bg-inset: #1B2B28;
+
+  --color-text-primary: #F5F3EA;
+  --color-text-secondary: #B5C0BA;
+  --color-text-tertiary: #82918A;
+  --color-text-on-brand: #FFFFFF;
+
+  --color-brand: #F27759;
+  --color-brand-hover: #FF967B;
+  --color-brand-pressed: #D95D42;
+  --color-brand-soft: #493029;
+
+  --color-border: #30433E;
+  --color-border-strong: #496059;
+
+  --color-success: #3FB950;
+  --color-success-soft: #173D26;
+  --color-warning: #D29922;
+  --color-warning-soft: #3A2D12;
+  --color-danger: #F85149;
+  --color-danger-soft: #4A1A1A;
+
+  --color-code-bg: #212830;
+  --color-focus-ring: rgba(68, 147, 248, 0.5);
+  --color-visited: #8B949E;
+  --color-highlight-soft: #3A2D12;
+
+  --shadow-pop: 0 3px 6px rgba(1, 4, 9, 0.45);
+  --shadow-modal: 0 8px 24px rgba(1, 4, 9, 0.6);
+  --shadow-header: 0 1px 3px rgba(1, 4, 9, 0.4);
+}
+
+/* System-level dark fallback (no-JS) — default off, follows OS only when
+   the user never toggled the theme manually. The JS theme toggle writes
+   html.dark / html.light and wins. */
+@media (prefers-color-scheme: dark) {
+  html:not(.light):not(.dark) {
+    --color-bg-page: #101B19;
+    --color-bg-card: #172522;
+    --color-bg-subtle: #20332F;
+    --color-bg-inset: #1B2B28;
+    --color-text-primary: #F5F3EA;
+    --color-text-secondary: #B5C0BA;
+    --color-text-tertiary: #82918A;
+    --color-brand: #F27759;
+    --color-brand-hover: #FF967B;
+    --color-brand-pressed: #D95D42;
+    --color-brand-soft: #493029;
+    --color-border: #30433E;
+    --color-border-strong: #496059;
+    --color-success: #3FB950;
+    --color-success-soft: #173D26;
+    --color-warning: #D29922;
+    --color-warning-soft: #3A2D12;
+    --color-danger: #F85149;
+    --color-danger-soft: #4A1A1A;
+    --color-code-bg: #212830;
+    --color-focus-ring: rgba(68, 147, 248, 0.5);
+    --color-visited: #8B949E;
+    --color-highlight-soft: #3A2D12;
+    --shadow-pop: 0 3px 6px rgba(1, 4, 9, 0.45);
+    --shadow-modal: 0 8px 24px rgba(1, 4, 9, 0.6);
+    --shadow-header: 0 1px 3px rgba(1, 4, 9, 0.4);
+  }
+}

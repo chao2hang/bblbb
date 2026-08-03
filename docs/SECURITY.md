@@ -137,6 +137,8 @@ Content-Security-Policy: default-src 'self'; ...
 - 默认拒绝 SVG；若开放则进行严格清洗并以附件方式下载。
 - 文档附件设置 `Content-Disposition: attachment` 和安全 Content-Type。
 - 上传先进入 `pending/quarantined`，处理完成后变为 `ready`。
+- 所有附件必须有有限 `expires_at`；每次读取与签名时实时检查，到期后即使清理任务延迟也不能访问。
+- 等级单文件限制、总容量和期限由 Rust 在创建与完成阶段双重校验；浏览器显示的剩余额度不是授权依据。
 - 本地存储位于 Web 根目录之外，不使用 `.htaccess` 等与 Caddy 无关的假设。
 - 私有附件由 Rust 鉴权后流式传输；S3 可发短期签名 URL。
 
@@ -173,6 +175,9 @@ Content-Security-Policy: default-src 'self'; ...
 
 - `.env` 不进入版本库；生产使用 systemd credentials、Docker secrets 或权限受限的秘密文件。
 - OIDC 私钥、SMTP 密码、S3 secret 必须支持轮换。
+- S3 生产环境优先使用实例角色、Workload Identity 或短期凭据；静态密钥仅授予指定 Bucket/前缀的最小对象权限，不授予 Bucket Policy、公开 ACL 或跨 Bucket 管理权限。
+- `/admin/storage` 不返回 Secret 明文；浏览器、本地存储、SSR payload、普通配置导出、错误和日志中均不得出现 S3 Secret 或完整预签名 URL。
+- Bucket 默认私有并启用 Block Public Access；CORS 使用本站精确 Origin。凭证轮换应允许新旧凭证短时重叠验证，成功后撤销旧凭证并写安全审计。
 - Rust 使用 `cargo audit`、`cargo deny`；前端使用 pnpm audit 与依赖更新机器人。
 - 锁文件提交；CI 构建使用冻结锁文件。
 - 发布产物生成 SBOM 和校验和；容器使用非 root、只读根文件系统和固定基础镜像 digest。

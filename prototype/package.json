@@ -1,6 +1,15 @@
 {
   "name": "bblbb-prototype",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/render-check.mjs",
+    "check:interaction": "node scripts/interaction-check.mjs",
+    "check:all": "npm run check && npm run check:interaction",
+    "check:golden": "node scripts/render-check.mjs --golden"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
 }

@@ -4,21 +4,31 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BBLBB 社区原型</title>
-  <link rel="stylesheet" href="css/app.css" />
-  <script src="https://cdn.jsdelivr.net/npm/lucide@0.441.0/dist/umd/lucide.min.js"></script>
+  <!-- 5-layer CSS: tokens → base → layout → components → pages -->
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/pages.css" />
 </head>
 <body>
-  <div id="app"></div>
+  <a class="skip-link" href="#app">跳到主内容</a>
+  <main id="app" tabindex="-1"></main>
 
   <!-- Toast Container -->
-  <div id="toast-container" class="toast-container"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Modal Container -->
   <div id="modal-container"></div>
 
+  <!-- Local inline SVG icons (no CDN — works offline via file://) -->
+  <script src="js/icons.js"></script>
   <script src="js/mock.js"></script>
   <script src="js/store.js"></script>
-  <script src="js/components.js"></script>
+  <script src="js/ui/atoms.js"></script>
+  <script src="js/ui/composites.js"></script>
+  <script src="js/ui/overlays.js"></script>
+  <script src="js/ui/bundle.js"></script>
   <script src="js/pages.js"></script>
   <script src="js/pages2.js"></script>
   <script src="js/pages3.js"></script>

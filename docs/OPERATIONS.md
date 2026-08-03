@@ -45,15 +45,31 @@ BBLBB_BIND=127.0.0.1:8080
 BBLBB_FRONTEND_ORIGIN=http://127.0.0.1:3000
 BBLBB_TRUSTED_PROXIES=127.0.0.1/32
 BBLBB_STORAGE_BACKEND=local
-BBLBB_STORAGE_PATH=/var/lib/bblbb/uploads
+BBLBB_STORAGE_LOCAL_PATH=/var/lib/bblbb/uploads
+# S3 后端按需启用：
+# BBLBB_S3_ENDPOINT=https://s3.amazonaws.com
+# BBLBB_S3_REGION=ap-southeast-1
+# BBLBB_S3_BUCKET=bblbb-attachments
+# BBLBB_S3_ACCESS_KEY_ID=...
+# BBLBB_S3_SECRET_ACCESS_KEY=...
+# BBLBB_S3_PATH_STYLE=false
+# BBLBB_S3_PRESIGNED_UPLOADS=true
+# BBLBB_S3_SIGNED_URL_TTL_SECONDS=300
+BBLBB_UPLOAD_MAX_BYTES=20971520
+BBLBB_ATTACHMENT_DEFAULT_TTL_SECONDS=2592000
+BBLBB_ATTACHMENT_MAX_TTL_SECONDS=31536000
+BBLBB_ATTACHMENT_PURGE_GRACE_SECONDS=604800
 BBLBB_SECRET_KEY_FILE=/etc/bblbb/master-key
 BBLBB_SMTP_*=...
 ```
 
 - `PUBLIC_ORIGIN` 必须固定 HTTPS Origin，OIDC discovery 和 Cookie 依赖它。
 - 启动校验 URL、目录权限、数据库版本、迁移状态和密钥。
+- 使用 `s3` 时启动校验 Endpoint HTTPS、Region、Bucket、凭证来源、TTL 和大小范围，但不把第三方实时探测作为每次 readiness 的硬依赖。
+- S3 Secret 只通过 systemd credentials、容器 Secret、Workload Identity 或权限受限环境文件提供；不得写入前端环境、命令行参数、日志和普通配置导出。
+- 管理后台 `/admin/storage` 的“测试连接”调用受保护后端接口，检查 Bucket 可访问性、对象前缀权限与签名模式，只返回脱敏结果并写管理员审计。
 - 未知配置键在生产模式报错或明确警告。
-- 改变 origin、Cookie 名、OIDC issuer 属于高风险迁移，不可随意运行时切换。
+- 改变 origin、Cookie 名、OIDC issuer 或存储后端属于高风险迁移，不可随意运行时切换。
 
 ## 4. Caddy
 
@@ -226,6 +242,10 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 - Outbox/mail/security job 堆积。
 - OIDC key 即将过期/无法解密。
 - 附件 quarantined/处理失败异常上升。
+- 到期清理队列堆积、`purge_after` 超时对象数、数据库计费容量与物理对象字节差异。
+- 用户配额拒绝率异常上升，避免等级配置错误导致全站无法上传。
+
+到期清理 worker 应按 `purge_after` 分批、幂等删除原件和 variant，再更新计费容量；对象存储删除失败必须重试并告警。清理任务延迟不影响访问控制，到达 `expires_at` 后读取路径必须立即拒绝。
 
 ## 15. 安装与首个管理员
 
@@ -235,7 +255,29 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 - 禁止在默认镜像中内置管理员密码。
 - 初始化创建站点 origin、默认角色、权限、货币和主题。
 
-## 16. 跨数据库迁移
+## 16. 存储后端迁移
+
+本地磁盘与 S3 之间切换不是简单修改环境变量，必须在维护窗口按以下流程执行：
+
+1. 冻结新上传和附件删除，等待 `pending/processing` 清零；数据库和源存储创建可恢复备份。
+2. 使用受控迁移命令按 attachment ID 复制对象到目标后端，目标 key 由系统映射；支持断点续传且不修改源对象。
+3. 比对 ready 附件数量、字节数、size/hash、variant 和随机抽样下载；目标 Bucket 保持私有。
+4. 在隔离环境或只读验证模式执行头像、封面、公开附件、受限附件和 Range 下载冒烟测试。
+5. 修改 `BBLBB_STORAGE_BACKEND` 并重启，验证 `/readyz`、上传、处理 worker、下载和清理任务后再解除维护模式。
+6. 保留源存储至少一个回滚窗口；若错误率、缺失对象或权限异常超过阈值，立即恢复旧配置。回滚期间产生的新对象必须有双写、增量回迁或明确停写策略，不能静默丢失。
+7. 回滚窗口结束并完成第二次一致性校验后，才可按审批流程清理源对象；清理必须与备份保留策略协调。
+
+建议提供：
+
+```text
+bblbb storage test
+bblbb storage migrate --from local --to s3 --resume
+bblbb storage verify --source local --target s3
+```
+
+迁移进度和错误只记录 attachment ID、错误码和 request ID，不记录 Secret 或完整签名 URL。详细对象契约见 [`STORAGE.md`](STORAGE.md)。
+
+## 17. 跨数据库迁移
 
 未来提供：
 

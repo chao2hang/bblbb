@@ -8,16 +8,15 @@ window.Router = (function() {
 
   function parseHash() {
     const hash = window.location.hash.slice(1) || '/';
-    const [path, queryString] = hash.split('?');
+    const question = hash.indexOf('?');
+    const path = question >= 0 ? hash.slice(0, question) : hash;
+    const queryString = question >= 0 ? hash.slice(question + 1) : '';
     const params = {};
-    
-    if (queryString) {
-      queryString.split('&').forEach(pair => {
-        const [key, value] = pair.split('=');
-        if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
-      });
+    try {
+      for (const [key, value] of new URLSearchParams(queryString)) params[key] = value;
+    } catch (e) {
+      console.warn('Invalid route query ignored');
     }
-    
     return { path: path || '/', params };
   }
 
@@ -41,6 +40,16 @@ window.Router = (function() {
       { pattern: '/429', handler: () => Pages.tooManyRequests() },
       // Admin
       { pattern: '/admin', handler: () => Pages.adminDashboard() },
+      { pattern: '/admin/users', handler: (params) => Pages.adminUsers(params) },
+      { pattern: '/admin/roles', handler: () => Pages.adminRoles() },
+      { pattern: '/admin/content', handler: (params) => Pages.adminContent(params) },
+      { pattern: '/admin/posts', handler: (params) => Pages.adminContent(params) },
+      { pattern: '/admin/boards', handler: () => Pages.adminBoards() },
+      { pattern: '/admin/tags', handler: () => Pages.adminTags() },
+      { pattern: '/admin/attachments', handler: () => Pages.adminAttachments() },
+      { pattern: '/admin/storage', handler: () => Pages.adminStorage() },
+      { pattern: '/admin/notifications', handler: () => Pages.adminNotifications() },
+      { pattern: '/admin/audit', handler: (params) => Pages.adminAudit(params) },
       { pattern: '/admin/reports', handler: (params) => Pages.adminReports(params) },
       { pattern: '/admin/points', handler: () => Pages.adminPoints() },
       { pattern: '/admin/levels', handler: () => Pages.adminLevels() },
@@ -97,6 +106,16 @@ window.Router = (function() {
 
     const handler = matchRoute(path);
     const app = document.getElementById('app');
+
+    // Prototype permission guard: administrators and moderators may enter the
+    // admin shell; ordinary members receive the existing 403 page.
+    if (path === '/admin' || path.startsWith('/admin/')) {
+      const roles = Store.state.user?.roles || [];
+      if (!roles.includes('admin') && !roles.includes('moderator')) {
+        app.innerHTML = Pages.forbidden();
+        return;
+      }
+    }
     
     if (handler) {
       app.innerHTML = handler(params);
@@ -104,17 +123,11 @@ window.Router = (function() {
       app.innerHTML = Pages.notFound();
     }
 
-    // Re-render lucide icons
-    if (window.lucide) {
-      lucide.createIcons();
-    }
-
     // Scroll to top
     window.scrollTo(0, 0);
 
-    // Close user menu on route change
-    if (Store.state.userMenuOpen) Store.closeUserMenu();
-    if (Store.state.mobileDrawerOpen) Store.closeMobileDrawer();
+    // Menus manage their own visibility. Closing them here would immediately
+    // undo an open action because opening triggers a refresh.
   }
 
   function navigate(path) {

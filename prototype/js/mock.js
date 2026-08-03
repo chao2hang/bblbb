@@ -696,16 +696,16 @@ State 用于防止 CSRF，必须：
 
   // Levels
   const levels = [
-    { level: 1, name: 'LV.1 新手上路', color: '#919191', expRequired: 0, benefits: ['发帖', '回复'], userCount: 1250 },
-    { level: 2, name: 'LV.2 初窥门径', color: '#919191', expRequired: 100, benefits: ['发帖', '回复', '收藏'], userCount: 890 },
-    { level: 3, name: 'LV.3 略有小成', color: '#919191', expRequired: 500, benefits: ['发帖', '回复', '收藏', '私信'], userCount: 560 },
-    { level: 4, name: 'LV.4 渐入佳境', color: '#0088CC', expRequired: 1000, benefits: ['发帖', '回复', '收藏', '私信', '签名档'], userCount: 340 },
-    { level: 5, name: 'LV.5 炉火纯青', color: '#0088CC', expRequired: 1500, benefits: ['发帖', '回复', '收藏', '私信', '签名档', '付费内容'], userCount: 180 },
-    { level: 6, name: 'LV.6 登峰造极', color: '#E9A100', expRequired: 3000, benefits: ['发帖', '回复', '收藏', '私信', '签名档', '付费内容', '自定义头衔'], userCount: 85 },
-    { level: 7, name: 'LV.7 出神入化', color: '#E9A100', expRequired: 5000, benefits: ['全部 LV.6 权益', '版主申请资格', '专属徽章'], userCount: 32 },
-    { level: 8, name: 'LV.8 一代宗师', color: '#E45735', expRequired: 8000, benefits: ['全部 LV.7 权益', '邀请码', '年度礼物'], userCount: 12 },
-    { level: 9, name: 'LV.9 天人合一', color: '#E45735', expRequired: 15000, benefits: ['全部 LV.8 权益', '终身会员', '社区顾问'], userCount: 3 },
-    { level: 10, name: 'LV.10 返璞归真', color: '#E45735', expRequired: 30000, benefits: ['全部权益', '传说级徽章', '创始人面对面'], userCount: 0 }
+    { level: 1, name: 'LV.1 新手上路', color: '#919191', expRequired: 0, benefits: ['发帖', '回复'], userCount: 1250, attachmentMaxMb: 2, attachmentTotalMb: 20, attachmentTtlDays: 7 },
+    { level: 2, name: 'LV.2 初窥门径', color: '#919191', expRequired: 100, benefits: ['发帖', '回复', '收藏'], userCount: 890, attachmentMaxMb: 4, attachmentTotalMb: 50, attachmentTtlDays: 14 },
+    { level: 3, name: 'LV.3 略有小成', color: '#919191', expRequired: 500, benefits: ['发帖', '回复', '收藏', '私信'], userCount: 560, attachmentMaxMb: 8, attachmentTotalMb: 200, attachmentTtlDays: 30 },
+    { level: 4, name: 'LV.4 渐入佳境', color: '#0088CC', expRequired: 1000, benefits: ['发帖', '回复', '收藏', '私信', '签名档'], userCount: 340, attachmentMaxMb: 12, attachmentTotalMb: 500, attachmentTtlDays: 60 },
+    { level: 5, name: 'LV.5 炉火纯青', color: '#0088CC', expRequired: 1500, benefits: ['发帖', '回复', '收藏', '私信', '签名档', '付费内容'], userCount: 180, attachmentMaxMb: 20, attachmentTotalMb: 1024, attachmentTtlDays: 90 },
+    { level: 6, name: 'LV.6 登峰造极', color: '#E9A100', expRequired: 3000, benefits: ['发帖', '回复', '收藏', '私信', '签名档', '付费内容', '自定义头衔'], userCount: 85, attachmentMaxMb: 32, attachmentTotalMb: 2048, attachmentTtlDays: 180 },
+    { level: 7, name: 'LV.7 出神入化', color: '#E9A100', expRequired: 5000, benefits: ['全部 LV.6 权益', '版主申请资格', '专属徽章'], userCount: 32, attachmentMaxMb: 48, attachmentTotalMb: 4096, attachmentTtlDays: 270 },
+    { level: 8, name: 'LV.8 一代宗师', color: '#E45735', expRequired: 8000, benefits: ['全部 LV.7 权益', '邀请码', '年度礼物'], userCount: 12, attachmentMaxMb: 64, attachmentTotalMb: 8192, attachmentTtlDays: 365 },
+    { level: 9, name: 'LV.9 天人合一', color: '#E45735', expRequired: 15000, benefits: ['全部 LV.8 权益', '终身会员', '社区顾问'], userCount: 3, attachmentMaxMb: 96, attachmentTotalMb: 16384, attachmentTtlDays: 365 },
+    { level: 10, name: 'LV.10 返璞归真', color: '#E45735', expRequired: 30000, benefits: ['全部权益', '传说级徽章', '创始人面对面'], userCount: 0, attachmentMaxMb: 128, attachmentTotalMb: 32768, attachmentTtlDays: 365 }
   ];
 
   // Plugins

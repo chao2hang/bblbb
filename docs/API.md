@@ -164,14 +164,38 @@ GET /api/v1/boards/{id}/posts?limit=30&after=<opaque-cursor>&sort=latest
 
 ```text
 POST /api/v1/attachments                 创建上传/本地流式上传
+POST /api/v1/attachments/{id}/complete   完成 S3 直传并触发服务端校验
 GET  /api/v1/attachments/{id}            元数据
 GET  /api/v1/attachments/{id}/content    鉴权下载或短期重定向
 DELETE /api/v1/attachments/{id}           删除未引用附件
 ```
 
+- 创建请求必须包含或由服务端推导附件期限；响应返回权威 `expires_at`、当前等级的 `max_file_bytes`、`total_bytes`、`used_bytes` 和 `remaining_bytes`。
+- 所有附件的 `expires_at` 必填且有限；客户端请求的期限超过站点、等级、用途或板块上限时返回 422 `attachment_ttl_exceeded`。
+- 超过单附件限制返回 413 `attachment_too_large`；超过用户总容量返回 409 `attachment_quota_exceeded`。错误可返回安全的数值配额，但不能泄漏其他用户信息。
 - S3 可返回短期预签名上传参数，但完成后必须服务端校验对象。
+- 创建响应仅返回限定对象 key 的短期上传参数、必要请求头和过期时间，绝不返回 S3 Access Key 或 Secret。
+- 客户端调用 `complete` 后，Rust 必须执行 `HEAD`，校验对象存在、大小和约定元数据，再由 worker 流式读取 magic、hash 并完成图片处理；客户端提交的 ETag、Content-Type 和大小都不可信。
+- `complete` 必须幂等：重复提交返回当前附件状态，不重复创建对象或链接。
 - 本地存储由 Rust 流式接收，限制总大小和超时。
-- `pending` 文件不能绑定到已发布正文。
+- `pending` 文件不能绑定到已发布正文；校验失败进入 `quarantined` 或清理临时对象。
+- 私有附件下载先由 Rust 执行业务鉴权，再流式返回或 302 到短期签名 URL；签名 URL 不进入日志、审计 metadata 或长期缓存。
+- 下载和签名 URL 签发必须实时检查 `expires_at`；已过期返回 410 `attachment_expired`。签名 TTL 必须小于附件剩余有效期。
+- `complete` 再次校验用户当前等级、对象实际大小和总容量，防止预签名后降级、并发上传或伪造大小绕过配额。
+
+### 12.1 管理端存储配置 API
+
+```text
+GET   /api/v1/admin/storage/config       获取脱敏配置与来源
+PATCH /api/v1/admin/storage/config       更新允许在线修改的配置
+POST  /api/v1/admin/storage/test         测试候选或当前配置
+```
+
+- 仅具备系统存储管理权限的管理员可调用，并要求 Session、CSRF、近期重新认证和审计。
+- GET 只返回 `secret_configured`、配置来源、后端类型和脱敏连接状态，不返回 Secret。
+- PATCH 中空 Secret 表示保持原值；更换 Secret 只接受写入，不提供读取接口。由环境变量或 Workload Identity 管理的字段为只读，更新返回 409 `managed_configuration`。
+- `test` 可测试尚未保存的候选配置，但响应只包含稳定错误码和脱敏诊断，不回显凭证、内部对象 key 或签名 URL；测试对象使用专用前缀并立即清理。
+- 变更存储后端只保存候选配置，不自动切换已有对象；正式切换必须满足 `OPERATIONS.md` 的迁移与校验流程。
 
 ## 13. 权限与字段隐私
 
@@ -215,6 +239,7 @@ v1 预计：
 /api/v1/admin/themes/*
 /api/v1/admin/plugins/*
 /api/v1/admin/settings/*
+/api/v1/admin/storage/*
 /api/v1/admin/oauth-clients/*
 /api/v1/oauth/interactions/{id}
 /api/v1/oauth/interactions/{id}/decision

@@ -46,14 +46,15 @@
 |---|---|---|---|
 |仪表盘|/admin|等级管理|/admin/levels|
 |用户管理|/admin/users|附件管理|/admin/attachments|
-|角色与权限|/admin/roles|通知与邮件|/admin/notifications|
-|板块管理|/admin/boards|主题管理|/admin/themes|
-|帖子与回复|/admin/posts|插件管理|/admin/plugins|
-|举报与审核|/admin/reports|OAuth 客户端|/admin/oauth|
-|标签管理|/admin/tags|审计日志|/admin/audit|
-|积分与货币|/admin/points|系统设置|/admin/settings|
+|文件存储|/admin/storage|角色与权限|/admin/roles|
+|通知与邮件|/admin/notifications|主题管理|/admin/themes|
+|板块管理|/admin/boards|插件管理|/admin/plugins|
+|帖子与回复|/admin/posts|OAuth 客户端|/admin/oauth|
+|举报与审核|/admin/reports|审计日志|/admin/audit|
+|标签管理|/admin/tags|系统设置|/admin/settings|
+|积分与货币|/admin/points|—|—|
 
-高保真重点页为：仪表盘、举报与审核（含详情）、积分与货币、等级管理、主题管理、插件管理、OAuth 客户端；其余导航项做列表占位页（DataTable \+ FilterBar \+ 少量 Mock 行）即可，但导航必须全部可点。
+高保真重点页为：仪表盘、文件存储、举报与审核（含详情）、积分与货币、等级管理、主题管理、插件管理、OAuth 客户端；其余导航项做列表占位页（DataTable \+ FilterBar \+ 少量 Mock 行）即可，但导航必须全部可点。
 
 ## 1\.5 全站路由表
 
@@ -84,10 +85,11 @@
 |/admin/plugins|插件管理|配置型 / 预编译 UI 插件分区|
 |/admin/oauth|OAuth 客户端管理|含创建客户端流程|
 |/admin/users、/admin/roles、/admin/boards、/admin/posts、/admin/tags、/admin/attachments、/admin/notifications、/admin/audit、/admin/settings|后台占位列表页|DataTable \+ FilterBar \+ 3–5 行 Mock 数据|
+|/admin/storage|文件存储配置|本地/S3 后端切换、连接测试、脱敏凭证、上传限制与迁移提示|
 |/403|403 页|无权限访问时渲染|
 |任意未匹配路由|404 页|catch\-all|
 
-# 二、页面清单与跳转关系（10 类核心页面）
+# 二、页面清单与跳转关系（11 类核心页面）
 
 ## 2\.1 首页（/）
 
@@ -150,7 +152,7 @@
 
 ## 2\.4 发布与编辑页（/publish）
 
-**区块：**类型切换（发布文章 / 发布讨论，与 ?type 对应）；表单：标题 Input、板块 Select、标签多选、Markdown 编辑器（编辑/预览分栏切换）、摘要 Textarea、封面图上传（Mock 本地预览）、草稿自动保存状态文案（如「草稿已于 21:05 自动保存」）、定时发布（日期时间选择，默认关闭）、允许回复 Switch（默认开）、内容可见性 Radio 组（所有人可见 / 回复后可见 / 指定等级或回复后可见 \+ 等级 Select / 支付指定金币后可见 \+ 金额 Input）；底部操作条。
+**区块：**类型切换（发布文章 / 发布讨论，与 ?type 对应）；表单：标题 Input、板块 Select、标签多选、Markdown 编辑器（编辑/预览分栏切换）、摘要 Textarea、封面图/附件上传（显示当前等级单附件上限、已用/总容量和有效期 Select，Mock 本地预览）、草稿自动保存状态文案（如「草稿已于 21:05 自动保存」）、定时发布（日期时间选择，默认关闭）、允许回复 Switch（默认开）、内容可见性 Radio 组（所有人可见 / 回复后可见 / 指定等级或回复后可见 \+ 等级 Select / 支付指定金币后可见 \+ 金额 Input）；底部操作条。
 
 |可点击元素|目标 / 行为|
 |---|---|
@@ -160,6 +162,8 @@
 |预览|打开全屏预览 Modal（模拟详情页渲染）|
 |提交审核|ConfirmDialog → Toast「已提交审核」→ 跳 /topics/201 并显示「审核中」StatusBadge|
 |立即发布|校验标题/板块必填（缺失则字段红字 \+ 顶部错误摘要）→ ConfirmDialog → 跳 /topics/201，Toast「发布成功」|
+|附件选择|文件超过当前等级/站点实际单附件上限时立即清空并提示；页面展示已用容量与总容量|
+|附件有效期|只能选择不超过当前等级、站点、用途和板块最长限制的天数，明确提示到期后不可访问|
 |可见性 Radio|选中「指定等级」时出现等级 Select；选中「支付金币」时出现金额 Input|
 
 ## 2\.5 用户主页（/users/\[name\]，示例 Chaos）
@@ -202,7 +206,21 @@
 |最近管理员操作「查看全部」|/admin/audit|
 |左侧导航各项|见 1\.4 路由表|
 
-## 2\.8 举报与审核页（/admin/reports \+ /admin/reports/\[id\]）
+## 2.8 文件存储配置页（/admin/storage）
+
+页面必须明确当前后端为本地磁盘或 S3 兼容对象存储。S3 表单包含 Endpoint、Region、Bucket、Access Key ID、Secret（仅输入，不回显）、Path-style、预签名上传、公开基础 URL、单文件上限和私有 Bucket 开关；页面只展示“已配置/未配置”和最近测试时间等脱敏状态。
+
+|可点击元素|目标 / 行为|
+|---|---|
+|本地 / S3 切换|切换配置表单；未保存内容需提示确认|
+|保存配置|校验必填项，Secret 只提交至后端并显示脱敏状态，不写入浏览器持久化状态|
+|测试连接|执行后端连接测试，验证 Endpoint、Bucket、权限和签名模式；显示成功/失败 Toast|
+|迁移提示|明确本地与 S3 切换不会自动搬运已有对象，必须先完成迁移、hash 校验和回滚准备|
+|上传限制与私有 Bucket|展示站点硬上限、默认/最长附件有效期、预签名 TTL 和私有访问策略；业务规则取更小限制|
+|等级管理中的附件配额|每级可配置单附件大小、附件总容量和最长有效期，列表直接展示三项额度|
+|附件管理列表|展示上传者等级、容量占用、准确到期时间和即将到期/已过期状态|
+
+## 2.9 举报与审核页（/admin/reports \+ /admin/reports/\[id\]）
 
 **列表页区块：**Tabs（待处理 / 处理中 / 已处理 / 已驳回）；FilterBar（板块、原因、优先级、负责人）；举报列表（ReportCard：被举报内容摘要、原因、举报人、时间、状态）。**详情页区块：**原内容预览（折叠/展开）、举报原因与证据、被举报用户历史处罚记录、内容操作（隐藏内容 / 恢复 / 移动 / 关闭主题）、处罚操作（警告 / 限流 / 禁言 / 板块禁言 / 封禁）、处理原因 Textarea（必填）、申诉处理状态卡、完整审计时间线（ModerationTimeline）。
 
@@ -216,7 +234,7 @@
 |「驳回举报」|ConfirmDialog（填原因）→ 状态变「已驳回」|
 |申诉状态卡「处理申诉」|Modal：维持/撤销处罚 → ConfirmDialog → Toast|
 
-## 2\.9 积分与等级管理页（/admin/points、/admin/levels）
+## 2\.10 积分与等级管理页（/admin/points、/admin/levels）
 
 **积分页区块：**三种货币卡片（经验、B币、贡献：流通量 / 今日产生 / 今日消费）；积分规则表（行为 → 增减数值）；用户账户查询（搜索框 → 账户行）；手动调整入口；流水查询表（含「补偿记录」类型标识）。**等级页区块：**等级表（名称、图标、颜色、经验门槛、权益、用户数量）；可视化晋升路径（LV\.1 → LV\.10 横向节点图）；等级预览卡。
 
@@ -228,7 +246,7 @@
 |等级表行「编辑」|编辑 Modal（名称/颜色/经验门槛/权益）→ 保存 Toast|
 |晋升路径节点（LV\.1–LV\.10）|点击节点在右侧「等级预览卡」展示该等级样式|
 
-## 2\.10 主题、插件与 OAuth 管理页（/admin/themes、/admin/plugins、/admin/oauth）
+## 2\.11 主题、插件与 OAuth 管理页（/admin/themes、/admin/plugins、/admin/oauth）
 
 **主题页区块：**当前主题卡（预览图、亮色/暗色模式标识）；主题列表（含预览图缩略）；外观设置（颜色、字号、圆角、密度）；「上传数据型主题」按钮；代码型主题提示条（「代码型主题需要重新构建部署后生效」）。**插件页区块：**配置型插件区与预编译 UI 插件区（明确标识类型）；插件表格（名称、版本、状态、所需能力、操作）；运行错误与任务状态卡；页面顶部说明「不提供上传并执行任意代码的能力」。**OAuth 页区块：**客户端表格（名称、Client ID、类型 Public/Confidential、状态、Redirect URI、Post logout redirect URI、Scopes、最近授权用户数、安全事件）；创建客户端按钮。
 

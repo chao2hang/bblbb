@@ -162,13 +162,21 @@ Docs: markdown links, referenced files, terminology checks
 
 ## 11. 文件与存储
 
-- 本地/S3 adapter contract。
-- 路径穿越、绝对路径、符号链接。
+- 本地/S3 adapter contract；发布前至少覆盖 AWS S3、MinIO 与 Cloudflare R2，其他厂商通过同一契约测试后才声明兼容。
+- Virtual-hosted-style 与 Path-style、Region/`auto`、签名版本、Multipart 和预签名上传/下载。
+- 路径穿越、绝对路径、符号链接和服务端生成对象 key。
 - MIME 欺骗、SVG、polyglot、图片炸弹和超尺寸。
-- 中断上传、重复 complete 和 pending 清理。
-- 私有/受限附件权限、Range、缓存。
+- 中断上传、过期签名、对象被替换、`HEAD` 大小不符、重复 complete 和 pending 清理。
+- 所有附件 `expires_at` 非空；到期边界前后、时钟偏差、清理任务延迟时均按服务端时间拒绝访问并返回 410。
+- 等级单附件上限、总容量、最长有效期，以及升级、降级、处罚覆盖和并发上传竞争。
+- 预签名后用户降级、并发占满容量或对象实际大小变大时，`complete` 必须拒绝且不超卖配额。
+- 到期附件的原件/variant 清理、正文占位、容量释放、失败重试和管理员延期审计。
+- 私有/受限附件权限、Range、缓存和签名 URL 过期；未授权请求不能获得签名 URL，签名 TTL 不超过附件剩余期限。
+- Secret 不出现在 API、SSR/hydration、浏览器持久化、日志、错误、审计 metadata 和配置导出。
+- S3 403/404/429/5xx、超时、DNS/TLS 错误和部分上传的重试/隔离行为。
 - 图片元数据移除和缩略图。
 - 孤儿 mark-and-sweep 不误删在用文件。
+- 本地→S3 与 S3→本地迁移的对象数量、size/hash、权限、断点续传、切换和回滚。
 - 数据库与附件恢复后一致性。
 
 ## 12. 前端与可访问性

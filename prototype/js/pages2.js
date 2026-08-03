@@ -16,6 +16,10 @@
     const title = params.title || '';
     const editorTab = Store.state.editorTab;
     const content = params.content || '';
+    const levelQuota = MockData.levels.find(level => level.level === Store.state.user.level) || MockData.levels[0];
+    const effectiveMaxMb = Math.min(Store.state.storageConfig.maxUploadMb, levelQuota.attachmentMaxMb);
+    const effectiveTtlDays = Math.min(Store.state.storageConfig.maxAttachmentTtlDays, levelQuota.attachmentTtlDays);
+    const usedAttachmentMb = 638;
     
     const sampleContent = type === 'article' 
       ? '## 标题\n\n在这里写你的文章内容...\n\n### 小标题\n\n- 列表项 1\n- 列表项 2\n\n```js\nconsole.log("hello");\n```'
@@ -41,7 +45,11 @@
               </button>
             </div>
 
-            <input type="text" class="publish-title-input" placeholder="${type === 'article' ? '输入文章标题...' : '输入帖子标题...'}" value="${title}" id="publish-title" />
+            <div class="publish-title-field">
+              <label for="publish-title">${type === 'article' ? '文章标题' : '讨论标题'}</label>
+              <input type="text" class="publish-title-input" placeholder="${type === 'article' ? '写下一个值得阅读的标题…' : '一句话说清你想讨论什么…'}" value="${title}" id="publish-title" maxlength="80" autocomplete="off" />
+              <span class="publish-title-hint">最多 80 字</span>
+            </div>
 
             <div class="editor-container">
               <div class="editor-tabs">
@@ -100,6 +108,18 @@
                   </div>
                   <div class="input-hint">最多添加 5 个标签</div>
                 </div>
+                <div class="input-wrapper">
+                  <label class="input-label" for="publish-attachment">添加附件</label>
+                  <input type="file" class="input-field" id="publish-attachment" onchange="validatePublishAttachment(this, ${effectiveMaxMb})" />
+                  <div class="input-hint">LV.${levelQuota.level}：单附件最多 ${effectiveMaxMb} MB，已用 ${usedAttachmentMb} MB / ${levelQuota.attachmentTotalMb >= 1024 ? `${levelQuota.attachmentTotalMb / 1024} GB` : `${levelQuota.attachmentTotalMb} MB`}。</div>
+                </div>
+                <div class="input-wrapper">
+                  <label class="input-label" for="publish-attachment-ttl">附件有效期</label>
+                  <select class="input-field" id="publish-attachment-ttl">
+                    ${[7, 14, 30, 60, 90, 180, 365].filter(days => days <= effectiveTtlDays).map(days => `<option value="${days}" ${days === Math.min(Store.state.storageConfig.defaultAttachmentTtlDays, effectiveTtlDays) ? 'selected' : ''}>${days} 天</option>`).join('')}
+                  </select>
+                  <div class="input-hint">所有附件都会到期；当前等级最长 ${effectiveTtlDays} 天，到期后不可访问。</div>
+                </div>
                 ${type === 'topic' ? `
                   <div class="input-wrapper">
                     <label class="input-label">回复可见</label>
@@ -111,8 +131,9 @@
                 ` : ''}
               </div>
               <div class="card-footer" style="display: flex; gap: var(--space-2);">
-                ${C.button({ text: '存草稿', variant: 'secondary', onClick: "Toast.show('草稿已保存', 'success')", style: 'flex: 1;' })}
-                ${C.button({ text: '发布', variant: 'primary', onClick: 'submitPublish()', style: 'flex: 1;' })}
+                ${C.button({ text: '存草稿', variant: 'secondary', onClick: 'savePublishDraft()', extraClass: 'btn-block' })}
+                ${C.button({ text: '提交审核', variant: 'secondary', onClick: "submitPublish('pending')" })}
+                ${C.button({ text: '立即发布', variant: 'primary', onClick: "submitPublish('published')" })}
               </div>
             </div>
 
@@ -182,8 +203,7 @@
       tabContent = C.postList(favorites, { empty: { icon: 'heart', title: '暂无收藏', desc: 'TA 还没有收藏任何内容。' } });
     } else if (tab === 'about') {
       tabContent = `
-        <div style="padding: var(--space-6);">
-          <div style="display: grid; grid-template-columns: 120px 1fr; gap: var(--space-4); font-size: var(--text-sm);">
+        <div class="profile-about-grid">
             <div class="text-secondary">用户ID</div>
             <div>${user.name}</div>
             <div class="text-secondary">注册时间</div>
@@ -204,7 +224,6 @@
             ` : ''}
             <div class="text-secondary">个人简介</div>
             <div>${user.bio}</div>
-          </div>
         </div>
       `;
     }
@@ -561,7 +580,7 @@
           <div class="card-header">
             <div style="flex: 1; max-width: 500px;">
               <form class="search-form" onsubmit="event.preventDefault(); Router.navigate('/search?q=' + encodeURIComponent(this.querySelector('input').value) + '&tab=${tab}');">
-                ${C.icon('search', 16, 'class="search-icon"')}
+                ${C.icon('search', 16, 'class="search-form-icon"')}
                 <input type="text" class="search-input" value="${q}" placeholder="搜索帖子、用户、标签..." style="width: 100%;" />
               </form>
             </div>
@@ -606,7 +625,7 @@
                 <p class="text-tertiary" style="font-size: var(--text-xs); margin-top: var(--space-2);">支持 JPG、PNG 格式，大小不超过 2MB</p>
               </div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+            <div class="form-grid form-grid-2">
               <div class="input-wrapper">
                 <label class="input-label">用户名</label>
                 <input type="text" class="input-field" value="${user.name}" disabled />
@@ -674,9 +693,9 @@
           <div class="settings-section-header">
             <div class="settings-section-title">登录设备</div>
           </div>
-          <div class="settings-section-body">
+          <div class="settings-section-body device-list">
             ${devices.map(d => `
-              <div class="device-card">
+              <div class="device-card ${d.isCurrent ? 'is-current' : ''}">
                 <div class="device-icon">
                   ${C.icon(d.isCurrent ? 'monitor' : (d.os.includes('iOS') || d.os.includes('mac') ? 'smartphone' : 'laptop'), 20)}
                 </div>
@@ -780,7 +799,7 @@
         <div class="settings-layout">
           <nav class="settings-nav">
             ${navItems.map(item => `
-              <a href="#/settings?tab=${item.key}" class="settings-nav-item ${tab === item.key ? 'active' : ''}">
+              <a href="#/settings?tab=${item.key}" class="settings-nav-item ${tab === item.key ? 'is-active' : ''}">
                 ${C.icon(item.icon, 16)}
                 <span>${item.label}</span>
               </a>
@@ -816,19 +835,58 @@
     ta.selectionEnd = end + before.length;
   };
 
-  window.submitPublish = function() {
-    const title = document.getElementById('publish-title')?.value;
-    const board = document.getElementById('publish-board')?.value;
-    if (!title || !title.trim()) {
+  window.validatePublishAttachment = function(input, maxMb) {
+    const file = input.files?.[0];
+    if (!file) return;
+    if (file.size > maxMb * 1024 * 1024) {
+      input.value = '';
+      Toast.show(`该文件超过当前等级的 ${maxMb} MB 上限`, 'warning');
+      return;
+    }
+    Toast.show(`附件已选择，将按 ${document.getElementById('publish-attachment-ttl')?.value || '默认'} 天有效期上传`, 'success');
+  };
+
+  function collectPublishForm() {
+    return {
+      type: Store.state.publishType,
+      title: document.getElementById('publish-title')?.value.trim() || '',
+      board: document.getElementById('publish-board')?.value || '',
+      content: document.getElementById('publish-content')?.value.trim() || '',
+      tags: Array.from(document.querySelectorAll('.tag-chip')).map(el => el.childNodes[0]?.textContent.trim()).filter(Boolean)
+    };
+  }
+
+  window.savePublishDraft = function() {
+    const draft = Store.saveDraft(collectPublishForm());
+    Toast.show(`草稿已于 ${draft.savedAt} 保存`, 'success');
+  };
+
+  window.submitPublish = function(status = 'published') {
+    const data = collectPublishForm();
+    if (!data.title) {
       Toast.show('请输入标题', 'warning');
+      document.getElementById('publish-title')?.focus();
       return;
     }
-    if (!board) {
+    if (!data.board) {
       Toast.show('请选择板块', 'warning');
+      document.getElementById('publish-board')?.focus();
       return;
     }
-    Toast.show('发布成功', 'success');
-    setTimeout(() => Router.navigate('/boards/' + board), 800);
+    if (!data.content) {
+      Toast.show('请输入正文内容', 'warning');
+      return;
+    }
+    Modal.open({
+      title: status === 'pending' ? '提交审核' : '确认发布',
+      content: `<p>确定${status === 'pending' ? '提交审核' : '立即发布'}《${C.escapeHtml(data.title)}》吗？</p>`,
+      confirmText: status === 'pending' ? '提交审核' : '发布',
+      onConfirm: () => {
+        const post = Store.createPost(data, status);
+        Toast.show(status === 'pending' ? '已提交审核' : '发布成功', 'success');
+        Router.navigate('/topics/' + post.id);
+      }
+    });
   };
 
   window.handleLogin = function() {

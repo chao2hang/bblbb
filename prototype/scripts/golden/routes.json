@@ -1,0 +1,126 @@
+[
+  {
+    "route": "/",
+    "len": 22398
+  },
+  {
+    "route": "/articles",
+    "len": 7577
+  },
+  {
+    "route": "/boards",
+    "len": 9237
+  },
+  {
+    "route": "/tags",
+    "len": 5123
+  },
+  {
+    "route": "/publish",
+    "len": 13458
+  },
+  {
+    "route": "/notifications",
+    "len": 9003
+  },
+  {
+    "route": "/favorites",
+    "len": 5015
+  },
+  {
+    "route": "/search",
+    "len": 5195
+  },
+  {
+    "route": "/settings",
+    "len": 8778
+  },
+  {
+    "route": "/login",
+    "len": 1701
+  },
+  {
+    "route": "/register",
+    "len": 1846
+  },
+  {
+    "route": "/forgot-password",
+    "len": 908
+  },
+  {
+    "route": "/403",
+    "len": 3539
+  },
+  {
+    "route": "/404",
+    "len": 3493
+  },
+  {
+    "route": "/429",
+    "len": 3526
+  },
+  {
+    "route": "/admin",
+    "len": 17994
+  },
+  {
+    "route": "/admin/reports",
+    "len": 12810
+  },
+  {
+    "route": "/admin/points",
+    "len": 14357
+  },
+  {
+    "route": "/admin/levels",
+    "len": 18259
+  },
+  {
+    "route": "/admin/themes",
+    "len": 13532
+  },
+  {
+    "route": "/admin/plugins",
+    "len": 17793
+  },
+  {
+    "route": "/admin/oauth",
+    "len": 10957
+  },
+  {
+    "route": "/admin/settings",
+    "len": 11610
+  },
+  {
+    "route": "/boards/rust",
+    "len": 8381
+  },
+  {
+    "route": "/tags/Rust",
+    "len": 7873
+  },
+  {
+    "route": "/topics/101",
+    "len": 17608
+  },
+  {
+    "route": "/topics/203",
+    "len": 14766
+  },
+  {
+    "route": "/users/Chaos",
+    "len": 11234
+  },
+  {
+    "route": "/users/Chaos?tab=points",
+    "len": 7925
+  },
+  {
+    "route": "/search?q=rust",
+    "len": 8519
+  },
+  {
+    "route": "/settings?tab=oauth",
+    "len": 9067
+  }
+]

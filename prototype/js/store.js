@@ -15,6 +15,34 @@ window.Store = (function() {
     reports: JSON.parse(JSON.stringify(MockData.reports)),
     oauthClients: JSON.parse(JSON.stringify(MockData.oauthClients)),
     plugins: JSON.parse(JSON.stringify(MockData.plugins)),
+    postOverrides: {},
+    createdPosts: [],
+    drafts: {},
+    dynamicReplies: {},
+    likedPosts: [],
+    likedReplies: [],
+    boardFollows: [],
+    userFollows: [],
+    storageConfig: {
+      backend: 'local',
+      localPath: '/var/lib/bblbb/uploads',
+      endpoint: 'https://s3.amazonaws.com',
+      region: 'ap-southeast-1',
+      bucket: 'bblbb-attachments',
+      accessKeyId: '',
+      secretConfigured: false,
+      publicBaseUrl: '',
+      pathStyle: false,
+      presignedUploads: true,
+      signedUrlTtl: 300,
+      maxUploadMb: 20,
+      defaultAttachmentTtlDays: 30,
+      maxAttachmentTtlDays: 365,
+      bucketPrivate: true,
+      connectionStatus: 'untested',
+      lastTestedAt: ''
+    },
+    lastReplyAt: {},
     mobileDrawerOpen: false,
     userMenuOpen: false,
     publishType: 'topic',
@@ -61,7 +89,17 @@ window.Store = (function() {
         devices: state.devices,
         reports: state.reports,
         oauthClients: state.oauthClients,
-        plugins: state.plugins
+        plugins: state.plugins,
+        postOverrides: state.postOverrides,
+        createdPosts: state.createdPosts,
+        drafts: state.drafts,
+        dynamicReplies: state.dynamicReplies,
+        likedPosts: state.likedPosts,
+        likedReplies: state.likedReplies,
+        boardFollows: state.boardFollows,
+        userFollows: state.userFollows,
+        storageConfig: state.storageConfig,
+        lastReplyAt: state.lastReplyAt
       };
       localStorage.setItem('bblbb_state', JSON.stringify(toSave));
       localStorage.setItem('bblbb_theme', state.theme);
@@ -137,6 +175,112 @@ window.Store = (function() {
 
   function isPaidUnlocked(topicId) {
     return !!state.paidUnlocked[topicId];
+  }
+
+  function getPost(postId) {
+    const base = state.createdPosts.find(item => item.id === Number(postId)) || MockData.getPost(Number(postId));
+    return base ? { ...base, ...(state.postOverrides[postId] || {}) } : null;
+  }
+
+  function getAllPosts() {
+    return [...state.createdPosts, ...MockData.posts].map(post => ({ ...post, ...(state.postOverrides[post.id] || {}) }));
+  }
+
+  function saveDraft(draft) {
+    state.drafts[draft.type || 'topic'] = { ...draft, savedAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) };
+    persist();
+    notify();
+    return state.drafts[draft.type || 'topic'];
+  }
+
+  function createPost(data, status = 'published') {
+    const id = Math.max(300, ...getAllPosts().map(post => Number(post.id))) + 1;
+    const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-');
+    const post = {
+      id, type: data.type || 'topic', title: data.title, summary: data.summary || data.content.slice(0, 100),
+      content: data.content, author: state.user.name, board: data.board, tags: data.tags || [],
+      views: 0, replies: 0, likes: 0, createdAt: now, updatedAt: now, lastReplyAt: now,
+      isPinned: false, isEssence: false, status,
+      restricted: data.restricted || null
+    };
+    state.createdPosts.unshift(post);
+    delete state.drafts[data.type || 'topic'];
+    persist();
+    notify();
+    return post;
+  }
+
+  function getReplies(topicId) {
+    return [...MockData.getReplies(Number(topicId)), ...(state.dynamicReplies[topicId] || [])];
+  }
+
+  function togglePostLike(postId) {
+    const post = getPost(postId);
+    if (!post) return;
+    const index = state.likedPosts.indexOf(postId);
+    const liked = index === -1;
+    if (liked) state.likedPosts.push(postId); else state.likedPosts.splice(index, 1);
+    state.postOverrides[postId] = { ...(state.postOverrides[postId] || {}), likes: Math.max(0, post.likes + (liked ? 1 : -1)) };
+    persist();
+    notify();
+  }
+
+  function isPostLiked(postId) { return state.likedPosts.includes(postId); }
+
+  function toggleReplyLike(topicId, replyId) {
+    const key = `${topicId}:${replyId}`;
+    const index = state.likedReplies.indexOf(key);
+    const liked = index === -1;
+    if (liked) state.likedReplies.push(key); else state.likedReplies.splice(index, 1);
+    const dynamic = state.dynamicReplies[topicId] || [];
+    const reply = dynamic.find(item => item.id === replyId);
+    if (reply) reply.likes = Math.max(0, reply.likes + (liked ? 1 : -1));
+    persist();
+    notify();
+  }
+
+  function isReplyLiked(topicId, replyId) { return state.likedReplies.includes(`${topicId}:${replyId}`); }
+
+  function addReply(topicId, content) {
+    const now = Date.now();
+    if (state.lastReplyAt[topicId] && now - state.lastReplyAt[topicId] < 3000) return { ok: false, reason: 'rate_limit' };
+    const replies = getReplies(topicId);
+    const reply = {
+      id: 1000 + now,
+      topicId,
+      floor: replies.length + 1,
+      author: state.user.name,
+      content,
+      likes: 0,
+      createdAt: new Date(now).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+      isAuthor: getPost(topicId)?.author === state.user.name
+    };
+    if (!state.dynamicReplies[topicId]) state.dynamicReplies[topicId] = [];
+    state.dynamicReplies[topicId].push(reply);
+    state.lastReplyAt[topicId] = now;
+    const post = getPost(topicId);
+    if (post) state.postOverrides[topicId] = { ...(state.postOverrides[topicId] || {}), replies: post.replies + 1 };
+    if (post?.restricted?.type === 'reply') state.replyUnlocked[topicId] = true;
+    persist();
+    notify();
+    return { ok: true, reply, unlocked: post?.restricted?.type === 'reply' };
+  }
+
+  function createReport({ topicId, reason, detail = '', targetType = 'post', replyId = null }) {
+    const post = getPost(topicId);
+    if (!post) return null;
+    const id = `R-${1100 + state.reports.length}`;
+    const report = {
+      id, reason, priority: reason === '违法违规' ? 'high' : 'medium', status: 'pending',
+      reporter: state.user.name, reportedUser: post.author, board: post.board,
+      content: replyId ? `回复 #${replyId}` : post.title, evidence: detail || '用户未补充说明',
+      contentUrl: `#/topics/${topicId}`, createdAt: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+      history: [{ id: 1, type: 'report', operator: state.user.name, time: new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-') }]
+    };
+    state.reports.unshift(report);
+    persist();
+    notify();
+    return report;
   }
 
   function markNotificationRead(id) {
@@ -223,6 +367,36 @@ window.Store = (function() {
     }
   }
 
+  function updateStorageConfig(config) {
+    const allowed = ['local', 's3'];
+    const backend = allowed.includes(config.backend) ? config.backend : 'local';
+    state.storageConfig = {
+      ...state.storageConfig,
+      ...config,
+      backend,
+      maxUploadMb: Math.max(1, Math.min(1024, Number(config.maxUploadMb) || 20)),
+      defaultAttachmentTtlDays: Math.max(1, Math.min(365, Number(config.defaultAttachmentTtlDays) || 30)),
+      maxAttachmentTtlDays: Math.max(1, Math.min(3650, Number(config.maxAttachmentTtlDays) || 365)),
+      signedUrlTtl: Math.max(60, Math.min(3600, Number(config.signedUrlTtl) || 300)),
+      secretConfigured: state.storageConfig.secretConfigured || !!config.secretAccessKey,
+      connectionStatus: config.backend === 's3' ? 'untested' : 'ready'
+    };
+    delete state.storageConfig.secretAccessKey;
+    persist();
+    notify();
+    return state.storageConfig;
+  }
+
+  function testStorageConnection() {
+    const cfg = state.storageConfig;
+    const valid = cfg.backend === 'local' ? !!cfg.localPath : !!(cfg.endpoint && cfg.region && cfg.bucket && cfg.accessKeyId && cfg.secretConfigured);
+    state.storageConfig.connectionStatus = valid ? 'connected' : 'error';
+    state.storageConfig.lastTestedAt = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-');
+    persist();
+    notify();
+    return valid;
+  }
+
   function setPublishType(type) {
     state.publishType = type;
     notify();
@@ -246,11 +420,15 @@ window.Store = (function() {
   function toggleUserMenu() {
     state.userMenuOpen = !state.userMenuOpen;
     notify();
+    // Navbar is rendered from state; refresh it immediately so the menu appears.
+    if (window.Router && typeof Router.refresh === 'function') Router.refresh();
   }
 
-  function closeUserMenu() {
+  function closeUserMenu(refreshView = true) {
+    if (!state.userMenuOpen) return;
     state.userMenuOpen = false;
     notify();
+    if (refreshView && window.Router && typeof Router.refresh === 'function') Router.refresh();
   }
 
   return {
@@ -264,6 +442,17 @@ window.Store = (function() {
     isReplyUnlocked,
     unlockPaid,
     isPaidUnlocked,
+    getPost,
+    getAllPosts,
+    saveDraft,
+    createPost,
+    getReplies,
+    togglePostLike,
+    isPostLiked,
+    toggleReplyLike,
+    isReplyLiked,
+    addReply,
+    createReport,
     markNotificationRead,
     markAllNotificationsRead,
     getUnreadCount,
@@ -273,6 +462,8 @@ window.Store = (function() {
     adjustCoins,
     addOAuthClient,
     togglePlugin,
+    updateStorageConfig,
+    testStorageConnection,
     setPublishType,
     setEditorTab,
     toggleMobileDrawer,
@@ -308,13 +499,13 @@ window.Toast = (function() {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.dataset.id = id;
+    const iconSvg = (n, s) => `<svg class="icon icon-${n}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${window.Icons[n] || ''}</svg>`;
     toast.innerHTML = `
-      <div class="toast-icon"><i data-lucide="${icons[type] || 'info'}" size="18"></i></div>
+      <div class="toast-icon">${iconSvg(icons[type] || 'info', 18)}</div>
       <div class="toast-message">${message}</div>
-      <button class="toast-close" onclick="Toast.dismiss(${id})"><i data-lucide="x" size="14"></i></button>
+      <button class="toast-close" onclick="Toast.dismiss(${id})">${iconSvg('x', 14)}</button>
     `;
     container.appendChild(toast);
-    if (window.lucide) lucide.createIcons({ root: toast });
 
     if (duration > 0) {
       setTimeout(() => dismiss(id), duration);
@@ -349,11 +540,12 @@ window.Modal = (function() {
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
+    const iconSvg = (n, s) => `<svg class="icon icon-${n}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${window.Icons[n] || ''}</svg>`;
     modal.innerHTML = `
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="${title || '对话框'}">
         <div class="modal-header">
           <div class="modal-title">${title || ''}</div>
-          <button class="modal-close" data-action="close"><i data-lucide="x" size="18"></i></button>
+          <button class="modal-close" data-action="close" aria-label="关闭">${iconSvg('x', 18)}</button>
         </div>
         <div class="modal-body">${content || ''}</div>
         ${footer ? `
@@ -365,7 +557,6 @@ window.Modal = (function() {
       </div>
     `;
     container.appendChild(modal);
-    if (window.lucide) lucide.createIcons({ root: modal });
 
     function close() {
       modal.remove();

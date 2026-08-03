@@ -1,0 +1,338 @@
+
+      
+      <header class="navbar">
+        <div class="container nav-container">
+          <div class="nav-left">
+            <button class="mobile-menu-btn" onclick="window.Store.toggleMobileDrawer()" aria-label="菜单"><svg class="icon icon-menu" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"></path> <path d="M4 12h16"></path> <path d="M4 19h16"></path></svg></button>
+            <a href="#/" class="nav-logo">BBLBB</a>
+            <nav class="nav-items" aria-label="主导航">
+              
+                <a href="#/" class="nav-link is-active" aria-current="page">首页</a>
+              
+                <a href="#/articles" class="nav-link ">文章</a>
+              
+                <a href="#/boards" class="nav-link ">板块</a>
+              
+                <a href="#/tags" class="nav-link ">标签</a>
+              
+            </nav>
+          </div>
+          <div class="nav-center">
+            <form class="search-form" onsubmit="event.preventDefault(); window.Router.navigate('/search?q=' + encodeURIComponent(this.querySelector('input').value));">
+              <svg class="icon icon-search" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"></path> <circle cx="11" cy="11" r="8"></circle></svg>
+              <input type="text" placeholder="搜索帖子、用户、标签…" class="search-input" aria-label="搜索">
+            </form>
+          </div>
+          <div class="nav-right">
+            <a href="#/publish" class="btn btn-primary btn-sm"><svg class="icon icon-pen-line" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 21h8"></path> <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path></svg><span>发布</span></a>
+            <a href="#/notifications" class="nav-icon-btn" aria-label="通知">
+              <svg class="icon icon-bell" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>
+              <span class="nav-notif-dot">2</span>
+            </a>
+            <div class="user-menu-wrapper">
+              <button class="user-avatar-btn" onclick="event.stopPropagation(); window.Store.toggleUserMenu()" aria-label="用户菜单">
+                <span class="avatar avatar-md" title="Chaos" role="img" aria-label="Chaos" style="width:32px;height:32px;font-size:13px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span>
+              </button>
+              
+            </div>
+          </div>
+        </div>
+      </header>
+      
+    
+      <div class="page-wrapper">
+        
+      <div class="container">
+        <div class="intro-section">
+          <div>
+            <h1 class="intro-title">BBLBB 社区</h1>
+            <p class="intro-desc">技术爱好者的聚集地 — Rust / 自托管 / Web / 开源。</p>
+          </div>
+          <div class="intro-actions">
+            <a href="#/publish" class="btn btn-primary btn-md"><svg class="icon icon-pen-line" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 21h8"></path> <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path></svg><span>发布帖子</span></a>
+          </div>
+        </div>
+
+        <div class="page-content content-grid">
+          <div class="main-col">
+            <!-- Featured Articles -->
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">精选文章</span>
+                <a href="#/articles" class="section-more">查看全部</a>
+              </div>
+              <div class="card-body">
+                <div class="articles-grid">
+                  
+      <a href="#/topics/101" class="article-card">
+        <div class="article-card-cover" style="background:linear-gradient(135deg, #0088CC 0%, #0088CCcc 55%, #24292F 130%);">
+          <svg class="icon icon-file-text" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path> <path d="M14 2v5a1 1 0 0 0 1 1h5"></path> <path d="M10 9H8"></path> <path d="M16 13H8"></path> <path d="M16 17H8"></path></svg>
+        </div>
+        <div class="article-card-body">
+          <div class="article-card-title">Rust 小机器上的 SQLite 并发实践</div>
+          <div class="article-card-summary">在资源受限的嵌入式设备上运行 SQLite，并发写入一直是个棘手的问题。本文分享 WAL 模式、连接池管理、批量写入等实践经验。</div>
+          <div class="article-card-footer">
+            <div class="article-card-author">
+              <span class="avatar avatar-xs" title="Chaos" role="img" aria-label="Chaos" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span>
+              <span>Chaos</span>
+            </div>
+            <span class="article-card-reads">3.4k 阅读</span>
+          </div>
+        </div>
+      </a>
+      <a href="#/topics/206" class="article-card">
+        <div class="article-card-cover" style="background:linear-gradient(135deg, #0088CC 0%, #0088CCcc 55%, #24292F 130%);">
+          <svg class="icon icon-file-text" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path> <path d="M14 2v5a1 1 0 0 0 1 1h5"></path> <path d="M10 9H8"></path> <path d="M16 13H8"></path> <path d="M16 17H8"></path></svg>
+        </div>
+        <div class="article-card-body">
+          <div class="article-card-title">从零搭建自托管监控系统</div>
+          <div class="article-card-summary">用 Prometheus + Grafana + Alertmanager 搭建一套完整的自托管监控方案，包含完整的配置示例。</div>
+          <div class="article-card-footer">
+            <div class="article-card-author">
+              <span class="avatar avatar-xs" title="Bob" role="img" aria-label="Bob" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#BF8700,#E3B341);color:#fff;">B</span>
+              <span>Bob</span>
+            </div>
+            <span class="article-card-reads">1.9k 阅读</span>
+          </div>
+        </div>
+      </a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Latest Discussions -->
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">最新讨论</span>
+                <a href="#/boards" class="section-more">全部板块</a>
+              </div>
+              
+      <div class="post-list" role="table" aria-label="帖子列表">
+        <div class="post-list-head" role="row">
+          <div class="post-list-head-cell is-main" role="columnheader">主题</div>
+          <div class="post-list-head-cell is-posters" role="columnheader">参与者</div>
+          <div class="post-list-head-cell" role="columnheader">回复</div>
+          <div class="post-list-head-cell" role="columnheader">浏览</div>
+          <div class="post-list-head-cell" role="columnheader">活动</div>
+        </div>
+        
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            
+            
+            <a href="#/topics/204">自托管 VPS 选择讨论 — 哪家性价比最高？</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/chat" class="category-badge" style="--cat-color:#F1592A;">
+      <span class="category-badge-square"></span><span>闲聊</span></a>
+            <a href="#/tags/%E8%87%AA%E6%89%98%E7%AE%A1" class="tag">自托管</a>
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Bob" title="Bob"><span class="avatar avatar-xs" title="Bob" role="img" aria-label="Bob" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#BF8700,#E3B341);color:#fff;">B</span></a><a href="#/users/Alice" title="Alice"><span class="avatar avatar-xs" title="Alice" role="img" aria-label="Alice" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">A</span></a>
+        </div>
+        <div class="post-row-num is-hot" role="cell">32</div>
+        <div class="post-row-num" role="cell">789</div>
+        <div class="post-row-activity" role="cell">1 天前</div>
+      </div>
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            
+            
+            <a href="#/topics/201">使用 SvelteKit 构建博客与轻量论坛是否合理？</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/web-dev" class="category-badge" style="--cat-color:#12A89D;">
+      <span class="category-badge-square"></span><span>Web 开发</span></a>
+            <a href="#/tags/SvelteKit" class="tag">SvelteKit</a><a href="#/tags/%E8%87%AA%E6%89%98%E7%AE%A1" class="tag">自托管</a>
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Alice" title="Alice"><span class="avatar avatar-xs" title="Alice" role="img" aria-label="Alice" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">A</span></a><a href="#/users/Chaos" title="Chaos"><span class="avatar avatar-xs" title="Chaos" role="img" aria-label="Chaos" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span></a>
+        </div>
+        <div class="post-row-num " role="cell">18</div>
+        <div class="post-row-num" role="cell">1.3k</div>
+        <div class="post-row-activity" role="cell">2 小时前</div>
+      </div>
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            <span class="badge badge-pinned">置顶</span>
+            
+            <a href="#/topics/203">分享一个自己写的 Rust 命令行工具</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/rust" class="category-badge" style="--cat-color:#B85C38;">
+      <span class="category-badge-square"></span><span>Rust</span></a>
+            <a href="#/tags/Rust" class="tag">Rust</a><a href="#/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96" class="tag">性能优化</a>
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Chaos" title="Chaos"><span class="avatar avatar-xs" title="Chaos" role="img" aria-label="Chaos" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span></a><a href="#/users/Bob" title="Bob"><span class="avatar avatar-xs" title="Bob" role="img" aria-label="Bob" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#BF8700,#E3B341);color:#fff;">B</span></a>
+        </div>
+        <div class="post-row-num " role="cell">8</div>
+        <div class="post-row-num" role="cell">567</div>
+        <div class="post-row-activity" role="cell">5 小时前</div>
+      </div>
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            
+            
+            <a href="#/topics/202">OAuth Provider 应该自研到什么程度？</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/opensource" class="category-badge" style="--cat-color:#652D90;">
+      <span class="category-badge-square"></span><span>开源项目</span></a>
+            <a href="#/tags/OAuth" class="tag">OAuth</a><a href="#/tags/%E8%87%AA%E6%89%98%E7%AE%A1" class="tag">自托管</a>
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Bob" title="Bob"><span class="avatar avatar-xs" title="Bob" role="img" aria-label="Bob" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#BF8700,#E3B341);color:#fff;">B</span></a><a href="#/users/Echo" title="Echo"><span class="avatar avatar-xs" title="Echo" role="img" aria-label="Echo" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#8250DF,#8C959F);color:#fff;">E</span></a>
+        </div>
+        <div class="post-row-num " role="cell">12</div>
+        <div class="post-row-num" role="cell">892</div>
+        <div class="post-row-activity" role="cell">1 天前</div>
+      </div>
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            
+            <span class="badge badge-essence">精华</span>
+            <a href="#/topics/101">Rust 小机器上的 SQLite 并发实践</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/tech-essay" class="category-badge" style="--cat-color:#0088CC;">
+      <span class="category-badge-square"></span><span>技术随笔</span></a>
+            <a href="#/tags/Rust" class="tag">Rust</a><a href="#/tags/SQLite" class="tag">SQLite</a><a href="#/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96" class="tag">性能优化</a>
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Chaos" title="Chaos"><span class="avatar avatar-xs" title="Chaos" role="img" aria-label="Chaos" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span></a><a href="#/users/Alice" title="Alice"><span class="avatar avatar-xs" title="Alice" role="img" aria-label="Alice" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">A</span></a>
+        </div>
+        <div class="post-row-num is-hot" role="cell">23</div>
+        <div class="post-row-num" role="cell">3.4k</div>
+        <div class="post-row-activity" role="cell">3 天前</div>
+      </div>
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            
+            
+            <a href="#/topics/205">建议增加暗黑模式</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/meta" class="category-badge" style="--cat-color:#808281;">
+      <span class="category-badge-square"></span><span>站务</span></a>
+            
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Alice" title="Alice"><span class="avatar avatar-xs" title="Alice" role="img" aria-label="Alice" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">A</span></a><a href="#/users/Echo" title="Echo"><span class="avatar avatar-xs" title="Echo" role="img" aria-label="Echo" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#8250DF,#8C959F);color:#fff;">E</span></a>
+        </div>
+        <div class="post-row-num " role="cell">5</div>
+        <div class="post-row-num" role="cell">234</div>
+        <div class="post-row-activity" role="cell">8 天前</div>
+      </div>
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            
+            <span class="badge badge-essence">精华</span>
+            <a href="#/topics/206">从零搭建自托管监控系统</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/tech-essay" class="category-badge" style="--cat-color:#0088CC;">
+      <span class="category-badge-square"></span><span>技术随笔</span></a>
+            <a href="#/tags/%E8%87%AA%E6%89%98%E7%AE%A1" class="tag">自托管</a><a href="#/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96" class="tag">性能优化</a>
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Bob" title="Bob"><span class="avatar avatar-xs" title="Bob" role="img" aria-label="Bob" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#BF8700,#E3B341);color:#fff;">B</span></a><a href="#/users/Chaos" title="Chaos"><span class="avatar avatar-xs" title="Chaos" role="img" aria-label="Chaos" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span></a>
+        </div>
+        <div class="post-row-num " role="cell">15</div>
+        <div class="post-row-num" role="cell">1.9k</div>
+        <div class="post-row-activity" role="cell">13 天前</div>
+      </div>
+      </div>
+            </div>
+          </div>
+
+          <div class="side-col">
+            
+      <div class="card sidebar-card">
+        <div class="sidebar-card-user">
+          <span class="avatar avatar-xl" title="Chaos" role="img" aria-label="Chaos" style="width:64px;height:64px;font-size:27px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span>
+          <div class="sidebar-card-name">Chaos</div>
+          <div class="sidebar-card-badges"><span class="badge badge-role-mod">版主</span><span class="badge badge-level">LV.6</span></div>
+        </div>
+        
+      <div class="level-progress" role="progressbar" aria-valuenow="89" aria-valuemin="0" aria-valuemax="100">
+        <div class="level-progress-head">
+          <span class="level-progress-label">LV.6 · 2.7k / 3k 经验</span>
+        </div>
+        <div class="level-progress-track"><div class="level-progress-fill" style="width:89%"></div></div>
+      </div>
+        <div class="sidebar-card-stats">
+          <div class="sidebar-card-stat"><span class="stat-num">328</span><span class="stat-label">B币</span></div>
+          <div class="sidebar-card-stat"><span class="stat-num"></span><span class="stat-label">贡献</span></div>
+          <div class="sidebar-card-stat"><span class="stat-num">0</span><span class="stat-label">获赞</span></div>
+        </div>
+      </div>
+
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">活跃板块</span>
+              </div>
+              <div class="card-body">
+                <div class="boards-grid" style="grid-template-columns: 1fr;">
+                  
+      <a href="#/boards/tech-essay" class="board-card" style="--cat-color:#0088CC;">
+        <div class="board-card-icon"><svg class="icon icon-book-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v16"></path> <path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"></path></svg></div>
+        <div class="board-card-name">技术随笔</div>
+        <div class="board-card-desc">技术思考与经验分享</div>
+        <div class="board-card-stats">
+          <span><strong>1.3k</strong> 帖子</span>
+          <span><strong>12</strong> 今日</span>
+        </div>
+      </a>
+      <a href="#/boards/rust" class="board-card" style="--cat-color:#B85C38;">
+        <div class="board-card-icon"><svg class="icon icon-cog" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 10.27 7 3.34"></path> <path d="m11 13.73-4 6.93"></path> <path d="M12 22v-2"></path> <path d="M12 2v2"></path> <path d="M14 12h8"></path> <path d="m17 20.66-1-1.73"></path> <path d="m17 3.34-1 1.73"></path> <path d="M2 12h2"></path> <path d="m20.66 17-1.73-1"></path> <path d="m20.66 7-1.73 1"></path> <path d="m3.34 17 1.73-1"></path> <path d="m3.34 7 1.73 1"></path> <circle cx="12" cy="12" r="2"></circle> <circle cx="12" cy="12" r="8"></circle></svg></div>
+        <div class="board-card-name">Rust</div>
+        <div class="board-card-desc">Rust 语言学习与实践</div>
+        <div class="board-card-stats">
+          <span><strong>892</strong> 帖子</span>
+          <span><strong>8</strong> 今日</span>
+        </div>
+      </a>
+      <a href="#/boards/web-dev" class="board-card" style="--cat-color:#12A89D;">
+        <div class="board-card-icon"><svg class="icon icon-globe" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle> <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path> <path d="M2 12h20"></path></svg></div>
+        <div class="board-card-name">Web 开发</div>
+        <div class="board-card-desc">前端、后端、全栈 Web 技术</div>
+        <div class="board-card-stats">
+          <span><strong>2.1k</strong> 帖子</span>
+          <span><strong>25</strong> 今日</span>
+        </div>
+      </a>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">热门标签</span>
+              </div>
+              <div class="card-body">
+                <div class="tag-cloud">
+                  <a href="#/tags/Rust" class="tag">Rust<span class="tag-count">456</span></a><a href="#/tags/%E8%87%AA%E6%89%98%E7%AE%A1" class="tag">自托管<span class="tag-count">234</span></a><a href="#/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96" class="tag">性能优化<span class="tag-count">156</span></a><a href="#/tags/SvelteKit" class="tag">SvelteKit<span class="tag-count">128</span></a><a href="#/tags/SQLite" class="tag">SQLite<span class="tag-count">89</span></a><a href="#/tags/OAuth" class="tag">OAuth<span class="tag-count">67</span></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    
+      </div>
+    

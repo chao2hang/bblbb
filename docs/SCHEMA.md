@@ -423,8 +423,11 @@ SQLite：
 
 - `id`、`owner_id`、`storage_backend`（`local/s3`）、`storage_key`。
 - `original_name`、`media_type`、`size_bytes`、`sha256`。
-- `width`、`height`（图片可空）、`status`（`pending/ready/quarantined/deleted`）。
+- `width`、`height`（图片可空）、`status`（`pending/processing/ready/expired/quarantined/deleted`）。
+- `expires_at` 必填，创建时由等级、站点、用途和板块规则计算，不允许永久附件；`expired_at`、`purge_after` 记录失效与物理清理边界。
+- `quota_bytes_charged` 记录计入所有者配额的字节数，防止对象变体或重算口径漂移。
 - `is_public`、`ref_count`（可重建）、`created_at`、`deleted_at`。
+- 索引至少包含 `(owner_id, status, expires_at)`、`(status, purge_after)`；用户已用容量以未物理清理且计费状态的 `quota_bytes_charged` 求和，必要时使用可重建计数缓存。
 
 ### `attachment_links`
 

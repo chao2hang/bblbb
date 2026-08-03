@@ -1,0 +1,123 @@
+
+      
+      <header class="navbar">
+        <div class="container nav-container">
+          <div class="nav-left">
+            <button class="mobile-menu-btn" onclick="window.Store.toggleMobileDrawer()" aria-label="菜单"><svg class="icon icon-menu" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5h16"></path> <path d="M4 12h16"></path> <path d="M4 19h16"></path></svg></button>
+            <a href="#/" class="nav-logo">BBLBB</a>
+            <nav class="nav-items" aria-label="主导航">
+              
+                <a href="#/" class="nav-link ">首页</a>
+              
+                <a href="#/articles" class="nav-link ">文章</a>
+              
+                <a href="#/boards" class="nav-link is-active" aria-current="page">板块</a>
+              
+                <a href="#/tags" class="nav-link ">标签</a>
+              
+            </nav>
+          </div>
+          <div class="nav-center">
+            <form class="search-form" onsubmit="event.preventDefault(); window.Router.navigate('/search?q=' + encodeURIComponent(this.querySelector('input').value));">
+              <svg class="icon icon-search" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"></path> <circle cx="11" cy="11" r="8"></circle></svg>
+              <input type="text" placeholder="搜索帖子、用户、标签…" class="search-input" aria-label="搜索">
+            </form>
+          </div>
+          <div class="nav-right">
+            <a href="#/publish" class="btn btn-primary btn-sm"><svg class="icon icon-pen-line" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 21h8"></path> <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path></svg><span>发布</span></a>
+            <a href="#/notifications" class="nav-icon-btn" aria-label="通知">
+              <svg class="icon icon-bell" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>
+              <span class="nav-notif-dot">2</span>
+            </a>
+            <div class="user-menu-wrapper">
+              <button class="user-avatar-btn" onclick="event.stopPropagation(); window.Store.toggleUserMenu()" aria-label="用户菜单">
+                <span class="avatar avatar-md" title="Chaos" role="img" aria-label="Chaos" style="width:32px;height:32px;font-size:13px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span>
+              </button>
+              
+            </div>
+          </div>
+        </div>
+      </header>
+      
+    
+      <div class="page-wrapper">
+        
+      <div class="container">
+        
+      <nav class="breadcrumb" aria-label="面包屑">
+        
+          
+          <a class="breadcrumb-link" href="#/">首页</a>
+        
+          <span class="breadcrumb-sep"><svg class="icon icon-chevron-right" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"></path></svg></span>
+          <a class="breadcrumb-link" href="#/boards">板块</a>
+        
+          <span class="breadcrumb-sep"><svg class="icon icon-chevron-right" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"></path></svg></span>
+          <span class="breadcrumb-current">Rust</span>
+        
+      </nav>
+        
+        <div class="card">
+          <div class="board-header">
+            <div class="board-icon">
+              <svg class="icon icon-cog" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 10.27 7 3.34"></path> <path d="m11 13.73-4 6.93"></path> <path d="M12 22v-2"></path> <path d="M12 2v2"></path> <path d="M14 12h8"></path> <path d="m17 20.66-1-1.73"></path> <path d="m17 3.34-1 1.73"></path> <path d="M2 12h2"></path> <path d="m20.66 17-1.73-1"></path> <path d="m20.66 7-1.73 1"></path> <path d="m3.34 17 1.73-1"></path> <path d="m3.34 7 1.73 1"></path> <circle cx="12" cy="12" r="2"></circle> <circle cx="12" cy="12" r="8"></circle></svg>
+            </div>
+            <div class="board-info">
+              <h1 class="board-name">Rust</h1>
+              <p class="board-desc">Rust 语言学习与实践</p>
+              <div class="board-stats">
+                <span><strong>892</strong> 帖子</span>
+                <span><strong>8</strong> 今日</span>
+                <span>版主：<a href="#/users/Chaos">Chaos</a>、<a href="#/users/Echo">Echo</a></span>
+              </div>
+            </div>
+            <div>
+              <a href="#/publish" class="btn btn-primary btn-md"><svg class="icon icon-pen-line" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 21h8"></path> <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path></svg><span>发布新帖</span></a>
+            </div>
+          </div>
+          
+          
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" aria-selected="true" class="tab is-active" onclick="Router.setBoardTab('latest')">最新</button><button type="button" role="tab" aria-selected="false" class="tab " onclick="Router.setBoardTab('hot')">热门</button><button type="button" role="tab" aria-selected="false" class="tab " onclick="Router.setBoardTab('essence')">精华</button>
+      </div>
+          
+          <div>
+            
+      <div class="post-list" role="table" aria-label="帖子列表">
+        <div class="post-list-head" role="row">
+          <div class="post-list-head-cell is-main" role="columnheader">主题</div>
+          <div class="post-list-head-cell is-posters" role="columnheader">参与者</div>
+          <div class="post-list-head-cell" role="columnheader">回复</div>
+          <div class="post-list-head-cell" role="columnheader">浏览</div>
+          <div class="post-list-head-cell" role="columnheader">活动</div>
+        </div>
+        
+      <div class="post-row" role="row">
+        <div class="post-row-main" role="cell">
+          <div class="post-row-title">
+            <span class="badge badge-pinned">置顶</span>
+            
+            <a href="#/topics/203">分享一个自己写的 Rust 命令行工具</a>
+          </div>
+          <div class="post-row-meta">
+            <a href="#/boards/rust" class="category-badge" style="--cat-color:#B85C38;">
+      <span class="category-badge-square"></span><span>Rust</span></a>
+            <a href="#/tags/Rust" class="tag">Rust</a><a href="#/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96" class="tag">性能优化</a>
+          </div>
+        </div>
+        <div class="post-row-posters" role="cell">
+          <a href="#/users/Chaos" title="Chaos"><span class="avatar avatar-xs" title="Chaos" role="img" aria-label="Chaos" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#DA3633,#F778BA);color:#fff;">C</span></a><a href="#/users/Bob" title="Bob"><span class="avatar avatar-xs" title="Bob" role="img" aria-label="Bob" style="width:20px;height:20px;font-size:8px;background:linear-gradient(135deg,#BF8700,#E3B341);color:#fff;">B</span></a>
+        </div>
+        <div class="post-row-num " role="cell">8</div>
+        <div class="post-row-num" role="cell">567</div>
+        <div class="post-row-activity" role="cell">5 小时前</div>
+      </div>
+      </div>
+          </div>
+          
+          
+        </div>
+      </div>
+    
+      </div>
+    

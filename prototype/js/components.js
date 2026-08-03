@@ -10,15 +10,16 @@ window.Components = (function() {
     return `<div class="avatar avatar-${size}" title="${name}">${initial}</div>`;
   }
 
-  // --- Icon (Lucide) ---
+  // --- Icon (local inline SVG from Icons table, no CDN) ---
   function icon(name, size = 16, extra = '') {
-    return `<i data-lucide="${name}" size="${size}" ${extra}></i>`;
+    const body = window.Icons[name] || window.Icons.circle || '';
+    return `<svg class="icon icon-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" ${extra}>${body}</svg>`;
   }
 
   // --- Button ---
   function button({ text = '', variant = 'primary', size = 'md', icon: iconName = '', iconOnly = false, onClick = '', href = '', disabled = false, id = '', extraClass = '' }) {
     const classes = `btn btn-${variant} btn-${size} ${iconOnly ? 'btn-icon' : ''} ${extraClass}`.trim();
-    const iconHtml = iconName ? `<i data-lucide="${iconName}" size="${size === 'sm' ? 14 : 16}"></i>` : '';
+    const iconHtml = iconName ? icon(iconName, size === 'sm' ? 14 : 16) : '';
     const attrs = [
       `class="${classes}"`,
       disabled ? 'disabled' : '',
@@ -140,6 +141,9 @@ window.Components = (function() {
             <a href="#/notifications" class="nav-icon-btn" aria-label="通知">
               ${icon('bell', 20)}
               ${unread > 0 ? `<span class="notification-badge">${unread}</span>` : ''}
+            </a>
+            <a href="#/admin" class="nav-icon-btn" aria-label="进入管理后台" title="管理后台">
+              ${icon('shield', 20)}
             </a>
             <div class="user-menu-wrapper">
               <button class="user-avatar-btn" onclick="event.stopPropagation(); Store.toggleUserMenu()" aria-label="用户菜单">
@@ -615,6 +619,9 @@ window.Components = (function() {
   function adminSidebar(activePath) {
     const navItems = [
       { label: '仪表盘', href: '#/admin', icon: 'layout-dashboard' },
+      { label: '用户管理', href: '#/admin/users', icon: 'users' },
+      { label: '内容管理', href: '#/admin/content', icon: 'file-text' },
+      { label: '板块管理', href: '#/admin/boards', icon: 'globe' },
       { label: '举报与审核', href: '#/admin/reports', icon: 'flag' },
       { label: '积分与货币', href: '#/admin/points', icon: 'coins' },
       { label: '等级管理', href: '#/admin/levels', icon: 'trophy' },
@@ -632,18 +639,21 @@ window.Components = (function() {
 
     return `
       <aside class="admin-sidebar">
-        <div class="sidebar-header">
-          <a href="#/" class="sidebar-logo">BBLBB</a>
-          <span class="sidebar-label">管理后台</span>
+        <div class="admin-sidebar-group">
+          <div class="admin-sidebar-label">管理后台</div>
+          <nav aria-label="后台导航">
+            ${navItems.map(item => `
+              <a href="${item.href}" class="admin-sidebar-item ${isActive(item.href) ? 'is-active' : ''}">
+                ${icon(item.icon, 18)}
+                <span>${item.label}</span>
+              </a>
+            `).join('')}
+          </nav>
         </div>
-        <nav class="sidebar-nav">
-          ${navItems.map(item => `
-            <a href="${item.href}" class="sidebar-item ${isActive(item.href) ? 'active' : ''}">
-              ${icon(item.icon, 18)}
-              <span>${item.label}</span>
-            </a>
-          `).join('')}
-        </nav>
+        <div class="admin-sidebar-group">
+          <div class="admin-sidebar-label">快捷入口</div>
+          <a href="#/" class="admin-sidebar-item">${icon('chevron-left', 18)}<span>返回社区</span></a>
+        </div>
       </aside>
     `;
   }
