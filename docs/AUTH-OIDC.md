@@ -1,7 +1,7 @@
 # BBLBB — 本地认证与 OpenID Connect Provider
 
-> 版本：v0.3
-> 本文同时定义论坛本地 Session 和 v1.1 的 OIDC Provider。OAuth 2.0 负责授权；OpenID Connect 在其上提供身份登录。
+> 版本：v0.4
+> 本文同时定义论坛本地 Session 和 v1.0 的 OIDC Provider。OAuth 2.0 负责授权；OpenID Connect 在其上提供身份登录。
 
 ## 1. 支持范围
 
@@ -11,7 +11,7 @@ v1.0 本地认证：
 - 邮箱验证、找回密码、多设备 Session。
 - 可选 TOTP。
 
-v1.1 OIDC：
+v1.0 OIDC：
 
 - Authorization Code Flow。
 - 所有 Client 强制 PKCE S256。
@@ -183,6 +183,7 @@ Provider 校验：
 - `email` 只在用户同意且 scope 存在时输出。
 - `picture` 应为安全公开 URL，不输出私有附件签名 URL。
 - 未来自定义 scope 需要独立评审；默认不输出角色和权限。
+- 市场交易 scope 与身份 claim scope 分离。`openid/profile/email` 永远不能发起扣款；`marketplace.purchase`、`marketplace.refund` 等高风险 scope 仅授予经管理员批准的 Confidential Client，并按 [`MARKETPLACE.md`](MARKETPLACE.md) 单独同意、限额和审计。
 
 ## 11. 用户同意
 

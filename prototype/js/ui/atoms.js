@@ -16,8 +16,11 @@ window.Atoms = (function () {
 
   // --- Icon（本地内联 SVG，无 CDN） ---
   function icon(name, size = 16, extra = '') {
-    const body = (window.Icons && window.Icons[name]) || '';
-    return `<svg class="icon icon-${escapeHtml(name)}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" ${extra || ''}>${body}</svg>`;
+    const key = String(name || '');
+    const registered = window.Icons && window.Icons[key];
+    const body = registered || '<circle cx="12" cy="12" r="9" /><path d="M9.8 9a2.35 2.35 0 1 1 3.65 1.97c-.9.57-1.45 1.02-1.45 2.03" /><path d="M12 17h.01" />';
+    const missing = registered ? '' : ' data-missing-icon="true" title="Missing icon: ' + escapeHtml(key) + '"';
+    return `<svg class="icon icon-${escapeHtml(key)}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"${missing} ${extra || ''}>${body}</svg>`;
   }
 
   // --- Avatar（首字符 + 用户名哈希色板，渐变底，无图片请求） ---
@@ -122,7 +125,8 @@ window.Atoms = (function () {
 
   // --- Switch（开关） ---
   function switchEl(on, onClick = '') {
-    return `<button type="button" role="switch" aria-checked="${on ? 'true' : 'false'}" class="switch ${on ? 'is-on' : ''}"${onClick ? ` data-action="${escapeHtml(onClick)}"` : ''}><span class="switch-knob"></span></button>`;
+    const action = `const next=this.getAttribute('aria-checked')!=='true';this.setAttribute('aria-checked',String(next));this.classList.toggle('is-on',next);${onClick || ''}`;
+    return `<button type="button" role="switch" aria-checked="${on ? 'true' : 'false'}" class="switch ${on ? 'is-on' : ''}" onclick="${escapeHtml(action)}"><span class="switch-knob"></span></button>`;
   }
 
   // --- Skeleton（骨架占位） ---

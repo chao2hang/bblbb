@@ -7,6 +7,7 @@ window.MockData = (function() {
   const currentUser = {
     name: 'Chaos',
     bio: 'Rust 爱好者，喜欢折腾自托管服务',
+    profileCover: '',
     level: 6,
     exp: 2680,
     expNext: 3000,
@@ -487,6 +488,7 @@ State 用于防止 CSRF，必须：
       id: 206,
       type: 'article',
       title: '从零搭建自托管监控系统',
+      visibilityLevel: 7,
       summary: '用 Prometheus + Grafana + Alertmanager 搭建一套完整的自托管监控方案，包含完整的配置示例。',
       content: '监控是自托管的重要组成部分...',
       author: 'Bob',
@@ -696,16 +698,16 @@ State 用于防止 CSRF，必须：
 
   // Levels
   const levels = [
-    { level: 1, name: 'LV.1 新手上路', color: '#919191', expRequired: 0, benefits: ['发帖', '回复'], userCount: 1250, attachmentMaxMb: 2, attachmentTotalMb: 20, attachmentTtlDays: 7 },
-    { level: 2, name: 'LV.2 初窥门径', color: '#919191', expRequired: 100, benefits: ['发帖', '回复', '收藏'], userCount: 890, attachmentMaxMb: 4, attachmentTotalMb: 50, attachmentTtlDays: 14 },
-    { level: 3, name: 'LV.3 略有小成', color: '#919191', expRequired: 500, benefits: ['发帖', '回复', '收藏', '私信'], userCount: 560, attachmentMaxMb: 8, attachmentTotalMb: 200, attachmentTtlDays: 30 },
-    { level: 4, name: 'LV.4 渐入佳境', color: '#0088CC', expRequired: 1000, benefits: ['发帖', '回复', '收藏', '私信', '签名档'], userCount: 340, attachmentMaxMb: 12, attachmentTotalMb: 500, attachmentTtlDays: 60 },
-    { level: 5, name: 'LV.5 炉火纯青', color: '#0088CC', expRequired: 1500, benefits: ['发帖', '回复', '收藏', '私信', '签名档', '付费内容'], userCount: 180, attachmentMaxMb: 20, attachmentTotalMb: 1024, attachmentTtlDays: 90 },
-    { level: 6, name: 'LV.6 登峰造极', color: '#E9A100', expRequired: 3000, benefits: ['发帖', '回复', '收藏', '私信', '签名档', '付费内容', '自定义头衔'], userCount: 85, attachmentMaxMb: 32, attachmentTotalMb: 2048, attachmentTtlDays: 180 },
-    { level: 7, name: 'LV.7 出神入化', color: '#E9A100', expRequired: 5000, benefits: ['全部 LV.6 权益', '版主申请资格', '专属徽章'], userCount: 32, attachmentMaxMb: 48, attachmentTotalMb: 4096, attachmentTtlDays: 270 },
-    { level: 8, name: 'LV.8 一代宗师', color: '#E45735', expRequired: 8000, benefits: ['全部 LV.7 权益', '邀请码', '年度礼物'], userCount: 12, attachmentMaxMb: 64, attachmentTotalMb: 8192, attachmentTtlDays: 365 },
-    { level: 9, name: 'LV.9 天人合一', color: '#E45735', expRequired: 15000, benefits: ['全部 LV.8 权益', '终身会员', '社区顾问'], userCount: 3, attachmentMaxMb: 96, attachmentTotalMb: 16384, attachmentTtlDays: 365 },
-    { level: 10, name: 'LV.10 返璞归真', color: '#E45735', expRequired: 30000, benefits: ['全部权益', '传说级徽章', '创始人面对面'], userCount: 0, attachmentMaxMb: 128, attachmentTotalMb: 32768, attachmentTtlDays: 365 }
+    { level: 1, name: '新手', color: '#7C8581', expRequired: 0, benefits: ['浏览公开内容', '回复公开主题', '每日发布 2 条'], userCount: 1250, dailyPosts: 2, maxVisibilityLevel: 1, attachmentMaxMb: 2, attachmentTotalMb: 20 },
+    { level: 2, name: '成员', color: '#6F7C77', expRequired: 100, benefits: ['发布主题', '收藏与关注', '设置 LV.2 可见'], userCount: 890, dailyPosts: 5, maxVisibilityLevel: 2, attachmentMaxMb: 4, attachmentTotalMb: 50 },
+    { level: 3, name: '活跃成员', color: '#567A72', expRequired: 400, benefits: ['发送私信', '编辑历史版本', '设置 LV.3 可见'], userCount: 560, dailyPosts: 8, maxVisibilityLevel: 3, attachmentMaxMb: 8, attachmentTotalMb: 200 },
+    { level: 4, name: '资深成员', color: '#297D72', expRequired: 1000, benefits: ['发布专栏文章', '创建投票', '设置 LV.4 可见'], userCount: 340, dailyPosts: 12, maxVisibilityLevel: 4, attachmentMaxMb: 12, attachmentTotalMb: 500 },
+    { level: 5, name: '创作者', color: '#167F74', expRequired: 1800, benefits: ['发布付费内容', '内容数据分析', '设置 LV.5 可见'], userCount: 180, dailyPosts: 16, maxVisibilityLevel: 5, attachmentMaxMb: 20, attachmentTotalMb: 1024 },
+    { level: 6, name: '核心创作者', color: '#B7791F', expRequired: 3000, benefits: ['自定义头衔', '优先审核', '设置 LV.6 可见'], userCount: 85, dailyPosts: 20, maxVisibilityLevel: 6, attachmentMaxMb: 32, attachmentTotalMb: 2048 },
+    { level: 7, name: '社区专家', color: '#A96713', expRequired: 8000, benefits: ['申请板块专家', '专属专家徽章', '设置 LV.7 可见'], userCount: 32, dailyPosts: 30, maxVisibilityLevel: 7, attachmentMaxMb: 48, attachmentTotalMb: 4096 },
+    { level: 8, name: '社区导师', color: '#B65336', expRequired: 14000, benefits: ['申请版主', '新人指导权限', '设置 LV.8 可见'], userCount: 12, dailyPosts: 40, maxVisibilityLevel: 8, attachmentMaxMb: 64, attachmentTotalMb: 8192 },
+    { level: 9, name: '社区顾问', color: '#9E412B', expRequired: 24000, benefits: ['参与社区议事', '优先体验功能', '设置 LV.9 可见'], userCount: 3, dailyPosts: 60, maxVisibilityLevel: 9, attachmentMaxMb: 96, attachmentTotalMb: 16384 },
+    { level: 10, name: '荣誉成员', color: '#843622', expRequired: 40000, benefits: ['荣誉身份标识', '社区年度共创', '设置 LV.10 可见'], userCount: 0, dailyPosts: 100, maxVisibilityLevel: 10, attachmentMaxMb: 128, attachmentTotalMb: 32768 }
   ];
 
   // Plugins

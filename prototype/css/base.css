@@ -25,6 +25,19 @@ body {
   line-height: var(--text-base-leading);
   color: var(--color-text-primary);
   background: var(--color-bg-page);
+  transition: background-color var(--duration-slow) var(--ease-standard), color var(--duration-slow) var(--ease-standard);
+}
+
+#app {
+  min-height: calc(100vh - var(--header-h));
+}
+
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition-property: color, background-color, border-color, box-shadow !important;
+  transition-duration: var(--duration-slow) !important;
+  transition-timing-function: var(--ease-standard) !important;
 }
 
 img,
@@ -53,9 +66,22 @@ button {
 a {
   color: var(--color-brand);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
 }
 
 a:hover {
+  text-decoration: underline;
+}
+
+.text-link {
+  display: inline;
+  padding: 0;
+  color: var(--color-brand);
+  font: inherit;
+  vertical-align: baseline;
+}
+
+.text-link:hover {
   text-decoration: underline;
 }
 
@@ -171,7 +197,10 @@ samp {
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
-  *::after {
+  *::after,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -265,6 +294,10 @@ samp {
 }
 
 .prose pre code {
+  display: block;
+  min-width: 0;
+  width: max-content;
+  max-width: none;
   padding: 0;
   background: none;
   font-size: inherit;

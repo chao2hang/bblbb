@@ -37,7 +37,8 @@
     const recentUsers = Object.values(MockData.users).slice(0, 5);
 
     const content = `
-      <div class="admin-page-header">
+      <div class="admin-dashboard">
+      <div class="admin-page-header admin-dashboard-header">
         <div>
           <h1 class="admin-page-title">仪表盘</h1>
           <p class="admin-page-desc">社区运营数据概览</p>
@@ -47,19 +48,20 @@
         </div>
       </div>
 
-      <div class="stats-grid">
+      <div class="stats-grid admin-dashboard-stats">
         ${statCards.map(s => `
-          <div class="stat-card">
-            <div class="stat-card-label">
-              ${C.icon(s.icon, 16)} ${s.label}
+          <div class="stat-card admin-dashboard-stat">
+            <span class="admin-stat-icon">${C.icon(s.icon, 17)}</span>
+            <div class="admin-stat-copy">
+              <div class="stat-card-label">${s.label}</div>
+              <div class="stat-card-value">${s.value}</div>
+              <div class="stat-card-change ${s.negative ? 'negative' : ''}">${s.change}</div>
             </div>
-            <div class="stat-card-value">${s.value}</div>
-            <div class="stat-card-change ${s.negative ? 'negative' : ''}">${s.change}</div>
           </div>
         `).join('')}
       </div>
 
-      <div class="admin-split-grid">
+      <div class="admin-split-grid admin-dashboard-grid">
         <div class="data-table-wrapper">
           <div style="padding: var(--space-4); border-bottom: var(--border-default); display: flex; justify-content: space-between; align-items: center;">
             <span style="font-weight: var(--weight-semibold);">待处理举报</span>
@@ -110,19 +112,21 @@
         </div>
       </div>
 
-      <div class="data-table-wrapper" style="margin-top: var(--space-4);">
-        <div style="padding: var(--space-4); border-bottom: var(--border-default); display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-weight: var(--weight-semibold);">存储使用</span>
+      <div class="data-table-wrapper admin-storage-panel">
+        <div class="admin-panel-head">
+          <span>存储使用</span>
+          <strong>${Math.round(stats.storageUsed / stats.storageTotal * 100)}%</strong>
         </div>
-        <div style="padding: var(--space-5);">
-          <div style="display: flex; justify-content: space-between; font-size: var(--text-sm); margin-bottom: var(--space-2);">
+        <div class="admin-storage-body">
+          <div class="admin-storage-meta">
             <span class="text-secondary">已使用</span>
             <span>${stats.storageUsed} GB / ${stats.storageTotal} GB</span>
           </div>
-          <div style="height: 8px; background: var(--color-bg-subtle); border-radius: var(--radius-full); overflow: hidden;">
-            <div style="width: ${(stats.storageUsed / stats.storageTotal * 100)}%; height: 100%; background: var(--color-brand); border-radius: var(--radius-full);"></div>
+          <div class="admin-storage-track">
+            <div class="admin-storage-fill" style="width: ${(stats.storageUsed / stats.storageTotal * 100)}%;"></div>
           </div>
         </div>
+      </div>
       </div>
     `;
 
@@ -153,9 +157,9 @@
       <div class="data-table-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            <form onsubmit="event.preventDefault(); Router.updateAdminParams({ q: this.querySelector('input').value });" style="display:flex; gap:var(--space-2);">
-              <input class="input-field" value="${C.escapeHtml(params.q || '')}" placeholder="搜索用户名或简介" style="width:240px;" />
-              ${C.button({ text: '搜索', variant: 'secondary', size: 'sm', icon: 'search' })}
+            <form class="admin-filter-form" onsubmit="event.preventDefault(); Router.updateAdminParams({ q: this.querySelector('input').value });">
+              <input class="input-field" value="${C.escapeHtml(params.q || '')}" placeholder="搜索用户名或简介" />
+              <button type="submit" class="btn btn-secondary btn-sm">${C.icon('search', 14)}<span>搜索</span></button>
             </form>
             <select class="filter-select" onchange="Router.updateAdminParams({ role: this.value })">
               <option value="all" ${role === 'all' ? 'selected' : ''}>全部角色</option>
@@ -192,21 +196,41 @@
     if (board !== 'all') posts = posts.filter(post => post.board === board);
 
     const content = `
-      <div class="admin-page-header"><div><h1 class="admin-page-title">内容管理</h1><p class="admin-page-desc">审核、推荐和维护社区发布内容</p></div></div>
-      <div class="stats-grid" style="margin-bottom:var(--space-4);">
-        <div class="stat-card"><div class="stat-card-label">全部内容</div><div class="stat-card-value">${MockData.posts.length}</div><div class="stat-card-change">帖子与文章</div></div>
-        <div class="stat-card"><div class="stat-card-label">待审核</div><div class="stat-card-value">${MockData.adminStats.pendingPosts}</div><div class="stat-card-change negative">需要处理</div></div>
-        <div class="stat-card"><div class="stat-card-label">精华内容</div><div class="stat-card-value">${MockData.posts.filter(p => p.isEssence).length}</div><div class="stat-card-change">社区精选</div></div>
-        <div class="stat-card"><div class="stat-card-label">今日发布</div><div class="stat-card-value">18</div><div class="stat-card-change">较昨日 +3</div></div>
-      </div>
-      <div class="data-table-wrapper">
-        <div class="filter-bar"><div class="filter-left">
-          <select class="filter-select" onchange="Router.updateAdminParams({ type: this.value })"><option value="all">全部类型</option><option value="topic" ${type === 'topic' ? 'selected' : ''}>讨论帖</option><option value="article" ${type === 'article' ? 'selected' : ''}>专栏文章</option></select>
-          <select class="filter-select" onchange="Router.updateAdminParams({ board: this.value })"><option value="all">全部板块</option>${MockData.boards.map(b => `<option value="${b.slug}" ${board === b.slug ? 'selected' : ''}>${b.name}</option>`).join('')}</select>
-        </div><span class="text-secondary" style="font-size:var(--text-sm);">共 ${posts.length} 条</span></div>
-        <table class="data-table"><thead><tr><th>内容</th><th>类型</th><th>板块</th><th>作者</th><th>数据</th><th>发布时间</th><th>操作</th></tr></thead>
-          <tbody>${posts.map(post => `<tr><td style="max-width:360px;"><a href="#/topics/${post.id}" style="font-weight:var(--weight-medium);">${post.title}</a><div style="margin-top:var(--space-1);">${post.isPinned ? C.badge('置顶', 'pinned') : ''} ${post.isEssence ? C.badge('精华', 'essence') : ''}</div></td><td>${post.type === 'article' ? '文章' : '讨论'}</td><td>${C.categoryBadge(post.board)}</td><td><a href="#/users/${post.author}">${post.author}</a></td><td class="text-secondary">${post.replies} 回复 · ${post.views} 浏览</td><td class="text-secondary">${post.createdAt}</td><td><div class="table-actions"><a class="btn btn-ghost btn-sm" href="#/topics/${post.id}">查看</a><button class="btn btn-ghost btn-sm" onclick="Toast.show('审核状态已更新', 'success')">审核</button></div></td></tr>`).join('')}</tbody>
-        </table>
+      <div class="admin-content-page">
+        <div class="admin-page-header admin-content-header">
+          <div><h1 class="admin-page-title">内容管理</h1><p class="admin-page-desc">审核、推荐和维护社区发布内容</p></div>
+          ${C.button({ text: '发布内容', variant: 'primary', icon: 'plus', href: '#/publish' })}
+        </div>
+        <div class="stats-grid admin-content-stats">
+          ${[
+            { label: '全部内容', value: MockData.posts.length, note: '帖子与文章', icon: 'file-text' },
+            { label: '待审核', value: MockData.adminStats.pendingPosts, note: '需要处理', icon: 'clock', alert: true },
+            { label: '精华内容', value: MockData.posts.filter(p => p.isEssence).length, note: '社区精选', icon: 'award' },
+            { label: '今日发布', value: 18, note: '较昨日 +3', icon: 'trending-up' }
+          ].map(stat => `
+            <div class="admin-content-stat ${stat.alert ? 'is-alert' : ''}">
+              <span class="admin-content-stat-icon">${C.icon(stat.icon, 16)}</span>
+              <div>
+                <div class="stat-card-label">${stat.label}</div>
+                <div class="admin-content-stat-value">${stat.value}</div>
+                <div class="stat-card-change ${stat.alert ? 'negative' : ''}">${stat.note}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="data-table-wrapper admin-content-table">
+          <div class="filter-bar admin-content-toolbar">
+            <div class="filter-left">
+              <span class="admin-toolbar-label">筛选</span>
+              <select class="filter-select" onchange="Router.updateAdminParams({ type: this.value })"><option value="all">全部类型</option><option value="topic" ${type === 'topic' ? 'selected' : ''}>讨论帖</option><option value="article" ${type === 'article' ? 'selected' : ''}>专栏文章</option></select>
+              <select class="filter-select" onchange="Router.updateAdminParams({ board: this.value })"><option value="all">全部板块</option>${MockData.boards.map(b => `<option value="${b.slug}" ${board === b.slug ? 'selected' : ''}>${b.name}</option>`).join('')}</select>
+            </div>
+            <span class="admin-result-count">${posts.length} 条内容</span>
+          </div>
+          <table class="data-table"><thead><tr><th>内容</th><th>类型</th><th>板块</th><th>可见等级</th><th>作者</th><th>数据</th><th>发布时间</th><th class="admin-action-head">操作</th></tr></thead>
+            <tbody>${posts.map(post => `<tr><td class="admin-content-cell"><a class="admin-content-title" href="#/topics/${post.id}">${post.title}</a>${post.isPinned || post.isEssence ? `<div class="admin-content-badges">${post.isPinned ? C.badge('置顶', 'pinned') : ''}${post.isEssence ? C.badge('精华', 'essence') : ''}</div>` : ''}</td><td>${post.type === 'article' ? '文章' : '讨论'}</td><td>${C.categoryBadge(post.board)}</td><td>${post.visibilityLevel > 1 ? C.badge(`LV.${post.visibilityLevel}+`, 'warning') : C.badge('公开', 'neutral')}</td><td><a href="#/users/${post.author}">${post.author}</a></td><td class="text-secondary admin-content-data"><span>${post.replies} 回复</span><span>${post.views} 浏览</span></td><td class="text-secondary admin-content-date">${post.createdAt}</td><td><div class="table-actions"><a class="btn btn-ghost btn-sm" href="#/topics/${post.id}">查看</a><button class="btn btn-secondary btn-sm" onclick="Toast.show('审核状态已更新', 'success')">审核</button></div></td></tr>`).join('')}</tbody>
+          </table>
+        </div>
       </div>`;
     return adminLayout(content, '/admin/posts');
   };
@@ -240,15 +264,112 @@
   };
 
   P.adminTags = function() {
-    return adminSimpleTable('标签管理', '维护标签、分组和内容关联', ['标签', '分组', '使用次数', '最近使用', '操作'], MockData.tags.map(tag => [C.tag(tag.name), '技术主题', tag.count, '今天', '<button class="btn btn-ghost btn-sm">编辑</button>']), '/admin/tags', '新建标签');
+    return adminSimpleTable('标签管理', '维护标签、分组和内容关联', ['标签', '分组', '使用次数', '最近使用', '操作'], MockData.tags.map(tag => [C.tag(tag.name), '技术主题', tag.count, '今天', '<button class="btn btn-ghost btn-sm" onclick="Toast.show(\'标签编辑面板已打开\', \'info\')">编辑</button>']), '/admin/tags', '新建标签');
   };
 
   P.adminAttachments = function() {
-    return adminSimpleTable('附件管理', '所有附件都有有效期；到期后禁止访问并由任务清理', ['文件', '大小', '上传者 / 等级', '配额占用', '到期时间', '状态'], [
-      ['sqlite-wal.png', '286 KB', `Chaos · ${C.levelBadge(6)}`, '638 MB / 2 GB', '2027-01-30 · 还剩 180 天', C.statusBadge('published')],
-      ['svelte-arch.png', '42 KB', `Alice · ${C.levelBadge(4)}`, '126 MB / 500 MB', '2026-10-02 · 还剩 60 天', C.badge('待检查', 'warning')],
-      ['oauth-flow.pdf', '1.2 MB', `Bob · ${C.levelBadge(5)}`, '814 MB / 1 GB', '2026-08-10 · 还剩 7 天', C.badge('即将到期', 'warning')]
+    return adminSimpleTable('附件管理', '管理持久附件对象、用户容量与安全状态；临时公开链接过期不会删除附件', ['文件', '大小', '上传者 / 等级', '配额占用', '链接策略', '状态'], [
+      ['sqlite-wal.png', '286 KB', `Chaos · ${C.levelBadge(6)}`, '638 MB / 2 GB', '按需签发 · 300 秒', C.statusBadge('published')],
+      ['svelte-arch.png', '42 KB', `Alice · ${C.levelBadge(4)}`, '126 MB / 500 MB', '按需签发 · 300 秒', C.badge('待检查', 'warning')],
+      ['oauth-flow.pdf', '1.2 MB', `Bob · ${C.levelBadge(5)}`, '814 MB / 1 GB', '按需签发 · 300 秒', C.statusBadge('published')]
     ], '/admin/attachments', '上传附件');
+  };
+
+  P.adminShop = function() {
+    const products=Store.state.shopProducts;
+    const content=`<div class="admin-page-header"><div><h1 class="admin-page-title">内部商城</h1><p class="admin-page-desc">管理全局装扮、互动道具、库存、价格和安全展示 Token</p></div>${C.button({text:'新建商品',variant:'primary',icon:'plus',onClick:"Toast.show('商品编辑器已打开：只允许安全 Token 和受控附件', 'info')"})}</div><div class="card" style="padding:var(--space-4);margin-bottom:var(--space-4);display:flex;gap:var(--space-3);border-color:var(--color-warning);background:var(--color-warning-soft);">${C.icon('shield-check',18)}<div><strong>商城不能出售权限</strong><div class="text-secondary">禁止任意 CSS/HTML/脚本、远程资源、管理员徽章仿冒，以及购买审核结果、内容权限或封禁豁免。</div></div></div><div class="stats-grid" style="margin-bottom:var(--space-4);"><div class="stat-card"><div class="stat-card-label">已发布商品</div><div class="stat-card-value">${products.length}</div></div><div class="stat-card"><div class="stat-card-label">今日订单</div><div class="stat-card-value">86</div></div><div class="stat-card"><div class="stat-card-label">今日回收 B币</div><div class="stat-card-value">4,680</div></div></div><div class="data-table-wrapper"><table class="data-table"><thead><tr><th>商品</th><th>类型 / 槽位</th><th>价格</th><th>持有</th><th>状态</th><th>操作</th></tr></thead><tbody>${products.map(p=>`<tr><td><strong>${C.escapeHtml(p.title)}</strong><div class="text-secondary">${C.escapeHtml(p.description)}</div></td><td><span class="mono">${p.kind}</span><div class="text-secondary">${p.slot}</div></td><td>${p.price} B币</td><td>${p.owned?'已有用户持有':'—'}</td><td>${C.statusBadge('published')}</td><td><button class="btn btn-ghost btn-sm" onclick="Toast.show('商品版本编辑器已打开', 'info')">编辑</button></td></tr>`).join('')}</tbody></table></div>`;
+    return adminLayout(content,'/admin/shop');
+  };
+
+  P.adminActivity = function() {
+    const content=`<div class="admin-page-header"><div><h1 class="admin-page-title">活跃运营</h1><p class="admin-page-desc">配置签到、社区任务、Reaction 与防刷奖励规则</p></div>${C.button({text:'新建任务',variant:'primary',icon:'plus',onClick:"Toast.show('活跃任务编辑器已打开', 'info')"})}</div><div class="stats-grid" style="margin-bottom:var(--space-4);"><div class="stat-card"><div class="stat-card-label">今日签到</div><div class="stat-card-value">648</div></div><div class="stat-card"><div class="stat-card-label">今日奖励</div><div class="stat-card-value">8,420 B币</div></div><div class="stat-card"><div class="stat-card-label">风控拒绝</div><div class="stat-card-value">37</div></div></div><div class="data-table-wrapper"><table class="data-table"><thead><tr><th>规则</th><th>周期</th><th>奖励</th><th>上限/去重</th><th>状态</th></tr></thead><tbody><tr><td>每日签到</td><td>站点自然日</td><td>10 B币</td><td>用户 + activity_day</td><td>${C.statusBadge('published')}</td></tr><tr><td>优质内容发布</td><td>每周</td><td>20 B币</td><td>审核通过 + 帖子唯一</td><td>${C.statusBadge('published')}</td></tr><tr><td>收到真实互动</td><td>每日</td><td>最多 15 B币</td><td>排除自己/关联风险账号</td><td>${C.statusBadge('published')}</td></tr></tbody></table><div style="padding:var(--space-4);" class="text-secondary">奖励撤销通过补偿账本完成；规则换版不重算历史，不能用活动规则修改权限或审核。</div></div>`;
+    return adminLayout(content,'/admin/activity');
+  };
+
+  P.adminVideo = function() {
+    const cfg = Store.state.videoConfig;
+    const content = `
+      <div class="admin-page-header"><div><h1 class="admin-page-title">视频插件</h1><p class="admin-page-desc">配置用户手动插入的视频 URL、西瓜视频和 HLS 安全策略</p></div><span class="badge ${cfg.enabled ? 'badge-success' : 'badge-neutral'}">${cfg.enabled ? '已启用' : '已停用'}</span></div>
+      <div class="card" style="padding:var(--space-4);margin-bottom:var(--space-4);display:flex;gap:var(--space-3);border-color:var(--color-warning);background:var(--color-warning-soft);">${C.icon('shield-check',18)}<div><strong>受控解析，不是开放代理</strong><div class="text-secondary" style="margin-top:var(--space-1);">后端只解析 HTTPS 白名单来源并防御 SSRF。西瓜视频仅使用官方允许的嵌入方式，否则降级为外链；不会抓取签名播放地址、绕过 DRM 或转存第三方视频。</div></div></div>
+      <div class="data-table-wrapper" style="margin-bottom:var(--space-4);"><div style="padding:var(--space-4);border-bottom:var(--border-default);font-weight:var(--weight-semibold);">Provider 与格式策略</div><div style="padding:var(--space-5);">
+        <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">启用视频插件</div><div class="settings-row-desc">停用后禁止创建新引用，历史引用按安全降级策略显示。</div></div><button class="switch ${cfg.enabled?'is-on':''}" role="switch" aria-checked="${cfg.enabled}" onclick="toggleVideoOption('enabled')"><span class="switch-knob"></span></button></div>
+        <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">直接视频 URL</div><div class="settings-row-desc">支持 MP4、WebM、OGV；MOV 需经服务端能力探测。</div></div><button class="switch ${cfg.directEnabled?'is-on':''}" role="switch" aria-checked="${cfg.directEnabled}" onclick="toggleVideoOption('directEnabled')"><span class="switch-knob"></span></button></div>
+        <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">HLS 流媒体</div><div class="settings-row-desc">支持 .m3u8；playlist、分片、Key、Map 和重定向逐级校验。</div></div><button class="switch ${cfg.hlsEnabled?'is-on':''}" role="switch" aria-checked="${cfg.hlsEnabled}" onclick="toggleVideoOption('hlsEnabled')"><span class="switch-knob"></span></button></div>
+        <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">西瓜视频</div><div class="settings-row-desc">仅允许公开页面 URL 和经确认的官方嵌入域名。</div></div><button class="switch ${cfg.xiguaEnabled?'is-on':''}" role="switch" aria-checked="${cfg.xiguaEnabled}" onclick="toggleVideoOption('xiguaEnabled')"><span class="switch-knob"></span></button></div>
+        <div class="form-grid form-grid-2" style="margin-top:var(--space-4);">
+          <div class="input-wrapper"><label class="input-label" for="video-max-duration">最长视频时长（秒）</label><input type="number" min="60" max="86400" class="input-field" id="video-max-duration" value="${cfg.maxDurationSeconds}" /></div>
+          <div class="input-wrapper"><label class="input-label" for="video-hls-segments">HLS 最大分片数</label><input type="number" min="1" max="10000" class="input-field" id="video-hls-segments" value="${cfg.hlsMaxSegments}" /></div>
+          <div class="input-wrapper"><label class="input-label" for="video-hls-bytes">HLS 最大估算流量（MB）</label><input type="number" min="1" max="4096" class="input-field" id="video-hls-bytes" value="${cfg.hlsMaxBytesMb}" /></div>
+          <div class="input-wrapper"><label class="input-label">允许的媒体类型</label><div class="input-field" style="height:auto;min-height:40px;">${cfg.allowedMediaTypes.map(type => `<span class="mono" style="margin-right:var(--space-2);">${C.escapeHtml(type)}</span>`).join('')}</div></div>
+        </div>
+      </div><div class="card-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);">${C.button({text:'安全探测测试',variant:'secondary',icon:'activity',onClick:'testVideoPolicy()'})}${C.button({text:'保存视频策略',variant:'primary',icon:'save',onClick:'saveVideoConfig()'})}</div></div>
+      <div class="data-table-wrapper"><div style="padding:var(--space-4);border-bottom:var(--border-default);font-weight:var(--weight-semibold);">解析与降级状态</div><table class="data-table"><thead><tr><th>来源</th><th>处理方式</th><th>关键限制</th><th>状态</th></tr></thead><tbody>
+        <tr><td>MP4 / WebM / OGV</td><td>原生播放器</td><td>HTTPS + MIME/Range 探测</td><td>${cfg.directEnabled ? C.statusBadge('published') : C.badge('停用','neutral')}</td></tr>
+        <tr><td>HLS (.m3u8)</td><td>受控 HLS 播放器</td><td>${cfg.hlsMaxSegments} 分片 / ${cfg.hlsMaxBytesMb} MB</td><td>${cfg.hlsEnabled ? C.statusBadge('published') : C.badge('停用','neutral')}</td></tr>
+        <tr><td>西瓜视频</td><td>官方嵌入或外链卡片</td><td>CSP + sandbox + 无自动播放</td><td>${cfg.xiguaEnabled ? C.statusBadge('published') : C.badge('停用','neutral')}</td></tr>
+      </tbody></table><div style="padding:var(--space-4);border-top:var(--border-default);" class="text-secondary">策略版本 <span class="mono">v${cfg.policyVersion}</span> · 测试接口 <span class="mono">POST /api/v1/admin/video/policies/test</span></div></div>
+    `;
+    return adminLayout(content, '/admin/video');
+  };
+
+  P.adminAI = function() {
+    const cfg = Store.state.aiConfig;
+    const content = `
+      <div class="admin-page-header"><div><h1 class="admin-page-title">大模型设置</h1><p class="admin-page-desc">配置受控 AI Gateway，用于格式化、内容审计和 SEO 辅助</p></div><span class="badge ${cfg.enabled ? 'badge-success' : 'badge-neutral'}">${cfg.enabled ? '已启用' : '已停用'}</span></div>
+      <div class="card" style="padding:var(--space-4);margin-bottom:var(--space-4);display:flex;gap:var(--space-3);border-color:var(--color-warning);background:var(--color-warning-soft);">${C.icon('shield-check',18)}<div><strong>模型不是业务裁决者</strong><div class="text-secondary" style="margin-top:var(--space-1);">模型只能生成建议和风险信号，不能直接发布、删除、封禁、修改权限、价格或积分。浏览器不会获得 Provider Secret。</div></div></div>
+      <div class="data-table-wrapper" style="margin-bottom:var(--space-4);"><div style="padding:var(--space-4);border-bottom:var(--border-default);font-weight:var(--weight-semibold);">Provider 与模型</div><div style="padding:var(--space-5);">
+        <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">启用 AI Gateway</div><div class="settings-row-desc">停用后普通发帖、审核和 SEO 仍可正常运行。</div></div><button class="switch ${cfg.enabled?'is-on':''}" role="switch" aria-checked="${cfg.enabled}" onclick="toggleAiGateway()"><span class="switch-knob"></span></button></div>
+        <div class="form-grid form-grid-2" style="margin-top:var(--space-4);">
+          <div class="input-wrapper"><label class="input-label" for="ai-provider">Provider</label><input class="input-field" id="ai-provider" value="${C.escapeHtml(cfg.providerName)}" /></div>
+          <div class="input-wrapper"><label class="input-label" for="ai-model">默认模型</label><input class="input-field" id="ai-model" value="${C.escapeHtml(cfg.defaultModel)}" /></div>
+          <div class="input-wrapper"><label class="input-label" for="ai-base-url">API Base URL</label><input class="input-field" id="ai-base-url" value="${C.escapeHtml(cfg.baseUrl)}" /><div class="input-hint">生产仅允许 HTTPS 白名单域名，并执行 SSRF/DNS 重绑定防护。</div></div>
+          <div class="input-wrapper"><label class="input-label" for="ai-secret">API Secret</label><input type="password" class="input-field" id="ai-secret" value="" placeholder="${cfg.secretConfigured?'已配置，留空表示不修改':'请输入 Secret'}" autocomplete="new-password" /><div class="input-hint">Secret 仅写入后端受保护配置，不回显。</div></div>
+          <div class="input-wrapper"><label class="input-label" for="ai-data-mode">内容发送策略</label><select class="input-field" id="ai-data-mode"><option value="redacted" ${cfg.dataMode==='redacted'?'selected':''}>脱敏内容（推荐）</option><option value="metadata_only" ${cfg.dataMode==='metadata_only'?'selected':''}>仅元数据</option><option value="full_with_consent" ${cfg.dataMode==='full_with_consent'?'selected':''}>用户单独同意后完整内容</option><option value="disabled" ${cfg.dataMode==='disabled'?'selected':''}>禁止外发</option></select></div>
+          <div class="input-wrapper"><label class="input-label" for="ai-budget">每日 Token 预算</label><input type="number" min="0" class="input-field" id="ai-budget" value="${cfg.dailyBudget}" /></div>
+          <div class="input-wrapper"><label class="input-label" for="ai-timeout">请求超时（秒）</label><input type="number" min="3" max="120" class="input-field" id="ai-timeout" value="${cfg.timeoutSeconds}" /></div>
+        </div>
+      </div><div class="card-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);">${C.button({text:'测试脱敏连接',variant:'secondary',icon:'activity',onClick:'testAiProvider()'})}${C.button({text:'保存 AI 配置',variant:'primary',icon:'save',onClick:'saveAiConfig()'})}</div></div>
+      <div class="data-table-wrapper"><div style="padding:var(--space-4);border-bottom:var(--border-default);font-weight:var(--weight-semibold);">功能与任务状态</div><table class="data-table"><thead><tr><th>用途</th><th>模型</th><th>数据策略</th><th>今日任务</th><th>P95</th><th>状态</th></tr></thead><tbody>
+        <tr><td>发帖格式化</td><td>${C.escapeHtml(cfg.defaultModel)}</td><td>脱敏草稿</td><td>186</td><td>1.8s</td><td>${C.statusBadge('published')}</td></tr>
+        <tr><td>内容审计建议</td><td>${C.escapeHtml(cfg.defaultModel)}</td><td>脱敏 + 人工复核</td><td>328</td><td>2.3s</td><td>${C.statusBadge('published')}</td></tr>
+        <tr><td>SEO 优化</td><td>${C.escapeHtml(cfg.defaultModel)}</td><td>仅公开内容</td><td>64</td><td>2.0s</td><td>${C.statusBadge('published')}</td></tr>
+      </tbody></table><div style="padding:var(--space-4);border-top:var(--border-default);" class="text-secondary">策略版本 <span class="mono">v${cfg.policyVersion}</span> · Provider 故障时不阻塞普通发帖，也不能绕过核心审核。</div></div>
+    `;
+    return adminLayout(content, '/admin/ai');
+  };
+
+  P.adminDownloadBilling = function() {
+    const cfg = Store.state.downloadBillingConfig;
+    const content = `
+      <div class="admin-page-header">
+        <div><h1 class="admin-page-title">下载计费</h1><p class="admin-page-desc">配置附件下载抵扣 B币的策略、授权复用和安全限额</p></div>
+        <span class="badge ${cfg.enabled ? 'badge-success' : 'badge-neutral'}">${cfg.enabled ? '已启用' : '已停用'}</span>
+      </div>
+      <div class="card" style="padding:var(--space-4);margin-bottom:var(--space-4);display:flex;gap:var(--space-3);border-color:var(--color-warning);background:var(--color-warning-soft);">
+        ${C.icon('shield-check', 18)}<div><strong>扣费发生在下载授权阶段</strong><div class="text-secondary" style="margin-top:var(--space-1);">只有后端鉴权、余额校验、扣款、不可变流水和下载授权同一事务提交后，才会签发临时链接。S3 链接过期不会再次扣费。</div></div>
+      </div>
+      <div class="data-table-wrapper">
+        <div style="padding:var(--space-4);border-bottom:var(--border-default);font-weight:var(--weight-semibold);">全局下载策略</div>
+        <div style="padding:var(--space-5);">
+          <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">启用下载抵扣积分</div><div class="settings-row-desc">停用只影响新授权，不撤销已有授权、不修改历史流水。</div></div><button class="switch ${cfg.enabled ? 'is-on' : ''}" role="switch" aria-checked="${cfg.enabled}" onclick="toggleDownloadBilling()"><span class="switch-knob"></span></button></div>
+          <div class="form-grid form-grid-2" style="margin-top:var(--space-4);">
+            <div class="input-wrapper"><label class="input-label" for="download-default-price">默认下载价格（B币）</label><input type="number" min="0" max="1000000" class="input-field" id="download-default-price" value="${cfg.defaultPrice}" /><div class="input-hint">0 表示免费；价格由后端策略决定，不能信任客户端提交值。</div></div>
+            <div class="input-wrapper"><label class="input-label" for="download-auth-ttl">下载授权有效期（小时）</label><input type="number" min="1" max="720" class="input-field" id="download-auth-ttl" value="${cfg.authorizationTtlHours}" /><div class="input-hint">授权有效期与 S3 临时 URL 有效期独立。</div></div>
+            <div class="input-wrapper"><label class="input-label" for="download-daily-limit">用户每日下载扣费上限（B币）</label><input type="number" min="0" max="100000" class="input-field" id="download-daily-limit" value="${cfg.dailyUserLimit}" /><div class="input-hint">0 表示不额外限制，仍受余额和频率限制。</div></div>
+            <div class="input-wrapper"><label class="input-label" for="download-max-charge">单次扣费上限（B币）</label><input type="number" min="0" max="1000000" class="input-field" id="download-max-charge" value="${cfg.maxSingleCharge}" /></div>
+          </div>
+          <div class="settings-row" style="margin-top:var(--space-4);"><div class="settings-row-label"><div class="settings-row-title">免费等级</div><div class="settings-row-desc">命中免费等级仍需通过后端附件权限校验。</div></div><strong>LV.${cfg.freeLevels.join('、LV.')}</strong></div>
+          <div class="settings-row"><div class="settings-row-label"><div class="settings-row-title">当前策略版本</div><div class="settings-row-desc">只影响新下载授权，便于审计和并发冲突检测。</div></div><span class="mono">v${cfg.policyVersion}</span></div>
+        </div>
+        <div class="card-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);">${C.button({ text: '保存下载策略', variant: 'primary', icon: 'save', onClick: 'saveDownloadBilling()' })}</div>
+      </div>
+      <div class="data-table-wrapper" style="margin-top:var(--space-4);"><div style="padding:var(--space-4);border-bottom:var(--border-default);font-weight:var(--weight-semibold);">计费覆盖与接口状态</div><table class="data-table"><thead><tr><th>范围</th><th>策略</th><th>授权复用</th><th>最近扣费</th><th>状态</th></tr></thead><tbody>
+        <tr><td>站点默认</td><td><strong>${cfg.defaultPrice} B币 / 授权周期</strong></td><td>${cfg.authorizationTtlHours} 小时</td><td>1,284 次</td><td>${C.statusBadge('published')}</td></tr>
+        <tr><td>Rust 板块</td><td>继承站点策略</td><td>不重复扣费</td><td>638 次</td><td>${C.statusBadge('published')}</td></tr>
+        <tr><td>未标记付费附件</td><td>免费（范围策略）</td><td>仍需鉴权</td><td>—</td><td>${C.badge('免费', 'neutral')}</td></tr>
+      </tbody></table><div style="padding:var(--space-4);border-top:var(--border-default);" class="text-secondary">接口：<span class="mono">POST /api/v1/attachments/{id}/download</span> · 必须携带 <span class="mono">Idempotency-Key</span></div></div>
+    `;
+    return adminLayout(content, '/admin/download-billing');
   };
 
   P.adminStorage = function() {
@@ -290,11 +411,9 @@
         <div style="padding:var(--space-5);">
           <div class="form-grid form-grid-2">
             <div class="input-wrapper"><label class="input-label" for="storage-max-upload">站点单文件硬上限（MB）</label><input type="number" min="1" max="1024" class="input-field" id="storage-max-upload" value="${cfg.maxUploadMb}" /><div class="input-hint">用户实际限制取站点、用途、板块和等级限制的最小值。</div></div>
-            <div class="input-wrapper"><label class="input-label" for="storage-signed-ttl">签名 URL 有效期（秒）</label><input type="number" min="60" max="3600" class="input-field" id="storage-signed-ttl" value="${cfg.signedUrlTtl}" /></div>
-            <div class="input-wrapper"><label class="input-label" for="storage-default-ttl">默认附件有效期（天）</label><input type="number" min="1" max="365" class="input-field" id="storage-default-ttl" value="${cfg.defaultAttachmentTtlDays}" /><div class="input-hint">所有附件必须设置到期时间，不能永久保存。</div></div>
-            <div class="input-wrapper"><label class="input-label" for="storage-max-ttl">站点最长有效期（天）</label><input type="number" min="1" max="3650" class="input-field" id="storage-max-ttl" value="${cfg.maxAttachmentTtlDays}" /></div>
+            <div class="input-wrapper"><label class="input-label" for="storage-signed-ttl">S3 公开链接有效期（秒）</label><input type="number" min="60" max="604800" class="input-field" id="storage-signed-ttl" value="${cfg.signedUrlTtl}" /><div class="input-hint">链接过期后重新鉴权并签发，不删除附件对象。</div></div>
           </div>
-          <div class="notice notice-warning" style="margin-top:var(--space-4);">${C.icon('alert-triangle', 16)} 所有附件到期后立即禁止新访问，随后进入宽限期和异步清理。Bucket 应保持私有；切换存储后端不会自动迁移已有对象。</div>
+          <div class="notice notice-warning" style="margin-top:var(--space-4);">${C.icon('alert-triangle', 16)} Bucket 应保持私有。公开链接是临时访问凭证，过期只会使 URL 失效；附件对象持续保留，只有用户主动删除或管理员清理才会删除。切换存储后端不会自动迁移已有对象。</div>
         </div>
         <div class="card-footer" style="display:flex;justify-content:flex-end;gap:var(--space-2);">
           ${C.button({ text: '保存配置', variant: 'secondary', onClick: 'saveStorageConfig()' })}
@@ -511,14 +630,14 @@
             </div>
             <div style="padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);">
               ${report.status === 'pending' ? `
-                ${C.button({ text: '受理举报', variant: 'primary', icon: 'check', onClick: `handleReportAction('${report.id}', 'accept', '已受理')`, style: 'width: 100%;' })}
+                ${C.button({ text: '受理举报', variant: 'primary', icon: 'check', onClick: `handleReportAction('${report.id}', 'accept', '已受理')`, extraClass: 'btn-block' })}
               ` : ''}
               ${report.status !== 'resolved' && report.status !== 'rejected' ? `
-                ${C.button({ text: '隐藏内容', variant: 'secondary', icon: 'eye-off', onClick: `handleReportAction('${report.id}', 'hide', '内容已隐藏')`, style: 'width: 100%;' })}
-                ${C.button({ text: '警告用户', variant: 'secondary', icon: 'alert-triangle', onClick: `handleReportAction('${report.id}', 'warn', '已警告用户')`, style: 'width: 100%;' })}
-                ${C.button({ text: '禁言 7 天', variant: 'secondary', icon: 'mic-off', onClick: `handleReportAction('${report.id}', 'mute', '已禁言 7 天')`, style: 'width: 100%;' })}
-                ${C.button({ text: '封禁账号', variant: 'danger', icon: 'ban', onClick: `handleReportAction('${report.id}', 'ban', '已封禁账号')`, style: 'width: 100%;' })}
-                ${C.button({ text: '驳回举报', variant: 'ghost', icon: 'x', onClick: `handleReportReject('${report.id}')`, style: 'width: 100%;' })}
+                ${C.button({ text: '隐藏内容', variant: 'secondary', icon: 'eye-off', onClick: `handleReportAction('${report.id}', 'hide', '内容已隐藏')`, extraClass: 'btn-block' })}
+                ${C.button({ text: '警告用户', variant: 'secondary', icon: 'alert-triangle', onClick: `handleReportAction('${report.id}', 'warn', '已警告用户')`, extraClass: 'btn-block' })}
+                ${C.button({ text: '禁言 7 天', variant: 'secondary', icon: 'mic-off', onClick: `handleReportAction('${report.id}', 'mute', '已禁言 7 天')`, extraClass: 'btn-block' })}
+                ${C.button({ text: '封禁账号', variant: 'danger', icon: 'ban', onClick: `handleReportAction('${report.id}', 'ban', '已封禁账号')`, extraClass: 'btn-block' })}
+                ${C.button({ text: '驳回举报', variant: 'ghost', icon: 'x', onClick: `handleReportReject('${report.id}')`, extraClass: 'btn-block' })}
               ` : `
                 <div class="text-secondary" style="text-align: center; font-size: var(--text-sm); padding: var(--space-4) 0;">
                   举报已${report.status === 'resolved' ? '解决' : '驳回'}
@@ -547,7 +666,7 @@
         </div>
       </div>
 
-      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="stats-grid stats-grid-3">
         <div class="stat-card">
           <div class="stat-card-label">${C.icon('coins', 16)} B币总量</div>
           <div class="stat-card-value">${(stats.totalUsers * 100).toLocaleString()}</div>
@@ -669,15 +788,18 @@
               <th>名称</th>
               <th>所需经验</th>
               <th>用户数</th>
+              <th>每日发布</th>
+              <th>可设可见等级</th>
               <th>单附件上限</th>
               <th>附件总容量</th>
-              <th>最长有效期</th>
               <th>权益</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            ${levels.map(l => `
+            ${levels.map(l => {
+              const quota = Store.state.attachmentLevelQuotas[l.level];
+              return `
               <tr>
                 <td>
                   <div class="level-badge" style="background: ${l.color}; width: 36px; height: 36px; font-size: 12px;">
@@ -687,9 +809,10 @@
                 <td style="font-weight: var(--weight-medium);">${l.name}</td>
                 <td><span class="mono">${l.expRequired.toLocaleString()}</span></td>
                 <td>${l.userCount.toLocaleString()}</td>
-                <td><strong>${l.attachmentMaxMb} MB</strong></td>
-                <td><strong>${l.attachmentTotalMb >= 1024 ? `${l.attachmentTotalMb / 1024} GB` : `${l.attachmentTotalMb} MB`}</strong></td>
-                <td>${l.attachmentTtlDays} 天</td>
+                <td>${l.dailyPosts} 条</td>
+                <td><strong>LV.${l.maxVisibilityLevel}</strong></td>
+                <td><strong>${quota.maxFileMb} MB</strong></td>
+                <td><strong>${quota.totalCapacityMb >= 1024 ? `${quota.totalCapacityMb / 1024} GB` : `${quota.totalCapacityMb} MB`}</strong></td>
                 <td>
                   <div class="level-benefits">
                     ${l.benefits.slice(0, 3).map(b => `<span class="level-benefit">${b}</span>`).join('')}
@@ -698,11 +821,11 @@
                 </td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-ghost btn-sm" onclick="Toast.show('编辑功能开发中', 'info')">编辑</button>
+                    <button class="btn btn-ghost btn-sm" onclick="openLevelQuotaDialog(${l.level})">编辑容量</button>
                   </div>
                 </td>
               </tr>
-            `).join('')}
+            `}).join('')}
           </tbody>
         </table>
       </div>
@@ -731,29 +854,29 @@
         </div>
         <div style="padding: var(--space-5);">
           <div class="theme-preview">
-            <div class="theme-card ${currentTheme === 'light' ? 'active' : ''}" onclick="Store.setTheme('light'); Router.refresh();">
-              <div class="theme-preview-bar" style="background: #FFFFFF; border-color: #D1D9E0;">
+            <div class="theme-card ${currentTheme === 'light' ? 'active' : ''}" data-preview-theme="light" role="button" tabindex="0" aria-pressed="${currentTheme === 'light'}" onclick="Store.setTheme('light'); Router.refresh();" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+              <div class="theme-preview-bar">
                 <div class="theme-preview-dot" style="background: #FF5F57;"></div>
                 <div class="theme-preview-dot" style="background: #FEBC2E;"></div>
                 <div class="theme-preview-dot" style="background: #28C840;"></div>
               </div>
-              <div class="theme-preview-body" style="background: #F6F8FA;">
-                <div class="theme-preview-line" style="background: #0969DA; width: 80%;"></div>
-                <div class="theme-preview-line short" style="background: #1F2328;"></div>
-                <div class="theme-preview-line" style="background: #D1D9E0; width: 60%; height: 6px;"></div>
+              <div class="theme-preview-body">
+                <div class="theme-preview-line is-brand" style="width: 80%;"></div>
+                <div class="theme-preview-line is-fg short"></div>
+                <div class="theme-preview-line is-muted" style="width: 60%;"></div>
               </div>
               <div class="theme-label">亮色模式</div>
             </div>
-            <div class="theme-card ${currentTheme === 'dark' ? 'active' : ''}" onclick="Store.setTheme('dark'); Router.refresh();">
-              <div class="theme-preview-bar" style="background: #151B23; border-color: #3D444D;">
+            <div class="theme-card ${currentTheme === 'dark' ? 'active' : ''}" data-preview-theme="dark" role="button" tabindex="0" aria-pressed="${currentTheme === 'dark'}" onclick="Store.setTheme('dark'); Router.refresh();" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+              <div class="theme-preview-bar">
                 <div class="theme-preview-dot" style="background: #FF5F57;"></div>
                 <div class="theme-preview-dot" style="background: #FEBC2E;"></div>
                 <div class="theme-preview-dot" style="background: #28C840;"></div>
               </div>
-              <div class="theme-preview-body" style="background: #0D1117;">
-                <div class="theme-preview-line" style="background: #4493F8; width: 80%;"></div>
-                <div class="theme-preview-line short" style="background: #F0F6FC;"></div>
-                <div class="theme-preview-line" style="background: #3D444D; width: 60%; height: 6px;"></div>
+              <div class="theme-preview-body">
+                <div class="theme-preview-line is-brand" style="width: 80%;"></div>
+                <div class="theme-preview-line is-fg short"></div>
+                <div class="theme-preview-line is-muted" style="width: 60%;"></div>
               </div>
               <div class="theme-label">暗色模式</div>
             </div>
@@ -785,9 +908,9 @@
               <div class="settings-row-title">自定义品牌色</div>
               <div class="settings-row-desc">修改社区主色调</div>
             </div>
-            <div style="display: flex; gap: var(--space-2);">
-              ${['#0969DA', '#1A7F37', '#9A6700', '#CF222E', '#8250DF'].map(color => `
-                <div style="width: 28px; height: 28px; border-radius: var(--radius-sm); background: ${color}; cursor: pointer; border: 2px solid ${color === '#0969DA' ? 'var(--color-text-primary)' : 'transparent'}; transition: all var(--duration-fast);" onclick="Toast.show('品牌色已更新', 'success')"></div>
+            <div class="theme-swatches">
+              ${['#B23E2A', '#0F756C', '#946200', '#CF222E', '#8250DF'].map((color, index) => `
+                <button type="button" class="theme-swatch ${index === 0 ? 'is-active' : ''}" aria-label="选择品牌色 ${color}" style="--swatch-color: ${color};" onclick="Toast.show('品牌色预览已更新', 'info')"></button>
               `).join('')}
             </div>
           </div>
@@ -898,6 +1021,56 @@
   };
 
   // ============================================
+  // Admin Marketplace (/admin/marketplace)
+  // ============================================
+  P.adminMarketplace = function() {
+    const content = `
+      <div class="admin-page-header">
+        <div>
+          <h1 class="admin-page-title">市场与交易</h1>
+          <p class="admin-page-desc">审批自建市场接入，监控原子扣款、退款、Webhook 与对账</p>
+        </div>
+        ${C.button({ text: '接入文档', variant: 'secondary', icon: 'book-open', onClick: "Toast.show('公开交易 API 文档已打开', 'info')" })}
+      </div>
+
+      <div class="card" style="margin-bottom:var(--space-4);padding:var(--space-4);display:flex;gap:var(--space-3);border-color:var(--color-warning);background:var(--color-warning-soft);">
+        <div>${C.icon('shield-check', 18)}</div>
+        <div><strong>安全边界</strong><div class="text-secondary" style="margin-top:var(--space-1);">市场不能直接修改余额或提交可信价格。购买成功只在意图消费、订单、扣款、不可变流水与 Outbox 同一事务提交后返回。</div></div>
+      </div>
+
+      <div class="stats-grid stats-grid-3">
+        <div class="stat-card"><div class="stat-card-label">${C.icon('shopping-bag', 16)} 今日已提交交易</div><div class="stat-card-value">1,286</div><div class="stat-card-change">成功率 99.72%</div></div>
+        <div class="stat-card"><div class="stat-card-label">${C.icon('clock', 16)} 原子提交延迟 P95</div><div class="stat-card-value">84 ms</div><div class="stat-card-change">仅数据库已提交结果</div></div>
+        <div class="stat-card"><div class="stat-card-label">${C.icon('webhook', 16)} Outbox 待投递</div><div class="stat-card-value">3</div><div class="stat-card-change">最老 12 秒 · 核心交易不受影响</div></div>
+      </div>
+
+      <div class="data-table-wrapper" style="margin-top:var(--space-4);">
+        <div style="padding:var(--space-4);border-bottom:var(--border-default);font-weight:var(--weight-semibold);">市场 Client 与风险限额</div>
+        <table class="data-table">
+          <thead><tr><th>市场</th><th>Client</th><th>交易 Scope</th><th>单笔 / 日限额</th><th>Webhook</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Rust 工坊</strong><div class="text-secondary" style="font-size:var(--text-xs);">所有者 Chaos</div></td><td><span class="mono">mkt_rust_7f3a</span><div class="text-secondary" style="font-size:var(--text-xs);">Confidential</div></td><td><span class="badge badge-neutral">purchase</span> <span class="badge badge-neutral">read</span></td><td>500 / 5,000 B币</td><td>${C.statusBadge('published')} <span class="text-secondary">签名正常</span></td><td>${C.statusBadge('published')}</td><td><div class="table-actions"><button class="btn btn-ghost btn-sm" onclick="Toast.show('市场安全策略已打开', 'info')">审查</button><button class="btn btn-danger btn-sm" onclick="confirmDisableMarketplace('Rust 工坊')">紧急禁用</button></div></td></tr>
+            <tr><td><strong>像素素材铺</strong><div class="text-secondary" style="font-size:var(--text-xs);">所有者 Alice</div></td><td><span class="mono">mkt_pixel_2c91</span><div class="text-secondary" style="font-size:var(--text-xs);">Confidential</div></td><td><span class="badge badge-neutral">purchase</span> <span class="badge badge-neutral">refund</span></td><td>200 / 2,000 B币</td><td>${C.badge('待验证', 'warning')}</td><td>${C.badge('待审批', 'warning')}</td><td><button class="btn btn-primary btn-sm" onclick="Toast.show('审批前需完成 Webhook 与所有权验证', 'warning')">审批</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="data-table-wrapper" style="margin-top:var(--space-4);">
+        <div style="padding:var(--space-4);border-bottom:var(--border-default);display:flex;justify-content:space-between;align-items:center;"><strong>实时交易与对账</strong><span class="text-secondary" style="font-size:var(--text-xs);">Purchase + Point operation + Outbox 已核对</span></div>
+        <table class="data-table">
+          <thead><tr><th>Purchase ID</th><th>市场 / 商户订单</th><th>物品</th><th>金额</th><th>提交耗时</th><th>入账</th><th>Webhook</th></tr></thead>
+          <tbody>
+            <tr><td><span class="mono">pur_019af31c</span></td><td>Rust 工坊<div class="text-secondary mono" style="font-size:var(--text-xs);">ORD-20260803-1042</div></td><td>Axum 部署手册</td><td><strong>-32 B币</strong></td><td>71 ms</td><td>${C.badge('原子提交', 'success')}</td><td>${C.badge('已签收', 'success')}</td></tr>
+            <tr><td><span class="mono">pur_019af2e8</span></td><td>Rust 工坊<div class="text-secondary mono" style="font-size:var(--text-xs);">ORD-20260803-1038</div></td><td>代码审查额度包</td><td><strong>-80 B币</strong></td><td>93 ms</td><td>${C.badge('原子提交', 'success')}</td><td>${C.badge('重试中', 'warning')}</td></tr>
+            <tr><td><span class="mono">ref_019af19d</span></td><td>Rust 工坊<div class="text-secondary mono" style="font-size:var(--text-xs);">ORD-20260802-0881</div></td><td>补偿退款</td><td><strong class="text-success">+32 B币</strong></td><td>66 ms</td><td>${C.badge('补偿流水', 'success')}</td><td>${C.badge('已签收', 'success')}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+    return adminLayout(content, '/admin/marketplace');
+  };
+
+  // ============================================
   // Admin Settings (/admin/settings)
   // ============================================
   P.adminSettings = function() {
@@ -919,14 +1092,14 @@
               <div class="settings-row-title">站点名称</div>
               <div class="settings-row-desc">显示在页面标题和导航栏</div>
             </div>
-            <input type="text" class="input-field" value="BBLBB" style="width: 200px;" />
+            <input type="text" class="input-field admin-setting-input" value="BBLBB" />
           </div>
           <div class="settings-row">
             <div class="settings-row-label">
               <div class="settings-row-title">站点描述</div>
               <div class="settings-row-desc">用于 SEO 和社交分享</div>
             </div>
-            <input type="text" class="input-field" value="技术爱好者的社区" style="width: 200px;" />
+            <input type="text" class="input-field admin-setting-input" value="技术爱好者的社区" />
           </div>
           <div class="settings-row">
             <div class="settings-row-label">
@@ -955,7 +1128,7 @@
               <div class="settings-row-title">每日发帖上限</div>
               <div class="settings-row-desc">普通用户每日最多发帖数</div>
             </div>
-            <input type="number" class="input-field" value="10" style="width: 100px;" />
+            <input type="number" class="input-field admin-setting-input admin-setting-input-number" value="10" />
           </div>
           <div class="settings-row">
             <div class="settings-row-label">
@@ -977,6 +1150,30 @@
   // ============================================
   // Global handlers for admin
   // ============================================
+  window.openLevelQuotaDialog = function(level) {
+    const quota = Store.state.attachmentLevelQuotas[level];
+    Modal.open({
+      title: `编辑 LV.${level} 附件容量`,
+      content: `
+        <div class="form-grid form-grid-2">
+          <div class="input-wrapper"><label class="input-label" for="level-max-file">单附件上限（MB）</label><input type="number" min="1" max="1024" class="input-field" id="level-max-file" value="${quota.maxFileMb}" /></div>
+          <div class="input-wrapper"><label class="input-label" for="level-total-capacity">附件总容量（MB）</label><input type="number" min="1" max="1048576" class="input-field" id="level-total-capacity" value="${quota.totalCapacityMb}" /></div>
+        </div>
+        <div class="input-hint" style="margin-top:var(--space-3);">总容量不能小于单附件上限。保存后新上传立即按该等级额度校验。</div>
+      `,
+      confirmText: '保存容量',
+      onConfirm: () => {
+        const saved = Store.updateAttachmentLevelQuota(level, {
+          maxFileMb: document.getElementById('level-max-file')?.value,
+          totalCapacityMb: document.getElementById('level-total-capacity')?.value
+        });
+        Toast.show(`LV.${level} 附件容量已更新`, 'success');
+        Router.refresh();
+        return saved;
+      }
+    });
+  };
+
   window.handleReportAction = function(reportId, actionType, successMsg) {
     Modal.open({
       title: '确认操作',
@@ -1057,6 +1254,71 @@
     });
   };
 
+  window.toggleVideoOption = function(key) {
+    if (!['enabled', 'directEnabled', 'hlsEnabled', 'xiguaEnabled'].includes(key)) return;
+    Store.updateVideoConfig({ [key]: !Store.state.videoConfig[key] });
+    Router.refresh();
+  };
+
+  window.saveVideoConfig = function() {
+    const saved = Store.updateVideoConfig({
+      maxDurationSeconds: document.getElementById('video-max-duration')?.value,
+      hlsMaxSegments: document.getElementById('video-hls-segments')?.value,
+      hlsMaxBytesMb: document.getElementById('video-hls-bytes')?.value
+    });
+    Toast.show(`视频策略已保存（策略 v${saved.policyVersion}）`, 'success');
+    Router.refresh();
+  };
+
+  window.testVideoPolicy = function() {
+    Toast.show('已使用固定安全样本排队测试 URL、重定向、私网地址和 HLS playlist', 'info');
+  };
+
+  window.toggleAiGateway = function() {
+    Store.updateAiConfig({ enabled: !Store.state.aiConfig.enabled });
+    Router.refresh();
+  };
+
+  window.saveAiConfig = function() {
+    const saved = Store.updateAiConfig({
+      providerName: document.getElementById('ai-provider')?.value.trim(),
+      defaultModel: document.getElementById('ai-model')?.value.trim(),
+      baseUrl: document.getElementById('ai-base-url')?.value.trim(),
+      secret: document.getElementById('ai-secret')?.value,
+      dataMode: document.getElementById('ai-data-mode')?.value,
+      dailyBudget: document.getElementById('ai-budget')?.value,
+      timeoutSeconds: document.getElementById('ai-timeout')?.value
+    });
+    Toast.show(`AI 配置已保存（策略 v${saved.policyVersion}）`, 'success');
+    Router.refresh();
+  };
+
+  window.testAiProvider = function() {
+    Toast.show('已发送脱敏探针，Provider 连接测试任务已排队', 'info');
+  };
+
+  window.toggleDownloadBilling = function() {
+    Store.updateDownloadBillingConfig({ enabled: !Store.state.downloadBillingConfig.enabled });
+    Router.refresh();
+  };
+
+  window.saveDownloadBilling = function() {
+    const cfg = Store.state.downloadBillingConfig;
+    const saved = Store.updateDownloadBillingConfig({
+      defaultPrice: document.getElementById('download-default-price')?.value,
+      authorizationTtlHours: document.getElementById('download-auth-ttl')?.value,
+      dailyUserLimit: document.getElementById('download-daily-limit')?.value,
+      maxSingleCharge: document.getElementById('download-max-charge')?.value
+    });
+    if (saved.maxSingleCharge < saved.defaultPrice) {
+      Toast.show('单次扣费上限不能低于默认价格', 'warning');
+      return false;
+    }
+    Toast.show('下载扣费策略已保存，新授权立即生效', 'success');
+    Router.refresh();
+    return true;
+  };
+
   window.setStorageBackend = function(backend) {
     Store.updateStorageConfig({ backend });
     Router.refresh();
@@ -1079,8 +1341,6 @@
       secretAccessKey: document.getElementById('storage-secret')?.value || '',
       publicBaseUrl: document.getElementById('storage-public-url')?.value.trim() || '',
       maxUploadMb: document.getElementById('storage-max-upload')?.value || current.maxUploadMb,
-      defaultAttachmentTtlDays: document.getElementById('storage-default-ttl')?.value || current.defaultAttachmentTtlDays,
-      maxAttachmentTtlDays: document.getElementById('storage-max-ttl')?.value || current.maxAttachmentTtlDays,
       signedUrlTtl: document.getElementById('storage-signed-ttl')?.value || current.signedUrlTtl
     };
   }
@@ -1102,6 +1362,16 @@
     const ok = Store.testStorageConnection();
     Toast.show(ok ? '存储连接测试成功' : '连接失败，请检查 Endpoint、Bucket 和凭证', ok ? 'success' : 'danger');
     Router.refresh();
+  };
+
+  window.confirmDisableMarketplace = function(name) {
+    Modal.open({
+      title: '紧急禁用市场',
+      content: `<p>禁用 <strong>${C.escapeHtml(name)}</strong> 后，将立即停止新 Token、结账意图、购买与退款。已提交交易和账本不会删除，仍可继续对账。</p><p class="text-danger" style="margin-top:var(--space-3);">这是安全隔离操作，不会回滚历史交易。</p>`,
+      confirmText: '确认紧急禁用',
+      variant: 'danger',
+      onConfirm: () => Toast.show(`${name} 已禁用，新交易已停止`, 'success')
+    });
   };
 
   window.showCreateOAuthModal = function() {

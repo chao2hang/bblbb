@@ -1,6 +1,6 @@
 # BBLBB — 插件与扩展规范
 
-> 版本：v0.3
+> 版本：v0.4
 > v1 插件是受控配置扩展，不执行上传代码。点赞、收藏、@通知可使用同一事件接口实现，但审计、授权、审核和积分账本始终是核心模块。
 
 ## 1. 扩展层级
@@ -125,7 +125,9 @@ v1 事件建议：
 | `tag.attach` | 仅允许配置批准的标签和帖子事件 |
 | `audit.note` | 追加插件执行说明，不能修改核心审计 |
 
-v1 不开放通用 `http_call`，避免 SSRF、数据外泄和不可控重试。未来若开放，只能通过独立 webhook/egress 子系统和域名白名单实现。
+v1 不开放通用 `http_call`，避免 SSRF、数据外泄和不可控重试。未来若开放，只能通过独立 webhook/egress 子系统和域名白名单实现。大模型调用不属于插件能力，必须经过核心 AI Gateway、脱敏、预算和用户同意策略。
+
+视频能力采用“核心 Video Service + 随应用编译的 Provider Adapter”：Adapter 可在 manifest 声明 `video.resolve`、`video.render`、`video.metadata.refresh`，但这些 capability 只能调用核心 Video Service，不能获得通用网络、数据库或 Secret。`direct/hls/xigua` 适配器随可信发布物安装，管理员只能启停和配置策略；v1 不允许上传新的视频执行代码。西瓜适配器不得抓取或绕过平台鉴权。
 
 ## 5. 幂等、重试与失败
 

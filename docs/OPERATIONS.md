@@ -1,6 +1,6 @@
 # BBLBB — 部署、升级与运维
 
-> 版本：v0.3
+> 版本：v0.4
 > 本文面向单机生产部署。默认推荐 systemd + Caddy + SQLite；容器部署提供等价能力，但不作为唯一方式。
 
 ## 1. 生产进程
@@ -35,7 +35,7 @@ SQLite 模式不需要数据库进程。MySQL/MariaDB 可同机或使用托管�
 
 ## 3. 核心配置
 
-示例键（最终以代码 schema 为准）：
+以下为 v0.4 冻结配置命名基线；类型、默认值、Secret 和运行时变更规则见 `CONFIGURATION.md`，实现不得静默改名：
 
 ```text
 BBLBB_ENV=production
@@ -56,9 +56,6 @@ BBLBB_STORAGE_LOCAL_PATH=/var/lib/bblbb/uploads
 # BBLBB_S3_PRESIGNED_UPLOADS=true
 # BBLBB_S3_SIGNED_URL_TTL_SECONDS=300
 BBLBB_UPLOAD_MAX_BYTES=20971520
-BBLBB_ATTACHMENT_DEFAULT_TTL_SECONDS=2592000
-BBLBB_ATTACHMENT_MAX_TTL_SECONDS=31536000
-BBLBB_ATTACHMENT_PURGE_GRACE_SECONDS=604800
 BBLBB_SECRET_KEY_FILE=/etc/bblbb/master-key
 BBLBB_SMTP_*=...
 ```
@@ -70,6 +67,16 @@ BBLBB_SMTP_*=...
 - 管理后台 `/admin/storage` 的“测试连接”调用受保护后端接口，检查 Bucket 可访问性、对象前缀权限与签名模式，只返回脱敏结果并写管理员审计。
 - 未知配置键在生产模式报错或明确警告。
 - 改变 origin、Cookie 名、OIDC issuer 或存储后端属于高风险迁移，不可随意运行时切换。
+
+新领域配置、Secret、在线修改和生效范围的统一矩阵见 [`CONFIGURATION.md`](CONFIGURATION.md)。Marketplace、AI 和 Video 默认关闭或按 Provider 启用；外部服务不可用不能影响核心论坛健康检查。
+
+### 新领域最低运行参数
+
+- Marketplace：Intent TTL、单笔/日限额、平台费、结算等待期、Webhook timeout/retry、Client service key rotation。
+- Download Billing：默认模式、授权 TTL、角色/等级免费条件、单次/每日/附件收入上限。
+- AI：Provider allowlist、Secret ref、模型、data mode、预算、timeout、retention disclosure。
+- Video：Provider hosts、embed hosts、CSP、HLS depth/segments/bytes、redirect、timeout、metadata refresh。
+- Feature Flag：默认值、灰度条件、紧急关闭；Flag 不能绕过权限或账务。
 
 ## 4. Caddy
 
@@ -242,10 +249,11 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 - Outbox/mail/security job 堆积。
 - OIDC key 即将过期/无法解密。
 - 附件 quarantined/处理失败异常上升。
-- 到期清理队列堆积、`purge_after` 超时对象数、数据库计费容量与物理对象字节差异。
+- 数据库计费容量与物理对象字节差异。
 - 用户配额拒绝率异常上升，避免等级配置错误导致全站无法上传。
+- S3 临时链接签发失败率、异常 TTL 和重复鉴权失败。
 
-到期清理 worker 应按 `purge_after` 分批、幂等删除原件和 variant，再更新计费容量；对象存储删除失败必须重试并告警。清理任务延迟不影响访问控制，到达 `expires_at` 后读取路径必须立即拒绝。
+S3 临时链接到期不触发对象清理。对象删除只由用户主动删除、业务保留策略或管理员清理触发，并按软删、保留期、幂等物理删除流程执行。
 
 ## 15. 安装与首个管理员
 

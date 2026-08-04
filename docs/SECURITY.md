@@ -1,6 +1,6 @@
 # BBLBB — 安全基线与威胁模型
 
-> 版本：v0.3
+> 版本：v0.4
 > 本文定义跨模块安全要求；会话/OIDC 见 `AUTH-OIDC.md`，权限见 `AUTHORIZATION.md`，文件见 `STORAGE.md`。
 
 ## 1. 信任边界
@@ -137,8 +137,8 @@ Content-Security-Policy: default-src 'self'; ...
 - 默认拒绝 SVG；若开放则进行严格清洗并以附件方式下载。
 - 文档附件设置 `Content-Disposition: attachment` 和安全 Content-Type。
 - 上传先进入 `pending/quarantined`，处理完成后变为 `ready`。
-- 所有附件必须有有限 `expires_at`；每次读取与签名时实时检查，到期后即使清理任务延迟也不能访问。
-- 等级单文件限制、总容量和期限由 Rust 在创建与完成阶段双重校验；浏览器显示的剩余额度不是授权依据。
+- S3 公开/预签名链接必须有有限有效期；链接到期只使该 URL 失效，附件对象不因此删除。每次重新签发都要重新鉴权。
+- 等级单文件限制和总容量由 Rust 在创建与完成阶段双重校验；浏览器显示的剩余额度不是授权依据。
 - 本地存储位于 Web 根目录之外，不使用 `.htaccess` 等与 Caddy 无关的假设。
 - 私有附件由 Rust 鉴权后流式传输；S3 可发短期签名 URL。
 
@@ -152,7 +152,48 @@ Content-Security-Policy: default-src 'self'; ...
 - 管理员调整需要原因、二次确认和审计；大额调整可配置双人复核。
 - 不修改或删除历史流水，撤销使用补偿交易。
 
-## 12. 限流与反滥用
+## 12. 下载抵扣积分
+
+- 下载扣费必须由 Rust 在后端重新鉴权和计算价格，浏览器提交的金额、货币、用户和附件所有权字段全部不可信。
+- 账户扣减、不可变流水、下载授权、审计和 Outbox 同一事务；生成 S3 临时 URL 不重复扣费。
+- 同一用户和附件的有效授权可复用；Idempotency-Key 防止重复点击和网络重试造成重复扣款。
+- URL 失效只影响 URL；下载授权有效期、附件对象生命周期和 S3 链接 TTL 是三个独立概念。
+- 后台策略变更只作用于新授权，不能修改历史流水或撤销既有授权；退款使用补偿交易。
+- URL 签发失败不得再次扣费，客户端通过原幂等键查询已提交授权并重试签发。
+- 详见 [`DOWNLOAD-BILLING.md`](DOWNLOAD-BILLING.md)。
+
+## 13. 公开市场交易
+
+- 普通 `openid/profile/email` scope 永远不能扣款；市场交易使用独立高风险 scope、管理员批准和用户单独同意。
+- 仅 Confidential Client 可获得购买/退款能力；Secret 只存安全 hash，业务 API 使用短期 opaque Access Token。
+- 金额、货币、收款方和物品版本来自服务端登记的 Offer/Checkout Intent，不信任市场提交的价格字段。
+- 购买、账户扣款、不可变流水、意图消费、审计与 Outbox 同事务；成功响应必须代表数据库已经提交。
+- 创建意图、购买和退款强制幂等；短效意图一次消费，并绑定用户、Client、Offer 版本与金额，防止重放和换价。
+- Webhook 在提交后通过 Outbox 投递，使用每 Client 独立可轮换密钥签名，并执行 SSRF 防护；它不是账务事实来源。
+- 禁止直接修改历史交易；退款使用受限的补偿交易。完整协议见 [`MARKETPLACE.md`](MARKETPLACE.md)。
+
+## 14. 大模型与外部 Provider
+
+- 浏览器、插件和用户配置不能直连模型 Provider；所有调用经过 Rust AI Gateway 和已批准适配器。
+- API Base URL 必须 HTTPS、精确域名白名单，阻断私网/loopback/链路本地地址、DNS 重绑定、任意重定向和超大响应，防止 SSRF。
+- Provider Secret 只存 Secret Store 或加密受保护配置；GET 只返回脱敏状态，不进入前端、localStorage、日志、审计 metadata 或错误响应。
+- 用户内容默认脱敏，隐藏正文和私密审核备注不外发；完整内容发送需单独同意、展示 Provider 留存/训练/区域信息并支持撤回。
+- 模型输入和输出均不可信：禁止输出直接作为 HTML、SQL、模板、权限、审核处罚、价格或积分操作执行；必须经过 schema、长度、XSS/Markdown 和业务规则校验。
+- 内容审计只产生风险建议，不能单独永久封禁、删除或放行高风险内容；人工审核和核心规则仍是最终裁决。
+- AI 任务异步、幂等、可取消、有限重试并带预算/并发/熔断；Provider 故障不能绕过安全规则，也不应阻塞普通发帖。
+- 详见 [`AI.md`](AI.md)。
+
+## 15. 视频嵌入与第三方媒体
+
+- 视频 URL 只能经 Rust Video Service 解析为结构化引用；禁止用户提交任意 iframe/HTML，禁止 `javascript:`, `data:`, userinfo、非 HTTPS、私网和 loopback 地址。
+- 出站探测使用精确 Host 白名单、TLS、DNS 重绑定防护、重定向限制、超时、响应大小和并发限制，防止 SSRF。
+- HLS master/media playlist、分片、Key、Map 和重定向必须逐个经过来源策略；默认不代理、不保存密钥、不转存第三方流。
+- 西瓜视频仅支持公开页面/官方嵌入白名单；不抓取签名播放地址，不绕过登录、地域、DRM 或平台限制；失败降级为外链卡片。
+- iframe 必须 CSP `frame-src` 精确白名单，`sandbox`、`referrerpolicy` 和 `allow` 最小化；默认禁止自动播放、摄像头和麦克风。
+- 受限、审核中或不可见帖子不加载第三方播放器，避免内容存在性和用户阅读权限泄漏。
+- 完整协议见 [`VIDEO-PLUGIN.md`](VIDEO-PLUGIN.md)。
+
+## 16. 限流与反滥用
 
 限流按多信号组合：IP/网段、账号、Session、动作和设备风险；User-Agent 只作为弱信号。
 
@@ -171,7 +212,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 代理 IP 只信任 Caddy 注入且来自 loopback/配置的可信代理。
 - 429 返回 `Retry-After`。
 
-## 13. 秘密与供应链
+## 17. 秘密与供应链
 
 - `.env` 不进入版本库；生产使用 systemd credentials、Docker secrets 或权限受限的秘密文件。
 - OIDC 私钥、SMTP 密码、S3 secret 必须支持轮换。
@@ -183,7 +224,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 发布产物生成 SBOM 和校验和；容器使用非 root、只读根文件系统和固定基础镜像 digest。
 - 数据型主题/插件配置包按不可信压缩包处理；代码型扩展按完整供应链代码处理。
 
-## 14. 隐私、日志与审计
+## 18. 隐私、日志与审计
 
 - 普通日志不记录密码、Cookie、Authorization、OAuth code/token、完整邮箱、隐藏正文和附件签名 URL。
 - 日志使用结构化字段和 request ID；安全审计与应用调试日志分开保留。
@@ -192,7 +233,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 审计日志不可由普通管理员 API 修改；清理需专用策略并记录清理事件。
 - OIDC Client 所得 claim 受 scope 和同意控制。
 
-## 15. 部署加固
+## 19. 部署加固
 
 - Caddy、SvelteKit、Rust 均以独立非 root 用户/容器运行。
 - Rust 和数据库只监听 loopback/内部网络。
@@ -201,7 +242,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 数据库、附件、配置和 OIDC 私钥都进入加密备份和恢复演练。
 - `/healthz` 不泄漏内部信息；`/readyz` 只对受控网络或内部探针开放详细状态。
 
-## 16. 安全验收
+## 20. 安全验收
 
 发布前至少覆盖：
 

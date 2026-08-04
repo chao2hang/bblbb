@@ -1,6 +1,6 @@
 # BBLBB — 系统架构
 
-> 版本：v0.3
+> 版本：v0.4
 > 本文定义进程边界、请求流、模块职责和演进路线。产品范围见 `REQUIREMENTS.md`。
 
 ## 1. 架构目标
@@ -147,6 +147,11 @@ SvelteKit 只维护：
 - 帖子/回复 + 审计 + Outbox。
 - 余额更新 + 操作 + 账本流水。
 - 付费扣费 + 内容 grant。
+- 市场购买 + Checkout Intent 消费 + 库存条件更新 + 账户扣款 + 不可变流水 + 审计 + Outbox。
+- 市场退款 + 原购买退款累计更新 + 补偿流水 + 审计 + Outbox。
+- 下载授权 + 账户扣款 + 不可变流水 + 审计 + Outbox；签发临时 URL 在事务外且不重复扣费。
+- AI suggestion 采纳 + 内容 revision + 审计；Provider 调用永不放入核心写事务。
+- Video embed 引用 + 结构化媒体元数据 + 审计；第三方探测和 HLS 解析在受限 egress/job 中执行。
 - 授权码原子消费 + Token 创建。
 - Refresh Token 轮换与旧 Token 标记使用。
 - 处罚创建 + 审核动作 + 审计。

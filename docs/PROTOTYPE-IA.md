@@ -46,10 +46,13 @@
 |---|---|---|---|
 |仪表盘|/admin|等级管理|/admin/levels|
 |用户管理|/admin/users|附件管理|/admin/attachments|
-|文件存储|/admin/storage|角色与权限|/admin/roles|
+|文件存储|/admin/storage|下载计费|/admin/download-billing|
+|大模型设置|/admin/ai|视频插件|/admin/video|
+|角色与权限|/admin/roles|
 |通知与邮件|/admin/notifications|主题管理|/admin/themes|
 |板块管理|/admin/boards|插件管理|/admin/plugins|
 |帖子与回复|/admin/posts|OAuth 客户端|/admin/oauth|
+|市场与交易|/admin/marketplace|—|—|
 |举报与审核|/admin/reports|审计日志|/admin/audit|
 |标签管理|/admin/tags|系统设置|/admin/settings|
 |积分与货币|/admin/points|—|—|
@@ -84,8 +87,12 @@
 |/admin/themes|主题管理|含预览与切换流程|
 |/admin/plugins|插件管理|配置型 / 预编译 UI 插件分区|
 |/admin/oauth|OAuth 客户端管理|含创建客户端流程|
+|/admin/marketplace|市场与交易管理|Client 审批、限额、交易、Webhook 与紧急禁用|
 |/admin/users、/admin/roles、/admin/boards、/admin/posts、/admin/tags、/admin/attachments、/admin/notifications、/admin/audit、/admin/settings|后台占位列表页|DataTable \+ FilterBar \+ 3–5 行 Mock 数据|
 |/admin/storage|文件存储配置|本地/S3 后端切换、连接测试、脱敏凭证、上传限制与迁移提示|
+|/admin/download-billing|下载计费配置|启停、默认价格、授权有效期、等级免费规则、日限额与策略版本|
+|/admin/ai|大模型配置|Provider、模型、Secret 脱敏、数据策略、预算和任务状态|
+|/admin/video|视频插件配置|西瓜视频、常见格式、HLS 限制、来源白名单和 CSP 状态|
 |/403|403 页|无权限访问时渲染|
 |任意未匹配路由|404 页|catch\-all|
 
@@ -101,7 +108,7 @@
 |精选文章卡片（标题/封面）|/topics/101|
 |讨论项标题《使用 SvelteKit 构建博客与轻量论坛是否合理？》|/topics/201|
 |讨论项标题《OAuth Provider 应该自研到什么程度？》|/topics/202|
-|帖子项作者头像/昵称|/users/\{作者名\}|
+|帖子项作者头像/昵称|桌面端 Hover/键盘 Focus 展示同步 Cover 的资料小卡片；点击进入 /users/\{作者名\}，触屏直接导航|
 |帖子项板块名|/boards/\{slug\}|
 |帖子项标签|/tags/\{标签名\}|
 |BoardCard（技术随笔、Rust、Web 开发、开源项目、闲聊、站务）|/boards/tech\-essay、/boards/rust、/boards/web\-dev、/boards/opensource、/boards/chat、/boards/meta|
@@ -152,7 +159,7 @@
 
 ## 2\.4 发布与编辑页（/publish）
 
-**区块：**类型切换（发布文章 / 发布讨论，与 ?type 对应）；表单：标题 Input、板块 Select、标签多选、Markdown 编辑器（编辑/预览分栏切换）、摘要 Textarea、封面图/附件上传（显示当前等级单附件上限、已用/总容量和有效期 Select，Mock 本地预览）、草稿自动保存状态文案（如「草稿已于 21:05 自动保存」）、定时发布（日期时间选择，默认关闭）、允许回复 Switch（默认开）、内容可见性 Radio 组（所有人可见 / 回复后可见 / 指定等级或回复后可见 \+ 等级 Select / 支付指定金币后可见 \+ 金额 Input）；底部操作条。
+**区块：**类型切换（发布文章 / 发布讨论，与 ?type 对应）；表单：标题 Input、板块 Select、标签多选、Markdown 编辑器（编辑/预览分栏切换）、摘要 Textarea、封面图/附件上传（显示当前等级单附件上限和已用/总容量，Mock 本地预览；提示 S3 临时链接过期不删除附件）、草稿自动保存状态文案（如「草稿已于 21:05 自动保存」）、定时发布（日期时间选择，默认关闭）、允许回复 Switch（默认开）、内容可见性 Radio 组（所有人可见 / 回复后可见 / 指定等级或回复后可见 \+ 等级 Select / 支付指定金币后可见 \+ 金额 Input）；底部操作条。
 
 |可点击元素|目标 / 行为|
 |---|---|
@@ -160,10 +167,10 @@
 |编辑器「编辑/预览」切换|原地分栏或单栏预览渲染 Markdown|
 |保存草稿|Toast「草稿已保存」\+ 更新自动保存时间文案|
 |预览|打开全屏预览 Modal（模拟详情页渲染）|
+|插入视频|Modal 输入 HTTPS 视频 URL；显示类型（MP4/WebM/HLS/西瓜视频）和安全来源提示；后端 resolve 后插入结构化 video embed，不接受任意 iframe HTML|
 |提交审核|ConfirmDialog → Toast「已提交审核」→ 跳 /topics/201 并显示「审核中」StatusBadge|
 |立即发布|校验标题/板块必填（缺失则字段红字 \+ 顶部错误摘要）→ ConfirmDialog → 跳 /topics/201，Toast「发布成功」|
 |附件选择|文件超过当前等级/站点实际单附件上限时立即清空并提示；页面展示已用容量与总容量|
-|附件有效期|只能选择不超过当前等级、站点、用途和板块最长限制的天数，明确提示到期后不可访问|
 |可见性 Radio|选中「指定等级」时出现等级 Select；选中「支付金币」时出现金额 Input|
 
 ## 2\.5 用户主页（/users/\[name\]，示例 Chaos）
@@ -216,9 +223,9 @@
 |保存配置|校验必填项，Secret 只提交至后端并显示脱敏状态，不写入浏览器持久化状态|
 |测试连接|执行后端连接测试，验证 Endpoint、Bucket、权限和签名模式；显示成功/失败 Toast|
 |迁移提示|明确本地与 S3 切换不会自动搬运已有对象，必须先完成迁移、hash 校验和回滚准备|
-|上传限制与私有 Bucket|展示站点硬上限、默认/最长附件有效期、预签名 TTL 和私有访问策略；业务规则取更小限制|
-|等级管理中的附件配额|每级可配置单附件大小、附件总容量和最长有效期，列表直接展示三项额度|
-|附件管理列表|展示上传者等级、容量占用、准确到期时间和即将到期/已过期状态|
+|上传限制与私有 Bucket|展示站点硬上限、S3 公开链接 TTL 和私有访问策略；明确链接过期不删除附件|
+|等级管理中的附件配额|每级可通过编辑弹窗设置单附件大小和附件总容量，保存后列表与发布页同步更新|
+|附件管理列表|展示上传者等级、容量占用、临时链接策略和安全状态|
 
 ## 2.9 举报与审核页（/admin/reports \+ /admin/reports/\[id\]）
 
@@ -246,9 +253,9 @@
 |等级表行「编辑」|编辑 Modal（名称/颜色/经验门槛/权益）→ 保存 Toast|
 |晋升路径节点（LV\.1–LV\.10）|点击节点在右侧「等级预览卡」展示该等级样式|
 
-## 2\.11 主题、插件与 OAuth 管理页（/admin/themes、/admin/plugins、/admin/oauth）
+## 2\.11 主题、插件、OAuth 与市场管理页（/admin/themes、/admin/plugins、/admin/oauth、/admin/marketplace）
 
-**主题页区块：**当前主题卡（预览图、亮色/暗色模式标识）；主题列表（含预览图缩略）；外观设置（颜色、字号、圆角、密度）；「上传数据型主题」按钮；代码型主题提示条（「代码型主题需要重新构建部署后生效」）。**插件页区块：**配置型插件区与预编译 UI 插件区（明确标识类型）；插件表格（名称、版本、状态、所需能力、操作）；运行错误与任务状态卡；页面顶部说明「不提供上传并执行任意代码的能力」。**OAuth 页区块：**客户端表格（名称、Client ID、类型 Public/Confidential、状态、Redirect URI、Post logout redirect URI、Scopes、最近授权用户数、安全事件）；创建客户端按钮。
+**主题页区块：**当前主题卡（预览图、亮色/暗色模式标识）；主题列表（含预览图缩略）；外观设置（颜色、字号、圆角、密度）；「上传数据型主题」按钮；代码型主题提示条（「代码型主题需要重新构建部署后生效」）。**插件页区块：**配置型插件区与预编译 UI 插件区（明确标识类型）；插件表格（名称、版本、状态、所需能力、操作）；运行错误与任务状态卡；页面顶部说明「不提供上传并执行任意代码的能力」。**OAuth 页区块：**客户端表格（名称、Client ID、类型 Public/Confidential、状态、Redirect URI、Post logout redirect URI、Scopes、最近授权用户数、安全事件）；创建客户端按钮。**市场页区块：**安全边界说明；待审批/启用 Client、scope、单笔/日限额和 Webhook 状态；实时交易表；对账与 Outbox 指标；紧急禁用入口。页面明确“市场不能直接改余额，成功仅代表原子事务已提交”。
 
 |可点击元素|目标 / 行为|
 |---|---|

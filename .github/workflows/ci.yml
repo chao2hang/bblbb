@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Documentation and OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check local Markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline
+            --no-progress
+            './README.md'
+            './docs/**/*.md'
+            './dev/**/*.md'
+          fail: true
+
+      - name: Parse OpenAPI YAML
+        shell: ruby {0}
+        run: |
+          require "yaml"
+          document = YAML.safe_load(File.read("openapi/openapi.yaml"), aliases: true)
+          abort "OpenAPI document must be a mapping" unless document.is_a?(Hash)
+          abort "Missing OpenAPI version" unless document.fetch("openapi", "").start_with?("3.")
+          abort "Missing OpenAPI paths" unless document["paths"].is_a?(Hash)
+
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        if: ${{ hashFiles('Cargo.toml', 'backend/Cargo.toml') != '' }}
+        with:
+          components: rustfmt, clippy
+      - name: Check Rust workspace
+        if: ${{ hashFiles('Cargo.toml') != '' }}
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo test --workspace --all-features
+      - name: Check Rust backend
+        if: ${{ hashFiles('Cargo.toml') == '' && hashFiles('backend/Cargo.toml') != '' }}
+        working-directory: backend
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo test --workspace --all-features
+      - name: Note absent Rust project
+        if: ${{ hashFiles('Cargo.toml', 'backend/Cargo.toml') == '' }}
+        run: echo 'Rust project is not present yet; checks will activate when Cargo.toml is added.'
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            prototype/package-lock.json
+      - name: Check SvelteKit frontend
+        if: ${{ hashFiles('frontend/package.json') != '' }}
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run format:check --if-present
+          npm run lint --if-present
+          npm run check
+          npm test --if-present
+          npm run build
+      - name: Check static prototype
+        if: ${{ hashFiles('prototype/package.json') != '' }}
+        working-directory: prototype
+        run: |
+          npm ci
+          npm run check:all
+      - name: Note absent frontend projects
+        if: ${{ hashFiles('frontend/package.json', 'prototype/package.json') == '' }}
+        run: echo 'Frontend project is not present yet.'
+
+  sqlite-migrations:
+    name: SQLite migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply skeleton migrations to an empty database
+        run: |
+          set -euo pipefail
+          database="${RUNNER_TEMP}/bblbb.sqlite"
+          for migration in migrations/sqlite/*.sql; do
+            sqlite3 -bail "$database" < "$migration"
+          done
+          test -z "$(sqlite3 "$database" 'PRAGMA foreign_key_check;')"
+          sqlite3 "$database" "SELECT 1 FROM users LIMIT 0; SELECT 1 FROM user_sessions LIMIT 0;"
+
+  mysql-family-migrations:
+    name: ${{ matrix.name }} migrations
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MySQL 8
+            image: mysql:8.0
+            directory: mysql
+          - name: MariaDB 10.11
+            image: mariadb:10.11
+            directory: mariadb
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: bblbb
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: bblbb
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install database client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes default-mysql-client
+      - name: Apply skeleton migrations to an empty database
+        env:
+          MYSQL_PWD: root
+          MIGRATION_DIRECTORY: ${{ matrix.directory }}
+        run: |
+          set -euo pipefail
+          for migration in "migrations/${MIGRATION_DIRECTORY}"/*.sql; do
+            mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root bblbb < "$migration"
+          done
+          mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root bblbb \
+            --execute='SELECT 1 FROM users LIMIT 0; SELECT 1 FROM user_sessions LIMIT 0;'

@@ -30,6 +30,9 @@ window.Router = (function() {
       { pattern: '/publish', handler: (params) => Pages.publish(params) },
       { pattern: '/notifications', handler: (params) => Pages.notifications(params) },
       { pattern: '/favorites', handler: (params) => Pages.favorites(params) },
+      { pattern: '/shop', handler: (params) => Pages.shop(params) },
+      { pattern: '/activity', handler: (params) => Pages.activity(params) },
+      { pattern: '/me/closet', handler: (params) => Pages.closet(params) },
       { pattern: '/search', handler: (params) => Pages.search(params) },
       { pattern: '/settings', handler: (params) => Pages.settings(params) },
       { pattern: '/login', handler: () => Pages.login() },
@@ -47,6 +50,9 @@ window.Router = (function() {
       { pattern: '/admin/boards', handler: () => Pages.adminBoards() },
       { pattern: '/admin/tags', handler: () => Pages.adminTags() },
       { pattern: '/admin/attachments', handler: () => Pages.adminAttachments() },
+      { pattern: '/admin/download-billing', handler: () => Pages.adminDownloadBilling() },
+      { pattern: '/admin/ai', handler: () => Pages.adminAI() },
+      { pattern: '/admin/video', handler: () => Pages.adminVideo() },
       { pattern: '/admin/storage', handler: () => Pages.adminStorage() },
       { pattern: '/admin/notifications', handler: () => Pages.adminNotifications() },
       { pattern: '/admin/audit', handler: (params) => Pages.adminAudit(params) },
@@ -56,6 +62,9 @@ window.Router = (function() {
       { pattern: '/admin/themes', handler: () => Pages.adminThemes() },
       { pattern: '/admin/plugins', handler: () => Pages.adminPlugins() },
       { pattern: '/admin/oauth', handler: () => Pages.adminOAuth() },
+      { pattern: '/admin/marketplace', handler: () => Pages.adminMarketplace() },
+      { pattern: '/admin/shop', handler: () => Pages.adminShop() },
+      { pattern: '/admin/activity', handler: () => Pages.adminActivity() },
       { pattern: '/admin/settings', handler: () => Pages.adminSettings() }
     ];
 
@@ -99,35 +108,59 @@ window.Router = (function() {
     return null;
   }
 
+  let renderToken = 0;
+
   function render() {
     const { path, params } = parseHash();
     currentPath = path;
     currentParams = params;
-
-    const handler = matchRoute(path);
+    const visitClaim = Store.recordAuthenticatedVisit?.();
+    if (visitClaim?.ok) setTimeout(() => Toast.show(`今日首次访问已自动签到，获得 ${visitClaim.amount} B币`, 'success'), 0);
+    const token = ++renderToken;
     const app = document.getElementById('app');
 
-    // Prototype permission guard: administrators and moderators may enter the
-    // admin shell; ordinary members receive the existing 403 page.
-    if (path === '/admin' || path.startsWith('/admin/')) {
+    const renderPage = () => {
+      if (token !== renderToken) return;
+      const handler = matchRoute(path);
+
+      // Prototype permission guard: administrators and moderators may enter the
+      // admin shell; ordinary members receive the existing 403 page. Keep the
+      // guarded render on the same path as regular pages so entrance motion,
+      // scroll reset and lazy-resource scanning remain consistent everywhere.
+      const isAdminPath = path === '/admin' || path.startsWith('/admin/');
       const roles = Store.state.user?.roles || [];
-      if (!roles.includes('admin') && !roles.includes('moderator')) {
-        app.innerHTML = Pages.forbidden();
-        return;
-      }
-    }
-    
-    if (handler) {
-      app.innerHTML = handler(params);
-    } else {
-      app.innerHTML = Pages.notFound();
+      const canEnterAdmin = roles.includes('admin') || roles.includes('moderator');
+      if (isAdminPath && !canEnterAdmin) app.innerHTML = Pages.forbidden();
+      else if (handler) app.innerHTML = handler(params);
+      else app.innerHTML = Pages.notFound();
+      app.classList.remove('route-enter');
+      // Force a reflow so repeated hash navigation retriggers the entrance motion.
+      void app.offsetWidth;
+      app.classList.add('route-enter');
+
+      // Scroll to a requested reply, otherwise reset to the page top.
+      const replyId = params.reply;
+      const replyTarget = replyId ? document.getElementById('reply-' + replyId) : null;
+      if (replyTarget) replyTarget.scrollIntoView({ block: 'center' });
+      else window.scrollTo(0, 0);
+      window.LazyLoader?.scan(app);
+    };
+
+    const routeReady = window.LazyLoader?.ensureRoute(path);
+    if (!routeReady) {
+      renderPage();
+      return;
     }
 
-    // Scroll to top
-    window.scrollTo(0, 0);
-
-    // Menus manage their own visibility. Closing them here would immediately
-    // undo an open action because opening triggers a refresh.
+    app.setAttribute('aria-busy', 'true');
+    routeReady.then(() => {
+      app.removeAttribute('aria-busy');
+      renderPage();
+    }).catch((error) => {
+      console.error(error);
+      app.removeAttribute('aria-busy');
+      if (token === renderToken) app.innerHTML = Pages.notFound();
+    });
   }
 
   function navigate(path) {
@@ -191,6 +224,12 @@ window.Router = (function() {
   function getParams() { return currentParams; }
 
   function init() {
+    // The hash router already owns scroll positioning for every render. Disable
+    // native history restoration so hard refreshes cannot accumulate an offset
+    // while the route entrance animation is being composed.
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
     window.addEventListener('hashchange', render);
     
     // Close user menu when clicking outside

@@ -23,6 +23,63 @@ window.Store = (function() {
     likedReplies: [],
     boardFollows: [],
     userFollows: [],
+    attachmentLevelQuotas: Object.fromEntries(MockData.levels.map(level => [level.level, {
+      maxFileMb: level.attachmentMaxMb,
+      totalCapacityMb: level.attachmentTotalMb
+    }])),
+    shopConfig: {
+      enabled: true,
+      activityEnabled: true,
+      currency: 'coins',
+      policyVersion: 1
+    },
+    shopProducts: [
+      { id: 'shop-nickname-blue', kind: 'cosmetic_nickname', title: '海盐蓝昵称', description: '在帖子、回复、通知和个人主页全局展示。', price: 80, slot: 'nickname_color', token: 'nickname-blue', status: 'published', owned: false },
+      { id: 'shop-avatar-cat', kind: 'cosmetic_avatar_attachment', title: '小猫挂件', description: '头像右下角展示可爱的猫咪挂件。', price: 160, slot: 'avatar_attachment', token: 'cat', status: 'published', owned: false },
+      { id: 'shop-badge-helper', kind: 'cosmetic_badge', title: '热心居民徽章', description: '展示在个人主页和作者信息旁。', price: 120, slot: 'profile_badges', token: 'helper', status: 'published', owned: true },
+      { id: 'shop-reaction-clap', kind: 'reaction_pack', title: '鼓掌反应包 ×10', description: '给优质帖子和回复送出鼓掌。', price: 30, slot: 'reaction_pack', token: 'clap', status: 'published', owned: false }
+    ],
+    shopEntitlements: [{ id: 'ent-helper', productId: 'shop-badge-helper', status: 'equipped', quantity: 1, remainingQuantity: 1 }],
+    presentation: { nicknameColor: 'default', avatarAttachment: null, avatarFrame: null, profileBadges: ['helper'], profileEffect: null },
+    profileCover: '',
+    activity: { checkedInToday: false, lastCheckInDay: '', streak: 6, todayEarned: 18, weeklyRank: 12 },
+    videoConfig: {
+      enabled: true,
+      xiguaEnabled: true,
+      directEnabled: true,
+      hlsEnabled: true,
+      allowedMediaTypes: ['video/mp4', 'video/webm', 'video/ogg', 'application/vnd.apple.mpegurl'],
+      maxDurationSeconds: 7200,
+      hlsMaxSegments: 600,
+      hlsMaxBytesMb: 512,
+      policyVersion: 1
+    },
+    aiConfig: {
+      enabled: true,
+      providerName: 'OpenAI Compatible',
+      baseUrl: 'https://api.example.com/v1',
+      secretConfigured: false,
+      defaultModel: 'safe-chat-medium',
+      dataMode: 'redacted',
+      moderationEnabled: true,
+      formattingEnabled: true,
+      seoEnabled: true,
+      dailyBudget: 100000,
+      timeoutSeconds: 20,
+      policyVersion: 1
+    },
+    downloadBillingConfig: {
+      enabled: true,
+      currency: 'coins',
+      defaultPrice: 12,
+      authorizationTtlHours: 24,
+      scope: 'paid_marked',
+      freeLevels: [6, 7, 8, 9, 10],
+      freeRoles: ['admin'],
+      dailyUserLimit: 200,
+      maxSingleCharge: 500,
+      policyVersion: 1
+    },
     storageConfig: {
       backend: 'local',
       localPath: '/var/lib/bblbb/uploads',
@@ -36,8 +93,6 @@ window.Store = (function() {
       presignedUploads: true,
       signedUrlTtl: 300,
       maxUploadMb: 20,
-      defaultAttachmentTtlDays: 30,
-      maxAttachmentTtlDays: 365,
       bucketPrivate: true,
       connectionStatus: 'untested',
       lastTestedAt: ''
@@ -68,15 +123,19 @@ window.Store = (function() {
     }
   } catch (e) {}
 
-  // Apply theme
-  function applyTheme() {
-    if (state.theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+  // Apply theme with a short, interruptible transition for surfaces and text.
+  let themeTransitionTimer;
+  function applyTheme(animate = true) {
+    const root = document.documentElement;
+    if (animate) {
+      root.classList.add('theme-transition');
+      clearTimeout(themeTransitionTimer);
+      themeTransitionTimer = setTimeout(() => root.classList.remove('theme-transition'), 360);
     }
+    root.classList.toggle('dark', state.theme === 'dark');
+    root.classList.toggle('light', state.theme === 'light');
   }
-  applyTheme();
+  applyTheme(false);
 
   // Persist state
   function persist() {
@@ -98,6 +157,16 @@ window.Store = (function() {
         likedReplies: state.likedReplies,
         boardFollows: state.boardFollows,
         userFollows: state.userFollows,
+        attachmentLevelQuotas: state.attachmentLevelQuotas,
+        shopConfig: state.shopConfig,
+        shopProducts: state.shopProducts,
+        shopEntitlements: state.shopEntitlements,
+        presentation: state.presentation,
+        profileCover: state.profileCover,
+        activity: state.activity,
+        aiConfig: state.aiConfig,
+        videoConfig: state.videoConfig,
+        downloadBillingConfig: state.downloadBillingConfig,
         storageConfig: state.storageConfig,
         lastReplyAt: state.lastReplyAt
       };
@@ -182,6 +251,19 @@ window.Store = (function() {
     return base ? { ...base, ...(state.postOverrides[postId] || {}) } : null;
   }
 
+  function canViewPost(post, user = state.user) {
+    if (!post) return false;
+    const required = Math.max(1, Number(post.visibilityLevel || (post.restricted?.type === 'level' ? post.restricted.level : 1)));
+    const isStaff = user?.roles?.includes('admin') || user?.roles?.includes('moderator');
+    const isBoardMod = user?.modBoards?.includes(post.board);
+    return isStaff || isBoardMod || post.author === user?.name || Number(user?.level || 1) >= required;
+  }
+
+  function getVisiblePost(postId, user = state.user) {
+    const post = getPost(postId);
+    return canViewPost(post, user) ? post : null;
+  }
+
   function getAllPosts() {
     return [...state.createdPosts, ...MockData.posts].map(post => ({ ...post, ...(state.postOverrides[post.id] || {}) }));
   }
@@ -194,6 +276,9 @@ window.Store = (function() {
   }
 
   function createPost(data, status = 'published') {
+    const requestedVisibility = Number(data.visibilityLevel) || 1;
+    const currentLevel = Math.max(1, Number(state.user.level) || 1);
+    if (requestedVisibility > currentLevel) return { ok: false, reason: 'visibility_level_exceeds_author' };
     const id = Math.max(300, ...getAllPosts().map(post => Number(post.id))) + 1;
     const now = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-');
     const post = {
@@ -201,13 +286,15 @@ window.Store = (function() {
       content: data.content, author: state.user.name, board: data.board, tags: data.tags || [],
       views: 0, replies: 0, likes: 0, createdAt: now, updatedAt: now, lastReplyAt: now,
       isPinned: false, isEssence: false, status,
+      visibilityLevel: Math.max(1, Math.min(Number(state.user.level) || 1, Number(data.visibilityLevel) || 1)),
+      cover: data.cover || '',
       restricted: data.restricted || null
     };
     state.createdPosts.unshift(post);
     delete state.drafts[data.type || 'topic'];
     persist();
     notify();
-    return post;
+    return { ok: true, post };
   }
 
   function getReplies(topicId) {
@@ -367,6 +454,138 @@ window.Store = (function() {
     }
   }
 
+  function buyShopProduct(productId) {
+    const product = state.shopProducts.find(item => item.id === productId && item.status === 'published');
+    if (!product) return { ok: false, reason: 'not_found' };
+    if (state.user.coins < product.price) return { ok: false, reason: 'insufficient_funds' };
+    state.user.coins -= product.price;
+    const existing = state.shopEntitlements.find(item => item.productId === product.id && item.status !== 'revoked');
+    if (product.kind === 'reaction_pack' && existing) existing.remainingQuantity += 10;
+    else state.shopEntitlements.push({ id: `ent-${Date.now()}`, productId: product.id, status: product.slot === 'reaction_pack' ? 'owned' : 'owned', quantity: 1, remainingQuantity: product.kind === 'reaction_pack' ? 10 : 1 });
+    product.owned = true;
+    persist();
+    notify();
+    return { ok: true, product };
+  }
+
+  function equipShopEntitlement(entitlementId) {
+    const entitlement = state.shopEntitlements.find(item => item.id === entitlementId && item.status !== 'revoked' && item.status !== 'expired');
+    const product = entitlement && state.shopProducts.find(item => item.id === entitlement.productId);
+    if (!entitlement || !product || product.slot === 'reaction_pack') return false;
+    state.shopEntitlements.forEach(item => {
+      const other = state.shopProducts.find(p => p.id === item.productId);
+      if (other?.slot === product.slot && item.id !== entitlementId && item.status === 'equipped') item.status = 'owned';
+    });
+    entitlement.status = 'equipped';
+    if (product.slot === 'nickname_color') state.presentation.nicknameColor = product.token;
+    if (product.slot === 'avatar_attachment') state.presentation.avatarAttachment = product.token;
+    if (product.slot === 'avatar_frame') state.presentation.avatarFrame = product.token;
+    if (product.slot === 'profile_badges' && !state.presentation.profileBadges.includes(product.token)) state.presentation.profileBadges = [...state.presentation.profileBadges.slice(-2), product.token];
+    persist();
+    notify();
+    return true;
+  }
+
+  function unequipShopSlot(slot) {
+    state.shopEntitlements.forEach(item => { const p = state.shopProducts.find(product => product.id === item.productId); if (p?.slot === slot && item.status === 'equipped') item.status = 'owned'; });
+    if (slot === 'nickname_color') state.presentation.nicknameColor = 'default';
+    if (slot === 'avatar_attachment') state.presentation.avatarAttachment = null;
+    if (slot === 'avatar_frame') state.presentation.avatarFrame = null;
+    if (slot === 'profile_badges') state.presentation.profileBadges = [];
+    persist();
+    notify();
+  }
+
+  function setProfileCover(value) {
+    state.profileCover = typeof value === 'string' ? value : '';
+    state.user.profileCover = state.profileCover;
+    persist();
+    notify();
+    return state.profileCover;
+  }
+
+  function removeProfileCover() {
+    return setProfileCover('');
+  }
+
+  function checkInActivity() {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    if (state.activity.lastCheckInDay === today) {
+      state.activity.checkedInToday = true;
+      return { ok: false, reason: 'already_claimed' };
+    }
+    state.activity.lastCheckInDay = today;
+    state.activity.checkedInToday = true;
+    state.activity.streak += 1;
+    state.activity.todayEarned = 10;
+    state.user.coins += 10;
+    persist();
+    notify();
+    return { ok: true, amount: 10, day: today };
+  }
+
+  function recordAuthenticatedVisit() {
+    if (!state.user?.name || !state.shopConfig?.activityEnabled) return { ok: false, reason: 'not_eligible' };
+    return checkInActivity();
+  }
+
+  function updateVideoConfig(config) {
+    const current = state.videoConfig;
+    state.videoConfig = {
+      ...current,
+      ...config,
+      enabled: config.enabled === undefined ? current.enabled : !!config.enabled,
+      xiguaEnabled: config.xiguaEnabled === undefined ? current.xiguaEnabled : !!config.xiguaEnabled,
+      directEnabled: config.directEnabled === undefined ? current.directEnabled : !!config.directEnabled,
+      hlsEnabled: config.hlsEnabled === undefined ? current.hlsEnabled : !!config.hlsEnabled,
+      maxDurationSeconds: Math.max(60, Math.min(86400, Number(config.maxDurationSeconds) || current.maxDurationSeconds)),
+      hlsMaxSegments: Math.max(1, Math.min(10000, Number(config.hlsMaxSegments) || current.hlsMaxSegments)),
+      hlsMaxBytesMb: Math.max(1, Math.min(4096, Number(config.hlsMaxBytesMb) || current.hlsMaxBytesMb)),
+      policyVersion: (current.policyVersion || 0) + 1
+    };
+    persist();
+    notify();
+    return state.videoConfig;
+  }
+
+  function updateAiConfig(config) {
+    const current = state.aiConfig;
+    state.aiConfig = {
+      ...current,
+      ...config,
+      enabled: config.enabled === undefined ? current.enabled : !!config.enabled,
+      secretConfigured: current.secretConfigured || !!config.secret,
+      dailyBudget: Math.max(0, Math.min(100000000, Number(config.dailyBudget) || current.dailyBudget)),
+      timeoutSeconds: Math.max(3, Math.min(120, Number(config.timeoutSeconds) || current.timeoutSeconds)),
+      policyVersion: (current.policyVersion || 0) + 1
+    };
+    delete state.aiConfig.secret;
+    persist();
+    notify();
+    return state.aiConfig;
+  }
+
+  function updateDownloadBillingConfig(config) {
+    const current = state.downloadBillingConfig;
+    const defaultPrice = Math.max(0, Math.min(1000000, Number(config.defaultPrice) || 0));
+    const authorizationTtlHours = Math.max(1, Math.min(720, Number(config.authorizationTtlHours) || 24));
+    const dailyUserLimit = Math.max(0, Math.min(100000, Number(config.dailyUserLimit) || 0));
+    const maxSingleCharge = Math.max(defaultPrice, Math.min(1000000, Number(config.maxSingleCharge) || defaultPrice));
+    state.downloadBillingConfig = {
+      ...current,
+      ...config,
+      enabled: config.enabled === undefined ? current.enabled : !!config.enabled,
+      defaultPrice,
+      authorizationTtlHours,
+      dailyUserLimit,
+      maxSingleCharge,
+      policyVersion: (current.policyVersion || 0) + 1
+    };
+    persist();
+    notify();
+    return state.downloadBillingConfig;
+  }
+
   function updateStorageConfig(config) {
     const allowed = ['local', 's3'];
     const backend = allowed.includes(config.backend) ? config.backend : 'local';
@@ -375,9 +594,7 @@ window.Store = (function() {
       ...config,
       backend,
       maxUploadMb: Math.max(1, Math.min(1024, Number(config.maxUploadMb) || 20)),
-      defaultAttachmentTtlDays: Math.max(1, Math.min(365, Number(config.defaultAttachmentTtlDays) || 30)),
-      maxAttachmentTtlDays: Math.max(1, Math.min(3650, Number(config.maxAttachmentTtlDays) || 365)),
-      signedUrlTtl: Math.max(60, Math.min(3600, Number(config.signedUrlTtl) || 300)),
+      signedUrlTtl: Math.max(60, Math.min(604800, Number(config.signedUrlTtl) || 300)),
       secretConfigured: state.storageConfig.secretConfigured || !!config.secretAccessKey,
       connectionStatus: config.backend === 's3' ? 'untested' : 'ready'
     };
@@ -385,6 +602,17 @@ window.Store = (function() {
     persist();
     notify();
     return state.storageConfig;
+  }
+
+  function updateAttachmentLevelQuota(level, quota) {
+    const levelNumber = Number(level);
+    if (!MockData.levels.some(item => item.level === levelNumber)) return null;
+    const maxFileMb = Math.max(1, Math.min(1024, Number(quota.maxFileMb) || 1));
+    const totalCapacityMb = Math.max(maxFileMb, Math.min(1048576, Number(quota.totalCapacityMb) || maxFileMb));
+    state.attachmentLevelQuotas[levelNumber] = { maxFileMb, totalCapacityMb };
+    persist();
+    notify();
+    return state.attachmentLevelQuotas[levelNumber];
   }
 
   function testStorageConnection() {
@@ -443,6 +671,8 @@ window.Store = (function() {
     unlockPaid,
     isPaidUnlocked,
     getPost,
+    canViewPost,
+    getVisiblePost,
     getAllPosts,
     saveDraft,
     createPost,
@@ -463,6 +693,17 @@ window.Store = (function() {
     addOAuthClient,
     togglePlugin,
     updateStorageConfig,
+    updateAttachmentLevelQuota,
+    updateDownloadBillingConfig,
+    buyShopProduct,
+    equipShopEntitlement,
+    unequipShopSlot,
+    setProfileCover,
+    removeProfileCover,
+    checkInActivity,
+    recordAuthenticatedVisit,
+    updateAiConfig,
+    updateVideoConfig,
     testStorageConnection,
     setPublishType,
     setEditorTab,

@@ -7,6 +7,35 @@ window.Composites = (function () {
   const A = window.Atoms;
   const { icon, avatar, button, tag, badge, categoryBadge, formatCount, escapeHtml } = A;
 
+  function profileCoverFor(name) {
+    const user = window.MockData?.getUser(name);
+    if (window.Store?.state?.user?.name === name) return window.Store.state.profileCover || user?.profileCover || '';
+    return user?.profileCover || '';
+  }
+
+  function userHoverCard(name) {
+    const user = window.MockData?.getUser(name) || { name, bio: '', level: 1, roles: [], coins: 0, contribution: 0 };
+    const cover = profileCoverFor(name);
+    const posts = window.MockData?.posts?.filter(post => post.author === name).length || 0;
+    const replies = Object.values(window.MockData?.replies || {}).flat().filter(reply => reply.author === name).length || 0;
+    const coverStyle = cover ? ` style="background-image:url('${escapeHtml(cover)}')"` : '';
+    return `<template class="user-hover-template"><div class="user-hover-card" role="dialog" aria-label="${escapeHtml(name)} 的个人资料">
+      <div class="user-hover-cover"${coverStyle}></div>
+      <div class="user-hover-body">
+        <div class="user-hover-avatar">${avatar(name, 'lg')}</div>
+        <div class="user-hover-name">${escapeHtml(name)} ${A.levelBadge(user.level)}</div>
+        <div class="user-hover-badges">${A.roleBadge(user.roles)}</div>
+        <p class="user-hover-bio">${escapeHtml(user.bio || '这个人还没有填写个人简介。')}</p>
+        <div class="user-hover-stats"><span><strong>${posts}</strong> 帖子</span><span><strong>${replies}</strong> 回复</span><span><strong>${formatCount(user.contribution || 0)}</strong> 贡献</span></div>
+        <button type="button" class="user-hover-actions" onclick="event.stopPropagation();Router.navigate('#/users/${encodeURIComponent(name)}')">查看个人主页</button>
+      </div>
+    </div></template>`;
+  }
+
+  function authorHover(name, size = 'xs') {
+    return `<span class="author-hover-trigger" tabindex="0" aria-label="查看 ${escapeHtml(name)} 的个人资料">${avatar(name, size)}${userHoverCard(name)}</span>`;
+  }
+
   // ============================================================
   // Navbar（Geist 式：60px，border-bottom + 轻阴影）
   // ============================================================
@@ -17,7 +46,9 @@ window.Composites = (function () {
       { label: '首页', href: '#/' },
       { label: '文章', href: '#/articles' },
       { label: '板块', href: '#/boards' },
-      { label: '标签', href: '#/tags' }
+      { label: '标签', href: '#/tags' },
+      { label: '积分商城', href: '#/shop' },
+      { label: '活跃', href: '#/activity' }
     ];
 
     function isActive(href) {
@@ -78,6 +109,8 @@ window.Composites = (function () {
         <div class="dropdown-sep"></div>
         <a href="#/users/${escapeHtml(user.name)}" class="dropdown-item" onclick="window.Store.closeUserMenu()">${icon('user', 16)}<span>我的主页</span></a>
         <a href="#/users/${escapeHtml(user.name)}?tab=points" class="dropdown-item" onclick="window.Store.closeUserMenu()">${icon('coins', 16)}<span>我的积分</span></a>
+        <a href="#/shop" class="dropdown-item" onclick="window.Store.closeUserMenu()">${icon('shopping-bag', 16)}<span>积分商城</span></a>
+        <a href="#/me/closet" class="dropdown-item" onclick="window.Store.closeUserMenu()">${icon('sparkles', 16)}<span>我的装扮</span></a>
         <a href="#/favorites" class="dropdown-item" onclick="window.Store.closeUserMenu()">${icon('heart', 16)}<span>收藏</span></a>
         <a href="#/notifications" class="dropdown-item" onclick="window.Store.closeUserMenu()">${icon('bell', 16)}<span>通知</span></a>
         <div class="dropdown-sep"></div>
@@ -108,6 +141,9 @@ window.Composites = (function () {
             ${navItems.map((item) => `<a href="${item.href}" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">${escapeHtml(item.label)}</a>`).join('')}
             <div class="drawer-divider"></div>
             <a href="#/users/${escapeHtml(user.name)}" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">我的主页</a>
+            <a href="#/shop" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">积分商城</a>
+            <a href="#/activity" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">活跃与奖励</a>
+            <a href="#/me/closet" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">我的装扮</a>
             <a href="#/favorites" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">收藏</a>
             <a href="#/notifications" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">通知</a>
             <a href="#/settings" class="drawer-nav-item" onclick="window.Store.closeMobileDrawer()">账号设置</a>
@@ -142,6 +178,25 @@ window.Composites = (function () {
   }
 
   function postRow(post) {
+    const canView = !window.Store || window.Store.canViewPost(post);
+    const requiredLevel = Math.max(1, Number(post.visibilityLevel || 1));
+    if (!canView) {
+      return `
+        <div class="post-row is-level-locked" role="row">
+          <div class="post-row-main" role="cell">
+            <div class="post-row-title level-locked-title">
+              ${icon('lock', 14)}
+              <a href="#/topics/${post.id}">该内容仅 LV.${requiredLevel} 及以上可见</a>
+            </div>
+            <div class="post-row-meta"><span>升级后可查看内容信息</span></div>
+          </div>
+          <div class="post-row-posters level-locked-mask" role="cell">—</div>
+          <div class="post-row-num" role="cell">—</div>
+          <div class="post-row-num" role="cell">—</div>
+          <div class="post-row-activity" role="cell">受限内容</div>
+        </div>`;
+    }
+
     const posterNames = [post.author];
     if (post.lastReplyBy && post.lastReplyBy !== post.author) posterNames.push(post.lastReplyBy);
     const posters = posterNames.slice(0, 3);
@@ -151,6 +206,7 @@ window.Composites = (function () {
           <div class="post-row-title">
             ${post.isPinned ? badge('置顶', 'pinned') : ''}
             ${post.isEssence ? badge('精华', 'essence') : ''}
+            ${requiredLevel > 1 ? badge(`LV.${requiredLevel}+`, 'neutral') : ''}
             <a href="#/topics/${post.id}">${escapeHtml(post.title)}</a>
           </div>
           <div class="post-row-meta">
@@ -159,7 +215,7 @@ window.Composites = (function () {
           </div>
         </div>
         <div class="post-row-posters" role="cell">
-          ${posters.map((n) => `<a href="#/users/${encodeURIComponent(n)}" title="${escapeHtml(n)}">${avatar(n, 'xs')}</a>`).join('')}
+          ${posters.map((n) => authorHover(n, 'xs')).join('')}
         </div>
         <div class="post-row-num ${post.replies >= 20 ? 'is-hot' : ''}" role="cell">${formatCount(post.replies)}</div>
         <div class="post-row-num" role="cell">${formatCount(post.views)}</div>
@@ -171,12 +227,24 @@ window.Composites = (function () {
   // Article Card（16:9 渐变封面 + 信息）
   // ============================================================
   function articleCard(post) {
-    const author = window.MockData.getUser(post.author);
+    const canView = !window.Store || window.Store.canViewPost(post);
+    const requiredLevel = Math.max(1, Number(post.visibilityLevel || 1));
     const board = window.MockData.getBoard(post.board);
     const cover = (board && board.color) || '#0969DA';
+    if (!canView) {
+      return `
+        <a href="#/topics/${post.id}" class="article-card is-level-locked">
+          <div class="article-card-cover level-locked-cover">${icon('lock', 28)}</div>
+          <div class="article-card-body">
+            <div class="article-card-title">该内容仅 LV.${requiredLevel} 及以上可见</div>
+            <div class="article-card-summary">升级后可查看标题、摘要和作者信息。</div>
+            <div class="article-card-footer"><span>等级受限</span><span>LV.${requiredLevel}+</span></div>
+          </div>
+        </a>`;
+    }
     return `
       <a href="#/topics/${post.id}" class="article-card">
-        <div class="article-card-cover" style="background:linear-gradient(135deg, ${escapeHtml(cover)} 0%, ${escapeHtml(cover)}cc 55%, #24292F 130%);">
+        <div class="article-card-cover" style="background:linear-gradient(135deg, ${escapeHtml(cover)} 0%, ${escapeHtml(cover)}cc 55%, var(--color-ink) 130%);">
           ${icon('file-text', 36)}
         </div>
         <div class="article-card-body">
@@ -184,8 +252,8 @@ window.Composites = (function () {
           <div class="article-card-summary">${escapeHtml(post.summary)}</div>
           <div class="article-card-footer">
             <div class="article-card-author">
-              ${avatar(post.author, 'xs')}
-              <span>${escapeHtml(post.author)}</span>
+              ${authorHover(post.author, 'xs')}
+              <span class="author-hover-name-trigger" tabindex="0">${escapeHtml(post.author)}${userHoverCard(post.author)}</span>
             </div>
             <span class="article-card-reads">${formatCount(post.views)} 阅读</span>
           </div>
@@ -198,7 +266,7 @@ window.Composites = (function () {
   // ============================================================
   function boardCard(board) {
     return `
-      <a href="#/boards/${encodeURIComponent(board.slug)}" class="board-card" style="--cat-color:${escapeHtml(board.color || '#0969DA')};">
+      <a href="#/boards/${encodeURIComponent(board.slug)}" class="board-card" style="--cat-color:${escapeHtml(board.color || 'var(--color-accent)')};">
         <div class="board-card-icon">${icon(board.icon, 20)}</div>
         <div class="board-card-name">${escapeHtml(board.name)}</div>
         <div class="board-card-desc">${escapeHtml(board.description)}</div>
@@ -337,7 +405,12 @@ window.Composites = (function () {
       {
         label: '运营', items: [
           { key: '/admin/points', label: '积分与货币', icon: 'coins' },
+          { key: '/admin/shop', label: '内部商城', icon: 'shopping-bag' },
+          { key: '/admin/activity', label: '活跃运营', icon: 'sparkles' },
           { key: '/admin/attachments', label: '附件管理', icon: 'image' },
+          { key: '/admin/download-billing', label: '下载计费', icon: 'download' },
+          { key: '/admin/ai', label: '大模型设置', icon: 'bot' },
+          { key: '/admin/video', label: '视频插件', icon: 'video' },
           { key: '/admin/storage', label: '文件存储', icon: 'package' },
           { key: '/admin/notifications', label: '通知与邮件', icon: 'bell' },
           { key: '/admin/audit', label: '审计日志', icon: 'list' }
@@ -348,6 +421,7 @@ window.Composites = (function () {
           { key: '/admin/themes', label: '主题管理', icon: 'eye' },
           { key: '/admin/plugins', label: '插件管理', icon: 'package' },
           { key: '/admin/oauth', label: 'OAuth 客户端', icon: 'key' },
+          { key: '/admin/marketplace', label: '市场与交易', icon: 'shopping-bag' },
           { key: '/admin/settings', label: '系统设置', icon: 'settings' }
         ]
       }
@@ -371,7 +445,7 @@ window.Composites = (function () {
   function toc(headings) {
     if (!headings || !headings.length) return '';
     return `
-      <nav class="toc" aria-label="文章目录">
+      <nav class="card toc" aria-label="文章目录">
         <div class="toc-title">目录</div>
         <div class="toc-list">
           ${headings.map((h) => `
@@ -438,7 +512,7 @@ window.Composites = (function () {
 
   return {
     navbar, mobileDrawer, userMenuDropdown,
-    postList, postRow, articleCard, boardCard,
+    postList, postRow, articleCard, boardCard, userHoverCard, authorHover,
     tabs, pagination, breadcrumb, userInfoCard,
     restrictedCard, adminSidebar, renderMarkdown,
     toc, extractHeadings

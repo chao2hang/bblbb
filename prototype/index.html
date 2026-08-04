@@ -4,12 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BBLBB 社区原型</title>
-  <!-- 5-layer CSS: tokens → base → layout → components → pages -->
+  <!-- 6-layer CSS: tokens → base → layout → components → pages → visual polish -->
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/layout.css" />
   <link rel="stylesheet" href="css/components.css" />
   <link rel="stylesheet" href="css/pages.css" />
+  <link rel="stylesheet" href="css/visual-overrides.css" />
 </head>
 <body>
   <a class="skip-link" href="#app">跳到主内容</a>
@@ -30,8 +31,7 @@
   <script src="js/ui/overlays.js"></script>
   <script src="js/ui/bundle.js"></script>
   <script src="js/pages.js"></script>
-  <script src="js/pages2.js"></script>
-  <script src="js/pages3.js"></script>
+  <script src="js/lazy-loader.js"></script>
   <script src="js/router.js"></script>
   <script src="js/app.js"></script>
 </body>

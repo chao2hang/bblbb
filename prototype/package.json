@@ -7,9 +7,12 @@
     "check": "node scripts/render-check.mjs",
     "check:interaction": "node scripts/interaction-check.mjs",
     "check:all": "npm run check && npm run check:interaction",
+    "check:browser": "node scripts/browser-audit.mjs",
+    "check:browser:breakpoints": "node scripts/browser-audit.mjs --breakpoints",
     "check:golden": "node scripts/render-check.mjs --golden"
   },
   "devDependencies": {
-    "jsdom": "^24.1.0"
+    "jsdom": "^24.1.0",
+    "ws": "^8.21.2"
   }
 }

@@ -21,16 +21,49 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GOLDEN_DIR = path.join(ROOT, 'scripts', 'golden');
 const GOLDEN_MODE = process.argv.includes('--golden');
 
+// Icon calls must resolve to local SVG paths. Keep this list aligned with the
+// scripts loaded by index.html; dynamic names are covered by rendered output.
+const iconSourceFiles = [
+  'pages.js', 'pages2.js', 'pages3.js',
+  'ui/atoms.js', 'ui/composites.js', 'ui/overlays.js', 'ui/bundle.js'
+];
+
 // ---------------------------------------------------------------------------
 // CSS bundle: tokens + base + layout + components + pages (in <link> order)
 // ---------------------------------------------------------------------------
-const cssFiles = ['tokens.css', 'base.css', 'layout.css', 'components.css', 'pages.css'];
+const cssFiles = ['tokens.css', 'base.css', 'layout.css', 'components.css', 'pages.css', 'visual-overrides.css'];
 const cssBundle = cssFiles
   .map((f) => fs.existsSync(path.join(ROOT, 'css', f)) ? fs.readFileSync(path.join(ROOT, 'css', f), 'utf8') : '')
   .join('\n');
 
 const cssClasses = new Set((cssBundle.match(/\.[a-zA-Z][a-zA-Z0-9_-]*/g) || []).map((s) => s.slice(1)));
-const cssTokens = new Set((cssBundle.match(/--[a-zA-Z0-9-]+/g) || []).map((s) => s.slice(2)));
+// Only declarations count as definitions. Matching every `--token` occurrence
+// would make an undefined `var(--token)` look valid merely because it was
+// referenced in the same bundle.
+const cssTokenDefinitions = new Set(
+  [...cssBundle.matchAll(/--([a-zA-Z0-9-]+)\s*:/g)].map((match) => match[1])
+);
+
+const iconSource = iconSourceFiles
+  .map((f) => fs.existsSync(path.join(ROOT, 'js', f)) ? fs.readFileSync(path.join(ROOT, 'js', f), 'utf8') : '')
+  .join('\n');
+// Some presentation tokens are intentionally supplied by rendered inline
+// styles (for example `--cat-color` and `--swatch-color`). Include those
+// declarations so the check validates real semantic tokens without flagging
+// route data as a missing global token.
+const runtimeTokenDefinitions = new Set(
+  [...iconSource.matchAll(/--([a-zA-Z0-9-]+)\s*:/g)].map((match) => match[1])
+);
+const definedTokens = new Set([...cssTokenDefinitions, ...runtimeTokenDefinitions]);
+const staticIconNames = new Set();
+for (const re of [/(?:C\.)?icon\(\s*['\"]([^'\"]+)/g, /icon\s*:\s*['\"]([^'\"]+)['\"]/g]) {
+  for (const match of iconSource.matchAll(re)) staticIconNames.add(match[1]);
+}
+const iconRegistrySource = fs.readFileSync(path.join(ROOT, 'js', 'icons.js'), 'utf8');
+const registeredIconNames = new Set((iconRegistrySource.match(/^\s*"([^"]+)"\s*:/gm) || []).map((s) => s.match(/"([^"]+)"/)[1]));
+const missingStaticIcons = [...staticIconNames]
+  .filter((name) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name))
+  .filter((name) => !registeredIconNames.has(name));
 
 // ---------------------------------------------------------------------------
 // jsdom bootstrap
@@ -51,7 +84,7 @@ function boot() {
   w.lucide = { createIcons: () => {} };
   w.scrollTo = () => {};
   // JS load order: new structure (icons + ui/ + split pages) or legacy (single components.js)
-  const NEW = ['icons.js', 'mock.js', 'store.js', 'ui/atoms.js', 'ui/composites.js', 'ui/overlays.js', 'ui/bundle.js', 'pages.js', 'pages2.js', 'pages3.js', 'router.js', 'app.js'];
+  const NEW = ['icons.js', 'mock.js', 'store.js', 'ui/atoms.js', 'ui/composites.js', 'ui/overlays.js', 'ui/bundle.js', 'pages.js', 'pages2.js', 'pages3.js', 'lazy-loader.js', 'router.js', 'app.js'];
   const LEGACY = ['icons.js', 'mock.js', 'store.js', 'components.js', 'pages.js', 'pages2.js', 'pages3.js', 'router.js', 'app.js'];
   const jsFiles = fs.existsSync(path.join(ROOT, 'js', 'ui', 'atoms.js')) ? NEW : LEGACY;
   for (const f of jsFiles) {
@@ -73,7 +106,7 @@ function routes() {
     '/users/Chaos', '/users/Chaos?tab=replies', '/users/Chaos?tab=favorites', '/users/Chaos?tab=about', '/users/Chaos?tab=points',
     '/search?q=rust', '/search?q=rust&tab=articles', '/search?q=rust&tab=users',
     '/settings?tab=security', '/settings?tab=devices', '/settings?tab=notifications', '/settings?tab=oauth',
-    '/notifications?tab=unread', '/favorites?tab=articles',
+    '/notifications?tab=unread', '/favorites?tab=articles', '/shop', '/activity', '/me/closet',
     '/publish?type=article', '/forgot-password', '/403', '/429',
     '/admin/users?role=admin', '/admin/content?status=pending', '/admin/reports?status=pending'
   ];
@@ -87,6 +120,9 @@ const dom = boot();
 const { window } = dom;
 const results = [];
 const routeList = routes();
+if (missingStaticIcons.length) {
+  errors.push('missing icon registrations: ' + missingStaticIcons.join(', '));
+}
 
 for (const r of routeList) {
   const before = errors.length;
@@ -107,8 +143,10 @@ for (const r of routeList) {
   if (len < 200) issues.push('empty');
   if (/undefined|NaN|\[object Object\]/.test(htmlText)) issues.push('bad-value');
   if (/\$\{/.test(htmlText)) issues.push('unrendered-tpl');
+  const missingRenderedIcons = [...window.document.querySelectorAll('#app svg[data-missing-icon]')].map((el) => el.getAttribute('title') || el.className.baseVal);
+  if (missingRenderedIcons.length) issues.push('missing-rendered-icons: ' + missingRenderedIcons.slice(0, 8).join(','));
   const used = [...cls].filter((c) => !cssClasses.has(c) && !/^icon-/.test(c) && !/^language-/.test(c));
-  const missingTokens = [...tokensUsed].filter((t) => !cssTokens.has(t) && !t.startsWith('cat-color'));
+  const missingTokens = [...tokensUsed].filter((t) => !definedTokens.has(t));
   if (used.length) issues.push('class-not-in-css: ' + used.slice(0, 8).join(','));
   if (missingTokens.length) issues.push('token-undefined: ' + missingTokens.slice(0, 8).join(','));
   results.push({ route: r, len, issues, html: htmlText });

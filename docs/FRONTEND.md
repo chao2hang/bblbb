@@ -1,6 +1,6 @@
 # BBLBB — SvelteKit 前端规范
 
-> 版本：v0.3
+> 版本：v0.4
 > 前端负责 SSR、渐进增强、管理后台、SEO 和主题展示；Rust 后端始终是数据、身份、权限和协议的最终裁决者。
 
 ## 1. 技术基线
@@ -45,7 +45,7 @@ frontend/src/
     compose/                   发文章/讨论
     users/[username]/          公开主页
     tags/[slug]/               标签归档
-    search/                    搜索（v1.1）
+    search/                    搜索（v1.0）
     auth/
       login/
       register/
@@ -67,7 +67,16 @@ frontend/src/
       levels/
       plugins/
       themes/
+      marketplace/
+      download-billing/
+      ai/
+      video/
       settings/
+    marketplace/
+      checkout/[intentId]/      BBLBB 托管确认页
+      result/[code]/            一次性结果码落地页
+    downloads/[id]/              下载授权/重签状态页
+    ai/tasks/[id]/               用户任务状态页
     rss.xml/+server.ts
     sitemap.xml/+server.ts
     robots.txt/+server.ts

@@ -1,6 +1,6 @@
 # BBLBB — 授权模型
 
-> 版本：v0.3
+> 版本：v0.4
 > BBLBB 使用 RBAC 表达“谁通常能做什么”，再使用对象级策略表达作者、板块范围、内容状态和处罚。权限最终由 Rust 后端裁决。
 
 ## 1. 概念
@@ -42,6 +42,30 @@ settings.manage
 plugin.manage
 theme.manage
 oauth_client.manage
+marketplace_client.manage
+marketplace_offer.manage
+marketplace_purchase.read_own
+marketplace_refund.create
+marketplace.manage
+marketplace.refund_admin
+marketplace_secret.rotate
+marketplace_webhook.replay
+storage.manage
+download.read
+download.read_own
+download.create
+download_billing.manage
+attachment.upload
+attachment.read
+level.manage
+ai.format
+ai.seo
+ai.moderation_request
+ai.consent_own
+ai.manage
+ai.task.manage
+video.embed
+video.manage
 ```
 
 对象范围来自 assignment 和请求资源，不放入 permission 名称。
@@ -118,6 +142,13 @@ oauth_client.manage
 - `restricted`：需要 `board.view_restricted` 的适用角色。
 - `hidden`：列表中不出现；只有适用管理权限可访问。
 
+### 市场购买与退款
+
+- `marketplace.purchase` 是外部 Token scope，不等价于后台 Permission；同时要求 Client 已批准、用户已单独同意、Checkout Intent 绑定当前用户且实时策略允许。
+- 市场所有者只能管理自己的 Offer、读取自己的 Purchase 和申请自己的退款；`marketplace.manage` 才能跨市场审计或紧急禁用。
+- 市场 Client 不能获得 `points.adjust`，也不能直接调用通用积分扣款接口。购买只能经过市场交易 application service。
+- 用户处罚、账户冻结、Client 禁用、余额/限额不足优先拒绝，即使 Token 和 consent 尚未过期。
+
 ### 查看受限正文
 
 - 作者本人可见。
@@ -132,7 +163,7 @@ oauth_client.manage
 允许作为等级 benefit：
 
 - 每日发帖/回复额度。
-- 单附件最大字节数、附件总容量、附件数量和最长有效期。
+- 单附件最大字节数、附件总容量和附件数量。
 - 签名长度。
 - 可使用的普通表情/样式。
 - 某些普通板块的发帖门槛。

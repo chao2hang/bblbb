@@ -1,0 +1,390 @@
+/* ============================================================
+   BBLBB Visual System — shared polish layer
+   Loaded after page styles so every route receives the same surface,
+   state, shadow and motion treatment. Ordinary content stays flat;
+   elevation is reserved for floating or explicitly interactive layers.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Surface hierarchy */
+.card,
+.section-surface,
+.profile-header,
+.board-header,
+.settings-section,
+.admin-content-table,
+.points-records,
+.points-rules,
+.editor-container,
+.auth-card,
+.theme-card {
+  border-color: var(--color-border);
+  transition: background-color var(--duration-slow) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard),
+    color var(--duration-base) var(--ease-standard);
+}
+
+/* Keep content cards calm; only their border/surface state changes. */
+.card:hover,
+.section-surface:hover,
+.profile-header:hover,
+.board-header:hover,
+.settings-section:hover,
+.points-records:hover,
+.points-rules:hover,
+.editor-container:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* Ordinary content cards stay flat. Theme previews are explicit controls and
+   receive a small selection affordance without adding card shadows. */
+.article-card,
+.board-card,
+.theme-card {
+  transition: border-color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard),
+    background-color var(--duration-slow) var(--ease-standard);
+}
+
+.theme-card:hover {
+  border-color: var(--color-brand);
+  background: var(--color-bg-subtle);
+}
+
+.theme-card:active {
+  background: var(--color-bg-inset);
+}
+
+/* Theme management previews show the real production palettes instead of
+   inheriting whichever theme currently surrounds the control. */
+.theme-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  overflow: visible;
+  border: 0;
+}
+
+.theme-card {
+  width: 100%;
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.theme-card[data-preview-theme="light"] {
+  --preview-bar: var(--theme-preview-light-bar);
+  --preview-body: var(--theme-preview-light-body);
+  --preview-brand: var(--theme-preview-light-brand);
+  --preview-fg: var(--theme-preview-light-fg);
+  --preview-muted: var(--theme-preview-light-muted);
+}
+
+.theme-card[data-preview-theme="dark"] {
+  --preview-bar: var(--theme-preview-dark-bar);
+  --preview-body: var(--theme-preview-dark-body);
+  --preview-brand: var(--theme-preview-dark-brand);
+  --preview-fg: var(--theme-preview-dark-fg);
+  --preview-muted: var(--theme-preview-dark-muted);
+}
+
+.theme-preview-bar {
+  background: var(--preview-bar, var(--color-brand));
+  border-bottom: 1px solid var(--preview-muted, var(--color-border));
+}
+
+.theme-preview-body {
+  background: var(--preview-body, var(--color-bg-page));
+}
+
+.theme-preview-line.is-brand { background: var(--preview-brand, var(--color-brand)); }
+.theme-preview-line.is-fg { background: var(--preview-fg, var(--color-text-primary)); }
+.theme-preview-line.is-muted { background: var(--preview-muted, var(--color-border)); }
+
+.theme-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.theme-swatch {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  background: var(--swatch-color);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.theme-swatch:hover { transform: scale(1.08); }
+.theme-swatch:active { transform: scale(0.96); }
+.theme-swatch.is-active {
+  border-color: var(--color-text-primary);
+  box-shadow: 0 0 0 2px var(--color-bg-card);
+}
+
+/* Buttons and compact controls share one tactile language. */
+.btn,
+.nav-icon-btn,
+.mobile-menu-btn,
+.action-btn,
+.page-btn,
+.editor-tab,
+.editor-toolbar-btn,
+.dropdown-item,
+.drawer-nav-item,
+.settings-nav-item,
+.admin-sidebar-item,
+.tab,
+.tag,
+.tag-chip-remove {
+  transition: color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.nav-icon-btn:hover,
+.mobile-menu-btn:hover,
+.action-btn:hover,
+.page-btn:hover:not(:disabled),
+.editor-toolbar-btn:hover,
+.dropdown-item:hover,
+.drawer-nav-item:hover,
+.settings-nav-item:hover,
+.admin-sidebar-item:hover {
+  transform: translateY(-1px);
+}
+
+.nav-icon-btn:active,
+.mobile-menu-btn:active,
+.action-btn:active,
+.page-btn:active:not(:disabled),
+.editor-toolbar-btn:active,
+.dropdown-item:active,
+.drawer-nav-item:active,
+.settings-nav-item:active,
+.admin-sidebar-item:active {
+  transform: translateY(0);
+}
+
+/* Inputs get a clear, warm focus state without a heavy glow. */
+.input-field,
+.search-input,
+.reply-editor textarea,
+.tag-input-wrapper,
+.file-picker {
+  transition: color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.input-field:hover,
+.search-input:hover,
+.reply-editor textarea:hover,
+.tag-input-wrapper:hover,
+.file-picker:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* Status surfaces use semantic selected colors consistently. */
+.nav-link.is-active,
+.admin-sidebar-item.is-active,
+.settings-nav-item.is-active,
+.notification-item.unread {
+  background: var(--color-surface-selected);
+}
+
+.simple-row:hover,
+.post-row:hover,
+.data-table tbody tr:hover,
+.device-card:hover,
+.notification-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.type-switch button.is-active,
+.type-switch button.active,
+.editor-tab.is-active,
+.editor-tab.active {
+  box-shadow: var(--shadow-control);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+/* Surface changes used by settings and progress components. */
+.switch,
+.switch-knob,
+.level-progress-fill,
+.points-progress span,
+.admin-storage-fill {
+  transition: background-color var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out),
+    width var(--duration-base) var(--ease-out);
+}
+
+/* Contextual page accents: one thin signal, not a different visual language. */
+.page-wrapper > .container > .breadcrumb + .admin-page-header,
+.page-wrapper > .container > .page-content > .home-main > .content-section:first-child .section-header,
+.board-header,
+.topic-header,
+.publish-layout,
+.admin-page-header { 
+  position: relative;
+}
+
+.page-wrapper > .container > .breadcrumb + .admin-page-header::before,
+.page-wrapper > .container > .page-content > .home-main > .content-section:first-child .section-header::before,
+.board-header::before,
+.topic-header::before,
+.publish-layout::before,
+.admin-page-header::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand);
+  opacity: 0.82;
+  transform-origin: left center;
+  transition: width var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-standard);
+}
+
+.page-wrapper > .container > .breadcrumb + .admin-page-header:hover::before,
+.page-wrapper > .container > .page-content > .home-main > .content-section:first-child .section-header:hover::before,
+.board-header:hover::before,
+.topic-header:hover::before,
+.publish-layout:hover::before,
+.admin-page-header:hover::before {
+  width: 52px;
+  opacity: 1;
+}
+
+/* Page-specific color cues remain subtle and semantic. */
+.home-discussions .section-title,
+.articles-page-card .card-title,
+.topic-title,
+.profile-name,
+.admin-page-title {
+  color: var(--color-text-primary);
+}
+
+.home-discussions .section-header {
+  background: transparent;
+}
+
+.articles-page-card .filter-bar,
+.points-section-header,
+.settings-section-header,
+.admin-content-toolbar {
+  background: color-mix(in srgb, var(--color-bg-subtle) 42%, var(--color-bg-card));
+}
+
+.home-articles .article-card-cover,
+.article-card-cover {
+  transition: filter var(--duration-slow) var(--ease-standard), opacity var(--duration-slow) var(--ease-standard);
+}
+
+.article-card:hover .article-card-cover {
+  filter: saturate(1.08) contrast(1.02);
+}
+
+.points-summary-card,
+.admin-dashboard-stat,
+.admin-content-stat,
+.device-card,
+.oauth-app-card,
+.plugin-card,
+.theme-card {
+  transition: background-color var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+
+.points-summary-card:hover,
+.admin-dashboard-stat:hover,
+.admin-content-stat:hover,
+.oauth-app-card:hover,
+.plugin-card:hover {
+  background: var(--color-surface-hover);
+}
+
+.points-summary-card.is-coins { border-top: 2px solid var(--color-brand); }
+.points-summary-card.is-exp { border-top: 2px solid var(--color-accent); }
+.points-summary-card.is-contribution { border-top: 2px solid var(--color-warning); }
+
+.topic-card,
+.publish-main .editor-container,
+.publish-sidebar .card,
+.admin-main > .card,
+.admin-main > .data-table-wrapper {
+  transition: border-color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-slow) var(--ease-standard);
+}
+
+.topic-card:hover,
+.publish-main .editor-container:hover,
+.publish-sidebar .card:hover,
+.admin-main > .card:hover,
+.admin-main > .data-table-wrapper:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* Route entrance is deliberately short and low amplitude. */
+#app.route-enter .page-wrapper > .container,
+#app.route-enter > .container,
+#app.route-enter .auth-wrapper {
+  animation: content-enter var(--duration-slow) var(--ease-out) both;
+}
+
+@keyframes content-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app.route-enter,
+  #app.route-enter .page-wrapper > .container,
+  #app.route-enter > .container,
+  #app.route-enter .auth-wrapper {
+    animation: none;
+  }
+
+  .article-card:hover,
+  .board-card:hover,
+  .theme-card:hover,
+  .btn:hover:not(:disabled),
+  .nav-icon-btn:hover,
+  .mobile-menu-btn:hover,
+  .action-btn:hover,
+  .page-btn:hover:not(:disabled),
+  .editor-toolbar-btn:hover,
+  .dropdown-item:hover,
+  .drawer-nav-item:hover,
+  .settings-nav-item:hover,
+  .admin-sidebar-item:hover,
+  .theme-swatch:hover,
+  .theme-swatch:active {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .theme-preview {
+    grid-template-columns: 1fr;
+  }
+}

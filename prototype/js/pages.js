@@ -118,7 +118,7 @@ window.Pages = (function() {
           { label: '专栏文章' }
         ])}
         
-        <div class="card">
+        <div class="card articles-page-card">
           <div class="filter-bar">
             <div class="filter-left">
               <select class="filter-select" onchange="Router.updateParams({ sort: this.value })">
@@ -136,7 +136,7 @@ window.Pages = (function() {
           </div>
           <div class="card-body">
             ${pageArticles.length > 0 
-              ? `<div class="articles-grid">${pageArticles.map(p => C.articleCard(p)).join('')}</div>`
+              ? `<div class="articles-grid articles-page-grid">${pageArticles.map(p => C.articleCard(p)).join('')}</div>`
               : C.emptyState({ icon: 'file-text', title: '暂无文章', desc: '该分类下暂无文章，换个筛选条件试试。' })
             }
           </div>
@@ -183,8 +183,9 @@ window.Pages = (function() {
     const board = MockData.getBoard(slug);
     if (!board) return notFound();
 
-    const page = parseInt(params.page) || 1;
-    const tab = params.tab || 'latest';
+    const page = Math.max(1, parseInt(params.page) || 1);
+    const requestedTab = params.tab || 'latest';
+    const tab = ['latest', 'hot', 'essence'].includes(requestedTab) ? requestedTab : 'latest';
     
     let posts = MockData.getPostsByBoard(slug);
     if (tab === 'hot') posts.sort((a, b) => b.views - a.views);
@@ -357,6 +358,32 @@ window.Pages = (function() {
       return notFound('帖子不存在', '你访问的帖子可能已被删除或不存在。');
     }
 
+    if (!Store.canViewPost(post)) {
+      const requiredLevel = Math.max(1, Number(post.visibilityLevel || 1));
+      const level = MockData.levels.find(item => item.level === requiredLevel);
+      const content = `
+        <div class="container">
+          <div class="page-content level-access-page">
+            ${C.breadcrumb([{ label: '首页', href: '#/' }, { label: '等级受限内容' }])}
+            <div class="card level-access-card">
+              <div class="level-access-icon">${C.icon('lock', 28)}</div>
+              <div class="level-access-kicker">内容访问受限</div>
+              <h1>该内容仅 LV.${requiredLevel} 及以上可见</h1>
+              <p>为保护发布者设置的阅读范围，标题、作者、摘要和正文均已隐藏。</p>
+              <div class="level-access-progress">
+                <div><span>你当前的等级</span><strong>LV.${Store.state.user.level}</strong></div>
+                <div><span>需要达到</span><strong>LV.${requiredLevel} ${level?.name || ''}</strong></div>
+              </div>
+              <div class="level-access-actions">
+                ${C.button({ text: '查看我的成长进度', variant: 'primary', href: `#/users/${Store.state.user.name}?tab=points` })}
+                ${C.button({ text: '返回内容列表', variant: 'secondary', href: '#/' })}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      return pageLayout(content, '/topics');
+    }
+
     const author = MockData.getUser(post.author);
     const board = MockData.getBoard(post.board);
     const replies = Store.getReplies(parseInt(id));
@@ -381,7 +408,7 @@ window.Pages = (function() {
 
           <div class="topic-layout">
             <div class="topic-layout-main">
-              <div class="card">
+              <article class="card topic-card">
                 ${isMod ? `
                   <div class="mod-bar">
                     <span class="mod-bar-label">${C.icon('shield', 14)} 版主操作</span>
@@ -399,8 +426,8 @@ window.Pages = (function() {
                   </h1>
                   <div class="topic-meta">
                     <div class="topic-meta-author">
-                      ${C.avatar(post.author, 'sm')}
-                      <a href="#/users/${post.author}">${post.author}</a>
+                      ${C.authorHover(post.author, 'sm')}
+                      <a href="#/users/${post.author}" class="author-hover-name-trigger">${post.author}${C.userHoverCard(post.author)}</a>
                       ${C.levelBadge(author?.level || 1)}
                       ${C.roleBadge(author?.roles || [])}
                     </div>
@@ -448,7 +475,7 @@ window.Pages = (function() {
 
                 <div class="replies-head">全部回复 (${replies.length})</div>
 
-                <div>
+                <div class="replies-list ${replies.length > 0 ? '' : 'is-empty'}" data-scroll-reply="${params.reply || ''}">
                   ${replies.length > 0
                     ? replies.map((r) => replyItem(r, post)).join('')
                     : C.emptyState({ icon: 'message-circle', title: '暂无回复', desc: '快来抢沙发吧！' })
@@ -473,7 +500,7 @@ window.Pages = (function() {
                     ${C.button({ text: '发表回复', variant: 'primary', onClick: `submitReply(${post.id})` })}
                   </div>
                 </div>
-              </div>
+              </article>
             </div>
 
             <aside class="topic-layout-side">
@@ -513,12 +540,10 @@ window.Pages = (function() {
     const author = MockData.getUser(reply.author);
     return `
       <div class="reply-item" id="reply-${reply.id}">
-        <div class="reply-avatar">
-          <a href="#/users/${reply.author}">${C.avatar(reply.author, 'md')}</a>
-        </div>
+        <div class="reply-avatar">${C.authorHover(reply.author, 'md')}</div>
         <div class="reply-content">
           <div class="reply-header">
-            <a href="#/users/${reply.author}" class="reply-author">${reply.author}</a>
+            <a href="#/users/${reply.author}" class="reply-author author-hover-name-trigger">${reply.author}${C.userHoverCard(reply.author)}</a>
             ${C.levelBadge(author?.level || 1)}
             ${reply.isAuthor ? '<span class="badge badge-level" style="background: var(--color-success-soft); color: var(--color-success);">楼主</span>' : ''}
             <span class="reply-floor">#${reply.floor} 楼</span>
