@@ -2,17 +2,19 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { getPost, listComments, createComment, getMe, type PostDetail, type Comment, type User, type Problem } from '$lib/api/client';
+  import { getPost, listComments, createComment, getMe, type PostDetail, type Comment, type User } from '$lib/api/client';
+  import { problemMessage, type Problem } from '$lib/errors';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ProblemState from '$lib/components/ProblemState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { formatTime, formatRelative, renderSafeMarkdown } from '$lib/utils';
 
   let post = $state<PostDetail | null>(null);
   let comments = $state<Comment[]>([]);
   let loading = $state(true);
-  let error = $state('');
+  let problem = $state<Problem | null>(null);
   let user = $state<User | null>(null);
   let newComment = $state('');
   let submitting = $state(false);
@@ -33,8 +35,7 @@
       const result = await listComments(fetch, id);
       comments = result.items;
     } catch (err: unknown) {
-      const problem = err as Problem;
-      error = problem?.detail || problem?.title || '加载失败';
+      problem = err as Problem;
     }
   }
 
@@ -53,8 +54,7 @@
       newComment = '';
       if (post) post.reply_count += 1;
     } catch (err: unknown) {
-      const problem = err as Problem;
-      commentError = problem?.detail || problem?.title || '回复失败';
+      commentError = problemMessage(err as Problem);
     }
     submitting = false;
   }
@@ -74,12 +74,10 @@
 
   {#if loading}
     <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
-  {:else if error}
-    <div class="empty-state">
-      <div class="empty-state-title">{error}</div>
-      <div class="empty-state-desc">帖子可能已被删除或你无权查看</div>
+  {:else if problem}
+    <ProblemState {problem} desc="帖子可能已被删除或你无权查看">
       <a href="/" class="text-link">返回首页</a>
-    </div>
+    </ProblemState>
   {:else if post}
     <div class="card">
       <div class="card-body" style="padding:var(--space-6);">

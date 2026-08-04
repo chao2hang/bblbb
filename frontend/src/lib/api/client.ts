@@ -1,82 +1,36 @@
-// BBLBB API Client — 统一前后端通信
+// BBLBB API Client — 统一前后端通信（Cookie 同源 / CSRF / request_id）
+//
+// DTO 类型唯一来源见 ./types.ts（M00-FRONTEND-03，契约域 generated 接入点）；
+// Problem 统一映射见 ../errors.ts（M00-FRONTEND-04）。本模块只做 re-export，
+// 页面可直接从 `$lib/api/client` 或 `$lib/api/types` 引用类型。
 
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  email_verified: boolean;
-  status: string;
-  display_name: string | null;
-  level: number;
-  roles: string[];
-}
+import type {
+  User,
+  Board,
+  PostSummary,
+  PostDetail,
+  Comment,
+  PageResult,
+  Notification,
+  NotificationListResult,
+  Tag,
+  ReactionResult
+} from './types';
+import type { Problem } from '../errors';
 
-export interface Board {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  post_count: number;
-  is_active: boolean;
-}
-
-export interface PostSummary {
-  id: string;
-  title: string;
-  author_id: string;
-  reply_count: number;
-  view_count: number;
-  pinned: boolean;
-  created_at: number;
-  last_reply_at: number | null;
-}
-
-export interface PostDetail {
-  id: string;
-  board_id: string;
-  author_id: string;
-  author_name: string | null;
-  title: string;
-  content: string;
-  content_format: string;
-  status: string;
-  visibility: string;
-  reply_count: number;
-  view_count: number;
-  pinned: boolean;
-  created_at: number;
-  updated_at: number;
-  last_reply_at: number | null;
-}
-
-export interface Comment {
-  id: string;
-  post_id: string;
-  author_id: string;
-  author_name: string | null;
-  parent_id: string | null;
-  content: string;
-  content_format: string;
-  floor: number;
-  created_at: number;
-}
-
-export interface PageResult<T> {
-  items: T[];
-  next_cursor: string | null;
-  has_more: boolean;
-}
-
-export interface Problem {
-  type?: string;
-  title?: string;
-  status?: number;
-  code?: string;
-  detail?: string;
-  instance?: string;
-  request_id?: string;
-  errors?: unknown;
-}
+export type {
+  User,
+  Board,
+  PostSummary,
+  PostDetail,
+  Comment,
+  PageResult,
+  Notification,
+  NotificationListResult,
+  Tag,
+  ReactionResult
+} from './types';
+export type { Problem, ProblemFieldError } from '../errors';
 
 const API_BASE = '/api/v1';
 
@@ -140,6 +94,14 @@ async function request<T>(
       problem = (await response.json()) as Problem;
     } catch {
       problem = { status: response.status, detail: response.statusText };
+    }
+    // 429 限流：透传 Retry-After（秒），供 errors.ts retryAfterOf / UI 使用
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After');
+      const seconds = retryAfter ? Number.parseInt(retryAfter, 10) : Number.NaN;
+      if (Number.isFinite(seconds) && seconds >= 0) {
+        problem.retry_after = seconds;
+      }
     }
     throw problem;
   }
@@ -292,21 +254,6 @@ export async function search(
 
 // ─── Notifications ────────────────────────────────────────────────────────
 
-export interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  body: string | null;
-  link: string | null;
-  is_read: boolean;
-  created_at: number;
-  read_at: number | null;
-}
-
-export interface NotificationListResult extends PageResult<Notification> {
-  unread_count: number;
-}
-
 export async function listNotifications(
   fetchFn: typeof fetch,
   unreadOnly?: boolean
@@ -326,24 +273,11 @@ export async function markNotificationRead(
 
 // ─── Tags ────────────────────────────────────────────────────────────────
 
-export interface Tag {
-  id: string;
-  name: string;
-  usage_count: number;
-  created_at: number;
-}
-
 export async function listTags(fetchFn: typeof fetch): Promise<PageResult<Tag>> {
   return request(fetchFn, '/tags');
 }
 
 // ─── Reactions ────────────────────────────────────────────────────────────
-
-export interface ReactionResult {
-  reaction: string;
-  active: boolean;
-  count: number;
-}
 
 export async function togglePostReaction(
   fetchFn: typeof fetch,

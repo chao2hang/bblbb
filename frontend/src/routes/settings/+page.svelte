@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getMe, type User, type Problem } from '$lib/api/client';
+  import { getMe, type User } from '$lib/api/client';
+  import { problemMessage, type Problem } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
 
@@ -31,7 +32,7 @@
       });
       if (!response.ok) {
         const problem = (await response.json().catch(() => null)) as Problem | null;
-        throw new Error(problem?.detail || '保存失败');
+        throw new Error(problemMessage(problem));
       }
       user = await response.json();
       saved = true;

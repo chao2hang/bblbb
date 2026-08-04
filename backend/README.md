@@ -13,7 +13,7 @@ cargo run
 
 默认监听 `127.0.0.1:8080`。配置通过环境变量读取，变量使用 `BBLBB__` 前缀和双下划线分隔，例如 `BBLBB__BIND_ADDRESS`、`BBLBB__OPENAPI_PATH`。完整配置清单见 `.env.example`。
 
-也可通过根目录 `make` 命令统一操作：`make check`、`make test`、`make build`。
+也可通过根目录 `make` 命令统一操作：`make check`、`make test`、`make build`、`make migrate`（SQLite 迁移到空库，需系统 `sqlite3` CLI，3.40+）。
 
 ## 基础端点
 

@@ -2,13 +2,14 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { getUser, type User } from '$lib/api/client';
+  import { type Problem } from '$lib/errors';
   import Avatar from '$lib/components/ui/Avatar.svelte';
-  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ProblemState from '$lib/components/ProblemState.svelte';
 
   let username = $derived(page.params.username);
   let user = $state<User | null>(null);
   let loading = $state(true);
-  let error = $state('');
+  let problem = $state<Problem | null>(null);
 
   onMount(async () => {
     if (!username) {
@@ -17,8 +18,8 @@
     }
     try {
       user = await getUser(fetch, username);
-    } catch {
-      error = '用户不存在';
+    } catch (err: unknown) {
+      problem = err as Problem;
     }
     loading = false;
   });
@@ -37,8 +38,8 @@
 
   {#if loading}
     <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
-  {:else if error}
-    <EmptyState icon="user" title={error} desc="用户可能已注销或不存在" />
+  {:else if problem}
+    <ProblemState {problem} desc="用户可能已注销或不存在" />
   {:else if user}
     <div class="card profile-page-card">
       <div class="profile-cover" role="img" aria-label="个人资料背景"></div>

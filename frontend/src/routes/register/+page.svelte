@@ -1,15 +1,21 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { register, type Problem } from '$lib/api/client';
+  import { register } from '$lib/api/client';
+  import { problemText, fieldError, type Problem } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
 
   let username = $state('');
   let email = $state('');
   let password = $state('');
   let confirm = $state('');
+  let problem = $state<Problem | null>(null);
   let error = $state('');
   let ok = $state(false);
   let submitting = $state(false);
+
+  const usernameError = $derived(fieldError(problem, 'username'));
+  const emailError = $derived(fieldError(problem, 'email'));
+  const passwordError = $derived(fieldError(problem, 'password'));
 
   async function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
@@ -20,12 +26,13 @@
     if (!username.trim() || !email.trim() || !password) return;
     submitting = true;
     error = '';
+    problem = null;
     try {
       await register(fetch, username.trim(), email.trim(), password);
       ok = true;
     } catch (err: unknown) {
-      const problem = err as Problem;
-      error = problem?.detail || problem?.title || '注册失败';
+      problem = err as Problem;
+      error = problemText(problem);
     }
     submitting = false;
   }
@@ -55,15 +62,18 @@
         <form class="auth-form" onsubmit={handleSubmit}>
           <div class="input-wrapper">
             <label class="input-label" for="reg-username">用户名</label>
-            <input type="text" class="input-field" id="reg-username" placeholder="3-20 个字符" bind:value={username} autocomplete="username" />
+            <input type="text" class="input-field" id="reg-username" placeholder="3-20 个字符" bind:value={username} autocomplete="username" aria-describedby={usernameError ? 'reg-username-error' : undefined} />
+            {#if usernameError}<p class="input-hint is-error" id="reg-username-error">{usernameError}</p>{/if}
           </div>
           <div class="input-wrapper">
             <label class="input-label" for="reg-email">邮箱</label>
-            <input type="email" class="input-field" id="reg-email" placeholder="用于验证和找回密码" bind:value={email} autocomplete="email" />
+            <input type="email" class="input-field" id="reg-email" placeholder="用于验证和找回密码" bind:value={email} autocomplete="email" aria-describedby={emailError ? 'reg-email-error' : undefined} />
+            {#if emailError}<p class="input-hint is-error" id="reg-email-error">{emailError}</p>{/if}
           </div>
           <div class="input-wrapper">
             <label class="input-label" for="reg-password">密码</label>
-            <input type="password" class="input-field" id="reg-password" placeholder="至少 6 位" bind:value={password} autocomplete="new-password" />
+            <input type="password" class="input-field" id="reg-password" placeholder="至少 6 位" bind:value={password} autocomplete="new-password" aria-describedby={passwordError ? 'reg-password-error' : undefined} />
+            {#if passwordError}<p class="input-hint is-error" id="reg-password-error">{passwordError}</p>{/if}
           </div>
           <div class="input-wrapper">
             <label class="input-label" for="reg-confirm">确认密码</label>

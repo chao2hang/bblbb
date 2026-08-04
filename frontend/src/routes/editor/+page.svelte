@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { listBoards, createPost, type Board, type Problem } from '$lib/api/client';
+  import { listBoards, createPost, type Board } from '$lib/api/client';
+  import { problemText, type Problem } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
 
@@ -32,8 +33,7 @@
       const result = await createPost(fetch, boardSlug, title.trim(), content, visibility);
       goto(`/posts/${result.id}`);
     } catch (err: unknown) {
-      const problem = err as Problem;
-      error = problem?.detail || problem?.title || '发布失败';
+      error = problemText(err as Problem);
     }
     submitting = false;
   }

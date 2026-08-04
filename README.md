@@ -89,7 +89,7 @@ Caddy
 
 已交付基线（v0.5 冻结，commit `5e17fa3`）：
 
-- Rust/axum 后端：`/healthz`、`/readyz`、请求 ID、Problem 边界、OpenAPI JSON，以及基于数据库的认证闭环（注册/邮箱验证/登录/登出/找回密码）；数据库支持 SQLite 与 MySQL/MariaDB，启动时自动迁移；其余领域路由已按契约挂载，未实现操作返回 501
+- Rust/axum 后端：`/healthz`、`/readyz`、请求 ID、Problem 边界、OpenAPI JSON，以及基于数据库的认证闭环（注册/邮箱验证/登录/登出/找回密码）；数据库支持 SQLite 与 MySQL/MariaDB，启动默认**不**自动迁移（需 `BBLBB__AUTO_MIGRATE=true` 或 `--migrate` 才应用迁移，见 [`backend/README.md`](backend/README.md)）；其余领域路由已按契约挂载，未实现操作返回 501
 - SvelteKit 2 / Svelte 5 / adapter-node 骨架和同源健康 API client
 - SQLite / MySQL / MariaDB 初始 users/session 骨架迁移
 - GitHub Actions CI：文档与 OpenAPI（含路线图/覆盖校验）、Rust、前端、原型和三数据库基础检查
@@ -108,4 +108,44 @@ make migrate       # 应用 SQLite 迁移到空库
 make dev           # 启动前端开发服务器
 ```
 
-工具链版本：Rust stable（`rust-toolchain.toml`）、Node 22（`.nvmrc`）。
+工具链版本矩阵（开发与 CI 一致，见 `rust-toolchain.toml` / `.nvmrc`）：
+
+| 工具 | 版本 |
+|---|---|
+| Rust | stable（含 `rustfmt`、`clippy`，由 `rust-toolchain.toml` 固定） |
+| Node.js / npm | 22（`.nvmrc`，配合 `nvm` / `fnm` / `mise` 使用） |
+| SQLite | 3.40+（含 `sqlite3` CLI，`make migrate` 依赖） |
+| MySQL | 8.0 |
+| MariaDB | 10.11 |
+
+### 新机器首次运行
+
+在全新 clone（无本地缓存）环境下按以下顺序复现：
+
+```sh
+# 1. 安装依赖（Rust 工具链由 rust-toolchain.toml 自动固定，Node 版本见 .nvmrc）
+make install            # 安装前端 / 原型依赖
+
+# 2. 初始化数据库（SQLite，默认写 /tmp/bblbb.sqlite；可用 BBLBB_DB 覆盖）
+make migrate
+
+# 3. 启动后端（默认监听 127.0.0.1:8080）
+#    启动默认不会自动迁移；需要自动迁移时：
+#    BBLBB__AUTO_MIGRATE=true cargo run --manifest-path backend/Cargo.toml
+#    或 cd backend && BBLBB__AUTO_MIGRATE=true cargo run
+#    也支持传 --migrate 参数一次性应用迁移
+cd backend && cargo run
+
+# 4. 另开终端启动前端开发服务器（默认 http://localhost:5173）
+make dev                # 等价于 cd frontend && npm run dev
+```
+
+首次从零检查/验证（耗时最长的是 Rust 依赖编译）：
+
+```sh
+make check              # 后端 fmt/clippy/check + 前端 svelte-check + 原型 + OpenAPI + 路线图 + 文档 + Secret
+make test               # 后端 / 前端 / 原型测试
+make build              # 后端 release + 前端 adapter-node 构建
+```
+
+前置软件：Rust（`rustup`）、Node 22、`sqlite3` CLI、`ruby`（路线图/契约校验脚本依赖）、可选 `lychee`（Markdown 链接检查，未安装时跳过）。

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { login, type Problem } from '$lib/api/client';
+  import { login } from '$lib/api/client';
+  import { problemText, type Problem } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
 
   let identifier = $state('');
@@ -17,8 +18,7 @@
       await login(fetch, identifier.trim(), password);
       goto('/');
     } catch (err: unknown) {
-      const problem = err as Problem;
-      error = problem?.detail || problem?.title || '登录失败';
+      error = problemText(err as Problem);
     }
     submitting = false;
   }
