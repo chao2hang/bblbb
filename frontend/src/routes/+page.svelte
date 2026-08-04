@@ -1,40 +1,110 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchHealth } from '$lib/api/client';
+  import { page } from '$app/state';
+  import { listBoards, listTags, search, getMe, type Board, type Tag, type PostSummary } from '$lib/api/client';
+  import SectionHeader from '$lib/components/SectionHeader.svelte';
+  import PostList from '$lib/components/PostList.svelte';
+  import BoardCard from '$lib/components/BoardCard.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import TagChip from '$lib/components/ui/Tag.svelte';
 
-  let apiStatus = '检查中…';
+  let boards = $state<Board[]>([]);
+  let tags = $state<Tag[]>([]);
+  let posts = $state<PostSummary[]>([]);
+  let user = $state<{ username: string; display_name?: string | null } | null>(null);
+  let loading = $state(true);
 
   onMount(async () => {
+    user = await getMe(fetch);
+    const [boardResult, tagResult] = await Promise.allSettled([listBoards(fetch), listTags(fetch)]);
+    if (boardResult.status === 'fulfilled') boards = boardResult.value.items;
+    if (tagResult.status === 'fulfilled') tags = tagResult.value.items;
+
+    // 最新讨论：使用公开搜索拉取全部公开帖子（后端 LIKE '%'）
     try {
-      const health = await fetchHealth();
-      apiStatus = health.status ?? '服务正常';
+      const result = await search(fetch, '', 8);
+      posts = result.items;
     } catch {
-      apiStatus = 'API 暂不可用';
+      posts = [];
     }
+    loading = false;
   });
 </script>
 
 <svelte:head>
-  <title>BBLBB</title>
-  <meta name="description" content="BBLBB SvelteKit 前端基础骨架" />
+  <title>BBLBB — 社区论坛</title>
+  <meta name="description" content="BBLBB 社区论坛首页" />
 </svelte:head>
 
-<section class="intro" aria-labelledby="page-title">
-  <p class="eyebrow">基础工程</p>
-  <h1 id="page-title">BBLBB 前端已就绪</h1>
-  <p class="summary">这是面向同源 SSR/API 的最小 SvelteKit 应用。具体业务页面将在后续按契约逐步接入。</p>
+<div class="container">
+  <div class="page-content content-grid home-content">
+    <div class="main-col home-main">
+      <section class="content-section home-discussions">
+        <SectionHeader title="最新讨论" desc="社区正在发生的讨论" moreHref="/boards" />
+        <div class="section-surface">
+          {#if loading}
+            <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
+          {:else}
+            <PostList posts={posts} emptyTitle="暂无帖子" emptyDesc="成为第一个发帖的人吧！" />
+          {/if}
+        </div>
+      </section>
 
-  <div class="status" aria-live="polite">
-    <span class="dot" aria-hidden="true"></span>
-    <span>API 状态：{apiStatus}</span>
+      <section class="content-section">
+        <SectionHeader title="板块" desc="选择你感兴趣的板块" moreHref="/boards" />
+        {#if boards.length > 0}
+          <div class="boards-grid home-boards">
+            {#each boards as board}
+              <BoardCard
+                slug={board.slug}
+                name={board.name}
+                description={board.description ?? ''}
+                post_count={board.post_count}
+              />
+            {/each}
+          </div>
+        {:else if !loading}
+          <div class="empty-state"><div class="empty-state-title">暂无板块</div></div>
+        {/if}
+      </section>
+    </div>
+
+    <div class="side-col">
+      {#if user}
+        <div class="card">
+          <div class="card-body" style="display:flex;align-items:center;gap:var(--space-3);">
+            <Avatar name={user.display_name || user.username} size="lg" />
+            <div style="min-width:0;">
+              <div style="font-weight:var(--weight-semibold);">{user.display_name || user.username}</div>
+              <div class="text-secondary" style="font-size:var(--text-sm);">欢迎回来</div>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <div class="card">
+          <div class="card-header"><span class="card-title">加入 BBLBB</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
+            <p class="text-secondary" style="font-size:var(--text-sm);">登录后参与讨论，点亮你的社区身份。</p>
+            <Button text="登录" variant="secondary" size="sm" href="/login" />
+            <Button text="注册新账号" variant="primary" size="sm" href="/register" />
+          </div>
+        </div>
+      {/if}
+
+      {#if tags.length > 0}
+        <div class="card">
+          <div class="card-header"><span class="card-title">热门标签</span></div>
+          <div class="card-body">
+            <div class="tag-cloud">
+              {#each tags as tag}
+                <TagChip name={tag.name} count={tag.usage_count} href="/search?q={tag.name}" />
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
+    </div>
   </div>
-</section>
-
-<style>
-  .intro { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: clamp(1.5rem, 5vw, 3rem); }
-  .eyebrow { color: #4f46e5; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; margin: 0 0 0.75rem; text-transform: uppercase; }
-  h1 { font-size: clamp(2rem, 6vw, 3.5rem); line-height: 1.1; margin: 0; }
-  .summary { color: #4b5563; line-height: 1.7; margin: 1.25rem 0 2rem; max-width: 42rem; }
-  .status { align-items: center; background: #f9fafb; border-radius: 0.5rem; display: inline-flex; gap: 0.6rem; padding: 0.75rem 1rem; }
-  .dot { background: #f59e0b; border-radius: 50%; height: 0.65rem; width: 0.65rem; }
-</style>
+</div>

@@ -1,0 +1,13 @@
+/* BBLBB 全局样式入口 —— 复用原型设计系统（6 层：tokens → base → layout → components → pages → overrides） */
+@import './lib/styles/tokens.css';
+@import './lib/styles/base.css';
+@import './lib/styles/layout.css';
+@import './lib/styles/components.css';
+@import './lib/styles/pages.css';
+@import './lib/styles/visual-overrides.css';
+
+/* SvelteKit 根容器：与原型 #app 语义等价 */
+body > .sveltekit,
+body > .sveltekit > * {
+  min-height: inherit;
+}

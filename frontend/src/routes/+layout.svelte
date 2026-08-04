@@ -1,28 +1,40 @@
 <script lang="ts">
+  import '../app.css';
+  import { onMount } from 'svelte';
+  import { getMe, logout, type User } from '$lib/api/client';
+  import { goto } from '$app/navigation';
+  import Navbar from '$lib/components/Navbar.svelte';
+
   let { children } = $props();
+
+  let user = $state<User | null>(null);
+  let loading = $state(true);
+  let unread = $state(0);
+
+  onMount(async () => {
+    user = await getMe(fetch);
+    loading = false;
+  });
+
+  async function handleLogout() {
+    try {
+      await logout(fetch);
+    } finally {
+      user = null;
+      goto('/');
+    }
+  }
 </script>
 
 <svelte:head>
-  <meta name="theme-color" content="#111827" />
+  <meta name="theme-color" content="#F5F3ED" />
+  <meta name="description" content="BBLBB 社区论坛" />
 </svelte:head>
 
-<div class="shell">
-  <header class="site-header">
-    <a class="brand" href="/">BBLBB</a>
-    <span class="environment">SvelteKit SSR</span>
-  </header>
+<Navbar user={loading ? null : user} unread={unread} onlogout={handleLogout} />
 
+<div class="page-wrapper">
   <main>
     {@render children()}
   </main>
 </div>
-
-<style>
-  :global(*) { box-sizing: border-box; }
-  :global(body) { margin: 0; background: #f3f4f6; color: #111827; font-family: system-ui, sans-serif; }
-  .shell { min-height: 100vh; }
-  .site-header { align-items: center; background: #111827; color: #fff; display: flex; justify-content: space-between; padding: 1rem max(1.25rem, calc((100vw - 56rem) / 2)); }
-  .brand { color: inherit; font-weight: 700; letter-spacing: 0.08em; text-decoration: none; }
-  .environment { color: #cbd5e1; font-size: 0.875rem; }
-  main { margin: 0 auto; max-width: 56rem; padding: 4rem 1.25rem; }
-</style>
