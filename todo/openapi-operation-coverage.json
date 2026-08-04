@@ -1,0 +1,2931 @@
+{
+  "schema_version": 1,
+  "openapi_file": "openapi/openapi.yaml",
+  "expected_operations": 172,
+  "operations": [
+    {
+      "operation_id": "getHealth",
+      "method": "GET",
+      "path": "/healthz",
+      "primary_tag": "Health",
+      "milestone": "M0",
+      "work_package": "M00-BACKEND",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "baseline_only",
+      "owner": "platform",
+      "handler": "backend/src/routes/health.rs::healthz",
+      "tests": [
+        "backend/tests/http.rs::healthz_returns_ok_and_request_id"
+      ],
+      "evidence": "baseline commit 5e17fa3; cargo fmt, clippy and 4 Rust tests passed on 2026-08-04"
+    },
+    {
+      "operation_id": "getCsrfToken",
+      "method": "GET",
+      "path": "/api/v1/auth/csrf",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-SESSION",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "login",
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-SESSION",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "requestPasswordReset",
+      "method": "POST",
+      "path": "/api/v1/auth/password-reset",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "confirmPasswordReset",
+      "method": "POST",
+      "path": "/api/v1/auth/password-reset/confirm",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "register",
+      "method": "POST",
+      "path": "/api/v1/auth/register",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "logout",
+      "method": "DELETE",
+      "path": "/api/v1/auth/session",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-SESSION",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "verifyEmail",
+      "method": "POST",
+      "path": "/api/v1/auth/verify-email",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminBoards",
+      "method": "GET",
+      "path": "/api/v1/admin/boards",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAdminBoard",
+      "method": "POST",
+      "path": "/api/v1/admin/boards",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAdminBoard",
+      "method": "GET",
+      "path": "/api/v1/admin/boards/{id}",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminBoard",
+      "method": "PATCH",
+      "path": "/api/v1/admin/boards/{id}",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listBoards",
+      "method": "GET",
+      "path": "/api/v1/boards",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getBoard",
+      "method": "GET",
+      "path": "/api/v1/boards/{slug}",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listTags",
+      "method": "GET",
+      "path": "/api/v1/tags",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminRoles",
+      "method": "GET",
+      "path": "/api/v1/admin/roles",
+      "primary_tag": "Roles",
+      "milestone": "M3",
+      "work_package": "M03-AUTHZ",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAdminRole",
+      "method": "POST",
+      "path": "/api/v1/admin/roles",
+      "primary_tag": "Roles",
+      "milestone": "M3",
+      "work_package": "M03-AUTHZ",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAdminRole",
+      "method": "GET",
+      "path": "/api/v1/admin/roles/{id}",
+      "primary_tag": "Roles",
+      "milestone": "M3",
+      "work_package": "M03-AUTHZ",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminRole",
+      "method": "PATCH",
+      "path": "/api/v1/admin/roles/{id}",
+      "primary_tag": "Roles",
+      "milestone": "M3",
+      "work_package": "M03-AUTHZ",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminTags",
+      "method": "GET",
+      "path": "/api/v1/admin/tags",
+      "primary_tag": "Tags",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAdminTag",
+      "method": "POST",
+      "path": "/api/v1/admin/tags",
+      "primary_tag": "Tags",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAdminTag",
+      "method": "GET",
+      "path": "/api/v1/admin/tags/{id}",
+      "primary_tag": "Tags",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminTag",
+      "method": "PATCH",
+      "path": "/api/v1/admin/tags/{id}",
+      "primary_tag": "Tags",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminUsers",
+      "method": "GET",
+      "path": "/api/v1/admin/users",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAdminUser",
+      "method": "POST",
+      "path": "/api/v1/admin/users",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAdminUser",
+      "method": "GET",
+      "path": "/api/v1/admin/users/{id}",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminUser",
+      "method": "PATCH",
+      "path": "/api/v1/admin/users/{id}",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getMe",
+      "method": "GET",
+      "path": "/api/v1/me",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateMe",
+      "method": "PATCH",
+      "path": "/api/v1/me",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_me_profile_cover",
+      "method": "DELETE",
+      "path": "/api/v1/me/profile-cover",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_me_profile_cover",
+      "method": "POST",
+      "path": "/api/v1/me/profile-cover",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_users_user_id_profile_cover",
+      "method": "GET",
+      "path": "/api/v1/users/{user_id}/profile-cover",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getPublicUser",
+      "method": "GET",
+      "path": "/api/v1/users/{username}",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_comments_id_",
+      "method": "DELETE",
+      "path": "/api/v1/comments/{id}",
+      "primary_tag": "Comments",
+      "milestone": "M4",
+      "work_package": "M04-COMMENTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_comments_id_",
+      "method": "PATCH",
+      "path": "/api/v1/comments/{id}",
+      "primary_tag": "Comments",
+      "milestone": "M4",
+      "work_package": "M04-COMMENTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listComments",
+      "method": "GET",
+      "path": "/api/v1/posts/{postId}/comments",
+      "primary_tag": "Comments",
+      "milestone": "M4",
+      "work_package": "M04-COMMENTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createComment",
+      "method": "POST",
+      "path": "/api/v1/posts/{postId}/comments",
+      "primary_tag": "Comments",
+      "milestone": "M4",
+      "work_package": "M04-COMMENTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listDrafts",
+      "method": "GET",
+      "path": "/api/v1/drafts",
+      "primary_tag": "Drafts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createDraft",
+      "method": "POST",
+      "path": "/api/v1/drafts",
+      "primary_tag": "Drafts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "deleteDraft",
+      "method": "DELETE",
+      "path": "/api/v1/drafts/{id}",
+      "primary_tag": "Drafts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getDraft",
+      "method": "GET",
+      "path": "/api/v1/drafts/{id}",
+      "primary_tag": "Drafts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateDraft",
+      "method": "PATCH",
+      "path": "/api/v1/drafts/{id}",
+      "primary_tag": "Drafts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listBoardPosts",
+      "method": "GET",
+      "path": "/api/v1/boards/{slug}/posts",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listPosts",
+      "method": "GET",
+      "path": "/api/v1/posts",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createPost",
+      "method": "POST",
+      "path": "/api/v1/posts",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getPost",
+      "method": "GET",
+      "path": "/api/v1/posts/{postId}",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updatePost",
+      "method": "PATCH",
+      "path": "/api/v1/posts/{postId}",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listPostRevisions",
+      "method": "GET",
+      "path": "/api/v1/posts/{id}/revisions",
+      "primary_tag": "Revisions",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getPostRevision",
+      "method": "GET",
+      "path": "/api/v1/posts/{id}/revisions/{revisionId}",
+      "primary_tag": "Revisions",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_moderation_sanctions",
+      "method": "POST",
+      "path": "/api/v1/admin/moderation/sanctions",
+      "primary_tag": "Admin",
+      "milestone": "M5",
+      "work_package": "M05-SANCTIONS",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listModerationAppeals",
+      "method": "GET",
+      "path": "/api/v1/admin/moderation/appeals",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getModerationAppeal",
+      "method": "GET",
+      "path": "/api/v1/admin/moderation/appeals/{id}",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "decideModerationAppeal",
+      "method": "PATCH",
+      "path": "/api/v1/admin/moderation/appeals/{id}",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listModerationCases",
+      "method": "GET",
+      "path": "/api/v1/admin/moderation/cases",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getModerationCase",
+      "method": "GET",
+      "path": "/api/v1/admin/moderation/cases/{id}",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateModerationCase",
+      "method": "PATCH",
+      "path": "/api/v1/admin/moderation/cases/{id}",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listOwnAppeals",
+      "method": "GET",
+      "path": "/api/v1/appeals",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAppeal",
+      "method": "POST",
+      "path": "/api/v1/appeals",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getOwnAppeal",
+      "method": "GET",
+      "path": "/api/v1/appeals/{id}",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_reports",
+      "method": "POST",
+      "path": "/api/v1/reports",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_notifications",
+      "method": "GET",
+      "path": "/api/v1/notifications",
+      "primary_tag": "Notifications",
+      "milestone": "M5",
+      "work_package": "M05-NOTIFY",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_notifications_id_read",
+      "method": "POST",
+      "path": "/api/v1/notifications/{id}/read",
+      "primary_tag": "Notifications",
+      "milestone": "M5",
+      "work_package": "M05-NOTIFY",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_levels_id_attachment_quota",
+      "method": "GET",
+      "path": "/api/v1/admin/levels/{id}/attachment-quota",
+      "primary_tag": "Admin",
+      "milestone": "M6",
+      "work_package": "M06-QUOTA",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_admin_levels_id_attachment_quota",
+      "method": "PATCH",
+      "path": "/api/v1/admin/levels/{id}/attachment-quota",
+      "primary_tag": "Admin",
+      "milestone": "M6",
+      "work_package": "M06-QUOTA",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_storage_config",
+      "method": "GET",
+      "path": "/api/v1/admin/storage/config",
+      "primary_tag": "Admin",
+      "milestone": "M6",
+      "work_package": "M06-QUOTA",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_admin_storage_config",
+      "method": "PATCH",
+      "path": "/api/v1/admin/storage/config",
+      "primary_tag": "Admin",
+      "milestone": "M6",
+      "work_package": "M06-QUOTA",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_storage_test",
+      "method": "POST",
+      "path": "/api/v1/admin/storage/test",
+      "primary_tag": "Admin",
+      "milestone": "M6",
+      "work_package": "M06-QUOTA",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAttachment",
+      "method": "POST",
+      "path": "/api/v1/attachments",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-UPLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_attachments_id_",
+      "method": "DELETE",
+      "path": "/api/v1/attachments/{id}",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-UPLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_attachments_id_",
+      "method": "GET",
+      "path": "/api/v1/attachments/{id}",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-UPLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_attachments_id_complete",
+      "method": "POST",
+      "path": "/api/v1/attachments/{id}/complete",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-UPLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_attachments_id_content",
+      "method": "GET",
+      "path": "/api/v1/attachments/{id}/content",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-UPLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_attachments_id_download",
+      "method": "POST",
+      "path": "/api/v1/attachments/{id}/download",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_attachments_id_download_policy",
+      "method": "GET",
+      "path": "/api/v1/attachments/{id}/download-policy",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_download_authorizations_id_",
+      "method": "GET",
+      "path": "/api/v1/download-authorizations/{id}",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_download_authorizations_id_sign_url",
+      "method": "POST",
+      "path": "/api/v1/download-authorizations/{id}/sign-url",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_me_download_transactions",
+      "method": "GET",
+      "path": "/api/v1/me/download-transactions",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAttachmentDownloadPolicyAdmin",
+      "method": "GET",
+      "path": "/api/v1/admin/attachments/{id}/download-policy",
+      "primary_tag": "Download Billing",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAttachmentDownloadPolicyAdmin",
+      "method": "PATCH",
+      "path": "/api/v1/admin/attachments/{id}/download-policy",
+      "primary_tag": "Download Billing",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getDownloadBillingConfig",
+      "method": "GET",
+      "path": "/api/v1/admin/download-billing/config",
+      "primary_tag": "Download Billing",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateDownloadBillingConfig",
+      "method": "PATCH",
+      "path": "/api/v1/admin/download-billing/config",
+      "primary_tag": "Download Billing",
+      "milestone": "M6",
+      "work_package": "M06-DOWNLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_activity_summary",
+      "method": "GET",
+      "path": "/api/v1/activity/summary",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "recordAuthenticatedVisit",
+      "method": "POST",
+      "path": "/api/v1/activity/visit",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAdminActivityConfig",
+      "method": "GET",
+      "path": "/api/v1/admin/activity/config",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminActivityConfig",
+      "method": "PATCH",
+      "path": "/api/v1/admin/activity/config",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminActivityTasks",
+      "method": "GET",
+      "path": "/api/v1/admin/activity/tasks",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAdminActivityTask",
+      "method": "POST",
+      "path": "/api/v1/admin/activity/tasks",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminActivityTask",
+      "method": "PATCH",
+      "path": "/api/v1/admin/activity/tasks/{id}",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_comments_id_reactions",
+      "method": "POST",
+      "path": "/api/v1/comments/{id}/reactions",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_comments_id_reactions_reaction_",
+      "method": "DELETE",
+      "path": "/api/v1/comments/{id}/reactions/{reaction}",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_posts_id_reactions",
+      "method": "POST",
+      "path": "/api/v1/posts/{id}/reactions",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_posts_id_reactions_reaction_",
+      "method": "DELETE",
+      "path": "/api/v1/posts/{id}/reactions/{reaction}",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAdminShopConfig",
+      "method": "GET",
+      "path": "/api/v1/admin/shop/config",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminShopConfig",
+      "method": "PATCH",
+      "path": "/api/v1/admin/shop/config",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminShopOrders",
+      "method": "GET",
+      "path": "/api/v1/admin/shop/orders",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "refundAdminShopOrder",
+      "method": "POST",
+      "path": "/api/v1/admin/shop/orders/{id}/refund",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminShopProducts",
+      "method": "GET",
+      "path": "/api/v1/admin/shop/products",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAdminShopProduct",
+      "method": "POST",
+      "path": "/api/v1/admin/shop/products",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminShopProduct",
+      "method": "PATCH",
+      "path": "/api/v1/admin/shop/products/{id}",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "disableAdminShopProduct",
+      "method": "POST",
+      "path": "/api/v1/admin/shop/products/{id}/disable",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "publishAdminShopProduct",
+      "method": "POST",
+      "path": "/api/v1/admin/shop/products/{id}/publish",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_me_entitlements",
+      "method": "GET",
+      "path": "/api/v1/me/entitlements",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_me_entitlements_id_equip",
+      "method": "POST",
+      "path": "/api/v1/me/entitlements/{id}/equip",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_me_entitlements_id_unequip",
+      "method": "POST",
+      "path": "/api/v1/me/entitlements/{id}/unequip",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_me_presentation",
+      "method": "GET",
+      "path": "/api/v1/me/presentation",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_shop_orders",
+      "method": "POST",
+      "path": "/api/v1/shop/orders",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_shop_orders_id_",
+      "method": "GET",
+      "path": "/api/v1/shop/orders/{id}",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_shop_products",
+      "method": "GET",
+      "path": "/api/v1/shop/products",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_shop_products_id_",
+      "method": "GET",
+      "path": "/api/v1/shop/products/{id}",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getPublicAtomFeed",
+      "method": "GET",
+      "path": "/api/v1/atom",
+      "primary_tag": "Feeds",
+      "milestone": "M8",
+      "work_package": "M08-FEEDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getPublicRssFeed",
+      "method": "GET",
+      "path": "/api/v1/rss",
+      "primary_tag": "Feeds",
+      "milestone": "M8",
+      "work_package": "M08-FEEDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "searchPublicContent",
+      "method": "GET",
+      "path": "/api/v1/search",
+      "primary_tag": "Search",
+      "milestone": "M8",
+      "work_package": "M08-INDEX",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_ai_capabilities",
+      "method": "GET",
+      "path": "/api/v1/ai/capabilities",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_ai_consent",
+      "method": "DELETE",
+      "path": "/api/v1/ai/consent",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_ai_consent",
+      "method": "POST",
+      "path": "/api/v1/ai/consent",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_ai_drafts_draft_id_format",
+      "method": "POST",
+      "path": "/api/v1/ai/drafts/{draft_id}/format",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_ai_posts_post_id_moderation_suggestion",
+      "method": "POST",
+      "path": "/api/v1/ai/posts/{post_id}/moderation-suggestion",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_ai_posts_post_id_seo_suggestion",
+      "method": "POST",
+      "path": "/api/v1/ai/posts/{post_id}/seo-suggestion",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_ai_suggestions_id_",
+      "method": "GET",
+      "path": "/api/v1/ai/suggestions/{id}",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_ai_suggestions_id_accept",
+      "method": "POST",
+      "path": "/api/v1/ai/suggestions/{id}/accept",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_ai_tasks_id_",
+      "method": "GET",
+      "path": "/api/v1/ai/tasks/{id}",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_ai_tasks_id_cancel",
+      "method": "POST",
+      "path": "/api/v1/ai/tasks/{id}/cancel",
+      "primary_tag": "AI",
+      "milestone": "M9",
+      "work_package": "M09-SUGGESTIONS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_ai_config",
+      "method": "GET",
+      "path": "/api/v1/admin/ai/config",
+      "primary_tag": "Admin",
+      "milestone": "M9",
+      "work_package": "M09-GATEWAY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_admin_ai_config",
+      "method": "PATCH",
+      "path": "/api/v1/admin/ai/config",
+      "primary_tag": "Admin",
+      "milestone": "M9",
+      "work_package": "M09-GATEWAY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_ai_providers_test",
+      "method": "POST",
+      "path": "/api/v1/admin/ai/providers/test",
+      "primary_tag": "Admin",
+      "milestone": "M9",
+      "work_package": "M09-GATEWAY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_ai_tasks",
+      "method": "GET",
+      "path": "/api/v1/admin/ai/tasks",
+      "primary_tag": "Admin",
+      "milestone": "M9",
+      "work_package": "M09-GATEWAY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_ai_tasks_id_cancel",
+      "method": "POST",
+      "path": "/api/v1/admin/ai/tasks/{id}/cancel",
+      "primary_tag": "Admin",
+      "milestone": "M9",
+      "work_package": "M09-GATEWAY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_ai_tasks_id_retry",
+      "method": "POST",
+      "path": "/api/v1/admin/ai/tasks/{id}/retry",
+      "primary_tag": "Admin",
+      "milestone": "M9",
+      "work_package": "M09-GATEWAY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_video_policies",
+      "method": "GET",
+      "path": "/api/v1/admin/video/policies",
+      "primary_tag": "Admin",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_video_policies_test",
+      "method": "POST",
+      "path": "/api/v1/admin/video/policies/test",
+      "primary_tag": "Admin",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_video_policies_provider_",
+      "method": "GET",
+      "path": "/api/v1/admin/video/policies/{provider}",
+      "primary_tag": "Admin",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_admin_video_policies_provider_",
+      "method": "PATCH",
+      "path": "/api/v1/admin/video/policies/{provider}",
+      "primary_tag": "Admin",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_video_embeds",
+      "method": "POST",
+      "path": "/api/v1/video-embeds",
+      "primary_tag": "Video",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_video_embeds_resolve",
+      "method": "POST",
+      "path": "/api/v1/video-embeds/resolve",
+      "primary_tag": "Video",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_video_embeds_id_",
+      "method": "DELETE",
+      "path": "/api/v1/video-embeds/{id}",
+      "primary_tag": "Video",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_video_embeds_id_",
+      "method": "GET",
+      "path": "/api/v1/video-embeds/{id}",
+      "primary_tag": "Video",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_video_embeds_id_",
+      "method": "PATCH",
+      "path": "/api/v1/video-embeds/{id}",
+      "primary_tag": "Video",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_video_embeds_id_refresh",
+      "method": "POST",
+      "path": "/api/v1/video-embeds/{id}/refresh",
+      "primary_tag": "Video",
+      "milestone": "M10",
+      "work_package": "M10-VIDEO",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_well_known_openid_configuration",
+      "method": "GET",
+      "path": "/.well-known/openid-configuration",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_oauth_interactions_id_",
+      "method": "GET",
+      "path": "/api/v1/oauth/interactions/{id}",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_oauth_interactions_id_decision",
+      "method": "POST",
+      "path": "/api/v1/oauth/interactions/{id}/decision",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_oauth_authorize",
+      "method": "GET",
+      "path": "/oauth/authorize",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_oauth_jwks_json",
+      "method": "GET",
+      "path": "/oauth/jwks.json",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_oauth_logout",
+      "method": "GET",
+      "path": "/oauth/logout",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_oauth_logout",
+      "method": "POST",
+      "path": "/oauth/logout",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_oauth_revoke",
+      "method": "POST",
+      "path": "/oauth/revoke",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_oauth_token",
+      "method": "POST",
+      "path": "/oauth/token",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_oauth_userinfo",
+      "method": "GET",
+      "path": "/oauth/userinfo",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listAdminOAuthClients",
+      "method": "GET",
+      "path": "/api/v1/admin/oauth-clients",
+      "primary_tag": "OAuth Clients",
+      "milestone": "M11",
+      "work_package": "M11-CONSENT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "createAdminOAuthClient",
+      "method": "POST",
+      "path": "/api/v1/admin/oauth-clients",
+      "primary_tag": "OAuth Clients",
+      "milestone": "M11",
+      "work_package": "M11-CONSENT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "getAdminOAuthClient",
+      "method": "GET",
+      "path": "/api/v1/admin/oauth-clients/{id}",
+      "primary_tag": "OAuth Clients",
+      "milestone": "M11",
+      "work_package": "M11-CONSENT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminOAuthClient",
+      "method": "PATCH",
+      "path": "/api/v1/admin/oauth-clients/{id}",
+      "primary_tag": "OAuth Clients",
+      "milestone": "M11",
+      "work_package": "M11-CONSENT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_marketplace_clients",
+      "method": "GET",
+      "path": "/api/v1/admin/marketplace/clients",
+      "primary_tag": "Admin",
+      "milestone": "M12",
+      "work_package": "M12-CLIENTS",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_admin_marketplace_clients_id_",
+      "method": "PATCH",
+      "path": "/api/v1/admin/marketplace/clients/{id}",
+      "primary_tag": "Admin",
+      "milestone": "M12",
+      "work_package": "M12-CLIENTS",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_marketplace_clients_id_rotate_webhook_secret",
+      "method": "POST",
+      "path": "/api/v1/admin/marketplace/clients/{id}/rotate-webhook-secret",
+      "primary_tag": "Admin",
+      "milestone": "M12",
+      "work_package": "M12-CLIENTS",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_marketplace_transactions",
+      "method": "GET",
+      "path": "/api/v1/admin/marketplace/transactions",
+      "primary_tag": "Admin",
+      "milestone": "M12",
+      "work_package": "M12-CLIENTS",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_marketplace_checkout_intents",
+      "method": "POST",
+      "path": "/api/v1/marketplace/checkout-intents",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_marketplace_checkout_intents_id_confirm",
+      "method": "POST",
+      "path": "/api/v1/marketplace/checkout-intents/{id}/confirm",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_marketplace_offers",
+      "method": "POST",
+      "path": "/api/v1/marketplace/offers",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_marketplace_offers_id_",
+      "method": "GET",
+      "path": "/api/v1/marketplace/offers/{id}",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_marketplace_offers_id_",
+      "method": "PATCH",
+      "path": "/api/v1/marketplace/offers/{id}",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_marketplace_purchases",
+      "method": "GET",
+      "path": "/api/v1/marketplace/purchases",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_marketplace_purchases_id_",
+      "method": "GET",
+      "path": "/api/v1/marketplace/purchases/{id}",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_marketplace_purchases_id_refund",
+      "method": "POST",
+      "path": "/api/v1/marketplace/purchases/{id}/refund",
+      "primary_tag": "Marketplace",
+      "milestone": "M12",
+      "work_package": "M12-CHECKOUT",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_admin_themes",
+      "method": "GET",
+      "path": "/api/v1/admin/themes",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "post_admin_themes_data_packages",
+      "method": "POST",
+      "path": "/api/v1/admin/themes/data-packages",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "put_admin_themes_default",
+      "method": "PUT",
+      "path": "/api/v1/admin/themes/default",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "delete_admin_themes_name_",
+      "method": "DELETE",
+      "path": "/api/v1/admin/themes/{name}",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "patch_admin_themes_name_settings",
+      "method": "PATCH",
+      "path": "/api/v1/admin/themes/{name}/settings",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_me_preferences_theme",
+      "method": "GET",
+      "path": "/api/v1/me/preferences/theme",
+      "primary_tag": "Themes",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "put_me_preferences_theme",
+      "method": "PUT",
+      "path": "/api/v1/me/preferences/theme",
+      "primary_tag": "Themes",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "get_themes_active",
+      "method": "GET",
+      "path": "/api/v1/themes/active",
+      "primary_tag": "Themes",
+      "milestone": "M13",
+      "work_package": "M13-THEME",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    }
+  ]
+}

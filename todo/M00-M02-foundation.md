@@ -1,0 +1,263 @@
+# M0-M2：工程基础、平台内核与身份链路
+
+> 总索引：[`../TODO.md`](../TODO.md)
+> 范围：M0 工程治理、M1 数据库/配置/任务/审计、M2 身份与 Session。
+> 状态来源：只统计本文件中的叶子任务；工作包状态由其子任务自动推导，不另设重复 checkbox。
+
+## 执行约定
+
+- 每个叶子任务目标用时 15-45 分钟，硬上限 60 分钟；预计超时必须先拆分。
+- 每次只把一个叶子任务改为 `[~]`；启动动作控制在 5 分钟内：指定 owner、打开目标文件、运行最小失败测试。
+- 工作包元数据中的 `owner=unassigned/<role>` 表示尚未分配具体负责人；开始前必须替换为实际负责人。
+- 完成时在任务末尾追加 `证据：文件；命令及结果；commit/PR`。只有代码、测试、契约和文档同时满足时才能标记 `[x]`。
+- `[!]` 后必须写 `阻塞：原因；负责人；复查日期；解除条件`。
+
+---
+
+<a id="m0"></a>
+
+# M0：工程契约与可运行边界
+
+**完成定义：** 根目录可运行统一检查；OpenAPI 与实现可机械比对；后端、前端具备安全边界和可诊断的 readiness；新开发者可在干净环境复现。
+
+<a id="m00-tool"></a>
+
+## M00-TOOL：工具链与根命令
+
+**元数据：** `P0` · `owner=unassigned/platform` · `risk=medium` · `depends=BASE-008` · `blocked=none`
+**目标文件：** `rust-toolchain.toml`、`.nvmrc`、`Makefile`、`.gitignore`、`README.md`、`backend/README.md`、`frontend/README.md`、`.github/workflows/ci.yml`
+**验收：** 干净 shell 执行 `make check`、`make test`、`make build`；任何子步骤失败均返回非零。
+
+- [ ] `M00-TOOL-01` `[30m]` 固定 Rust stable、Node 22、npm、SQLite 3.40+、MySQL 8.0 和 MariaDB 10.11 的开发/CI 版本矩阵。
+- [ ] `M00-TOOL-02` `[30m]` 增加根目录命令帮助，列出 `dev/check/test/build/migrate` 的用途、依赖和示例。
+- [ ] `M00-TOOL-03` `[30m]` 接通后端 `fmt`、`clippy -D warnings`、`test --all-features` 和 release build 根命令。
+- [ ] `M00-TOOL-04` `[30m]` 接通前端 `npm ci`、Svelte check、单测和 adapter-node build 根命令。
+- [ ] `M00-TOOL-05` `[20m]` 接通原型 render、interaction 和 browser audit，保留现有脚本语义。
+- [ ] `M00-TOOL-06` `[45m]` 接通 OpenAPI、Markdown 链接、术语、迁移和 Secret 扫描根命令。
+- [ ] `M00-TOOL-07` `[30m]` 实现聚合 `make check`，并验证子命令失败能立即终止且保留可读输出。
+- [ ] `M00-TOOL-08` `[30m]` 核对 `.gitignore`，阻止数据库、日志、备份、Secret、`target/`、`.svelte-kit/`、`node_modules/` 和生成临时文件入库。
+- [ ] `M00-TOOL-09` `[25m]` 修正 README 中后端端口、OpenAPI 返回格式和“尚未建立骨架”等过期描述。
+- [ ] `M00-TOOL-10` `[45m]` 在全新 clone/无本地缓存环境执行安装、启动和检查演练，并记录实际耗时与前置软件。
+
+## M00-CONTRACT：OpenAPI 与实现覆盖治理
+
+**元数据：** `P0` · `owner=unassigned/api` · `risk=high` · `depends=M00-TOOL` · `blocked=none`
+**目标文件：** `openapi/openapi.yaml`、`openapi/operation-coverage.json`、`scripts/check-openapi.*`、`docs/API*.md`、`docs/ERROR-CODES.md`、`docs/PERMISSION-MATRIX.md`
+**验收：** `make check-openapi` 输出 `172/172 covered`，重复 ID、未注册路由或安全扩展差异均使 CI 失败。
+
+- [ ] `M00-CONTRACT-01` `[45m]` 使用支持 OpenAPI 3.1 的解析器校验 YAML、内部 `$ref`、schema dialect 和 operation 结构。
+- [ ] `M00-CONTRACT-02` `[30m]` 自动断言 172 个 operationId 唯一，并具备 tags、security、`x-permission`、`x-csrf` 和 responses。
+- [ ] `M00-CONTRACT-03` `[45m]` 自动比对 OpenAPI Problem code 与 `docs/ERROR-CODES.md`，发现缺失、拼写和废弃差异即失败。
+- [ ] `M00-CONTRACT-04` `[45m]` 自动比对 operation 的权限、CSRF 和认证方式与 `docs/PERMISSION-MATRIX.md`。
+- [ ] `M00-CONTRACT-05` `[45m]` 自动比对状态枚举与 `docs/STATE-MACHINES.md`，生成 Rust/TypeScript 枚举差异报告。
+- [ ] `M00-CONTRACT-06` `[45m]` 为所有写操作生成幂等、`If-Match`、Cache-Control 和审计需求清单，未声明的写操作阻断 CI。
+- [ ] `M00-CONTRACT-07` `[45m]` 从契约生成 TypeScript 类型/client，禁止手工修改生成文件并加入可复现 diff 检查。
+- [ ] `M00-CONTRACT-08` `[45m]` 生成 172 行 operation coverage manifest，字段至少含 operationId、method/path、owner、milestone、handler、tests 和 status。
+- [ ] `M00-CONTRACT-09` `[45m]` 将 axum 路由注册表与 coverage manifest 双向比对，检测契约无实现、实现无契约和 method/path 漂移。
+- [ ] `M00-CONTRACT-10` `[45m]` 保存上一正式版本生成 client，在 CI 运行向后兼容编译与响应 Fixture 测试。
+- [ ] `M00-CONTRACT-11` `[30m]` 定义 v1 兼容策略和弃用流程：兼容新增可进 v1，删除/改语义必须进入 v2 或取得冻结变更批准。
+- [ ] `M00-CONTRACT-12` `[30m]` 将覆盖率和兼容性报告作为 CI artifact，失败输出具体 operationId 与修复入口。
+
+## M00-BACKEND：后端应用边界
+
+**元数据：** `P0` · `owner=unassigned/backend` · `risk=high` · `depends=M00-TOOL,M00-CONTRACT` · `blocked=none`
+**目标文件：** `backend/src/app.rs`、`backend/src/config.rs`、`backend/src/error.rs`、`backend/src/middleware/`、`backend/src/routes/`、`backend/tests/`
+**验收：** `make check-backend && make test-backend`；超限、停机、readiness 和错误脱敏集成测试通过。
+
+- [ ] `M00-BACKEND-01` `[30m]` 建立 `auth/users/content/moderation/storage/economy/ai/video/oidc/marketplace/admin` 路由模块边界。
+- [ ] `M00-BACKEND-02` `[45m]` 扩展 AppState，注入配置、数据库池、Storage、Clock、任务、审计和 Feature Flag 接口。
+- [ ] `M00-BACKEND-03` `[45m]` 让 domain/service 不依赖 axum、sqlx、SMTP、S3 SDK 或全局环境变量。
+- [ ] `M00-BACKEND-04` `[30m]` 贯通请求 ID 到成功响应、Problem、tracing span、审计、Job 和 Outbox metadata。
+- [ ] `M00-BACKEND-05` `[45m]` 补齐 Problem 的 `instance/request_id/errors`，集中清除 SQL、栈、Secret、Token、签名 URL 和隐藏正文。
+- [ ] `M00-BACKEND-06` `[45m]` 增加受信代理、Host/Origin、Content-Type、请求体大小、并发、超时和响应安全头边界。
+- [ ] `M00-BACKEND-07` `[30m]` 保持 `/healthz` 只验证进程；新增受保护 `/readyz` 检查数据库、迁移、目录和必要密钥。
+- [ ] `M00-BACKEND-08` `[30m]` 为数据库不可用、迁移不匹配、目录不可写和密钥不可恢复定义稳定 readiness 结果。
+- [ ] `M00-BACKEND-09` `[45m]` 实现 SIGTERM/SIGINT 优雅停机：停止接收请求、停止领取任务、等待受限时长后退出。
+- [ ] `M00-BACKEND-10` `[45m]` 测试非法/超长上游请求 ID、超限 body、错误 Content-Type、慢请求和停机中的请求行为。
+- [ ] `M00-BACKEND-11` `[30m]` 固定 `/api/v1/openapi.json` 由构建时契约提供，测试其 JSON 与提交 YAML 语义一致。
+
+## M00-FRONTEND：前端应用边界
+
+**元数据：** `P1` · `owner=unassigned/frontend` · `risk=medium` · `depends=M00-TOOL,M00-CONTRACT,M00-BACKEND` · `blocked=none`
+**目标文件：** `frontend/src/routes/`、`frontend/src/lib/api/`、`frontend/src/lib/components/`、`frontend/src/hooks.server.ts`
+**验收：** `make check-frontend && make test-frontend`；SSR、无 JS、错误状态和缓存测试通过。
+
+- [ ] `M00-FRONTEND-01` `[45m]` 建立 SSR 根 layout、站点 shell、Session 安全投影和同源 API base URL。
+- [ ] `M00-FRONTEND-02` `[45m]` 统一浏览器与 server load API client，正确传播 Cookie、CSRF、request ID 和 `credentials: same-origin`。
+- [ ] `M00-FRONTEND-03` `[30m]` 让生成类型成为 API DTO 唯一类型来源，移除与契约重复的手写响应接口。
+- [ ] `M00-FRONTEND-04` `[45m]` 建立 Problem code、`message_key`、字段错误和 request ID 的统一映射。
+- [ ] `M00-FRONTEND-05` `[45m]` 建立加载、空、离线、401、403、404、409、422、429、503 和审核中状态组件。
+- [ ] `M00-FRONTEND-06` `[30m]` 固定 SSR/浏览器缓存边界，Session、管理响应和隐藏内容一律 private/no-store。
+- [ ] `M00-FRONTEND-07` `[45m]` 建立键盘、焦点、表单错误关联、屏幕阅读器、减少动效和触屏基础测试夹具。
+- [ ] `M00-FRONTEND-08` `[45m]` 建立无 JavaScript 基线：公开阅读可用，关键表单能提交或给出服务端可理解退化。
+- [ ] `M00-FRONTEND-09` `[30m]` 测试 hydration payload、预取和客户端 store 不含邮箱外私密字段或隐藏正文。
+
+---
+
+<a id="m1"></a>
+
+# M1：数据库、配置、任务与审计内核
+
+**完成定义：** 三数据库能显式迁移并运行同一仓储契约；配置和 Secret 安全；业务事务可原子写审计/Outbox；Worker 可恢复、可观测、可停机。
+
+## M01-DB：数据库连接与迁移执行器
+
+**元数据：** `P0` · `owner=unassigned/backend-db` · `risk=critical` · `depends=M00-BACKEND` · `blocked=none`
+**目标文件：** `backend/Cargo.toml`、`backend/src/db/`、`backend/src/bin/`、`migrations/{sqlite,mysql,mariadb}/`
+**验收：** 空库、重复执行、checksum 篡改、上一版本升级和失败回滚在三数据库通过。
+
+- [ ] `M01-DB-01` `[30m]` 接入 sqlx 的 Tokio runtime、SQLite 与 MySQL 协议支持，并记录 MariaDB 兼容策略。
+- [ ] `M01-DB-02` `[45m]` 实现数据库 URL、最大/最小连接、连接超时、空闲时间和 slow query 配置校验。
+- [ ] `M01-DB-03` `[30m]` 为 SQLite 每连接启用 foreign_keys、WAL、busy timeout 和统一时区。
+- [ ] `M01-DB-04` `[30m]` 为 MySQL/MariaDB 固定字符集、时区、事务隔离和 sql_mode 前置检查。
+- [ ] `M01-DB-05` `[45m]` 实现 `migrate --check`，只检查版本、顺序和 checksum，不改变数据库。
+- [ ] `M01-DB-06` `[45m]` 实现显式 `migrate` 命令，生产服务启动不得自动应用未知迁移。
+- [ ] `M01-DB-07` `[45m]` 建立 migration history/checksum 表；已执行迁移内容变化必须失败。
+- [ ] `M01-DB-08` `[30m]` 统一 UUID v7、BIGINT Unix 毫秒、bool、枚举和分页排序的跨库表示。
+- [ ] `M01-DB-09` `[45m]` 为每个逻辑迁移提供 SQLite/MySQL/MariaDB 三份不可变 SQL 和结构等价断言。
+- [ ] `M01-DB-10` `[45m]` 测试空库迁移、第二次幂等运行、失败迁移不标成功和上一发布版本升级。
+- [ ] `M01-DB-11` `[45m]` 测试 SQLite `BEGIN IMMEDIATE` 与 MySQL/MariaDB 行锁、超时和死锁映射的关键语义。
+- [ ] `M01-DB-12` `[30m]` readiness 在连接失败、迁移落后/超前或 checksum 不匹配时明确失败且不泄漏 DSN。
+
+## M01-CONFIG：配置、Secret 与 Feature Flag
+
+**元数据：** `P0` · `owner=unassigned/platform-security` · `risk=high` · `depends=M01-DB` · `blocked=none`
+**目标文件：** `backend/src/config/`、`backend/.env.example`、`frontend/.env.example`、`docs/CONFIGURATION.md`
+**验收：** 配置 schema 测试、Secret 泄漏扫描和 Feature Flag 权限测试通过。
+
+- [ ] `M01-CONFIG-01` `[45m]` 将环境变量逐项映射到类型化配置，记录默认值、环境适用范围、热更新和重启要求。
+- [ ] `M01-CONFIG-02` `[30m]` 生产模式拒绝未知键、占位 Secret、不安全 Origin、非 loopback 内部端口和冲突配置。
+- [ ] `M01-CONFIG-03` `[45m]` 定义 Secret provider 接口，支持受限环境文件/systemd credentials，并保留后续托管 Secret 扩展点。
+- [ ] `M01-CONFIG-04` `[30m]` 所有 Secret 写接口只写不读；GET 只返回 configured、source class、version 和 updated_at。
+- [ ] `M01-CONFIG-05` `[45m]` 实现 Feature Flag 默认值、作用范围、生效时间、紧急关闭、版本和审计。
+- [ ] `M01-CONFIG-06` `[20m]` 将 AI、Video Provider、Download Billing、OIDC 和 Marketplace 默认设为关闭。
+- [ ] `M01-CONFIG-07` `[45m]` 验证 Flag 关闭时核心论坛独立运行，开启时也不能绕过权限、CSRF、账本、审计或安全上限。
+- [ ] `M01-CONFIG-08` `[45m]` 为配置读取、管理更新、并发版本冲突、重启生效和 Secret 轮换编写测试。
+- [ ] `M01-CONFIG-09` `[30m]` 同步 `.env.example` 与配置文档，示例不得含真实域名、凭据或可用 Token。
+
+## M01-JOBS：Transactional Outbox 与任务 Worker
+
+**元数据：** `P0` · `owner=unassigned/backend-platform` · `risk=critical` · `depends=M01-DB,M01-CONFIG` · `blocked=none`
+**目标文件：** `backend/src/jobs/`、`backend/src/outbox/`、`migrations/*/`、`docs/JOBS.md`、`docs/EVENT-CATALOG.md`
+**验收：** 三数据库运行提交/回滚、崩溃、lease、重复执行、busy 和优雅停机故障注入。
+
+- [ ] `M01-JOBS-01` `[45m]` 建立 jobs 和 outbox 迁移，包含状态、attempt、run_at、lease、payload version 和幂等约束。
+- [ ] `M01-JOBS-02` `[45m]` 实现业务事务内写 Outbox，事务回滚时事件必须同步消失。
+- [ ] `M01-JOBS-03` `[30m]` 实现 queued/running/retry_wait/succeeded/cancelled/dead 状态机及非法迁移拒绝。
+- [ ] `M01-JOBS-04` `[45m]` 实现批量领取、owner、lease 延期和 lease 到期后的安全重领。
+- [ ] `M01-JOBS-05` `[45m]` 实现分类重试、指数退避、jitter、最大次数、dead-letter 和人工重放。
+- [ ] `M01-JOBS-06` `[45m]` 消费者以 event_id/job idempotency key 去重，至少一次投递不得产生重复业务副作用。
+- [ ] `M01-JOBS-07` `[30m]` 禁止在数据库写事务中调用 SMTP、S3、AI、视频 Provider 或执行图片处理。
+- [ ] `M01-JOBS-08` `[30m]` Worker 收到停机信号后停止领取新任务，完成/释放当前任务并受总超时约束。
+- [ ] `M01-JOBS-09` `[30m]` SQLite busy 时指数退避并计数，禁止无延迟高频自旋。
+- [ ] `M01-JOBS-10` `[30m]` 对 SMTP/S3 临时错误、永久错误、超时和取消建立明确分类。
+- [ ] `M01-JOBS-11` `[45m]` 测试进程在领取后、业务调用后、提交前后崩溃的恢复和去重结果。
+- [ ] `M01-JOBS-12` `[30m]` 邮件任务 payload 只存 token 引用/密文所需最小信息，任何日志不得输出验证或重置 token。
+- [ ] `M01-JOBS-13` `[30m]` 暴露 queue depth、age、attempt、lease timeout、dead count 和处理延迟指标。
+
+## M01-AUDIT：审计、事件和幂等基础件
+
+**元数据：** `P0` · `owner=unassigned/security-backend` · `risk=critical` · `depends=M01-DB,M01-JOBS` · `blocked=none`
+**目标文件：** `backend/src/audit/`、`backend/src/idempotency/`、`migrations/*/`、`docs/EVENT-CATALOG.md`
+**验收：** 高风险操作无审计无法提交；幂等冲突、重放和敏感字段清除测试通过。
+
+- [ ] `M01-AUDIT-01` `[45m]` 建立不可关闭的 audit_logs，包含 actor、effective role、target、action、reason、request_id 和 policy version。
+- [ ] `M01-AUDIT-02` `[30m]` 对 before/after 使用字段 allowlist，禁止密码、Token、Secret、隐藏正文和完整签名 URL。
+- [ ] `M01-AUDIT-03` `[45m]` 建立幂等记录的 scope/key/request hash/status/response reference/expiry 数据模型。
+- [ ] `M01-AUDIT-04` `[30m]` 相同 key+摘要返回原结果；相同 key+不同摘要稳定返回 409。
+- [ ] `M01-AUDIT-05` `[45m]` 并发首次请求只能有一个执行者；失败是否缓存按 operation 契约明确处理。
+- [ ] `M01-AUDIT-06` `[45m]` 为管理员代操作、权限变更、配置、账务、审核、Secret 和 Feature Flag 建立审计 helper。
+- [ ] `M01-AUDIT-07` `[30m]` 自动比对领域事件名称、payload version 与 `docs/EVENT-CATALOG.md`。
+- [ ] `M01-AUDIT-08` `[45m]` 测试审计与业务事务原子性、Outbox request ID 贯通和敏感数据脱敏。
+- [ ] `M01-AUDIT-09` `[45m]` 增加仅授权管理员可查询的审计分页与导出边界，深分页使用 cursor。
+
+---
+
+<a id="m2"></a>
+
+# M2：账号、邮箱验证、Session 与高风险认证
+
+**完成定义：** 匿名可注册；邮箱验证后才能写入；Session/CSRF/TOTP 满足安全基线；身份全链路在三数据库和浏览器中通过。
+
+## M02-IDENTITY：注册、验证与密码恢复
+
+**元数据：** `P0` · `owner=unassigned/backend-auth` · `risk=critical` · `depends=M01-AUDIT` · `blocked=none`
+**目标文件：** `migrations/*/`、`backend/src/auth/`、`backend/src/routes/auth/`、`backend/tests/auth/`
+**验收：** `Auth` tag 注册/验证/密码恢复 operation 通过三数据库契约和枚举攻击测试。
+
+- [ ] `M02-IDENTITY-01` `[45m]` 新增身份迁移：username/email 规范化列、password hash、status、verification 和 reset token 表。
+- [ ] `M02-IDENTITY-02` `[45m]` 为规范化用户名和邮箱建立跨库唯一约束及大小写/Unicode Fixture。
+- [ ] `M02-IDENTITY-03` `[30m]` 实现注册 DTO 长度、格式、保留名、密码策略和请求体未知字段校验。
+- [ ] `M02-IDENTITY-04` `[45m]` 使用 Argon2id PHC hash，参数可升级；测试正确、错误及损坏 hash 的常量时间失败路径。
+- [ ] `M02-IDENTITY-05` `[45m]` 在同一事务创建 pending_verification 用户、一次性 token hash、审计和验证邮件 Outbox。
+- [ ] `M02-IDENTITY-06` `[30m]` 注册响应和耗时不泄漏邮箱/用户名是否已存在，重复请求受账号/IP 双维度限流。
+- [ ] `M02-IDENTITY-07` `[45m]` 实现验证 token 过期、一次消费、旧 token 失效和并发消费唯一成功。
+- [ ] `M02-IDENTITY-08` `[30m]` 实现重发验证邮件，采用统一响应、冷却时间、日上限和旧 token 失效。
+- [ ] `M02-IDENTITY-09` `[30m]` 验证成功激活账号并应用可选新用户冷静期，写审计和领域事件。
+- [ ] `M02-IDENTITY-10` `[45m]` 实现找回密码统一响应、30 分钟一次性 token、成功改密和其他 Session 撤销。
+- [ ] `M02-IDENTITY-11` `[30m]` 测试 token 只以 hash 入库，不出现在 API、日志、审计、Outbox 诊断或错误中。
+- [ ] `M02-IDENTITY-12` `[45m]` 为注册、验证、重发、重置的事务每一步做故障注入，验证无半完成状态。
+
+## M02-SESSION：登录、Cookie、Session 与 CSRF
+
+**元数据：** `P0` · `owner=unassigned/backend-auth` · `risk=critical` · `depends=M02-IDENTITY` · `blocked=none`
+**目标文件：** `migrations/*/`、`backend/src/auth/session*`、`backend/src/middleware/csrf*`、`backend/tests/session*`
+**验收：** Session fixation、来源校验、跨站请求、撤销和生命周期测试通过。
+
+- [ ] `M02-SESSION-01` `[45m]` 扩展 session 迁移：token hash、device、created/last_seen、idle/absolute expiry、revoked_at 和 version。
+- [ ] `M02-SESSION-02` `[30m]` 生成至少 256 bit 熵的 Session token，仅存 hash，并设置 `__Host-bblbb_session` 安全属性。
+- [ ] `M02-SESSION-03` `[45m]` 实现账号/IP 限流和常量时间登录失败，错误不得区分账号不存在、密码错误或账号状态。
+- [ ] `M02-SESSION-04` `[30m]` 登录、权限提升、改密和高风险重新认证时旋转 Session，防止 fixation。
+- [ ] `M02-SESSION-05` `[45m]` 实现 idle/absolute timeout、当前登出、全部登出、设备列表和逐设备撤销。
+- [ ] `M02-SESSION-06` `[30m]` 每次请求实时执行账号状态、封禁、角色和 Session revoked 检查，不依赖后台任务延迟。
+- [ ] `M02-SESSION-07` `[45m]` 实现 Session 绑定 synchronizer CSRF token 与 private/no-store 的 token 获取端点。
+- [ ] `M02-SESSION-08` `[30m]` 为注册/登录建立匿名预认证 CSRF 状态，防止 login CSRF。
+- [ ] `M02-SESSION-09` `[45m]` Cookie 写请求校验 `X-CSRF-Token` 与 Origin；缺 Origin 时按策略校验 Referer。
+- [ ] `M02-SESSION-10` `[30m]` Bearer-only 且完全不使用 Cookie 的请求不错误要求 CSRF；GET/HEAD/OPTIONS 无业务副作用。
+- [ ] `M02-SESSION-11` `[45m]` 测试反向代理 Set-Cookie 传播、错误 token、其他 Session token、跨 Origin 和无 Referer 请求。
+- [ ] `M02-SESSION-12` `[45m]` 为 Cookie 属性、过期、撤销、并发请求和账号状态变化运行三数据库集成测试。
+
+## M02-MFA：TOTP、恢复码与近期认证
+
+**元数据：** `P0` · `owner=unassigned/security-auth` · `risk=critical` · `depends=M02-SESSION` · `blocked=none`
+**目标文件：** `migrations/*/`、`backend/src/auth/mfa*`、`backend/tests/mfa*`、`docs/AUTH-OIDC.md`
+**验收：** 时间漂移、重放、恢复码并发、高权限强制和 step-up 流程测试通过。
+
+- [ ] `M02-MFA-01` `[45m]` 新增 TOTP enrollment、加密 secret、last accepted step 和恢复码 hash 迁移。
+- [ ] `M02-MFA-02` `[45m]` 实现 enrollment challenge、二维码所需最小数据、确认后启用和取消未完成 enrollment。
+- [ ] `M02-MFA-03` `[30m]` 实现允许时间窗口和已接受 time step 防重放，不在日志输出 code 或 secret。
+- [ ] `M02-MFA-04` `[45m]` 一次生成恢复码，只展示一次；数据库存 hash，消费时原子标记并通知用户。
+- [ ] `M02-MFA-05` `[30m]` 普通 member 可选 TOTP；administrator、moderator 和高风险账务账号强制启用。
+- [ ] `M02-MFA-06` `[30m]` 未完成强制 enrollment 的账号不得取得对应高权限 Session 或执行高风险操作。
+- [ ] `M02-MFA-07` `[45m]` 为改密、停用 MFA、角色提升、退款、密钥和 Secret 操作实现 recent-auth/step-up。
+- [ ] `M02-MFA-08` `[30m]` 实现新设备、密码/MFA 变化、Session 撤销和恢复码使用安全通知。
+- [ ] `M02-MFA-09` `[45m]` 测试时钟偏移、code 重放、并发恢复码、降权、封禁和 Session 旋转。
+- [ ] `M02-MFA-10` `[30m]` 编写管理员失去 TOTP 设备的受控恢复 Runbook，要求双人复核和不可删除审计。
+
+## M02-UX：身份前端与端到端契约
+
+**元数据：** `P1` · `owner=unassigned/frontend-auth` · `risk=high` · `depends=M02-IDENTITY,M02-SESSION,M02-MFA` · `blocked=none`
+**目标文件：** `frontend/src/routes/(auth)/`、`frontend/src/routes/me/`、`frontend/tests/`、`openapi/operation-coverage.json`
+**验收：** 匿名、未验证、冷静期、正常、MFA 和封禁 persona 的 Playwright 流程与三数据库 API Fixture 通过。
+
+- [ ] `M02-UX-01` `[45m]` 实现注册页面、服务端表单 action、字段错误关联和统一账号冲突提示。
+- [ ] `M02-UX-02` `[30m]` 实现验证结果、重发入口、冷却倒计时和未验证账号允许/禁止动作说明状态。
+- [ ] `M02-UX-03` `[45m]` 实现登录、TOTP 二次输入、恢复码和统一失败提示，不泄漏账号状态。
+- [ ] `M02-UX-04` `[30m]` 实现忘记/重置密码页面，成功后提示其他 Session 已撤销。
+- [ ] `M02-UX-05` `[45m]` 实现 `/me` 安全投影、账号状态、验证状态和 Session 设备管理。
+- [ ] `M02-UX-06` `[45m]` 实现 TOTP enrollment、恢复码一次展示、停用 MFA 和 recent-auth 交互。
+- [ ] `M02-UX-07` `[30m]` 为 401/403/409/422/429/503 和 request ID 提供可访问、可恢复的 UI 状态。
+- [ ] `M02-UX-08` `[45m]` 测试无 JavaScript 注册/登录/重发/重置的合理退化，不把认证裁决放到浏览器。
+- [ ] `M02-UX-09` `[45m]` 用相同 HTTP Fixture 在 SQLite/MySQL/MariaDB 断言状态码、Problem code、投影和回滚一致。
+- [ ] `M02-UX-10` `[30m]` 更新 Auth/Users operation coverage 条目，附 handler、集成测试、Playwright 和文档证据。
+
+---
+
+## M0-M2 出口门槛
+
+- M0 所有 `P0` 叶子任务完成，根检查可从干净环境复现。
+- 三数据库迁移和身份契约均绿；生产启动不隐式迁移。
+- 未验证用户只能登录浏览、修改账号和重发验证，服务端拒绝内容、上传、交易和奖励。
+- Session、CSRF、TOTP、近期认证和审计无未关闭 P0/P1 缺陷。
+- Worker 崩溃、lease、重复执行、SQLite busy 和优雅停机故障注入通过。
+- operation coverage 中 M0-M2 对应端点全部具有实现和测试证据。
