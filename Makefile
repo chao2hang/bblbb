@@ -1,0 +1,187 @@
+## BBLBB 根 Makefile
+##
+## 统一入口：make <target>
+## 所有子命令失败时立即终止（MAKEFLAGS += --no-print-directory）
+## 用途参见 `make help`
+
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+MAKEFLAGS += --no-print-directory
+
+PROJECT_ROOT := $(CURDIR)
+BACKEND_DIR := $(CURDIR)/backend
+FRONTEND_DIR := $(CURDIR)/frontend
+PROTOTYPE_DIR := $(CURDIR)/prototype
+OPENAPI_FILE := $(CURDIR)/openapi/openapi.yaml
+MIGRATIONS_DIR := $(CURDIR)/migrations
+
+# 颜色
+BOLD := \033[1m
+GREEN := \033[32m
+YELLOW := \033[33m
+RED := \033[31m
+RESET := \033[0m
+
+##@ 帮助
+help: ## 显示此帮助信息
+	@echo ""
+	@echo "$(BOLD)BBLBB 根命令$(RESET)"
+	@echo ""
+	@echo "$(BOLD)用法:$(RESET) make $(YELLOW)<target>$(RESET)"
+	@echo ""
+	@echo "$(BOLD)目标:$(RESET)"
+	@echo ""
+	@grep -E '^##@ |^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*## "}; /^##@ / {print ""; print "$(BOLD)" $$0 "$(RESET)"; next} \
+		{printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(BOLD)示例:$(RESET)"
+	@echo "  make check          # 运行全部检查"
+	@echo "  make test           # 运行全部测试"
+	@echo "  make build          # 构建后端和前端"
+	@echo "  make migrate        # 应用 SQLite 迁移"
+	@echo "  make dev            # 启动开发环境"
+	@echo ""
+
+##@ 开发
+dev: ## 启动前端开发服务器（后端需单独运行）
+	@echo "$(YELLOW)>>> 启动前端开发服务器...$(RESET)"
+	@cd $(FRONTEND_DIR) && npm run dev
+
+dev-backend: ## 启动后端开发服务器
+	@echo "$(YELLOW)>>> 启动后端开发服务器...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo run
+
+##@ 检查
+check: check-backend check-frontend check-prototype check-openapi check-roadmap check-docs check-secrets ## 运行全部检查
+
+check-backend: ## 后端 fmt + clippy + 编译检查
+	@echo "$(GREEN)>>> [check-backend] Rust fmt + clippy + check$(RESET)"
+	@cd $(BACKEND_DIR) && cargo fmt --all -- --check
+	@cd $(BACKEND_DIR) && cargo clippy --workspace --all-targets --all-features -- -D warnings
+	@cd $(BACKEND_DIR) && cargo check --all-features
+
+check-frontend: ## 前端 Svelte check + TypeScript 类型检查
+	@echo "$(GREEN)>>> [check-frontend] SvelteKit check$(RESET)"
+	@cd $(FRONTEND_DIR) && npm ci --silent
+	@cd $(FRONTEND_DIR) && npm run check
+
+check-prototype: ## 原型 render + interaction 检查
+	@echo "$(GREEN)>>> [check-prototype] 原型渲染 + 交互检查$(RESET)"
+	@cd $(PROTOTYPE_DIR) && npm ci --silent
+	@cd $(PROTOTYPE_DIR) && npm run check:all
+
+check-openapi: ## OpenAPI YAML 解析 + operationId 唯一性检查
+	@echo "$(GREEN)>>> [check-openapi] OpenAPI 契约校验$(RESET)"
+	@ruby -e '\
+		require "yaml"; \
+		doc = YAML.safe_load(File.read("$(OPENAPI_FILE)"), aliases: true); \
+		abort "OpenAPI must be a mapping" unless doc.is_a?(Hash); \
+		abort "Missing openapi version" unless doc.fetch("openapi","").start_with?("3."); \
+		abort "Missing paths" unless doc["paths"].is_a?(Hash); \
+		ops = []; \
+		doc["paths"].each { |path, methods| \
+			methods.each { |method, spec| \
+				next unless %w[get post put patch delete head options].include?(method); \
+				op_id = spec["operationId"]; \
+				abort "Missing operationId at #{method.upcase} #{path}" unless op_id; \
+				ops << op_id; \
+			} \
+		}; \
+		dups = ops.group_by { |x| x }.select { |_, v| v.size > 1 }; \
+		abort "Duplicate operationIds: #{dups.keys.join(", ")}" unless dups.empty?; \
+		puts "OpenAPI: #{ops.size} operations, all unique"; \
+	'
+	@if [ -f "$(PROJECT_ROOT)/scripts/sync-operation-coverage.rb" ]; then \
+		ruby $(PROJECT_ROOT)/scripts/sync-operation-coverage.rb --check; \
+	fi
+
+check-docs: ## Markdown 链接检查
+	@echo "$(GREEN)>>> [check-docs] Markdown 链接检查$(RESET)"
+	@if command -v lychee >/dev/null 2>&1; then \
+		lychee --offline --no-progress './README.md' './docs/**/*.md' './dev/**/*.md'; \
+	else \
+		echo "$(YELLOW)    lychee 未安装，跳过链接检查$(RESET)"; \
+	fi
+
+check-secrets: ## Secret 扫描（检查是否有泄露的密钥/Token）
+	@echo "$(GREEN)>>> [check-secrets] Secret 扫描$(RESET)"
+	@! grep -rn --include='*.rs' --include='*.ts' --include='*.js' --include='*.json' --include='*.yaml' --include='*.yml' \
+		-E '(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|-----BEGIN (RSA |EC )?PRIVATE KEY-----)' \
+		$(BACKEND_DIR)/src $(FRONTEND_DIR)/src $(PROJECT_ROOT)/openapi 2>/dev/null \
+		|| { echo "$(RED)ERROR: 检测到疑似 Secret！$(RESET)"; exit 1; }
+	@echo "    未检测到已知 Secret 模式"
+
+check-roadmap: ## 路线图校验
+	@echo "$(GREEN)>>> [check-roadmap] 路线图一致性校验$(RESET)"
+	@if [ -f "$(PROJECT_ROOT)/scripts/check-roadmap.rb" ]; then \
+		ruby $(PROJECT_ROOT)/scripts/check-roadmap.rb; \
+	else \
+		echo "$(YELLOW)    check-roadmap.rb 不存在$(RESET)"; \
+	fi
+
+##@ 测试
+test: test-backend test-frontend test-prototype ## 运行全部测试
+
+test-backend: ## 后端测试
+	@echo "$(GREEN)>>> [test-backend] cargo test --all-features$(RESET)"
+	@cd $(BACKEND_DIR) && cargo test --all-features
+
+test-frontend: ## 前端测试
+	@echo "$(GREEN)>>> [test-frontend] 前端单测$(RESET)"
+	@cd $(FRONTEND_DIR) && npm test --if-present
+
+test-prototype: ## 原型测试
+	@echo "$(GREEN)>>> [test-prototype] 原型检查$(RESET)"
+	@cd $(PROTOTYPE_DIR) && npm run check:all
+
+##@ 构建
+build: build-backend build-frontend ## 构建后端和前端
+
+build-backend: ## 后端 release 构建
+	@echo "$(GREEN)>>> [build-backend] cargo build --release$(RESET)"
+	@cd $(BACKEND_DIR) && cargo build --release
+
+build-frontend: ## 前端构建
+	@echo "$(GREEN)>>> [build-frontend] SvelteKit adapter-node build$(RESET)"
+	@cd $(FRONTEND_DIR) && npm ci --silent
+	@cd $(FRONTEND_DIR) && npm run build
+
+##@ 数据库迁移
+migrate: migrate-sqlite ## 应用迁移（默认 SQLite）
+
+migrate-sqlite: ## 应用 SQLite 迁移到空库
+	@echo "$(GREEN)>>> [migrate-sqlite] 应用 SQLite 迁移$(RESET)"
+	@DB=$${BBLBB_DB:-/tmp/bblbb.sqlite}; \
+		rm -f $$DB; \
+		for f in $(MIGRATIONS_DIR)/sqlite/*.sql; do \
+			echo "  applying: $$f"; \
+			sqlite3 -bail $$DB < $$f || { echo "$(RED)FAILED: $$f$(RESET)"; exit 1; }; \
+		done; \
+		echo "  foreign key check:"; \
+		sqlite3 $$DB 'PRAGMA foreign_key_check;'; \
+		echo "$(GREEN)  SQLite 迁移完成: $$DB$(RESET)"
+
+migrate-check-sqlite: ## 检查 SQLite 迁移（不应用）
+	@echo "$(GREEN)>>> [migrate-check-sqlite] 检查迁移$(RESET)"
+	@DB=$${BBLBB_DB:-/tmp/bblbb-check.sqlite}; \
+		rm -f $$DB; \
+		for f in $(MIGRATIONS_DIR)/sqlite/*.sql; do \
+			sqlite3 -bail $$DB < $$f || { echo "$(RED)FAILED: $$f$(RESET)"; exit 1; }; \
+		done; \
+		test -z "$$(sqlite3 $$DB 'PRAGMA foreign_key_check;')" && echo "  OK" || { echo "$(RED)FK check failed$(RESET)"; exit 1; }; \
+		rm -f $$DB
+
+##@ 清理
+clean: ## 清理构建产物
+	@echo "$(YELLOW)>>> 清理构建产物...$(RESET)"
+	@cd $(BACKEND_DIR) && cargo clean 2>/dev/null || true
+	@rm -rf $(FRONTEND_DIR)/build $(FRONTEND_DIR)/.svelte-kit 2>/dev/null || true
+	@echo "$(GREEN)完成$(RESET)"
+
+##@ 安装
+install: ## 安装依赖
+	@echo "$(GREEN)>>> 安装前端依赖...$(RESET)"
+	@cd $(FRONTEND_DIR) && npm ci
+	@cd $(PROTOTYPE_DIR) && npm ci
+	@echo "$(GREEN)>>> Rust 依赖将由 cargo 自动拉取$(RESET)"

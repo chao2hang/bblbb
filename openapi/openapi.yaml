@@ -5565,13 +5565,13 @@ components:
       type: object
       additionalProperties: false
       required:
-      - email
+      - identifier
       - password
       properties:
-        email:
+        identifier:
           type: string
-          format: email
           maxLength: 320
+          description: 用户名或邮箱（不区分大小写）
         password:
           type: string
           minLength: 8

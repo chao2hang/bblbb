@@ -18,7 +18,7 @@ Money { currency:"coin"|string, amount:int64 }
 
 | 资源 | 端点 | 请求关键字段 | 成功投影 |
 |---|---|---|---|
-| Session | `POST /auth/login`、`DELETE /auth/session`、`GET /me` | email、password、totp 可选 | `Me`，Session Cookie 单独设置 |
+| Session | `POST /auth/login`、`DELETE /auth/session`、`GET /me` | identifier（用户名或邮箱）、password、totp 可选 | `Me`，Session Cookie 单独设置 |
 | User | `GET/PATCH /me`、`GET /users/{username}` | display_name、bio、timezone、theme | `Me` 或 `PublicUser`，不得共用巨型 DTO |
 | Board | `GET /boards`、`GET /boards/{slug}`、admin CRUD | name、slug、description、parent_id、version | `BoardProjection` 含当前请求方 capabilities |
 | Post | `GET/POST /posts`、`GET/PATCH/DELETE /posts/{id}` | type、title、markdown、board_id、access_policy、scheduled_at | `PostProjection`，隐藏正文不出现在未授权响应 |
@@ -155,7 +155,7 @@ UserHoverCardProjection {
 
 - 帖子、文章和回复中的作者 Hover Card 使用同一安全投影，不包含邮箱、登录状态、精确 IP、私有资产或签名参数。
 - Cover 通过稳定内容 URL 加载；未授权、处理失败或链接过期时降级为内置背景，不能影响内容列表渲染。
-ActivitySummary { checked_in_today, streak_days, today_earned:Money[], weekly_rank|null, tasks[] }
+ActivitySummary { checked_in_today, streak_days, today_earned:Money[], point_operation_id|null }
 ```
 
 - `ShopOrderCreate` 不接受价格、货币、用户、库存或展示 Token。

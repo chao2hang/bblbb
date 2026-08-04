@@ -34,6 +34,12 @@ jobs:
           abort "Missing OpenAPI version" unless document.fetch("openapi", "").start_with?("3.")
           abort "Missing OpenAPI paths" unless document["paths"].is_a?(Hash)
 
+      - name: Check OpenAPI operation coverage
+        run: ruby scripts/sync-operation-coverage.rb --check
+
+      - name: Check roadmap consistency
+        run: ruby scripts/check-roadmap.rb
+
   rust:
     name: Rust checks
     runs-on: ubuntu-latest

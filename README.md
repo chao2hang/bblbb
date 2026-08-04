@@ -87,4 +87,25 @@ Caddy
 
 ## 当前状态
 
-下一阶段将创建 Rust 后端和 SvelteKit 前端骨架、三数据库 CI、初始迁移及 OpenAPI 契约。
+已交付基线（v0.5 冻结，commit `5e17fa3`）：
+
+- Rust/axum 后端：`/healthz`、`/readyz`、请求 ID、Problem 边界、OpenAPI JSON，以及基于数据库的认证闭环（注册/邮箱验证/登录/登出/找回密码）；数据库支持 SQLite 与 MySQL/MariaDB，启动时自动迁移；其余领域路由已按契约挂载，未实现操作返回 501
+- SvelteKit 2 / Svelte 5 / adapter-node 骨架和同源健康 API client
+- SQLite / MySQL / MariaDB 初始 users/session 骨架迁移
+- GitHub Actions CI：文档与 OpenAPI（含路线图/覆盖校验）、Rust、前端、原型和三数据库基础检查
+- 66 路由高保真原型和 22 条后台路由
+- OpenAPI 3.1 契约：133 paths、172 operations、172 唯一 operationId
+- 87 个工作包、783 个叶子任务的执行册
+
+### 开发命令
+
+```sh
+make help          # 查看所有可用命令
+make check         # 运行全部检查（后端/前端/原型/OpenAPI/路线图/文档/Secret）
+make test          # 运行全部测试
+make build         # 构建后端和前端
+make migrate       # 应用 SQLite 迁移到空库
+make dev           # 启动前端开发服务器
+```
+
+工具链版本：Rust stable（`rust-toolchain.toml`）、Node 22（`.nvmrc`）。
