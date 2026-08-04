@@ -1,2 +1,20 @@
 pub mod health;
 pub mod openapi;
+pub mod ready;
+
+pub mod admin;
+pub mod ai;
+pub mod auth;
+pub mod boards;
+pub mod comments;
+pub mod economy;
+pub mod feeds;
+pub mod marketplace;
+pub mod moderation;
+pub mod oidc;
+pub mod posts;
+pub mod search;
+pub mod storage;
+pub mod themes;
+pub mod users;
+pub mod video;

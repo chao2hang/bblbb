@@ -11,6 +11,15 @@ pub struct AppConfig {
     pub log_filter: String,
     #[serde(default = "default_openapi_path")]
     pub openapi_path: PathBuf,
+    #[serde(default = "default_database_url")]
+    pub database_url: String,
+    #[serde(default = "default_migrations_dir")]
+    pub migrations_dir: PathBuf,
+    #[serde(default = "default_storage_dir")]
+    pub storage_dir: PathBuf,
+    /// 启动时是否自动应用数据库迁移（M01-DB-06：生产默认关闭）
+    #[serde(default = "default_auto_migrate")]
+    pub auto_migrate: bool,
 }
 
 impl AppConfig {
@@ -29,6 +38,10 @@ impl Default for AppConfig {
             bind_address: default_bind_address(),
             log_filter: default_log_filter(),
             openapi_path: default_openapi_path(),
+            database_url: default_database_url(),
+            migrations_dir: default_migrations_dir(),
+            storage_dir: default_storage_dir(),
+            auto_migrate: default_auto_migrate(),
         }
     }
 }
@@ -45,6 +58,22 @@ fn default_openapi_path() -> PathBuf {
     PathBuf::from("../openapi/openapi.yaml")
 }
 
+fn default_database_url() -> String {
+    "sqlite://../data/bblbb.sqlite".to_owned()
+}
+
+fn default_migrations_dir() -> PathBuf {
+    PathBuf::from("../migrations/sqlite")
+}
+
+fn default_storage_dir() -> PathBuf {
+    PathBuf::from("../uploads")
+}
+
+fn default_auto_migrate() -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -57,5 +86,7 @@ mod tests {
             config.openapi_path,
             PathBuf::from("../openapi/openapi.yaml")
         );
+        assert!(config.database_url.starts_with("sqlite://"));
+        assert!(!config.auto_migrate);
     }
 }
