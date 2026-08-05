@@ -126,6 +126,21 @@ Rust 模型：`backend/src/search/mod.rs::SearchDocument`。
   单 token（已知限制；结果层以实时可见性过滤兜底，M08-INDEX-07）。
 - 以上为服务端全局变量，非逐表配置；部署文档（`OPERATIONS.md`）记录调整方式。
 
+### 7.4 MariaDB 10.11 与 MySQL 8 的已知差异（M03-SEARCH-STORE-04）
+
+- 0031 迁移对 mysql/mariadb 使用同一 DDL（迁移等价测试要求可执行 SQL 字节
+  一致；mariadb 文件以注释登记本差异，见 `migrations/mariadb/0031_search_fts.sql`）。
+- **ngram parser**：MySQL 8 提供 `WITH PARSER ngram` 用于 CJK 分词；MariaDB
+  10.11 无同等 ngram parser——两者默认都按空白/标点分词，长中文串成为
+  ≤84 字符单 token。
+- **分词上限**：两者默认一致（`innodb_ft_min_token_size`=3 /
+  `innodb_ft_max_token_size`=84，服务端变量）。
+- **重建**：`OPTIMIZE TABLE search_documents` 两者可用；MariaDB 另支持
+  `ALTER TABLE search_documents FORCE`。
+- **停用词**：两发行版内置 InnoDB 停用词表可能不同；行为只在部署验证中固定
+  （M03-SEARCH-STORE-07 三库 Fixture / M16 专项）。
+- 基础查询契约（命中/删除/重建）以同一 Fixture 验证，与 MySQL 保持一致。
+
 ## 8. 相关文档
 
 - `openapi/openapi.yaml`：`SearchResult`/`SearchPage`/`searchPublicContent`

@@ -151,7 +151,7 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | 0028 | `tags_active` | tags 禁用状态列 is_active（M03-BOARDS-06） |
 | 0029 | `tags_version` | tags 乐观并发版本列 updated_at（M03-BOARDS-07） |
 | 0030 | `search_index` | search_documents 索引元数据表 + SQLite FTS5 external content 与同步触发器（M03-SEARCH-STORE-02） |
-| 0031 | `search_fts` | MySQL/MariaDB FULLTEXT 索引（title, body）+ SQLite 版本占位（M03-SEARCH-STORE-03） |
+| 0031 | `search_fts` | MySQL/MariaDB FULLTEXT 索引（title, body）+ SQLite 版本占位（M03-SEARCH-STORE-03/04） |
 
 ### `site_settings`
 
