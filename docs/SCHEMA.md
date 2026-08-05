@@ -345,12 +345,22 @@ TOTP enrollment（RFC 6238）：
 
 ### `tag_groups`
 
-- `id`、`name`、`slug`（唯一）、`sort_order`、`created_at`。
+- 迁移 0023 新增。`id`、`name`、`slug`（全局唯一）、`sort_order`（默认 0）、`created_at`。
 
 ### `tags`
 
-- `id`、`group_id`（可空）、`name`、`slug`（唯一）、`description`、`color`、`post_count`、`created_at`。
-- `post_count` 是可重建缓存，不是真实来源。
+- 0003 骨架（`id`/`name`/`usage_count`/`created_at` + `name` 唯一）；迁移 0023 演进为：
+  `group_id`（可空，软引用 `tag_groups`——ALTER 不能带 FK，分组完整性在服务层校验）、
+  `slug`（可空；非空时全局唯一，存量行为 NULL，服务层写入时必填）、
+  `description`（默认 `''`）、`color`（可空）。
+- `usage_count`（0003 已有）是可重建缓存，不是真实来源。
+- 索引：`name` 唯一（0003）、`slug` 唯一（非空）、`(group_id)`。
+
+### `board_tags`
+
+- 迁移 0023 新增：板块启用的标签关联，与 `board_roles`（板块启用角色）对称。
+- 复合主键：`(board_id, tag_id)`；删板块/删标签级联清理。
+- 发帖可用标签与板块标签筛选由此关联决定；帖子正文标签关联见 `post_tags`。
 
 ### `post_tags`
 
