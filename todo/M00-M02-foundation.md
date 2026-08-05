@@ -148,8 +148,8 @@
 - [x] `M01-JOBS-05` `[45m]` 实现分类重试、指数退避、jitter、最大次数、dead-letter 和人工重放。证据：files=backend/src/jobs/retry.rs,backend/src/jobs/worker.rs,docs/STATE-MACHINES.md,docs/JOBS.md；commands=cargo test --all-features（185 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=RetryClass 分类 + 指数退避（饱和不溢出）+ jitter 区间 + 行级 max_attempts 死信 + complete_job owner 成功 + replay_job dead→queued 重置 + 状态机新增人工重放边；commit=495accd；review=7 项重试集成测试 + 5 项退避单测 + 状态机重放边测试 + 文档同步
 - [x] `M01-JOBS-06` `[45m]` 消费者以 event_id/job idempotency key 去重，至少一次投递不得产生重复业务副作用。证据：files=migrations/{sqlite,mysql,mariadb}/0008_outbox_consumed.sql,backend/src/outbox.rs,backend/tests/outbox_consumer.rs,docs/STATE-MACHINES.md,docs/JOBS.md；commands=cargo test --all-features（190 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=consume_in_tx 事务内去重标记（唯一约束）+ mark_sent_in_tx 同事务幂等标记 + 崩溃回滚恰好一次 + 竞争消费者不重复副作用 + job deduplication_key 入队层去重；commit=f773fe6；review=5 项消费者集成测试 + 状态机/幂等文档对齐
 - [x] `M01-JOBS-07` `[30m]` 禁止在数据库写事务中调用 SMTP、S3、AI、视频 Provider 或执行图片处理。证据：files=scripts/check-tx-io.rb,Makefile,docs/JOBS.md；commands=make check（含 check-tx-io 全绿）; ruby scripts/check-tx-io.rb（干净通过 + 违规样例退出码 1）; contract=含事务原语的源文件不得引用外部 IO 依赖（lettre/aws-sdk/reqwest/image/ffmpeg/AI SDK），CI 阻断；commit=94d5672；review=负向探针验证门禁可拦截 + JOBS.md §4.2 契约
-- [~] `M01-JOBS-08` `[30m]` Worker 收到停机信号后停止领取新任务，完成/释放当前任务并受总超时约束。
-- [ ] `M01-JOBS-09` `[30m]` SQLite busy 时指数退避并计数，禁止无延迟高频自旋。
+- [x] `M01-JOBS-08` `[30m]` Worker 收到停机信号后停止领取新任务，完成/释放当前任务并受总超时约束。证据：files=backend/src/jobs/worker_loop.rs,backend/tests/worker_loop.rs,docs/JOBS.md；commands=cargo test --all-features（193 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=run_worker 停机即停领 + 在途任务完成 + drain_timeout 总超时 + 周期续租/失租停止 + SIGTERM/SIGINT→watch；commit=0d0ef13；review=3 项停机语义集成测试 + JOBS.md §12
+- [~] `M01-JOBS-09` `[30m]` SQLite busy 时指数退避并计数，禁止无延迟高频自旋。
 - [ ] `M01-JOBS-10` `[30m]` 对 SMTP/S3 临时错误、永久错误、超时和取消建立明确分类。
 - [ ] `M01-JOBS-11` `[45m]` 测试进程在领取后、业务调用后、提交前后崩溃的恢复和去重结果。
 - [ ] `M01-JOBS-12` `[30m]` 邮件任务 payload 只存 token 引用/密文所需最小信息，任何日志不得输出验证或重置 token。
