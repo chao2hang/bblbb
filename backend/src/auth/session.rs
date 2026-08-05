@@ -145,6 +145,11 @@ async fn resolve_session(
             .await?;
 
             if let Some(row) = row {
+                // 实时状态检查（M02-SESSION-06）：banned/deleted 即使 Session
+                // 有效也不认证——封禁/删除实时生效，不依赖后台任务
+                if row.status == "banned" || row.status == "deleted" {
+                    return Ok(None);
+                }
                 // 更新 last_seen_at 和 idle_expires_at（滑动超时）
                 let new_idle = now + IDLE_TIMEOUT_MS;
                 sqlx::query("UPDATE user_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
