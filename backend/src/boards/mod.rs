@@ -9,13 +9,17 @@
 //!   服务门（M03-BOARDS-03）；
 //! - [`pagination`]：板块列表 cursor 分页——不透明游标 + 稳定排序
 //!   （M03-BOARDS-04）；
+//! - [`admin`]：管理员创建/更新板块——版本冲突、reason 与审计
+//!   （M03-BOARDS-05）；
 //! - [`slug_exists`]：slug 唯一性检查（`boards_slug_uq` 唯一索引兜底）。
 
+pub mod admin;
 pub mod hierarchy;
 pub mod pagination;
 pub mod validation;
 pub mod visibility;
 
+pub use admin::{create_board, update_board, BoardCreateInput, BoardUpdateInput};
 pub use hierarchy::{
     build_hierarchy, load_hierarchy, validate_parent, BoardHierarchy, BoardRef, HierarchyError,
     MAX_BOARD_DEPTH,

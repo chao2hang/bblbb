@@ -204,6 +204,29 @@ impl AuditEntry {
             .with_metadata(json!({ "secret_name": secret_name }))
     }
 
+    /// 板块管理变更（创建/更新，M03-BOARDS-05）：必须携带 reason 与策略版本；
+    /// before/after 只记录白名单字段（slug/name/description/parent_id/
+    /// sort_order/visibility/posting_mode/is_active，M01-AUDIT-02 过滤）。
+    pub fn board_change(
+        actor: &str,
+        action: &str,
+        board_id: &str,
+        before: Option<&Value>,
+        after: &Value,
+        reason: &str,
+        policy_version: &str,
+    ) -> Self {
+        Self::user_action(actor, action)
+            .with_target("board", board_id)
+            .with_effective_role("administrator")
+            .with_reason(reason)
+            .with_policy_version(policy_version)
+            .with_metadata(json!({
+                "before": before.map(sanitize_for_audit).unwrap_or(Value::Null),
+                "after": sanitize_for_audit(after),
+            }))
+    }
+
     /// Feature Flag 变更：记录 flag 名称、before/after 开关状态与策略版本。
     pub fn feature_flag_change(
         actor: &str,
@@ -379,6 +402,17 @@ pub const AUDIT_FIELD_ALLOWLIST: &[&str] = &[
     "ip_prefix",
     "session_id",
     "expires_at",
+    // 板块管理变更（M03-BOARDS-05）：非敏感展示/排序/状态字段
+    "id",
+    "slug",
+    "name",
+    "description",
+    "parent_id",
+    "sort_order",
+    "posting_mode",
+    "is_active",
+    "created_at",
+    "updated_at",
 ];
 
 /// 对 before/after 对象做审计安全过滤（M01-AUDIT-02）。
