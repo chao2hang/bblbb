@@ -211,10 +211,33 @@ password-reset 等预认证写端点提供服务端可回溯校验，防止 logi
 - TTL 内可复用（非一次性），过期行在签发新状态时顺带清理。
 - 浏览器 Cookie 只持有高熵随机令牌；数据库只存哈希。
 
-### `totp_credentials`（v1 可选）
+### `totp_credentials`（M02-MFA-01）
 
-- `id`、`user_id`、加密后的 TOTP secret、`confirmed_at`、`created_at`、`revoked_at`。
-- 恢复码单独存哈希，不存明文。
+TOTP enrollment（RFC 6238）：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | UUID 主键 |
+| `user_id` | 用户 ID，索引；一个用户同一时刻至多一个启用中的 TOTP（服务层保证，重复启用 = 撤销旧 + 新建） |
+| `encrypted_secret` | 加密后的 TOTP secret（AEAD 密文；验证 code 需解密，故不可哈希） |
+| `last_accepted_step` | 最近接受的 TOTP time-step，默认 0（防重放：code 的 step 必须大于该值且在允许时间窗口内） |
+| `created_at`、`confirmed_at` | 签发时间（Unix 毫秒）；确认启用时间（NULL = 未完成 enrollment） |
+| `revoked_at` | 撤销时间（NULL = 有效） |
+
+### `mfa_recovery_codes`（M02-MFA-01）
+
+恢复码只存哈希，不存明文：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | UUID 主键 |
+| `user_id` | 用户 ID，索引 |
+| `code_hash` | 恢复码的 SHA-256，唯一 |
+| `created_at` | 签发时间（Unix 毫秒） |
+| `consumed_at` | 消费时间（NULL = 未消费；由 `UPDATE WHERE consumed_at IS NULL` 原子标记，并发唯一成功） |
+
+- 一次生成一组恢复码，只展示一次（M02-MFA-04）。
+- 用户删除时 MFA 行随 `users` 级联清理（ON DELETE CASCADE）。
 
 ## 5. 角色与授权
 
