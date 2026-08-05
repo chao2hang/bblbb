@@ -40,6 +40,8 @@
 
 事件 envelope 见 `PLUGIN.md`。Outbox payload 必须最小化，不复制密码、Token、完整隐藏正文等敏感数据。
 
+实现（M01-JOBS-02）：业务代码在事务内调用 `outbox::enqueue_in_tx(&mut tx, event_type, payload)`；事务提交事件才持久化，事务回滚事件同步消失。时间戳一律为 Unix 毫秒（M01-DB-08）。
+
 ## 3. Job 生命周期
 
 ```text

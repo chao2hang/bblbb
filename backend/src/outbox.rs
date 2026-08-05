@@ -35,14 +35,14 @@ pub async fn enqueue(
     payload: Value,
 ) -> Result<String, sqlx::Error> {
     let id = uuid::Uuid::now_v7().to_string();
-    let now = Utc::now().timestamp();
+    let now = now_millis();
     let payload_str = serde_json::to_string(&payload).unwrap_or_default();
 
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO outbox_events (id, event_type, payload, status, attempts, max_attempts, next_attempt_at, created_at)
-                 VALUES (?, ?, ?, 'pending', 0, 5, ?, ?)",
+                "INSERT INTO outbox_events (id, event_type, payload, payload_version, status, attempts, max_attempts, next_attempt_at, created_at)
+                 VALUES (?, ?, ?, 1, 'pending', 0, 5, ?, ?)",
             )
             .bind(&id)
             .bind(event_type)
@@ -54,8 +54,8 @@ pub async fn enqueue(
         }
         Either::Right(p) => {
             sqlx::query(
-                "INSERT INTO outbox_events (id, event_type, payload, status, attempts, max_attempts, next_attempt_at, created_at)
-                 VALUES (?, ?, ?, 'pending', 0, 5, ?, ?)",
+                "INSERT INTO outbox_events (id, event_type, payload, payload_version, status, attempts, max_attempts, next_attempt_at, created_at)
+                 VALUES (?, ?, ?, 1, 'pending', 0, 5, ?, ?)",
             )
             .bind(&id)
             .bind(event_type)
@@ -71,13 +71,68 @@ pub async fn enqueue(
     Ok(id)
 }
 
+/// 业务事务内的发件箱事务类型。
+pub type OutboxTx<'e> =
+    Either<sqlx::Transaction<'e, sqlx::Sqlite>, sqlx::Transaction<'e, sqlx::MySql>>;
+
+/// 在业务事务内写 Outbox（M01-JOBS-02）。
+///
+/// 与业务表变更在同一事务：事务提交事件才持久化，事务回滚事件同步消失。
+/// 调用方必须先 `begin` 拿到事务，再在提交前调用本函数。
+pub async fn enqueue_in_tx<'e>(
+    tx: &mut OutboxTx<'e>,
+    event_type: &str,
+    payload: Value,
+) -> Result<String, sqlx::Error> {
+    let id = uuid::Uuid::now_v7().to_string();
+    let now = now_millis();
+    let payload_str = serde_json::to_string(&payload).unwrap_or_default();
+
+    match tx {
+        Either::Left(t) => {
+            sqlx::query(
+                "INSERT INTO outbox_events (id, event_type, payload, payload_version, status, attempts, max_attempts, next_attempt_at, created_at)
+                 VALUES (?, ?, ?, 1, 'pending', 0, 5, ?, ?)",
+            )
+            .bind(&id)
+            .bind(event_type)
+            .bind(&payload_str)
+            .bind(now)
+            .bind(now)
+            .execute(&mut **t)
+            .await?;
+        }
+        Either::Right(t) => {
+            sqlx::query(
+                "INSERT INTO outbox_events (id, event_type, payload, payload_version, status, attempts, max_attempts, next_attempt_at, created_at)
+                 VALUES (?, ?, ?, 1, 'pending', 0, 5, ?, ?)",
+            )
+            .bind(&id)
+            .bind(event_type)
+            .bind(&payload_str)
+            .bind(now)
+            .bind(now)
+            .execute(&mut **t)
+            .await?;
+        }
+    }
+
+    tracing::debug!(event_id = %id, event_type = %event_type, "outbox event enqueued in transaction");
+    Ok(id)
+}
+
+/// 当前 Unix 毫秒（跨库时间戳约定 M01-DB-08）。
+pub fn now_millis() -> i64 {
+    Utc::now().timestamp_millis()
+}
+
 /// 获取待处理事件（后台工作器调用）
 pub async fn fetch_pending(
     pool: &DatabasePool,
     limit: i64,
 ) -> Result<Vec<OutboxEvent>, sqlx::Error> {
     let limit = limit.clamp(1, 50);
-    let now = Utc::now().timestamp();
+    let now = now_millis();
 
     match pool {
         Either::Left(p) => {
@@ -124,7 +179,7 @@ pub async fn fetch_pending(
 
 /// 标记事件为已处理
 pub async fn mark_sent(pool: &DatabasePool, event_id: &str) -> Result<(), sqlx::Error> {
-    let now = Utc::now().timestamp();
+    let now = now_millis();
 
     match pool {
         Either::Left(p) => {
@@ -152,8 +207,8 @@ pub async fn mark_failed(
     event_id: &str,
     error: &str,
 ) -> Result<(), sqlx::Error> {
-    let now = Utc::now().timestamp();
-    let retry_delay = 60; // 1 分钟后重试
+    let now = now_millis();
+    let retry_delay = 60_000; // 1 分钟后重试（Unix 毫秒）
 
     match pool {
         Either::Left(p) => {
