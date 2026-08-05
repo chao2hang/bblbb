@@ -5,6 +5,131 @@ use serde::Deserialize;
 
 use crate::db::pool::{validate_database_url, DbOptions};
 
+/// 配置登记条目（M01-CONFIG-01）：环境变量 → 类型化字段 → 默认值 →
+/// 环境适用范围 → 运行时变更方式。
+#[derive(Debug, Clone, Copy)]
+pub struct ConfigEntry {
+    /// 环境变量名（`BBLBB__` 前缀完整形式）
+    pub env_var: &'static str,
+    /// `AppConfig` 中的类型化字段
+    pub field: &'static str,
+    /// 默认值（无默认 = 未设置/空）
+    pub default: &'static str,
+    /// 环境适用范围：`all` / `dev` / `ci` / `production`
+    pub scope: &'static str,
+    /// 运行时变更方式：`restart`（重启生效）/ `reload`（在线重载）/ `rotation`（密钥轮换流程）
+    pub reload: &'static str,
+}
+
+/// 当前已实现的配置登记表（事实来源）。
+///
+/// 不变量（由测试强制）：
+/// 1. `BBLBB__<后缀>` 的后缀小写后必须等于 `AppConfig` 字段名；
+/// 2. 每个登记项必须在 `backend/.env.example` 中记录；
+/// 3. `.env.example` 不得出现未登记的环境变量。
+pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
+    ConfigEntry {
+        env_var: "BBLBB__BIND_ADDRESS",
+        field: "bind_address",
+        default: "127.0.0.1:8080",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__LOG_FILTER",
+        field: "log_filter",
+        default: "bblbb_backend=info,tower_http=info",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__OPENAPI_PATH",
+        field: "openapi_path",
+        default: "../openapi/openapi.yaml",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__DATABASE_URL",
+        field: "database_url",
+        default: "sqlite://../data/bblbb.sqlite",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__MIGRATIONS_DIR",
+        field: "migrations_dir",
+        default: "../migrations/sqlite",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__STORAGE_DIR",
+        field: "storage_dir",
+        default: "../uploads",
+        scope: "all",
+        reload: "restart",
+    },
+    // 生产服务启动不得自动应用未知迁移（M01-DB-06）；生产环境应显式运行
+    // `bblbb-migrate apply`，故 AUTO_MIGRATE 仅限 dev/ci。
+    ConfigEntry {
+        env_var: "BBLBB__AUTO_MIGRATE",
+        field: "auto_migrate",
+        default: "false",
+        scope: "dev,ci",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__ALLOWED_HOSTS",
+        field: "allowed_hosts",
+        default: "（空 = 宽松模式，仅记录）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__ALLOWED_ORIGINS",
+        field: "allowed_origins",
+        default: "（空 = 宽松模式，仅记录）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__DB_MAX_CONNECTIONS",
+        field: "db_max_connections",
+        default: "8",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__DB_MIN_CONNECTIONS",
+        field: "db_min_connections",
+        default: "1",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__DB_CONNECT_TIMEOUT_MS",
+        field: "db_connect_timeout_ms",
+        default: "10000",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__DB_IDLE_TIMEOUT_MS",
+        field: "db_idle_timeout_ms",
+        default: "300000",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__DB_SLOW_QUERY_MS",
+        field: "db_slow_query_ms",
+        default: "500",
+        scope: "all",
+        reload: "restart",
+    },
+];
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct AppConfig {
     #[serde(default = "default_bind_address")]
@@ -211,5 +336,89 @@ mod tests {
         };
         let err = config.validate_db_config().unwrap_err();
         assert!(err.contains("unsupported database URL scheme"), "{err}");
+    }
+
+    // ── M01-CONFIG-01：配置登记表不变量 ──
+
+    /// 命名约定：`BBLBB__<后缀>` 的后缀小写后必须等于 AppConfig 字段名。
+    #[test]
+    fn registry_env_var_suffix_matches_field_name() {
+        for entry in CONFIG_REGISTRY {
+            let suffix = entry
+                .env_var
+                .strip_prefix("BBLBB__")
+                .unwrap_or_else(|| panic!("{} 缺少 BBLBB__ 前缀", entry.env_var));
+            assert_eq!(
+                suffix.to_lowercase(),
+                entry.field,
+                "{} 的后缀应等于字段 {}",
+                entry.env_var,
+                entry.field
+            );
+        }
+    }
+
+    /// 登记表字段唯一，且每个字段都有登记项。
+    #[test]
+    fn registry_fields_are_unique_and_cover_app_config() {
+        let mut fields: Vec<&str> = CONFIG_REGISTRY.iter().map(|e| e.field).collect();
+        fields.sort_unstable();
+        fields.dedup();
+        assert_eq!(fields.len(), CONFIG_REGISTRY.len(), "登记表存在重复字段");
+
+        let expected = [
+            "allowed_hosts",
+            "allowed_origins",
+            "auto_migrate",
+            "bind_address",
+            "database_url",
+            "db_connect_timeout_ms",
+            "db_idle_timeout_ms",
+            "db_max_connections",
+            "db_min_connections",
+            "db_slow_query_ms",
+            "log_filter",
+            "migrations_dir",
+            "openapi_path",
+            "storage_dir",
+        ];
+        assert_eq!(
+            fields, expected,
+            "登记表必须覆盖 AppConfig 的全部环境变量映射字段"
+        );
+    }
+
+    /// `.env.example` 与登记表双向同步：
+    /// 每个登记项都记录在 .env.example；示例不得出现未登记变量。
+    #[test]
+    fn registry_syncs_with_env_example() {
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let example_path = std::path::Path::new(&manifest).join(".env.example");
+        let content = std::fs::read_to_string(&example_path)
+            .unwrap_or_else(|e| panic!("读取 .env.example 失败: {e}"));
+
+        let documented: std::collections::BTreeSet<&str> = content
+            .lines()
+            .filter_map(|line| {
+                let stripped = line.trim().trim_start_matches('#').trim();
+                let var = stripped.split('=').next().unwrap_or("");
+                var.strip_prefix("BBLBB__").map(|_| var)
+            })
+            .collect();
+
+        for entry in CONFIG_REGISTRY {
+            assert!(
+                documented.contains(entry.env_var),
+                "登记项 {} 未在 .env.example 中记录",
+                entry.env_var
+            );
+        }
+        for var in &documented {
+            assert!(
+                CONFIG_REGISTRY.iter().any(|e| e.env_var == *var),
+                ".env.example 记录了未登记的变量 {}",
+                var
+            );
+        }
     }
 }
