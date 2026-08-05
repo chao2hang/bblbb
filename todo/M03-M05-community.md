@@ -14,7 +14,7 @@
 
 ## M03-SCHEMA：用户、角色与板块数据模型
 
-**元数据：** `P0` · `owner=unassigned/backend-db` · `risk=high` · `depends=M02-UX` · `blocked=none`
+**元数据：** `P0` · `owner=backend-users` · `risk=high` · `depends=M02-UX` · `blocked=none`
 **目标文件：** `migrations/{sqlite,mysql,mariadb}/`、`backend/src/users/`、`backend/src/authz/`、`backend/src/boards/`
 **验收：** 三数据库空库/升级迁移、约束和 repository contract 通过。
 
