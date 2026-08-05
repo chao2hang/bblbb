@@ -113,8 +113,8 @@
 - [x] `M01-DB-05` `[45m]` 实现 `migrate --check`，只检查版本、顺序和 checksum，不改变数据库。证据：files=backend/src/db/migrate.rs,backend/src/bin/migrate.rs；commands=cargo test --all-features（83 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=CheckMode::ReadOnly 不创建迁移表 + validate_file_order 严格递增 + is_consistent 忽略 pending + bblbb-migrate --check 一致返回 0/不一致返回 1；commit=76b2d2e；review=空库/已迁移库/篡改文件三场景端到端验证 + 6 项新测试
 - [x] `M01-DB-06` `[45m]` 实现显式 `migrate` 命令，生产服务启动不得自动应用未知迁移。证据：files=backend/src/db/migrate.rs,backend/src/bin/migrate.rs；commands=cargo test --all-features（87 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=bblbb-migrate apply 显式幂等应用（事务内失败回滚）+ run_migrations 对 checksum 不匹配/未来版本（未知迁移）拒绝应用 + 服务器 auto_migrate 默认关闭；commit=0867501；review=空库/幂等/check 一致/超前拒绝四场景端到端 + 4 项新测试
 - [x] `M01-DB-07` `[45m]` 建立 migration history/checksum 表；已执行迁移内容变化必须失败。证据：files=backend/src/db/migrate.rs,docs/SCHEMA.md；commands=cargo test --all-features（89 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=schema_migrations（version 主键/name/checksum/applied_at，全 NOT NULL，MySQL 固定 utf8mb4_bin）+ SHA-256 全文哈希 + 已应用内容变化 check/apply 双路失败 + 与 SCHEMA §3 对齐；commit=4e47e9a；review=契约测试 2 项 + 端到端 5 行记录完整 + 源码无旧表名残留
-- [~] `M01-DB-08` `[30m]` 统一 UUID v7、BIGINT Unix 毫秒、bool、枚举和分页排序的跨库表示。
-- [ ] `M01-DB-09` `[45m]` 为每个逻辑迁移提供 SQLite/MySQL/MariaDB 三份不可变 SQL 和结构等价断言。
+- [x] `M01-DB-08` `[30m]` 统一 UUID v7、BIGINT Unix 毫秒、bool、枚举和分页排序的跨库表示。证据：files=docs/SCHEMA.md,migrations/{sqlite,mysql,mariadb}/0006_seed_normalize_uuid7.sql,backend/src/db/migrate.rs；commands=cargo test --all-features（90 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=类型映射表（UUID v7/毫秒/bool/枚举/计数）+ 分页排序约定（(sort_key,id) 游标、确定性排序）+ 0006 修复种子 id 为合法 UUID v7 与毫秒时间戳；commit=9ccf07a；review=端到端断言种子表示契约 + make check 全绿
+- [~] `M01-DB-09` `[45m]` 为每个逻辑迁移提供 SQLite/MySQL/MariaDB 三份不可变 SQL 和结构等价断言。
 - [ ] `M01-DB-10` `[45m]` 测试空库迁移、第二次幂等运行、失败迁移不标成功和上一发布版本升级。
 - [ ] `M01-DB-11` `[45m]` 测试 SQLite `BEGIN IMMEDIATE` 与 MySQL/MariaDB 行锁、超时和死锁映射的关键语义。
 - [ ] `M01-DB-12` `[30m]` readiness 在连接失败、迁移落后/超前或 checksum 不匹配时明确失败且不泄漏 DSN。
