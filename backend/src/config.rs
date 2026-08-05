@@ -128,7 +128,19 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    // 运行环境：development / test / production。生产模式触发 M01-CONFIG-02 校验
+    // （拒绝未知键/占位 Secret/不安全 Origin/非 loopback 端口/冲突配置）。
+    ConfigEntry {
+        env_var: "BBLBB__ENV",
+        field: "env",
+        default: "development",
+        scope: "all",
+        reload: "restart",
+    },
 ];
+
+/// 允许的运行环境
+pub const ACCEPTED_ENVS: &[&str] = &["development", "test", "production"];
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct AppConfig {
@@ -153,6 +165,9 @@ pub struct AppConfig {
     /// 严格模式下允许的 Origin 集合（默认空 = 宽松模式，仅记录日志）
     #[serde(default)]
     pub allowed_origins: Vec<String>,
+    /// 运行环境（development / test / production；M01-CONFIG-02）
+    #[serde(default = "default_env")]
+    pub env: String,
     // ── M01-DB-02：数据库连接池与慢查询参数（经 AppConfig::validate 校验）──
     #[serde(default = "default_db_max_connections")]
     pub db_max_connections: u32,
@@ -168,17 +183,88 @@ pub struct AppConfig {
     pub db_slow_query_ms: u64,
 }
 
+/// 构建 `BBLBB__` 环境变量源。
+///
+/// config-rs 0.15 需要 `try_parsing(true)` 才能启用布尔/整数解析与列表拆分；
+/// `list_separator(",")` 只对登记的列表键生效（`with_list_parse_key`），
+/// 其余变量保持字符串类型。
+fn environment_source() -> Environment {
+    Environment::with_prefix("BBLBB")
+        .separator("__")
+        .try_parsing(true)
+        .list_separator(",")
+        .with_list_parse_key("allowed_hosts")
+        .with_list_parse_key("allowed_origins")
+}
+
 impl AppConfig {
     pub fn load() -> Result<Self, ConfigError> {
-        Config::builder()
+        let config = Config::builder()
             .add_source(File::with_name(".env").required(false))
-            .add_source(
-                Environment::with_prefix("BBLBB")
-                    .separator("__")
-                    .list_separator(","),
-            )
-            .build()?
-            .try_deserialize()
+            .add_source(environment_source())
+            .build()?;
+
+        // M01-CONFIG-02：生产模式拒绝未知配置键。
+        let env_value = config.get_string("env").unwrap_or_else(|_| default_env());
+        if env_value == "production" {
+            reject_unknown_keys(&config)?;
+        }
+
+        config.try_deserialize()
+    }
+
+    /// 是否生产模式（M01-CONFIG-02）。
+    pub fn is_production(&self) -> bool {
+        self.env == "production"
+    }
+
+    /// 生产模式校验：拒绝占位 Secret、不安全 Origin、非 loopback 内部端口
+    /// 和冲突配置。启动时调用，任何一项失败立即退出。
+    pub fn validate_production(&self) -> Result<(), String> {
+        let mut errors = Vec::new();
+
+        if !ACCEPTED_ENVS.contains(&self.env.as_str()) {
+            errors.push(format!(
+                "env must be one of {:?}, got {:?}",
+                ACCEPTED_ENVS, self.env
+            ));
+        }
+
+        // 占位 Secret：数据库 DSN 含占位密码/示例主机
+        if is_placeholder_secret(&self.database_url) {
+            errors.push("database_url contains a placeholder secret or example host".to_owned());
+        }
+
+        // 不安全 Origin：生产必须 HTTPS（loopback 除外）
+        for origin in &self.allowed_origins {
+            if !is_secure_origin(origin) {
+                errors.push(format!(
+                    "insecure allowed_origin (must be https://): {origin}"
+                ));
+            }
+        }
+
+        // 非 loopback 内部端口：生产禁止对外监听
+        if !is_loopback_address(&self.bind_address) {
+            errors.push(format!(
+                "bind_address must be loopback in production: {}",
+                self.bind_address
+            ));
+        }
+
+        // 冲突配置：生产不得自动应用迁移（M01-DB-06，显式 bblbb-migrate apply）
+        if self.auto_migrate {
+            errors.push(
+                "auto_migrate must be false in production (apply migrations via bblbb-migrate apply)"
+                    .to_owned(),
+            );
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("; "))
+        }
     }
 
     /// 数据库连接相关的配置校验（M01-DB-02）：启动时调用，非法配置立即失败。
@@ -227,12 +313,17 @@ impl Default for AppConfig {
             db_connect_timeout_ms: default_db_connect_timeout_ms(),
             db_idle_timeout_ms: default_db_idle_timeout_ms(),
             db_slow_query_ms: default_db_slow_query_ms(),
+            env: default_env(),
         }
     }
 }
 
 fn default_bind_address() -> SocketAddr {
     "127.0.0.1:8080".parse().expect("default address is valid")
+}
+
+fn default_env() -> String {
+    "development".to_owned()
 }
 
 fn default_log_filter() -> String {
@@ -277,6 +368,68 @@ fn default_db_idle_timeout_ms() -> u64 {
 
 fn default_db_slow_query_ms() -> u64 {
     500
+}
+
+/// 生产模式拒绝未知配置键（M01-CONFIG-02）。
+///
+/// 收集配置的全部顶层键（环境变量经 `BBLBB__` 前缀剥离并小写化，.env 文件
+/// 键同理），与 `CONFIG_REGISTRY` 字段比对；出现未登记键即失败。
+fn reject_unknown_keys(config: &Config) -> Result<(), ConfigError> {
+    use std::collections::HashMap;
+    let map: HashMap<String, config::Value> = config
+        .clone()
+        .try_deserialize()
+        .map_err(|e| ConfigError::Message(format!("production config is invalid: {e}")))?;
+    let known: Vec<&str> = CONFIG_REGISTRY.iter().map(|e| e.field).collect();
+    let unknown: Vec<String> = map
+        .keys()
+        .map(|key| key.to_lowercase().trim_start_matches("bblbb__").to_string())
+        .filter(|normalized| !known.contains(&normalized.as_str()))
+        .collect();
+    if unknown.is_empty() {
+        Ok(())
+    } else {
+        Err(ConfigError::Message(format!(
+            "production mode rejects unknown config keys: {}",
+            unknown.join(", ")
+        )))
+    }
+}
+
+/// 数据库 DSN 是否含占位 Secret 或示例主机（生产拒绝）。
+fn is_placeholder_secret(database_url: &str) -> bool {
+    let lower = database_url.to_lowercase();
+    const PLACEHOLDER_MARKERS: &[&str] = &[
+        "changeme",
+        "your_password",
+        "your-password",
+        "yourpassword",
+        "password123",
+        "secret123",
+        "example.com",
+        "example.org",
+        "placeholder",
+        "insert_your",
+        "put_your",
+        "xxxxx",
+    ];
+    PLACEHOLDER_MARKERS
+        .iter()
+        .any(|marker| lower.contains(marker))
+}
+
+/// Origin 是否安全（生产必须 HTTPS；localhost/loopback 允许明文）。
+fn is_secure_origin(origin: &str) -> bool {
+    let lower = origin.trim().to_lowercase();
+    lower.starts_with("https://")
+        || lower.starts_with("http://localhost")
+        || lower.starts_with("http://127.0.0.1")
+        || lower.starts_with("http://[::1]")
+}
+
+/// 监听地址是否 loopback（生产禁止对外监听内部端口）。
+fn is_loopback_address(addr: &std::net::SocketAddr) -> bool {
+    addr.ip().is_loopback()
 }
 
 #[cfg(test)]
@@ -377,6 +530,7 @@ mod tests {
             "db_max_connections",
             "db_min_connections",
             "db_slow_query_ms",
+            "env",
             "log_filter",
             "migrations_dir",
             "openapi_path",
@@ -420,5 +574,171 @@ mod tests {
                 var
             );
         }
+    }
+
+    // ── M01-CONFIG-02：生产模式校验 ──
+
+    #[test]
+    fn production_accepts_clean_config() {
+        let config = AppConfig {
+            env: "production".to_owned(),
+            allowed_origins: vec!["https://forum.example.com".to_owned()],
+            bind_address: "127.0.0.1:8080".parse().unwrap(),
+            database_url: "mysql://user:real-secret@db.internal:3306/bblbb".to_owned(),
+            ..AppConfig::default()
+        };
+        assert!(config.validate_production().is_ok());
+    }
+
+    #[test]
+    fn production_rejects_placeholder_secret() {
+        for dsn in [
+            "mysql://user:changeme@db.internal:3306/bblbb",
+            "mysql://user:Your_Password@example.com:3306/bblbb",
+        ] {
+            let config = AppConfig {
+                env: "production".to_owned(),
+                database_url: dsn.to_owned(),
+                ..AppConfig::default()
+            };
+            let err = config.validate_production().unwrap_err();
+            assert!(err.contains("placeholder secret"), "{err}");
+        }
+    }
+
+    #[test]
+    fn production_rejects_insecure_origin() {
+        let config = AppConfig {
+            env: "production".to_owned(),
+            allowed_origins: vec!["http://forum.example.com".to_owned()],
+            ..AppConfig::default()
+        };
+        let err = config.validate_production().unwrap_err();
+        assert!(err.contains("insecure allowed_origin"), "{err}");
+
+        // HTTPS 与 loopback 明文都接受
+        let ok = AppConfig {
+            env: "production".to_owned(),
+            allowed_origins: vec![
+                "https://forum.example.com".to_owned(),
+                "http://localhost:5173".to_owned(),
+            ],
+            ..AppConfig::default()
+        };
+        assert!(ok.validate_production().is_ok());
+    }
+
+    #[test]
+    fn production_rejects_non_loopback_bind() {
+        let config = AppConfig {
+            env: "production".to_owned(),
+            bind_address: "0.0.0.0:8080".parse().unwrap(),
+            ..AppConfig::default()
+        };
+        let err = config.validate_production().unwrap_err();
+        assert!(err.contains("loopback"), "{err}");
+    }
+
+    #[test]
+    fn production_rejects_auto_migrate_conflict() {
+        let config = AppConfig {
+            env: "production".to_owned(),
+            auto_migrate: true,
+            ..AppConfig::default()
+        };
+        let err = config.validate_production().unwrap_err();
+        assert!(err.contains("auto_migrate must be false"), "{err}");
+    }
+
+    #[test]
+    fn production_rejects_invalid_env_value() {
+        let config = AppConfig {
+            env: "staging".to_owned(),
+            ..AppConfig::default()
+        };
+        let err = config.validate_production().unwrap_err();
+        assert!(err.contains("env must be one of"), "{err}");
+    }
+
+    #[test]
+    fn production_rejects_unknown_keys() {
+        use config::Config;
+        let cfg = Config::builder()
+            .set_override("bogus_key", "x")
+            .unwrap()
+            .build()
+            .unwrap();
+        let err = reject_unknown_keys(&cfg).unwrap_err();
+        assert!(
+            format!("{err}").contains("bogus_key"),
+            "未知键必须被拒绝: {err}"
+        );
+    }
+
+    #[test]
+    fn unknown_key_detection_is_case_and_prefix_insensitive() {
+        use config::Config;
+        // BBLBB__ 前缀 + 大写：归一化后必须等于登记字段（已知）或被识别为未知
+        let known = Config::builder()
+            .set_override("BBLBB__BIND_ADDRESS", "127.0.0.1:8080")
+            .unwrap()
+            .build()
+            .unwrap();
+        assert!(
+            reject_unknown_keys(&known).is_ok(),
+            "BBLBB__BIND_ADDRESS 是登记键，不得被当作未知"
+        );
+
+        let unknown = Config::builder()
+            .set_override("BBLBB__PROBE_ONLY", "1")
+            .unwrap()
+            .build()
+            .unwrap();
+        let err = reject_unknown_keys(&unknown).unwrap_err();
+        assert!(
+            format!("{err}").contains("probe_only"),
+            "未知键应归一化为小写后拒绝: {err}"
+        );
+    }
+
+    /// 逗号分隔的列表键（allowed_hosts/allowed_origins）经环境变量正确解析为 Vec，
+    /// 其余键保持字符串/原生类型（config-rs 0.15 的 try_parsing + list_parse_key）。
+    #[test]
+    fn env_list_keys_parse_as_vec_and_others_stay_scalar() {
+        use config::Config;
+        let mut fake = std::collections::HashMap::new();
+        fake.insert(
+            "BBLBB__ALLOWED_HOSTS".to_string(),
+            "a.example.com,b.example.com".to_string(),
+        );
+        fake.insert(
+            "BBLBB__ALLOWED_ORIGINS".to_string(),
+            "https://a.example.com,https://b.example.com".to_string(),
+        );
+        fake.insert("BBLBB__LOG_FILTER".to_string(), "info,debug".to_string());
+        fake.insert("BBLBB__AUTO_MIGRATE".to_string(), "true".to_string());
+        fake.insert("BBLBB__DB_MAX_CONNECTIONS".to_string(), "16".to_string());
+        fake.insert("BBLBB__ENV".to_string(), "test".to_string());
+
+        let cfg = Config::builder()
+            .add_source(environment_source().source(Some(fake)))
+            .build()
+            .unwrap();
+        let hosts: Vec<String> = cfg.get("allowed_hosts").unwrap();
+        let origins: Vec<String> = cfg.get("allowed_origins").unwrap();
+        let log_filter: String = cfg.get("log_filter").unwrap();
+        let auto_migrate: bool = cfg.get("auto_migrate").unwrap();
+        let db_max: u32 = cfg.get("db_max_connections").unwrap();
+        let env: String = cfg.get("env").unwrap();
+
+        assert_eq!(hosts, vec!["a.example.com", "b.example.com"]);
+        assert_eq!(
+            origins,
+            vec!["https://a.example.com", "https://b.example.com"]
+        );
+        assert_eq!(log_filter, "info,debug", "非列表键必须保持字符串（含逗号）");
+        assert!(auto_migrate);
+        assert_eq!(db_max, 16, "整数键必须解析为原生类型");
+        assert_eq!(env, "test");
     }
 }

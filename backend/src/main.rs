@@ -19,6 +19,15 @@ async fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    // M01-CONFIG-02：生产模式拒绝未知键/占位 Secret/不安全 Origin/
+    // 非 loopback 端口/冲突配置。
+    if config.is_production() {
+        if let Err(error) = config.validate_production() {
+            eprintln!("invalid production configuration: {error}");
+            return ExitCode::FAILURE;
+        }
+    }
+
     // 迁移仅在显式开启时执行（M01-DB-06：生产服务启动不得自动应用未知迁移）。
     // 开关：环境变量 BBLBB__AUTO_MIGRATE=true 或 CLI 参数 --migrate。
     let auto_migrate = config.auto_migrate || std::env::args().any(|arg| arg == "--migrate");

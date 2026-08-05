@@ -47,6 +47,7 @@
 | `BBLBB__DB_CONNECT_TIMEOUT_MS` | `db_connect_timeout_ms` | `10000` | all | 重启 |
 | `BBLBB__DB_IDLE_TIMEOUT_MS` | `db_idle_timeout_ms` | `300000` | all | 重启 |
 | `BBLBB__DB_SLOW_QUERY_MS` | `db_slow_query_ms` | `500` | all | 重启 |
+| `BBLBB__ENV` | `env` | `development` | all | 重启 |
 
 说明：
 
@@ -56,3 +57,19 @@
   轮换由后续 `config_revisions`/policy 版本机制提供（M01-CONFIG-03/04/05）。
 - 新增环境变量必须同步登记表、`.env.example` 与本文档；登记表测试会拦截
   未登记或未同步的变量。
+
+## 1.2 生产模式校验（M01-CONFIG-02）
+
+`BBLBB__ENV=production` 时启动强校验，任一失败立即退出：
+
+1. **未知键**：拒绝未登记的环境变量/配置键（与 `CONFIG_REGISTRY` 比对，
+   大小写与 `BBLBB__` 前缀归一化后判断）。
+2. **占位 Secret**：数据库 DSN 含占位密码或示例主机
+   （`changeme`/`your_password`/`example.com` 等）即拒绝。
+3. **不安全 Origin**：`BBLBB__ALLOWED_ORIGINS` 必须为 `https://`
+   （`http://localhost`/loopback 明文允许）。
+4. **非 loopback 内部端口**：`BBLBB__BIND_ADDRESS` 必须为 loopback
+   （`127.0.0.1`/`::1`），禁止 `0.0.0.0` 对外监听。
+5. **冲突配置**：`BBLBB__AUTO_MIGRATE=true` 与生产迁移策略冲突，拒绝
+   （迁移必须显式 `bblbb-migrate apply`，见 M01-DB-06）。
+6. **非法 env 值**：`env` 只接受 `development` / `test` / `production`。
