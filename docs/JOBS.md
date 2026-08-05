@@ -72,6 +72,10 @@ running ──lease timeout──→ queued/retry_wait
 - 单机默认一个 worker coordinator，按 queue 限制并发。
 - 不在写事务内发 SMTP、访问 S3 或处理图片。
 - 配置 `busy_timeout`，监控锁等待。
+- **busy 退避（M01-JOBS-09）**：`db/busy.rs` 提供 `retry_on_busy`——
+  对 `SQLITE_BUSY`/`SQLITE_LOCKED` 做指数退避（`min(base*2^(n-1), max)` + jitter）
+  并累计到 `BusyCounter`，禁止无延迟高频自旋；worker 领取已接入
+  （`WorkerConfig::busy_policy`/`busy_counter`）。非 busy 错误不重试。
 
 ### 领取/续租契约（M01-JOBS-04）
 

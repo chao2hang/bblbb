@@ -9,12 +9,15 @@
 //!
 //! 长时间任务执行期间，worker 周期性续租（`renew_lease`）；失去租约
 //! （已被其他 worker 重领）即停止续租并放弃，避免双跑。
+//!
+//! 领取遇到 SQLite busy 时指数退避并计数（M01-JOBS-09），不无延迟自旋。
 
 use std::future::Future;
 use std::time::Duration;
 
 use tokio::sync::watch;
 
+use crate::db::busy::{retry_on_busy, BusyCounter, BusyPolicy};
 use crate::db::pool::DatabasePool;
 use crate::jobs::retry::{fail_job, RetryClass, RetryPolicy};
 use crate::jobs::worker::{claim_batch, complete_job, renew_lease, ClaimedJob};
@@ -34,6 +37,10 @@ pub struct WorkerConfig {
     pub drain_timeout: Duration,
     /// 失败重试策略（传给 `fail_job`）。
     pub retry_policy: RetryPolicy,
+    /// SQLite busy 指数退避策略（M01-JOBS-09）。
+    pub busy_policy: BusyPolicy,
+    /// SQLite busy 累计计数（观测用，M15 接入指标）。
+    pub busy_counter: BusyCounter,
 }
 
 impl Default for WorkerConfig {
@@ -50,6 +57,8 @@ impl Default for WorkerConfig {
                 max_delay_ms: 600_000,
                 jitter_ms: 1_000,
             },
+            busy_policy: BusyPolicy::default(),
+            busy_counter: BusyCounter::default(),
         }
     }
 }
@@ -85,13 +94,18 @@ pub async fn run_worker<F, Fut>(
             tokio::select! {
                 _ = shutdown.changed() => Vec::new(),
                 _ = poll.tick() => {
-                    match claim_batch(
-                        pool,
-                        &config.worker_id,
-                        &config.queue,
-                        config.batch_limit,
-                        config.lease_ms,
-                    ).await {
+                    // SQLite busy 时指数退避并计数，不无延迟自旋（M01-JOBS-09）。
+                    let claim = retry_on_busy(&config.busy_policy, &config.busy_counter, || {
+                        claim_batch(
+                            pool,
+                            &config.worker_id,
+                            &config.queue,
+                            config.batch_limit,
+                            config.lease_ms,
+                        )
+                    })
+                    .await;
+                    match claim {
                         Ok(batch) => batch,
                         Err(error) => {
                             tracing::warn!(%error, worker_id = %config.worker_id, queue = %config.queue, "claim failed");
