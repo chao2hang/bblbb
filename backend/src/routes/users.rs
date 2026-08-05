@@ -15,7 +15,7 @@ use crate::{app::AppState, auth::session::AuthSession, error::AppError};
 
 /// 公开资料查询行：
 /// (id, username_normalized, display_name, bio, level, avatar_attachment_id,
-/// cover_attachment_id, signature, created_at)。
+/// cover_attachment_id, signature, created_at, status)。
 type PublicUserRow = (
     String,
     String,
@@ -26,6 +26,7 @@ type PublicUserRow = (
     Option<String>,
     Option<String>,
     i64,
+    String,
 );
 
 /// 用户路由：个人资料、公开用户
@@ -139,7 +140,8 @@ async fn update_me(
 }
 
 /// GET /api/v1/users/{username} — 获取公开用户资料（公开投影 DTO，
-/// M03-PROFILE-01/02：不含邮箱、状态、Session、IP、处罚与审计信息）
+/// M03-PROFILE-01/02/06：不含邮箱、状态、Session、IP、处罚与审计信息；
+/// 不存在/已注销 → 404；封禁/注销中 → 安全降级投影）
 async fn get_public_user(
     State(state): State<AppState>,
     Path(username): Path<String>,
@@ -155,8 +157,8 @@ async fn get_public_user(
     let row: Option<PublicUserRow> = match pool {
         Either::Left(p) => {
             sqlx::query_as(
-                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at
-                 FROM users WHERE username_normalized = ? AND status != 'deleted'",
+                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at, status
+                 FROM users WHERE username_normalized = ?",
             )
             .bind(&username_normalized)
             .fetch_optional(p)
@@ -164,8 +166,8 @@ async fn get_public_user(
         }
         Either::Right(p) => {
             sqlx::query_as(
-                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at
-                 FROM users WHERE username_normalized = ? AND status != 'deleted'",
+                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at, status
+                 FROM users WHERE username_normalized = ?",
             )
             .bind(&username_normalized)
             .fetch_optional(p)
@@ -185,17 +187,27 @@ async fn get_public_user(
             cover_attachment_id,
             signature,
             created_at,
-        )) => Ok(Json(PublicProfile {
-            id,
-            username,
-            display_name,
-            bio,
-            level,
-            avatar_attachment_id,
-            cover_attachment_id,
-            signature,
-            created_at,
-        })),
+            status,
+        )) => {
+            // 已注销/删除：不泄漏存在性的 404
+            if matches!(status.as_str(), "deleted") {
+                return Err(AppError::not_found("user not found", request_id));
+            }
+            // 封禁/注销中：安全降级投影（bio/签名/头像/Cover 置空，
+            // 保留 id/username/display_name/level 与全键集；不泄漏状态）
+            let degraded = matches!(status.as_str(), "banned" | "pending_delete");
+            Ok(Json(PublicProfile {
+                id,
+                username,
+                display_name,
+                bio: if degraded { None } else { bio },
+                level,
+                avatar_attachment_id: if degraded { None } else { avatar_attachment_id },
+                cover_attachment_id: if degraded { None } else { cover_attachment_id },
+                signature: if degraded { None } else { signature },
+                created_at,
+            }))
+        }
         None => Err(AppError::not_found("user not found", request_id)),
     }
 }

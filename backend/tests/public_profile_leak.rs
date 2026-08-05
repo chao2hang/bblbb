@@ -145,15 +145,11 @@ async fn public_user_never_leaks_sensitive_fields() {
     );
     register_user(&app, &username, &email).await;
 
-    // 填充敏感字段：封禁 + 邮箱 + 登录/注销时间（模拟"最坏情况"的库内容）
-    mark_sensitive(&pool, &username, &email, "banned").await;
+    // 填充敏感字段：邮箱 + 登录/注销时间 + 头像/Cover（模拟"最坏情况"的库内容）
+    mark_sensitive(&pool, &username, &email, "active").await;
 
     let (status, body) = get_public_user(&app, &username).await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "封禁用户公开资料仍可读（不泄漏状态）: {body}"
-    );
+    assert_eq!(status, StatusCode::OK, "正常用户公开资料必须 200: {body}");
     let parsed: Value = serde_json::from_str(&body).expect("响应必须为 JSON");
 
     // 1. 键集 ⊆ allowlist
@@ -200,6 +196,64 @@ async fn public_user_never_leaks_sensitive_fields() {
 
     close_pool(&pool).await;
     cleanup(&dir);
+}
+
+/// 封禁/注销中用户返回安全降级投影（M03-PROFILE-06）：bio/签名/头像/Cover
+/// 置空、状态字段不出现，键集仍 ⊆ allowlist。
+#[tokio::test]
+async fn banned_and_pending_delete_users_get_degraded_projection() {
+    for status in ["banned", "pending_delete"] {
+        let (pool, dir) = sqlite_pool_with_migrations().await;
+        let app = app_with_key(pool.clone());
+        let username = format!("deg_{}", &uuid::Uuid::now_v7().simple().to_string()[..10]);
+        let email = format!(
+            "deg-{}-{}@example.com",
+            status,
+            &uuid::Uuid::now_v7().simple().to_string()[..6]
+        );
+        register_user(&app, &username, &email).await;
+        // 先写入正常资料（bio/头像等），再置为封禁/注销中
+        mark_sensitive(&pool, &username, &email, status).await;
+
+        let (status_code, body) = get_public_user(&app, &username).await;
+        assert_eq!(status_code, StatusCode::OK, "{status} 用户必须 200: {body}");
+        let parsed: Value = serde_json::from_str(&body).expect("必须为 JSON");
+
+        // 键集 ⊆ allowlist
+        for key in parsed.as_object().unwrap().keys() {
+            assert!(
+                PUBLIC_PROFILE_ALLOWLIST.contains(&key.as_str()),
+                "{status}: 出现 allowlist 之外字段 {key}"
+            );
+        }
+        // 降级：bio/签名/头像/Cover 全部 null；username/display_name 保留
+        for field in [
+            "bio",
+            "signature",
+            "avatar_attachment_id",
+            "cover_attachment_id",
+        ] {
+            assert_eq!(
+                parsed[field],
+                Value::Null,
+                "{status}: 私有内容必须降级置空（{field}）: {body}"
+            );
+        }
+        assert!(
+            parsed["username"].as_str().is_some(),
+            "{status}: 降级投影仍须含用户名"
+        );
+        // 绝不泄漏状态码/内部原因
+        for needle in [status, "ban", "status", "pending"] {
+            assert!(
+                !body.to_lowercase().contains(needle),
+                "{status}: 降级投影泄漏内部原因: {needle}"
+            );
+        }
+
+        close_pool(&pool).await;
+        cleanup(&dir);
+    }
 }
 
 /// 已注销（deleted）用户公开查询必须 404，且响应不含用户标识。
