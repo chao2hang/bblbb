@@ -12,6 +12,8 @@
 //!
 //! 终态（succeeded/cancelled/dead）无出边；非法迁移一律拒绝并记录。
 
+pub mod worker;
+
 use std::fmt;
 
 /// Job 状态。

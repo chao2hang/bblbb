@@ -73,6 +73,23 @@ running ──lease timeout──→ queued/retry_wait
 - 不在写事务内发 SMTP、访问 S3 或处理图片。
 - 配置 `busy_timeout`，监控锁等待。
 
+### 领取/续租契约（M01-JOBS-04）
+
+实现位于 `backend/src/jobs/worker.rs`，SQLite 与 MySQL/MariaDB 共用同一套语句：
+
+- `claim_batch(pool, worker_id, queue, limit, lease_ms)` 批量领取：
+  1. 先把本 queue 中 lease 已过期的 `running` 任务重新入队（`running → queued`，
+     崩溃恢复；`available_at` 重置为当前时间，立即进入可领取集合）；
+  2. 按 `available_at` 升序选出最多 `limit` 个可领取任务
+     （`queued`/`retry_wait`、`available_at <= now`、无未过期锁）；
+  3. 每个任务用 CAS UPDATE 抢占（WHERE 同时约束状态、`available_at` 与锁），
+     只有 `rows_affected == 1` 才算领取成功；多 worker 并发不会重复领取。
+- 领取成功即 `attempts + 1`（一次领取 = 一次执行尝试），写 `locked_by = worker_id`、
+  `locked_until = now + lease_ms`、`status = running`。
+- `renew_lease(pool, worker_id, job_id, lease_ms)` 只允许 owner 在 lease 未过期
+  （`locked_until >= now`）时续租；owner 不符、任务已非 `running` 或 lease 已过期
+  一律返回 `false`，worker 必须立即放弃该任务——它可能已被其他 worker 重领。
+
 ## 5. 幂等
 
 - Job handler 必须按“至少一次执行”设计。
