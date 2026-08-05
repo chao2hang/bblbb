@@ -2,9 +2,15 @@
 //!
 //! - [`load_tag_groups`]：标签组读取（slug 全局唯一、sort_order 排序）；
 //! - [`load_active_tags`] / [`load_all_tags`]：标签读取（slug、展示名、
-//!   组、颜色、禁用状态 `is_active`；`is_active=0` 移出公开投影）。
+//!   组、颜色、禁用状态 `is_active`；`is_active=0` 移出公开投影）；
+//! - [`admin`]：标签创建/更新——唯一性、版本冲突、权限与审计
+//!   （M03-BOARDS-07）。
 //!
 //! `usage_count`（0003 骨架）是可重建缓存，不是真实来源（SCHEMA.md §6）。
+
+pub mod admin;
+
+pub use admin::{create_tag, update_tag, TagCreateInput, TagUpdateInput};
 
 use sqlx::Either;
 

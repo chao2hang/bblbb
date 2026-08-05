@@ -13,6 +13,7 @@ use crate::authz::decision::AUTHZ_POLICY_VERSION;
 use crate::authz::enforce::authorize_action;
 use crate::boards::admin::{create_board, update_board, BoardCreateInput, BoardUpdateInput};
 use crate::error::AppError;
+use crate::tags::admin::{create_tag, update_tag};
 
 /// 管理后台路由
 pub fn router() -> Router<AppState> {
@@ -406,20 +407,140 @@ async fn list_admin_tags(
         .collect();
     Ok(Json(json!({ "items": items })))
 }
-async fn create_admin_tag(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("createAdminTag")
+/// POST /api/v1/admin/tags — 创建标签（唯一性 + 审计，M03-BOARDS-07）
+async fn create_admin_tag(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    body: Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "createAdminTag";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let decision = authorize_action(pool, &user.id, "tag.manage", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "tag.manage permission required",
+            request_id,
+        ));
+    }
+
+    let reason = body
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if reason.is_empty() {
+        return Err(AppError::bad_request(
+            "reason is required for admin tag create",
+            request_id,
+            None,
+        ));
+    }
+
+    let input = crate::tags::TagCreateInput {
+        name: body
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        slug: body.get("slug").and_then(Value::as_str).map(str::to_string),
+        description: body
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        color: body
+            .get("color")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        group_id: body
+            .get("group_id")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    };
+    let created = create_tag(pool, &user.id, input, &reason, request_id).await?;
+    Ok(Json(created))
+}
+
+/// PATCH /api/v1/admin/tags/{id} — 更新标签（If-Match 版本 + 审计，M03-BOARDS-07）
+async fn update_admin_tag(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    auth: AuthSession,
+    body: Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "updateAdminTag";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let decision = authorize_action(pool, &user.id, "tag.manage", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "tag.manage permission required",
+            request_id,
+        ));
+    }
+
+    let if_match = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::bad_request("If-Match header is required", request_id, None))?
+        .trim()
+        .parse::<i64>()
+        .map_err(|_| {
+            AppError::bad_request(
+                "If-Match must be the current version integer",
+                request_id,
+                None,
+            )
+        })?;
+
+    let reason = body
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if reason.is_empty() {
+        return Err(AppError::bad_request(
+            "reason is required for admin tag update",
+            request_id,
+            None,
+        ));
+    }
+
+    let input = crate::tags::TagUpdateInput {
+        name: body.get("name").and_then(Value::as_str).map(str::to_string),
+        slug: body.get("slug").map(|v| v.as_str().map(str::to_string)),
+        description: body
+            .get("description")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        color: body.get("color").map(|v| v.as_str().map(str::to_string)),
+        group_id: body.get("group_id").map(|v| v.as_str().map(str::to_string)),
+        is_active: body.get("is_active").and_then(Value::as_bool),
+    };
+    let updated = update_tag(pool, &user.id, &id, input, if_match, &reason, request_id).await?;
+    Ok(Json(updated))
 }
 async fn get_admin_tag(
     State(_state): State<AppState>,
     Path(_id): Path<String>,
 ) -> (StatusCode, Json<Value>) {
     not_implemented("getAdminTag")
-}
-async fn update_admin_tag(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminTag")
 }
 async fn get_storage_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("get_admin_storage_config")

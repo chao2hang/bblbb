@@ -149,6 +149,7 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | 0026 | `users_version` | users 乐观并发 version 列（M03-PROFILE-04） |
 | 0027 | `deletion_lifecycle` | users 法律保留列 legal_hold_at（M03-PROFILE-08） |
 | 0028 | `tags_active` | tags 禁用状态列 is_active（M03-BOARDS-06） |
+| 0029 | `tags_version` | tags 乐观并发版本列 updated_at（M03-BOARDS-07） |
 
 ### `site_settings`
 
@@ -456,6 +457,8 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
   `description`（默认 `''`）、`color`（可空）。
 - 迁移 0028（M03-BOARDS-06）新增 `is_active`（默认 1）：0 = 禁用 → 移出公开
   投影（`listTags`），保留历史与既有关联；与 `boards.is_active` 停用语义一致。
+- 迁移 0029（M03-BOARDS-07）新增 `updated_at`（默认 0，存量行以 `created_at`
+  初始化）：作为 If-Match 乐观并发版本（与 `boards.updated_at` 语义一致）。
 - `usage_count`（0003 已有）是可重建缓存，不是真实来源。
 - 索引：`name` 唯一（0003）、`slug` 唯一（非空）、`(group_id)`。
 

@@ -227,7 +227,28 @@ impl AuditEntry {
             }))
     }
 
-    /// Feature Flag 变更：记录 flag 名称、before/after 开关状态与策略版本。
+    /// 标签管理变更（创建/更新，M03-BOARDS-07）：必须携带 reason 与策略版本；
+    /// before/after 只记录白名单字段（name/slug/description/color/group_id/
+    /// is_active/usage_count 等，M01-AUDIT-02 过滤）。
+    pub fn tag_change(
+        actor: &str,
+        action: &str,
+        tag_id: &str,
+        before: Option<&Value>,
+        after: &Value,
+        reason: &str,
+        policy_version: &str,
+    ) -> Self {
+        Self::user_action(actor, action)
+            .with_target("tag", tag_id)
+            .with_effective_role("administrator")
+            .with_reason(reason)
+            .with_policy_version(policy_version)
+            .with_metadata(json!({
+                "before": before.map(sanitize_for_audit).unwrap_or(Value::Null),
+                "after": sanitize_for_audit(after),
+            }))
+    }
     pub fn feature_flag_change(
         actor: &str,
         flag: &str,
@@ -413,6 +434,10 @@ pub const AUDIT_FIELD_ALLOWLIST: &[&str] = &[
     "is_active",
     "created_at",
     "updated_at",
+    // 标签管理变更（M03-BOARDS-07）：非敏感展示/分组字段
+    "color",
+    "group_id",
+    "usage_count",
 ];
 
 /// 对 before/after 对象做审计安全过滤（M01-AUDIT-02）。
