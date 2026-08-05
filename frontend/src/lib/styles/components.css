@@ -252,6 +252,48 @@ textarea.input-field {
   width: min(320px, calc(100vw - 32px));
 }
 
+/* 窄屏底部卡（M03-UI-04）：不设全屏遮罩，不阻挡原导航 */
+.user-card-sheet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1300;
+  max-height: 70vh;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+}
+
+.user-card-sheet-body {
+  position: relative;
+}
+
+.user-card-sheet-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.user-card-sheet-close:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-inset);
+}
+
 .user-hover-cover {
   height: 82px;
   background: radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--color-brand) 28%, transparent), transparent 35%), linear-gradient(135deg, var(--color-bg-inset), var(--color-brand-soft));

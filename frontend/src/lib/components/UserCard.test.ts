@@ -112,4 +112,77 @@ describe('M03-UI-03 用户资料卡', () => {
     // 缺省 children → 渲染头像（.avatar）。
     expect(trigger.querySelector('.avatar')).not.toBeNull();
   });
+
+  it('portal：浮层 DOM 挂到 document.body（不被祖先裁剪）', async () => {
+    renderCard();
+    const trigger = screen.getByRole('link', { name: '查看 爱丽丝 的个人资料' });
+    await fireEvent.mouseEnter(trigger);
+    const card = document.querySelector('.user-card-popover');
+    expect(card).not.toBeNull();
+    expect(card!.parentElement).toBe(document.body);
+  });
+});
+
+function stubNarrowMatchMedia() {
+  const listeners: Array<(e: { matches: boolean }) => void> = [];
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: true,
+    media: query,
+    onchange: null,
+    addEventListener: (_: string, cb: (e: { matches: boolean }) => void) => listeners.push(cb),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  }));
+  return () => vi.unstubAllGlobals();
+}
+
+describe('M03-UI-04 窄屏底部卡', () => {
+  it('窄屏点击触发 → 底部卡出现，无全屏遮罩', async () => {
+    const unstub = stubNarrowMatchMedia();
+    try {
+      renderCard();
+      const trigger = screen.getByRole('link', { name: '查看 爱丽丝 的个人资料' });
+      await fireEvent.click(trigger);
+      const sheet = document.querySelector('.user-card-sheet');
+      expect(sheet).not.toBeNull();
+      // 不阻挡原导航：无遮罩元素，且卡内自带查看主页链接。
+      expect(document.querySelector('.user-card-sheet-backdrop')).toBeNull();
+      expect(sheet!.querySelector('a[href="/users/alice"]')).not.toBeNull();
+    } finally {
+      unstub();
+    }
+  });
+
+  it('窄屏再次点击关闭，Escape 也关闭', async () => {
+    const unstub = stubNarrowMatchMedia();
+    try {
+      renderCard();
+      const trigger = screen.getByRole('link', { name: '查看 爱丽丝 的个人资料' });
+      await fireEvent.click(trigger);
+      expect(document.querySelector('.user-card-sheet')).not.toBeNull();
+      await fireEvent.click(trigger);
+      expect(document.querySelector('.user-card-sheet')).toBeNull();
+
+      await fireEvent.click(trigger);
+      expect(document.querySelector('.user-card-sheet')).not.toBeNull();
+      await fireEvent.keyDown(document, { key: 'Escape' });
+      expect(document.querySelector('.user-card-sheet')).toBeNull();
+    } finally {
+      unstub();
+    }
+  });
+
+  it('窄屏关闭按钮关闭底部卡', async () => {
+    const unstub = stubNarrowMatchMedia();
+    try {
+      renderCard();
+      const trigger = screen.getByRole('link', { name: '查看 爱丽丝 的个人资料' });
+      await fireEvent.click(trigger);
+      const closeBtn = screen.getByRole('button', { name: '关闭' });
+      await fireEvent.click(closeBtn);
+      expect(document.querySelector('.user-card-sheet')).toBeNull();
+    } finally {
+      unstub();
+    }
+  });
 });

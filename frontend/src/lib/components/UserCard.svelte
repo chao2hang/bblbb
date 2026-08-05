@@ -1,17 +1,16 @@
 <script lang="ts">
-  // M03-UI-03：用户资料卡触发器——鼠标 Hover 与键盘 Focus 共用同一浮层，
-  // 支持离开延迟、Escape 关闭、滚动/缩放自动关闭。
+  // M03-UI-04：资料卡 portal/fixed 边界 + 窄屏底部卡。
   //
-  // 交互契约（与 prototype/js/app.js initUserHoverCards 一致）：
-  // - 触发元素是普通链接（无 JS 直接跳主页），浮层为渐进增强；
-  // - mouseenter/focus → 打开；mouseleave/blur → 离开延迟后关闭；
-  // - 浮层 mouseenter → 取消关闭计时；mouseleave → 延迟关闭；
-  // - Escape / scroll / resize → 立即关闭；
-  // - 浮层 fixed 定位（.user-hover-card），视口边缘夹紧；
-  //   portal-to-body 与窄屏底部卡见 M03-UI-04；
-  // - 隐私：props 只接受 PublicProfile 公开字段 allowlist，浮层内容由
-  //   UserHoverCard（M03-PROFILE-09）渲染，SSR 守卫见 privacy.test.ts。
-  import { onMount } from 'svelte';
+  // 在 M03-UI-03 交互基础上：
+  // - portal：浮层打开时用 mount() 把卡渲染到 document.body 的宿主节点，
+  //   彻底避免被 transform/overflow 祖先裁剪（fixed 定位恒视口可见）；
+  // - 窄屏（≤640px，触摸为主）：hover/focus 不适用 → 点击触发改为底部卡
+  //   （.user-card-sheet），自带关闭按钮，Escape/滚动/再次点击关闭；
+  // - 不阻挡原导航：无全屏遮罩，触发元素始终是 <a>（无 JS 直接跳主页），
+  //   底部卡内自带「查看个人主页」链接；
+  // - 桌面浮层与 M03-UI-03 一致：mouseenter/focus 打开、离开延迟、Escape/
+  //   scroll/resize 关闭、视口边缘夹紧。
+  import { onMount, mount, unmount } from 'svelte';
   import type { Snippet } from 'svelte';
   import Avatar from './ui/Avatar.svelte';
   import UserHoverCard from './UserHoverCard.svelte';
@@ -22,6 +21,9 @@
     PublicProfile,
     'username' | 'display_name' | 'level' | 'bio' | 'signature'
   >;
+
+  /** 窄屏断点，与 prototype/app.css 及 components.css 一致。 */
+  export const NARROW_QUERY = '(max-width: 640px)';
 
   let {
     user,
@@ -46,10 +48,11 @@
   const accessibleLabel = $derived(label ?? `查看 ${displayName} 的个人资料`);
 
   let open = $state(false);
+  let narrow = $state(false);
   let closeTimer: ReturnType<typeof setTimeout> | undefined;
   let trigger = $state<HTMLAnchorElement | undefined>(undefined);
-  let card = $state<HTMLElement | undefined>(undefined);
-  let position = $state({ left: 0, top: 0 });
+  let portalInstance: ReturnType<typeof mount> | undefined;
+  let portalHost: HTMLElement | undefined;
 
   function clearCloseTimer() {
     if (closeTimer) {
@@ -64,6 +67,8 @@
   }
 
   function scheduleClose() {
+    // 窄屏是显式点击/关闭交互，鼠标离开不自动关闭。
+    if (narrow) return;
     clearCloseTimer();
     closeTimer = setTimeout(() => {
       open = false;
@@ -85,11 +90,17 @@
     }
   }
 
-  // 打开后把浮层定位在触发元素附近（fixed 坐标，视口边缘夹紧）。
-  $effect(() => {
-    if (!open || !trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    const measured = card?.getBoundingClientRect();
+  /** 窄屏：点击切换底部卡（阻止默认跳转）；桌面保持原导航，hover 出卡。 */
+  function onTriggerClick(event: MouseEvent) {
+    if (!narrow) return;
+    event.preventDefault();
+    open = !open;
+  }
+
+  function positionPopover(el: HTMLElement) {
+    const rect = trigger?.getBoundingClientRect();
+    if (!rect) return;
+    const measured = el.getBoundingClientRect();
     const cardW = measured?.width ?? 320;
     const cardH = measured?.height ?? 240;
     const edge = 12;
@@ -98,14 +109,84 @@
     let top = rect.top - cardH - 10;
     if (top < edge) top = rect.bottom + 10;
     top = Math.max(edge, Math.min(top, window.innerHeight - cardH - edge));
-    position = { left, top };
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
+  }
+
+  function destroyPortal() {
+    if (portalInstance) {
+      unmount(portalInstance);
+      portalInstance = undefined;
+    }
+    portalHost?.remove();
+    portalHost = undefined;
+  }
+
+  /** 在 body 下创建宿主并把 UserHoverCard 挂进去（仅公开投影，见其隐私契约）。 */
+  function createPortal() {
+    destroyPortal();
+    const el = document.createElement('div');
+    if (narrow) {
+      el.className = 'user-card-sheet';
+      const body = document.createElement('div');
+      body.className = 'user-card-sheet-body';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'user-card-sheet-close';
+      closeBtn.setAttribute('aria-label', '关闭');
+      closeBtn.textContent = '×';
+      closeBtn.addEventListener('click', () => {
+        open = false;
+      });
+      body.appendChild(closeBtn);
+      el.appendChild(body);
+      document.body.appendChild(el);
+      portalHost = el;
+      portalInstance = mount(UserHoverCard, { target: body, props: { user } });
+    } else {
+      el.className = 'user-card-popover';
+      el.setAttribute('tabindex', '0');
+      el.addEventListener('mouseenter', clearCloseTimer);
+      el.addEventListener('mouseleave', scheduleClose);
+      // 焦点进入浮层（如 Tab 到「查看个人主页」）不关闭，移出后延迟关闭。
+      el.addEventListener('focusin', clearCloseTimer);
+      el.addEventListener('focusout', scheduleClose);
+      document.body.appendChild(el);
+      portalHost = el;
+      portalInstance = mount(UserHoverCard, { target: el, props: { user } });
+      positionPopover(el);
+    }
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', `${displayName} 的个人资料`);
+  }
+
+  $effect(() => {
+    destroyPortal();
+    if (open) createPortal();
   });
 
+  let mqCleanup: (() => void) | undefined;
   onMount(() => {
+    // jsdom 无 matchMedia 时保持桌面模式（窄屏测试自行 mock）。
+    if (typeof window.matchMedia === 'function') {
+      const mq = window.matchMedia(NARROW_QUERY);
+      narrow = mq.matches;
+      const onChange = (e: MediaQueryListEvent) => {
+        narrow = e.matches;
+        if (e.matches) {
+          clearCloseTimer();
+          open = false;
+        }
+      };
+      mq.addEventListener('change', onChange);
+      mqCleanup = () => mq.removeEventListener('change', onChange);
+    }
     document.addEventListener('keydown', onKeydown);
     document.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
     return () => {
+      mqCleanup?.();
+      destroyPortal();
       document.removeEventListener('keydown', onKeydown);
       document.removeEventListener('scroll', onScrollOrResize, true);
       window.removeEventListener('resize', onScrollOrResize);
@@ -122,6 +203,7 @@
   onmouseleave={scheduleClose}
   onfocus={openCard}
   onblur={scheduleClose}
+  onclick={onTriggerClick}
 >
   {#if children}
     {@render children()}
@@ -129,20 +211,3 @@
     <Avatar name={displayName} size="xs" />
   {/if}
 </a>
-
-{#if open}
-  <div
-    bind:this={card}
-    class="user-card-popover"
-    style="left:{position.left}px;top:{position.top}px;"
-    role="dialog"
-    tabindex="0"
-    aria-label="{displayName} 的个人资料"
-    onmouseenter={clearCloseTimer}
-    onmouseleave={scheduleClose}
-    onfocusin={clearCloseTimer}
-    onfocusout={scheduleClose}
-  >
-    <UserHoverCard {user} />
-  </div>
-{/if}
