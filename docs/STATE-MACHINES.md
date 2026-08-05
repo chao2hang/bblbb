@@ -49,6 +49,35 @@ published → hidden → published
 published/hidden → deleted
 ```
 
+### Board（板块稳定枚举，迁移 0022/0024/0025）
+
+```text
+visibility:   public | members | restricted | hidden
+posting_mode: normal | approval | readonly | closed
+活跃:         is_active=1 AND deleted_at IS NULL
+停用:         is_active=0
+软删除:       deleted_at 非空（行保留）
+```
+
+- `visibility`/`posting_mode` 为稳定枚举，无内部状态迁移；CHECK 三库强制
+  （sqlite 0022 内联；mysql/mariadb 0025 补齐）。
+- `hidden` 板块不进入公开列表/搜索；`readonly`/`closed` 禁止新增帖子
+  （服务层强制，M03-BOARDS-03）。
+- `deleted_at` 非空仍保留行（软删除）；物理删除需无子板块且由服务层裁决
+  （M03-BOARDS-01，SCHEMA-06 语义）。
+
+### Authorization（授权稳定枚举，迁移 0021/0022/0023）
+
+```text
+permissions.risk_level: normal | sensitive | system
+roles.is_system:        0 | 1
+assignment.expires_at:  NULL（永久） | 时间戳（到期即未生效）
+```
+
+- `risk_level=system` 的权限与 `is_system=1` 的角色不可删除/改名（应用约束，
+  M03-AUTHZ；数据库无触发器，SCHEMA-06 测试锁定）。
+- assignment 过期按未生效实时判定（M03-AUTHZ-03），过期行保留供审计/恢复。
+
 ## 3. 审核与处罚
 
 ### Report / Moderation Case

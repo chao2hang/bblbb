@@ -113,6 +113,40 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
   的未知迁移拒绝）。
 - 四个字段全部 NOT NULL；`version` 唯一。
 
+### 迁移清单（0001–0025）
+
+三个目录（`migrations/{sqlite,mysql,mariadb}/`）同一版本号文件结构等价
+（M01-DB-09 断言）；mysql/mariadb 逐版本可执行 SQL 一致。已发布迁移不可修改，
+修正一律新增版本（如 0025 补齐 0022 的 boards CHECK）。
+
+| 版本 | 文件 | 内容 |
+|---|---|---|
+| 0001 | `skeleton` | users/user_sessions 骨架 |
+| 0002 | `identity` | 邮箱验证与密码重置 token |
+| 0003 | `community` | boards/posts/comments/tags 骨架（含 CHECK/外键） |
+| 0004 | `notifications_reactions_audit` | 通知、反应、审计日志 |
+| 0005 | `seed_boards` | 种子板块（5 个） |
+| 0006 | `seed_normalize_uuid7` | 0005 种子 UUID v7 归一化（不可变迁移不改写 0005） |
+| 0007 | `jobs_outbox` | jobs/outbox 表与扩展 |
+| 0008 | `outbox_consumed` | Outbox 消费者去重表 |
+| 0009 | `audit_roles` | 审计日志扩展（effective role/reason/policy version） |
+| 0010 | `idempotency` | 幂等记录表 |
+| 0011 | `identity_tokens` | 身份 token 扩展 |
+| 0012 | `session_version` | Session 设备与版本字段 |
+| 0013 | `login_lockout` | 登录锁定 |
+| 0014 | `preauth_csrf` | 匿名预认证 CSRF 状态 |
+| 0015 | `mfa_totp` | TOTP 凭据与恢复码 |
+| 0016 | `step_up` | 高风险操作 step-up 窗口 |
+| 0017 | `security_notifications` | 安全通知标记 |
+| 0018 | `mfa_login_challenges` | MFA 两步登录挑战 |
+| 0019 | `profile` | 用户资料/隐私/偏好/等级缓存/修订（M03-SCHEMA-01） |
+| 0020 | `attachment_refs` | 头像/Cover 附件 UUID 引用（M03-SCHEMA-02） |
+| 0021 | `rbac` | roles/permissions/role_permissions/user_roles（M03-SCHEMA-03） |
+| 0022 | `board_roles` | boards 层级/可见性/发帖模式 + board_roles/board_role_assignments（M03-SCHEMA-04） |
+| 0023 | `tags` | tag_groups/tags 演进/board_tags（M03-SCHEMA-05） |
+| 0024 | `delete_semantics` | boards 软删除/索引 + 删除停用语义（M03-SCHEMA-06） |
+| 0025 | `board_checks` | mysql/mariadb 补齐 boards visibility/posting_mode CHECK（M03-SCHEMA-07） |
+
 ### `site_settings`
 
 | 字段 | 说明 |
@@ -339,8 +373,10 @@ TOTP enrollment（RFC 6238）：
 | `visibility` | `public/members/restricted/hidden` |
 | `posting_mode` | `normal/approval/readonly/closed` |
 | `sort_order` | 同级排序 |
-| `settings_json` | 附件、标签等低频配置 |
-| `created_by` | 创建人 |
+| `post_count` | 帖子计数缓存 |
+| `is_active` | 停用标志（0=停用，移出活跃投影） |
+| `settings_json` | 目标模型：附件、标签等低频配置（M03-BOARDS 落地建列） |
+| `created_by` | 目标模型：创建人（M03-BOARDS 落地建列） |
 | `created_at`、`updated_at`、`deleted_at` | 时间 |
 
 索引：`(parent_id, sort_order)`、`(visibility, deleted_at)`。

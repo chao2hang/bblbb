@@ -49,6 +49,11 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 | `config.policy_changed.v1` | Policy 换版 | 缓存失效、重检 | 配置 diff 的脱敏摘要 |
 | `auth.security_notification.v1` | 安全通知（新设备/密码/MFA 变化/Session 撤销/恢复码使用） | 邮件、站内通知 | 仅 kind/user_id，无设备/IP 原文 |
 
+> M3 板块/角色/标签的领域事件（`board.*`、`role.*` 等）尚未实现：事件只在
+> 对应域的 Operation 落地（M03-BOARDS/M03-AUTHZ）时登记并注册到
+> `backend/src/events.rs`，目录不收录未实现事件（`check-event-catalog.rb`
+> 强制目录与注册表一致）。
+
 ## 3. Webhook
 
 Marketplace 外发 Webhook 从上述已提交事件生成，必须包含 `event_id`、类型、时间、Client、Purchase/Refund ID、状态、金额和货币，不包含内部用户 ID或余额。签名 Header、时间窗和测试向量由 OpenAPI 定义。
