@@ -26,8 +26,8 @@
 | `ISSUE-20260805-015` | P2 | 2026-08-05 | `openapi/openapi.yaml:6987` | 行尾多余空格使 `git diff --check` 失败，docs 组机械审计门禁阻断（openapi.yaml 不在两组成员列表内，属并行编辑遗留） | 复现：`git diff --check` 报 `openapi/openapi.yaml:6987: trailing whitespace`（`- comment` 行）；复查：当前 `git diff --check` 通过 | unassigned | 已关闭 | 2026-08-05 |
 | `ISSUE-20260805-016` | P1 | 2026-08-05 | `backend/src/db/pool.rs`（并行编辑中） | AUDIT-20260805-0147 中 `cargo test --workspace --all-features` 失败阻断 code 组；并行编辑随后修复，复跑全绿（怀疑编译期间瞬态失败） | 复现：审计日志 code_fails=cargo-test；复查：`cargo test` 45 单元 + 18 edge + 7 http 全部通过 | unassigned | 已关闭 | 2026-08-05 |
 | `ISSUE-20260805-017` | P2 | 2026-08-05 | `todo/M00-M02-foundation.md`、`TODO.md` | 并行编辑推进 M01-DB-02 状态但未同步 TODO.md 汇总计数，`check-roadmap.rb` 失败阻断 docs 组 | 复现：`ruby scripts/check-roadmap.rb` 报 `TODO.md total task-state counts are stale` 与 `next task M01-DB-02 is already completed or blocked` | unassigned | 待修复 | 2026-08-05 |
-| `ISSUE-20260805-018` | P1 | 2026-08-05 | `backend/src/auth/mod.rs`、`backend/src/ratelimit.rs`、`backend/src/routes/auth.rs`、`backend/src/auth/resend.rs`、`backend/tests/resend_verification.rs`（并行编辑中） | `cargo fmt --all -- --check` 失败，code 组机械审计门禁阻断（邮箱验证 resend 功能开发中，并行编辑未完成格式化） | 复现：`cd backend && cargo fmt --all -- --check` 报格式差异；证据：AUDIT-20260805-0547 审计日志 code_fails=cargo-fmt、code 组 blocked、保留未提交 9 项；AUDIT-20260805-0647 再次 code_fails=cargo-fmt（`auth/session.rs`、`tests/session_rotation.rs`），保留未提交 3 项；AUDIT-20260805-0747 第三次 code_fails=cargo-fmt（preauth/CSRF 并行编辑），保留未提交 18 项；AUDIT-20260805-0847 第四次 code_fails=cargo-fmt（M02-MFA-01 TOTP 并行编辑）；AUDIT-20260805-0947 第五次 code_fails=cargo-fmt（M02-MFA-07 step-up 并行编辑，`mfa_stepup.rs`/`0016_step_up.sql`），保留未提交 10 项；AUDIT-20260805-1047 cargo-fmt 通过（全绿） | unassigned | 待修复 | 2026-08-11 |
-| `ISSUE-20260805-019` | P1 | 2026-08-05 | `backend/tests/mfa_schema.rs`、`migrations/sqlite|mysql|mariadb/0015_mfa_totp.sql`（并行编辑中） | `cargo clippy --workspace --all-targets --all-features -- -D warnings` 失败，code 组机械审计门禁阻断（M02-MFA-01 TOTP 开发中） | 复现：`cd backend && cargo clippy --workspace --all-targets --all-features -- -D warnings`；证据：AUDIT-20260805-0847 审计日志 code_fails=cargo-fmt\|cargo-clippy\|cargo-test\|、code 组 blocked | unassigned | 待修复 | 2026-08-11 |
+| `ISSUE-20260805-018` | P1 | 2026-08-05 | `backend/src/auth/mod.rs`、`backend/src/ratelimit.rs`、`backend/src/routes/auth.rs`、`backend/src/auth/resend.rs`、`backend/tests/resend_verification.rs`（并行编辑中） | `cargo fmt --all -- --check` 失败，code 组机械审计门禁阻断（邮箱验证 resend 功能开发中，并行编辑未完成格式化） | 复现：`cd backend && cargo fmt --all -- --check` 报格式差异；证据：AUDIT-20260805-0547 审计日志 code_fails=cargo-fmt、code 组 blocked、保留未提交 9 项；AUDIT-20260805-0647 再次 code_fails=cargo-fmt（`auth/session.rs`、`tests/session_rotation.rs`），保留未提交 3 项；AUDIT-20260805-0747 第三次 code_fails=cargo-fmt（preauth/CSRF 并行编辑），保留未提交 18 项；AUDIT-20260805-0847 第四次 code_fails=cargo-fmt（M02-MFA-01 TOTP 并行编辑）；AUDIT-20260805-0947 第五次 code_fails=cargo-fmt（M02-MFA-07 step-up 并行编辑，`mfa_stepup.rs`/`0016_step_up.sql`），保留未提交 10 项；AUDIT-20260805-1047 cargo-fmt 通过（全绿）；AUDIT-20260805-1147 第六次 code_fails=cargo-fmt（MFA 路由并行编辑，`routes/mfa.rs`/`tests/mfa_routes.rs`），保留未提交 17 项 | unassigned | 待修复 | 2026-08-11 |
+| `ISSUE-20260805-019` | P1 | 2026-08-05 | `backend/tests/mfa_schema.rs`、`migrations/sqlite|mysql|mariadb/0015_mfa_totp.sql`（并行编辑中） | `cargo clippy --workspace --all-targets --all-features -- -D warnings` 失败，code 组机械审计门禁阻断（M02-MFA-01 TOTP 开发中） | 复现：`cd backend && cargo clippy --workspace --all-targets --all-features -- -D warnings`；证据：AUDIT-20260805-0847 审计日志 code_fails=cargo-fmt\|cargo-clippy\|cargo-test\|、code 组 blocked；AUDIT-20260805-1147 再次 code_fails=cargo-clippy（MFA 路由并行编辑，`routes/mfa.rs`/`tests/mfa_routes.rs`），保留未提交 17 项 | unassigned | 待修复 | 2026-08-11 |
 | `ISSUE-20260805-020` | P1 | 2026-08-05 | `backend/tests/mfa_schema.rs`、`migrations/sqlite|mysql|mariadb/0015_mfa_totp.sql`（并行编辑中） | `cargo test --workspace --all-features` 失败，code 组机械审计门禁阻断（M02-MFA-01 TOTP 迁移/测试开发中，可能编译失败） | 复现：`cd backend && cargo test --workspace --all-features`；证据：AUDIT-20260805-0847 审计日志 code_fails=cargo-fmt\|cargo-clippy\|cargo-test\|；AUDIT-20260805-1047 再次 code_fails=cargo-test（frontend/UX 并行编辑），保留未提交 9 项 | unassigned | 待修复 | 2026-08-11 |
 | `ISSUE-20260805-021` | P1 | 2026-08-05 | `frontend/src/lib/api/server.ts`、`frontend/src/routes/register/+page.svelte`、`frontend/src/lib/components/ui/CooldownButton.svelte`、`frontend/src/routes/verify-email/`（并行编辑中） | `npm run check`（svelte-check）失败，code 组机械审计门禁阻断（M02-UX-01/02 注册页与验证邮箱前端开发中） | 复现：`cd frontend && npm run check`；证据：AUDIT-20260805-1047 审计日志 code_fails=cargo-test\|frontend-check\|、code 组 blocked、保留未提交 9 项 | unassigned | 待修复 | 2026-08-11 |
 
@@ -234,3 +234,17 @@
 | 提交 | none |
 | 推送 | no |
 | 保留未提交 | 9 项 |
+
+### AUDIT-20260805-1147
+
+| 字段 | 值 |
+|---|---|
+| 时间 | 2026-08-05T11:51:12Z |
+| 起始 HEAD | ed0b5ebfab9818a159f7fbe49641211a3a5eb7bb |
+| 结束 HEAD | ed0b5ebfab9818a159f7fbe49641211a3a5eb7bb |
+| docs 组 | green |
+| code 组 | blocked |
+| 失败检查 | cargo-fmt|cargo-clippy| |
+| 提交 | none |
+| 推送 | no |
+| 保留未提交 | 17 项 |
