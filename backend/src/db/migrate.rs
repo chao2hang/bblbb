@@ -188,13 +188,69 @@ pub async fn apply_migration(pool: &DatabasePool, file: &MigrationFile) -> Resul
     Ok(())
 }
 
-/// 检查迁移状态（不修改数据库）
+/// 迁移检查模式
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CheckMode {
+    /// 只读检查（`migrate --check`）：迁移表不存在时视为未迁移，
+    /// 不创建表、不写入任何数据。
+    ReadOnly,
+    /// 确保迁移表存在后再检查（默认路径，可能创建表）。
+    EnsureTable,
+}
+
+/// 校验迁移文件版本顺序：严格递增且无重复。
+///
+/// `migrate --check` 的顺序检查；纯文件校验，不触碰数据库。
+pub fn validate_file_order(files: &[MigrationFile]) -> Result<(), String> {
+    let mut previous: Option<u64> = None;
+    for file in files {
+        if let Some(previous_version) = previous {
+            if file.version <= previous_version {
+                return Err(format!(
+                    "migration versions must be strictly increasing; found {} after {}",
+                    file.version, previous_version
+                ));
+            }
+        }
+        previous = Some(file.version);
+    }
+    Ok(())
+}
+
+/// 检查迁移状态（不修改迁移内容；`EnsureTable` 模式可能创建历史表）。
 pub async fn check_migrations(
     pool: &DatabasePool,
     files: &[MigrationFile],
 ) -> Result<MigrationCheckResult, sqlx::Error> {
-    ensure_migration_table(pool).await?;
-    let applied = list_applied_migrations(pool).await?;
+    check_migrations_with_mode(CheckMode::EnsureTable, pool, files).await
+}
+
+/// 只读迁移检查（`migrate --check`）：不创建迁移表、不写入任何数据。
+pub async fn check_migrations_readonly(
+    pool: &DatabasePool,
+    files: &[MigrationFile],
+) -> Result<MigrationCheckResult, sqlx::Error> {
+    check_migrations_with_mode(CheckMode::ReadOnly, pool, files).await
+}
+
+/// 按模式执行迁移检查：比对文件版本、checksum 与已执行记录，并检测超前版本。
+pub async fn check_migrations_with_mode(
+    mode: CheckMode,
+    pool: &DatabasePool,
+    files: &[MigrationFile],
+) -> Result<MigrationCheckResult, sqlx::Error> {
+    let applied = match mode {
+        CheckMode::EnsureTable => {
+            ensure_migration_table(pool).await?;
+            list_applied_migrations(pool).await?
+        }
+        CheckMode::ReadOnly => match list_applied_migrations(pool).await {
+            Ok(records) => records,
+            // 表不存在 = 尚未迁移：全部 pending，而不是创建表。
+            Err(e) if is_missing_table(&e) => Vec::new(),
+            Err(e) => return Err(e),
+        },
+    };
 
     let mut pending = Vec::new();
     let mut checksum_mismatches = Vec::new();
@@ -246,6 +302,12 @@ impl MigrationCheckResult {
         self.pending.is_empty()
             && self.checksum_mismatches.is_empty()
             && self.future_versions.is_empty()
+    }
+
+    /// 一致性判定（`migrate --check`）：忽略待应用迁移，只要 checksum 匹配、
+    /// 无超前版本即视为一致。
+    pub fn is_consistent(&self) -> bool {
+        self.checksum_mismatches.is_empty() && self.future_versions.is_empty()
     }
 }
 
@@ -330,5 +392,151 @@ mod tests {
         let _ = std::fs::remove_file(&dir);
         let _ = std::fs::remove_file(format!("{}-wal", dir.display()));
         let _ = std::fs::remove_file(format!("{}-shm", dir.display()));
+    }
+
+    /// 构造测试用迁移文件记录
+    fn test_file(version: u64, name: &str, sql: &str) -> MigrationFile {
+        MigrationFile {
+            version,
+            name: name.to_string(),
+            sql: sql.to_string(),
+            checksum: hex::encode(Sha256::digest(sql.as_bytes())),
+        }
+    }
+
+    /// 清理 SQLite 临时数据库文件
+    fn cleanup_sqlite(dir: &std::path::Path) {
+        let _ = std::fs::remove_file(dir);
+        let _ = std::fs::remove_file(format!("{}-wal", dir.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", dir.display()));
+    }
+
+    /// `migrate --check` 的核心保证：只读检查不创建迁移表、不写入任何数据。
+    #[tokio::test]
+    async fn readonly_check_does_not_touch_database() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        let files = vec![test_file(
+            1,
+            "skeleton",
+            "CREATE TABLE t (id INTEGER PRIMARY KEY);",
+        )];
+        let result = check_migrations_readonly(&pool, &files).await.unwrap();
+        assert_eq!(result.pending, vec![1]);
+        assert!(
+            result.is_consistent(),
+            "missing table must be treated as all-pending and consistent"
+        );
+        assert!(
+            !result.is_clean(),
+            "pending migrations mean not clean, yet consistent"
+        );
+
+        // 关键断言：数据库文件中没有任何表（_sqlx_migrations 也未被创建）。
+        match &pool {
+            Either::Left(p) => {
+                let tables: i64 =
+                    sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'")
+                        .fetch_one(p)
+                        .await
+                        .unwrap();
+                assert_eq!(tables, 0, "readonly check must not create any table");
+            }
+            Either::Right(_) => panic!("this test is SQLite-only"),
+        }
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 只读检查能检测已执行迁移的 checksum 篡改。
+    #[tokio::test]
+    async fn readonly_check_detects_checksum_tampering() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        // 应用版本 1（写入迁移表）
+        let original = test_file(1, "skeleton", "CREATE TABLE t (id INTEGER PRIMARY KEY);");
+        ensure_migration_table(&pool).await.unwrap();
+        apply_migration(&pool, &original).await.unwrap();
+
+        // 同一版本、同名，但 SQL 内容被篡改 → checksum 不同
+        let tampered = test_file(1, "skeleton", "CREATE TABLE t (id TEXT PRIMARY KEY);");
+        let result = check_migrations_readonly(&pool, &[tampered]).await.unwrap();
+        assert_eq!(result.checksum_mismatches.len(), 1);
+        let (version, _, db_checksum, file_checksum) = &result.checksum_mismatches[0];
+        assert_eq!(*version, 1);
+        assert_ne!(db_checksum, file_checksum);
+        assert!(!result.is_consistent());
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 只读检查能检测版本超前：已执行但文件不存在的迁移。
+    #[tokio::test]
+    async fn readonly_check_detects_future_versions() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        let v1 = test_file(1, "skeleton", "CREATE TABLE a (id INTEGER PRIMARY KEY);");
+        let v2 = test_file(2, "community", "CREATE TABLE b (id INTEGER PRIMARY KEY);");
+        ensure_migration_table(&pool).await.unwrap();
+        apply_migration(&pool, &v1).await.unwrap();
+        apply_migration(&pool, &v2).await.unwrap();
+
+        // 文件只剩 v1 → v2 成为超前版本
+        let result = check_migrations_readonly(&pool, &[v1]).await.unwrap();
+        assert_eq!(result.future_versions, vec![2]);
+        assert!(!result.is_consistent());
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 顺序校验：严格递增通过。
+    #[test]
+    fn order_accepts_strictly_increasing_versions() {
+        let files = vec![
+            test_file(1, "a", "SELECT 1;"),
+            test_file(2, "b", "SELECT 2;"),
+            test_file(3, "c", "SELECT 3;"),
+        ];
+        assert!(validate_file_order(&files).is_ok());
+    }
+
+    /// 顺序校验：重复版本必须失败。
+    #[test]
+    fn order_rejects_duplicate_versions() {
+        let files = vec![
+            test_file(1, "a", "SELECT 1;"),
+            test_file(1, "b", "SELECT 2;"),
+        ];
+        let err = validate_file_order(&files).unwrap_err();
+        assert!(err.contains("strictly increasing"), "{err}");
+    }
+
+    /// 顺序校验：乱序（递减）必须失败。
+    #[test]
+    fn order_rejects_decreasing_versions() {
+        let files = vec![
+            test_file(2, "b", "SELECT 2;"),
+            test_file(1, "a", "SELECT 1;"),
+        ];
+        let err = validate_file_order(&files).unwrap_err();
+        assert!(err.contains("strictly increasing"), "{err}");
     }
 }
