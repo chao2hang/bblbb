@@ -224,8 +224,8 @@
 **验收：** 时间漂移、重放、恢复码并发、高权限强制和 step-up 流程测试通过。
 
 - [x] `M02-MFA-01` `[45m]` 新增 TOTP enrollment、加密 secret、last accepted step 和恢复码 hash 迁移。证据：files=migrations/{sqlite,mysql,mariadb}/0015_mfa_totp.sql,backend/tests/mfa_schema.rs,docs/SCHEMA.md；commands=cargo test --all-features（404 通过/0 失败，含 mfa_schema 4 项）; cargo clippy --all-features --all-targets（0 warning）; make check（migration_equivalence 三库等价 + migration_lifecycle 通过）; contract=totp_credentials：encrypted_secret（AEAD 密文，验证需解密故不可哈希）+ last_accepted_step 默认 0（防重放，M02-MFA-03 实现窗口）+ created_at/confirmed_at（NULL=未完成）/revoked_at + user_id 索引 + FK 级联；mfa_recovery_codes：code_hash 只存 SHA-256（唯一）+ consumed_at 原子消费（UPDATE WHERE consumed_at IS NULL 并发唯一）；一用户同时至多一个启用 TOTP 由服务层保证；commit=9a116b9；review=4 项测试（列契约/step 默认 0/code_hash 唯一/用户删除级联）
-- [~] `M02-MFA-02` `[45m]` 实现 enrollment challenge、二维码所需最小数据、确认后启用和取消未完成 enrollment。
-- [ ] `M02-MFA-03` `[30m]` 实现允许时间窗口和已接受 time step 防重放，不在日志输出 code 或 secret。
+- [x] `M02-MFA-02` `[45m]` 实现 enrollment challenge、二维码所需最小数据、确认后启用和取消未完成 enrollment。证据：files=backend/src/auth/mfa.rs,backend/src/auth/mod.rs,backend/tests/mfa_enrollment.rs,backend/Cargo.toml,docs/AUTH-OIDC.md；commands=cargo test --all-features（418 通过/0 失败，含 mfa 6 单测 + mfa_enrollment 8 集成测试）; cargo clippy --all-features --all-targets（0 warning）; make check; contract=新增 hmac/sha1/aes-gcm 依赖：begin_enrollment 生成 20 字节 secret（base32 展示）+ AES-256-GCM 加密（nonce+密文 hex）写入 pending 行 + 返回 otpauth URI（secret/issuer/algorithm/digits/period 二维码最小数据）+ 撤销旧 TOTP（重复启用=撤销旧+新建）；confirm_enrollment 时间窗口 ±1 + 未重放 step（>last_accepted_step）后原子启用（confirmed_at+last_accepted_step），无 pending/已确认/错误 code/解密失败分别报错；cancel_enrollment 撤销未完成 enrollment；RFC 6238 官方测试向量通过；commit=8c747a9；review=6 单测（RFC 向量/base32/窗口/加密往返/otpauth）+ 8 集成（challenge/确认/错码/无 pending/重复确认/取消/撤销旧+新建/错误密钥）
+- [~] `M02-MFA-03` `[30m]` 实现允许时间窗口和已接受 time step 防重放，不在日志输出 code 或 secret。
 - [ ] `M02-MFA-04` `[45m]` 一次生成恢复码，只展示一次；数据库存 hash，消费时原子标记并通知用户。
 - [ ] `M02-MFA-05` `[30m]` 普通 member 可选 TOTP；administrator、moderator 和高风险账务账号强制启用。
 - [ ] `M02-MFA-06` `[30m]` 未完成强制 enrollment 的账号不得取得对应高权限 Session 或执行高风险操作。
