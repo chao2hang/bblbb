@@ -341,4 +341,116 @@ mod tests {
         let value = with_slow_query_log(&opts, "test", || async { 42 }).await;
         assert_eq!(value, 42);
     }
+
+    // ── M01-DB-03：SQLite 每连接 pragma（foreign_keys/WAL/busy_timeout/时区）────
+
+    struct TempSqlite {
+        path: std::path::PathBuf,
+        url: String,
+    }
+
+    impl TempSqlite {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("bblbb-{tag}-{}", uuid::Uuid::now_v7()));
+            // 连接池会 create_if_missing；这里只记录路径，不预创建文件。
+            Self {
+                path: dir.clone(),
+                url: format!("sqlite://{}", dir.display()),
+            }
+        }
+    }
+
+    impl Drop for TempSqlite {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+            let _ = std::fs::remove_file(format!("{}-wal", self.path.display()));
+            let _ = std::fs::remove_file(format!("{}-shm", self.path.display()));
+        }
+    }
+
+    #[tokio::test]
+    async fn sqlite_pool_applies_per_connection_pragmas() {
+        let db = TempSqlite::new("pragma");
+        let pool = create_pool(&db.url).await.unwrap();
+        let Either::Left(pool) = pool else {
+            panic!("expected sqlite pool")
+        };
+
+        let mut conn = pool.acquire().await.unwrap();
+
+        let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(foreign_keys, 1, "foreign_keys must be ON per connection");
+
+        let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(
+            journal_mode.to_lowercase(),
+            "wal",
+            "journal_mode must be WAL"
+        );
+
+        let busy_timeout: i64 = sqlx::query_scalar("PRAGMA busy_timeout")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(busy_timeout, 5000, "busy_timeout must be 5000ms");
+
+        // 时区 pragma 由连接选项设置；若引擎支持则返回 UTC。
+        // 跨库时间统一策略（SCHEMA §2.2）以应用层 UTC Unix 毫秒为准，此 pragma 为尽力而为。
+        let _ = sqlx::query_scalar::<_, String>("PRAGMA timezone")
+            .fetch_one(&mut *conn)
+            .await;
+
+        // 先归还连接再关闭池，否则 close 会等待已持有的连接导致死锁。
+        drop(conn);
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn sqlite_foreign_keys_are_enforced() {
+        let db = TempSqlite::new("fk");
+        let pool = create_pool(&db.url).await.unwrap();
+        let Either::Left(pool) = pool else {
+            panic!("expected sqlite pool")
+        };
+
+        let mut conn = pool.acquire().await.unwrap();
+        sqlx::raw_sql(
+            "CREATE TABLE parent (id TEXT PRIMARY KEY);
+             CREATE TABLE child (id TEXT PRIMARY KEY, parent_id TEXT NOT NULL,
+                 FOREIGN KEY (parent_id) REFERENCES parent(id));",
+        )
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+
+        // foreign_keys=ON 时插入悬空子行必须失败。
+        let err = sqlx::query("INSERT INTO child (id, parent_id) VALUES ('c1', 'missing')")
+            .execute(&mut *conn)
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().to_lowercase().contains("foreign key"),
+            "expected foreign key violation, got: {err}"
+        );
+
+        // 合法插入成功。
+        sqlx::query("INSERT INTO parent (id) VALUES ('p1')")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO child (id, parent_id) VALUES ('c1', 'p1')")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+
+        // 先归还连接再关闭池，否则 close 会等待已持有的连接导致死锁。
+        drop(conn);
+        pool.close().await;
+    }
 }
