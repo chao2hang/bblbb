@@ -152,8 +152,8 @@
 - [x] `M01-JOBS-09` `[30m]` SQLite busy 时指数退避并计数，禁止无延迟高频自旋。证据：files=backend/src/db/busy.rs,backend/src/jobs/worker_loop.rs,backend/tests/sqlite_busy.rs,docs/JOBS.md；commands=cargo test --all-features（200 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=BusyPolicy 指数退避（饱和不溢出）+ BusyCounter 计数 + is_busy_error（SQLITE_BUSY=5/LOCKED=6/消息兜底） + retry_on_busy 非 busy 不重试 + worker 领取接入；commit=c07e4a0；review=3 项真实 busy 集成测试 + 4 项退避单测 + JOBS.md §4
 - [x] `M01-JOBS-10` `[30m]` 对 SMTP/S3 临时错误、永久错误、超时和取消建立明确分类。证据：files=backend/src/jobs/classify.rs,docs/JOBS.md；commands=cargo test --all-features（207 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=ProviderError 归一化 + classify→FailureClass（Transient/Permanent/Cancelled）+ retry_class 映射 + SMTP 4xx/5xx、S3 429/5xx/4xx、超时/连接/取消规则；commit=17a857b；review=7 项分类单测 + JOBS.md §6 分类表
 - [x] `M01-JOBS-11` `[45m]` 测试进程在领取后、业务调用后、提交前后崩溃的恢复和去重结果。证据：files=backend/tests/crash_recovery.rs,docs/JOBS.md；commands=cargo test --all-features（211 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=四种崩溃点矩阵（领取后租约恢复重领/提交前回滚恰好一次/提交后重投去重跳过/job 效果行唯一键幂等）；commit=b4bb209；review=4 项崩溃恢复集成测试 + JOBS.md §5 矩阵
-- [~] `M01-JOBS-12` `[30m]` 邮件任务 payload 只存 token 引用/密文所需最小信息，任何日志不得输出验证或重置 token。
-- [ ] `M01-JOBS-13` `[30m]` 暴露 queue depth、age、attempt、lease timeout、dead count 和处理延迟指标。
+- [x] `M01-JOBS-12` `[30m]` 邮件任务 payload 只存 token 引用/密文所需最小信息，任何日志不得输出验证或重置 token。证据：files=backend/src/jobs/payload.rs,backend/tests/mail_payload_safety.rs,docs/JOBS.md；commands=cargo test --all-features（222 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=validate_mail_payload（禁止明文 token 字段/嵌套/token 形态 ≥40 字符，只允许 *_token_id）+ redact_token（last_error/日志脱敏）；commit=764a2ca；review=9 项单测 + 2 项集成（payload 拒绝、last_error 不泄漏）
+- [~] `M01-JOBS-13` `[30m]` 暴露 queue depth、age、attempt、lease timeout、dead count 和处理延迟指标。
 
 ## M01-AUDIT：审计、事件和幂等基础件
 
