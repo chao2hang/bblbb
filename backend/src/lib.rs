@@ -9,6 +9,7 @@ pub mod config;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod events;
 pub mod idempotency;
 pub mod jobs;
 pub mod middleware;
