@@ -101,7 +101,10 @@ Rust 模型：`backend/src/search/mod.rs::SearchDocument`。
 | MariaDB 10.11 | FULLTEXT | 类似 MySQL | 与 MySQL 存在已知差异（M03-SEARCH-STORE-04 记录） |
 
 三库基础查询契约（文档存在/查询命中/删除/重建/旧 revision 不覆盖新）必须一致
-（M03-SEARCH-STORE-07 同一 Fixture 验证）。
+（M03-SEARCH-STORE-07 同一 Fixture 验证：`backend/tests/search_fixture.rs`——
+SQLite 本地运行；MySQL/MariaDB 以 `BBLBB_TEST_MYSQL_URL` + `--ignored` 在
+CI mysql-family 矩阵运行，同一 `fixture_flow` 断言查询命中/更新旧词不命中/
+删除清理/重建幂等/旧 revision 不覆盖新/入队合并）。
 
 ### 7.1 触发器/Job 更新策略（M03-SEARCH-STORE-02/06）
 
