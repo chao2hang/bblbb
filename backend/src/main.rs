@@ -88,6 +88,17 @@ async fn main() -> ExitCode {
         }
     };
 
+    // M03-AUTHZ-02：数据库可用时幂等种子内置角色与权限（INSERT OR IGNORE；
+    // 注册表单一事实来源 backend/src/authz/roles.rs + PERMISSION_REGISTRY）。
+    // 数据库已连接但 schema 未就绪（未迁移）时启动失败，避免半可用服务。
+    if let Some(pool) = &db_pool {
+        if let Err(error) = bblbb_backend::authz::roles::seed_builtin_roles(pool).await {
+            tracing::error!(error = %error, "failed to seed builtin roles and permissions");
+            return ExitCode::FAILURE;
+        }
+        tracing::info!("builtin roles and permissions seeded");
+    }
+
     let listener = match tokio::net::TcpListener::bind(config.bind_address).await {
         Ok(listener) => listener,
         Err(error) => {

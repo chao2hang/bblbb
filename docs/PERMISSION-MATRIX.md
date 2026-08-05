@@ -158,3 +158,22 @@
   `permissions.is_system=1`（不可删除/改名，STATE-MACHINES §Authorization）。
 - 注册表、OpenAPI `x-permission` 与本文矩阵的自动三方比对由 M03-AUTHZ-11
   落地。
+
+## 10. 内置角色与聚合（M03-AUTHZ-02）
+
+- 内置角色定义：`backend/src/authz/roles.rs::BUILTIN_ROLES`——`member`、
+  `board_moderator`、`global_moderator`、`administrator`（均 `is_system=1`
+  不可删除/改名）。幂等种子 `seed_builtin_roles` 写入注册表全部权限 + 角色
+  + `role_permissions` 映射（服务启动与测试均可调用；重复调用无副作用）。
+- `member` 是已登录用户的默认基线角色：聚合时**无需 assignment** 即生效，
+  覆盖 §2-7 全部 S/B 动作（post.read/comment.create/reaction.create/
+  download.read/shop.purchase/video.embed 等），不含 `post.moderate`、
+  `moderation.*`、任何 `*.manage`。
+- `board_moderator` 通过 `board_role_assignments` **按板块生效**（板块范围
+  内容审核：`post.moderate`/`moderation.review`/`moderation.sanction`）；
+  `global_moderator` 与 `administrator` 通过 `user_roles` 全局生效；
+  `administrator` = 注册表全部 68 项（`RolePermissions::All`）。
+- 聚合公式：`aggregate_permissions(user_id, board_id)` = member 基线 ∪
+  `user_roles` 未过期全局角色 ∪ `board_role_assignments` 未过期板块角色；
+  自定义角色与内置角色走同一 `roles`/`role_permissions` 路径。过期
+  assignment（`expires_at <= now`）实时排除，完整语义见 M03-AUTHZ-03。

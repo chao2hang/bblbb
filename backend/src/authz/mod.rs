@@ -17,6 +17,8 @@
 
 use sqlx::Either;
 
+pub mod roles;
+
 use crate::db::DatabasePool;
 
 /// 权限风险等级（permissions.risk_level 稳定枚举）。

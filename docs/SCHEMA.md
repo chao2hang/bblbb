@@ -360,6 +360,11 @@ TOTP enrollment（RFC 6238）：
   `backend/src/authz/mod.rs::PERMISSION_REGISTRY`（`resource.action` 格式，
   68 项）；`verify_db_permissions` 拒绝未注册的未知权限名，缺失已知权限只
   报告（种子由 M03-AUTHZ-02 角色聚合落地）。
+- 种子（M03-AUTHZ-02）：内置角色（member/board_moderator/global_moderator/
+  administrator，`is_system=1`）与权限行由 `seed_builtin_roles` 幂等写入
+  （INSERT OR IGNORE / INSERT IGNORE，服务启动自动执行）；角色权限映射在
+  `role_permissions` 表，聚合 = member 基线 ∪ `user_roles` 全局 ∪
+  `board_role_assignments` 板块（`aggregate_permissions`，过期实时排除）。
 
 ### `roles`
 
