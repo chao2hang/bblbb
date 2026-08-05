@@ -1,14 +1,24 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::{middleware, routing::get, Router};
+use axum::{
+    body::Body,
+    http::{Request as HttpRequest, StatusCode},
+    middleware,
+    routing::get,
+    Router,
+};
 use tower_http::{limit::RequestBodyLimitLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
 use crate::{
     config::AppConfig,
     db::pool::DatabasePool,
     middleware::{
-        csrf::csrf_protection, request_id::request_id, security_headers::security_headers,
+        csrf::csrf_protection,
+        host_origin::host_origin_guard,
+        problem::problem_instance,
+        request_id::{request_id, RequestId},
+        security_headers::security_headers,
     },
     routes::{
         admin, ai, auth, boards, comments, economy, feeds, health::healthz, marketplace,
@@ -16,7 +26,20 @@ use crate::{
     },
 };
 
+/// 请求体大小上限（10MB，M00-BACKEND-06）
+pub const BODY_LIMIT: usize = 10 * 1024 * 1024;
+
+/// 请求处理超时（30 秒，M00-BACKEND-06）
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// 应用共享状态
+///
+/// M0 骨架只注入 `config` 与 `db`。M1 扩展点（M00-BACKEND-02）：
+/// - `clock: Arc<dyn Clock>`：可测试时钟
+/// - `storage: Arc<dyn Storage>`：对象/附件存储接口
+/// - `jobs: Arc<JobDispatcher>` / `outbox`：任务与发件箱
+/// - `audit: Arc<dyn AuditSink>`：审计写入接口
+/// - `flags: Arc<FeatureFlags>`：功能开关
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<AppConfig>,
@@ -36,6 +59,7 @@ pub fn build_router(config: AppConfig, db: Option<DatabasePool>) -> Router {
         config: Arc::new(config),
         db: db.map(Arc::new),
     };
+    let guard_state = state.clone();
 
     // 基础端点（不需要 AppState）
     let base_routes = Router::new()
@@ -73,17 +97,44 @@ pub fn build_router(config: AppConfig, db: Option<DatabasePool>) -> Router {
         ))
         .with_state(state);
 
+    // Trace span 携带真实 request_id（由 request_id 中间件最先注入扩展，
+    // 此处直接读取），与响应头 x-request-id 保持一致
+    let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &HttpRequest<Body>| {
+        let request_id = request
+            .extensions()
+            .get::<RequestId>()
+            .map(|rid| rid.0.as_str())
+            .unwrap_or("unknown");
+        tracing::info_span!(
+            "http_request",
+            method = %request.method(),
+            uri = %request.uri(),
+            version = ?request.version(),
+            request_id = %request_id,
+            status = tracing::field::Empty,
+            latency = tracing::field::Empty,
+        )
+    });
+
     Router::new()
         .merge(base_routes)
         .merge(openapi_routes)
         .merge(api_routes)
-        // 中间件层（从外到内顺序）
+        // 中间件层（.layer 按从内到外应用；运行顺序为从外到内：
+        // problem → request_id → host_origin → trace → body_limit → timeout → security_headers → router）
+        // problem_instance 必须最外层：内层中间件（如 Host/Origin）提前返回的
+        // Problem 响应也能被补齐 instance/request_id。
         .layer(middleware::from_fn(security_headers))
         .layer(TimeoutLayer::with_status_code(
-            axum::http::StatusCode::REQUEST_TIMEOUT,
-            Duration::from_secs(30),
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
         ))
-        .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10MB 上限
-        .layer(TraceLayer::new_for_http())
+        .layer(RequestBodyLimitLayer::new(BODY_LIMIT))
+        .layer(trace_layer)
+        .layer(middleware::from_fn_with_state(
+            guard_state,
+            host_origin_guard,
+        ))
         .layer(middleware::from_fn(request_id))
+        .layer(middleware::from_fn(problem_instance))
 }

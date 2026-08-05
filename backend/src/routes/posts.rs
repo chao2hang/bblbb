@@ -14,11 +14,8 @@ use crate::{app::AppState, auth::session::AuthSession, error::AppError};
 /// 帖子路由
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/posts", post(create_post))
-        .route(
-            "/api/v1/posts/{id}",
-            get(get_post).patch(update_post).delete(delete_post),
-        )
+        .route("/api/v1/posts", get(list_posts).post(create_post))
+        .route("/api/v1/posts/{id}", get(get_post).patch(update_post))
         .route(
             "/api/v1/posts/{id}/comments",
             get(list_comments).post(create_comment),
@@ -60,6 +57,20 @@ struct ListQuery {
 
 fn default_limit() -> i64 {
     20
+}
+
+#[derive(Deserialize)]
+struct ListPostsQuery {
+    #[serde(default)]
+    board_id: Option<String>,
+    #[serde(default)]
+    sort: Option<String>,
+    /// 分页游标（接口契约保留字段，游标分页待实现）
+    #[serde(default)]
+    #[allow(dead_code)]
+    after: Option<String>,
+    #[serde(default = "default_limit")]
+    limit: i64,
 }
 
 /// POST /api/v1/posts — 创建帖子
@@ -208,6 +219,82 @@ async fn create_post(
             "created_at": now,
         })),
     ))
+}
+
+/// GET /api/v1/posts — 列出帖子（公开，可按板块过滤/排序）
+async fn list_posts(
+    State(state): State<AppState>,
+    Query(query): Query<ListPostsQuery>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "list_posts";
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let limit = query.limit.clamp(1, 50);
+    let sort_order = match query.sort.as_deref() {
+        Some("popular") => "view_count DESC, reply_count DESC",
+        _ => "pinned DESC, last_reply_at DESC, created_at DESC",
+    };
+
+    let sql = format!(
+        "SELECT p.id, p.board_id, p.author_id, p.title, p.status, p.visibility,
+                p.reply_count, p.view_count, p.pinned, p.created_at, p.last_reply_at,
+                u.username_normalized as author_name
+         FROM posts p
+         LEFT JOIN users u ON u.id = p.author_id
+         WHERE p.status = 'published' AND (? IS NULL OR p.board_id = ?)
+         ORDER BY {} LIMIT ?",
+        sort_order
+    );
+
+    let posts = match pool {
+        Either::Left(p) => {
+            sqlx::query_as::<_, PostListRowFull>(&sql)
+                .bind(&query.board_id)
+                .bind(&query.board_id)
+                .bind(limit)
+                .fetch_all(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_as::<_, PostListRowFull>(&sql)
+                .bind(&query.board_id)
+                .bind(&query.board_id)
+                .bind(limit)
+                .fetch_all(p)
+                .await
+        }
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let items: Vec<Value> = posts
+        .iter()
+        .map(|p| {
+            json!({
+                "id": p.id,
+                "board_id": p.board_id,
+                "author": {
+                    "id": p.author_id,
+                    "username": p.author_name,
+                },
+                "title": p.title,
+                "status": p.status,
+                "visibility": p.visibility,
+                "reply_count": p.reply_count,
+                "view_count": p.view_count,
+                "pinned": p.pinned != 0,
+                "created_at": p.created_at,
+                "last_reply_at": p.last_reply_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({
+        "items": items,
+        "page": { "next_cursor": null, "has_more": false },
+    })))
 }
 
 /// GET /api/v1/posts/{id} — 获取帖子详情
@@ -374,64 +461,6 @@ async fn update_post(
     }
 
     Ok(Json(json!({ "id": id, "updated_at": now })))
-}
-
-/// DELETE /api/v1/posts/{id} — 删除帖子（软删除）
-async fn delete_post(
-    State(state): State<AppState>,
-    auth: AuthSession,
-    Path(id): Path<String>,
-) -> Result<StatusCode, AppError> {
-    let request_id = "delete_post";
-    let user = auth.require_auth(request_id)?;
-    let pool = state
-        .db
-        .as_deref()
-        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-
-    let now = chrono::Utc::now().timestamp();
-
-    let author_id: Option<String> = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ? AND status != 'deleted'")
-                .bind(&id)
-                .fetch_optional(p)
-                .await
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ? AND status != 'deleted'")
-                .bind(&id)
-                .fetch_optional(p)
-                .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    let author_id = author_id.ok_or_else(|| AppError::not_found("post not found", request_id))?;
-    if author_id != user.id {
-        return Err(AppError::forbidden("not the author", request_id));
-    }
-
-    match pool {
-        Either::Left(p) => {
-            sqlx::query("UPDATE posts SET status = 'deleted', updated_at = ? WHERE id = ?")
-                .bind(now)
-                .bind(&id)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-        Either::Right(p) => {
-            sqlx::query("UPDATE posts SET status = 'deleted', updated_at = ? WHERE id = ?")
-                .bind(now)
-                .bind(&id)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-    }
-
-    Ok(StatusCode::NO_CONTENT)
 }
 
 /// GET /api/v1/posts/{id}/comments — 列出评论
@@ -754,6 +783,22 @@ struct PostDetailRow {
     pinned: i64,
     created_at: i64,
     updated_at: i64,
+    last_reply_at: Option<i64>,
+    author_name: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct PostListRowFull {
+    id: String,
+    board_id: String,
+    author_id: String,
+    title: String,
+    status: String,
+    visibility: String,
+    reply_count: i64,
+    view_count: i64,
+    pinned: i64,
+    created_at: i64,
     last_reply_at: Option<i64>,
     author_name: Option<String>,
 }

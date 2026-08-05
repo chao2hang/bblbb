@@ -114,17 +114,52 @@ impl AppError {
     }
 
     /// 清理错误详情中的敏感信息
+    ///
+    /// 集中清除：SQL 语句、栈/回溯、密码、Token、Secret、API Key、
+    /// 签名 URL（AWS/Google）与私钥块。
     fn sanitize_detail(&self) -> String {
         let detail = &self.detail;
-        // 清除 SQL 语句、栈跟踪、Secret、Token、签名 URL
         let patterns = [
+            // 认证/授权凭据
             ("password=", "[redacted]"),
+            ("password :", "[redacted]"),
+            ("\"password\":", "[redacted]"),
             ("token=", "[redacted]"),
+            ("\"token\":", "[redacted]"),
+            ("access_token=", "[redacted]"),
+            ("refresh_token=", "[redacted]"),
             ("secret=", "[redacted]"),
+            ("\"secret\":", "[redacted]"),
+            ("client_secret", "[redacted]"),
+            ("api_key", "[redacted]"),
+            ("apikey", "[redacted]"),
+            ("Authorization: Bearer ", "[redacted] "),
+            // 签名 URL 参数（AWS SigV4 / Google 签名 URL）
+            ("X-Amz-Signature", "[signed-url]"),
+            ("X-Amz-Credential", "[signed-url]"),
+            ("X-Amz-Security-Token", "[signed-url]"),
+            ("X-Goog-Signature", "[signed-url]"),
+            ("X-Goog-Credential", "[signed-url]"),
+            ("signature=", "[redacted]"),
+            // 私钥块
+            ("BEGIN RSA PRIVATE KEY", "[private-key]"),
+            ("BEGIN EC PRIVATE KEY", "[private-key]"),
+            ("BEGIN OPENSSH PRIVATE KEY", "[private-key]"),
+            ("BEGIN PRIVATE KEY", "[private-key]"),
+            // SQL 语句片段
             ("SELECT ", "[sql] "),
             ("INSERT ", "[sql] "),
             ("UPDATE ", "[sql] "),
             ("DELETE ", "[sql] "),
+            ("WHERE ", "[sql] "),
+            ("FROM ", "[sql] "),
+            ("JOIN ", "[sql] "),
+            ("GROUP BY ", "[sql] "),
+            ("ORDER BY ", "[sql] "),
+            // 栈/回溯特征
+            ("\n    at ", " [stack]"),
+            ("stack backtrace:", " [stack]"),
+            ("backtrace:", " [stack]"),
         ];
         let mut result = detail.to_string();
         for (pattern, replacement) in &patterns {
@@ -153,5 +188,87 @@ impl IntoResponse for AppError {
             Json(problem),
         )
             .into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn problem_serializes_with_required_fields() {
+        let problem = Problem {
+            type_uri: "about:blank",
+            title: "Bad Request",
+            status: 400,
+            code: "bad_request",
+            detail: "invalid input".to_string(),
+            instance: Some("/api/v1/auth/register".to_string()),
+            request_id: "req-1".to_string(),
+            errors: Some(serde_json::json!({ "field": "username" })),
+        };
+        let value = serde_json::to_value(&problem).unwrap();
+        for key in [
+            "type",
+            "title",
+            "status",
+            "code",
+            "detail",
+            "instance",
+            "request_id",
+            "errors",
+        ] {
+            assert!(value.get(key).is_some(), "missing field {key}");
+        }
+        assert_eq!(value["type"], "about:blank");
+        assert_eq!(value["status"], 400);
+        assert_eq!(value["instance"], "/api/v1/auth/register");
+    }
+
+    #[test]
+    fn sanitize_detail_redacts_sensitive_patterns() {
+        let error = AppError::internal(
+            "sqlx error: SELECT password FROM users WHERE token=abc123; \
+             stack backtrace:\n    at src/main.rs:42 \
+             client_secret=supersecret X-Amz-Signature=deadbeef \
+             BEGIN RSA PRIVATE KEY-----abcdef-----END RSA PRIVATE KEY",
+            "req-1",
+        );
+        let detail = error.sanitize_detail();
+        assert!(!detail.contains("password="), "password leaked: {detail}");
+        assert!(!detail.contains("token="), "token leaked: {detail}");
+        assert!(!detail.contains("SELECT "), "sql leaked: {detail}");
+        assert!(!detail.contains("FROM "), "sql leaked: {detail}");
+        assert!(!detail.contains("client_secret"), "secret leaked: {detail}");
+        assert!(
+            !detail.contains("X-Amz-Signature"),
+            "signed url leaked: {detail}"
+        );
+        assert!(
+            !detail.contains("BEGIN RSA PRIVATE KEY"),
+            "private key leaked: {detail}"
+        );
+        assert!(
+            !detail.contains("stack backtrace:"),
+            "stack leaked: {detail}"
+        );
+    }
+
+    #[test]
+    fn sanitize_detail_keeps_benign_detail() {
+        let error = AppError::internal("user not found for identifier", "req-1");
+        let detail = error.sanitize_detail();
+        assert_eq!(detail, "user not found for identifier");
+    }
+
+    #[test]
+    fn app_error_into_response_has_problem_shape() {
+        use axum::response::IntoResponse;
+        let response = AppError::bad_request("bad username", "req-9", None).into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/problem+json"
+        );
     }
 }

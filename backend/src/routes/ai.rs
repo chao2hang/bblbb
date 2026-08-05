@@ -15,9 +15,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/ai/capabilities", get(get_ai_capabilities))
         .route(
             "/api/v1/ai/consent",
-            get(get_ai_consent)
-                .post(post_ai_consent)
-                .delete(delete_ai_consent),
+            post(post_ai_consent).delete(delete_ai_consent),
         )
         .route("/api/v1/ai/drafts/{draft_id}/format", post(format_draft))
         .route(
@@ -39,10 +37,6 @@ pub fn router() -> Router<AppState> {
 
 async fn get_ai_capabilities(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("get_ai_capabilities")
-}
-
-async fn get_ai_consent(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("get_ai_consent")
 }
 
 async fn post_ai_consent(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {

@@ -51,7 +51,7 @@ dev-backend: ## 启动后端开发服务器
 	@cd $(BACKEND_DIR) && cargo run
 
 ##@ 检查
-check: check-backend check-frontend check-prototype check-openapi check-roadmap check-docs check-secrets ## 运行全部检查
+check: check-backend check-frontend check-prototype check-openapi check-contract check-roadmap check-docs check-secrets ## 运行全部检查
 
 check-backend: ## 后端 fmt + clippy + 编译检查
 	@printf "$(GREEN)>>> [check-backend] Rust fmt + clippy + check$(RESET)\n"
@@ -93,6 +93,15 @@ check-openapi: ## OpenAPI YAML 解析 + operationId 唯一性检查
 	@if [ -f "$(PROJECT_ROOT)/scripts/sync-operation-coverage.rb" ]; then \
 		ruby $(PROJECT_ROOT)/scripts/sync-operation-coverage.rb --check; \
 	fi
+
+check-contract: ## 契约治理脚本（错误码/写契约/路由覆盖/权限矩阵/状态枚举/TS 类型）
+	@printf "$(GREEN)>>> [check-contract] 契约治理脚本$(RESET)\n"
+	@ruby $(PROJECT_ROOT)/scripts/check-error-codes.rb
+	@ruby $(PROJECT_ROOT)/scripts/check-write-contract.rb
+	@ruby $(PROJECT_ROOT)/scripts/check-route-coverage.rb
+	@ruby $(PROJECT_ROOT)/scripts/check-permission-matrix.rb
+	@ruby $(PROJECT_ROOT)/scripts/check-state-enums.rb
+	@ruby $(PROJECT_ROOT)/scripts/generate-ts-types.rb --check
 
 check-docs: ## Markdown 链接检查
 	@printf "$(GREEN)>>> [check-docs] Markdown 链接检查$(RESET)\n"

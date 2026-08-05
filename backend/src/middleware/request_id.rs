@@ -31,7 +31,10 @@ pub async fn request_id(mut request: Request, next: Next) -> Response {
     response
 }
 
-fn is_valid_request_id(value: &str) -> bool {
+/// 校验上游提供的 request_id：
+/// 非空、不超过 128 字节、纯 ASCII、不含控制字符。
+/// 与中间件判定保持一致，供 fallback 路径（如 CSRF）复用。
+pub(crate) fn is_valid_request_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
         && value.is_ascii()

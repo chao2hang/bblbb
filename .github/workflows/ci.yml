@@ -37,6 +37,16 @@ jobs:
       - name: Check OpenAPI operation coverage
         run: ruby scripts/sync-operation-coverage.rb --check
 
+      - name: Run contract governance suite
+        run: |
+          ruby scripts/check-openapi.rb
+          ruby scripts/check-error-codes.rb
+          ruby scripts/check-write-contract.rb
+          ruby scripts/check-route-coverage.rb
+          ruby scripts/check-permission-matrix.rb
+          ruby scripts/check-state-enums.rb
+          ruby scripts/generate-ts-types.rb --check
+
       - name: Check roadmap consistency
         run: ruby scripts/check-roadmap.rb
 

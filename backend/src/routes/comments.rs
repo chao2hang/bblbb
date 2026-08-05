@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Json,
-    routing::{delete, get, post},
+    routing::{delete, patch, post},
     Router,
 };
 use serde_json::{json, Value};
@@ -15,9 +15,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route(
             "/api/v1/comments/{id}",
-            get(get_comment)
-                .patch(update_comment)
-                .delete(delete_comment),
+            patch(update_comment).delete(delete_comment),
         )
         .route(
             "/api/v1/comments/{id}/reactions",
@@ -27,59 +25,6 @@ pub fn router() -> Router<AppState> {
             "/api/v1/comments/{id}/reactions/{reaction}",
             delete(delete_comment_reaction),
         )
-}
-
-/// GET /api/v1/comments/{id} — 获取评论详情
-async fn get_comment(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Value>, AppError> {
-    let request_id = "get_comment";
-    let pool = state
-        .db
-        .as_deref()
-        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-
-    let row = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, CommentDetailRow>(
-                "SELECT c.id, c.post_id, c.author_id, c.parent_id, c.content, c.content_format, c.floor, c.created_at,
-                        u.username_normalized as author_name
-                 FROM comments c LEFT JOIN users u ON u.id = c.author_id
-                 WHERE c.id = ? AND c.status = 'published'",
-            )
-            .bind(&id)
-            .fetch_optional(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, CommentDetailRow>(
-                "SELECT c.id, c.post_id, c.author_id, c.parent_id, c.content, c.content_format, c.floor, c.created_at,
-                        u.username_normalized as author_name
-                 FROM comments c LEFT JOIN users u ON u.id = c.author_id
-                 WHERE c.id = ? AND c.status = 'published'",
-            )
-            .bind(&id)
-            .fetch_optional(p)
-            .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    match row {
-        Some(r) => Ok(Json(json!({
-            "id": r.id,
-            "post_id": r.post_id,
-            "author_id": r.author_id,
-            "author_name": r.author_name,
-            "parent_id": r.parent_id,
-            "content": r.content,
-            "content_format": r.content_format,
-            "floor": r.floor,
-            "created_at": r.created_at,
-        }))),
-        None => Err(AppError::not_found("comment not found", request_id)),
-    }
 }
 
 /// PATCH /api/v1/comments/{id} — 更新评论
@@ -356,17 +301,4 @@ async fn delete_comment_reaction(
     }
 
     Ok(StatusCode::NO_CONTENT)
-}
-
-#[derive(sqlx::FromRow)]
-struct CommentDetailRow {
-    id: String,
-    post_id: String,
-    author_id: String,
-    parent_id: Option<String>,
-    content: String,
-    content_format: String,
-    floor: i64,
-    created_at: i64,
-    author_name: Option<String>,
 }

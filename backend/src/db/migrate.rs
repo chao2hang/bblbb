@@ -106,6 +106,38 @@ pub async fn list_applied_migrations(
     }
 }
 
+/// 查询数据库已应用的最大迁移版本
+///
+/// 迁移表不存在（数据库尚未迁移）或为空时返回 `Ok(None)`，
+/// 供 `/readyz` 做版本比对，不修改数据库（M00-BACKEND-07/08）。
+pub async fn max_applied_version(pool: &DatabasePool) -> Result<Option<i64>, sqlx::Error> {
+    let sql = "SELECT MAX(version) FROM _sqlx_migrations";
+    match pool {
+        Either::Left(p) => match sqlx::query_scalar::<_, Option<i64>>(sql).fetch_one(p).await {
+            Ok(value) => Ok(value),
+            Err(e) if is_missing_table(&e) => Ok(None),
+            Err(e) => Err(e),
+        },
+        Either::Right(p) => match sqlx::query_scalar::<_, Option<i64>>(sql).fetch_one(p).await {
+            Ok(value) => Ok(value),
+            Err(e) if is_missing_table(&e) => Ok(None),
+            Err(e) => Err(e),
+        },
+    }
+}
+
+/// 判断数据库错误是否为"表不存在"
+fn is_missing_table(e: &sqlx::Error) -> bool {
+    match e {
+        sqlx::Error::Database(db) => {
+            // SQLite: "no such table"; MySQL: ER_NO_SUCH_TABLE 1146
+            db.message().to_lowercase().contains("no such table")
+                || db.code().map(|c| c == "1146").unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
 /// 应用单个迁移
 pub async fn apply_migration(pool: &DatabasePool, file: &MigrationFile) -> Result<(), sqlx::Error> {
     let now = SystemTime::now()
@@ -245,4 +277,58 @@ pub async fn run_migrations(
 
     tracing::info!(applied, total = files.len(), "migrations complete");
     Ok(applied)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 验证 readyz 版本比对所用的 max_applied_version：
+    /// 表不存在 → None；空表 → None；有记录 → 最大版本
+    #[tokio::test]
+    async fn max_applied_version_tracks_applied_migrations() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        // 尚未迁移：表不存在 → Ok(None)
+        assert_eq!(max_applied_version(&pool).await.unwrap(), None);
+
+        // 建表后仍为空 → Ok(None)
+        ensure_migration_table(&pool).await.unwrap();
+        assert_eq!(max_applied_version(&pool).await.unwrap(), None);
+
+        // 写入版本 5 → Some(5)
+        let now = 1_700_000_000_i64;
+        match &pool {
+            Either::Left(p) => {
+                sqlx::query(
+                    "INSERT INTO _sqlx_migrations (version, name, checksum, applied_at) VALUES (5, 'x', 'y', ?)",
+                )
+                .bind(now)
+                .execute(p)
+                .await
+                .unwrap();
+            }
+            Either::Right(p) => {
+                sqlx::query(
+                    "INSERT INTO _sqlx_migrations (version, name, checksum, applied_at) VALUES (5, 'x', 'y', ?)",
+                )
+                .bind(now)
+                .execute(p)
+                .await
+                .unwrap();
+            }
+        }
+        assert_eq!(max_applied_version(&pool).await.unwrap(), Some(5));
+
+        // 清理
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        let _ = std::fs::remove_file(&dir);
+        let _ = std::fs::remove_file(format!("{}-wal", dir.display()));
+        let _ = std::fs::remove_file(format!("{}-shm", dir.display()));
+    }
 }

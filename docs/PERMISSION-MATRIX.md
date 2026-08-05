@@ -86,8 +86,52 @@
 | 管理 Provider Policy | S | — | `video.manage` | R + CSP/egress 校验 | 是 | 必须 |
 | 执行策略测试 | S | — | `video.manage` | 固定安全探针 | 是 | 必须 |
 
-## 7. 高风险要求
+## 8. 高风险要求
 
 - `storage.manage`、`download_billing.manage`、`marketplace.manage`、`marketplace.refund_admin`、`ai.manage`、`video.manage`、OIDC 密钥操作必须近期重新认证。
 - Secret 创建/轮换只显示一次；读取接口只返回 `secret_configured` 和轮换时间。
 - 用户被封禁、Client 停用、Consent 撤销、Policy 关闭后，缓存中的旧 Scope 不能继续执行敏感操作；Handler 必须实时查关键状态。
+
+## 附录：operation 级 x-permission 注册表
+
+> 由 `openapi/openapi.yaml` 的 `x-permission` 扩展直接导出，并由 `ruby scripts/check-permission-matrix.rb` 双向校验。每个取值都必须在本注册表或上文动作表出现；新增 operation 必须先登记 permission。`public` 与 `authenticated` 是身份级标记：`public` = 匿名可访问；`authenticated` = 任意已登录用户，对象级判定（作者/所有者/板块范围）在 handler 内完成。下表"使用数"来自 172 个 operation；operationId 只列代表，完整映射以 openapi.yaml 为准。
+
+| x-permission | 使用数 | 代表 operationId | 关联矩阵小节 |
+|---|---:|---|---|
+| `public` | 16 | getHealth、login、listBoards、listPosts、getCsrfToken、register、searchPublicContent 等 | §1 身份和标记 |
+| `authenticated` | 57 | get_attachments_id_、post_me_profile_cover、post_attachments_id_download、get_notifications、post_shop_orders、post_ai_drafts_draft_id_format、post_video_embeds 等 | §1 身份和标记 |
+| `session.revoke_own` | 1 | logout | §1 身份和标记 |
+| `user.read_public` | 1 | getPublicUser | §1 身份和标记 |
+| `user.read_own` | 1 | getMe | §1 身份和标记 |
+| `user.edit_own` | 1 | updateMe | §1 身份和标记 |
+| `user.manage` | 4 | listAdminUsers、createAdminUser、getAdminUser、updateAdminUser | §1 身份和标记（管理员） |
+| `role.manage` | 4 | listAdminRoles、createAdminRole、getAdminRole、updateAdminRole | §1 身份和标记（管理员） |
+| `board.read` | 1 | getBoard | §2 核心论坛 |
+| `board.manage` | 4 | listAdminBoards、createAdminBoard、getAdminBoard、updateAdminBoard | §2 核心论坛（管理员） |
+| `tag.manage` | 4 | listAdminTags、createAdminTag、getAdminTag、updateAdminTag | §2 核心论坛（管理员） |
+| `post.read` | 2 | getPost、listBoardPosts | §2 核心论坛 |
+| `post.read_own` | 2 | listDrafts、getDraft | §2 核心论坛 |
+| `post.read_revision` | 2 | listPostRevisions、getPostRevision | §2 核心论坛 |
+| `post.create` | 2 | createPost、createDraft | §2 核心论坛 |
+| `post.edit_own` | 3 | updatePost、updateDraft、deleteDraft | §2 核心论坛 |
+| `comment.read` | 1 | listComments | §2 核心论坛 |
+| `comment.create` | 1 | createComment | §2 核心论坛 |
+| `attachment.upload` | 1 | createAttachment | §2 核心论坛 |
+| `download_billing.manage` | 4 | getDownloadBillingConfig、updateDownloadBillingConfig、getAttachmentDownloadPolicyAdmin、updateAttachmentDownloadPolicyAdmin | §3 下载计费 |
+| `appeal.create_own` | 1 | createAppeal | §2 核心论坛 |
+| `appeal.read_own` | 2 | listOwnAppeals、getOwnAppeal | §2 核心论坛 |
+| `moderation.review` | 5 | listModerationCases、getModerationCase、updateModerationCase、listModerationAppeals、getModerationAppeal | §2 核心论坛（审核） |
+| `moderation.sanction` | 1 | decideModerationAppeal | §2 核心论坛（审核） |
+| `shop.manage` | 8 | getAdminShopConfig、updateAdminShopConfig、listAdminShopProducts、createAdminShopProduct、publishAdminShopProduct 等 | §6 Internal Shop |
+| `shop.refund` | 1 | refundAdminShopOrder | §6 Internal Shop |
+| `activity.manage` | 5 | getAdminActivityConfig、updateAdminActivityConfig、listAdminActivityTasks、createAdminActivityTask、updateAdminActivityTask | §6 Internal Shop |
+| `activity.claim_own` | 1 | recordAuthenticatedVisit | §6 Internal Shop |
+| `oauth.token` | 1 | post_oauth_token | OIDC |
+| `oauth.revoke` | 1 | post_oauth_revoke | OIDC |
+| `oauth.interaction` | 2 | get_oauth_interactions_id_、post_oauth_interactions_id_decision | OIDC |
+| `openid` | 1 | get_oauth_userinfo | OIDC |
+| `openid.logout` | 2 | get_oauth_logout、post_oauth_logout | OIDC |
+| `oauth_client.manage` | 4 | listAdminOAuthClients、createAdminOAuthClient、getAdminOAuthClient、updateAdminOAuthClient | §1 身份和标记（管理员） |
+| `admin.manage` | 25 | get_admin_storage_config、patch_admin_storage_config、post_admin_storage_test、get_admin_ai_config、get_admin_video_policies、get_admin_themes 等 | 管理员通用（存储/AI/视频/主题/市场配置，§8 高风险要求） |
+
+> 说明：OpenAPI 管理端 operation 的 `x-permission` 粒度比本文动作表的业务权限更粗（`admin.manage` 覆盖多个动作小节）。业务语义仍以动作表为准；`admin.manage` 是它的管理员入口聚合值，未来细化到 `storage.manage`/`ai.manage`/`video.manage` 等粒度时需同步更新本注册表与 OpenAPI。

@@ -344,10 +344,15 @@ pub(crate) fn generate_csrf_token(session_id: &str, token_hash: &str) -> String 
 }
 
 /// 从 HeaderMap 获取 request_id
+///
+/// 与 `middleware::request_id` 中间件的判定保持一致：仅接受合法请求 ID
+/// （非空、≤128 字节、纯 ASCII、无控制字符），非法/缺失时回退为 "unknown"。
+/// 中间件已将合法 ID 注入请求扩展，此处仅作无扩展场景下的兜底。
 pub fn get_request_id(headers: &HeaderMap) -> String {
     headers
         .get("x-request-id")
         .and_then(|v| v.to_str().ok())
+        .filter(|value| crate::middleware::request_id::is_valid_request_id(value))
         .unwrap_or("unknown")
         .to_string()
 }

@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     response::Json,
     routing::get,
     Router,
@@ -9,23 +8,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::Either;
 
-use crate::{app::AppState, auth::session::AuthSession, error::AppError};
+use crate::{app::AppState, error::AppError};
 
 /// 板块路由
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/boards", get(list_boards).post(create_board))
+        .route("/api/v1/boards", get(list_boards))
         .route("/api/v1/boards/{slug}", get(get_board))
         .route("/api/v1/boards/{slug}/posts", get(list_board_posts))
         .route("/api/v1/tags", get(list_tags))
-}
-
-#[derive(Deserialize)]
-struct CreateBoardRequest {
-    slug: String,
-    name: String,
-    #[serde(default)]
-    description: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -96,71 +87,6 @@ async fn list_boards(State(state): State<AppState>) -> Result<Json<Value>, AppEr
 
     Ok(Json(
         json!({ "items": items, "next_cursor": null, "has_more": false }),
-    ))
-}
-
-/// POST /api/v1/boards — 创建板块（需要管理员权限）
-async fn create_board(
-    State(state): State<AppState>,
-    auth: AuthSession,
-    Json(req): Json<CreateBoardRequest>,
-) -> Result<(StatusCode, Json<BoardResponse>), AppError> {
-    let request_id = "create_board";
-    let _user = auth.require_auth(request_id)?;
-
-    // TODO: 检查管理员权限
-
-    let pool = state
-        .db
-        .as_deref()
-        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-
-    let id = uuid::Uuid::now_v7().to_string();
-    let now = chrono::Utc::now().timestamp();
-
-    match pool {
-        Either::Left(p) => {
-            sqlx::query(
-                "INSERT INTO boards (id, slug, name, description, sort_order, post_count, is_active, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 0, 0, 1, ?, ?)",
-            )
-            .bind(&id)
-            .bind(&req.slug)
-            .bind(&req.name)
-            .bind(&req.description)
-            .bind(now)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-        Either::Right(p) => {
-            sqlx::query(
-                "INSERT INTO boards (id, slug, name, description, sort_order, post_count, is_active, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 0, 0, 1, ?, ?)",
-            )
-            .bind(&id)
-            .bind(&req.slug)
-            .bind(&req.name)
-            .bind(&req.description)
-            .bind(now)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-    }
-
-    Ok((
-        StatusCode::CREATED,
-        Json(BoardResponse {
-            id,
-            slug: req.slug,
-            name: req.name,
-            description: req.description,
-            post_count: 0,
-            is_active: true,
-        }),
     ))
 }
 

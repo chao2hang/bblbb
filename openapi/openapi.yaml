@@ -68,6 +68,8 @@ paths:
       summary: Create a browser session
       x-permission: public
       x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -78,6 +80,11 @@ paths:
         '200':
           description: Authenticated user projection
           headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
             Set-Cookie:
               "$ref": "#/components/headers/SessionCookie"
             X-Request-ID:
@@ -104,6 +111,12 @@ paths:
       x-csrf: true
       responses:
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Session revoked
         '403':
           "$ref": "#/components/responses/CsrfFailed"
@@ -153,6 +166,12 @@ paths:
               "$ref": "#/components/schemas/ProfilePatch"
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Updated profile
           content:
             application/json:
@@ -242,6 +261,12 @@ paths:
               "$ref": "#/components/schemas/PostCreate"
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Created post
           content:
             application/json:
@@ -321,6 +346,12 @@ paths:
               "$ref": "#/components/schemas/PostPatch"
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Updated post
           content:
             application/json:
@@ -394,6 +425,12 @@ paths:
               "$ref": "#/components/schemas/CommentCreate"
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Created comment
           content:
             application/json:
@@ -419,6 +456,12 @@ paths:
       x-csrf: true
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Existing or newly created activity summary
           content:
             application/json:
@@ -487,6 +530,8 @@ paths:
       x-permission: public
       x-csrf: true
       x-csrf-context: preauth
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -510,6 +555,8 @@ paths:
       x-permission: public
       x-csrf: true
       x-csrf-context: preauth
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -533,6 +580,8 @@ paths:
       x-permission: public
       x-csrf: true
       x-csrf-context: preauth
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -729,6 +778,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -773,6 +828,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -833,6 +894,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -861,6 +928,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -956,6 +1029,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1022,6 +1101,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1096,6 +1181,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1126,6 +1217,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1190,6 +1287,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1249,6 +1352,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1286,6 +1395,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1314,6 +1429,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1352,6 +1473,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1382,6 +1509,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1464,6 +1597,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1552,6 +1691,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1589,6 +1734,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1670,6 +1821,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1699,6 +1856,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1748,6 +1911,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1777,6 +1946,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1821,6 +1996,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1858,6 +2039,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1948,6 +2135,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -1979,6 +2172,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2045,6 +2244,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2103,6 +2308,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2161,6 +2372,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2220,6 +2437,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2257,6 +2480,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2294,6 +2523,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2360,6 +2595,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2426,6 +2667,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2457,6 +2704,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2485,6 +2738,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2536,6 +2795,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2566,6 +2831,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2624,6 +2895,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2660,6 +2937,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2691,6 +2974,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2722,6 +3011,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2787,6 +3082,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2815,6 +3116,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2859,6 +3166,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2943,6 +3256,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -2973,6 +3292,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3047,6 +3372,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3099,6 +3430,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3129,6 +3466,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3164,6 +3507,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3192,6 +3541,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3256,10 +3611,18 @@ paths:
       security: *1
       x-permission: oauth.token
       x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
       responses:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3319,10 +3682,18 @@ paths:
       security: *1
       x-permission: oauth.revoke
       x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
       responses:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3358,10 +3729,18 @@ paths:
       security: *1
       x-permission: openid.logout
       x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
       responses:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3425,6 +3804,12 @@ paths:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: No content
         '400':
           "$ref": "#/components/responses/ProblemResponse"
@@ -3577,6 +3962,12 @@ paths:
         "$ref": "#/components/parameters/IdempotencyKey"
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -3644,6 +4035,12 @@ paths:
         "$ref": "#/components/parameters/IfMatch"
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -3679,6 +4076,12 @@ paths:
       - "$ref": "#/components/parameters/Id"
       responses:
         '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -3804,6 +4207,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -3929,6 +4338,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4024,6 +4439,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4088,6 +4509,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4154,6 +4581,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4217,6 +4650,12 @@ paths:
       parameters: *10
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4280,6 +4719,12 @@ paths:
       parameters: *10
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4343,6 +4788,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4380,6 +4831,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4417,6 +4874,12 @@ paths:
       - *11
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4454,6 +4917,12 @@ paths:
       - *11
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4520,6 +4989,12 @@ paths:
       - *11
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4583,6 +5058,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4620,6 +5101,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4683,6 +5170,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4749,6 +5242,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4812,6 +5311,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4878,6 +5383,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -4941,6 +5452,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -5007,6 +5524,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -5070,6 +5593,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -5136,6 +5665,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -5199,6 +5734,12 @@ paths:
       parameters: *8
       responses:
         '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -5265,6 +5806,12 @@ paths:
       - *9
       responses:
         '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
           description: Successful operation
           content:
             application/json:
@@ -5434,8 +5981,20 @@ components:
             "$ref": "#/components/schemas/Problem"
     NoContent:
       description: Operation completed with no response body
+      headers:
+        Cache-Control:
+          description: private, no-store
+          schema:
+            type: string
+            example: private, no-store
     Accepted:
       description: Task accepted
+      headers:
+        Cache-Control:
+          description: private, no-store
+          schema:
+            type: string
+            example: private, no-store
       content:
         application/json:
           schema:
@@ -5471,6 +6030,12 @@ components:
             "$ref": "#/components/schemas/Problem"
     GenericSuccess:
       description: Successful operation
+      headers:
+        Cache-Control:
+          description: private, no-store
+          schema:
+            type: string
+            example: private, no-store
       content:
         application/json:
           schema:
@@ -5543,12 +6108,6 @@ components:
     GenericSuccess:
       type: object
       additionalProperties: true
-    ProblemResponse:
-      description: Problem response
-      content:
-        application/problem+json:
-          schema:
-            "$ref": "#/components/schemas/Problem"
     Health:
       type: object
       required:
@@ -5931,6 +6490,50 @@ components:
           maximum: 599
         code:
           type: string
+          enum:
+          - invalid_request
+          - visibility_level_exceeds_author
+          - invalid_url
+          - idempotency_conflict
+          - version_conflict
+          - authentication_required
+          - invalid_token
+          - forbidden
+          - not_found
+          - csrf_failed
+          - rate_limited
+          - feature_disabled
+          - policy_disabled
+          - policy_version_changed
+          - insufficient_funds
+          - daily_limit_exceeded
+          - checkout_interaction_invalid
+          - checkout_user_mismatch
+          - checkout_intent_expired
+          - checkout_intent_consumed
+          - offer_version_changed
+          - refund_not_allowed
+          - product_unavailable
+          - product_version_changed
+          - shop_purchase_limit_exceeded
+          - shop_stock_exhausted
+          - entitlement_not_usable
+          - presentation_slot_conflict
+          - activity_already_claimed
+          - activity_not_eligible
+          - attachment_not_ready
+          - download_authorization_pending
+          - download_url_unavailable
+          - media_blocked
+          - media_probe_failed
+          - hls_policy_exceeded
+          - provider_unavailable
+          - ai_consent_required
+          - ai_budget_exceeded
+          - ai_suggestion_stale
+          - job_not_retryable
+          - storage_unavailable
+          - internal_error
         detail:
           type: string
         instance:
@@ -6382,7 +6985,6 @@ components:
           enum:
           - post
           - comment
-          - 
         target_id:
           type:
           - string

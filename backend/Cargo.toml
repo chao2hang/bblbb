@@ -29,3 +29,4 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "mysql", "chron
 [dev-dependencies]
 tower = "0.5"
 http-body-util = "0.1"
+tokio = { version = "1", features = ["test-util", "sync"] }

@@ -14,7 +14,10 @@ use crate::{app::AppState, auth::session::AuthSession, error::AppError};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/v1/me", get(get_me).patch(update_me))
-        .route("/api/v1/me/preferences/theme", get(get_theme_pref))
+        .route(
+            "/api/v1/me/preferences/theme",
+            get(get_theme_pref).put(update_theme_pref),
+        )
         .route("/api/v1/users/{username}", get(get_public_user))
 }
 
@@ -152,4 +155,32 @@ async fn get_theme_pref(
 ) -> Result<Json<Value>, AppError> {
     let _user = auth.require_auth("get_theme_pref")?;
     Ok(Json(json!({ "theme": "default" })))
+}
+
+/// PUT /api/v1/me/preferences/theme — 更新主题偏好
+///
+/// 主题持久化属于 M2/UX 波次（user_preferences 表迁移）；当前实现与
+/// GET 桩保持一致：校验合法值并回显，路由契约完整。
+async fn update_theme_pref(
+    _state: State<AppState>,
+    auth: AuthSession,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "update_theme_pref";
+    let _user = auth.require_auth(request_id)?;
+
+    let theme = body
+        .get("theme")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::bad_request("theme is required", request_id, None))?;
+
+    if !matches!(theme, "default" | "dark" | "light") {
+        return Err(AppError::bad_request(
+            "theme must be one of: default, dark, light",
+            request_id,
+            None,
+        ));
+    }
+
+    Ok(Json(json!({ "theme": theme })))
 }

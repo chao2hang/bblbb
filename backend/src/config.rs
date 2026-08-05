@@ -20,13 +20,23 @@ pub struct AppConfig {
     /// 启动时是否自动应用数据库迁移（M01-DB-06：生产默认关闭）
     #[serde(default = "default_auto_migrate")]
     pub auto_migrate: bool,
+    /// 严格模式下允许的 Host 头集合（默认空 = 宽松模式，仅记录日志）
+    #[serde(default)]
+    pub allowed_hosts: Vec<String>,
+    /// 严格模式下允许的 Origin 集合（默认空 = 宽松模式，仅记录日志）
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
 }
 
 impl AppConfig {
     pub fn load() -> Result<Self, ConfigError> {
         Config::builder()
             .add_source(File::with_name(".env").required(false))
-            .add_source(Environment::with_prefix("BBLBB").separator("__"))
+            .add_source(
+                Environment::with_prefix("BBLBB")
+                    .separator("__")
+                    .list_separator(","),
+            )
             .build()?
             .try_deserialize()
     }
@@ -42,6 +52,8 @@ impl Default for AppConfig {
             migrations_dir: default_migrations_dir(),
             storage_dir: default_storage_dir(),
             auto_migrate: default_auto_migrate(),
+            allowed_hosts: Vec::new(),
+            allowed_origins: Vec::new(),
         }
     }
 }
