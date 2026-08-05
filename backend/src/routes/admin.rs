@@ -364,8 +364,47 @@ async fn get_admin_board(
 ) -> (StatusCode, Json<Value>) {
     not_implemented("getAdminBoard")
 }
-async fn list_admin_tags(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminTags")
+/// GET /api/v1/admin/tags — 全部标签（含禁用状态，M03-BOARDS-06）
+async fn list_admin_tags(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "listAdminTags";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let decision = authorize_action(pool, &user.id, "tag.manage", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "tag.manage permission required",
+            request_id,
+        ));
+    }
+
+    let tags = crate::tags::load_all_tags(pool)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    let items: Vec<Value> = tags
+        .iter()
+        .map(|t| {
+            json!({
+                "id": t.id,
+                "slug": t.slug,
+                "name": t.name,
+                "description": t.description,
+                "color": t.color,
+                "group_id": t.group_id,
+                "usage_count": t.usage_count,
+                "is_active": t.is_active != 0,
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "items": items })))
 }
 async fn create_admin_tag(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("createAdminTag")

@@ -279,7 +279,7 @@ async fn list_board_posts(
     ))
 }
 
-/// GET /api/v1/tags — 列出标签
+/// GET /api/v1/tags — 列出启用标签与标签组（M03-BOARDS-06）
 async fn list_tags(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let request_id = "list_tags";
     let pool = state
@@ -287,30 +287,40 @@ async fn list_tags(State(state): State<AppState>) -> Result<Json<Value>, AppErro
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let tags = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, TagRow>(
-                "SELECT id, name, usage_count FROM tags ORDER BY usage_count DESC LIMIT 100",
-            )
-            .fetch_all(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, TagRow>(
-                "SELECT id, name, usage_count FROM tags ORDER BY usage_count DESC LIMIT 100",
-            )
-            .fetch_all(p)
-            .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let tags = crate::tags::load_active_tags(pool)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    let groups = crate::tags::load_tag_groups(pool)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
 
     let items: Vec<Value> = tags
         .iter()
-        .map(|t| json!({ "id": t.id, "name": t.name, "usage_count": t.usage_count }))
+        .map(|t| {
+            json!({
+                "id": t.id,
+                "slug": t.slug,
+                "name": t.name,
+                "description": t.description,
+                "color": t.color,
+                "group_id": t.group_id,
+                "usage_count": t.usage_count,
+            })
+        })
+        .collect();
+    let group_items: Vec<Value> = groups
+        .iter()
+        .map(|g| {
+            json!({
+                "id": g.id,
+                "name": g.name,
+                "slug": g.slug,
+                "sort_order": g.sort_order,
+            })
+        })
         .collect();
 
-    Ok(Json(json!({ "items": items })))
+    Ok(Json(json!({ "items": items, "groups": group_items })))
 }
 
 /// Board 投影（OpenAPI `Board` = ResourceMeta + slug/name/description）。
@@ -351,11 +361,4 @@ struct PostListRow {
     pinned: i64,
     created_at: i64,
     last_reply_at: Option<i64>,
-}
-
-#[derive(sqlx::FromRow)]
-struct TagRow {
-    id: String,
-    name: String,
-    usage_count: i64,
 }
