@@ -13,4 +13,9 @@ declare module '*.svelte?raw' {
   export default content;
 }
 
+declare module '*.html?raw' {
+  const content: string;
+  export default content;
+}
+
 export {};
