@@ -17,6 +17,7 @@
 
 use sqlx::Either;
 
+pub mod decision;
 pub mod roles;
 
 use crate::db::DatabasePool;

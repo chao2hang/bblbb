@@ -179,3 +179,19 @@
   （M03-AUTHZ-03）：`granted_at <= now` 且 `expires_at` 为空或 `> now`
   （`assignment_effective_at`）；未来授权与已到期均不生效，行保留供审计
   与恢复。
+
+## 11. 动作授权输入与判定结果（M03-AUTHZ-04）
+
+- 完整判定输入 `backend/src/authz/decision.rs::AuthzInput`：**actor**
+  （user_id + 账号状态 `AccountStatus` + 已聚合角色/权限）+ **permission**
+  （必须为注册表内的 `resource.action`，否则无法构造输入）+ **board**
+  （`BoardContext`：board_id + visibility + posting_mode + 软删）+ **resource**
+  （`ResourceInfo`：owner_id + resource state）+ **policy_version**
+  （`AUTHZ_POLICY_VERSION = 1.0.0`，审计与失效检测依据）。
+- 对象级 owner 判定：`is_resource_owner(actor_id, owner_id)`（edit_own 等）。
+- 判定结果：`Decision::Allow | Deny{reason}`；`DenyReason` 枚举
+  （not_authenticated / account_not_allowed / missing_permission /
+  not_resource_owner / resource_state_not_allowed / board_scope_mismatch /
+  policy_version_mismatch / default_deny）。
+- 默认拒绝：未命中任何 Allow 规则即 `Deny::DefaultDeny`（AUTHZ-05 落地
+  handler 调用模式）。账号状态门槛细化由 M03-AUTHZ-06 落地。
