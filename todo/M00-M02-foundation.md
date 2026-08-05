@@ -145,8 +145,8 @@
 - [x] `M01-JOBS-02` `[45m]` 实现业务事务内写 Outbox，事务回滚时事件必须同步消失。证据：files=backend/src/outbox.rs,backend/tests/outbox.rs,docs/JOBS.md；commands=cargo test --all-features（160 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=enqueue_in_tx 事务内写入（提交持久/回滚消失）+ 时间戳统一 Unix 毫秒 + payload_version=1；commit=3a650da；review=2 项回滚/提交集成测试通过
 - [x] `M01-JOBS-03` `[30m]` 实现 queued/running/retry_wait/succeeded/cancelled/dead 状态机及非法迁移拒绝。证据：files=backend/src/jobs/mod.rs,docs/STATE-MACHINES.md；commands=cargo test --all-features（166 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=JobStatus 六态 + allowed_transition 迁移表 + transition 非法拒绝不改状态 + 终态无出边 + running 不直接取消；commit=7cc8efb；review=6 项状态机测试 + 文档对齐
 - [x] `M01-JOBS-04` `[45m]` 实现批量领取、owner、lease 延期和 lease 到期后的安全重领。证据：files=backend/src/jobs/worker.rs,backend/tests/jobs_worker.rs,docs/JOBS.md；commands=cargo test --all-features（172 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=claim_batch 批量领取（最老优先/CAS 不重领/队列隔离）+ renew_lease 仅 owner 且 lease 未过期可续 + lease 过期重领（attempts+1、owner 切换）；commit=284e750；review=6 项租约集成测试 + JOBS.md 领取/续租契约
-- [~] `M01-JOBS-05` `[45m]` 实现分类重试、指数退避、jitter、最大次数、dead-letter 和人工重放。
-- [ ] `M01-JOBS-06` `[45m]` 消费者以 event_id/job idempotency key 去重，至少一次投递不得产生重复业务副作用。
+- [x] `M01-JOBS-05` `[45m]` 实现分类重试、指数退避、jitter、最大次数、dead-letter 和人工重放。证据：files=backend/src/jobs/retry.rs,backend/src/jobs/worker.rs,docs/STATE-MACHINES.md,docs/JOBS.md；commands=cargo test --all-features（185 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=RetryClass 分类 + 指数退避（饱和不溢出）+ jitter 区间 + 行级 max_attempts 死信 + complete_job owner 成功 + replay_job dead→queued 重置 + 状态机新增人工重放边；commit=495accd；review=7 项重试集成测试 + 5 项退避单测 + 状态机重放边测试 + 文档同步
+- [~] `M01-JOBS-06` `[45m]` 消费者以 event_id/job idempotency key 去重，至少一次投递不得产生重复业务副作用。
 - [ ] `M01-JOBS-07` `[30m]` 禁止在数据库写事务中调用 SMTP、S3、AI、视频 Provider 或执行图片处理。
 - [ ] `M01-JOBS-08` `[30m]` Worker 收到停机信号后停止领取新任务，完成/释放当前任务并受总超时约束。
 - [ ] `M01-JOBS-09` `[30m]` SQLite busy 时指数退避并计数，禁止无延迟高频自旋。
