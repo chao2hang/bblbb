@@ -4,6 +4,7 @@
   import { getMe, logout, type User } from '$lib/api/client';
   import { goto } from '$app/navigation';
   import Navbar from '$lib/components/Navbar.svelte';
+  import NoJsNotice from '$lib/components/ui/NoJsNotice.svelte';
 
   let { children } = $props();
 
@@ -32,6 +33,8 @@
 </svelte:head>
 
 <a class="skip-link" href="#main-content">跳转到主要内容</a>
+
+<NoJsNotice />
 
 <Navbar user={loading ? null : user} unread={unread} onlogout={handleLogout} />
 
