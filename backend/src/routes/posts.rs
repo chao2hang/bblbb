@@ -234,8 +234,8 @@ async fn list_posts(
 
     let limit = query.limit.clamp(1, 50);
     let sort_order = match query.sort.as_deref() {
-        Some("popular") => "view_count DESC, reply_count DESC",
-        _ => "pinned DESC, last_reply_at DESC, created_at DESC",
+        Some("popular") => "p.view_count DESC, p.reply_count DESC",
+        _ => "p.pinned DESC, p.last_reply_at DESC, p.created_at DESC",
     };
 
     let sql = format!(
