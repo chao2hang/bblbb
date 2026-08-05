@@ -33,8 +33,8 @@
 **目标文件：** `backend/src/users/`、`backend/src/routes/users/`、`backend/tests/users/`、`docs/RETENTION-PRIVACY.md`
 **验收：** `Users` tag 的公开、本人和管理投影泄漏测试通过。
 
-- [~] `M03-PROFILE-01` `P0` `[30m]` 定义 public profile、Me 和 admin user 三套显式 DTO，不复用数据库实体序列化。
-- [ ] `M03-PROFILE-02` `P0` `[30m]` 为公开 DTO 建立字段 allowlist，排除邮箱、IP、Session、内部处罚、私有资产和审计信息。
+- [x] `M03-PROFILE-01` `P0` `[30m]` 定义 public profile、Me 和 admin user 三套显式 DTO，不复用数据库实体序列化。证据：files=backend/src/users/{mod,dto}.rs,backend/src/lib.rs,backend/src/routes/{users,auth}.rs,backend/tests/user_dto.rs,openapi/openapi.yaml,frontend/src/lib/api/{types,client}.ts,frontend/src/lib/api/generated/v1/types.ts,frontend/src/routes/users/[username]/+page.svelte；commands=cargo fmt --check 通过; cargo clippy --all-features --all-targets 0 警告; cargo test --all-features 全绿（user_dto 3 项，共 58 套件）; npm test 185 通过; make check（OpenAPI 183/183、TS types 可复现、svelte-check 0 error、事件目录 22/22、Roadmap 783 叶子 OK）; contract=PublicProfile（id/username/display_name/bio/level/avatar_attachment_id/signature/created_at 严格公开 allowlist，不含邮箱/Session/IP/处罚/审计）；Me（本人投影，Me::from_session 显式构建）；AdminUser（管理投影含 status/删除注销时间，不含凭据）；OpenAPI PublicUser/Me/AdminUser schema 对齐（可空字段 3.1 数组语法），getAdminUser 200 改挂 AdminUser；前端 User 类型 Omit 修复 display_name 可空交集、PublicProfile 接入 getUser; commit=861c411; review=user_dto 3 项（公开键集精确/Me 本人字段/AdminUser 无凭据）+ 全量测试 + make check 全绿
+- [~] `M03-PROFILE-02` `P0` `[30m]` 为公开 DTO 建立字段 allowlist，排除邮箱、IP、Session、内部处罚、私有资产和审计信息。
 - [ ] `M03-PROFILE-03` `P1` `[45m]` 实现昵称、简介、签名、时区、主题偏好和隐私设置读取与更新。
 - [ ] `M03-PROFILE-04` `P0` `[30m]` 所有更新使用版本/`If-Match`，并校验长度、Unicode、链接和富文本禁用规则。
 - [ ] `M03-PROFILE-05` `P1` `[30m]` 实现公开主页和作者资料卡投影，Cover 只返回稳定内容端点引用。
