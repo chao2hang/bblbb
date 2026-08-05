@@ -110,8 +110,8 @@
 - [x] `M01-DB-02` `[45m]` 实现数据库 URL、最大/最小连接、连接超时、空闲时间和 slow query 配置校验。证据：files=backend/src/db/pool.rs,backend/src/config.rs,backend/src/main.rs,backend/.env.example；commands=cargo test --all-features（68 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=DbOptions 校验（URL scheme/max-min 连接/超时/空闲/slow query）+ BBLBB__DB_* 环境变量 + 启动失败即退出；commit=328e4e7；review=make check 全绿 + 9 项新增校验测试
 - [x] `M01-DB-03` `[30m]` 为 SQLite 每连接启用 foreign_keys、WAL、busy timeout 和统一时区。证据：files=backend/src/db/pool.rs；commands=cargo test --all-features（70 通过）; cargo clippy --all-features --all-targets（0 warning）；contract=SQLite 每连接 foreign_keys/WAL/busy_timeout=5000ms/timezone=UTC + 外键强制验证；commit=114bbbc；review=两连接 pragma 集成测试 + FK 拒绝测试通过
 - [x] `M01-DB-04` `[30m]` 为 MySQL/MariaDB 固定字符集、时区、事务隔离和 sql_mode 前置检查。证据：files=backend/src/db/pool.rs,backend/src/main.rs；commands=cargo test --all-features（77 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=启动前置检查：charset=utf8mb4、collation=utf8mb4_bin、time_zone=+00:00、isolation=REPEATABLE-READ、sql_mode 含 STRICT_TRANS_TABLES + 时区连接选项 + 6 项校验测试；commit=1ce60a1；review=make check 全绿
-- [~] `M01-DB-05` `[45m]` 实现 `migrate --check`，只检查版本、顺序和 checksum，不改变数据库。
-- [ ] `M01-DB-06` `[45m]` 实现显式 `migrate` 命令，生产服务启动不得自动应用未知迁移。
+- [x] `M01-DB-05` `[45m]` 实现 `migrate --check`，只检查版本、顺序和 checksum，不改变数据库。证据：files=backend/src/db/migrate.rs,backend/src/bin/migrate.rs；commands=cargo test --all-features（83 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=CheckMode::ReadOnly 不创建迁移表 + validate_file_order 严格递增 + is_consistent 忽略 pending + bblbb-migrate --check 一致返回 0/不一致返回 1；commit=76b2d2e；review=空库/已迁移库/篡改文件三场景端到端验证 + 6 项新测试
+- [~] `M01-DB-06` `[45m]` 实现显式 `migrate` 命令，生产服务启动不得自动应用未知迁移。
 - [ ] `M01-DB-07` `[45m]` 建立 migration history/checksum 表；已执行迁移内容变化必须失败。
 - [ ] `M01-DB-08` `[30m]` 统一 UUID v7、BIGINT Unix 毫秒、bool、枚举和分页排序的跨库表示。
 - [ ] `M01-DB-09` `[45m]` 为每个逻辑迁移提供 SQLite/MySQL/MariaDB 三份不可变 SQL 和结构等价断言。
