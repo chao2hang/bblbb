@@ -1,4 +1,5 @@
 pub mod identity;
+pub mod login;
 pub mod password;
 pub mod password_reset;
 pub mod registration;
@@ -8,6 +9,7 @@ pub mod token;
 pub mod verification;
 
 pub use identity::{normalize_email, normalize_username};
+pub use login::{login_user, LoginError, LoginLimits, LoginOutcome};
 pub use password::{hash_password, verify_password, VerifyResult};
 pub use password_reset::{
     confirm_password_reset, request_password_reset, ConfirmResetError, ConfirmResetOutcome,

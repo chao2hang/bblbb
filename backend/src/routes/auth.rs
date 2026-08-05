@@ -8,12 +8,12 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::Either;
 
 use crate::{
     app::AppState,
     auth::{
-        password::{hash_password, verify_password, VerifyResult},
+        login::{login_user, LoginError, LoginLimits},
+        password::hash_password,
         password_reset::{
             confirm_password_reset as confirm_reset_service,
             request_password_reset as request_reset_service, ConfirmResetError,
@@ -21,10 +21,7 @@ use crate::{
         },
         registration::{register_user, RegisterUserError},
         resend::{resend_verification_email, ResendError, ResendLimits},
-        session::{
-            build_clear_session_cookie, build_session_cookie, create_session, revoke_session,
-            AuthSession,
-        },
+        session::{build_clear_session_cookie, build_session_cookie, revoke_session, AuthSession},
         token::generate_token,
         verification::{verify_email_token, VerifyEmailError},
     },
@@ -311,8 +308,13 @@ async fn resend_verification(
 }
 
 /// POST /api/v1/auth/login — 登录
+///
+/// 常量时间失败 + 统一 invalid credentials（不区分账号不存在/密码错误/账号
+/// 状态）；每 IP 10 次/分钟，每账号连续失败 5 次锁定 10 分钟（429）——
+/// M02-SESSION-03。
 async fn login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     _jar: CookieJar,
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, AppError> {
@@ -322,87 +324,63 @@ async fn login(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let identifier_normalized = req.identifier.to_lowercase();
-
-    // 查找用户（用户名或邮箱均可）— 常量时间失败
-    let user_row = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, UserAuthRow>(
-                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, password_hash
-                 FROM users WHERE email_normalized = ? OR username_normalized = ?",
-            )
-            .bind(&identifier_normalized)
-            .bind(&identifier_normalized)
-            .fetch_optional(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, UserAuthRow>(
-                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, password_hash
-                 FROM users WHERE email_normalized = ? OR username_normalized = ?",
-            )
-            .bind(&identifier_normalized)
-            .bind(&identifier_normalized)
-            .fetch_optional(p)
-            .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    // 统一错误响应 — 不区分账号不存在、密码错误或账号状态
-    let unified_error = || AppError::unauthorized("invalid credentials", request_id);
-
-    let user = user_row.unwrap_or_else(|| UserAuthRow {
-        id: String::new(),
-        username_normalized: String::new(),
-        email_normalized: String::new(),
-        email_verified: 0,
-        status: "pending".to_string(),
-        display_name: None,
-        password_hash: "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string(),
-    });
-
-    // 验证密码
-    let verify_result = verify_password(&req.password, &user.password_hash);
-    let auth_ok = matches!(verify_result, VerifyResult::Ok) && !user.id.is_empty();
-
-    if !auth_ok {
-        // 常量时间延迟（简化：总是执行验证操作）
-        return Err(unified_error());
-    }
-
-    // 检查账号状态
-    if user.status == "banned" {
-        return Err(AppError::forbidden("account banned", request_id));
-    }
-    if user.status == "deleted" {
-        return Err(unified_error());
-    }
-
-    // 创建会话
-    let session_token = create_session(pool, &user.id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    let cookie = build_session_cookie(&session_token);
-
-    let me = MeResponse {
-        id: user.id,
-        username: user.username_normalized,
-        email: user.email_normalized,
-        email_verified: user.email_verified != 0,
-        status: user.status,
-        display_name: user.display_name,
-        level: 1,
-        roles: vec![],
+    // identifier 规范化：含 @ 按邮箱，否则按用户名（NFKC + lowercase）
+    let identifier = req.identifier.trim();
+    let identifier_normalized = if identifier.contains('@') {
+        crate::auth::normalize_email(identifier)
+    } else {
+        crate::auth::normalize_username(identifier)
     };
+    let ip = client_ip(&headers);
 
-    Ok((
-        StatusCode::OK,
-        [(header::SET_COOKIE, cookie.to_string())],
-        Json(me),
+    match login_user(
+        pool,
+        &state.limiter,
+        &identifier_normalized,
+        &req.password,
+        &ip,
+        &LoginLimits::default(),
     )
-        .into_response())
+    .await
+    {
+        Ok(outcome) => {
+            let cookie = build_session_cookie(&outcome.session_token);
+            let me = MeResponse {
+                id: outcome.user_id,
+                username: outcome.username,
+                email: outcome.email,
+                email_verified: outcome.email_verified,
+                status: outcome.status,
+                display_name: outcome.display_name,
+                level: 1,
+                roles: vec![],
+            };
+            Ok((
+                StatusCode::OK,
+                [(header::SET_COOKIE, cookie.to_string())],
+                Json(me),
+            )
+                .into_response())
+        }
+        // 不区分账号不存在/密码错误/账号被禁（防枚举）
+        Err(LoginError::InvalidCredentials) => {
+            Err(AppError::unauthorized("invalid credentials", request_id))
+        }
+        Err(LoginError::RateLimited {
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        }) => Err(AppError::rate_limited(
+            "too many login attempts, try again later",
+            request_id,
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        )),
+        Err(LoginError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
+    }
 }
 
 /// DELETE /api/v1/auth/session — 登出
@@ -567,17 +545,4 @@ fn valid_email_shape(email: &str) -> bool {
         return false;
     }
     domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
-}
-
-// ─── 数据库行结构 ─────────────────────────────────────────────────────────────
-
-#[derive(sqlx::FromRow)]
-struct UserAuthRow {
-    id: String,
-    username_normalized: String,
-    email_normalized: String,
-    email_verified: i64,
-    status: String,
-    display_name: Option<String>,
-    password_hash: String,
 }
