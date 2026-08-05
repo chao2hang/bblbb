@@ -3,8 +3,9 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import SettingsPage from '../../../routes/settings/+page.svelte';
+import type { User } from '$lib/api/types';
 
-const user = {
+const user: User = {
   id: 'u1',
   username: 'alice',
   email: 'alice@example.com',
