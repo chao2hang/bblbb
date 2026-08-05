@@ -18,8 +18,8 @@
 **目标文件：** `migrations/{sqlite,mysql,mariadb}/`、`backend/src/users/`、`backend/src/authz/`、`backend/src/boards/`
 **验收：** 三数据库空库/升级迁移、约束和 repository contract 通过。
 
-- [~] `M03-SCHEMA-01` `P0` `[45m]` 新增用户资料、隐私设置、展示偏好、等级缓存和 profile revision 字段迁移。
-- [ ] `M03-SCHEMA-02` `P0` `[30m]` 新增头像与 Cover 的稳定 attachment_id 引用，禁止保存远程 URL 或签名 URL。
+- [x] `M03-SCHEMA-01` `P0` `[45m]` 新增用户资料、隐私设置、展示偏好、等级缓存和 profile revision 字段迁移。证据：files=migrations/{sqlite,mysql,mariadb}/0019_profile.sql,backend/tests/profile_schema.rs,docs/SCHEMA.md；commands=cargo fmt --check 通过; cargo clippy --all-features --all-targets 0 警告; cargo test --all-features 全绿（含 profile_schema 5 项 + migration_equivalence 4 项）; make check（迁移等价 + lifecycle + Roadmap 783 叶子 OK、OpenAPI 183/183）; contract=users 新列：level（默认 1，可重建等级缓存）、level_updated_at（NULL=未计算）、avatar_attachment_id（软引用附件）、signature、last_login_at、delete_requested_at、deleted_at；user_preferences（timezone 默认 UTC/locale 默认 zh-CN/theme_name/notification_json，行首访惰性创建，FK 级联）；user_privacy（email_visible_to 默认 nobody、profile_visible_to 默认 everyone，CHECK 约束三库强制）；profile_revisions（UNIQUE(user_id,revision)、changes_json、actor_user_id，FK 级联，资料写操作同事务写 revision）; commit=bb385cb; review=三库迁移等价 + 列契约/默认值/CHECK/唯一/级联 5 项测试 + make check 全绿
+- [~] `M03-SCHEMA-02` `P0` `[30m]` 新增头像与 Cover 的稳定 attachment_id 引用，禁止保存远程 URL 或签名 URL。
 - [ ] `M03-SCHEMA-03` `P0` `[45m]` 新增 roles、permissions、role_permissions 和全局 user_role_assignments 迁移。
 - [ ] `M03-SCHEMA-04` `P0` `[45m]` 新增 boards、board_roles 和带有效期的 board_role_assignments 迁移。
 - [ ] `M03-SCHEMA-05` `P1` `[30m]` 新增 tags、tag_groups 和 board/tag 关联迁移及 slug 唯一约束。
