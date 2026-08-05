@@ -40,6 +40,12 @@ async fn main() -> ExitCode {
                 "database pool created"
             );
 
+            // M01-DB-04：MySQL/MariaDB 会话前置检查（字符集/时区/隔离/sql_mode）。
+            if let Err(error) = bblbb_backend::db::pool::check_session(&pool).await {
+                tracing::error!(error = %error, "database session pre-flight check failed");
+                return ExitCode::FAILURE;
+            }
+
             if auto_migrate {
                 // 运行迁移
                 let migrations_dir = &config.migrations_dir;

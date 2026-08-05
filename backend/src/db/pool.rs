@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use sqlx::Row;
 use sqlx::{
     mysql::{MySqlConnectOptions, MySqlPoolOptions},
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -180,7 +181,10 @@ async fn create_mysql_pool(url: &str, opts: &DbOptions) -> Result<MySqlPool, sql
 
     let options = MySqlConnectOptions::from_str(&normalized_url)?
         .charset("utf8mb4")
-        .collation("utf8mb4_bin");
+        .collation("utf8mb4_bin")
+        // 统一会话时区为 UTC（SCHEMA §2.2 时间策略）；sql_mode/隔离级别由
+        // check_mysql_session 前置检查验证（M01-DB-04）。
+        .timezone(Some("+00:00".to_string()));
 
     info!(url = %redact_dsn(&normalized_url), "creating MySQL/MariaDB connection pool");
 
@@ -199,6 +203,104 @@ pub fn kind(pool: &DatabasePool) -> DatabaseKind {
     match pool {
         Either::Left(_) => DatabaseKind::Sqlite,
         Either::Right(_) => DatabaseKind::MySql,
+    }
+}
+
+/// MySQL/MariaDB 会话前置检查结果（M01-DB-04）
+#[derive(Clone, Debug)]
+pub struct MySqlSessionCheck {
+    pub charset_client: String,
+    pub collation_connection: String,
+    pub time_zone: String,
+    pub transaction_isolation: String,
+    pub sql_mode: String,
+}
+
+impl MySqlSessionCheck {
+    /// 按固定契约校验会话设置；返回最先命中的不匹配说明。
+    ///
+    /// 固定契约（SCHEMA §1.1 MariaDB 兼容策略 + §2.2 时间策略）：
+    /// - 字符集 `utf8mb4`、排序规则 `utf8mb4_bin`（MySQL 8 与 MariaDB 均支持）
+    /// - 会话时区 UTC（`+00:00` 或 `UTC`）
+    /// - 事务隔离 `REPEATABLE-READ`（两端默认）
+    /// - `sql_mode` 必须包含 `STRICT_TRANS_TABLES`（拒绝静默截断/零值）
+    pub fn validate(&self) -> Result<(), String> {
+        if !self.charset_client.eq_ignore_ascii_case("utf8mb4") {
+            return Err(format!(
+                "character_set_client must be utf8mb4, got {}",
+                self.charset_client
+            ));
+        }
+        if !self
+            .collation_connection
+            .eq_ignore_ascii_case("utf8mb4_bin")
+        {
+            return Err(format!(
+                "collation_connection must be utf8mb4_bin, got {}",
+                self.collation_connection
+            ));
+        }
+        if self.time_zone != "+00:00" && self.time_zone != "UTC" {
+            return Err(format!(
+                "session time_zone must be UTC (+00:00), got {}",
+                self.time_zone
+            ));
+        }
+        if !self
+            .transaction_isolation
+            .to_lowercase()
+            .contains("repeatable-read")
+        {
+            return Err(format!(
+                "transaction_isolation must be REPEATABLE-READ, got {}",
+                self.transaction_isolation
+            ));
+        }
+        if !self.sql_mode.to_uppercase().contains("STRICT_TRANS_TABLES") {
+            return Err(format!(
+                "sql_mode must include STRICT_TRANS_TABLES, got {}",
+                self.sql_mode
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// 对 MySQL/MariaDB 连接池执行会话前置检查（M01-DB-04）。
+///
+/// 返回会话的实际设置，由调用方决定是否按固定契约失败；SQLite 连接不适用。
+pub async fn check_mysql_session(pool: &MySqlPool) -> Result<MySqlSessionCheck, sqlx::Error> {
+    let row = sqlx::query(
+        "SELECT @@session.character_set_client AS csc,
+                @@session.collation_connection   AS cc,
+                @@session.time_zone              AS tz,
+                @@session.transaction_isolation  AS ti,
+                @@session.sql_mode               AS sm",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(MySqlSessionCheck {
+        charset_client: row.get("csc"),
+        collation_connection: row.get("cc"),
+        time_zone: row.get("tz"),
+        transaction_isolation: row.get("ti"),
+        sql_mode: row.get("sm"),
+    })
+}
+
+/// 对数据库执行会话前置检查；SQLite 直接通过，MySQL/MariaDB 校验固定契约。
+///
+/// 失败返回错误说明（不泄漏 DSN；M01-DB-12 的 readiness 也复用此结果）。
+pub async fn check_session(pool: &DatabasePool) -> Result<(), String> {
+    match pool {
+        Either::Left(_) => Ok(()),
+        Either::Right(p) => {
+            let check = check_mysql_session(p)
+                .await
+                .map_err(|e| format!("failed to query MySQL session settings: {e}"))?;
+            check.validate()
+        }
     }
 }
 
@@ -340,6 +442,91 @@ mod tests {
         };
         let value = with_slow_query_log(&opts, "test", || async { 42 }).await;
         assert_eq!(value, 42);
+    }
+
+    // ── M01-DB-04：MySQL/MariaDB 会话前置检查 ────────────────────────────────
+
+    fn mysql_check() -> MySqlSessionCheck {
+        MySqlSessionCheck {
+            charset_client: "utf8mb4".to_owned(),
+            collation_connection: "utf8mb4_bin".to_owned(),
+            time_zone: "+00:00".to_owned(),
+            transaction_isolation: "REPEATABLE-READ".to_owned(),
+            sql_mode: "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION".to_owned(),
+        }
+    }
+
+    #[test]
+    fn mysql_session_check_accepts_fixed_contract() {
+        assert!(mysql_check().validate().is_ok());
+    }
+
+    #[test]
+    fn mysql_session_check_rejects_bad_charset() {
+        let check = MySqlSessionCheck {
+            charset_client: "latin1".to_owned(),
+            ..mysql_check()
+        };
+        assert!(check
+            .validate()
+            .unwrap_err()
+            .contains("character_set_client"));
+    }
+
+    #[test]
+    fn mysql_session_check_rejects_bad_collation() {
+        let check = MySqlSessionCheck {
+            collation_connection: "utf8mb4_0900_ai_ci".to_owned(),
+            ..mysql_check()
+        };
+        assert!(check
+            .validate()
+            .unwrap_err()
+            .contains("collation_connection"));
+    }
+
+    #[test]
+    fn mysql_session_check_rejects_non_utc_timezone() {
+        let check = MySqlSessionCheck {
+            time_zone: "SYSTEM".to_owned(),
+            ..mysql_check()
+        };
+        assert!(check.validate().unwrap_err().contains("time_zone"));
+    }
+
+    #[test]
+    fn mysql_session_check_rejects_non_repeatable_read() {
+        let check = MySqlSessionCheck {
+            transaction_isolation: "READ-COMMITTED".to_owned(),
+            ..mysql_check()
+        };
+        assert!(check
+            .validate()
+            .unwrap_err()
+            .contains("transaction_isolation"));
+    }
+
+    #[test]
+    fn mysql_session_check_rejects_missing_strict_mode() {
+        let check = MySqlSessionCheck {
+            sql_mode: "ONLY_FULL_GROUP_BY".to_owned(),
+            ..mysql_check()
+        };
+        assert!(check
+            .validate()
+            .unwrap_err()
+            .contains("STRICT_TRANS_TABLES"));
+    }
+
+    #[tokio::test]
+    async fn check_session_passes_for_sqlite() {
+        let db = TempSqlite::new("session");
+        let pool = create_pool(&db.url).await.unwrap();
+        assert!(check_session(&pool).await.is_ok());
+        match pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
     }
 
     // ── M01-DB-03：SQLite 每连接 pragma（foreign_keys/WAL/busy_timeout/时区）────
