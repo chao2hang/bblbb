@@ -204,8 +204,8 @@
 **目标文件：** `migrations/*/`、`backend/src/auth/session*`、`backend/src/middleware/csrf*`、`backend/tests/session*`
 **验收：** Session fixation、来源校验、跨站请求、撤销和生命周期测试通过。
 
-- [~] `M02-SESSION-01` `[45m]` 扩展 session 迁移：token hash、device、created/last_seen、idle/absolute expiry、revoked_at 和 version。
-- [ ] `M02-SESSION-02` `[30m]` 生成至少 256 bit 熵的 Session token，仅存 hash，并设置 `__Host-bblbb_session` 安全属性。
+- [x] `M02-SESSION-01` `[45m]` 扩展 session 迁移：token hash、device、created/last_seen、idle/absolute expiry、revoked_at 和 version。证据：files=migrations/{sqlite,mysql,mariadb}/0012_session_version.sql,backend/tests/session_schema.rs,docs/SCHEMA.md；commands=cargo test --all-features（336 通过/0 失败，含 session_schema 3 项测试）; cargo clippy --all-features --all-targets（0 warning）; make check（三库迁移等价 + migration_lifecycle 通过）; contract=user_sessions 新增 user_agent/ip_prefix_hash/revoke_reason/version（默认 0，旋转计数防 fixation），token_hash 唯一；commit=7bad0c8；review=3 项契约测试（完整列/唯一约束/version 默认）
+- [~] `M02-SESSION-02` `[30m]` 生成至少 256 bit 熵的 Session token，仅存 hash，并设置 `__Host-bblbb_session` 安全属性。
 - [ ] `M02-SESSION-03` `[45m]` 实现账号/IP 限流和常量时间登录失败，错误不得区分账号不存在、密码错误或账号状态。
 - [ ] `M02-SESSION-04` `[30m]` 登录、权限提升、改密和高风险重新认证时旋转 Session，防止 fixation。
 - [ ] `M02-SESSION-05` `[45m]` 实现 idle/absolute timeout、当前登出、全部登出、设备列表和逐设备撤销。
