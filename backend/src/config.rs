@@ -5,6 +5,8 @@ use serde::Deserialize;
 
 use crate::db::pool::{validate_database_url, DbOptions};
 
+pub mod secrets;
+
 /// 配置登记条目（M01-CONFIG-01）：环境变量 → 类型化字段 → 默认值 →
 /// 环境适用范围 → 运行时变更方式。
 #[derive(Debug, Clone, Copy)]
@@ -137,6 +139,23 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    // Secret 来源：受限环境文件目录（一个 Secret 一个文件，文件名 = 名称）。
+    // 生产模式强制 owner-only 权限（M01-CONFIG-03）。
+    ConfigEntry {
+        env_var: "BBLBB__SECRETS_DIR",
+        field: "secrets_dir",
+        default: "（空 = 未启用）",
+        scope: "all",
+        reload: "restart",
+    },
+    // Secret 来源：systemd credentials unit（/run/credentials/<unit>/）。
+    ConfigEntry {
+        env_var: "BBLBB__SECRETS_SYSTEMD_UNIT",
+        field: "secrets_systemd_unit",
+        default: "（空 = 未启用）",
+        scope: "all",
+        reload: "restart",
+    },
 ];
 
 /// 允许的运行环境
@@ -168,6 +187,12 @@ pub struct AppConfig {
     /// 运行环境（development / test / production；M01-CONFIG-02）
     #[serde(default = "default_env")]
     pub env: String,
+    /// Secret 受限文件目录（M01-CONFIG-03；空 = 未启用）
+    #[serde(default)]
+    pub secrets_dir: PathBuf,
+    /// systemd credentials unit（M01-CONFIG-03；空 = 未启用）
+    #[serde(default)]
+    pub secrets_systemd_unit: String,
     // ── M01-DB-02：数据库连接池与慢查询参数（经 AppConfig::validate 校验）──
     #[serde(default = "default_db_max_connections")]
     pub db_max_connections: u32,
@@ -216,6 +241,28 @@ impl AppConfig {
     /// 是否生产模式（M01-CONFIG-02）。
     pub fn is_production(&self) -> bool {
         self.env == "production"
+    }
+
+    /// 按配置构建 Secret provider 链（M01-CONFIG-03）：
+    /// 先受限文件目录，再 systemd credentials；生产模式强制文件权限校验。
+    pub fn secret_provider(&self) -> Option<secrets::ChainProvider> {
+        let mut providers: Vec<Box<dyn secrets::SecretProvider>> = Vec::new();
+        if !self.secrets_dir.as_os_str().is_empty() {
+            providers.push(Box::new(secrets::FileSecretProvider::new(
+                self.secrets_dir.clone(),
+                self.is_production(),
+            )));
+        }
+        if !self.secrets_systemd_unit.is_empty() {
+            providers.push(Box::new(secrets::SystemdCredentialProvider::for_unit(
+                &self.secrets_systemd_unit,
+            )));
+        }
+        if providers.is_empty() {
+            None
+        } else {
+            Some(secrets::ChainProvider::new(providers))
+        }
     }
 
     /// 生产模式校验：拒绝占位 Secret、不安全 Origin、非 loopback 内部端口
@@ -314,6 +361,8 @@ impl Default for AppConfig {
             db_idle_timeout_ms: default_db_idle_timeout_ms(),
             db_slow_query_ms: default_db_slow_query_ms(),
             env: default_env(),
+            secrets_dir: PathBuf::new(),
+            secrets_systemd_unit: String::new(),
         }
     }
 }
@@ -534,6 +583,8 @@ mod tests {
             "log_filter",
             "migrations_dir",
             "openapi_path",
+            "secrets_dir",
+            "secrets_systemd_unit",
             "storage_dir",
         ];
         assert_eq!(

@@ -48,6 +48,8 @@
 | `BBLBB__DB_IDLE_TIMEOUT_MS` | `db_idle_timeout_ms` | `300000` | all | 重启 |
 | `BBLBB__DB_SLOW_QUERY_MS` | `db_slow_query_ms` | `500` | all | 重启 |
 | `BBLBB__ENV` | `env` | `development` | all | 重启 |
+| `BBLBB__SECRETS_DIR` | `secrets_dir` | 空 = 未启用 | all | 重启 |
+| `BBLBB__SECRETS_SYSTEMD_UNIT` | `secrets_systemd_unit` | 空 = 未启用 | all | 重启 |
 
 说明：
 
@@ -57,6 +59,26 @@
   轮换由后续 `config_revisions`/policy 版本机制提供（M01-CONFIG-03/04/05）。
 - 新增环境变量必须同步登记表、`.env.example` 与本文档；登记表测试会拦截
   未登记或未同步的变量。
+
+## 1.3 Secret Provider（M01-CONFIG-03）
+
+`backend/src/config/secrets.rs` 定义统一 `SecretProvider` trait 与内置实现：
+
+| Provider | 来源 | 说明 |
+|---|---|---|
+| `FileSecretProvider` | `BBLBB__SECRETS_DIR` | 一个 Secret 一个文件，文件名 = 名称；生产强制 owner-only 权限（0600/0400），目录建议 0700 |
+| `SystemdCredentialProvider` | `BBLBB__SECRETS_SYSTEMD_UNIT` | 读取 `/run/credentials/<unit>/<name>`（`LoadCredential=`/`SetCredential=`） |
+| `EnvProvider` | 环境变量 | 兜底/测试用；生产不建议作为 Secret 主来源 |
+| `ChainProvider` | 多来源 | 按注册顺序尝试，第一个命中即返回；文件优先于 systemd |
+
+约定：
+
+- provider 只读不写；写接口由 M01-CONFIG-04 提供并只返回元数据
+  （configured / source class / version / updated_at），不返回值。
+- 托管 Secret（Vault / 云 Secret Manager）扩展点：实现 `SecretProvider`
+  注册进 `ChainProvider` 即可，调用方不感知来源。
+- `SecretValue` 的 `Debug` 不输出内容，防止误入日志。
+- `AppConfig::secret_provider()` 按配置构建链；生产模式自动开启文件权限校验。
 
 ## 1.2 生产模式校验（M01-CONFIG-02）
 
