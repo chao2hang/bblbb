@@ -21,6 +21,9 @@ pending_verification → active → restricted → active
 
 - `pending_deletion` 在延迟期内可由本人撤销；`anonymized` 为终止态。
 - 管理员不能通过直接更新状态绕过 sanction、注销和审计服务。
+- 法律保留（`users.legal_hold_at` 非空，RETENTION-PRIVACY.md §1 最高优先级）：
+  禁止发起注销请求；冷却期内被设置则到期执行 Job 跳过并写审计
+  `user.deletion_deferred_legal_hold`，账户保持 `pending_delete`（M03-PROFILE-08）。
 
 ### Post
 

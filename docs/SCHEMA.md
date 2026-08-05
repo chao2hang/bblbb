@@ -113,7 +113,7 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
   的未知迁移拒绝）。
 - 四个字段全部 NOT NULL；`version` 唯一。
 
-### 迁移清单（0001–0025）
+### 迁移清单（0001–0027）
 
 三个目录（`migrations/{sqlite,mysql,mariadb}/`）同一版本号文件结构等价
 （M01-DB-09 断言）；mysql/mariadb 逐版本可执行 SQL 一致。已发布迁移不可修改，
@@ -146,6 +146,8 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | 0023 | `tags` | tag_groups/tags 演进/board_tags（M03-SCHEMA-05） |
 | 0024 | `delete_semantics` | boards 软删除/索引 + 删除停用语义（M03-SCHEMA-06） |
 | 0025 | `board_checks` | mysql/mariadb 补齐 boards visibility/posting_mode CHECK（M03-SCHEMA-07） |
+| 0026 | `users_version` | users 乐观并发 version 列（M03-PROFILE-04） |
+| 0027 | `deletion_lifecycle` | users 法律保留列 legal_hold_at（M03-PROFILE-08） |
 
 ### `site_settings`
 
@@ -180,7 +182,8 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | `failed_login_count` | 连续失败次数 |
 | `locked_until` | 登录锁定截止时间，可空 |
 | `last_login_at` | 可空 |
-| `delete_requested_at` | 可空 |
+| `delete_requested_at` | 注销请求时间（冷却期起点，可空） |
+| `legal_hold_at` | 法律保留/调查冻结时间（迁移 0027，可空；非空 = 禁止注销请求、到期执行 Job 跳过并写审计） |
 | `created_at`、`updated_at`、`deleted_at` | 时间字段 |
 | `level` | 等级缓存（默认 1，可重建；真实来源 M7 经验账户，迁移 0019） |
 | `level_updated_at` | 等级缓存刷新时间，可空（NULL = 尚未计算） |
@@ -193,6 +196,19 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 user_preferences/user_privacy，全部 Session 立即撤销；帖子/评论等公开讨论
 保留（author_id 指向匿名化行，公开投影 404）；是否释放原邮箱/用户名由隐私
 策略明确规定。
+
+注销生命周期（M03-PROFILE-08，状态机见 STATE-MACHINES.md §2 User）：
+`active/restricted` 本人请求 → `pending_delete`（写入 `delete_requested_at`，
+version+1，事务内写审计 `user.deletion_requested`）；冷却期默认 30 天
+（RETENTION-PRIVACY.md "注销延迟 30 天"），请求即入队 `account_deletion`
+执行 Job，`available_at = 请求时间 + 冷却期`，由 worker 到点领取执行；
+冷却期内本人可取消（恢复 `active`、清空 `delete_requested_at`、取消排队 Job、
+审计 `user.deletion_cancelled`）；到期执行 `anonymize_user`（匿名化 + 审计
+`user.deletion_executed` 同一事务提交）；`legal_hold_at` 非空（法律保留，
+优先级最高）时禁止请求，冷却期内被设置则到期 Job 跳过并写审计
+`user.deletion_deferred_legal_hold`（账户保持 `pending_delete`，保留解除后由
+管理端重新触发）。全部生命周期审计 append-only、不可被注销删除
+（M01-AUDIT-01）。
 
 公开用户投影 allowlist（M03-PROFILE-02）：`PublicProfile` 只允许
 `id/username/display_name/bio/level/avatar_attachment_id/signature/created_at`
