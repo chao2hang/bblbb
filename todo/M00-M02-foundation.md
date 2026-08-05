@@ -143,8 +143,8 @@
 
 - [x] `M01-JOBS-01` `[45m]` 建立 jobs 和 outbox 迁移，包含状态、attempt、run_at、lease、payload version 和幂等约束。证据：files=migrations/{sqlite,mysql,mariadb}/0007_jobs_outbox.sql,docs/SCHEMA.md,backend/tests/migration_lifecycle.rs；commands=cargo test --all-features（158 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=jobs 表（status/attempts/max_attempts/available_at/locked_by/locked_until/deduplication_key 唯一/payload_version）+ outbox 扩展（payload_version/idempotency_key 唯一）；commit=299fbcc；review=结构契约测试 + 端到端 7 迁移应用成功
 - [x] `M01-JOBS-02` `[45m]` 实现业务事务内写 Outbox，事务回滚时事件必须同步消失。证据：files=backend/src/outbox.rs,backend/tests/outbox.rs,docs/JOBS.md；commands=cargo test --all-features（160 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=enqueue_in_tx 事务内写入（提交持久/回滚消失）+ 时间戳统一 Unix 毫秒 + payload_version=1；commit=3a650da；review=2 项回滚/提交集成测试通过
-- [~] `M01-JOBS-03` `[30m]` 实现 queued/running/retry_wait/succeeded/cancelled/dead 状态机及非法迁移拒绝。
-- [ ] `M01-JOBS-04` `[45m]` 实现批量领取、owner、lease 延期和 lease 到期后的安全重领。
+- [x] `M01-JOBS-03` `[30m]` 实现 queued/running/retry_wait/succeeded/cancelled/dead 状态机及非法迁移拒绝。证据：files=backend/src/jobs/mod.rs,docs/STATE-MACHINES.md；commands=cargo test --all-features（166 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=JobStatus 六态 + allowed_transition 迁移表 + transition 非法拒绝不改状态 + 终态无出边 + running 不直接取消；commit=7cc8efb；review=6 项状态机测试 + 文档对齐
+- [~] `M01-JOBS-04` `[45m]` 实现批量领取、owner、lease 延期和 lease 到期后的安全重领。
 - [ ] `M01-JOBS-05` `[45m]` 实现分类重试、指数退避、jitter、最大次数、dead-letter 和人工重放。
 - [ ] `M01-JOBS-06` `[45m]` 消费者以 event_id/job idempotency key 去重，至少一次投递不得产生重复业务副作用。
 - [ ] `M01-JOBS-07` `[30m]` 禁止在数据库写事务中调用 SMTP、S3、AI、视频 Provider 或执行图片处理。
