@@ -197,15 +197,14 @@
 - [x] `M02-IDENTITY-10` `[45m]` 实现找回密码统一响应、30 分钟一次性 token、成功改密和其他 Session 撤销。证据：files=backend/src/auth/password_reset.rs,backend/src/routes/auth.rs,backend/tests/password_reset.rs；commands=cargo test --all-features（322 通过/0 失败，含 password_reset 11 项测试）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=request_password_reset 统一 202（不存在/已删除一致，冷却/日上限对全部请求计数防枚举）+ 冷却 60s/日上限 3 次/IP 5 每小时 + 单事务旧 token 失效→新 30 分钟 token→审计 auth.password_reset_requested→Outbox（password_reset_token_id 引用）+ confirm_password_reset UPDATE 驱动 rows==1 并发唯一 + 改密+撤销全部 Session+审计 auth.password_reset_completed + 无效/已消费/过期统一 400；commit=8c65109；review=11 项测试覆盖新 token/Noop/冷却/日上限/改密撤销会话/一次性/过期/并发唯一/HTTP 统一
 - [x] `M02-IDENTITY-11` `[30m]` 测试 token 只以 hash 入库，不出现在 API、日志、审计、Outbox 诊断或错误中。证据：files=backend/tests/token_hygiene.rs；commands=cargo test --all-features（327 通过/0 失败，含 token_hygiene 5 项测试）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=验证/重置 token 只存 64 位 hex hash（token 表）+ hash 不出现在 users/outbox/audit + 明文 token 不出现在 API 响应/审计 metadata/Outbox payload + 错误 detail 固定文案 + redact_token 日志脱敏；commit=95ca3fe；review=5 项负空间测试覆盖注册/验证/重发/找回密码/错误路径
 - [x] `M02-IDENTITY-12` `[45m]` 为注册、验证、重发、重置的事务每一步做故障注入，验证无半完成状态。证据：files=backend/tests/identity_faults.rs；commands=cargo test --all-features（333 通过/0 失败，含 identity_faults 6 项测试）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=SQLite RAISE(ABORT) 触发器在每流程指定步骤注入失败：注册 token INSERT 失败→四表回滚、验证激活 UPDATE 失败→消费回滚（含已 active 守卫 rows=0）、重发新 token INSERT 失败→旧失效回滚、重置请求新 token INSERT 失败→旧失效回滚、重置确认改密 UPDATE 失败→消费回滚+密码不变+Session 未撤销；commit=6f9f497；review=6 项故障注入测试
-- [~] `M02-SESSION-01` `[45m]` 扩展 session 迁移：token hash、device、created/last_seen、idle/absolute expiry、revoked_at 和 version。
 
 ## M02-SESSION：登录、Cookie、Session 与 CSRF
 
-**元数据：** `P0` · `owner=unassigned/backend-auth` · `risk=critical` · `depends=M02-IDENTITY` · `blocked=none`
+**元数据：** `P0` · `owner=backend-auth` · `risk=critical` · `depends=M02-IDENTITY` · `blocked=none`
 **目标文件：** `migrations/*/`、`backend/src/auth/session*`、`backend/src/middleware/csrf*`、`backend/tests/session*`
 **验收：** Session fixation、来源校验、跨站请求、撤销和生命周期测试通过。
 
-- [ ] `M02-SESSION-01` `[45m]` 扩展 session 迁移：token hash、device、created/last_seen、idle/absolute expiry、revoked_at 和 version。
+- [~] `M02-SESSION-01` `[45m]` 扩展 session 迁移：token hash、device、created/last_seen、idle/absolute expiry、revoked_at 和 version。
 - [ ] `M02-SESSION-02` `[30m]` 生成至少 256 bit 熵的 Session token，仅存 hash，并设置 `__Host-bblbb_session` 安全属性。
 - [ ] `M02-SESSION-03` `[45m]` 实现账号/IP 限流和常量时间登录失败，错误不得区分账号不存在、密码错误或账号状态。
 - [ ] `M02-SESSION-04` `[30m]` 登录、权限提升、改密和高风险重新认证时旋转 Session，防止 fixation。
