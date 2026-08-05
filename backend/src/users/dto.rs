@@ -12,7 +12,7 @@ use serde::Serialize;
 use crate::auth::session::SessionUser;
 use crate::users::profile::ProfileFields;
 
-/// 公开用户投影允许的字段（M03-PROFILE-02）。
+/// 公开用户投影允许的字段（M03-PROFILE-02/05）。
 ///
 /// 显式 allowlist，公开投影只能包含这些字段；排除邮箱、IP、Session、
 /// 内部处罚（sanction）、私有资产与审计信息。`PublicProfile` 序列化键集
@@ -24,6 +24,7 @@ pub const PUBLIC_PROFILE_ALLOWLIST: &[&str] = &[
     "bio",
     "level",
     "avatar_attachment_id",
+    "cover_attachment_id",
     "signature",
     "created_at",
 ];
@@ -31,7 +32,8 @@ pub const PUBLIC_PROFILE_ALLOWLIST: &[&str] = &[
 /// 公开用户资料（作者卡 / 公开主页）。对应 OpenAPI `PublicUser`。
 ///
 /// 严格公开 allowlist：不含邮箱、Session、IP、内部处罚、私有资产与审计
-/// 信息；`avatar_attachment_id` 只引用附件 UUID（禁止 URL/签名 URL）。
+/// 信息；`avatar_attachment_id`/`cover_attachment_id` 只引用附件 UUID
+/// （禁止 URL/签名 URL；稳定内容端点 `/api/v1/attachments/{id}`，M6 落地）。
 #[derive(Debug, Clone, Serialize)]
 pub struct PublicProfile {
     pub id: String,
@@ -40,8 +42,33 @@ pub struct PublicProfile {
     pub bio: Option<String>,
     pub level: i64,
     pub avatar_attachment_id: Option<String>,
+    pub cover_attachment_id: Option<String>,
     pub signature: Option<String>,
     pub created_at: i64,
+}
+
+/// 作者资料卡（文章/讨论列表的作者行）。对应 OpenAPI `Author`。
+///
+/// `profile_url` 为稳定公开主页端点 `/users/{username}`，不返回任何签名/
+/// 远程 URL（M03-PROFILE-05）。
+#[derive(Debug, Clone, Serialize)]
+pub struct Author {
+    pub username: String,
+    pub display_name: Option<String>,
+    pub level: i64,
+    pub profile_url: String,
+}
+
+impl Author {
+    /// 从公开投影构建作者卡。
+    pub fn from_public(profile: &PublicProfile) -> Self {
+        Self {
+            username: profile.username.clone(),
+            display_name: profile.display_name.clone(),
+            level: profile.level,
+            profile_url: format!("/users/{}", profile.username),
+        }
+    }
 }
 
 /// 本人资料（GET/PATCH `/api/v1/me`）。对应 OpenAPI `Me`。

@@ -36,6 +36,7 @@ export interface PublicUser {
   level: number;
   bio?: string | null;
   avatar_attachment_id?: string | null;
+  cover_attachment_id?: string | null;
   signature?: string | null;
   created_at: number;
 }
@@ -96,9 +97,9 @@ export interface ResourceMeta {
 }
 export interface Author {
   username: string;
-  display_name: string;
+  display_name: string | null;
   level: number;
-  profile_url?: string;
+  profile_url: string;
 }
 export type Me = ResourceMeta & {
   username: string;

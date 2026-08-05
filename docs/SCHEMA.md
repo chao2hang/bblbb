@@ -194,10 +194,12 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 序列化键集测试断言）；邮箱、IP、Session、内部处罚、私有资产与审计信息
 绝不出现在公开投影中。本人（`Me`）与管理（`AdminUser`）投影见 M03-PROFILE-01。
 
-头像/Cover 引用约定（M03-SCHEMA-02）：`avatar_attachment_id` /
+头像/Cover 引用约定（M03-SCHEMA-02/05）：`avatar_attachment_id` /
 `cover_attachment_id` 只保存附件 UUID（`ProfileCoverSet.attachment_id`
 `format: uuid`），**禁止保存远程 URL 或签名 URL**——来源与格式校验在
 M3-PROFILE 服务层；`attachments` 表（M6 存储）落地后为这两列补外键。
+公开投影返回的附件引用通过稳定内容端点 `/api/v1/attachments/{id}` 取内容
+（M6），客户端不得依赖 URL 字段。
 
 规范化约定（M02-IDENTITY-02）：`username_normalized` / `email_normalized`
 入库前先 `trim → Unicode NFKC → lowercase`（`auth::normalize_username` /

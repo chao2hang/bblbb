@@ -15,13 +15,14 @@ use crate::{app::AppState, auth::session::AuthSession, error::AppError};
 
 /// 公开资料查询行：
 /// (id, username_normalized, display_name, bio, level, avatar_attachment_id,
-/// signature, created_at)。
+/// cover_attachment_id, signature, created_at)。
 type PublicUserRow = (
     String,
     String,
     Option<String>,
     Option<String>,
     i64,
+    Option<String>,
     Option<String>,
     Option<String>,
     i64,
@@ -154,7 +155,7 @@ async fn get_public_user(
     let row: Option<PublicUserRow> = match pool {
         Either::Left(p) => {
             sqlx::query_as(
-                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, signature, created_at
+                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at
                  FROM users WHERE username_normalized = ? AND status != 'deleted'",
             )
             .bind(&username_normalized)
@@ -163,7 +164,7 @@ async fn get_public_user(
         }
         Either::Right(p) => {
             sqlx::query_as(
-                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, signature, created_at
+                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at
                  FROM users WHERE username_normalized = ? AND status != 'deleted'",
             )
             .bind(&username_normalized)
@@ -181,6 +182,7 @@ async fn get_public_user(
             bio,
             level,
             avatar_attachment_id,
+            cover_attachment_id,
             signature,
             created_at,
         )) => Ok(Json(PublicProfile {
@@ -190,6 +192,7 @@ async fn get_public_user(
             bio,
             level,
             avatar_attachment_id,
+            cover_attachment_id,
             signature,
             created_at,
         })),

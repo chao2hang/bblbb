@@ -6467,6 +6467,11 @@ components:
           - string
           - 'null'
           description: 头像附件 UUID 引用（禁止 URL/签名 URL）
+        cover_attachment_id:
+          type:
+          - string
+          - 'null'
+          description: Cover 附件 UUID 引用（禁止 URL/签名 URL；稳定内容端点 /api/v1/attachments/{id}，M6 落地）
         signature:
           type:
           - string
@@ -6695,11 +6700,14 @@ components:
       - username
       - display_name
       - level
+      - profile_url
       properties:
         username:
           type: string
         display_name:
-          type: string
+          type:
+          - string
+          - 'null'
         level:
           type: integer
           minimum: 1

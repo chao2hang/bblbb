@@ -104,21 +104,26 @@ async fn get_public_user(app: &Router, username: &str) -> (StatusCode, String) {
 }
 
 /// 直接改库填充敏感字段：邮箱（仅 email_normalized 列）、封禁状态、
-/// 最后登录、注销请求时间。
+/// 最后登录、注销请求时间、头像/Cover 附件引用。
 async fn mark_sensitive(pool: &DatabasePool, username: &str, email: &str, status: &str) {
     let now = now_millis();
     let email_normalized = email.to_lowercase();
+    let avatar = uuid::Uuid::now_v7().to_string();
+    let cover = uuid::Uuid::now_v7().to_string();
     match pool {
         Either::Left(p) => {
             sqlx::query(
                 "UPDATE users
-                 SET email_normalized = ?, status = ?, last_login_at = ?, delete_requested_at = ?
+                 SET email_normalized = ?, status = ?, last_login_at = ?, delete_requested_at = ?,
+                     avatar_attachment_id = ?, cover_attachment_id = ?
                  WHERE username_normalized = ?",
             )
             .bind(&email_normalized)
             .bind(status)
             .bind(now)
             .bind(now)
+            .bind(&avatar)
+            .bind(&cover)
             .bind(username)
             .execute(p)
             .await
@@ -157,6 +162,19 @@ async fn public_user_never_leaks_sensitive_fields() {
         assert!(
             PUBLIC_PROFILE_ALLOWLIST.contains(&key.as_str()),
             "公开投影出现 allowlist 之外字段: {key}"
+        );
+    }
+
+    // 1b. Cover/头像只返回稳定附件 UUID（M03-PROFILE-05），绝不返回 URL
+    for field in ["avatar_attachment_id", "cover_attachment_id"] {
+        let value = parsed[field].as_str().expect("附件引用必须存在");
+        assert!(
+            uuid::Uuid::parse_str(value).is_ok(),
+            "{field} 必须是 UUID: {value}"
+        );
+        assert!(
+            !value.contains("://") && !value.contains("signed"),
+            "{field} 不得是远程/签名 URL: {value}"
         );
     }
 

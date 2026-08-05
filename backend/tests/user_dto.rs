@@ -7,7 +7,7 @@
 //! 测试数据直接从 DTO 显式字段构建（不复用数据库实体序列化）。
 
 use bblbb_backend::auth::session::SessionUser;
-use bblbb_backend::users::dto::{AdminUser, Me, PublicProfile, PUBLIC_PROFILE_ALLOWLIST};
+use bblbb_backend::users::dto::{AdminUser, Author, Me, PublicProfile, PUBLIC_PROFILE_ALLOWLIST};
 use bblbb_backend::users::profile::ProfileFields;
 use serde_json::Value;
 
@@ -30,19 +30,24 @@ fn sorted_keys(v: &Value) -> Vec<String> {
     keys
 }
 
-/// 公开投影必须严格 allowlist：键集正好是公开字段，且不含任何私有字段。
-#[test]
-fn public_profile_is_strict_allowlist() {
-    let profile = PublicProfile {
+fn sample_public_profile() -> PublicProfile {
+    PublicProfile {
         id: "00000000-0000-7000-8000-000000000001".to_string(),
         username: "alice".to_string(),
         display_name: Some("爱丽丝".to_string()),
         bio: Some("hello".to_string()),
         level: 3,
         avatar_attachment_id: Some("00000000-0000-7000-8000-000000000099".to_string()),
+        cover_attachment_id: Some("00000000-0000-7000-8000-000000000098".to_string()),
         signature: Some("个性签名".to_string()),
         created_at: 1_700_000_000_000,
-    };
+    }
+}
+
+/// 公开投影必须严格 allowlist：键集正好是公开字段，且不含任何私有字段。
+#[test]
+fn public_profile_is_strict_allowlist() {
+    let profile = sample_public_profile();
     let v = serde_json::to_value(&profile).unwrap();
     let mut expected = vec![
         "id",
@@ -51,6 +56,7 @@ fn public_profile_is_strict_allowlist() {
         "bio",
         "level",
         "avatar_attachment_id",
+        "cover_attachment_id",
         "signature",
         "created_at",
     ];
@@ -81,16 +87,7 @@ fn public_profile_is_strict_allowlist() {
 /// 不得包含任何敏感字段（M03-PROFILE-02）。
 #[test]
 fn public_profile_keys_match_allowlist_constant() {
-    let profile = PublicProfile {
-        id: "00000000-0000-7000-8000-000000000001".to_string(),
-        username: "alice".to_string(),
-        display_name: Some("爱丽丝".to_string()),
-        bio: Some("hello".to_string()),
-        level: 3,
-        avatar_attachment_id: Some("00000000-0000-7000-8000-000000000099".to_string()),
-        signature: Some("个性签名".to_string()),
-        created_at: 1_700_000_000_000,
-    };
+    let profile = sample_public_profile();
     let v = serde_json::to_value(&profile).unwrap();
     let keys = sorted_keys(&v);
     let mut allowlist = PUBLIC_PROFILE_ALLOWLIST.to_vec();
@@ -116,6 +113,42 @@ fn public_profile_keys_match_allowlist_constant() {
             "allowlist 不得包含敏感字段: {leaked}"
         );
     }
+}
+
+/// Cover/头像只返回稳定附件 UUID 引用，绝不包含远程/签名 URL（M03-PROFILE-05）。
+#[test]
+fn profile_media_refs_are_stable_uuids_not_urls() {
+    let profile = sample_public_profile();
+    let v = serde_json::to_value(&profile).unwrap();
+    for field in ["avatar_attachment_id", "cover_attachment_id"] {
+        let value = v[field].as_str().unwrap();
+        assert!(
+            uuid::Uuid::parse_str(value).is_ok(),
+            "{field} 必须是 UUID: {value}"
+        );
+        assert!(
+            !value.contains("://") && !value.contains("signed") && !value.contains("token"),
+            "{field} 不得是远程/签名 URL: {value}"
+        );
+    }
+}
+
+/// 作者卡：profile_url 指向稳定公开主页端点 /users/{username}（M03-PROFILE-05）。
+#[test]
+fn author_card_uses_stable_profile_url() {
+    let author = Author::from_public(&sample_public_profile());
+    let v = serde_json::to_value(&author).unwrap();
+    assert_eq!(v["username"], "alice");
+    assert_eq!(v["display_name"], "爱丽丝");
+    assert_eq!(v["level"], 3);
+    assert_eq!(
+        v["profile_url"], "/users/alice",
+        "作者卡必须用稳定公开主页端点"
+    );
+    assert!(
+        !v["profile_url"].as_str().unwrap().contains("://"),
+        "profile_url 不得是远程 URL"
+    );
 }
 
 /// Me 为本人的显式投影：含本人可见字段与 mfa_enabled。
