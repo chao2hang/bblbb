@@ -13,11 +13,12 @@
   import LoadingState from '$lib/components/ui/LoadingState.svelte';
   import OfflineState from '$lib/components/ui/OfflineState.svelte';
 
-  let boards = $state<Board[]>([]);
-  let tags = $state<Tag[]>([]);
-  let posts = $state<PostSummary[]>([]);
+  let boards = $state<Board[]>(page.data.boards ?? []);
+  let tags = $state<Tag[]>(page.data.tags ?? []);
+  let posts = $state<PostSummary[]>(page.data.posts ?? []);
   let user = $state<{ username: string; display_name?: string | null } | null>(null);
-  let loading = $state(true);
+  // M00-FRONTEND-08：初始 loading=false —— SSR 已提供公开数据，无 JS 时直接可读。
+  let loading = $state(false);
   let offline = $state(false);
 
   async function load() {
@@ -35,7 +36,8 @@
     } catch {
       posts = [];
     }
-    if (boardResult.status === 'rejected' && tagResult.status === 'rejected') {
+    // 仅当 SSR 也拿不到数据时才进入离线态，避免隐藏已渲染的公开内容。
+    if (boardResult.status === 'rejected' && tagResult.status === 'rejected' && boards.length === 0) {
       offline = true;
     }
     loading = false;

@@ -3,6 +3,7 @@
   import { login } from '$lib/api/client';
   import { problemText, type Problem } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
+  import NoJsNotice from '$lib/components/ui/NoJsNotice.svelte';
 
   let identifier = $state('');
   let password = $state('');
@@ -37,6 +38,7 @@
     </div>
     <div class="auth-body">
       <form class="auth-form" onsubmit={handleSubmit}>
+        <NoJsNotice message="登录需要启用 JavaScript。请启用后重试，或联系社区寻求帮助。" />
         <div class="input-wrapper">
           <label class="input-label" for="login-identifier">用户名或邮箱</label>
           <input type="text" class="input-field" id="login-identifier" placeholder="用户名或邮箱" bind:value={identifier} autocomplete="username" />

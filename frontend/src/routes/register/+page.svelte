@@ -3,6 +3,7 @@
   import { register } from '$lib/api/client';
   import { problemText, fieldError, type Problem } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
+  import NoJsNotice from '$lib/components/ui/NoJsNotice.svelte';
 
   let username = $state('');
   let email = $state('');
@@ -60,6 +61,7 @@
         </div>
       {:else}
         <form class="auth-form" onsubmit={handleSubmit}>
+          <NoJsNotice message="注册需要启用 JavaScript。请启用后重试，或联系社区寻求帮助。" />
           <div class="input-wrapper">
             <label class="input-label" for="reg-username">用户名</label>
             <input type="text" class="input-field" id="reg-username" placeholder="3-20 个字符" bind:value={username} autocomplete="username" aria-describedby={usernameError ? 'reg-username-error' : undefined} />
