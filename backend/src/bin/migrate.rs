@@ -1,7 +1,9 @@
 //! BBLBB 数据库迁移工具（`bblbb-migrate`）。
 //!
-//! 当前实现 `--check` 只读检查（M01-DB-05）：校验迁移文件的版本、顺序与
-//! checksum，不创建迁移表、不写入任何数据。显式应用命令由 M01-DB-06 提供。
+//! - `apply`：显式应用待执行迁移（M01-DB-06）。数据库超前（未来版本）或
+//!   checksum 不匹配时拒绝应用，返回非零退出码。
+//! - `--check`：只读检查迁移文件的版本、顺序与 checksum（M01-DB-05），
+//!   不创建迁移表、不写入任何数据。
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -16,10 +18,15 @@ const USAGE: &str = "\
 bblbb-migrate — BBLBB 数据库迁移工具
 
 用法：
+  bblbb-migrate apply [--db-url <URL>] [--migrations-dir <DIR>]
   bblbb-migrate --check [--db-url <URL>] [--migrations-dir <DIR>]
 
-选项：
+子命令：
+  apply              显式应用待执行迁移（幂等；checksum 不匹配或数据库
+                    超前于迁移文件时拒绝应用，不部分执行）
   --check            只读检查迁移文件的版本、顺序与 checksum，不改变数据库
+
+选项：
   --db-url <URL>     覆盖数据库连接串（默认取自 BBLBB__DATABASE_URL / .env）
   --migrations-dir <DIR>  覆盖迁移目录（默认取自 BBLBB__MIGRATIONS_DIR / .env）
   -h, --help         显示帮助
@@ -34,8 +41,10 @@ async fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    if !args.iter().any(|a| a == "--check") {
-        eprintln!("error: expected --check（当前仅实现只读检查）");
+    let check = args.iter().any(|a| a == "--check");
+    let apply = args.iter().any(|a| a == "apply");
+    if check == apply {
+        eprintln!("error: 需要且只能指定一个操作：apply 或 --check");
         eprintln!();
         eprint!("{USAGE}");
         return ExitCode::FAILURE;
@@ -78,7 +87,7 @@ async fn main() -> ExitCode {
     let first = files.first().map(|f| f.version).unwrap_or(0);
     let last = files.last().map(|f| f.version).unwrap_or(0);
 
-    // 3) 连接数据库并执行只读检查（不创建迁移表、不写入）
+    // 3) 连接数据库
     let pool = match create_pool_with_options(&database_url, &config.db_options()).await {
         Ok(pool) => pool,
         Err(error) => {
@@ -87,23 +96,67 @@ async fn main() -> ExitCode {
         }
     };
 
-    let result = match migrate::check_migrations_with_mode(CheckMode::ReadOnly, &pool, &files).await
-    {
-        Ok(result) => result,
-        Err(error) => {
-            eprintln!("migration check failed: {error}");
-            close_pool(&pool).await;
-            return ExitCode::FAILURE;
+    if apply {
+        apply_command(&pool, &files, first, last).await
+    } else {
+        check_command(&pool, &files, first, last).await
+    }
+}
+
+/// `bblbb-migrate apply`：显式应用待执行迁移。
+async fn apply_command(
+    pool: &DatabasePool,
+    files: &[migrate::MigrationFile],
+    first: u64,
+    last: u64,
+) -> ExitCode {
+    println!(
+        "applying migrations: {} files (versions {first}..{last}, ordered)",
+        files.len()
+    );
+
+    let result = migrate::run_migrations(pool, files).await;
+
+    // 无论成功失败都关闭连接池
+    close_pool(pool).await;
+
+    match result {
+        Ok(applied) => {
+            println!("applied {applied} migration(s)");
+            println!("OK: database is up to date");
+            ExitCode::SUCCESS
         }
-    };
+        Err(error) => {
+            eprintln!("migration failed: {error}");
+            eprintln!("database left unchanged（迁移在事务内执行，失败即回滚）");
+            ExitCode::FAILURE
+        }
+    }
+}
 
-    close_pool(&pool).await;
-
-    // 4) 输出报告
+/// `bblbb-migrate --check`：只读检查（不创建迁移表、不写入）。
+async fn check_command(
+    pool: &DatabasePool,
+    files: &[migrate::MigrationFile],
+    first: u64,
+    last: u64,
+) -> ExitCode {
     println!(
         "migration files: {} (versions {first}..{last}, ordered)",
         files.len()
     );
+
+    let result = match migrate::check_migrations_with_mode(CheckMode::ReadOnly, pool, files).await {
+        Ok(result) => result,
+        Err(error) => {
+            eprintln!("migration check failed: {error}");
+            close_pool(pool).await;
+            return ExitCode::FAILURE;
+        }
+    };
+
+    close_pool(pool).await;
+
     println!("applied: {} / {}", result.applied_count, result.total_count);
     if result.pending.is_empty() {
         println!("pending: none");

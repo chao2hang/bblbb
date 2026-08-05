@@ -6,7 +6,7 @@ use sqlx::Either;
 use crate::db::pool::DatabasePool;
 
 /// 迁移文件记录
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MigrationFile {
     pub version: u64,
     pub name: String,
@@ -329,6 +329,18 @@ pub async fn run_migrations(
         ));
     }
 
+    // M01-DB-06：数据库超前于迁移文件（存在代码未知/未来的已执行版本）时
+    // 拒绝应用，防止对新数据库降级覆盖或静默跳过未知迁移。
+    if !check.future_versions.is_empty() {
+        return Err(sqlx::Error::Configuration(
+            format!(
+                "database is ahead of migration files (future versions {:?}); refusing to apply",
+                check.future_versions
+            )
+            .into(),
+        ));
+    }
+
     let mut applied = 0;
     for file in files {
         if check.pending.contains(&file.version) {
@@ -538,5 +550,100 @@ mod tests {
         ];
         let err = validate_file_order(&files).unwrap_err();
         assert!(err.contains("strictly increasing"), "{err}");
+    }
+
+    /// 显式 migrate 命令：按版本顺序应用全部 pending 迁移。
+    #[tokio::test]
+    async fn run_migrations_applies_pending_in_order() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        let files = vec![
+            test_file(1, "a", "CREATE TABLE a (id INTEGER PRIMARY KEY);"),
+            test_file(2, "b", "CREATE TABLE b (id INTEGER PRIMARY KEY);"),
+        ];
+        let applied = run_migrations(&pool, &files).await.unwrap();
+        assert_eq!(applied, 2);
+
+        let records = list_applied_migrations(&pool).await.unwrap();
+        let versions: Vec<i64> = records.iter().map(|r| r.version).collect();
+        assert_eq!(versions, vec![1, 2]);
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 显式 migrate 命令：第二次运行是幂等的，应用 0 个迁移。
+    #[tokio::test]
+    async fn run_migrations_is_idempotent() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        let files = vec![test_file(
+            1,
+            "a",
+            "CREATE TABLE a (id INTEGER PRIMARY KEY);",
+        )];
+        assert_eq!(run_migrations(&pool, &files).await.unwrap(), 1);
+        assert_eq!(run_migrations(&pool, &files).await.unwrap(), 0);
+        assert_eq!(list_applied_migrations(&pool).await.unwrap().len(), 1);
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 已执行迁移内容被篡改（checksum 不匹配）时拒绝继续应用。
+    #[tokio::test]
+    async fn run_migrations_refuses_checksum_mismatch() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        let original = test_file(1, "a", "CREATE TABLE a (id INTEGER PRIMARY KEY);");
+        run_migrations(&pool, &[original]).await.unwrap();
+
+        // 同一版本内容被篡改
+        let tampered = test_file(1, "a", "CREATE TABLE a (id TEXT PRIMARY KEY);");
+        let err = run_migrations(&pool, &[tampered]).await.unwrap_err();
+        assert!(format!("{err}").contains("checksum mismatch"), "{err}");
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 数据库超前（未来版本）时拒绝应用，防止降级覆盖。
+    #[tokio::test]
+    async fn run_migrations_refuses_future_versions() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        let v1 = test_file(1, "a", "CREATE TABLE a (id INTEGER PRIMARY KEY);");
+        let v2 = test_file(2, "b", "CREATE TABLE b (id INTEGER PRIMARY KEY);");
+        run_migrations(&pool, &[v1.clone(), v2]).await.unwrap();
+
+        // 文件只剩 v1 → v2 是代码未知的未来版本，必须拒绝
+        let err = run_migrations(&pool, &[v1]).await.unwrap_err();
+        assert!(
+            format!("{err}").contains("ahead of migration files"),
+            "{err}"
+        );
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
     }
 }
