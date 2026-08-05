@@ -301,6 +301,24 @@ textarea.input-field {
   background-size: cover;
 }
 
+/* M03-UI-05：Cover 图片安全渲染（加载失败自动回到渐变占位） */
+.profile-cover {
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-cover.has-error {
+  background-color: var(--color-bg-inset);
+}
+
 .user-hover-body {
   position: relative;
   padding: var(--space-4);

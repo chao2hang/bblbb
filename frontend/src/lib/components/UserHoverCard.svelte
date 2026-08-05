@@ -6,6 +6,7 @@
   // 严禁传入邮箱、状态、凭据等私有字段；组件实现也只渲染这些公开字段。
   // SSR 泄漏测试见 frontend/src/lib/testing/ssr/privacy.test.ts。
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
   import type { PublicProfile } from '$lib/api/client';
 
   let {
@@ -22,7 +23,7 @@
 </script>
 
 <div class="user-hover-card" role="dialog" aria-label="{displayName} 的个人资料">
-  <div class="user-hover-cover" role="presentation"></div>
+  <ProfileCover class="user-hover-cover" />
   <div class="user-hover-body">
     <div class="user-hover-avatar">
       <Avatar name={displayName} size="lg" />

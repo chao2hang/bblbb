@@ -40,7 +40,9 @@ const adversarialProfile = {
   password_hash: 'CLIENT-CACHE-HASH',
   session_token: 'CLIENT-CACHE-TOKEN',
   mfa_enabled: true,
-  last_login_at: 1780000000000
+  last_login_at: 1780000000000,
+  cover_url: 'https://cdn.example.com/cover-alice?v=1&X-Amz-Signature=abc&Expires=1789999999',
+  avatar_url: 'https://cdn.example.com/avatar-alice?v=1&X-Amz-Signature=def&Expires=1789999999'
 };
 
 vi.mock('$lib/api/client', () => ({
@@ -63,6 +65,9 @@ describe('M03-PROFILE-09 用户页客户端缓存/渲染隐私守卫', () => {
       expect(text).not.toContain('mfa');
       expect(text).not.toContain('last_login');
       expect(text).not.toContain('status');
+      // 签名 URL 不进入客户端 DOM（渲染期临时 URL 不持久化）。
+      expect(text).not.toContain('cdn.example.com');
+      expect(text).not.toContain('X-Amz-Signature');
     });
   });
 });

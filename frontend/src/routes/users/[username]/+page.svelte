@@ -13,6 +13,7 @@
   import { getUser, type PublicProfile } from '$lib/api/client';
   import { type Problem } from '$lib/errors';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
   import type { UserPageData } from './+page.server';
 
@@ -61,7 +62,7 @@
     <ProblemState {problem} desc="用户可能已注销或不存在" />
   {:else if user}
     <div class="card profile-page-card">
-      <div class="profile-cover" role="img" aria-label="个人资料背景"></div>
+      <ProfileCover class="profile-cover" label="个人资料背景" />
       <div class="profile-header">
         <div class="profile-avatar">
           <Avatar name={user.display_name || user.username} size="xl" />

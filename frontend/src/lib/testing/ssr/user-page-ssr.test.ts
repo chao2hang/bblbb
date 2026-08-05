@@ -33,7 +33,11 @@ const adversarialProfile = {
   password_hash: 'SSR-USER-PAGE-HASH',
   session_token: 'SSR-USER-PAGE-TOKEN',
   mfa_enabled: true,
-  last_login_at: 1780000000000
+  last_login_at: 1780000000000,
+  // 签名 URL（M6 渲染期临时解析，不得被任何投影持久化）
+  cover_url: 'https://cdn.example.com/cover-alice?v=1&X-Amz-Signature=abc&Expires=1789999999',
+  avatar_url: 'https://cdn.example.com/avatar-alice?v=1&X-Amz-Signature=def&Expires=1789999999',
+  signed_url: 'https://s3.example.com/private?v=1&X-Amz-Signature=xyz&Expires=1789999999'
 };
 
 describe('M03-UI-01 用户主页 SSR 守卫', () => {
@@ -50,6 +54,10 @@ describe('M03-UI-01 用户主页 SSR 守卫', () => {
     expect(body).not.toContain('mfa');
     expect(body).not.toContain('last_login');
     expect(body).not.toContain('status');
+    // 签名 URL 不进入 SSR HTML（不持久化渲染期临时 URL）。
+    expect(body).not.toContain('cdn.example.com');
+    expect(body).not.toContain('X-Amz-Signature');
+    expect(body).not.toContain('signed_url');
   });
 
   it('降级投影（banned/pending_delete：bio/signature/媒体置空）安全渲染且不泄漏状态', () => {

@@ -20,7 +20,9 @@ const adversarial = {
   ...user,
   email: 'alice@example.com',
   status: 'active',
-  password_hash: 'USER-CARD-HASH'
+  password_hash: 'USER-CARD-HASH',
+  cover_url: 'https://cdn.example.com/cover?v=1&X-Amz-Signature=abc&Expires=1789999999',
+  avatar_url: 'https://cdn.example.com/avatar?v=1&X-Amz-Signature=def&Expires=1789999999'
 };
 
 function renderCard(props: Record<string, unknown> = {}) {
@@ -104,6 +106,9 @@ describe('M03-UI-03 用户资料卡', () => {
     expect(card.textContent).not.toContain('alice@example.com');
     expect(card.textContent).not.toContain('USER-CARD-HASH');
     expect(card.textContent).not.toContain('active');
+    // 签名 URL 不进入浮层 DOM。
+    expect(card.textContent).not.toContain('cdn.example.com');
+    expect(card.textContent).not.toContain('X-Amz-Signature');
   });
 
   it('触发内容可自定义（children），缺省为头像', () => {
