@@ -238,6 +238,9 @@ Content-Security-Policy: default-src 'self'; ...
 - 高风险操作审计 helper（M01-AUDIT-06）：管理员代操作/权限变更/配置变更/
   账务变更/内容审核/Secret 变更/Feature Flag 变更各有专用构造函数，强制携带
   effective role、reason 与 policy version；Secret 审计只记录名称，绝不接收值。
+- 审计与业务事务原子性（M01-AUDIT-08）：高风险操作在业务事务内调用
+  `AuditEntry::record_in_tx`，与业务变更、Outbox 事件同一事务提交——回滚时
+  审计同步消失，保证"无审计不提交"；审计 request_id 贯通 Outbox 消费链。
 - OIDC Client 所得 claim 受 scope 和同意控制。
 
 ## 19. 部署加固

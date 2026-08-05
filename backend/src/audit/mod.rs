@@ -281,6 +281,71 @@ impl AuditEntry {
         tracing::debug!(audit_id = %id, action = %self.action, "audit log recorded");
         Ok(())
     }
+
+    /// 在业务事务内写入审计（M01-AUDIT-08）：与业务变更同一事务提交，
+    /// 回滚时审计同步消失——保证"高风险操作无审计无法提交"。
+    ///
+    /// 与 [`crate::outbox::enqueue_in_tx`] 共用事务类型；调用方必须先
+    /// `begin`，在提交前调用。
+    pub async fn record_in_tx<'e>(
+        self,
+        tx: &mut crate::outbox::OutboxTx<'e>,
+    ) -> Result<(), sqlx::Error> {
+        let id = uuid::Uuid::now_v7().to_string();
+        let now = now_millis();
+        let metadata_json = self
+            .metadata
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_default());
+
+        match tx {
+            Either::Left(t) => {
+                sqlx::query(
+                    "INSERT INTO audit_logs
+                         (id, actor_id, effective_role, action, target_type, target_id, reason, policy_version, metadata, request_id, ip_address, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(&id)
+                .bind(&self.actor_id)
+                .bind(&self.effective_role)
+                .bind(&self.action)
+                .bind(&self.target_type)
+                .bind(&self.target_id)
+                .bind(&self.reason)
+                .bind(&self.policy_version)
+                .bind(&metadata_json)
+                .bind(&self.request_id)
+                .bind(&self.ip_address)
+                .bind(now)
+                .execute(&mut **t)
+                .await?;
+            }
+            Either::Right(t) => {
+                sqlx::query(
+                    "INSERT INTO audit_logs
+                         (id, actor_id, effective_role, action, target_type, target_id, reason, policy_version, metadata, request_id, ip_address, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(&id)
+                .bind(&self.actor_id)
+                .bind(&self.effective_role)
+                .bind(&self.action)
+                .bind(&self.target_type)
+                .bind(&self.target_id)
+                .bind(&self.reason)
+                .bind(&self.policy_version)
+                .bind(&metadata_json)
+                .bind(&self.request_id)
+                .bind(&self.ip_address)
+                .bind(now)
+                .execute(&mut **t)
+                .await?;
+            }
+        }
+
+        tracing::debug!(audit_id = %id, action = %self.action, "audit log recorded in transaction");
+        Ok(())
+    }
 }
 
 /// 审计 before/after 字段白名单（M01-AUDIT-02）。
