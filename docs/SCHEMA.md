@@ -635,10 +635,11 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 
 ### `audit_logs`
 
-- `id`、`request_id`、`actor_user_id`、`actor_type`。
-- `action`、`target_type`、`target_id`、`outcome`。
-- `reason`、`metadata_json`、`ip_prefix_hash`、`user_agent`、`created_at`。
-- 只追加；普通后台接口不得修改或删除。
+- `id`、`actor_id`、`effective_role`（执行时生效角色）、`action`。
+- `target_type`、`target_id`、`reason`、`policy_version`（权限策略版本）。
+- `metadata`（字段 allowlist 过滤，M01-AUDIT-02）、`request_id`、`ip_address`、`created_at`（Unix 毫秒）。
+- **不可关闭、只追加**（M01-AUDIT-01）：无 status/disabled 列，代码不提供
+  删除/修改审计记录路径。
 
 ## 14. 内部商城、装扮与活跃
 
