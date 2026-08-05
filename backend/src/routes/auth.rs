@@ -110,6 +110,8 @@ struct MeResponse {
     display_name: Option<String>,
     level: i64,
     roles: Vec<String>,
+    /// 两步验证（TOTP）是否已启用（与 GET /me 投影一致，M02-UX-06/09）。
+    mfa_enabled: bool,
 }
 
 // ─── 路由 ────────────────────────────────────────────────────────────────────
@@ -452,6 +454,9 @@ async fn login(
             }
 
             let cookie = build_session_cookie(&outcome.session_token);
+            let mfa_enabled = crate::auth::has_confirmed_totp(pool, &outcome.user_id)
+                .await
+                .unwrap_or(false);
             let me = MeResponse {
                 id: outcome.user_id,
                 username: outcome.username,
@@ -461,6 +466,7 @@ async fn login(
                 display_name: outcome.display_name,
                 level: 1,
                 roles: vec![],
+                mfa_enabled,
             };
             Ok((
                 StatusCode::OK,
@@ -547,6 +553,7 @@ async fn login_mfa(
     {
         Ok(completed) => {
             let cookie = build_session_cookie(&completed.session_token);
+            // 第二步完成时 TOTP 必然已启用（mfa_required 由 has_confirmed_totp 判定）
             let me = MeResponse {
                 id: completed.user_id,
                 username: completed.username,
@@ -556,6 +563,7 @@ async fn login_mfa(
                 display_name: completed.display_name,
                 level: 1,
                 roles: vec![],
+                mfa_enabled: true,
             };
             Ok((
                 StatusCode::OK,
