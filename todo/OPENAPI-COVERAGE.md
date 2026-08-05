@@ -7,7 +7,7 @@
 
 - 契约操作：**183**
 - 唯一 operationId：**183**
-- 实现状态：`baseline_only` 1；`not_started` 182
+- 实现状态：`baseline_only` 6；`implemented` 18；`not_started` 159
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -24,24 +24,24 @@
 | operationId | Method | Path | Tag | Milestone / work package | Priority | Status | Owner |
 |---|---:|---|---|---|---:|---|---|
 | `getHealth` | `GET` | `/healthz` | Health | `M0` / `M00-BACKEND` | `P0` | `baseline_only` | `platform` |
-| `getCsrfToken` | `GET` | `/api/v1/auth/csrf` | Auth | `M2` / `M02-SESSION` | `P0` | `not_started` | `unassigned` |
-| `login` | `POST` | `/api/v1/auth/login` | Auth | `M2` / `M02-SESSION` | `P0` | `not_started` | `unassigned` |
-| `loginMfa` | `POST` | `/api/v1/auth/login/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `mfaDisable` | `DELETE` | `/api/v1/auth/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `mfaConfirm` | `POST` | `/api/v1/auth/mfa/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `mfaEnroll` | `POST` | `/api/v1/auth/mfa/enroll` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `mfaCancel` | `DELETE` | `/api/v1/auth/mfa/enrollment` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `mfaRecoveryCodes` | `POST` | `/api/v1/auth/mfa/recovery-codes` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `requestPasswordReset` | `POST` | `/api/v1/auth/password-reset` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `confirmPasswordReset` | `POST` | `/api/v1/auth/password-reset/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `reAuth` | `POST` | `/api/v1/auth/re-auth` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `register` | `POST` | `/api/v1/auth/register` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `resendVerification` | `POST` | `/api/v1/auth/resend-verification` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `logout` | `DELETE` | `/api/v1/auth/session` | Auth | `M2` / `M02-SESSION` | `P0` | `not_started` | `unassigned` |
-| `logoutAll` | `DELETE` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `listSessions` | `GET` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `revokeSession` | `DELETE` | `/api/v1/auth/sessions/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
-| `verifyEmail` | `POST` | `/api/v1/auth/verify-email` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
+| `getCsrfToken` | `GET` | `/api/v1/auth/csrf` | Auth | `M2` / `M02-SESSION` | `P0` | `implemented` | `backend-auth` |
+| `login` | `POST` | `/api/v1/auth/login` | Auth | `M2` / `M02-SESSION` | `P0` | `implemented` | `backend-auth` |
+| `loginMfa` | `POST` | `/api/v1/auth/login/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `mfaDisable` | `DELETE` | `/api/v1/auth/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `mfaConfirm` | `POST` | `/api/v1/auth/mfa/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `mfaEnroll` | `POST` | `/api/v1/auth/mfa/enroll` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `mfaCancel` | `DELETE` | `/api/v1/auth/mfa/enrollment` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `mfaRecoveryCodes` | `POST` | `/api/v1/auth/mfa/recovery-codes` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `requestPasswordReset` | `POST` | `/api/v1/auth/password-reset` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `confirmPasswordReset` | `POST` | `/api/v1/auth/password-reset/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `reAuth` | `POST` | `/api/v1/auth/re-auth` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `register` | `POST` | `/api/v1/auth/register` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `resendVerification` | `POST` | `/api/v1/auth/resend-verification` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `logout` | `DELETE` | `/api/v1/auth/session` | Auth | `M2` / `M02-SESSION` | `P0` | `implemented` | `backend-auth` |
+| `logoutAll` | `DELETE` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `listSessions` | `GET` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `revokeSession` | `DELETE` | `/api/v1/auth/sessions/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `verifyEmail` | `POST` | `/api/v1/auth/verify-email` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
 | `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
 | `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
 | `getAdminBoard` | `GET` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
@@ -61,12 +61,12 @@
 | `createAdminUser` | `POST` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `getAdminUser` | `GET` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `updateAdminUser` | `PATCH` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `getMe` | `GET` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `updateMe` | `PATCH` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
+| `getMe` | `GET` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `baseline_only` | `backend-auth` |
+| `updateMe` | `PATCH` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `baseline_only` | `backend-auth` |
 | `delete_me_profile_cover` | `DELETE` | `/api/v1/me/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `post_me_profile_cover` | `POST` | `/api/v1/me/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `get_users_user_id_profile_cover` | `GET` | `/api/v1/users/{user_id}/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `getPublicUser` | `GET` | `/api/v1/users/{username}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
+| `getPublicUser` | `GET` | `/api/v1/users/{username}` | Users | `M3` / `M03-PROFILE` | `P1` | `baseline_only` | `backend-auth` |
 | `delete_comments_id_` | `DELETE` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
 | `patch_comments_id_` | `PATCH` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
 | `listComments` | `GET` | `/api/v1/posts/{postId}/comments` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
@@ -203,6 +203,6 @@
 | `put_admin_themes_default` | `PUT` | `/api/v1/admin/themes/default` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
 | `delete_admin_themes_name_` | `DELETE` | `/api/v1/admin/themes/{name}` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
 | `patch_admin_themes_name_settings` | `PATCH` | `/api/v1/admin/themes/{name}/settings` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
-| `get_me_preferences_theme` | `GET` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
-| `put_me_preferences_theme` | `PUT` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
+| `get_me_preferences_theme` | `GET` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `baseline_only` | `backend-auth` |
+| `put_me_preferences_theme` | `PUT` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `baseline_only` | `backend-auth` |
 | `get_themes_active` | `GET` | `/api/v1/themes/active` | Themes | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |

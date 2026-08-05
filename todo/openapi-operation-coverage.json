@@ -29,13 +29,15 @@
       "work_package": "M02-SESSION",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::get_csrf_token",
       "tests": [
-
+        "backend/tests/session_csrf.rs",
+        "backend/tests/session_csrf_preauth.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-SESSION-07/08: 已认证会话绑定 synchronizer token / 未认证预认证 token；private no-store；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "login",
@@ -46,13 +48,15 @@
       "work_package": "M02-SESSION",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::login",
       "tests": [
-
+        "backend/tests/session_login.rs",
+        "backend/tests/mfa_login.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-SESSION-03/UX-03: 账号/IP 限流、常量时间失败统一 401；启用 TOTP 返回 MFA challenge；Me 投影含 mfa_enabled；三库一致；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "loginMfa",
@@ -63,13 +67,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::login_mfa",
       "tests": [
-
+        "backend/tests/mfa_login.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-UX-03: 一次性 challenge + TOTP/恢复码二选一完成登录；challenge 5 分钟只存 hash；错误统一 401；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "mfaDisable",
@@ -80,13 +85,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/mfa.rs::mfa_disable",
       "tests": [
-
+        "backend/tests/mfa_routes.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-UX-06: 单事务撤销 TOTP+失效恢复码+安全通知+审计；要求 step-up；重复 404；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "mfaConfirm",
@@ -97,13 +103,15 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/mfa.rs::mfa_confirm",
       "tests": [
-
+        "backend/tests/mfa_routes.rs",
+        "backend/tests/mfa_enrollment.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-UX-06: 6 位 code 时间窗口校验后原子启用；错误统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "mfaEnroll",
@@ -114,13 +122,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/mfa.rs::mfa_enroll",
       "tests": [
-
+        "backend/tests/mfa_routes.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-UX-06: enrollment 返回 otpauth URI+base32 secret；重复启用=撤销旧+新建；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "mfaCancel",
@@ -131,13 +140,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/mfa.rs::mfa_cancel",
       "tests": [
-
+        "backend/tests/mfa_routes.rs",
+        "backend/tests/mfa_enrollment.rs"
       ],
-      "evidence": null
+      "evidence": "M02-UX-06: 取消未完成 enrollment；无 pending 404；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "mfaRecoveryCodes",
@@ -148,13 +158,15 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/mfa.rs::mfa_recovery_codes",
       "tests": [
-
+        "backend/tests/mfa_routes.rs",
+        "backend/tests/mfa_recovery.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-UX-06: 新一组恢复码只展示一次、只存 SHA-256 hash；要求 step-up（403 step_up_required）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "requestPasswordReset",
@@ -165,13 +177,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::request_password_reset",
       "tests": [
-
+        "backend/tests/password_reset.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-IDENTITY-10/UX-04: 统一 202 不泄漏 + IP/账号/日限流 429；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "confirmPasswordReset",
@@ -182,13 +195,15 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::confirm_password_reset",
       "tests": [
-
+        "backend/tests/password_reset.rs",
+        "backend/tests/identity_faults.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-IDENTITY-10/UX-04: 单事务消费 token→改密→撤销全部 Session→审计；无效统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "reAuth",
@@ -199,13 +214,15 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/mfa.rs::re_auth",
       "tests": [
-
+        "backend/tests/mfa_routes.rs",
+        "backend/tests/mfa_stepup.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-UX-06/MFA-07: 密码重认证→mark_step_up；错误统一 401；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "register",
@@ -216,13 +233,16 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::register",
       "tests": [
-
+        "backend/tests/http.rs",
+        "backend/tests/registration_tx.rs",
+        "backend/tests/identity_faults.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-IDENTITY-05/UX-01: 统一 201 防枚举（重复注册与成功一致，不泄漏）；预认证 CSRF（M02-SESSION-08）；三库一致（auth_crossdb）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "resendVerification",
@@ -233,13 +253,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::resend_verification",
       "tests": [
-
+        "backend/tests/resend_verification.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-IDENTITY-06/UX-02: 统一 202 + 冷却 60s/日 3 次 429 Retry-After；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "logout",
@@ -250,13 +271,13 @@
       "work_package": "M02-SESSION",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::logout",
       "tests": [
-
+        "backend/tests/session_lifecycle.rs"
       ],
-      "evidence": null
+      "evidence": "M02-SESSION-05: 当前登出，204 + 清 Cookie；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "logoutAll",
@@ -267,13 +288,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::logout_all",
       "tests": [
-
+        "backend/tests/session_lifecycle.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-SESSION-05/UX-05: 撤销全部设备 204 + 清 Cookie；前端 ?/logoutall；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "listSessions",
@@ -284,13 +306,15 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::list_sessions",
       "tests": [
-
+        "backend/tests/session_lifecycle.rs",
+        "backend/tests/session_crossdb.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-SESSION-05/UX-05: 设备列表按 last_seen_at 排序；三库一致；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "revokeSession",
@@ -301,13 +325,13 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::revoke_session",
       "tests": [
-
+        "backend/tests/session_lifecycle.rs"
       ],
-      "evidence": null
+      "evidence": "M02-SESSION-05/UX-05: 逐设备撤销限本人（他人 404）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "verifyEmail",
@@ -318,13 +342,15 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/auth.rs::verify_email",
       "tests": [
-
+        "backend/tests/verification.rs",
+        "backend/tests/identity_faults.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "M02-IDENTITY-06/UX-02: 一次性 token 原子激活；无效统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
     },
     {
       "operation_id": "listAdminBoards",
@@ -658,13 +684,14 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "baseline_only",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/users.rs::get_me",
       "tests": [
-
+        "backend/tests/http.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "UX-05/06: 安全投影（id/username/email/email_verified/status/level/roles/mfa_enabled）；三库一致；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
     },
     {
       "operation_id": "updateMe",
@@ -675,13 +702,13 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "baseline_only",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/users.rs::update_me",
       "tests": [
-
+        "backend/tests/http.rs"
       ],
-      "evidence": null
+      "evidence": "UX-05: 更新 display_name/bio，返回完整投影；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
     },
     {
       "operation_id": "delete_me_profile_cover",
@@ -743,13 +770,13 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "baseline_only",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/users.rs::get_public_user",
       "tests": [
-
+        "backend/tests/http.rs"
       ],
-      "evidence": null
+      "evidence": "公开用户投影（不含邮箱）；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
     },
     {
       "operation_id": "delete_comments_id_",
@@ -3072,13 +3099,13 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "baseline_only",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/users.rs::get_theme_pref",
       "tests": [
-
+        "backend/tests/http.rs"
       ],
-      "evidence": null
+      "evidence": "主题偏好读取；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
     },
     {
       "operation_id": "put_me_preferences_theme",
@@ -3089,13 +3116,13 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "baseline_only",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/users.rs::update_theme_pref",
       "tests": [
-
+        "backend/tests/http.rs"
       ],
-      "evidence": null
+      "evidence": "主题偏好写入（CSRF）；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
     },
     {
       "operation_id": "get_themes_active",
