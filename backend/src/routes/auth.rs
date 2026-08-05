@@ -15,24 +15,18 @@ use crate::{
     app::AppState,
     auth::{
         password::{hash_password, verify_password, VerifyResult},
+        registration::{register_user, RegisterUserError},
         session::{
             build_clear_session_cookie, build_session_cookie, create_session, revoke_session,
             AuthSession,
         },
         token::{generate_token, hash_token},
     },
+    domain::registration::{validate_register, RegisterRequest},
     error::AppError,
 };
 
 // ─── DTO ─────────────────────────────────────────────────────────────────────
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RegisterRequest {
-    pub username: String,
-    pub email: String,
-    pub password: String,
-}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -121,115 +115,34 @@ async fn get_csrf_token(
 }
 
 /// POST /api/v1/auth/register — 注册新用户
+///
+/// 领域校验（M02-IDENTITY-03）→ 事务创建（M02-IDENTITY-05）：
+/// 同一事务写入 pending 用户、一次性验证 token（hash）、审计与验证邮件
+/// Outbox；任何失败整事务回滚。唯一约束冲突与成功返回相同响应（不泄漏
+/// 用户名/邮箱是否已存在）。
 async fn register(
     State(state): State<AppState>,
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     let request_id = "register";
 
-    // 验证输入
-    validate_username(&req.username, request_id)?;
-    validate_email(&req.email, request_id)?;
-    validate_password(&req.password, request_id)?;
+    let registration = validate_register(&req)
+        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
 
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let username_normalized = req.username.to_lowercase();
-    let email_normalized = req.email.to_lowercase();
-    let password_hash =
-        hash_password(&req.password).map_err(|e| AppError::internal(e.to_string(), request_id))?;
-    let user_id = uuid::Uuid::now_v7().to_string();
-    let now = Utc::now().timestamp();
-
-    // 尝试插入用户（唯一约束会阻止重复）
-    let insert_result: Result<(), sqlx::Error> = match pool {
-        Either::Left(p) => {
-            sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 'pending', ?, ?)",
-            )
-            .bind(&user_id)
-            .bind(&username_normalized)
-            .bind(&email_normalized)
-            .bind(&password_hash)
-            .bind(now)
-            .bind(now)
-            .execute(p)
-            .await
-            .map(|_| ())
+    match register_user(pool, &registration, request_id).await {
+        Ok(_) => Ok((StatusCode::CREATED, Json(json!({ "ok": true })))),
+        // 不泄漏用户名/邮箱是否已存在：与成功响应完全一致
+        Err(RegisterUserError::AlreadyExists) => {
+            Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
         }
-        Either::Right(p) => {
-            sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 'pending', ?, ?)",
-            )
-            .bind(&user_id)
-            .bind(&username_normalized)
-            .bind(&email_normalized)
-            .bind(&password_hash)
-            .bind(now)
-            .bind(now)
-            .execute(p)
-            .await
-            .map(|_| ())
-        }
-    };
-
-    if let Err(sqlx::Error::Database(ref e)) = insert_result {
-        if e.is_unique_violation() {
-            // 不泄漏用户名/邮箱是否已存在
-            return Ok((StatusCode::CREATED, Json(json!({ "ok": true }))));
-        }
+        Err(RegisterUserError::PasswordHashFailed(e)) => Err(AppError::internal(e, request_id)),
+        Err(RegisterUserError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
-    insert_result.map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    // 创建验证 token
-    let verify_token = generate_token();
-    let token_hash = hash_token(&verify_token);
-    let token_id = uuid::Uuid::now_v7().to_string();
-    let expires_at = now + 24 * 60 * 60; // 24 小时
-
-    match pool {
-        Either::Left(p) => {
-            sqlx::query(
-                "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
-            )
-            .bind(&token_id)
-            .bind(&user_id)
-            .bind(&token_hash)
-            .bind(expires_at)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-        Either::Right(p) => {
-            sqlx::query(
-                "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
-            )
-            .bind(&token_id)
-            .bind(&user_id)
-            .bind(&token_hash)
-            .bind(expires_at)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-    }
-
-    // TODO: 通过 Outbox 发送验证邮件（当前仅记录日志）
-    tracing::info!(
-        user_id = %user_id,
-        "user registered, verification token generated"
-    );
-
-    Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
 }
 
 /// POST /api/v1/auth/verify-email — 验证邮箱
@@ -656,63 +569,6 @@ async fn confirm_password_reset(
 }
 
 // ─── 验证函数 ────────────────────────────────────────────────────────────────
-
-fn validate_username(username: &str, request_id: &str) -> Result<(), AppError> {
-    if username.len() < 3 || username.len() > 32 {
-        return Err(AppError::bad_request(
-            "username must be 3-32 characters",
-            request_id,
-            Some(json!({ "field": "username" })),
-        ));
-    }
-    if !username
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-    {
-        return Err(AppError::bad_request(
-            "username may only contain alphanumeric characters, underscore and hyphen",
-            request_id,
-            Some(json!({ "field": "username" })),
-        ));
-    }
-    // 保留名检查
-    let reserved = [
-        "admin",
-        "root",
-        "system",
-        "moderator",
-        "api",
-        "auth",
-        "www",
-        "null",
-    ];
-    if reserved.contains(&username.to_lowercase().as_str()) {
-        return Err(AppError::bad_request(
-            "username is reserved",
-            request_id,
-            Some(json!({ "field": "username" })),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_email(email: &str, request_id: &str) -> Result<(), AppError> {
-    if email.is_empty() || email.len() > 320 {
-        return Err(AppError::bad_request(
-            "invalid email",
-            request_id,
-            Some(json!({ "field": "email" })),
-        ));
-    }
-    if !email.contains('@') || !email.contains('.') {
-        return Err(AppError::bad_request(
-            "invalid email format",
-            request_id,
-            Some(json!({ "field": "email" })),
-        ));
-    }
-    Ok(())
-}
 
 fn validate_password(password: &str, request_id: &str) -> Result<(), AppError> {
     if password.len() < 8 {
