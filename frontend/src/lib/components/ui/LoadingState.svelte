@@ -25,4 +25,11 @@
       transform: rotate(360deg);
     }
   }
+
+  /* M00-FRONTEND-07：减少动效偏好下停止旋转动画。 */
+  @media (prefers-reduced-motion: reduce) {
+    .loading-spinner {
+      animation: none;
+    }
+  }
 </style>
