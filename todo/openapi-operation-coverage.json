@@ -684,14 +684,19 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "baseline_only",
-      "owner": "backend-auth",
+      "implementation_status": "implemented",
+      "owner": "security-backend",
       "handler": "backend/src/routes/users.rs::get_me",
       "tests": [
         "backend/tests/http.rs",
-        "backend/tests/auth_crossdb.rs"
+        "backend/tests/auth_crossdb.rs",
+        "backend/tests/user_dto.rs",
+        "backend/tests/profile_routes.rs",
+        "backend/tests/account_deletion.rs",
+        "backend/tests/deletion_lifecycle.rs",
+        "backend/tests/user_leak_sweep.rs"
       ],
-      "evidence": "UX-05/06: 安全投影（id/username/email/email_verified/status/level/roles/mfa_enabled）；三库一致；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
+      "evidence": "M03-PROFILE-01..08 implemented：Me DTO allowlist（id/username/email/email_verified/status/display_name/bio/signature/timezone/theme_name/email_visible_to/profile_visible_to/level/roles/mfa_enabled/version）；load_profile_fields 从 users 读 display_name/version；主题偏好持久化 user_preferences.theme_name；x-permission=authenticated（sessionCookie）；测试：user_dto（allowlist 精确键集）、profile_routes（全字段/If-Match 版本）、account_deletion+deletion_lifecycle（注销生命周期联动）、user_leak_sweep（未认证 /me 401）、auth_crossdb 三库；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "updateMe",
@@ -702,13 +707,15 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "baseline_only",
-      "owner": "backend-auth",
+      "implementation_status": "implemented",
+      "owner": "security-backend",
       "handler": "backend/src/routes/users.rs::update_me",
       "tests": [
-        "backend/tests/http.rs"
+        "backend/tests/http.rs",
+        "backend/tests/profile_routes.rs",
+        "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "UX-05: 更新 display_name/bio，返回完整投影；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
+      "evidence": "M03-PROFILE-04 implemented：users.version（迁移 0026）作为 If-Match 来源，update_profile 单事务 UPDATE users SET version=version+1 WHERE id=? AND version=?，rows_affected=0 → 409 version_conflict；缺失/非法 If-Match → 400；校验长度/Unicode 控制字符/危险链接 scheme（仅 http/https）/富文本禁用（角括号）；profile_revisions 每次更新写修订（COALESCE(MAX)+1）；主题/隐私/可见性持久化（user_preferences/user_privacy 懒建行）；x-permission=authenticated；测试：profile_routes 6 项（全字段持久化+version+1/部分更新+懒行/非法值 400+修订编号/主题持久化/If-Match 必需+409/文本规则）+ auth_crossdb 三库；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "delete_me_profile_cover",
@@ -770,13 +777,16 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "baseline_only",
-      "owner": "backend-auth",
+      "implementation_status": "implemented",
+      "owner": "security-backend",
       "handler": "backend/src/routes/users.rs::get_public_user",
       "tests": [
-        "backend/tests/http.rs"
+        "backend/tests/http.rs",
+        "backend/tests/user_dto.rs",
+        "backend/tests/public_profile_leak.rs",
+        "backend/tests/user_leak_sweep.rs"
       ],
-      "evidence": "公开用户投影（不含邮箱）；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
+      "evidence": "M03-PROFILE-02/05/06/09 implemented：PublicProfile allowlist 九字段（id/username/display_name/bio/level/avatar_attachment_id/cover_attachment_id/signature/created_at），键集严格断言；deleted→404（不泄漏存在性）；banned/pending_delete→200 降级投影（bio/signature/avatar/cover=null，无状态泄漏）；媒体只回附件 UUID（稳定端点 /api/v1/attachments/{id} 由 M6 落地）；x-permission=user.read_public；测试：user_dto（allowlist/作者卡稳定 profile_url）、public_profile_leak（无泄漏+降级+404）、user_leak_sweep（匿名/跨用户/本人三视角无邮箱泄漏）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "delete_comments_id_",

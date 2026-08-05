@@ -7,7 +7,7 @@
 
 - 契约操作：**183**
 - 唯一 operationId：**183**
-- 实现状态：`baseline_only` 6；`implemented` 18；`not_started` 159
+- 实现状态：`baseline_only` 3；`implemented` 21；`not_started` 159
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -61,12 +61,12 @@
 | `createAdminUser` | `POST` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `getAdminUser` | `GET` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `updateAdminUser` | `PATCH` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `getMe` | `GET` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `baseline_only` | `backend-auth` |
-| `updateMe` | `PATCH` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `baseline_only` | `backend-auth` |
+| `getMe` | `GET` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `security-backend` |
+| `updateMe` | `PATCH` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `security-backend` |
 | `delete_me_profile_cover` | `DELETE` | `/api/v1/me/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `post_me_profile_cover` | `POST` | `/api/v1/me/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `get_users_user_id_profile_cover` | `GET` | `/api/v1/users/{user_id}/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `getPublicUser` | `GET` | `/api/v1/users/{username}` | Users | `M3` / `M03-PROFILE` | `P1` | `baseline_only` | `backend-auth` |
+| `getPublicUser` | `GET` | `/api/v1/users/{username}` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `security-backend` |
 | `delete_comments_id_` | `DELETE` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
 | `patch_comments_id_` | `PATCH` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
 | `listComments` | `GET` | `/api/v1/posts/{postId}/comments` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
