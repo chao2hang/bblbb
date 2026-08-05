@@ -162,7 +162,10 @@ pub async fn apply_migration(pool: &DatabasePool, file: &MigrationFile) -> Resul
 
     match pool {
         Either::Left(p) => {
-            let mut tx = p.begin().await?;
+            // M01-DB-11：SQLite 用 BEGIN IMMEDIATE —— 事务一开始就持写锁，
+            // 避免 deferred BEGIN 在升级写锁时触发 SQLITE_BUSY 竞态
+            // （并发迁移/Outbox Worker 写同一库时尤为重要）。
+            let mut tx = p.begin_with("BEGIN IMMEDIATE").await?;
             // SQLite 支持执行多条语句
             sqlx::raw_sql(&file.sql).execute(&mut *tx).await?;
             sqlx::query("INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)")
