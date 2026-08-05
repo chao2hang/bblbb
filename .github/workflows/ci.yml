@@ -180,3 +180,4 @@ jobs:
           cargo test --test session_crossdb -- --ignored
           cargo test --test auth_crossdb -- --ignored
           cargo test --test schema_fixture -- --ignored
+          cargo test --test search_store -- --ignored

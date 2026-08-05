@@ -1,0 +1,4 @@
+-- BBLBB MySQL 8 FULLTEXT index (M03-SEARCH-STORE-03)
+-- SQLite 的全文索引已由 0030 的 FTS5 external content 表 search_fts 承担，
+-- 无对应 DDL；本文件仅为三库迁移版本对齐（迁移等价要求同版本集合）。
+-- MySQL/MariaDB 的 FULLTEXT 索引见 0031 文件（sqlite 本文件无操作）。

@@ -100,6 +100,22 @@ async fn match_hits(pool: &DatabasePool, term: &str) -> i64 {
     }
 }
 
+/// MySQL/MariaDB FULLTEXT 命中数：`MATCH (title, body) AGAINST (? IN NATURAL
+/// LANGUAGE MODE)`。
+async fn fulltext_hits(pool: &DatabasePool, term: &str) -> i64 {
+    match pool {
+        Either::Left(_) => panic!("本测试只跑 MySQL/MariaDB"),
+        Either::Right(p) => sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM search_documents
+             WHERE MATCH (title, body) AGAINST (? IN NATURAL LANGUAGE MODE)",
+        )
+        .bind(term)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+    }
+}
+
 /// 0030 迁移建立 search_documents + search_fts（external content）。
 #[tokio::test]
 async fn migration_creates_document_and_fts_tables() {
@@ -266,4 +282,59 @@ async fn rebuild_command_is_idempotent_and_consistent() {
 
     close_pool(&pool).await;
     cleanup(&dir);
+}
+
+/// MySQL 8 / MariaDB 10.11 FULLTEXT：0031 迁移建立 `search_documents_fts_idx`；
+/// `MATCH..AGAINST` 命中；分词限制（`innodb_ft_min_token_size`=3）生效。
+///
+/// mysql 与 mariadb 的 0031 文件字节等价（迁移等价测试保证），同一 URL 可分别
+/// 对两个数据库运行（CI mysql-family 矩阵以 `--ignored` 运行，见 ci.yml）。
+#[tokio::test]
+#[ignore = "需要 BBLBB_TEST_MYSQL_URL（CI mysql-family 任务，--ignored 运行）"]
+async fn mysql_fulltext_index_matches_and_token_limits() {
+    let url = std::env::var("BBLBB_TEST_MYSQL_URL").expect("BBLBB_TEST_MYSQL_URL 未设置");
+    let pool = create_pool(&url).await.unwrap();
+    let files = read_migration_files(&migrations_dir("mysql")).unwrap();
+    run_migrations(&pool, &files).await.unwrap();
+    let now = now_millis();
+
+    exec(
+        &pool,
+        "INSERT INTO search_documents
+             (doc_id, entity_type, title, body, excerpt, slug, tags_json, source_revision, policy_revision, indexed_at)
+         VALUES (?, 'post', 'MySQL fulltext index', 'mysql fulltext search works', 'mysql fulltext search works', 'my-post-1', '[]', ?, ?, ?)",
+        &[
+            "01911fd5-f000-7000-8000-0000000000c1",
+            &now.to_string(),
+            &now.to_string(),
+            &now.to_string(),
+        ],
+    )
+    .await;
+
+    // FULLTEXT 命中（title/body 全文索引）。
+    assert_eq!(
+        fulltext_hits(&pool, "fulltext").await,
+        1,
+        "FULLTEXT 必须命中 fulltext"
+    );
+    assert_eq!(
+        fulltext_hits(&pool, "search").await,
+        1,
+        "FULLTEXT 必须命中 search"
+    );
+    // 分词限制：短 token（< innodb_ft_min_token_size=3）不入索引、不可命中。
+    assert_eq!(
+        fulltext_hits(&pool, "my").await,
+        0,
+        "短 token（2 字符）默认不入索引，不可命中"
+    );
+    // 不在索引中的词不命中。
+    assert_eq!(
+        fulltext_hits(&pool, "nonexistentterm").await,
+        0,
+        "不存在的词不命中"
+    );
+
+    close_pool(&pool).await;
 }

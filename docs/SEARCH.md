@@ -116,6 +116,16 @@ Rust 模型：`backend/src/search/mod.rs::SearchDocument`。
 - MySQL/MariaDB：`OPTIMIZE TABLE search_documents`——重建表与 FULLTEXT 索引。
 - 统一入口：`backend/src/search/fts.rs::rebuild_fts(pool)`（Either 按引擎分发）。
 
+### 7.3 MySQL 8 FULLTEXT 分词限制（M03-SEARCH-STORE-03）
+
+- 0031 迁移：`ALTER TABLE search_documents ADD FULLTEXT INDEX
+  search_documents_fts_idx (title, body)`（InnoDB 原生随行更新）。
+- `innodb_ft_min_token_size`（默认 3）：短于 3 字符的 token 不索引、不可命中。
+- `innodb_ft_max_token_size`（默认 84）：长于 84 字符的 token 不索引。
+- 未启用 ngram parser：CJK 文本按空白/标点分词，长中文串成为最长 84 字符的
+  单 token（已知限制；结果层以实时可见性过滤兜底，M08-INDEX-07）。
+- 以上为服务端全局变量，非逐表配置；部署文档（`OPERATIONS.md`）记录调整方式。
+
 ## 8. 相关文档
 
 - `openapi/openapi.yaml`：`SearchResult`/`SearchPage`/`searchPublicContent`
