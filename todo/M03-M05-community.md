@@ -49,8 +49,8 @@
 **目标文件：** `backend/src/authz/`、`backend/src/middleware/authz*`、`backend/tests/authz/`、`docs/PERMISSION-MATRIX.md`
 **验收：** persona × role × board × object 权限矩阵在 API 层通过；不存在仅前端授权。
 
-- [~] `M03-AUTHZ-01` `P0` `[30m]` 实现 `resource.action` 权限注册表，并拒绝数据库中的未知权限名。
-- [ ] `M03-AUTHZ-02` `P0` `[45m]` 实现 administrator、global moderator、board moderator、member 和自定义角色聚合。
+- [x] `M03-AUTHZ-01` `P0` `[30m]` 实现 `resource.action` 权限注册表，并拒绝数据库中的未知权限名。证据：files=backend/src/authz/mod.rs,backend/src/lib.rs,backend/tests/authz_registry.rs,docs/PERMISSION-MATRIX.md,docs/SCHEMA.md；commands=cargo fmt --check 通过; cargo clippy --all-features --all-targets 0 警告; cargo test --all-features 全绿（authz_registry 4 项，共 64 套件 540 用例）; make check（OpenAPI 183/183、TS types 可复现、svelte-check 0 error、事件目录 22/22、Roadmap 783 叶子 OK）; contract=backend/src/authz/mod.rs：PERMISSION_REGISTRY v1 全部 68 项权限（PERMISSION-MATRIX §2-8 动作表+附录 operation 级注册表；public/authenticated 为身份标记不入表），每项含 name/risk_level/is_system/description 与 permissions 表列一一对应；RiskLevel normal/sensitive/system（sensitive=§8 高风险重新认证清单 storage/download_billing/marketplace/marketplace.refund_admin/ai/video .manage；system=可改变访问控制本身 role.manage/user.manage/admin.manage，is_system=1 不可删除/改名）；parse_permission_name resource[.sub].action 命名校验（非空、无空段、小写字母数字下划线，允许单段 openid 与三段 ai.task.manage）；verify_db_permissions 读 permissions 表拒绝未注册的未知权限名（UnknownPermissions 列出全部未知），缺失已知权限只报告 missing_from_db（种子由 AUTHZ-02 落地）；registry_is_consistent 自查名称唯一+格式+is_system 与 risk 一致; commit=128bbab（审计基线，含初稿）+dd58ba2（修复 storage.manage 补入、格式放宽兼容 openid/ai.task.manage、lib.rs 接线、集成测试、文档）; review=authz_registry 4 项（空表 Ok+全量缺失/已知放行+计数/未知精确拒绝+修复后恢复/全量注册表 DB 可插入）+ 模块内单测 3 项 + 全量门禁全绿
+- [~] `M03-AUTHZ-02` `P0` `[45m]` 实现 administrator、global moderator、board moderator、member 和自定义角色聚合。
 - [ ] `M03-AUTHZ-03` `P0` `[30m]` 实现带生效/到期时间的全局与板块 assignment 实时判断。
 - [ ] `M03-AUTHZ-04` `P0` `[45m]` 定义动作授权输入：actor、账号状态、角色、board、resource owner、resource state 和 policy version。
 - [ ] `M03-AUTHZ-05` `P0` `[45m]` 为 Handler 建立统一 require-action + require-object-scope 调用模式，默认拒绝。
