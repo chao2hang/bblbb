@@ -82,6 +82,12 @@ frontend/src/
     robots.txt/+server.ts
 ```
 
+> **M03-UI-09 路由矩阵：** 原型（`prototype/js/router.js`，47 路由）→ 生产路由的权威映射见
+> `frontend/src/lib/route-matrix.ts`（`PROTOTYPE_ROUTE_MATRIX`），结构测试
+> `frontend/src/lib/testing/route-matrix.test.ts` 保证：shipped 路由的 `+page.svelte`/
+> `+error.svelte` 存在、planned 路由标注交付里程碑、生产源码不导入原型 mock/store
+> 数据源（M14-ROUTES-07）。新增/改动生产路由时同步该矩阵。
+
 建议将功能组织放入：
 
 ```text
