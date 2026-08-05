@@ -212,3 +212,24 @@
   `require_action(...) → 拒绝即 deny_to_error(reason) → require_object_scope(...)`；
   板块范围经 `aggregate_permissions(board_id)` 实时进入聚合（board_moderator
   只在其板块生效）。
+
+## 13. 账号状态实时参与授权（M03-AUTHZ-06）
+
+- `backend/src/authz/enforce.rs::account_gate(gates, permission, board_id, now)`
+  （默认拒绝）：
+  - banned / pending_delete / deleted → 一律拒绝（读与写都不放）；
+  - 未验证（`status=pending` 或 `email_verified_at` 为空）：内容写入 →
+    `EmailUnverified`；读/own/验证路径放行；
+  - 内容写入类权限（`post.create`/`comment.create`/`attachment.upload`/
+    `reaction.create`/`video.embed`）附加门：冷静期未过 → `InCooldown`
+    （`email_verified_at + ACCOUNT_COOLDOWN_MS`，默认 24 小时）；
+    `restricted` → `AccountNotAllowed`；全局 mute 未过 → `Muted`；
+    本板块 board_mute 未过（请求携带板块）→ `BoardMuted`；
+  - 读/own/审核权限不受 mute/冷静期/restricted 影响。
+- `load_account_gates(pool, user_id)` 读 `users.status`/`email_verified_at`
+  推导状态门；`mute_until`/`board_mute_until` 来自 sanction（M5-MODERATION
+  落地后注入，当前为 None）。
+- `authorize_action(pool, user_id, permission, board_id, policy_version)`：
+  聚合角色 → 状态门 → 动作门（Handler 统一入口）。
+- 新增 DenyReason：`EmailUnverified`/`InCooldown`/`Muted`/`BoardMuted`
+  （均映射 403，供审计与错误映射）。
