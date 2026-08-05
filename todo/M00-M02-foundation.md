@@ -117,15 +117,15 @@
 - [x] `M01-DB-09` `[45m]` 为每个逻辑迁移提供 SQLite/MySQL/MariaDB 三份不可变 SQL 和结构等价断言。证据：files=backend/tests/migration_equivalence.rs,Makefile,migrations/{sqlite,mysql,mariadb}/；commands=cargo test --all-features（94 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=三目录版本/文件名集合一致 + mysql/mariadb 可执行 SQL 一致 + 逐表逐列（名称/归一化类型/可空性）等价 + check-migrations 入 make check；commit=aca95c3；review=4 项断言通过 + make check 全绿
 - [x] `M01-DB-10` `[45m]` 测试空库迁移、第二次幂等运行、失败迁移不标成功和上一发布版本升级。证据：files=backend/tests/migration_lifecycle.rs；commands=cargo test --all-features（101 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=空库全量应用 + 幂等 + 失败回滚不标成功 + 升级只应用新增 + 旧代码拒绝超前库 + 单条事务性；commit=1ec7611；review=7 项生命周期测试通过
 - [x] `M01-DB-11` `[45m]` 测试 SQLite `BEGIN IMMEDIATE` 与 MySQL/MariaDB 行锁、超时和死锁映射的关键语义。证据：files=backend/src/db/migrate.rs,backend/tests/transaction_concurrency.rs,.github/workflows/ci.yml；commands=cargo test --all-features（103 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=SQLite 迁移 BEGIN IMMEDIATE（写锁即持）+ 并发写者阻塞而非 SQLITE_BUSY + MySQL 行锁阻塞/1205 超时/1213 死锁回滚 + CI mysql-family 双引擎跑 --ignored；commit=2c07809；review=2 项 SQLite 语义测试通过，3 项 MySQL 测试由 CI 双引擎执行
-- [~] `M01-DB-12` `[30m]` readiness 在连接失败、迁移落后/超前或 checksum 不匹配时明确失败且不泄漏 DSN。
+- [x] `M01-DB-12` `[30m]` readiness 在连接失败、迁移落后/超前或 checksum 不匹配时明确失败且不泄漏 DSN。证据：files=backend/src/routes/ready.rs,backend/tests/readyz.rs,backend/tests/http.rs；commands=cargo test --all-features（109 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=/readyz 非全绿返回 503（连接失败/behind/ahead/checksum_mismatch）+ 只读迁移检查不建表 + 响应体不泄漏 DSN；commit=73893d6；review=6 项 readyz 场景测试 + DSN 泄漏断言通过
 
 ## M01-CONFIG：配置、Secret 与 Feature Flag
 
-**元数据：** `P0` · `owner=unassigned/platform-security` · `risk=high` · `depends=M01-DB` · `blocked=none`
+**元数据：** `P0` · `owner=backend-config` · `risk=high` · `depends=M01-DB` · `blocked=none`
 **目标文件：** `backend/src/config/`、`backend/.env.example`、`frontend/.env.example`、`docs/CONFIGURATION.md`
 **验收：** 配置 schema 测试、Secret 泄漏扫描和 Feature Flag 权限测试通过。
 
-- [ ] `M01-CONFIG-01` `[45m]` 将环境变量逐项映射到类型化配置，记录默认值、环境适用范围、热更新和重启要求。
+- [~] `M01-CONFIG-01` `[45m]` 将环境变量逐项映射到类型化配置，记录默认值、环境适用范围、热更新和重启要求。
 - [ ] `M01-CONFIG-02` `[30m]` 生产模式拒绝未知键、占位 Secret、不安全 Origin、非 loopback 内部端口和冲突配置。
 - [ ] `M01-CONFIG-03` `[45m]` 定义 Secret provider 接口，支持受限环境文件/systemd credentials，并保留后续托管 Secret 扩展点。
 - [ ] `M01-CONFIG-04` `[30m]` 所有 Secret 写接口只写不读；GET 只返回 configured、source class、version 和 updated_at。
