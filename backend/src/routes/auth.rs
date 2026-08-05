@@ -21,6 +21,7 @@ use crate::{
             AuthSession,
         },
         token::{generate_token, hash_token},
+        verification::{verify_email_token, VerifyEmailError},
     },
     domain::registration::{validate_register, RegisterRequest},
     error::AppError,
@@ -195,86 +196,19 @@ async fn verify_email(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let token_hash = hash_token(&req.token);
-    let now = Utc::now().timestamp();
-
-    match pool {
-        Either::Left(p) => {
-            // 查找未消费且未过期的 token
-            let token_row = sqlx::query_as::<_, VerifyTokenRow>(
-                "SELECT id, user_id FROM email_verification_tokens
-                 WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
-            )
-            .bind(&token_hash)
-            .bind(now)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            let token_row = token_row.ok_or_else(|| {
-                AppError::bad_request("invalid or expired verification token", request_id, None)
-            })?;
-
-            // 原子消费 token 并激活用户
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE email_verification_tokens SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
-                .bind(now)
-                .bind(&token_row.id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE users SET email_verified = 1, status = 'active', updated_at = ? WHERE id = ?")
-                .bind(now)
-                .bind(&token_row.user_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            tx.commit()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    match verify_email_token(pool, &req.token).await {
+        Ok(_) => {
+            tracing::info!("email verified successfully");
+            Ok(Json(GenericSuccess { ok: true }))
         }
-        Either::Right(p) => {
-            let token_row = sqlx::query_as::<_, VerifyTokenRow>(
-                "SELECT id, user_id FROM email_verification_tokens
-                 WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
-            )
-            .bind(&token_hash)
-            .bind(now)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            let token_row = token_row.ok_or_else(|| {
-                AppError::bad_request("invalid or expired verification token", request_id, None)
-            })?;
-
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE email_verification_tokens SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
-                .bind(now)
-                .bind(&token_row.id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE users SET email_verified = 1, status = 'active', updated_at = ? WHERE id = ?")
-                .bind(now)
-                .bind(&token_row.user_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            tx.commit()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
+        // 不存在/已消费/过期统一错误（防 token 枚举）
+        Err(VerifyEmailError::InvalidOrExpired) => Err(AppError::bad_request(
+            "invalid or expired verification token",
+            request_id,
+            None,
+        )),
+        Err(VerifyEmailError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
-
-    tracing::info!("email verified successfully");
-    Ok(Json(GenericSuccess { ok: true }))
 }
 
 /// POST /api/v1/auth/login — 登录
