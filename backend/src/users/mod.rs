@@ -7,3 +7,4 @@
 //! - 字段 allowlist 细化与泄漏测试见 M03-PROFILE-02/09。
 
 pub mod dto;
+pub mod profile;

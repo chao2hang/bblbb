@@ -7,7 +7,9 @@ use axum::{
 use serde_json::{json, Value};
 use sqlx::Either;
 
-use crate::users::dto::{Me, PublicProfile};
+use crate::users::dto::Me;
+use crate::users::dto::PublicProfile;
+use crate::users::profile::{load_profile_fields, update_profile, ProfileUpdate};
 use crate::{app::AppState, auth::session::AuthSession, error::AppError};
 
 /// 公开资料查询行：
@@ -35,7 +37,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/users/{username}", get(get_public_user))
 }
 
-/// GET /api/v1/me — 获取当前用户（本人投影 DTO，M03-PROFILE-01）
+/// GET /api/v1/me — 获取当前用户（本人投影 DTO，M03-PROFILE-01/03）
 async fn get_me(State(state): State<AppState>, auth: AuthSession) -> Result<Json<Me>, AppError> {
     let request_id = "get_me";
     let user = auth.require_auth(request_id)?;
@@ -46,11 +48,14 @@ async fn get_me(State(state): State<AppState>, auth: AuthSession) -> Result<Json
     let mfa_enabled = crate::auth::has_confirmed_totp(pool, &user.id)
         .await
         .unwrap_or(false);
-    // 当前从会话投影构建；bio/timezone 持久化读取在 M03-PROFILE-03 落地。
-    Ok(Json(Me::from_session(user, mfa_enabled, None, "UTC")))
+    let profile = load_profile_fields(pool, user)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    Ok(Json(Me::from_session(user, mfa_enabled, &profile)))
 }
 
-/// PATCH /api/v1/me — 更新当前用户资料（昵称/简介）
+/// PATCH /api/v1/me — 更新当前用户资料（昵称/简介/签名/时区/主题/隐私；
+/// PATCH 语义：只更新出现字段，缺失字段保持原值）
 async fn update_me(
     State(state): State<AppState>,
     auth: AuthSession,
@@ -63,41 +68,50 @@ async fn update_me(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let now = chrono::Utc::now().timestamp();
-    let display_name = body.get("display_name").and_then(|v| v.as_str());
-    let bio = body.get("bio").and_then(|v| v.as_str());
+    let update = ProfileUpdate {
+        display_name: body
+            .get("display_name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        bio: body
+            .get("bio")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        signature: body
+            .get("signature")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        timezone: body
+            .get("timezone")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        theme_name: body
+            .get("theme")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        email_visible_to: body
+            .get("email_visible_to")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        profile_visible_to: body
+            .get("profile_visible_to")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+    };
+    update
+        .validate()
+        .map_err(|msg| AppError::bad_request(msg, request_id, None))?;
+    update_profile(pool, &user.id, update)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
 
-    match pool {
-        Either::Left(p) => {
-            sqlx::query("UPDATE users SET display_name = ?, bio = ?, updated_at = ? WHERE id = ?")
-                .bind(display_name)
-                .bind(bio)
-                .bind(now)
-                .bind(&user.id)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-        Either::Right(p) => {
-            sqlx::query("UPDATE users SET display_name = ?, bio = ?, updated_at = ? WHERE id = ?")
-                .bind(display_name)
-                .bind(bio)
-                .bind(now)
-                .bind(&user.id)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-    }
-
-    Ok(Json(Me::from_session(
-        user,
-        crate::auth::has_confirmed_totp(pool, &user.id)
-            .await
-            .unwrap_or(false),
-        bio.map(|s| s.to_string()),
-        "UTC",
-    )))
+    let mfa_enabled = crate::auth::has_confirmed_totp(pool, &user.id)
+        .await
+        .unwrap_or(false);
+    let profile = load_profile_fields(pool, user)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    Ok(Json(Me::from_session(user, mfa_enabled, &profile)))
 }
 
 /// GET /api/v1/users/{username} — 获取公开用户资料（公开投影 DTO，
@@ -160,26 +174,54 @@ async fn get_public_user(
     }
 }
 
-/// GET /api/v1/me/preferences/theme — 获取主题偏好
+/// GET /api/v1/me/preferences/theme — 获取主题偏好（user_preferences.theme_name，
+/// 缺失返回 default）
 async fn get_theme_pref(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthSession,
 ) -> Result<Json<Value>, AppError> {
-    let _user = auth.require_auth("get_theme_pref")?;
-    Ok(Json(json!({ "theme": "default" })))
+    let request_id = "get_theme_pref";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let theme = match pool {
+        Either::Left(p) => sqlx::query_scalar::<_, Option<String>>(
+            "SELECT theme_name FROM user_preferences WHERE user_id = ?",
+        )
+        .bind(&user.id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .flatten(),
+        Either::Right(p) => sqlx::query_scalar::<_, Option<String>>(
+            "SELECT theme_name FROM user_preferences WHERE user_id = ?",
+        )
+        .bind(&user.id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .flatten(),
+    };
+    Ok(Json(
+        json!({ "theme": theme.unwrap_or_else(|| "default".to_string()) }),
+    ))
 }
 
-/// PUT /api/v1/me/preferences/theme — 更新主题偏好
-///
-/// 主题持久化属于 M2/UX 波次（user_preferences 表迁移）；当前实现与
-/// GET 桩保持一致：校验合法值并回显，路由契约完整。
+/// PUT /api/v1/me/preferences/theme — 更新主题偏好（持久化
+/// user_preferences.theme_name，行首访惰性创建）
 async fn update_theme_pref(
-    _state: State<AppState>,
+    State(state): State<AppState>,
     auth: AuthSession,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "update_theme_pref";
-    let _user = auth.require_auth(request_id)?;
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
     let theme = body
         .get("theme")
@@ -192,6 +234,50 @@ async fn update_theme_pref(
             request_id,
             None,
         ));
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT OR IGNORE INTO user_preferences (user_id, timezone, locale, updated_at)
+                 VALUES (?, 'UTC', 'zh-CN', ?)",
+            )
+            .bind(&user.id)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            sqlx::query(
+                "UPDATE user_preferences SET theme_name = ?, updated_at = ? WHERE user_id = ?",
+            )
+            .bind(theme)
+            .bind(now)
+            .bind(&user.id)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "INSERT IGNORE INTO user_preferences (user_id, timezone, locale, updated_at)
+                 VALUES (?, 'UTC', 'zh-CN', ?)",
+            )
+            .bind(&user.id)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            sqlx::query(
+                "UPDATE user_preferences SET theme_name = ?, updated_at = ? WHERE user_id = ?",
+            )
+            .bind(theme)
+            .bind(now)
+            .bind(&user.id)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        }
     }
 
     Ok(Json(json!({ "theme": theme })))

@@ -8,6 +8,7 @@
 
 use bblbb_backend::auth::session::SessionUser;
 use bblbb_backend::users::dto::{AdminUser, Me, PublicProfile, PUBLIC_PROFILE_ALLOWLIST};
+use bblbb_backend::users::profile::ProfileFields;
 use serde_json::Value;
 
 fn sample_session_user() -> SessionUser {
@@ -120,7 +121,12 @@ fn public_profile_keys_match_allowlist_constant() {
 /// Me 为本人的显式投影：含本人可见字段与 mfa_enabled。
 #[test]
 fn me_is_own_projection() {
-    let me = Me::from_session(&sample_session_user(), true, Some("bio".to_string()), "UTC");
+    let profile = ProfileFields {
+        bio: Some("bio".to_string()),
+        display_name: Some("爱丽丝".to_string()),
+        ..ProfileFields::default()
+    };
+    let me = Me::from_session(&sample_session_user(), true, &profile);
     let v = serde_json::to_value(&me).unwrap();
     for field in [
         "id",

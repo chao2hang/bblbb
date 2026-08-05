@@ -10,6 +10,7 @@
 use serde::Serialize;
 
 use crate::auth::session::SessionUser;
+use crate::users::profile::ProfileFields;
 
 /// 公开用户投影允许的字段（M03-PROFILE-02）。
 ///
@@ -45,8 +46,8 @@ pub struct PublicProfile {
 
 /// 本人资料（GET/PATCH `/api/v1/me`）。对应 OpenAPI `Me`。
 ///
-/// 只对当前会话用户本人返回；字段集保持与现有契约一致
-/// （`signature`/偏好/隐私字段在 M03-PROFILE-03 读取落地后扩展）。
+/// 只对当前会话用户本人返回；`signature`/时区/主题/隐私字段来自
+/// `user_preferences`/`user_privacy`（M03-PROFILE-03）。
 #[derive(Debug, Clone, Serialize)]
 pub struct Me {
     pub id: String,
@@ -56,7 +57,11 @@ pub struct Me {
     pub status: String,
     pub display_name: Option<String>,
     pub bio: Option<String>,
+    pub signature: Option<String>,
     pub timezone: String,
+    pub theme_name: Option<String>,
+    pub email_visible_to: String,
+    pub profile_visible_to: String,
     pub level: i64,
     pub roles: Vec<String>,
     /// 两步验证（TOTP）是否已启用（M02-UX-06）。
@@ -64,22 +69,21 @@ pub struct Me {
 }
 
 impl Me {
-    /// 从会话用户显式构建本人投影（避免直接序列化会话/数据库实体）。
-    pub fn from_session(
-        user: &SessionUser,
-        mfa_enabled: bool,
-        bio: Option<String>,
-        timezone: &str,
-    ) -> Self {
+    /// 从会话用户 + 资料字段显式构建本人投影（避免直接序列化会话/数据库实体）。
+    pub fn from_session(user: &SessionUser, mfa_enabled: bool, profile: &ProfileFields) -> Self {
         Self {
             id: user.id.clone(),
             username: user.username.clone(),
             email: user.email.clone(),
             email_verified: user.email_verified,
             status: user.status.clone(),
-            display_name: user.display_name.clone(),
-            bio,
-            timezone: timezone.to_string(),
+            display_name: profile.display_name.clone(),
+            bio: profile.bio.clone(),
+            signature: profile.signature.clone(),
+            timezone: profile.timezone.clone(),
+            theme_name: profile.theme_name.clone(),
+            email_visible_to: profile.email_visible_to.clone(),
+            profile_visible_to: profile.profile_visible_to.clone(),
             level: user.level,
             roles: user.roles.clone(),
             mfa_enabled,

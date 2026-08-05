@@ -61,8 +61,11 @@ export type LoginResult = Me | LoginMfaChallenge;
 export interface ProfilePatch {
   display_name?: string;
   bio?: string;
+  signature?: string;
   timezone?: string;
-  theme?: string;
+  theme?: "default" | "dark" | "light";
+  email_visible_to?: "everyone" | "registered" | "nobody";
+  profile_visible_to?: "everyone" | "registered" | "nobody";
 }
 export interface PostCreate {
   type: "article" | "discussion";
@@ -104,7 +107,11 @@ export type Me = ResourceMeta & {
   status: string;
   display_name?: string | null;
   bio?: string | null;
+  signature?: string | null;
   timezone?: string;
+  theme_name?: string | null;
+  email_visible_to?: "everyone" | "registered" | "nobody";
+  profile_visible_to?: "everyone" | "registered" | "nobody";
   level: number;
   roles: Array<string>;
   mfa_enabled?: boolean;
