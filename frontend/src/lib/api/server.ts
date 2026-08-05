@@ -223,6 +223,35 @@ export async function resendVerificationViaServer(
   return postWithCsrf(cookies, '/api/v1/auth/resend-verification', { email }, requestId);
 }
 
+/**
+ * POST /api/v1/auth/password-reset（M02-UX-04）。
+ *
+ * 后端统一 202（邮箱不存在/已删除与正常一致，不泄漏）；冷却 60s /
+ * 日上限 3 次 / IP 每小时 5 次命中返回 429 + Retry-After（秒）。
+ */
+export async function requestPasswordResetViaServer(
+  cookies: Cookies,
+  email: string,
+  requestId: string | null = null
+): Promise<{ ok: true } | ServerWriteFailure> {
+  return postWithCsrf(cookies, '/api/v1/auth/password-reset', { email }, requestId);
+}
+
+/**
+ * POST /api/v1/auth/password-reset/confirm（M02-UX-04）。
+ *
+ * 30 分钟一次性 token 确认改密：单事务内消费 token → 更新密码哈希 →
+ * 撤销该用户全部 Session（M02-IDENTITY-10）。无效/已消费/过期统一 400。
+ */
+export async function confirmPasswordResetViaServer(
+  cookies: Cookies,
+  token: string,
+  password: string,
+  requestId: string | null = null
+): Promise<{ ok: true } | ServerWriteFailure> {
+  return postWithCsrf(cookies, '/api/v1/auth/password-reset/confirm', { token, password }, requestId);
+}
+
 export interface LoginViaServerInput {
   identifier: string;
   password: string;

@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import {
+  confirmPasswordResetViaServer,
   cookieValueFromSetCookie,
   loginMfaViaServer,
   loginViaServer,
@@ -10,6 +11,7 @@ import {
   PREAUTH_COOKIE,
   registerViaServer,
   relaySetCookies,
+  requestPasswordResetViaServer,
   resendVerificationViaServer,
   verifyEmailViaServer
 } from './server';
@@ -355,5 +357,66 @@ describe('loginViaServer / loginMfaViaServer（M02-UX-03 两步登录）', () =>
 
     const result = await loginMfaViaServer(cookies, { challenge_token: 'ch-1', totp_code: '000000' });
     expect(result).toMatchObject({ ok: false, status: 401 });
+  });
+});
+
+describe('requestPasswordResetViaServer / confirmPasswordResetViaServer（M02-UX-04）', () => {
+  it('请求重置：202 → ok:true（统一响应不泄漏）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 'csrf-rs' }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 202));
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await requestPasswordResetViaServer(cookies, 'alice@example.com', 'req-rs');
+    expect(result).toEqual({ ok: true });
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ email: 'alice@example.com' });
+  });
+
+  it('请求重置：429 → 透传 retryAfterSecs', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 'csrf-rs' }, 200))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 429, title: 'Too Many Requests' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': '42' }
+        })
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await requestPasswordResetViaServer(cookies, 'alice@example.com');
+    expect(result).toMatchObject({ ok: false, status: 429, retryAfterSecs: 42 });
+  });
+
+  it('确认重置：成功 → ok:true', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 'csrf-rs' }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await confirmPasswordResetViaServer(cookies, 'tok-1', 'newpass123', 'req-c');
+    expect(result).toEqual({ ok: true });
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ token: 'tok-1', password: 'newpass123' });
+  });
+
+  it('确认重置：无效 token 400 → ok:false（统一错误文案）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 'csrf-rs' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 400, code: 'invalid_or_expired', detail: 'invalid or expired reset token', request_id: 'rid-400' }, 400)
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await confirmPasswordResetViaServer(cookies, 'stale', 'newpass123');
+    expect(result).toMatchObject({ ok: false, status: 400, requestId: 'rid-400' });
   });
 });

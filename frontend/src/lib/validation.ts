@@ -48,3 +48,25 @@ export function validateRegistration(
 
   return errors;
 }
+
+export type NewPasswordField = 'password' | 'confirm';
+
+/** 重置密码表单校验（与注册密码规则一致：8-128 且含字母和数字）。 */
+export function validateNewPassword(
+  password: string,
+  confirm: string
+): Partial<Record<NewPasswordField, string>> {
+  const errors: Partial<Record<NewPasswordField, string>> = {};
+
+  if (password.length < 8 || password.length > 128) {
+    errors.password = '密码需为 8-128 个字符';
+  } else if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    errors.password = '密码必须同时包含字母和数字';
+  }
+
+  if (password !== confirm) {
+    errors.confirm = '两次输入的密码不一致';
+  }
+
+  return errors;
+}
