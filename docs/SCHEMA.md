@@ -150,6 +150,12 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 
 注销硬删除时，必须先执行匿名化流程；是否释放原邮箱/用户名由隐私策略明确规定。
 
+规范化约定（M02-IDENTITY-02）：`username_normalized` / `email_normalized`
+入库前先 `trim → Unicode NFKC → lowercase`（`auth::normalize_username` /
+`normalize_email`）；规范化列排序规则大小写敏感（SQLite `COLLATE BINARY` /
+MySQL/MariaDB `utf8mb4_bin`），因此唯一索引对大小写与全角/连字等 Unicode
+变体去重。
+
 ### `user_preferences`
 
 | 字段 | 说明 |
