@@ -6,6 +6,7 @@ pub mod password_reset;
 pub mod preauth;
 pub mod registration;
 pub mod resend;
+pub mod security_notify;
 pub mod session;
 pub mod token;
 pub mod verification;
@@ -30,6 +31,11 @@ pub use preauth::{
 };
 pub use registration::{register_user, RegisterUserError, RegistrationOutcome};
 pub use resend::{resend_verification_email, ResendError, ResendLimits, ResendOutcome};
+pub use security_notify::{
+    create_security_notification_in_tx, has_device_seen, notify_mfa_changed, notify_new_device,
+    notify_new_device_if_first_seen, notify_password_changed, notify_recovery_code_used,
+    notify_session_revoked, SecurityEvent,
+};
 pub use session::{
     is_step_up_required_for_session, list_sessions, mark_step_up, revoke_all_sessions,
     revoke_session_by_id, rotate_session, step_up_required, AuthSession, DeviceSession,

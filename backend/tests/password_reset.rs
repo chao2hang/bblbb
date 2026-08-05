@@ -357,15 +357,23 @@ async fn confirm_reset_updates_password_and_revokes_sessions() {
         0,
         "改密后全部 Session 撤销"
     );
-    assert_eq!(table_count(&pool, "audit_logs").await, 1);
-    let action: String = match &pool {
+    // 审计：改密 + 安全通知（M02-MFA-08 同事务）各一条
+    assert_eq!(table_count(&pool, "audit_logs").await, 2);
+    let actions: Vec<String> = match &pool {
         Either::Left(p) => sqlx::query_scalar("SELECT action FROM audit_logs")
-            .fetch_one(p)
+            .fetch_all(p)
             .await
             .unwrap(),
         Either::Right(_) => panic!("SQLite only"),
     };
-    assert_eq!(action, "auth.password_reset_completed");
+    assert!(
+        actions.contains(&"auth.password_reset_completed".to_string()),
+        "必须写改密审计: {actions:?}"
+    );
+    assert!(
+        actions.contains(&"auth.security_notification".to_string()),
+        "改密必须写安全通知审计: {actions:?}"
+    );
 
     close_pool(&pool).await;
     cleanup(&dir);

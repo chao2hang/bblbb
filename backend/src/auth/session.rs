@@ -7,7 +7,13 @@ use axum_extra::extract::CookieJar;
 use serde::Serialize;
 use sqlx::Either;
 
-use crate::{app::AppState, auth::token::hash_token, db::pool::DatabasePool};
+use crate::{
+    app::AppState,
+    auth::security_notify::{create_security_notification_in_tx, SecurityEvent},
+    auth::token::hash_token,
+    db::pool::DatabasePool,
+    outbox::OutboxTx,
+};
 
 /// Session cookie 名称
 ///
@@ -239,24 +245,40 @@ async fn resolve_session(
 }
 
 /// 创建新会话并返回 session token
-pub async fn create_session(pool: &DatabasePool, user_id: &str) -> Result<String, sqlx::Error> {
+///
+/// `ua`：设备 User-Agent（截断后写入 `user_agent`，供新设备登录安全通知
+/// M02-MFA-08 判定“首次见到的设备”；无则 `None`）。
+pub async fn create_session(
+    pool: &DatabasePool,
+    user_id: &str,
+    ua: Option<&str>,
+) -> Result<String, sqlx::Error> {
     let token = crate::auth::token::generate_token();
     let token_hash = hash_token(&token);
     let session_id = uuid::Uuid::now_v7().to_string();
     let now = crate::outbox::now_millis();
     let idle_expires = now + IDLE_TIMEOUT_MS;
     let absolute_expires = now + ABSOLUTE_TIMEOUT_MS;
+    let ua_truncated = ua.map(|u| u.trim()).filter(|u| !u.is_empty()).map(|u| {
+        let mut chars = u.chars();
+        let mut s: String = chars.by_ref().take(200).collect();
+        if chars.next().is_some() {
+            s.push('…');
+        }
+        s
+    });
 
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, created_at, last_seen_at, idle_expires_at, absolute_expires_at, auth_verified_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, user_agent, created_at, last_seen_at, idle_expires_at, absolute_expires_at, auth_verified_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&session_id)
             .bind(user_id)
             .bind(&token_hash)
             .bind(&token_hash)
+            .bind(&ua_truncated)
             .bind(now)
             .bind(now)
             .bind(idle_expires)
@@ -268,13 +290,14 @@ pub async fn create_session(pool: &DatabasePool, user_id: &str) -> Result<String
         }
         Either::Right(p) => {
             sqlx::query(
-                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, created_at, last_seen_at, idle_expires_at, absolute_expires_at, auth_verified_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, user_agent, created_at, last_seen_at, idle_expires_at, absolute_expires_at, auth_verified_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&session_id)
             .bind(user_id)
             .bind(&token_hash)
             .bind(&token_hash)
+            .bind(&ua_truncated)
             .bind(now)
             .bind(now)
             .bind(idle_expires)
@@ -384,7 +407,7 @@ pub async fn rotate_session(
     }
 
     // 签发新 Session（全新 token，旧 token 已失效）
-    create_session(pool, &user_id).await
+    create_session(pool, &user_id, None).await
 }
 
 /// 设备会话列表项（M02-SESSION-05）。
@@ -476,31 +499,62 @@ pub async fn revoke_session_by_id(
 ) -> Result<bool, sqlx::Error> {
     use crate::outbox::now_millis;
     let now = now_millis();
+    let mut tx = begin_tx(pool).await?;
+    let affected = match &mut tx {
+        Either::Left(t) => sqlx::query(
+            "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?
+                 WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(reason)
+        .bind(session_id)
+        .bind(user_id)
+        .execute(&mut **t)
+        .await?
+        .rows_affected(),
+        Either::Right(t) => sqlx::query(
+            "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?
+                 WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(reason)
+        .bind(session_id)
+        .bind(user_id)
+        .execute(&mut **t)
+        .await?
+        .rows_affected(),
+    };
+    if affected != 1 {
+        return Ok(false); // 不属于该用户/已撤销；tx 丢弃即回滚
+    }
+
+    // 安全通知（M02-MFA-08）：会话撤销与撤销操作同事务
+    create_security_notification_in_tx(
+        &mut tx,
+        user_id,
+        SecurityEvent::SessionRevoked,
+        "session_revoke",
+        None,
+    )
+    .await?;
+
+    commit_tx(tx).await?;
+    Ok(true)
+}
+
+async fn begin_tx(pool: &DatabasePool) -> Result<OutboxTx<'_>, sqlx::Error> {
     match pool {
-        Either::Left(p) => sqlx::query(
-            "UPDATE user_sessions
-                 SET revoked_at = ?, revoke_reason = ?
-                 WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
-        )
-        .bind(now)
-        .bind(reason)
-        .bind(session_id)
-        .bind(user_id)
-        .execute(p)
-        .await
-        .map(|r| r.rows_affected() == 1),
-        Either::Right(p) => sqlx::query(
-            "UPDATE user_sessions
-                 SET revoked_at = ?, revoke_reason = ?
-                 WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
-        )
-        .bind(now)
-        .bind(reason)
-        .bind(session_id)
-        .bind(user_id)
-        .execute(p)
-        .await
-        .map(|r| r.rows_affected() == 1),
+        Either::Left(p) => Ok(Either::Left(p.begin().await?)),
+        Either::Right(p) => Ok(Either::Right(p.begin().await?)),
+    }
+}
+
+async fn commit_tx(tx: OutboxTx<'_>) -> Result<(), sqlx::Error> {
+    match tx {
+        Either::Left(t) => t.commit().await,
+        Either::Right(t) => t.commit().await,
     }
 }
 

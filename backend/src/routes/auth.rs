@@ -399,6 +399,9 @@ async fn login(
         crate::auth::normalize_username(identifier)
     };
     let ip = client_ip(&headers);
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok());
 
     match login_user(
         pool,
@@ -406,6 +409,8 @@ async fn login(
         &identifier_normalized,
         &req.password,
         &ip,
+        ua,
+        request_id,
         &LoginLimits::default(),
     )
     .await

@@ -16,6 +16,7 @@ use sqlx::Either;
 use crate::{
     auth::{
         password::{verify_password, VerifyResult},
+        security_notify::{has_device_seen, notify_new_device},
         session::create_session,
     },
     db::pool::DatabasePool,
@@ -87,12 +88,20 @@ impl std::error::Error for LoginError {}
 const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 /// 登录：IP 限流 → 常量时间验证 → 失败计数/锁定 or 成功重置 + 创建 Session。
+///
+/// `ua`：设备 User-Agent（可选，用于新设备登录安全通知 M02-MFA-08）。
+/// `request_id`：审计/通知关联 ID。
+/// `#[allow(clippy::too_many_arguments)]`：登录契约参数均为领域必需
+/// （身份、凭据、限流、设备指纹、关联 ID），保持平铺便于调用方逐项传入。
+#[allow(clippy::too_many_arguments)]
 pub async fn login_user(
     pool: &DatabasePool,
     limiter: &RateLimiter,
     identifier_normalized: &str,
     password: &str,
     ip: &str,
+    ua: Option<&str>,
+    request_id: &str,
     limits: &LoginLimits,
 ) -> Result<LoginOutcome, LoginError> {
     let now = now_millis();
@@ -163,13 +172,30 @@ pub async fn login_user(
         if user.status == "banned" || user.status == "deleted" {
             return Err(LoginError::InvalidCredentials);
         }
+        // 新设备判定（M02-MFA-08）：在 create_session 之前查询，避免新会话
+        // 自身计入“已见设备”。UA 为空视为无法判定（不通知）。
+        let ua_clean = ua.map(str::trim).filter(|u| !u.is_empty());
+        let is_new_device = match ua_clean {
+            Some(ua) => !has_device_seen(pool, &user.id, ua)
+                .await
+                .map_err(LoginError::Database)?,
+            None => false,
+        };
         // 登录成功：重置连续失败计数并创建 Session
         reset_failure_count(pool, &user.id, now)
             .await
             .map_err(LoginError::Database)?;
-        let session_token = create_session(pool, &user.id)
+        let session_token = create_session(pool, &user.id, ua_clean)
             .await
             .map_err(LoginError::Database)?;
+        if is_new_device {
+            // 安全通知尽力而为：失败不阻断登录（记 warn，后续审计可追踪）
+            if let Some(ua) = ua_clean {
+                if let Err(e) = notify_new_device(pool, &user.id, ua, request_id).await {
+                    tracing::warn!(user_id = %user.id, error = %e, "new device security notification failed");
+                }
+            }
+        }
         return Ok(LoginOutcome {
             user_id: user.id,
             username: user.username_normalized,

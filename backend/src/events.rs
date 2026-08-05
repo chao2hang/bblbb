@@ -30,6 +30,7 @@ pub mod types {
     pub const REACTION_CREATED: &str = "reaction.created.v1";
     pub const REACTION_REMOVED: &str = "reaction.removed.v1";
     pub const CONFIG_POLICY_CHANGED: &str = "config.policy_changed.v1";
+    pub const AUTH_SECURITY_NOTIFICATION: &str = "auth.security_notification.v1";
 }
 
 /// 全部注册事件类型（有序，供检查/枚举使用）。
@@ -56,6 +57,7 @@ pub fn all_event_types() -> &'static [&'static str] {
         types::REACTION_CREATED,
         types::REACTION_REMOVED,
         types::CONFIG_POLICY_CHANGED,
+        types::AUTH_SECURITY_NOTIFICATION,
     ]
 }
 
@@ -97,7 +99,7 @@ mod tests {
         events.sort();
         events.dedup();
         assert_eq!(events.len(), total, "事件注册表不得有重复");
-        assert_eq!(total, 21, "与 EVENT-CATALOG.md 的 21 个事件一致");
+        assert_eq!(total, 22, "与 EVENT-CATALOG.md 的 22 个事件一致");
     }
 
     #[test]

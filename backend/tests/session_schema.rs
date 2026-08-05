@@ -217,7 +217,7 @@ async fn create_session_stores_only_token_hash() {
         Either::Right(_) => panic!("SQLite only"),
     }
 
-    let token = create_session(&pool, &user_id).await.unwrap();
+    let token = create_session(&pool, &user_id, None).await.unwrap();
     // 256 bit 熵：32 字节 → ≥40 字符 URL-safe base64
     assert!(token.len() >= 40, "Session token 熵不足: {}", token.len());
 

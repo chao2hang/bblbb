@@ -662,8 +662,10 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 
 ### `notifications`
 
-- `id`、`user_id`、`kind`、`actor_id`、`target_type`、`target_id`、`payload_json`、`read_at`、`created_at`。
-- 索引：`(user_id, read_at, created_at)`。
+- `id`、`user_id`、`type`、`title`、`body`、`link`、`is_read`、`created_at`、`read_at`。
+- `type` 合法值：`system` / `reply` / `mention` / `reaction` / `moderation` / `badge` / `digest`（迁移 0004 CHECK 约束）。
+- `security_kind`（迁移 0017）：安全通知标记（M02-MFA-08）——非空即安全通知，合法值：`new_device` / `password_changed` / `mfa_changed` / `session_revoked` / `recovery_code_used`；`type` 保持 `system`，由 `security_kind` 区分安全类别（M05-NOTIFY 偏好强制“安全通知不可关闭”）。
+- 索引：`(user_id)`、`(user_id, is_read)`。
 
 ### `outbox_events`
 

@@ -47,6 +47,7 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 | `reaction.created.v1` | 帖子/评论互动 | 通知、计数 | 目标/反应类型 |
 | `reaction.removed.v1` | 撤销互动 | 通知、计数 | 目标/反应类型 |
 | `config.policy_changed.v1` | Policy 换版 | 缓存失效、重检 | 配置 diff 的脱敏摘要 |
+| `auth.security_notification.v1` | 安全通知（新设备/密码/MFA 变化/Session 撤销/恢复码使用） | 邮件、站内通知 | 仅 kind/user_id，无设备/IP 原文 |
 
 ## 3. Webhook
 

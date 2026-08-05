@@ -32,6 +32,7 @@ use uuid::Uuid;
 
 use crate::{
     audit::AuditEntry,
+    auth::security_notify::{create_security_notification_in_tx, SecurityEvent},
     db::pool::DatabasePool,
     outbox::{now_millis, OutboxTx},
 };
@@ -325,62 +326,101 @@ pub async fn confirm_enrollment(
     }
 
     let now = crate::outbox::now_millis();
-    let affected = match pool {
-        Either::Left(p) => sqlx::query(
+    let mut tx = begin_tx(pool)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    let affected = match &mut tx {
+        Either::Left(t) => sqlx::query(
             "UPDATE totp_credentials SET confirmed_at = ?, last_accepted_step = ?
              WHERE id = ? AND confirmed_at IS NULL AND revoked_at IS NULL",
         )
         .bind(now)
         .bind(step as i64)
         .bind(&row.id)
-        .execute(p)
+        .execute(&mut **t)
         .await
         .map_err(|e| MfaError::Database(e.to_string()))?
         .rows_affected(),
-        Either::Right(p) => sqlx::query(
+        Either::Right(t) => sqlx::query(
             "UPDATE totp_credentials SET confirmed_at = ?, last_accepted_step = ?
              WHERE id = ? AND confirmed_at IS NULL AND revoked_at IS NULL",
         )
         .bind(now)
         .bind(step as i64)
         .bind(&row.id)
-        .execute(p)
+        .execute(&mut **t)
         .await
         .map_err(|e| MfaError::Database(e.to_string()))?
         .rows_affected(),
     };
     if affected != 1 {
-        return Err(MfaError::AlreadyConfirmed);
+        return Err(MfaError::AlreadyConfirmed); // tx 丢弃即回滚
     }
+
+    // 安全通知（M02-MFA-08）：MFA 启用与 enrollment 同事务
+    create_security_notification_in_tx(
+        &mut tx,
+        user_id,
+        SecurityEvent::MfaChanged,
+        "mfa_confirm",
+        None,
+    )
+    .await
+    .map_err(|e| MfaError::Database(e.to_string()))?;
+
+    commit_tx(tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
     Ok(())
 }
 
 /// 取消未完成的 enrollment：撤销 pending 行。返回是否确实取消了。
 pub async fn cancel_enrollment(pool: &DatabasePool, user_id: &str) -> Result<bool, MfaError> {
     let now = crate::outbox::now_millis();
-    let affected = match pool {
-        Either::Left(p) => sqlx::query(
+    let mut tx = begin_tx(pool)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    let affected = match &mut tx {
+        Either::Left(t) => sqlx::query(
             "UPDATE totp_credentials SET revoked_at = ?
              WHERE user_id = ? AND confirmed_at IS NULL AND revoked_at IS NULL",
         )
         .bind(now)
         .bind(user_id)
-        .execute(p)
+        .execute(&mut **t)
         .await
         .map_err(|e| MfaError::Database(e.to_string()))?
         .rows_affected(),
-        Either::Right(p) => sqlx::query(
+        Either::Right(t) => sqlx::query(
             "UPDATE totp_credentials SET revoked_at = ?
              WHERE user_id = ? AND confirmed_at IS NULL AND revoked_at IS NULL",
         )
         .bind(now)
         .bind(user_id)
-        .execute(p)
+        .execute(&mut **t)
         .await
         .map_err(|e| MfaError::Database(e.to_string()))?
         .rows_affected(),
     };
-    Ok(affected > 0)
+    if affected == 0 {
+        return Ok(false); // 没有未完成 enrollment；tx 丢弃即回滚
+    }
+
+    // 安全通知（M02-MFA-08）：MFA 设置变化（取消 enrollment）同事务
+    create_security_notification_in_tx(
+        &mut tx,
+        user_id,
+        SecurityEvent::MfaChanged,
+        "mfa_cancel",
+        None,
+    )
+    .await
+    .map_err(|e| MfaError::Database(e.to_string()))?;
+
+    commit_tx(tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    Ok(true)
 }
 
 /// MFA 登录验证结果。
@@ -548,6 +588,17 @@ pub async fn consume_recovery_code(
         .record_in_tx(&mut tx)
         .await
         .map_err(|e| MfaError::Database(e.to_string()))?;
+
+    // 安全通知（M02-MFA-08）：恢复码使用与消费同事务，可追踪可送达
+    create_security_notification_in_tx(
+        &mut tx,
+        user_id,
+        SecurityEvent::RecoveryCodeUsed,
+        request_id,
+        None,
+    )
+    .await
+    .map_err(|e| MfaError::Database(e.to_string()))?;
 
     commit_tx(tx)
         .await

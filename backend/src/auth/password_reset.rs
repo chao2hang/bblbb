@@ -22,7 +22,10 @@ use sqlx::Either;
 
 use crate::{
     audit::AuditEntry,
-    auth::token::hash_token,
+    auth::{
+        security_notify::{create_security_notification_in_tx, SecurityEvent},
+        token::hash_token,
+    },
     db::pool::DatabasePool,
     events,
     outbox::{self, OutboxTx},
@@ -331,6 +334,17 @@ pub async fn confirm_password_reset(
         .record_in_tx(&mut tx)
         .await
         .map_err(ConfirmResetError::Database)?;
+
+    // 安全通知（M02-MFA-08）：密码变化（密码重置）与重置同事务
+    create_security_notification_in_tx(
+        &mut tx,
+        &user_id,
+        SecurityEvent::PasswordChanged,
+        request_id,
+        None,
+    )
+    .await
+    .map_err(ConfirmResetError::Database)?;
 
     commit_tx(tx).await.map_err(ConfirmResetError::Database)?;
 

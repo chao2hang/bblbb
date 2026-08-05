@@ -96,7 +96,7 @@ async fn session_count(pool: &DatabasePool) -> i64 {
 async fn rotate_invalidates_old_token_and_issues_new() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool).await;
-    let old_token = create_session(&pool, &user_id).await.unwrap();
+    let old_token = create_session(&pool, &user_id, None).await.unwrap();
     assert_eq!(session_count(&pool).await, 1);
 
     let new_token = rotate_session(&pool, &old_token, "login")
@@ -142,8 +142,8 @@ async fn each_login_issues_fresh_session_token() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool).await;
 
-    let token_a = create_session(&pool, &user_id).await.unwrap();
-    let token_b = create_session(&pool, &user_id).await.unwrap();
+    let token_a = create_session(&pool, &user_id, None).await.unwrap();
+    let token_b = create_session(&pool, &user_id, None).await.unwrap();
     assert_ne!(token_a, token_b, "每次登录必须签发全新 token");
 
     let (revoked_a, ..) = session_state(&pool, &token_a).await;

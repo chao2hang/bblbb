@@ -154,7 +154,7 @@ async fn create_session_sets_auth_verified_at() {
     let user_id = insert_user(&pool, "alice").await;
 
     let before = now_millis();
-    let token = create_session(&pool, &user_id).await.unwrap();
+    let token = create_session(&pool, &user_id, None).await.unwrap();
     let after = now_millis();
 
     let verified = auth_verified_at(&pool, &token).await;
@@ -179,7 +179,7 @@ async fn create_session_sets_auth_verified_at() {
 async fn mark_step_up_refreshes_and_clears_requirement() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool, "bob").await;
-    let token = create_session(&pool, &user_id).await.unwrap();
+    let token = create_session(&pool, &user_id, None).await.unwrap();
 
     // 回溯到超过窗口 → 需要 step-up
     let window_ms = DEFAULT_STEP_UP_WINDOW_SECS as i64 * 1000;
@@ -207,7 +207,7 @@ async fn mark_step_up_refreshes_and_clears_requirement() {
 async fn mark_step_up_on_unknown_session_row_not_found() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool, "carol").await;
-    let token = create_session(&pool, &user_id).await.unwrap();
+    let token = create_session(&pool, &user_id, None).await.unwrap();
 
     let err = mark_step_up(&pool, "not-a-real-token").await.unwrap_err();
     assert!(
@@ -234,7 +234,7 @@ async fn mark_step_up_on_unknown_session_row_not_found() {
 async fn session_requires_step_up_after_window_only() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool, "dave").await;
-    let token = create_session(&pool, &user_id).await.unwrap();
+    let token = create_session(&pool, &user_id, None).await.unwrap();
 
     // 刚签发：在窗口内
     assert!(
@@ -268,7 +268,7 @@ async fn session_requires_step_up_after_window_only() {
 async fn revoked_session_always_requires_step_up() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool, "erin").await;
-    let token = create_session(&pool, &user_id).await.unwrap();
+    let token = create_session(&pool, &user_id, None).await.unwrap();
 
     revoke_session(&pool, &token).await.unwrap();
     assert!(
@@ -287,7 +287,7 @@ async fn revoked_session_always_requires_step_up() {
 async fn unknown_token_requires_step_up() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool, "frank").await;
-    let _token = create_session(&pool, &user_id).await.unwrap();
+    let _token = create_session(&pool, &user_id, None).await.unwrap();
 
     assert!(
         is_step_up_required_for_session(&pool, "bogus-token", DEFAULT_STEP_UP_WINDOW_SECS)
