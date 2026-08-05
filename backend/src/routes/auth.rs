@@ -123,22 +123,27 @@ pub fn router() -> Router<AppState> {
 
 // ─── 处理器 ──────────────────────────────────────────────────────────────────
 
-/// GET /api/v1/auth/csrf — 获取 CSRF token
+/// GET /api/v1/auth/csrf — 获取 CSRF token（M02-SESSION-07）
+///
+/// - 已认证：返回 Session 绑定 synchronizer token（由 session_id +
+///   csrf_secret_hash 确定性派生，同一会话稳定）；
+/// - 未认证：返回一次性预认证 token（M02-SESSION-08 引入匿名状态）；
+/// - 响应始终 `Cache-Control: private, no-store`（CSRF token 不得缓存）。
 async fn get_csrf_token(
     State(_state): State<AppState>,
     auth: AuthSession,
-) -> Result<Json<CsrfResponse>, AppError> {
-    let _request_id = "csrf";
-
-    if let Some(csrf) = &auth.csrf_token {
-        return Ok(Json(CsrfResponse {
-            token: csrf.clone(),
-        }));
-    }
-
-    // 未认证用户生成一次性预认证 CSRF token
-    let token = generate_token();
-    Ok(Json(CsrfResponse { token }))
+) -> Result<Response, AppError> {
+    let token = if let Some(csrf) = &auth.csrf_token {
+        csrf.clone()
+    } else {
+        // 未认证用户生成一次性预认证 CSRF token
+        generate_token()
+    };
+    Ok((
+        [(header::CACHE_CONTROL, "private, no-store")],
+        Json(CsrfResponse { token }),
+    )
+        .into_response())
 }
 
 /// POST /api/v1/auth/register — 注册新用户

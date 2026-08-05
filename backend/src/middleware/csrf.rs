@@ -168,7 +168,7 @@ fn csrf_rejected(request_id: &str) -> Response {
         type_uri: "about:blank",
         title: "Forbidden",
         status: StatusCode::FORBIDDEN.as_u16(),
-        code: "csrf_validation_failed",
+        code: "csrf_failed",
         detail: "CSRF token missing or invalid".to_string(),
         instance: None,
         request_id: request_id.to_string(),
