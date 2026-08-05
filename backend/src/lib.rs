@@ -6,6 +6,7 @@ pub mod app;
 pub mod audit;
 pub mod auth;
 pub mod authz;
+pub mod boards;
 pub mod config;
 pub mod db;
 pub mod domain;
