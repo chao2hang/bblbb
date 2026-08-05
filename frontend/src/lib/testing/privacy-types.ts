@@ -5,7 +5,7 @@
 // 但绝不能携带任何凭据、令牌、密钥或正文内容字段。
 // 若未来有人给 DTO 追加 `password_hash`、`session_token` 等字段，
 // 这里的 `Assert<false>` 会让 svelte-check 直接失败。
-import type { User, Board, Tag, PostSummary } from '$lib/api/types';
+import type { User, Board, Tag, PostSummary, PublicProfile } from '$lib/api/types';
 
 type Assert<T extends true> = T;
 
@@ -41,9 +41,28 @@ type NoBodyContent<T> =
   'hidden_body' extends keyof T ? false :
   true;
 
+type NoStatus<T> = 'status' extends keyof T ? false : true;
+
 type _BoardProjectionClean =
   Assert<NoPrivateKeys<Board>> & Assert<NoBodyContent<Board>>;
 type _TagProjectionClean =
   Assert<NoPrivateKeys<Tag>> & Assert<NoBodyContent<Tag>>;
 type _PostProjectionClean =
   Assert<NoPrivateKeys<PostSummary>> & Assert<NoBodyContent<PostSummary>>;
+
+// ── 公开用户资料（GET /users/{username} 投影，M03-PROFILE-01）────────────────
+// PublicProfile 是严格公开投影：不得携带邮箱、凭据、状态、版本或任何
+// Session/内部字段。违反时 svelte-check 直接失败（M03-PROFILE-09）。
+
+type _PublicProfileNoEmail =
+  Assert<'email' extends keyof PublicProfile ? false : true>;
+type _PublicProfileNoCredentials =
+  Assert<
+    'password' | 'password_hash' | 'session_token' | 'totp_secret' |
+    'reset_token' | 'secret' | 'api_key' extends keyof PublicProfile ? false : true
+  >;
+type _PublicProfileNoStatus = Assert<NoStatus<PublicProfile>>;
+type _PublicProfileNoVersion =
+  Assert<'version' extends keyof PublicProfile ? false : true>;
+type _PublicProfileProjectionClean =
+  Assert<NoPrivateKeys<PublicProfile>> & Assert<NoStatus<PublicProfile>>;

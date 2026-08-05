@@ -6,6 +6,7 @@ import { render } from 'svelte/server';
 import PostList from '$lib/components/PostList.svelte';
 import BoardCard from '$lib/components/BoardCard.svelte';
 import ArticleCard from '$lib/components/ArticleCard.svelte';
+import UserHoverCard from '$lib/components/UserHoverCard.svelte';
 
 describe('M00-FRONTEND-09 隐私守卫：SSR HTML 不含私密字段值', () => {
   it('PostList SSR 不渲染邮箱/凭据/隐藏正文', () => {
@@ -66,5 +67,35 @@ describe('M00-FRONTEND-09 隐私守卫：SSR HTML 不含私密字段值', () => 
     expect(body).toContain('Rust 入门指南');
     expect(body).not.toContain('ARTICLE-SSR-BODY');
     expect(body).not.toContain('ARTICLE-SSR-HIDDEN');
+  });
+
+  it('UserHoverCard SSR 只渲染公开字段，不渲染邮箱/状态/凭据（M03-PROFILE-09）', () => {
+    const { body } = render(UserHoverCard, {
+      props: {
+        user: {
+          username: 'alice',
+          display_name: '爱丽丝',
+          level: 7,
+          email: 'alice@example.com',
+          email_normalized: 'alice@example.com',
+          status: 'active',
+          version: 3,
+          password_hash: 'SSR-HOVER-HASH',
+          session_token: 'SSR-HOVER-TOKEN',
+          mfa_enabled: true,
+          last_login_at: 1780000000000
+        } as never
+      }
+    });
+    expect(body).toContain('爱丽丝');
+    expect(body).toContain('@alice');
+    expect(body).toContain('LV.7');
+    expect(body).toContain('/users/alice');
+    expect(body).not.toContain('alice@example.com');
+    expect(body).not.toContain('SSR-HOVER-HASH');
+    expect(body).not.toContain('SSR-HOVER-TOKEN');
+    expect(body).not.toContain('status');
+    expect(body).not.toContain('mfa');
+    expect(body).not.toContain('last_login');
   });
 });
