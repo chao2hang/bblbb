@@ -135,10 +135,12 @@ pub fn build_router_with_flags(
         .merge(base_routes)
         .merge(openapi_routes)
         .merge(api_routes)
-        // 中间件层（.layer 按从内到外应用；运行顺序为从外到内：
-        // problem → request_id → feature_gate → host_origin → trace → body_limit → timeout → security_headers → router）
-        // problem_instance 必须最外层：内层中间件（如 Host/Origin）提前返回的
-        // Problem 响应也能被补齐 instance/request_id。
+        // 中间件层（后添加者在外层；运行顺序为从外到内：
+        // problem → request_id → feature_gate → host_origin → trace → body_limit
+        // → timeout → security_headers → router）
+        // problem_instance 必须最外层：内层中间件（如 Host/Origin/Feature Gate）
+        // 提前返回的 Problem 响应也能被补齐 instance/request_id。
+        // feature_gate 位于 request_id 内层，可读取 request_id 扩展。
         .layer(middleware::from_fn(security_headers))
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

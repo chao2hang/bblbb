@@ -220,3 +220,107 @@ async fn upload_and_core_routes_are_not_gated() {
         assert_ne!(response.status(), StatusCode::CONFLICT, "path {path}");
     }
 }
+
+/// M01-CONFIG-07：Flag 全关时核心论坛独立运行——请求不被任何 Feature Gate
+/// 拦截（核心 handler 可能因无 DB 返回 500，或 stub 返回 501，但绝不 409）。
+#[tokio::test]
+async fn core_forum_runs_independently_when_features_off() {
+    for path in [
+        "/api/v1/posts",
+        "/api/v1/boards",
+        "/api/v1/tags",
+        "/api/v1/me",
+        "/api/v1/users/alice",
+        "/api/v1/auth/csrf",
+    ] {
+        let response = build_router(AppConfig::default(), None)
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_ne!(
+            response.status(),
+            StatusCode::CONFLICT,
+            "核心路径被 Feature Gate 误拦截: {path}"
+        );
+    }
+}
+
+/// M01-CONFIG-07：紧急关闭（kill switch）优先于 Flag 启用状态。
+#[tokio::test]
+async fn kill_switch_blocks_even_enabled_features() {
+    let config = AppConfig {
+        feature_kill_switch: true,
+        ..AppConfig::default()
+    };
+    let response = build_router(config, None)
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/ai/capabilities")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+}
+
+/// M01-CONFIG-07：Feature Gate 返回的响应仍携带 request_id 与 Problem instance
+/// ——request_id / problem_instance 中间件包裹 Gate，不因短路而跳过。
+#[tokio::test]
+async fn gated_responses_still_carry_request_id_and_instance() {
+    let response = build_router(AppConfig::default(), None)
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/ai/capabilities")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let request_id = response
+        .headers()
+        .get("x-request-id")
+        .expect("409 必须携带 x-request-id")
+        .to_str()
+        .unwrap()
+        .to_owned();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["request_id"], request_id);
+    assert_eq!(json["instance"], "/api/v1/ai/capabilities");
+}
+
+/// M01-CONFIG-07：Flag 开启后，放行的请求同样经过安全中间件栈。
+#[tokio::test]
+async fn enabled_feature_requests_also_pass_security_stack() {
+    let mut flags = FeatureFlags::all_default();
+    flags
+        .set(
+            FeatureName::Video,
+            true,
+            1,
+            0,
+            "test",
+            "enable for test",
+            1_700_000_000_000,
+        )
+        .unwrap();
+    let response = build_router_with_flags(AppConfig::default(), None, flags)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/video-embeds/resolve")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    assert_eq!(
+        response.headers().get("x-content-type-options").unwrap(),
+        "nosniff",
+        "放行请求也必须带安全头"
+    );
+    assert!(!response.headers().get("x-request-id").unwrap().is_empty());
+}
