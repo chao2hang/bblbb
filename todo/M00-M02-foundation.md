@@ -132,8 +132,8 @@
 - [x] `M01-CONFIG-05` `[45m]` 实现 Feature Flag 默认值、作用范围、生效时间、紧急关闭、版本和审计。证据：files=backend/src/config/flags.rs,backend/src/config.rs,backend/.env.example,docs/CONFIGURATION.md；commands=cargo test --all-features（138 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=FeatureName 五能力默认关闭 + 乐观锁版本 set + effective_at 生效时间 + emergency_off 优先 + FlagChangeRecord 审计 + BBLBB__FEATURE_KILL_SWITCH；commit=4d5aec8；review=6 项 flags 测试通过
 - [x] `M01-CONFIG-06` `[20m]` 将 AI、Video Provider、Download Billing、OIDC 和 Marketplace 默认设为关闭。证据：files=backend/src/config/flags.rs,backend/src/app.rs,backend/src/error.rs,backend/tests/http.rs；commands=cargo test --all-features（142 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=FeatureName 五能力 all_default 全关 + feature_for_path 路径映射 + feature_gate 中间件 409 feature_disabled + build_router_with_flags；commit=c612061；review=3 项 HTTP 门控测试 + 路径映射单测通过
 - [x] `M01-CONFIG-07` `[45m]` 验证 Flag 关闭时核心论坛独立运行，开启时也不能绕过权限、CSRF、账本、审计或安全上限。证据：files=backend/tests/http.rs,backend/src/app.rs；commands=cargo test --all-features（146 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=核心路由不被 Gate 拦截 + kill switch 优先 + 409 带 request_id/instance + 启用请求仍过安全头栈 + 权限/CSRF/账本/审计由各领域 handler 执行（M6-M12）；commit=163ac67；review=4 项验证测试通过
-- [~] `M01-CONFIG-08` `[45m]` 为配置读取、管理更新、并发版本冲突、重启生效和 Secret 轮换编写测试。
-- [ ] `M01-CONFIG-09` `[30m]` 同步 `.env.example` 与配置文档，示例不得含真实域名、凭据或可用 Token。
+- [x] `M01-CONFIG-08` `[45m]` 为配置读取、管理更新、并发版本冲突、重启生效和 Secret 轮换编写测试。证据：files=backend/src/config/store.rs,backend/src/config/secrets.rs,docs/CONFIGURATION.md；commands=cargo test --all-features（153 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=ConfigStore 乐观锁 update + pending/apply_restart 重启生效 + Secret 轮换新值/旧值不可读/mtime 版本变化/元数据不含值；commit=bcff068；review=7 项测试通过
+- [~] `M01-CONFIG-09` `[30m]` 同步 `.env.example` 与配置文档，示例不得含真实域名、凭据或可用 Token。
 
 ## M01-JOBS：Transactional Outbox 与任务 Worker
 
