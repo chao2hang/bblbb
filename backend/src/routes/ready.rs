@@ -1,7 +1,14 @@
-use axum::{extract::State, response::Json, routing::get, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Json, Response},
+    routing::get,
+    Router,
+};
 use serde::Serialize;
 
 use crate::app::AppState;
+use crate::db::migrate::CheckMode;
 
 #[derive(Serialize)]
 pub struct ReadyResponse {
@@ -17,12 +24,12 @@ pub struct ReadyChecks {
 }
 
 /// /readyz — 受保护的就绪检查端点
-/// 检查数据库连接、迁移状态（版本比对）、存储目录和必要密钥
+/// 检查数据库连接、迁移状态（版本/顺序/checksum）、存储目录和必要密钥
 pub fn router() -> Router<AppState> {
     Router::new().route("/readyz", get(readyz))
 }
 
-pub async fn readyz(State(state): State<AppState>) -> Json<ReadyResponse> {
+pub async fn readyz(State(state): State<AppState>) -> Response {
     let db_status = match &state.db {
         Some(pool) => match crate::db::pool::ping(pool).await {
             Ok(()) => "ok",
@@ -48,24 +55,33 @@ pub async fn readyz(State(state): State<AppState>) -> Json<ReadyResponse> {
         "degraded"
     };
 
-    Json(ReadyResponse {
+    let body = Json(ReadyResponse {
         status: overall,
         checks: ReadyChecks {
             database: db_status,
             migrations: migrations_status,
             storage_dir: storage_status,
         },
-    })
+    });
+
+    // M01-DB-12：连接失败、迁移落后/超前、checksum 不匹配时明确失败（503）。
+    // 响应体只含状态枚举，不包含 DSN、连接串或错误文本。
+    if overall == "ok" {
+        (StatusCode::OK, body).into_response()
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, body).into_response()
+    }
 }
 
-/// 迁移就绪状态（M00-BACKEND-07/08）
+/// 迁移就绪状态（M01-DB-12）
 ///
-/// 比较 migrations 目录中最大版本与数据库 `_sqlx_migrations` 已应用的最大版本：
-/// - 数据库未配置或迁移目录无文件 → `skip`
+/// 使用只读迁移检查（不创建/写入迁移表）判定：
+/// - 无数据库或迁移目录无文件 → `skip`
 /// - 目录不可读 → `error`
-/// - 已应用版本落后 → `behind`（尚未执行全部迁移，含全新数据库）
-/// - 已应用版本超前 → `ahead`
-/// - 已应用版本一致 → `ok`
+/// - checksum 不匹配（已执行迁移内容被修改）→ `checksum_mismatch`
+/// - 已应用版本超前（代码未知的迁移）→ `ahead`
+/// - 有待应用迁移 → `behind`
+/// - 完全一致 → `ok`
 async fn migration_status(state: &AppState) -> &'static str {
     let Some(pool) = &state.db else {
         return "skip";
@@ -84,18 +100,14 @@ async fn migration_status(state: &AppState) -> &'static str {
     if files.is_empty() {
         return "skip";
     }
-    let max_available = files
-        .iter()
-        .map(|f| f.version)
-        .max()
-        .expect("files is non-empty");
 
-    match crate::db::migrate::max_applied_version(pool).await {
-        Ok(Some(applied)) if applied as u64 == max_available => "ok",
-        Ok(Some(applied)) if applied as u64 > max_available => "ahead",
-        Ok(_) => "behind",
+    match crate::db::migrate::check_migrations_with_mode(CheckMode::ReadOnly, pool, &files).await {
+        Ok(result) if !result.checksum_mismatches.is_empty() => "checksum_mismatch",
+        Ok(result) if !result.future_versions.is_empty() => "ahead",
+        Ok(result) if !result.pending.is_empty() => "behind",
+        Ok(_) => "ok",
         Err(e) => {
-            tracing::warn!(error = %e, "migration version check failed in /readyz");
+            tracing::warn!(error = %e, "migration check failed in /readyz");
             "error"
         }
     }

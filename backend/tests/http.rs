@@ -80,10 +80,11 @@ async fn readyz_returns_status() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    // 无数据库/存储目录缺失 → 明确失败（503），响应体只含状态枚举
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert!(json["status"].is_string());
+    assert_eq!(json["status"], "degraded");
     assert!(json["checks"]["database"].is_string());
 }
 
