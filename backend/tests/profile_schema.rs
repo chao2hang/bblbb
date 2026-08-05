@@ -301,3 +301,64 @@ async fn profile_revisions_schema_unique_and_cascade() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+/// M03-SCHEMA-02：头像/Cover 只存附件 UUID（软引用），URL/签名 URL 禁止入库。
+///
+/// avatar_attachment_id / cover_attachment_id 为 TEXT 软引用（attachments 表
+/// M6 落地后补 FK）；"禁止保存远程 URL/签名 URL"由 M3-PROFILE 服务层校验
+/// （ProfileCoverSet.attachment_id format: uuid）——DB 层不做跨库 URL 判定，
+/// 此处验证列存在、UUID 可往返、NULL 为默认（未设置）。
+#[tokio::test]
+async fn avatar_cover_reference_only_stores_attachment_uuid() {
+    let (pool, dir) = pool_with_migrations().await;
+    let columns = table_columns(&pool, "users").await;
+    for required in ["avatar_attachment_id", "cover_attachment_id"] {
+        assert!(
+            columns.iter().any(|c| c == required),
+            "users 缺少附件引用列 {required}，实际: {columns:?}"
+        );
+    }
+
+    let user_id = insert_user(&pool, "attach").await;
+    match &pool {
+        Either::Left(p) => {
+            let avatar_id = uuid::Uuid::now_v7().to_string();
+            let cover_id = uuid::Uuid::now_v7().to_string();
+            sqlx::query(
+                "UPDATE users SET avatar_attachment_id = ?, cover_attachment_id = ? WHERE id = ?",
+            )
+            .bind(&avatar_id)
+            .bind(&cover_id)
+            .bind(&user_id)
+            .execute(p)
+            .await
+            .unwrap();
+            let (avatar, cover): (Option<String>, Option<String>) = sqlx::query_as(
+                "SELECT avatar_attachment_id, cover_attachment_id FROM users WHERE id = ?",
+            )
+            .bind(&user_id)
+            .fetch_one(p)
+            .await
+            .unwrap();
+            assert_eq!(avatar.as_deref(), Some(avatar_id.as_str()));
+            assert_eq!(cover.as_deref(), Some(cover_id.as_str()));
+
+            // 未设置时为 NULL（默认）
+            let user2 = insert_user(&pool, "attach2").await;
+            let (avatar2, cover2): (Option<String>, Option<String>) = sqlx::query_as(
+                "SELECT avatar_attachment_id, cover_attachment_id FROM users WHERE id = ?",
+            )
+            .bind(&user2)
+            .fetch_one(p)
+            .await
+            .unwrap();
+            assert!(
+                avatar2.is_none() && cover2.is_none(),
+                "未设置附件引用必须为 NULL"
+            );
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

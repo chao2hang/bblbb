@@ -138,7 +138,8 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | `email_normalized` | 唯一、不可空 |
 | `password_hash` | Argon2id PHC 字符串 |
 | `display_name` | 昵称 |
-| `avatar_attachment_id` | 可空，关联附件 |
+| `avatar_attachment_id` | 可空，头像附件引用（仅存附件 UUID，禁止 URL/签名 URL；attachments 表 M6 落地后补 FK） |
+| `cover_attachment_id` | 可空，Cover 附件引用（同上，M03-SCHEMA-02） |
 | `signature`、`bio` | 个人资料 |
 | `status` | `pending/active/restricted/banned/pending_delete/deleted` |
 | `email_verified_at` | 可空 |
@@ -151,6 +152,11 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | `level_updated_at` | 等级缓存刷新时间，可空（NULL = 尚未计算） |
 
 注销硬删除时，必须先执行匿名化流程；是否释放原邮箱/用户名由隐私策略明确规定。
+
+头像/Cover 引用约定（M03-SCHEMA-02）：`avatar_attachment_id` /
+`cover_attachment_id` 只保存附件 UUID（`ProfileCoverSet.attachment_id`
+`format: uuid`），**禁止保存远程 URL 或签名 URL**——来源与格式校验在
+M3-PROFILE 服务层；`attachments` 表（M6 存储）落地后为这两列补外键。
 
 规范化约定（M02-IDENTITY-02）：`username_normalized` / `email_normalized`
 入库前先 `trim → Unicode NFKC → lowercase`（`auth::normalize_username` /
