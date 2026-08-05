@@ -93,7 +93,15 @@ running ──lease timeout──→ queued/retry_wait
 ## 5. 幂等
 
 - Job handler 必须按“至少一次执行”设计。
-- `deduplication_key` 用于能安全合并的任务，例如同一文章最新搜索索引。
+- **Outbox 事件去重（M01-JOBS-06）**：消费者对每个事件开启事务——
+  `outbox::consume_in_tx(tx, event_id, consumer)` 写入
+  `outbox_consumed(event_id, consumer)` 去重标记（唯一约束），返回 `true`
+  才执行业务副作用，随后 `outbox::mark_sent_in_tx(tx, event_id)` 标记
+  `sent`，整体提交。重复投递（崩溃重试/多消费者竞争）时唯一约束让
+  `consume_in_tx` 返回 `false`，副作用不会重复提交。不同消费者各自去重。
+  消费者崩溃则整事务回滚，标记与副作用一起消失，事件保持 `pending` 可重投。
+- Job 的 `deduplication_key` 唯一约束在入队层去重：同一业务副作用只创建
+  一个 job（M01-JOBS-01），崩溃重跑不重复入队。
 - 邮件可记录 message logical ID，避免重试重复发送；SMTP 最终仍可能出现极少数重复，模板应容忍。
 - 积分、付费解锁等调用核心服务时传业务幂等键。
 - 图片处理输出使用内容/参数哈希 key，重复执行覆盖同一目标或无副作用。

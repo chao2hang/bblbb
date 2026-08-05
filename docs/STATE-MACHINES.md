@@ -234,10 +234,19 @@ dead → queued               (人工重放，管理员审计操作)
 
 ### Outbox Event
 
+状态值来自迁移 CHECK 约束：`pending` / `processing` / `sent` / `failed`。
+
 ```text
-pending → publishing → delivered
-publishing → pending | dead
+pending → sent        (与业务副作用 + outbox_consumed 去重标记同一事务提交)
+pending → pending     (失败重试，按 next_attempt_at 退避)
+pending → failed      (达到 max_attempts)
 ```
+
+- 消费者在业务事务内先写 `outbox_consumed(event_id, consumer)` 去重标记：
+  唯一约束保证"至少一次投递"不重复产生业务副作用（M01-JOBS-06）。
+  同一消费者对同一事件只领取一次；不同消费者各自独立去重。
+- 消费者崩溃：整个事务回滚，去重标记与业务副作用一起消失，事件保持
+  `pending`，重投时重新执行。
 
 ### Webhook Delivery
 
