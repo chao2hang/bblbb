@@ -46,6 +46,21 @@ fn is_state_changing(method: &Method) -> bool {
     )
 }
 
+/// 请求是否携带 `Authorization: Bearer` 令牌（M02-SESSION-10）。
+/// Bearer 身份不依赖 Cookie，跨站无法伪造，因此不适用 Cookie CSRF 校验。
+fn has_bearer_token(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            let value = value.trim_start();
+            value.len() > 7
+                && value
+                    .get(..7)
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("bearer "))
+        })
+}
+
 /// CSRF 校验中间件
 pub async fn csrf_protection(
     State(state): State<AppState>,
@@ -65,6 +80,14 @@ pub async fn csrf_protection(
 
     let jar = CookieJar::from_headers(request.headers());
     let path = request.uri().path();
+
+    // Bearer-only：请求携带 `Authorization: Bearer` 且无会话 Cookie → 不适用
+    // CSRF（M02-SESSION-10，SECURITY.md §4：Bearer Token API 不依赖 Cookie 时
+    // 不要求 CSRF，但必须防 Token 泄漏）。Bearer 身份不经 Cookie 携带，跨站
+    // 无法伪造该头（跨源 fetch 触发 CORS 预检且默认 CORS 关闭），故放行。
+    if jar.get(SESSION_COOKIE_NAME).is_none() && has_bearer_token(request.headers()) {
+        return next.run(request).await;
+    }
 
     // 无数据库时不存在任何会话/预认证状态：等同无 Cookie 场景放行
     // （与 M02-SESSION-07 会话分支行为一致；真实部署恒有数据库）。
@@ -424,6 +447,37 @@ mod tests {
         for method in [Method::GET, Method::HEAD, Method::OPTIONS] {
             assert!(!is_state_changing(&method), "{method} should pass through");
         }
+    }
+
+    #[test]
+    fn bearer_token_detection() {
+        use axum::http::HeaderValue;
+        let mut headers = HeaderMap::new();
+        assert!(
+            !has_bearer_token(&headers),
+            "无 Authorization 头不是 Bearer-only"
+        );
+
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer abc.def"),
+        );
+        assert!(has_bearer_token(&headers));
+
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("bearer abc.def"),
+        );
+        assert!(has_bearer_token(&headers), "scheme 大小写不敏感");
+
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Basic dXNlcjpwYXNz"),
+        );
+        assert!(!has_bearer_token(&headers), "Basic 不是 Bearer-only");
+
+        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer"));
+        assert!(!has_bearer_token(&headers), "缺少令牌不视为 Bearer-only");
     }
 
     #[test]
