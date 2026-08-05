@@ -215,15 +215,15 @@
 - [x] `M02-SESSION-09` `[45m]` Cookie 写请求校验 `X-CSRF-Token` 与 Origin；缺 Origin 时按策略校验 Referer。证据：files=backend/src/middleware/csrf.rs,backend/src/middleware/host_origin.rs,backend/tests/session_csrf_origin.rs,openapi/openapi.yaml,docs/ERROR-CODES.md；commands=cargo test --all-features（387 通过/0 失败，含 session_csrf_origin 6 项）; cargo clippy --all-features --all-targets（0 warning）; make check（176/176、路线图 105/783）; contract=SECURITY.md §4 落地：CSRF token 校验通过后校验来源——Origin 与请求 Host 同主机（忽略 scheme/端口，同 SameSite 语义）或命中 allowed_origins；Origin 缺失→Referer 归一化后同校验；两者皆缺放行（非浏览器客户端）；会话绑定写与预认证写路径（login/register 等）均生效，跨站表单 login CSRF 被拦截；新增错误码 origin_not_allowed/host_not_allowed（400）入 OpenAPI 枚举与 ERROR-CODES.md；commit=76ca3be；review=6 项集成测试（跨源 400/同源 204/Referer 回退/皆缺放行/allowed_origins 配置放行/预认证跨源拒绝）+ 3 项单元测试
 - [x] `M02-SESSION-10` `[30m]` Bearer-only 且完全不使用 Cookie 的请求不错误要求 CSRF；GET/HEAD/OPTIONS 无业务副作用。证据：files=backend/src/middleware/csrf.rs,backend/tests/session_bearer_idempotency.rs；commands=cargo test --all-features（394 通过/0 失败，含 session_bearer_idempotency 6 项）; cargo clippy --all-features --all-targets（0 warning）; make check（176/176、路线图 106/783）; contract=SECURITY.md §4：Authorization: Bearer 且无会话 Cookie → 免 CSRF（含预认证写路径，Bearer-only login 不被错误要求预认证 CSRF）；携带会话 Cookie 时 Bearer 不豁免（Cookie 维度仍强制 CSRF）；GET/HEAD/OPTIONS 幂等读不被 CSRF 拦截且无业务副作用（GET 会话列表不创建/修改会话）；跨源 fetch 无法伪造 Bearer 头（CORS 默认关闭）；commit=775296d；review=6 项集成测试（Bearer 写放行 501/Bearer login 200/Bearer+Cookie 仍 403/GET HEAD OPTIONS 免 CSRF/GET 无副作用/PUT 仍 CSRF）+ 1 项单元测试
 - [x] `M02-SESSION-11` `[45m]` 测试反向代理 Set-Cookie 传播、错误 token、其他 Session token、跨 Origin 和无 Referer 请求。证据：files=backend/tests/session_csrf_edges.rs；commands=cargo test --all-features（399 通过/0 失败，含 session_csrf_edges 5 项）; cargo clippy --all-features --all-targets（0 warning）; make check（176/176、路线图 107/783）; contract=反向代理风格登录 Set-Cookie 为完整 `__Host-` 属性（Secure/HttpOnly/Path=//SameSite=Lax/无 Domain/Max-Age）且客户端回带后会话可用（代理可透传）；其他 Session 的 CSRF token 或任意错误 token → 403 csrf_failed（token 与 Session 强绑定）；跨 Origin 预认证写（verify-email）→ 400 origin_not_allowed（同源放行后由 token 校验统一 400）；无 Origin 且无 Referer → 放行；commit=260be9c；review=5 项集成测试（代理 Set-Cookie 往返/其他 Session token 拒绝/错 token 拒绝/跨源 verify-email 拒绝/无 Referer 放行）
-- [~] `M02-SESSION-12` `[45m]` 为 Cookie 属性、过期、撤销、并发请求和账号状态变化运行三数据库集成测试。
+- [x] `M02-SESSION-12` `[45m]` 为 Cookie 属性、过期、撤销、并发请求和账号状态变化运行三数据库集成测试。证据：files=backend/tests/session_crossdb.rs,.github/workflows/ci.yml；commands=cargo test --all-features（400 通过/0 失败，含 session_crossdb SQLite 1 项 + MySQL 忽略项）; cargo clippy --all-features --all-targets（0 warning）; make check（176/176、路线图 108/783）; contract=同一 Session 行为流跑三库：SQLite 本地始终运行 + MySQL 8/MariaDB 10.11（BBLBB_TEST_MYSQL_URL + #[ignore]，CI mysql-family 任务 --ignored 运行）；覆盖 Cookie 属性（__Host- 完整属性且会话可用）、并发读（同一 cookie 4 并发全 200，滑动续期不冲突）、idle 过期 401、撤销 401、banned 实时 401；迁移按库加载；commit=896e23f；review=SQLite 全绿 + CI 矩阵新增 session_crossdb
 
 ## M02-MFA：TOTP、恢复码与近期认证
 
-**元数据：** `P0` · `owner=unassigned/security-auth` · `risk=critical` · `depends=M02-SESSION` · `blocked=none`
+**元数据：** `P0` · `owner=backend-auth` · `risk=critical` · `depends=M02-SESSION` · `blocked=none`
 **目标文件：** `migrations/*/`、`backend/src/auth/mfa*`、`backend/tests/mfa*`、`docs/AUTH-OIDC.md`
 **验收：** 时间漂移、重放、恢复码并发、高权限强制和 step-up 流程测试通过。
 
-- [ ] `M02-MFA-01` `[45m]` 新增 TOTP enrollment、加密 secret、last accepted step 和恢复码 hash 迁移。
+- [~] `M02-MFA-01` `[45m]` 新增 TOTP enrollment、加密 secret、last accepted step 和恢复码 hash 迁移。
 - [ ] `M02-MFA-02` `[45m]` 实现 enrollment challenge、二维码所需最小数据、确认后启用和取消未完成 enrollment。
 - [ ] `M02-MFA-03` `[30m]` 实现允许时间窗口和已接受 time step 防重放，不在日志输出 code 或 secret。
 - [ ] `M02-MFA-04` `[45m]` 一次生成恢复码，只展示一次；数据库存 hash，消费时原子标记并通知用户。
