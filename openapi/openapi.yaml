@@ -124,6 +124,76 @@ paths:
           "$ref": "#/components/responses/AuthenticationRequired"
         '429':
           "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/sessions":
+    get:
+      tags:
+      - Auth
+      operationId: listSessions
+      summary: List the current user's active device sessions
+      security:
+      - sessionCookie: []
+      x-permission: session.read_own
+      x-csrf: false
+      responses:
+        '200':
+          description: Active device sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/DeviceSession"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    delete:
+      tags:
+      - Auth
+      operationId: logoutAll
+      summary: Revoke all of the current user's sessions
+      security:
+      - sessionCookie: []
+      x-permission: session.revoke_own
+      x-csrf: true
+      responses:
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: All sessions revoked
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/sessions/{id}":
+    delete:
+      tags:
+      - Auth
+      operationId: revokeSession
+      summary: Revoke one of the current user's device sessions
+      security:
+      - sessionCookie: []
+      x-permission: session.revoke_own
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Id"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
   "/api/v1/me":
     get:
       tags:
@@ -6075,6 +6145,34 @@ components:
     GenericRequest:
       type: object
       additionalProperties: true
+    DeviceSession:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - user_agent
+      - created_at
+      - last_seen_at
+      - absolute_expires_at
+      - version
+      properties:
+        id:
+          type: string
+        user_agent:
+          type:
+          - string
+          - 'null'
+        created_at:
+          type: integer
+          format: int64
+        last_seen_at:
+          type: integer
+          format: int64
+        absolute_expires_at:
+          type: integer
+          format: int64
+        version:
+          type: integer
     RegisterRequest:
       type: object
       additionalProperties: false

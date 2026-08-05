@@ -9,6 +9,14 @@
  */
 
 export type GenericRequest = Record<string, unknown>;
+export interface DeviceSession {
+  id: string;
+  user_agent: string | null;
+  created_at: number;
+  last_seen_at: number;
+  absolute_expires_at: number;
+  version: number;
+}
 export interface RegisterRequest {
   username: string;
   email: string;

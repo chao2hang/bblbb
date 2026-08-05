@@ -165,7 +165,7 @@ document.fetch("paths", {}).each do |path, path_item|
   end
 end
 
-errors << "expected 173 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 173
+errors << "expected 176 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 173
 
 # Every declared tag must be registered in the top-level tags list.
 registered_tags = document.fetch("tags", []).map { |tag| tag["name"] }

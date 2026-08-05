@@ -4,7 +4,6 @@ use axum::{
     response::Response,
 };
 use axum_extra::extract::CookieJar;
-use chrono::Utc;
 use serde::Serialize;
 use sqlx::Either;
 
@@ -16,10 +15,10 @@ use crate::{app::AppState, auth::token::hash_token, db::pool::DatabasePool};
 /// 可防止子域名伪造会话 cookie（M02-SESSION-02）。
 pub const SESSION_COOKIE_NAME: &str = "__Host-bblbb_session";
 
-/// 默认 idle 超时：30 分钟（秒）
-pub const IDLE_TIMEOUT_SECS: i64 = 30 * 60;
-/// 默认 absolute 超时：7 天（秒）
-pub const ABSOLUTE_TIMEOUT_SECS: i64 = 7 * 24 * 60 * 60;
+/// 默认 idle 超时：30 分钟（Unix 毫秒，M01-DB-08）
+pub const IDLE_TIMEOUT_MS: i64 = 30 * 60 * 1000;
+/// 默认 absolute 超时：7 天（Unix 毫秒，M01-DB-08）
+pub const ABSOLUTE_TIMEOUT_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 
 /// 已认证的会话用户信息
 #[derive(Clone, Debug, Serialize)]
@@ -112,8 +111,10 @@ async fn resolve_session(
     pool: &DatabasePool,
     token: &str,
 ) -> Result<Option<(SessionUser, String, String)>, sqlx::Error> {
+    use crate::outbox::now_millis;
+
     let token_hash = hash_token(token);
-    let now = Utc::now().timestamp();
+    let now = now_millis();
 
     match pool {
         Either::Left(p) => {
@@ -144,8 +145,8 @@ async fn resolve_session(
             .await?;
 
             if let Some(row) = row {
-                // 更新 last_seen_at 和 idle_expires_at
-                let new_idle = now + IDLE_TIMEOUT_SECS;
+                // 更新 last_seen_at 和 idle_expires_at（滑动超时）
+                let new_idle = now + IDLE_TIMEOUT_MS;
                 sqlx::query("UPDATE user_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
                     .bind(now)
                     .bind(new_idle)
@@ -199,7 +200,7 @@ async fn resolve_session(
             .await?;
 
             if let Some(row) = row {
-                let new_idle = now + IDLE_TIMEOUT_SECS;
+                let new_idle = now + IDLE_TIMEOUT_MS;
                 sqlx::query("UPDATE user_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
                     .bind(now)
                     .bind(new_idle)
@@ -235,9 +236,9 @@ pub async fn create_session(pool: &DatabasePool, user_id: &str) -> Result<String
     let token = crate::auth::token::generate_token();
     let token_hash = hash_token(&token);
     let session_id = uuid::Uuid::now_v7().to_string();
-    let now = Utc::now().timestamp();
-    let idle_expires = now + IDLE_TIMEOUT_SECS;
-    let absolute_expires = now + ABSOLUTE_TIMEOUT_SECS;
+    let now = crate::outbox::now_millis();
+    let idle_expires = now + IDLE_TIMEOUT_MS;
+    let absolute_expires = now + ABSOLUTE_TIMEOUT_MS;
 
     match pool {
         Either::Left(p) => {
@@ -280,7 +281,7 @@ pub async fn create_session(pool: &DatabasePool, user_id: &str) -> Result<String
 /// 撤销会话
 pub async fn revoke_session(pool: &DatabasePool, token: &str) -> Result<(), sqlx::Error> {
     let token_hash = hash_token(token);
-    let now = Utc::now().timestamp();
+    let now = crate::outbox::now_millis();
 
     match pool {
         Either::Left(p) => {
@@ -376,6 +377,136 @@ pub async fn rotate_session(
     create_session(pool, &user_id).await
 }
 
+/// 设备会话列表项（M02-SESSION-05）。
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceSession {
+    /// session 记录 ID（设备列表唯一标识，用于逐设备撤销）。
+    pub id: String,
+    /// 设备/UA（截断后）。
+    pub user_agent: Option<String>,
+    /// 创建时间（Unix 毫秒）。
+    pub created_at: i64,
+    /// 最近活跃（Unix 毫秒）。
+    pub last_seen_at: i64,
+    /// 最长有效期截止（Unix 毫秒）。
+    pub absolute_expires_at: i64,
+    /// Session 旋转计数。
+    pub version: i64,
+}
+
+/// 列出用户的全部有效会话（设备列表，M02-SESSION-05）。
+pub async fn list_sessions(
+    pool: &DatabasePool,
+    user_id: &str,
+) -> Result<Vec<DeviceSession>, sqlx::Error> {
+    match pool {
+        Either::Left(p) => sqlx::query_as::<_, DeviceSessionRow>(
+            "SELECT id, user_agent, created_at, last_seen_at, absolute_expires_at, version
+                 FROM user_sessions
+                 WHERE user_id = ? AND revoked_at IS NULL
+                 ORDER BY last_seen_at DESC",
+        )
+        .bind(user_id)
+        .fetch_all(p)
+        .await
+        .map(to_device_sessions),
+        Either::Right(p) => sqlx::query_as::<_, DeviceSessionRow>(
+            "SELECT id, user_agent, created_at, last_seen_at, absolute_expires_at, version
+                 FROM user_sessions
+                 WHERE user_id = ? AND revoked_at IS NULL
+                 ORDER BY last_seen_at DESC",
+        )
+        .bind(user_id)
+        .fetch_all(p)
+        .await
+        .map(to_device_sessions),
+    }
+}
+
+/// 全部登出：撤销用户全部有效会话（M02-SESSION-05）。返回撤销条数。
+pub async fn revoke_all_sessions(
+    pool: &DatabasePool,
+    user_id: &str,
+    reason: &str,
+) -> Result<u64, sqlx::Error> {
+    use crate::outbox::now_millis;
+    let now = now_millis();
+    match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?
+                 WHERE user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(reason)
+        .bind(user_id)
+        .execute(p)
+        .await
+        .map(|r| r.rows_affected()),
+        Either::Right(p) => sqlx::query(
+            "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?
+                 WHERE user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(reason)
+        .bind(user_id)
+        .execute(p)
+        .await
+        .map(|r| r.rows_affected()),
+    }
+}
+
+/// 逐设备撤销：撤销指定 session（必须属于该用户）。返回是否撤销成功。
+pub async fn revoke_session_by_id(
+    pool: &DatabasePool,
+    user_id: &str,
+    session_id: &str,
+    reason: &str,
+) -> Result<bool, sqlx::Error> {
+    use crate::outbox::now_millis;
+    let now = now_millis();
+    match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?
+                 WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(reason)
+        .bind(session_id)
+        .bind(user_id)
+        .execute(p)
+        .await
+        .map(|r| r.rows_affected() == 1),
+        Either::Right(p) => sqlx::query(
+            "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?
+                 WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(reason)
+        .bind(session_id)
+        .bind(user_id)
+        .execute(p)
+        .await
+        .map(|r| r.rows_affected() == 1),
+    }
+}
+
+fn to_device_sessions(rows: Vec<DeviceSessionRow>) -> Vec<DeviceSession> {
+    rows.into_iter()
+        .map(|r| DeviceSession {
+            id: r.id,
+            user_agent: r.user_agent,
+            created_at: r.created_at,
+            last_seen_at: r.last_seen_at,
+            absolute_expires_at: r.absolute_expires_at,
+            version: r.version,
+        })
+        .collect()
+}
+
 /// 构建 session cookie
 pub fn build_session_cookie(token: &str) -> axum_extra::extract::cookie::Cookie<'static> {
     use axum_extra::extract::cookie::{Cookie, SameSite};
@@ -385,7 +516,7 @@ pub fn build_session_cookie(token: &str) -> axum_extra::extract::cookie::Cookie<
         .http_only(true)
         .secure(true)
         .same_site(SameSite::Lax)
-        .max_age(time::Duration::seconds(ABSOLUTE_TIMEOUT_SECS))
+        .max_age(time::Duration::milliseconds(ABSOLUTE_TIMEOUT_MS))
         .build()
 }
 
@@ -442,6 +573,17 @@ struct UserSessionRow {
     status: String,
     display_name: Option<String>,
     session_id: String,
+}
+
+/// 设备列表行结构。
+#[derive(sqlx::FromRow)]
+struct DeviceSessionRow {
+    id: String,
+    user_agent: Option<String>,
+    created_at: i64,
+    last_seen_at: i64,
+    absolute_expires_at: i64,
+    version: i64,
 }
 
 #[cfg(test)]

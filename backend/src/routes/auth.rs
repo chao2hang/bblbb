@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::{delete, get, post},
@@ -21,7 +21,12 @@ use crate::{
         },
         registration::{register_user, RegisterUserError},
         resend::{resend_verification_email, ResendError, ResendLimits},
-        session::{build_clear_session_cookie, build_session_cookie, revoke_session, AuthSession},
+        session::{
+            build_clear_session_cookie, build_session_cookie,
+            list_sessions as list_sessions_service, revoke_all_sessions as revoke_all_service,
+            revoke_session as revoke_session_service, revoke_session_by_id as revoke_by_id_service,
+            AuthSession, DeviceSession,
+        },
         token::generate_token,
         verification::{verify_email_token, VerifyEmailError},
     },
@@ -104,6 +109,11 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/session", delete(logout))
+        .route(
+            "/api/v1/auth/sessions",
+            get(list_sessions).delete(logout_all),
+        )
+        .route("/api/v1/auth/sessions/{id}", delete(revoke_session))
         .route("/api/v1/auth/password-reset", post(request_password_reset))
         .route(
             "/api/v1/auth/password-reset/confirm",
@@ -390,7 +400,7 @@ async fn logout(State(state): State<AppState>, jar: CookieJar) -> Result<Respons
     if let Some(pool) = &state.db {
         if let Some(cookie) = jar.get(crate::auth::session::SESSION_COOKIE_NAME) {
             let token = cookie.value();
-            let _ = revoke_session(pool, token).await;
+            let _ = revoke_session_service(pool, token).await;
         }
     }
 
@@ -402,7 +412,70 @@ async fn logout(State(state): State<AppState>, jar: CookieJar) -> Result<Respons
         .into_response())
 }
 
-/// POST /api/v1/auth/password-reset — 请求密码重置
+/// GET /api/v1/auth/sessions — 设备列表（M02-SESSION-05）
+async fn list_sessions(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Vec<DeviceSession>>, AppError> {
+    let request_id = "list-sessions";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let sessions = list_sessions_service(pool, &user.id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok(Json(sessions))
+}
+
+/// DELETE /api/v1/auth/sessions — 全部登出（撤销全部设备 + 清当前 cookie）
+async fn logout_all(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Response, AppError> {
+    let request_id = "logout-all";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    revoke_all_service(pool, &user.id, "logout_all")
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let clear_cookie = build_clear_session_cookie();
+    Ok((
+        StatusCode::NO_CONTENT,
+        [(header::SET_COOKIE, clear_cookie.to_string())],
+    )
+        .into_response())
+}
+
+/// DELETE /api/v1/auth/sessions/{id} — 逐设备撤销（仅限本人会话）
+async fn revoke_session(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(session_id): Path<String>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "revoke-session";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let revoked = revoke_by_id_service(pool, &user.id, &session_id, "revoked_by_user")
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    if !revoked {
+        return Err(AppError::not_found("session not found", request_id));
+    }
+    Ok((StatusCode::OK, Json(json!({ "ok": true }))))
+}
+
 /// POST /api/v1/auth/password-reset — 请求找回密码
 ///
 /// 统一响应（M02-IDENTITY-10）：邮箱不存在/已删除与正常请求都返回 202，

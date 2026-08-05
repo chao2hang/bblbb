@@ -17,6 +17,9 @@ pub use password_reset::{
 };
 pub use registration::{register_user, RegisterUserError, RegistrationOutcome};
 pub use resend::{resend_verification_email, ResendError, ResendLimits, ResendOutcome};
-pub use session::{rotate_session, AuthSession, SessionUser};
+pub use session::{
+    list_sessions, revoke_all_sessions, revoke_session_by_id, rotate_session, AuthSession,
+    DeviceSession, SessionUser,
+};
 pub use token::{generate_token, hash_token};
 pub use verification::{verify_email_token, VerifyEmailError, VerifyEmailOutcome};

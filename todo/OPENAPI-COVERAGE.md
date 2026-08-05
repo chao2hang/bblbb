@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**173**
-- 唯一 operationId：**173**
-- 实现状态：`baseline_only` 1；`not_started` 172
-- 里程碑分配：`M0` 1；`M2` 8；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
+- 契约操作：**176**
+- 唯一 operationId：**176**
+- 实现状态：`baseline_only` 1；`not_started` 175
+- 里程碑分配：`M0` 1；`M2` 11；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
 
@@ -31,6 +31,9 @@
 | `register` | `POST` | `/api/v1/auth/register` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `resendVerification` | `POST` | `/api/v1/auth/resend-verification` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `logout` | `DELETE` | `/api/v1/auth/session` | Auth | `M2` / `M02-SESSION` | `P0` | `not_started` | `unassigned` |
+| `logoutAll` | `DELETE` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
+| `listSessions` | `GET` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
+| `revokeSession` | `DELETE` | `/api/v1/auth/sessions/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `verifyEmail` | `POST` | `/api/v1/auth/verify-email` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
 | `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |

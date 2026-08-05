@@ -100,7 +100,8 @@
 |---|---:|---|---|
 | `public` | 16 | getHealth、login、listBoards、listPosts、getCsrfToken、register、searchPublicContent 等 | §1 身份和标记 |
 | `authenticated` | 57 | get_attachments_id_、post_me_profile_cover、post_attachments_id_download、get_notifications、post_shop_orders、post_ai_drafts_draft_id_format、post_video_embeds 等 | §1 身份和标记 |
-| `session.revoke_own` | 1 | logout | §1 身份和标记 |
+| `session.revoke_own` | 3 | logout、logoutAll、revokeSession | §1 身份和标记 |
+| `session.read_own` | 1 | listSessions | §1 身份和标记 |
 | `user.read_public` | 1 | getPublicUser | §1 身份和标记 |
 | `user.read_own` | 1 | getMe | §1 身份和标记 |
 | `user.edit_own` | 1 | updateMe | §1 身份和标记 |
