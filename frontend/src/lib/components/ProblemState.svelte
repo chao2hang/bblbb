@@ -1,7 +1,11 @@
 <script lang="ts">
-  // 状态组件（M00-FRONTEND-05）：按 Problem/status 显示 401/403/404/409/422/429/503
-  // 等错误状态；统一走 $lib/errors 的文案映射与 request_id 透传。
+  // 状态组件（M00-FRONTEND-05 / M02-UX-07）：按 Problem/status 显示
+  // 401/403/404/409/422/429/503 等错误状态。
+  // - 可访问：容器 role=alert（屏幕阅读器播报），request ID 可复制；
+  // - 可恢复：按状态给出默认恢复动作（去登录/返回首页/刷新/返回上一页），
+  //   429 显示 Retry-After 秒数；页面可用 children 槽自定义动作（覆盖默认）。
   import type { Snippet } from 'svelte';
+  import Button from './ui/Button.svelte';
   import Icon from './ui/Icon.svelte';
   import { problemMessage, requestIdOf, retryAfterOf, type Problem } from '$lib/errors';
 
@@ -50,9 +54,17 @@
   const message = $derived(desc || problemMessage(problem));
   const requestId = $derived(requestIdOf(problem));
   const retryAfter = $derived(retryAfterOf(problem));
+
+  /** 按状态码给出默认恢复动作（有 children 时由页面自定义，覆盖默认）。 */
+  function refresh(): void {
+    window.location.reload();
+  }
+  function goBack(): void {
+    window.history.back();
+  }
 </script>
 
-<div class="problem-state empty-state">
+<div class="problem-state empty-state" role="alert">
   <div class="empty-state-icon"><Icon name={iconName} size={40} /></div>
   <div class="empty-state-title">{heading}</div>
   <div class="empty-state-desc">{message}</div>
@@ -60,12 +72,57 @@
     <div class="empty-state-desc">请在 {retryAfter} 秒后重试</div>
   {/if}
   {#if showRequestId && requestId}
-    <code class="problem-request-id" title="服务端请求号">请求号：{requestId}</code>
+    <code class="problem-request-id" title="服务端请求号" aria-label="服务端请求号：{requestId}">请求号：{requestId}</code>
   {/if}
-  {#if children}{@render children()}{/if}
+
+  {#if children}
+    {@render children()}
+  {:else if effectiveStatus === 401}
+    <div class="problem-actions">
+      <Button text="去登录" variant="primary" size="sm" href="/login" />
+      <Button text="返回首页" variant="ghost" size="sm" href="/" />
+    </div>
+  {:else if effectiveStatus === 403}
+    <div class="problem-actions">
+      <Button text="返回首页" variant="primary" size="sm" href="/" />
+      <Button text="返回上一页" variant="ghost" size="sm" onclick={goBack} />
+    </div>
+  {:else if effectiveStatus === 404}
+    <div class="problem-actions">
+      <Button text="返回首页" variant="primary" size="sm" href="/" />
+    </div>
+  {:else if effectiveStatus === 409}
+    <div class="problem-actions">
+      <Button text="刷新页面" variant="primary" size="sm" onclick={refresh} />
+    </div>
+  {:else if effectiveStatus === 422}
+    <div class="problem-actions">
+      <Button text="返回上一页" variant="primary" size="sm" onclick={goBack} />
+    </div>
+  {:else if effectiveStatus === 429}
+    <div class="problem-actions">
+      <Button text="刷新页面" variant="primary" size="sm" onclick={refresh} />
+    </div>
+  {:else if effectiveStatus === 503}
+    <div class="problem-actions">
+      <Button text="稍后重试" variant="primary" size="sm" onclick={refresh} />
+      <Button text="返回首页" variant="ghost" size="sm" href="/" />
+    </div>
+  {:else if effectiveStatus === 500}
+    <div class="problem-actions">
+      <Button text="刷新页面" variant="primary" size="sm" onclick={refresh} />
+      <Button text="返回首页" variant="ghost" size="sm" href="/" />
+    </div>
+  {/if}
 </div>
 
 <style>
+  .problem-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: center;
+    margin-top: var(--space-3);
+  }
   .problem-request-id {
     display: inline-block;
     margin-top: var(--space-3);
