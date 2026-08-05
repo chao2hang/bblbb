@@ -27,6 +27,11 @@ pub const RESEND_IP_LIMIT: u32 = 10;
 /// 重发验证邮件限流窗口：1 小时（Unix 毫秒）。
 pub const RESEND_IP_WINDOW_MS: i64 = 60 * 60 * 1000;
 
+/// 找回密码限流：每 IP 5 次 / 小时（M02-IDENTITY-10，SECURITY.md §16）。
+pub const RESET_IP_LIMIT: u32 = 5;
+/// 找回密码限流窗口：1 小时（Unix 毫秒）。
+pub const RESET_IP_WINDOW_MS: i64 = 60 * 60 * 1000;
+
 /// 线程安全限流器（进程内）。`AppState` 持有 `Arc<RateLimiter>` 全进程共享。
 #[derive(Debug, Default)]
 pub struct RateLimiter {

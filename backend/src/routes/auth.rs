@@ -6,7 +6,6 @@ use axum::{
     Router,
 };
 use axum_extra::extract::CookieJar;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::Either;
@@ -15,20 +14,25 @@ use crate::{
     app::AppState,
     auth::{
         password::{hash_password, verify_password, VerifyResult},
+        password_reset::{
+            confirm_password_reset as confirm_reset_service,
+            request_password_reset as request_reset_service, ConfirmResetError,
+            PasswordResetLimits, RequestResetError,
+        },
         registration::{register_user, RegisterUserError},
         resend::{resend_verification_email, ResendError, ResendLimits},
         session::{
             build_clear_session_cookie, build_session_cookie, create_session, revoke_session,
             AuthSession,
         },
-        token::{generate_token, hash_token},
+        token::generate_token,
         verification::{verify_email_token, VerifyEmailError},
     },
     domain::registration::{validate_register, RegisterRequest},
     error::AppError,
     ratelimit::{
         client_ip, REGISTER_ACCOUNT_LIMIT, REGISTER_IP_LIMIT, REGISTER_WINDOW_MS, RESEND_IP_LIMIT,
-        RESEND_IP_WINDOW_MS,
+        RESEND_IP_WINDOW_MS, RESET_IP_LIMIT, RESET_IP_WINDOW_MS,
     },
 };
 
@@ -421,107 +425,84 @@ async fn logout(State(state): State<AppState>, jar: CookieJar) -> Result<Respons
 }
 
 /// POST /api/v1/auth/password-reset — 请求密码重置
+/// POST /api/v1/auth/password-reset — 请求找回密码
+///
+/// 统一响应（M02-IDENTITY-10）：邮箱不存在/已删除与正常请求都返回 202，
+/// 不泄漏邮箱是否已注册。每 IP 每小时 5 次 + 每账号冷却 60s / 日上限 3 次，
+/// 超限返回 429。
 async fn request_password_reset(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<PasswordResetRequest>,
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     let request_id = "password-reset";
+
+    let email_normalized = crate::auth::normalize_email(req.email.trim());
+    if !valid_email_shape(&email_normalized) {
+        return Err(AppError::bad_request(
+            "invalid email format",
+            request_id,
+            Some(json!({ "field": "email" })),
+        ));
+    }
+
+    // IP 维度限流
+    let ip = client_ip(&headers);
+    let now_ms = crate::outbox::now_millis();
+    let ip_status = state.limiter.check(
+        &format!("reset:ip:{ip}"),
+        RESET_IP_LIMIT,
+        RESET_IP_WINDOW_MS,
+        now_ms,
+    );
+    if !ip_status.allowed {
+        return Err(AppError::rate_limited(
+            "too many password reset requests, try again later",
+            request_id,
+            ip_status.retry_after_secs,
+            ip_status.limit,
+            ip_status.remaining,
+            ip_status.reset_at_ms / 1000,
+        ));
+    }
+
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let email_normalized = req.email.to_lowercase();
-    let now = Utc::now().timestamp();
-
-    // 查找用户（不泄漏是否存在）
-    let user_id: Option<String> = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar(
-                "SELECT id FROM users WHERE email_normalized = ? AND status != 'deleted'",
-            )
-            .bind(&email_normalized)
-            .fetch_optional(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar(
-                "SELECT id FROM users WHERE email_normalized = ? AND status != 'deleted'",
-            )
-            .bind(&email_normalized)
-            .fetch_optional(p)
-            .await
-        }
+    match request_reset_service(
+        pool,
+        &state.limiter,
+        &email_normalized,
+        request_id,
+        &PasswordResetLimits::default(),
+    )
+    .await
+    {
+        // 正常请求 / 邮箱不存在或已删除：统一 202（不泄漏）
+        Ok(_) => Ok((StatusCode::ACCEPTED, Json(json!({ "ok": true })))),
+        Err(RequestResetError::RateLimited {
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        }) => Err(AppError::rate_limited(
+            "too many password reset requests, try again later",
+            request_id,
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        )),
+        Err(RequestResetError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    if let Some(user_id) = user_id {
-        // 失效旧 token
-        match pool {
-            Either::Left(p) => {
-                sqlx::query("UPDATE password_reset_tokens SET consumed_at = ? WHERE user_id = ? AND consumed_at IS NULL")
-                    .bind(now)
-                    .bind(&user_id)
-                    .execute(p)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            }
-            Either::Right(p) => {
-                sqlx::query("UPDATE password_reset_tokens SET consumed_at = ? WHERE user_id = ? AND consumed_at IS NULL")
-                    .bind(now)
-                    .bind(&user_id)
-                    .execute(p)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            }
-        }
-
-        // 创建新 token（30 分钟过期）
-        let reset_token = generate_token();
-        let token_hash = hash_token(&reset_token);
-        let token_id = uuid::Uuid::now_v7().to_string();
-        let expires_at = now + 30 * 60;
-
-        match pool {
-            Either::Left(p) => {
-                sqlx::query(
-                    "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
-                     VALUES (?, ?, ?, ?, ?)",
-                )
-                .bind(&token_id)
-                .bind(&user_id)
-                .bind(&token_hash)
-                .bind(expires_at)
-                .bind(now)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            }
-            Either::Right(p) => {
-                sqlx::query(
-                    "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
-                     VALUES (?, ?, ?, ?, ?)",
-                )
-                .bind(&token_id)
-                .bind(&user_id)
-                .bind(&token_hash)
-                .bind(expires_at)
-                .bind(now)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            }
-        }
-
-        // TODO: 通过 Outbox 发送密码重置邮件
-        tracing::info!(user_id = %user_id, "password reset token generated");
-    }
-
-    // 统一响应 — 不泄漏邮箱是否存在
-    Ok((StatusCode::ACCEPTED, Json(json!({ "ok": true }))))
 }
 
 /// POST /api/v1/auth/password-reset/confirm — 确认密码重置
+///
+/// 单事务：原子消费 30 分钟一次性 token → 更新密码哈希 → 撤销该用户全部
+/// Session → 审计；无效/已消费/过期统一 400（M02-IDENTITY-10）。
 async fn confirm_password_reset(
     State(state): State<AppState>,
     Json(req): Json<PasswordResetConfirm>,
@@ -534,106 +515,23 @@ async fn confirm_password_reset(
 
     validate_password(&req.password, request_id)?;
 
-    let token_hash = hash_token(&req.token);
-    let now = Utc::now().timestamp();
-
-    // 查找有效 token
-    let token_row = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, VerifyTokenRow>(
-                "SELECT id, user_id FROM password_reset_tokens
-                 WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
-            )
-            .bind(&token_hash)
-            .bind(now)
-            .fetch_optional(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, VerifyTokenRow>(
-                "SELECT id, user_id FROM password_reset_tokens
-                 WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
-            )
-            .bind(&token_hash)
-            .bind(now)
-            .fetch_optional(p)
-            .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    let token_row = token_row
-        .ok_or_else(|| AppError::bad_request("invalid or expired reset token", request_id, None))?;
-
-    // 原子操作：消费 token、更新密码、撤销所有会话
+    // 密码哈希在任何 token 检查前执行（耗时不泄漏 token 有效性，防枚举）
     let password_hash =
         hash_password(&req.password).map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    match pool {
-        Either::Left(p) => {
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE password_reset_tokens SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
-                .bind(now)
-                .bind(&token_row.id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
-                .bind(&password_hash)
-                .bind(now)
-                .bind(&token_row.user_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
-            )
-            .bind(now)
-            .bind(&token_row.user_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            tx.commit()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    match confirm_reset_service(pool, &req.token, &password_hash, request_id).await {
+        Ok(outcome) => {
+            tracing::info!(user_id = %outcome.user_id, "password reset successful");
+            Ok(Json(GenericSuccess { ok: true }))
         }
-        Either::Right(p) => {
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE password_reset_tokens SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL")
-                .bind(now)
-                .bind(&token_row.id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
-                .bind(&password_hash)
-                .bind(now)
-                .bind(&token_row.user_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
-            )
-            .bind(now)
-            .bind(&token_row.user_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            tx.commit()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
+        // 不存在/已消费/过期统一错误（防 token 枚举）
+        Err(ConfirmResetError::InvalidOrExpired) => Err(AppError::bad_request(
+            "invalid or expired reset token",
+            request_id,
+            None,
+        )),
+        Err(ConfirmResetError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
-
-    tracing::info!(user_id = %token_row.user_id, "password reset successful");
-    Ok(Json(GenericSuccess { ok: true }))
 }
 
 // ─── 验证函数 ────────────────────────────────────────────────────────────────
@@ -682,10 +580,4 @@ struct UserAuthRow {
     status: String,
     display_name: Option<String>,
     password_hash: String,
-}
-
-#[derive(sqlx::FromRow)]
-struct VerifyTokenRow {
-    id: String,
-    user_id: String,
 }
