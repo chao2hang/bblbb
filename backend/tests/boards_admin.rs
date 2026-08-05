@@ -557,6 +557,72 @@ async fn update_board_parent_cycle_rejected() {
     cleanup(&dir);
 }
 
+/// 并发 slug：同时创建同 slug 的两个请求只允许一个成功（另一个 409，
+/// 唯一索引兜底触发，绝不 500 也绝不产生重复）。
+#[tokio::test]
+async fn concurrent_create_same_slug_only_one_wins() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let admin = admin_ctx(&app, &pool).await;
+
+    let body = json!({ "slug": "race", "name": "竞态", "reason": "t" });
+    let (sa, sb) = tokio::join!(
+        authed(
+            &app,
+            "POST",
+            "/api/v1/admin/boards",
+            &admin.session,
+            &admin.csrf,
+            None,
+            body.clone(),
+        ),
+        authed(
+            &app,
+            "POST",
+            "/api/v1/admin/boards",
+            &admin.session,
+            &admin.csrf,
+            None,
+            body.clone(),
+        ),
+    );
+    let statuses = [sa.0, sb.0];
+    assert_eq!(
+        statuses.iter().filter(|s| **s == StatusCode::OK).count(),
+        1,
+        "同 slug 并发创建必须恰好一个成功"
+    );
+    assert_eq!(
+        statuses
+            .iter()
+            .filter(|s| **s == StatusCode::CONFLICT)
+            .count(),
+        1,
+        "另一个必须 409 conflict（唯一索引兜底）"
+    );
+    assert_eq!(
+        statuses
+            .iter()
+            .filter(|s| **s == StatusCode::INTERNAL_SERVER_ERROR)
+            .count(),
+        0,
+        "并发竞态不得 500"
+    );
+
+    // 库中恰好一行
+    let count: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM boards WHERE slug = 'race'")
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(count, 1);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
 /// is_active=false（停用）→ 移出公开列表（活跃投影）。
 #[tokio::test]
 async fn deactivated_board_leaves_public_list() {

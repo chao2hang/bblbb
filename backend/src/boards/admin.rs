@@ -80,6 +80,16 @@ fn board_projection(row: &AdminBoardRow) -> Value {
     })
 }
 
+/// 写错误映射：唯一约束冲突（并发 slug 竞态，预检查通过但唯一索引兜底触发）
+/// → 409 conflict；其余 → 500。
+fn write_error(e: sqlx::Error, request_id: &str, detail: &str) -> AppError {
+    if matches!(&e, sqlx::Error::Database(db) if db.is_unique_violation()) {
+        AppError::conflict(detail, request_id)
+    } else {
+        AppError::internal(e.to_string(), request_id)
+    }
+}
+
 /// 父级候选集：活跃且未软删的板块（SCHEMA.md §6 活跃投影）。
 async fn parent_candidates(pool: &DatabasePool) -> Result<Vec<BoardRef>, String> {
     let rows: Vec<(String, Option<String>)> = match pool {
@@ -207,7 +217,7 @@ pub async fn create_board(
             .bind(now)
             .execute(&mut **t)
             .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            .map_err(|e| write_error(e, request_id, "board slug already exists"))?;
         }
         Either::Right(t) => {
             sqlx::query(
@@ -226,7 +236,7 @@ pub async fn create_board(
             .bind(now)
             .execute(&mut **t)
             .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            .map_err(|e| write_error(e, request_id, "board slug already exists"))?;
         }
     }
 

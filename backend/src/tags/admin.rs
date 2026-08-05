@@ -75,6 +75,16 @@ fn tag_projection(row: &AdminTagRow) -> Value {
     })
 }
 
+/// 写错误映射：唯一约束冲突（并发 name/slug 竞态，唯一索引兜底触发）→ 409；
+/// 其余 → 500。
+fn write_error(e: sqlx::Error, request_id: &str, detail: &str) -> AppError {
+    if matches!(&e, sqlx::Error::Database(db) if db.is_unique_violation()) {
+        AppError::conflict(detail, request_id)
+    } else {
+        AppError::internal(e.to_string(), request_id)
+    }
+}
+
 fn validate_name(name: &str) -> Result<(), String> {
     let name = name.trim();
     if name.is_empty() {
@@ -282,7 +292,7 @@ pub async fn create_tag(
             .bind(now)
             .execute(&mut **t)
             .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            .map_err(|e| write_error(e, request_id, "tag name or slug already exists"))?;
         }
         Either::Right(t) => {
             sqlx::query(
@@ -299,7 +309,7 @@ pub async fn create_tag(
             .bind(now)
             .execute(&mut **t)
             .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            .map_err(|e| write_error(e, request_id, "tag name or slug already exists"))?;
         }
     }
 
