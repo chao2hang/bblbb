@@ -240,8 +240,8 @@
 **目标文件：** `frontend/src/routes/(auth)/`、`frontend/src/routes/me/`、`frontend/tests/`、`openapi/operation-coverage.json`
 **验收：** 匿名、未验证、冷静期、正常、MFA 和封禁 persona 的 Playwright 流程与三数据库 API Fixture 通过。
 
-- [~] `M02-UX-01` `[45m]` 实现注册页面、服务端表单 action、字段错误关联和统一账号冲突提示。
-- [ ] `M02-UX-02` `[30m]` 实现验证结果、重发入口、冷却倒计时和未验证账号允许/禁止动作说明状态。
+- [x] `M02-UX-01` `[45m]` 实现注册页面、服务端表单 action、字段错误关联和统一账号冲突提示。证据：files=frontend/src/routes/register/+page.server.ts,frontend/src/routes/register/+page.svelte,frontend/src/lib/api/server.ts,frontend/src/lib/validation.ts,frontend/src/routes/register/action.test.ts,frontend/src/lib/api/server.test.ts,frontend/src/lib/testing/ssr/register-nojs.test.ts,frontend/tests/README.md；commands=npm run check（0 错误 0 警告）; npm run test（61 通过/0 失败，含 register action 5 项 + server api 6 项 + nojs 3 项）; npm run build（adapter-node 成功）; make check; contract=服务端 form action（无 JS 原生 form[method=POST] 提交）：字段校验与后端规则一致（$lib/validation：用户名 3-20 字母/数字/_/-、邮箱格式、密码 8-128 含字母+数字、两次一致）→ 预认证 CSRF 配对（GET /auth/csrf 取 token + cookie，M02-SESSION-08）→ 代理 POST /api/v1/auth/register（INTERNAL_API_ORIGIN，默认 http://127.0.0.1:8080；转发浏览器 Cookie 与 X-Request-ID；后端 Set-Cookie 逐属性复制到浏览器，FRONTEND.md——__Host- 的 Secure/Path=/无 Domain 约束保留）；字段错误经 fieldErrors 与输入框 aria-describedby 关联（错误元素 role=alert）；用户名/邮箱已存在与成功统一显示“注册成功”（后端防枚举返回一致 201，M02-IDENTITY-05）；use:enhance 仅渐进增强（同一 action 无双重实现）；失败映射 422（字段）/429（限流透传 message+requestId）/503（服务不可用）；commit=5ab00ba；review=14 项测试（Set-Cookie 解析/逐属性复制/新值提取/成功路径 CSRF 配对/复用浏览器 cookie/429 映射；密码不一致 422/多字段错误/成功转发 X-Request-ID/429 透传/503；SSR 原生 form/字段 name/label/初始无成功面板）
+- [~] `M02-UX-02` `[30m]` 实现验证结果、重发入口、冷却倒计时和未验证账号允许/禁止动作说明状态。
 - [ ] `M02-UX-03` `[45m]` 实现登录、TOTP 二次输入、恢复码和统一失败提示，不泄漏账号状态。
 - [ ] `M02-UX-04` `[30m]` 实现忘记/重置密码页面，成功后提示其他 Session 已撤销。
 - [ ] `M02-UX-05` `[45m]` 实现 `/me` 安全投影、账号状态、验证状态和 Session 设备管理。
