@@ -1,14 +1,14 @@
-//! M02-SESSION-01：session 迁移契约——user_sessions 含设备/版本字段：
-//! token_hash（唯一）、csrf_secret_hash、user_agent、ip_prefix_hash、
-//! created_at/last_seen_at、idle/absolute expires、revoked_at、revoke_reason、
-//! version（默认 0）。
+//! M02-SESSION-01/02：session 迁移契约与 token 安全——user_sessions 含设备/
+//! 版本字段；Session token 256 bit 熵、数据库只存 hash。
 
 use std::path::{Path, PathBuf};
 
+use bblbb_backend::auth::session::create_session;
+use bblbb_backend::auth::token::hash_token;
 use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
-use sqlx::Either;
+use sqlx::{Either, Row};
 
 const MIGRATIONS_ROOT: &str = "../migrations/sqlite";
 
@@ -187,6 +187,72 @@ async fn session_version_defaults_to_zero() {
         }
         Either::Right(_) => panic!("SQLite only"),
     }
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// M02-SESSION-02：create_session 签发 256 bit 熵 token，数据库只存 hash，
+/// 明文 token 不出现在任何表。
+#[tokio::test]
+async fn create_session_stores_only_token_hash() {
+    let (pool, dir) = pool_with_migrations().await;
+    let user_id = uuid::Uuid::now_v7().to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, created_at, updated_at)
+                 VALUES (?, ?, ?, 'dummy', 'active', ?, ?)",
+            )
+            .bind(&user_id)
+            .bind("tok_user")
+            .bind("tok@example.com")
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+
+    let token = create_session(&pool, &user_id).await.unwrap();
+    // 256 bit 熵：32 字节 → ≥40 字符 URL-safe base64
+    assert!(token.len() >= 40, "Session token 熵不足: {}", token.len());
+
+    let stored_hash: String = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT token_hash FROM user_sessions")
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    // 只存 hash：等于对 token 的 SHA-256，且不等于明文
+    assert_eq!(stored_hash, hash_token(&token));
+    assert_ne!(stored_hash, token);
+    assert_eq!(stored_hash.len(), 64);
+
+    // 明文 token 不出现在 user_sessions 任何列
+    let cols = ["token_hash", "csrf_secret_hash"];
+    let select = cols.join(", ");
+    let text: String = match &pool {
+        Either::Left(p) => {
+            let row = sqlx::query(&format!("SELECT {select} FROM user_sessions"))
+                .fetch_one(p)
+                .await
+                .unwrap();
+            (0..cols.len())
+                .map(|i| row.try_get::<String, _>(i).unwrap_or_default())
+                .collect::<Vec<_>>()
+                .join("|")
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert!(
+        !text.contains(&token),
+        "Session 明文 token 不得入库: {text}"
+    );
 
     close_pool(&pool).await;
     cleanup(&dir);

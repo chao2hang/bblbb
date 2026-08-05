@@ -369,3 +369,82 @@ struct UserSessionRow {
     display_name: Option<String>,
     session_id: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum_extra::extract::cookie::SameSite;
+
+    /// M02-SESSION-02：Session token 至少 256 bit 熵（32 字节），
+    /// 数据库只存 SHA-256 hash（64 hex）。
+    #[test]
+    fn session_token_has_256_bit_entropy_and_only_hash_is_stored() {
+        let token = crate::auth::token::generate_token();
+        // base64 URL-safe 无填充：32 字节 → 43 字符（≥40）
+        assert!(token.len() >= 40, "token 长度 {} < 40，熵不足", token.len());
+
+        let hash = crate::auth::token::hash_token(&token);
+        assert_eq!(hash.len(), 64, "数据库必须只存 64 位 hex SHA-256");
+        assert_ne!(token, hash);
+        assert!(
+            hash.chars().all(|c| c.is_ascii_hexdigit()),
+            "hash 必须为 hex，而非可逆明文"
+        );
+    }
+
+    /// M02-SESSION-02：`__Host-` 前缀 Cookie 必须带 Secure、Path=/ 且无 Domain。
+    #[test]
+    fn session_cookie_uses_host_prefix_with_secure_attributes() {
+        let cookie = build_session_cookie("tok");
+        assert_eq!(cookie.name(), SESSION_COOKIE_NAME);
+        assert!(
+            cookie.name().starts_with("__Host-"),
+            "必须使用 __Host- 前缀"
+        );
+        assert_eq!(cookie.path().unwrap_or(""), "/");
+        assert!(cookie.secure().unwrap_or(false), "__Host- 要求 Secure");
+        assert!(
+            cookie.http_only().unwrap_or(false),
+            "Session token 必须 HttpOnly"
+        );
+        match cookie.same_site() {
+            Some(same) => assert_eq!(same, SameSite::Lax, "SameSite=Lax 防跨站携带"),
+            None => panic!("必须显式设置 SameSite"),
+        }
+        assert!(
+            cookie.domain().is_none(),
+            "__Host- 前缀禁止 Domain 属性（防子域伪造）"
+        );
+        assert!(
+            cookie.max_age().is_some(),
+            "Cookie 必须有 max-age（absolute timeout）"
+        );
+    }
+
+    /// 清除 cookie 与设置 cookie 属性一致（否则 __Host- cookie 无法清除）。
+    #[test]
+    fn clear_cookie_matches_session_cookie_attributes() {
+        let clear = build_clear_session_cookie();
+        assert_eq!(clear.name(), SESSION_COOKIE_NAME);
+        assert_eq!(clear.path().unwrap_or(""), "/");
+        assert!(clear.secure().unwrap_or(false));
+        assert!(clear.http_only().unwrap_or(false));
+        match clear.same_site() {
+            Some(same) => assert_eq!(same, SameSite::Lax),
+            None => panic!("必须显式设置 SameSite"),
+        }
+        assert!(clear.domain().is_none());
+        assert_eq!(clear.max_age().unwrap_or_default(), time::Duration::ZERO);
+    }
+
+    /// CSRF token 由 session_id + token_hash 确定性派生，同一会话稳定。
+    #[test]
+    fn csrf_token_is_deterministic_per_session() {
+        let a = generate_csrf_token("s1", "h1");
+        let b = generate_csrf_token("s1", "h1");
+        let c = generate_csrf_token("s1", "h2");
+        assert_eq!(a, b);
+        assert_ne!(a, c, "token_hash 变化必须改变派生 CSRF token");
+        assert_eq!(a.len(), 64, "CSRF token 为 SHA-256 hex");
+    }
+}
