@@ -302,6 +302,80 @@ pub async fn revoke_session(pool: &DatabasePool, token: &str) -> Result<(), sqlx
     Ok(())
 }
 
+/// 旋转会话（M02-SESSION-04）：撤销当前 token 的会话并签发新 Session token，
+/// 防止 Session fixation。
+///
+/// 在登录、权限提升、改密和高风险重新认证后调用：旧 token 立即失效
+/// （`revoked_at` + `revoke_reason`，`version` +1），新 token 由
+/// [`create_session`] 签发（全新 session 行，version 从 0 开始）。
+///
+/// 当前 token 无有效会话时返回 `Err(sqlx::Error::RowNotFound)`。
+pub async fn rotate_session(
+    pool: &DatabasePool,
+    current_token: &str,
+    reason: &str,
+) -> Result<String, sqlx::Error> {
+    use crate::outbox::now_millis;
+
+    let token_hash = hash_token(current_token);
+    let now = now_millis();
+
+    let user_id: Option<String> = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar(
+                "SELECT user_id FROM user_sessions
+                 WHERE token_hash = ? AND revoked_at IS NULL",
+            )
+            .bind(&token_hash)
+            .fetch_optional(p)
+            .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar(
+                "SELECT user_id FROM user_sessions
+                 WHERE token_hash = ? AND revoked_at IS NULL",
+            )
+            .bind(&token_hash)
+            .fetch_optional(p)
+            .await?
+        }
+    };
+    let Some(user_id) = user_id else {
+        return Err(sqlx::Error::RowNotFound);
+    };
+
+    // 撤销旧 session（version +1，记录旋转原因）
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?, version = version + 1
+                 WHERE token_hash = ? AND revoked_at IS NULL",
+            )
+            .bind(now)
+            .bind(reason)
+            .bind(&token_hash)
+            .execute(p)
+            .await?;
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "UPDATE user_sessions
+                 SET revoked_at = ?, revoke_reason = ?, version = version + 1
+                 WHERE token_hash = ? AND revoked_at IS NULL",
+            )
+            .bind(now)
+            .bind(reason)
+            .bind(&token_hash)
+            .execute(p)
+            .await?;
+        }
+    }
+
+    // 签发新 Session（全新 token，旧 token 已失效）
+    create_session(pool, &user_id).await
+}
+
 /// 构建 session cookie
 pub fn build_session_cookie(token: &str) -> axum_extra::extract::cookie::Cookie<'static> {
     use axum_extra::extract::cookie::{Cookie, SameSite};
