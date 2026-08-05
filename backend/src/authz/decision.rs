@@ -164,6 +164,12 @@ impl BoardPostingMode {
     pub fn parse(value: &str) -> Option<BoardPostingMode> {
         Self::ALL.iter().find(|m| m.as_str() == value).copied()
     }
+
+    /// 该板块是否允许新增帖子（STATE-MACHINES §Board：`readonly`/`closed`
+    /// 禁止新增帖子，服务层强制，M03-BOARDS-03 落地）。
+    pub fn allows_content_write(&self) -> bool {
+        matches!(self, BoardPostingMode::Normal | BoardPostingMode::Approval)
+    }
 }
 
 /// 请求者上下文（actor）。
@@ -323,6 +329,15 @@ mod tests {
         }
         assert_eq!(BoardVisibility::parse("bogus"), None);
         assert_eq!(BoardPostingMode::parse("bogus"), None);
+    }
+
+    #[test]
+    fn locked_boards_do_not_allow_content_write() {
+        // 锁定板块（readonly/closed）禁止新增帖子；normal/approval 允许
+        assert!(!BoardPostingMode::Readonly.allows_content_write());
+        assert!(!BoardPostingMode::Closed.allows_content_write());
+        assert!(BoardPostingMode::Normal.allows_content_write());
+        assert!(BoardPostingMode::Approval.allows_content_write());
     }
 
     #[test]
