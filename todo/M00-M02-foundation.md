@@ -153,15 +153,15 @@
 - [x] `M01-JOBS-10` `[30m]` 对 SMTP/S3 临时错误、永久错误、超时和取消建立明确分类。证据：files=backend/src/jobs/classify.rs,docs/JOBS.md；commands=cargo test --all-features（207 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=ProviderError 归一化 + classify→FailureClass（Transient/Permanent/Cancelled）+ retry_class 映射 + SMTP 4xx/5xx、S3 429/5xx/4xx、超时/连接/取消规则；commit=17a857b；review=7 项分类单测 + JOBS.md §6 分类表
 - [x] `M01-JOBS-11` `[45m]` 测试进程在领取后、业务调用后、提交前后崩溃的恢复和去重结果。证据：files=backend/tests/crash_recovery.rs,docs/JOBS.md；commands=cargo test --all-features（211 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=四种崩溃点矩阵（领取后租约恢复重领/提交前回滚恰好一次/提交后重投去重跳过/job 效果行唯一键幂等）；commit=b4bb209；review=4 项崩溃恢复集成测试 + JOBS.md §5 矩阵
 - [x] `M01-JOBS-12` `[30m]` 邮件任务 payload 只存 token 引用/密文所需最小信息，任何日志不得输出验证或重置 token。证据：files=backend/src/jobs/payload.rs,backend/tests/mail_payload_safety.rs,docs/JOBS.md；commands=cargo test --all-features（222 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=validate_mail_payload（禁止明文 token 字段/嵌套/token 形态 ≥40 字符，只允许 *_token_id）+ redact_token（last_error/日志脱敏）；commit=764a2ca；review=9 项单测 + 2 项集成（payload 拒绝、last_error 不泄漏）
-- [~] `M01-JOBS-13` `[30m]` 暴露 queue depth、age、attempt、lease timeout、dead count 和处理延迟指标。
+- [x] `M01-JOBS-13` `[30m]` 暴露 queue depth、age、attempt、lease timeout、dead count 和处理延迟指标。证据：files=backend/src/jobs/metrics.rs,backend/src/jobs/worker_loop.rs,backend/tests/jobs_metrics.rs,docs/JOBS.md；commands=cargo test --all-features（225 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=snapshot 按 queue 输出 depth/age/avg attempts/lease overdue/dead + LatencyTracker 延迟 count/均值/最大值 + worker 接入；commit=c4877f2；review=2 项指标集成测试 + 1 项单测 + JOBS.md §10
 
 ## M01-AUDIT：审计、事件和幂等基础件
 
-**元数据：** `P0` · `owner=unassigned/security-backend` · `risk=critical` · `depends=M01-DB,M01-JOBS` · `blocked=none`
+**元数据：** `P0` · `owner=security-backend` · `risk=critical` · `depends=M01-DB,M01-JOBS` · `blocked=none`
 **目标文件：** `backend/src/audit/`、`backend/src/idempotency/`、`migrations/*/`、`docs/EVENT-CATALOG.md`
 **验收：** 高风险操作无审计无法提交；幂等冲突、重放和敏感字段清除测试通过。
 
-- [ ] `M01-AUDIT-01` `[45m]` 建立不可关闭的 audit_logs，包含 actor、effective role、target、action、reason、request_id 和 policy version。
+- [~] `M01-AUDIT-01` `[45m]` 建立不可关闭的 audit_logs，包含 actor、effective role、target、action、reason、request_id 和 policy version。
 - [ ] `M01-AUDIT-02` `[30m]` 对 before/after 使用字段 allowlist，禁止密码、Token、Secret、隐藏正文和完整签名 URL。
 - [ ] `M01-AUDIT-03` `[45m]` 建立幂等记录的 scope/key/request hash/status/response reference/expiry 数据模型。
 - [ ] `M01-AUDIT-04` `[30m]` 相同 key+摘要返回原结果；相同 key+不同摘要稳定返回 409。
