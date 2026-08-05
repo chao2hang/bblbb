@@ -72,10 +72,14 @@ doc_mentions.uniq!
 
 # --- Hard contradiction: deprecated/removed states ---------------------------
 
-# The document explicitly deprecates `status=closed`; if any OpenAPI enum
-# still contains it, the contract contradicts the state machine.
-if openapi_enum_values.key?("closed")
-  errors << "OpenAPI still enumerates `closed` but STATE-MACHINES.md deprecates status=closed (repair: remove from the OpenAPI enum)"
+# 文档弃用的是「协议 status 字段」不再使用 `status=closed`（STATE-MACHINES.md
+# §Comment：closed_at 控制新增回复）；该约束只适用于 status 属性枚举。
+# `posting_mode` 的 `closed`（板块关闭发帖，STATE-MACHINES.md §Board）是合法
+# 稳定枚举，不受此限制，因此按字段路径（/status$）精确判定，不做全局扫射。
+deprecated_status_closed =
+  openapi_enum_values["closed"]&.any? { |location| location =~ %r{/status$} } || false
+if deprecated_status_closed
+  errors << "OpenAPI still enumerates `closed` in a status enum but STATE-MACHINES.md deprecates status=closed (repair: remove from the OpenAPI enum)"
 end
 
 # --- Difference report -------------------------------------------------------
