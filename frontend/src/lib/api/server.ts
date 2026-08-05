@@ -15,6 +15,9 @@ import { problemMessage, requestIdOf, type Problem } from '../errors';
 /** 预认证 CSRF cookie 名（与后端 PREAUTH_COOKIE_NAME 一致）。 */
 export const PREAUTH_COOKIE = '__Host-bblbb_csrf';
 
+/** 重发冷却（秒）：与后端 ResendLimits::default().cooldown_ms 一致（60s）。 */
+export const RESEND_COOLDOWN_SECS = 60;
+
 const INTERNAL_API_ORIGIN: string = env.INTERNAL_API_ORIGIN ?? 'http://127.0.0.1:8080';
 
 export interface RegisterViaServerInput {
@@ -139,20 +142,22 @@ async function parseProblem(
   return { message: problemMessage(problem), requestId: requestIdOf(problem) };
 }
 
-/**
- * POST /api/v1/auth/register（M02-UX-01）。
- *
- * 流程：取预认证 CSRF（token + cookie 配对）→ 带 X-CSRF-Token/Cookie/
- * X-Request-ID 提交 → 复制 Set-Cookie 到浏览器。
- *
- * 后端对“用户名/邮箱已存在”返回与成功一致的 201 {ok:true}（防枚举，
- * M02-IDENTITY-05），因此冲突时同样返回 ok:true——统一账号冲突提示。
- */
-export async function registerViaServer(
+/** 预认证写操作失败结果（429 额外带 retryAfterSecs，供冷却倒计时）。 */
+export interface ServerWriteFailure {
+  ok: false;
+  status: number;
+  message: string;
+  requestId: string | null;
+  retryAfterSecs: number | null;
+}
+
+/** 通用预认证写操作：CSRF 配对 + Cookie/X-Request-ID 转发 + Set-Cookie 复制。 */
+async function postWithCsrf(
   cookies: Cookies,
-  input: RegisterViaServerInput,
-  requestId: string | null = null
-): Promise<RegisterServerResult> {
+  path: string,
+  body: unknown,
+  requestId: string | null
+): Promise<{ ok: true } | ServerWriteFailure> {
   const csrf = await prepareCsrf(cookies, requestId);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -162,14 +167,58 @@ export async function registerViaServer(
   if (csrf.cookieValue) headers.Cookie = `${PREAUTH_COOKIE}=${csrf.cookieValue}`;
   if (requestId) headers['X-Request-ID'] = requestId;
 
-  const response = await fetch(`${INTERNAL_API_ORIGIN}/api/v1/auth/register`, {
+  const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(input)
+    body: JSON.stringify(body)
   });
   relaySetCookies(response, cookies);
 
   if (response.ok) return { ok: true };
   const { message, requestId: rid } = await parseProblem(response);
-  return { ok: false, status: response.status, message, requestId: rid };
+  const retryAfterHeader = response.headers.get('Retry-After');
+  const retryAfterSecs =
+    retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
+      ? Number(retryAfterHeader)
+      : null;
+  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs };
+}
+
+/**
+ * POST /api/v1/auth/register（M02-UX-01）。
+ *
+ * 后端对“用户名/邮箱已存在”返回与成功一致的 201 {ok:true}（防枚举，
+ * M02-IDENTITY-05），因此冲突时同样返回 ok:true——统一账号冲突提示。
+ */
+export async function registerViaServer(
+  cookies: Cookies,
+  input: RegisterViaServerInput,
+  requestId: string | null = null
+): Promise<RegisterServerResult> {
+  const result = await postWithCsrf(cookies, '/api/v1/auth/register', input, requestId);
+  if (result.ok) return { ok: true };
+  return { ok: false, status: result.status, message: result.message, requestId: result.requestId };
+}
+
+/** POST /api/v1/auth/verify-email（M02-UX-02）：token 一次性验证。 */
+export async function verifyEmailViaServer(
+  cookies: Cookies,
+  token: string,
+  requestId: string | null = null
+): Promise<{ ok: true } | ServerWriteFailure> {
+  return postWithCsrf(cookies, '/api/v1/auth/verify-email', { token }, requestId);
+}
+
+/**
+ * POST /api/v1/auth/resend-verification（M02-UX-02）。
+ *
+ * 后端统一 202（邮箱不存在/已激活与正常重发一致，不泄漏）；冷却 60s /
+ * 日 3 次命中返回 429 + Retry-After（秒），供前端冷却倒计时。
+ */
+export async function resendVerificationViaServer(
+  cookies: Cookies,
+  email: string,
+  requestId: string | null = null
+): Promise<{ ok: true } | ServerWriteFailure> {
+  return postWithCsrf(cookies, '/api/v1/auth/resend-verification', { email }, requestId);
 }

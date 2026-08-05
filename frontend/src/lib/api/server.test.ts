@@ -7,7 +7,9 @@ import {
   parseSetCookie,
   PREAUTH_COOKIE,
   registerViaServer,
-  relaySetCookies
+  relaySetCookies,
+  resendVerificationViaServer,
+  verifyEmailViaServer
 } from './server';
 
 interface SetCall {
@@ -183,6 +185,83 @@ describe('registerViaServer（预认证 CSRF + 转发 + 复制）', () => {
     if (!result.ok) {
       expect(result.status).toBe(429);
       expect(result.message).toContain('操作过于频繁');
+      expect(result.requestId).toBe('rid-429');
+    }
+  });
+});
+
+describe('verifyEmailViaServer / resendVerificationViaServer（M02-UX-02）', () => {
+  it('验证成功：带 token 提交 → ok:true', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await verifyEmailViaServer(cookies, 'verify-token-1');
+    expect(result).toEqual({ ok: true });
+
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toContain('/api/v1/auth/verify-email');
+    expect(JSON.parse(init.body as string)).toEqual({ token: 'verify-token-1' });
+  });
+
+  it('验证 token 无效：映射 400 + 中文文案', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { status: 400, code: 'bad_request', detail: 'invalid or expired verification token', request_id: 'rid-400' },
+          400
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await verifyEmailViaServer(cookies, 'bad-token');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(400);
+      expect(result.requestId).toBe('rid-400');
+    }
+  });
+
+  it('重发成功：统一 202 → ok:true（不泄漏邮箱存在性）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 202));
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await resendVerificationViaServer(cookies, 'alice@example.com');
+    expect(result).toEqual({ ok: true });
+
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toContain('/api/v1/auth/resend-verification');
+    expect(JSON.parse(init.body as string)).toEqual({ email: 'alice@example.com' });
+  });
+
+  it('重发冷却命中：429 + Retry-After → retryAfterSecs 供倒计时', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ status: 429, code: 'rate_limited', title: 'Too Many Requests', request_id: 'rid-429' }),
+          { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '45' } }
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await resendVerificationViaServer(cookies, 'alice@example.com');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(429);
+      expect(result.retryAfterSecs).toBe(45);
       expect(result.requestId).toBe('rid-429');
     }
   });

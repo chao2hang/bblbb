@@ -39,6 +39,9 @@
           <div style="margin-top:var(--space-3);display:flex;gap:var(--space-2);justify-content:center;">
             <Button text="去登录" variant="primary" size="sm" href="/login" />
           </div>
+          <div class="empty-state-desc" style="margin-top:var(--space-3);">
+            没有收到验证邮件？<a href="/verify-email">重新发送</a>
+          </div>
         </div>
       {:else}
         <form method="POST" use:enhance novalidate>
