@@ -42,6 +42,12 @@
 
 实现（M01-JOBS-02）：业务代码在事务内调用 `outbox::enqueue_in_tx(&mut tx, event_type, payload)`；事务提交事件才持久化，事务回滚事件同步消失。时间戳一律为 Unix 毫秒（M01-DB-08）。
 
+**邮件任务 token 安全（M01-JOBS-12）**：`jobs/payload.rs` 提供
+`validate_mail_payload`（禁止明文验证/重置 token 进 payload，只允许 `*_token_id`
+引用或密文最小信息，并识别 ≥40 字符 token 形态的随机串）与 `redact_token`
+（写入 `last_error`/日志前脱敏）。邮件任务入队必须通过校验；任何日志不得
+输出验证或重置 token。
+
 ## 3. Job 生命周期
 
 ```text
