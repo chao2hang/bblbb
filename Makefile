@@ -51,7 +51,7 @@ dev-backend: ## 启动后端开发服务器
 	@cd $(BACKEND_DIR) && cargo run
 
 ##@ 检查
-check: check-backend check-frontend check-prototype check-openapi check-contract check-roadmap check-docs check-secrets ## 运行全部检查
+check: check-backend check-migrations check-frontend check-prototype check-openapi check-contract check-roadmap check-docs check-secrets ## 运行全部检查
 
 check-backend: ## 后端 fmt + clippy + 编译检查 + 领域层依赖边界
 	@printf "$(GREEN)>>> [check-backend] Rust fmt + clippy + check$(RESET)\n"
@@ -67,6 +67,10 @@ check-domain: ## 领域层依赖边界扫描（禁止 axum/sqlx/SMTP/S3/环境�
 	else \
 		echo "领域层依赖边界 OK（无 axum/sqlx/环境变量）"; \
 	fi
+
+check-migrations: ## 三数据库迁移结构等价断言（M01-DB-09）
+	@printf "$(GREEN)>>> [check-migrations] 迁移结构等价断言$(RESET)\n"
+	@cd $(BACKEND_DIR) && cargo test --test migration_equivalence --quiet 2>&1 | tail -n 8
 
 check-frontend: ## 前端 Svelte check + TypeScript 类型检查
 	@printf "$(GREEN)>>> [check-frontend] SvelteKit check$(RESET)\n"
