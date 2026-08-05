@@ -13,6 +13,18 @@
 
 选择数据库发生在安装时。BBLBB 不承诺通过更换 `DATABASE_URL` 完成在线迁移；跨引擎迁移使用专用导出/导入工具并经过校验。
 
+### 1.1 MariaDB 兼容策略
+
+MariaDB 通过 MySQL 协议接入：`DATABASE_URL` 的 `mariadb://` scheme 在 `backend/src/db/pool.rs` 中归一化为 `mysql://`，由 sqlx 的 MySQL 驱动（`features = ["runtime-tokio", "sqlite", "mysql"]`）连接。连接层固定 `charset=utf8mb4` 与 `collation=utf8mb4_bin`（MySQL 8 与 MariaDB 10.11 均支持）。
+
+三条硬性规则：
+
+1. **不得使用 MySQL 8 独有能力**：例如 `utf8mb4_0900_ai_ci` 排序规则（MariaDB 不支持）、原生 JSON 运算符 `->>`/`JSON_EXTRACT`（MariaDB 的 `JSON` 是 `LONGTEXT` 别名）。JSON 一律在应用层用版本化 schema 校验，数据库侧只存 `TEXT`/`LONGTEXT` 或两者都支持的 `JSON` 列，不依赖 JSON 专用表达式做高频过滤。
+2. **共享语法必须验证双端行为**：`INSERT ... ON DUPLICATE KEY UPDATE col = VALUES(col)` 在 MySQL 8.0.20+ 标记弃用但可运行、MariaDB 10.11 原生支持；窗口函数、`WITH RECURSIVE`、`CHECK` 约束、`FULLTEXT` 索引（中文检索用 `ngram` parser）双端都有，但细节差异由三数据库契约测试覆盖（M01-DB-09/M01-DB-10）。
+3. **差异即测试**：任何在 MySQL 8 与 MariaDB 10.11 之间行为不同的特性，要么在迁移中显式归一化（如 `sql_mode`、事务隔离、字符集），要么写入三数据库故障矩阵测试；不允许依赖未测试的隐式行为。
+
+SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite,mysql,mariadb}/` 的同一版本号文件保证，CI 对三库执行迁移与关键契约测试（支持矩阵见第 1 节；结构等价断言见 M01-DB-09）。
+
 ## 2. 跨数据库约定
 
 ### 2.1 主键

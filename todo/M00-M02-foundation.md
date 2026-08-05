@@ -102,11 +102,11 @@
 
 ## M01-DB：数据库连接与迁移执行器
 
-**元数据：** `P0` · `owner=unassigned/backend-db` · `risk=critical` · `depends=M00-BACKEND` · `blocked=none`
+**元数据：** `P0` · `owner=backend-db` · `risk=critical` · `depends=M00-BACKEND` · `blocked=none`
 **目标文件：** `backend/Cargo.toml`、`backend/src/db/`、`backend/src/bin/`、`migrations/{sqlite,mysql,mariadb}/`
 **验收：** 空库、重复执行、checksum 篡改、上一版本升级和失败回滚在三数据库通过。
 
-- [ ] `M01-DB-01` `[30m]` 接入 sqlx 的 Tokio runtime、SQLite 与 MySQL 协议支持，并记录 MariaDB 兼容策略。
+- [~] `M01-DB-01` `[30m]` 接入 sqlx 的 Tokio runtime、SQLite 与 MySQL 协议支持，并记录 MariaDB 兼容策略。
 - [ ] `M01-DB-02` `[45m]` 实现数据库 URL、最大/最小连接、连接超时、空闲时间和 slow query 配置校验。
 - [ ] `M01-DB-03` `[30m]` 为 SQLite 每连接启用 foreign_keys、WAL、busy timeout 和统一时区。
 - [ ] `M01-DB-04` `[30m]` 为 MySQL/MariaDB 固定字符集、时区、事务隔离和 sql_mode 前置检查。
