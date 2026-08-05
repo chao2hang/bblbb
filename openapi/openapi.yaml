@@ -6840,6 +6840,7 @@ components:
         required:
         - slug
         - name
+        - post_count
         properties:
           slug:
             type: string
@@ -6847,6 +6848,33 @@ components:
             type: string
           description:
             type: string
+            nullable: true
+          parent_id:
+            description: 父板块 id（软自引用层级，根板块为 null，M03-BOARDS-01）
+            type: string
+            nullable: true
+          visibility:
+            description: 板块可见性（public/members/restricted/hidden，M03-BOARDS-03）
+            type: string
+            enum:
+            - public
+            - members
+            - restricted
+            - hidden
+          posting_mode:
+            description: 发帖模式（normal/approval/readonly/closed，M03-BOARDS-02）
+            type: string
+            enum:
+            - normal
+            - approval
+            - readonly
+            - closed
+          post_count:
+            description: 已发布帖子数
+            type: integer
+          is_active:
+            description: 是否在活跃投影中（停用板块不返回，恒为 1）
+            type: integer
     Post:
       allOf:
       - "$ref": "#/components/schemas/ResourceMeta"

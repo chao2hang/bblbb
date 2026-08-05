@@ -1,49 +1,36 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { page } from '$app/state';
-  import { listBoardPosts, getBoard, type PostSummary } from '$lib/api/client';
+  // M03-UI-06：板块详情 SSR——板块信息 + 帖子列表 + 权限提示 + 空状态。
   import PostList from '$lib/components/PostList.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import LoadingState from '$lib/components/ui/LoadingState.svelte';
   import { boardVisuals } from '$lib/board-visuals';
   import { formatCount } from '$lib/utils';
+  import type { BoardDetailData } from './+page.server';
 
-  let slug = $derived(page.params.slug);
-  let visuals = $derived(boardVisuals(slug ?? ''));
-  let posts = $state<PostSummary[]>([]);
-  let boardName = $state<string | null>(null);
-  let boardDesc = $state<string | null>(null);
-  let postCount = $state<number | null>(null);
-  let loading = $state(true);
+  let { data }: { data: BoardDetailData } = $props();
 
-  onMount(async () => {
-    if (!slug) {
-      loading = false;
-      return;
-    }
-    try {
-      const [boardResult, postsResult] = await Promise.allSettled([
-        getBoard(fetch, slug),
-        listBoardPosts(fetch, slug),
-      ]);
-      if (boardResult.status === 'fulfilled') {
-        boardName = boardResult.value.name;
-        boardDesc = boardResult.value.description;
-        postCount = boardResult.value.post_count;
-      }
-      if (postsResult.status === 'fulfilled') {
-        posts = postsResult.value.items;
-      }
-    } catch {
-      posts = [];
-    }
-    loading = false;
+  const board = $derived(data.board);
+  const posts = $derived(data.posts);
+  const error = $derived(data.error);
+  const slug = $derived(board?.slug ?? '');
+
+  /** 权限提示：非公开板块对匿名/非成员不可见（members 需登录、
+   *  restricted 需角色）；readonly/closed 提示只读。 */
+  const permissionHint = $derived.by(() => {
+    if (!board) return null;
+    const hints: string[] = [];
+    if (board.visibility === 'members') hints.push('该板块仅对登录成员可见');
+    if (board.visibility === 'restricted') hints.push('该板块需加入后可见');
+    if (board.visibility === 'hidden') hints.push('该板块仅对具备权限的管理员/版主可见');
+    if (board.posting_mode === 'readonly') hints.push('该板块当前为只读，不能发布新帖');
+    if (board.posting_mode === 'closed') hints.push('该板块已关闭发帖');
+    if (board.posting_mode === 'approval') hints.push('发帖需审核后展示');
+    return hints.length ? hints : null;
   });
 </script>
 
 <svelte:head>
-  <title>{boardName ?? slug} — BBLBB</title>
+  <title>{board?.name ?? slug} — BBLBB</title>
 </svelte:head>
 
 <div class="container">
@@ -54,34 +41,48 @@
         <span class="breadcrumb-sep">/</span>
         <a href="/boards" class="breadcrumb-link">板块</a>
         <span class="breadcrumb-sep">/</span>
-        <span class="breadcrumb-current">{boardName ?? slug}</span>
+        <span class="breadcrumb-current">{board?.name ?? slug}</span>
       </nav>
 
-      <div class="board-header">
-        <div class="board-icon" style="--cat-color:{visuals.color};">
-          <Icon name={visuals.icon} size={28} />
-        </div>
-        <div class="board-info">
-          <h1 class="board-name">{boardName ?? slug}</h1>
-          {#if boardDesc}<p class="board-desc">{boardDesc}</p>{/if}
-          <div class="board-stats">
-            <span><strong>{formatCount(postCount ?? posts.length)}</strong> 帖子</span>
+      {#if error && !board}
+        <p class="input-hint is-error" role="alert">{error}</p>
+      {/if}
+
+      {#if board}
+        {@const visuals = boardVisuals(board.slug)}
+        <div class="board-header">
+          <div class="board-icon" style="--cat-color:{visuals.color};">
+            <Icon name={visuals.icon} size={28} />
+          </div>
+          <div class="board-info">
+            <h1 class="board-name">{board.name}</h1>
+            {#if board.description}<p class="board-desc">{board.description}</p>{/if}
+            <div class="board-stats">
+              <span><strong>{formatCount(board.post_count)}</strong> 帖子</span>
+            </div>
+          </div>
+          <div>
+            <Button text="发布新帖" variant="primary" icon="pen-line" href="/editor" />
           </div>
         </div>
-        <div>
-          <Button text="发布新帖" variant="primary" icon="pen-line" href="/editor" />
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="card-body" style="padding:0;">
-          {#if loading}
-            <LoadingState />
-          {:else}
+        {#if permissionHint}
+          <div class="card" role="note" style="margin-top:var(--space-4);border-color:var(--color-warning);">
+            <div class="card-body" style="display:flex;gap:var(--space-2);align-items:flex-start;">
+              <Icon name="lock" size={16} />
+              <div>
+                {#each permissionHint as hint}<p style="margin:0;">{hint}</p>{/each}
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        <div class="card" style="margin-top:var(--space-4);">
+          <div class="card-body" style="padding:0;">
             <PostList posts={posts} emptyTitle="暂无帖子" emptyDesc="成为第一个发帖的人吧！" />
-          {/if}
+          </div>
         </div>
-      </div>
+      {/if}
     </div>
   </div>
 </div>

@@ -15,7 +15,36 @@ use crate::boards::{
     board_read_gate, decode_cursor, encode_cursor, filter_visible_board_ids, BoardCursor,
     VisibilityDeny,
 };
+use crate::db::DatabasePool;
 use crate::{app::AppState, error::AppError};
+
+/// Board 公开投影字段（匿名请求恒不含；M03-BOARDS-08 防计数/面包屑推断）：
+/// 板块自身的可见性/发帖模式/计数只对已认证请求方暴露。
+fn board_json(b: &BoardRow, authed: bool, visible_parents: &[String]) -> Value {
+    let mut v = json!({
+        "id": b.id,
+        "version": b.updated_at,
+        "created_at": b.created_at,
+        "updated_at": b.updated_at,
+        "slug": b.slug,
+        "name": b.name,
+        "description": b.description,
+    });
+    if authed {
+        v["visibility"] = json!(b.visibility);
+        v["posting_mode"] = json!(b.posting_mode);
+        v["post_count"] = json!(b.post_count);
+        v["is_active"] = json!(1);
+        // 面包屑：仅当父板块对请求方可见时才暴露 parent_id——
+        // 隐藏父板块绝不通过可见子板块泄漏存在性。
+        if let Some(pid) = &b.parent_id {
+            if visible_parents.contains(pid) {
+                v["parent_id"] = json!(pid);
+            }
+        }
+    }
+    v
+}
 
 /// 板块路由
 pub fn router() -> Router<AppState> {
@@ -70,14 +99,14 @@ async fn list_boards(
     let boards =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
+                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
                  ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
             .fetch_all(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
+                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
                  ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
@@ -102,6 +131,7 @@ async fn list_boards(
     let mut items: Vec<Value> = Vec::new();
     let mut last_key: Option<BoardCursor> = None;
     let mut more_after_full = false;
+    let authed = actor.is_some();
     let mut iter = boards.iter().filter(|b| visible.contains(&b.id));
     for b in iter.by_ref() {
         let key = BoardCursor {
@@ -119,7 +149,7 @@ async fn list_boards(
             more_after_full = true;
             break;
         }
-        items.push(board_json(b));
+        items.push(board_json(b, authed, &visible));
         last_key = Some(key);
     }
     let has_more = more_after_full;
@@ -157,14 +187,14 @@ async fn get_board(
     let row =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
+                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
             .fetch_optional(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
+                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
@@ -191,12 +221,60 @@ async fn get_board(
         return Err(deny.to_error(request_id));
     }
 
+    // 面包屑：parent_id 仅在父板块对请求方可见时暴露（防隐藏父级泄漏）。
+    let mut visible_parents: Vec<String> = Vec::new();
+    if let Some(pid) = &b.parent_id {
+        let parent_visible =
+            parent_board_visible(pool, pid, auth.user.as_ref().map(|u| u.id.as_str()))
+                .await
+                .map_err(|e| AppError::internal(e, request_id))?;
+        if parent_visible {
+            visible_parents.push(pid.clone());
+        }
+    }
+
     let cache = if visibility == BoardVisibility::Public {
         CACHE_PUBLIC
     } else {
         CACHE_PRIVATE
     };
-    Ok(([(header::CACHE_CONTROL, cache)], Json(board_json(&b))).into_response())
+    Ok((
+        [(header::CACHE_CONTROL, cache)],
+        Json(board_json(&b, auth.user.is_some(), &visible_parents)),
+    )
+        .into_response())
+}
+
+/// 父板块是否对请求方可见（用于面包屑字段；隐藏/不可见父级不暴露）。
+async fn parent_board_visible(
+    pool: &DatabasePool,
+    parent_id: &str,
+    actor: Option<&str>,
+) -> Result<bool, String> {
+    let row: Option<(String,)> = match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT visibility FROM boards WHERE id = ? AND is_active = 1 AND deleted_at IS NULL",
+        )
+        .bind(parent_id)
+        .fetch_optional(p)
+        .await,
+        Either::Right(p) => sqlx::query_as(
+            "SELECT visibility FROM boards WHERE id = ? AND is_active = 1 AND deleted_at IS NULL",
+        )
+        .bind(parent_id)
+        .fetch_optional(p)
+        .await,
+    }
+    .map_err(|e| e.to_string())?;
+
+    let Some((vis,)) = row else {
+        return Ok(false);
+    };
+    let Some(visibility) = BoardVisibility::parse(&vis) else {
+        return Ok(false);
+    };
+    let access = board_read_gate(pool, parent_id, visibility, actor).await?;
+    Ok(access.visible)
 }
 
 /// GET /api/v1/boards/{slug}/posts — 列出板块下的帖子
@@ -235,9 +313,12 @@ async fn list_board_posts(
     let posts = match pool {
         Either::Left(p) => {
             sqlx::query_as::<_, PostListRow>(
-                "SELECT id, title, author_id, reply_count, view_count, pinned, created_at, last_reply_at
-                 FROM posts WHERE board_id = ? AND status = 'published'
-                 ORDER BY pinned DESC, last_reply_at DESC, created_at DESC LIMIT ?",
+                "SELECT p.id, p.title, p.author_id, u.username_normalized AS author_name,
+                        p.reply_count, p.view_count, p.pinned, p.created_at, p.last_reply_at
+                 FROM posts p
+                 LEFT JOIN users u ON u.id = p.author_id
+                 WHERE p.board_id = ? AND p.status = 'published'
+                 ORDER BY p.pinned DESC, p.last_reply_at DESC, p.created_at DESC LIMIT ?",
             )
             .bind(&board_id)
             .bind(limit)
@@ -246,9 +327,12 @@ async fn list_board_posts(
         }
         Either::Right(p) => {
             sqlx::query_as::<_, PostListRow>(
-                "SELECT id, title, author_id, reply_count, view_count, pinned, created_at, last_reply_at
-                 FROM posts WHERE board_id = ? AND status = 'published'
-                 ORDER BY pinned DESC, last_reply_at DESC, created_at DESC LIMIT ?",
+                "SELECT p.id, p.title, p.author_id, u.username_normalized AS author_name,
+                        p.reply_count, p.view_count, p.pinned, p.created_at, p.last_reply_at
+                 FROM posts p
+                 LEFT JOIN users u ON u.id = p.author_id
+                 WHERE p.board_id = ? AND p.status = 'published'
+                 ORDER BY p.pinned DESC, p.last_reply_at DESC, p.created_at DESC LIMIT ?",
             )
             .bind(&board_id)
             .bind(limit)
@@ -265,6 +349,7 @@ async fn list_board_posts(
                 "id": p.id,
                 "title": p.title,
                 "author_id": p.author_id,
+                "author_name": p.author_name,
                 "reply_count": p.reply_count,
                 "view_count": p.view_count,
                 "pinned": p.pinned != 0,
@@ -327,26 +412,17 @@ async fn list_tags(State(state): State<AppState>) -> Result<Json<Value>, AppErro
 ///
 /// boards 无独立 version 列：以 `updated_at`（Unix 毫秒）为乐观并发版本
 /// （≥1 且每次更新递增，BOARDS-05 If-Match 同源）。
-fn board_json(b: &BoardRow) -> Value {
-    json!({
-        "id": b.id,
-        "version": b.updated_at,
-        "created_at": b.created_at,
-        "updated_at": b.updated_at,
-        "slug": b.slug,
-        "name": b.name,
-        "description": b.description,
-    })
-}
-
 #[derive(sqlx::FromRow)]
 struct BoardRow {
     id: String,
     slug: String,
     name: String,
     description: Option<String>,
+    parent_id: Option<String>,
     sort_order: i64,
     visibility: String,
+    posting_mode: String,
+    post_count: i64,
     created_at: i64,
     updated_at: i64,
 }
@@ -356,6 +432,7 @@ struct PostListRow {
     id: String,
     title: String,
     author_id: String,
+    author_name: Option<String>,
     reply_count: i64,
     view_count: i64,
     pinned: i64,

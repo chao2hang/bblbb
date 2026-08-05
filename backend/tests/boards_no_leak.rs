@@ -215,6 +215,58 @@ async fn visible_child_of_hidden_parent_reveals_nothing() {
     cleanup(&dir);
 }
 
+/// 已认证投影：可见性/发帖模式/计数对已登录请求方暴露（M03-UI-06 权限提示
+/// 与板块树数据源）；parent_id 仅在父板块对请求方可见时出现——隐藏父级仍
+/// 不通过可见子板块的面包屑泄漏存在性。
+#[tokio::test]
+async fn authenticated_projection_includes_visibility_not_hidden_parent() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let public_parent = insert_board_returning_id(&pool, "public-parent", "public", None).await;
+    let hidden_parent = insert_board_returning_id(&pool, "hidden-parent", "hidden", None).await;
+    let _child_of_public =
+        insert_board_returning_id(&pool, "child-public", "public", Some(&public_parent)).await;
+    let _child_of_hidden =
+        insert_board_returning_id(&pool, "child-hidden", "public", Some(&hidden_parent)).await;
+
+    let app = app_with(pool.clone());
+    let email = insert_login_user(&pool, "mem").await;
+    let session = login_session_cookie(&app, &email).await;
+
+    // 匿名：子板块详情不含 visibility/post_count/parent_id（既有契约保持）。
+    let (status, body) = get_raw(&app, "/api/v1/boards/child-public", None).await;
+    assert_eq!(status, StatusCode::OK);
+    for key in ["parent_id", "visibility", "post_count", "posting_mode"] {
+        assert!(
+            !body.as_object().unwrap().contains_key(key),
+            "匿名投影不得含 {key}"
+        );
+    }
+
+    // 已登录：含 visibility/post_count/posting_mode；父板块公开可见 → parent_id 暴露。
+    let (status, body) = get_raw(&app, "/api/v1/boards/child-public", Some(&session)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["visibility"], "public");
+    assert_eq!(body["posting_mode"], "normal");
+    assert!(body.as_object().unwrap().contains_key("post_count"));
+    assert_eq!(
+        body["parent_id"], public_parent,
+        "公开父板块可见，面包屑应暴露"
+    );
+
+    // 隐藏父板块的子板块：即使已登录也不得暴露 parent_id；隐藏父板块对成员 404。
+    let (status, body) = get_raw(&app, "/api/v1/boards/child-hidden", Some(&session)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !body.as_object().unwrap().contains_key("parent_id"),
+        "隐藏父级不得经面包屑泄漏"
+    );
+    let (status, _) = get_raw(&app, "/api/v1/boards/hidden-parent", Some(&session)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
 /// 计数：禁用标签的 usage_count 不进入公开 listTags。
 #[tokio::test]
 async fn disabled_tag_count_not_exposed() {

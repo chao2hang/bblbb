@@ -18,7 +18,7 @@ const board = {
   is_active: true
 };
 
-const tag = { id: 't1', name: 'svelte', usage_count: 5, created_at: 0 };
+const tag = { id: 't1', slug: 'svelte', name: 'svelte', usage_count: 5 };
 
 const post = {
   id: 'p1',

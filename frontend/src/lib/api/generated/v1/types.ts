@@ -136,6 +136,11 @@ export type Board = ResourceMeta & {
   slug: string;
   name: string;
   description?: string;
+  parent_id?: string;
+  visibility?: "public" | "members" | "restricted" | "hidden";
+  posting_mode?: "normal" | "approval" | "readonly" | "closed";
+  post_count: number;
+  is_active?: number;
 };
 export type Post = ResourceMeta & {
   post_type: "article" | "discussion";

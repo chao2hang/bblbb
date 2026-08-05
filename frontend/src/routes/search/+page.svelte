@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { search, type PostSummary } from '$lib/api/client';
@@ -7,7 +7,11 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
 
-  let q = $state(page.url.searchParams.get('q') || '');
+  // M03-UI-06 标签筛选：/search?tag={slug} 以标签名作为关键词预填搜索，
+  // 显示可移除的标签筛选 chip；帖子级标签过滤由 M8 搜索收敛。
+  const tagSlug = $derived(page.url.searchParams.get('tag') ?? '');
+  // q 是一次性初始值（URL 参数每次导航重建页面），untrack 消除本地引用噪音。
+  let q = $state(untrack(() => page.url.searchParams.get('q') || tagSlug || ''));
   let results = $state<PostSummary[]>([]);
   let loading = $state(false);
   let searched = $state(false);
@@ -33,8 +37,14 @@
     run(query);
   }
 
+  function removeTagFilter() {
+    goto('/search');
+    q = '';
+    run('');
+  }
+
   onMount(() => {
-    const initial = page.url.searchParams.get('q') || '';
+    const initial = page.url.searchParams.get('q') || tagSlug || '';
     if (initial) run(initial);
   });
 </script>
@@ -70,6 +80,15 @@
   </form>
 
   <div style="margin-top:var(--space-4);">
+    {#if tagSlug}
+      <div class="tag-chip" style="margin-bottom:var(--space-3);" title="按标签筛选">
+        <Icon name="tag" size={12} />
+        <span>标签：{tagSlug}</span>
+        <button type="button" class="tag-chip-remove" aria-label="移除标签筛选" onclick={removeTagFilter}>
+          <Icon name="x" size={12} />
+        </button>
+      </div>
+    {/if}
     {#if loading}
       <div class="empty-state"><div class="empty-state-title">搜索中…</div></div>
     {:else if searched && results.length === 0}

@@ -80,13 +80,33 @@ export type PublicProfile = ContractPublicUser & {
   signature: string | null;
 };
 
-/** 板块（GET /boards）投影：契约 Board + 实现扩展字段（post_count/is_active）。
- *  后端补齐 version/created_at/updated_at 后，可塌缩为
- *  `export type Board = Omit<Board, 'version' | 'created_at' | 'updated_at'>`。 */
-export type Board = Omit<ContractBoard, 'version' | 'created_at' | 'updated_at' | 'description'> & {
+/** 板块（GET /boards）投影：契约 Board（parent_id/visibility/posting_mode/
+ * post_count 仅已认证请求方可见，M03-BOARDS-08 防匿名计数/面包屑推断）。
+ */
+export type Board = Omit<
+  ContractBoard,
+  | 'version'
+  | 'created_at'
+  | 'updated_at'
+  | 'description'
+  | 'post_count'
+  | 'is_active'
+  | 'parent_id'
+  | 'visibility'
+  | 'posting_mode'
+> & {
+  /** Unix 毫秒（ResourceMeta 契约用字符串，前端按时间戳处理）。 */
+  version: number;
+  created_at: number;
+  updated_at: number;
   description: string | null;
-  post_count: number;
-  is_active: boolean;
+  parent_id?: string | null;
+  visibility?: 'public' | 'members' | 'restricted' | 'hidden' | null;
+  posting_mode?: 'normal' | 'approval' | 'readonly' | 'closed' | null;
+  /** 已认证投影才返回（匿名公开投影恒缺）。 */
+  post_count?: number;
+  /** 后端返回 0/1 整数（活跃投影恒 1）；已认证投影才返回。 */
+  is_active?: number;
 };
 
 // ── 实现投影：契约暂未覆盖的列表/详情浅投影 ──────────────────────────────────
@@ -97,6 +117,8 @@ export interface PostSummary {
   id: string;
   title: string;
   author_id: string;
+  /** 作者用户名（搜索/板块帖子接口返回；供列表作者头像展示）。 */
+  author_name?: string | null;
   reply_count: number;
   view_count: number;
   pinned: boolean;
@@ -162,9 +184,26 @@ export interface NotificationListResult extends PageResult<Notification> {
 /** 标签投影（GET /tags）；契约未定义独立 Tag schema，保留为领域值对象。 */
 export interface Tag {
   id: string;
+  slug: string;
   name: string;
+  description: string | null;
+  color: string | null;
+  group_id: string | null;
   usage_count: number;
-  created_at: number;
+}
+
+/** 标签分组（GET /tags → groups）。 */
+export interface TagGroup {
+  id: string;
+  name: string;
+  slug: string;
+  sort_order: number;
+}
+
+/** GET /tags 完整响应：items（标签）+ groups（分组）。 */
+export interface TagListResult {
+  items: Tag[];
+  groups: TagGroup[];
 }
 
 /** 反应切换结果投影（POST /posts/{id}/reactions）；契约目标：ReactionResult。 */

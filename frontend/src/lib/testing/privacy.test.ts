@@ -119,7 +119,7 @@ describe('M00-FRONTEND-09 隐私守卫：hydration payload / 预取数据源', (
     expect(Object.keys(data.boards[0]).sort()).toEqual(
       ['description', 'id', 'is_active', 'name', 'post_count', 'slug'].sort()
     );
-    expect(Object.keys(data.tags[0]).sort()).toEqual(['created_at', 'id', 'name', 'usage_count'].sort());
+    expect(Object.keys(data.tags[0]).sort()).toEqual(['id', 'name', 'slug', 'usage_count'].sort());
     expect(Object.keys(data.posts[0]).sort()).toEqual(
       ['author_id', 'created_at', 'id', 'last_reply_at', 'pinned', 'reply_count', 'title', 'view_count'].sort()
     );

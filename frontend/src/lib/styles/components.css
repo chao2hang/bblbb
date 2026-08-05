@@ -1962,6 +1962,24 @@ iframe.is-lazy-pending,
   color: var(--color-brand);
   background: var(--color-brand-soft);
   border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.tag-chip:hover {
+  background: color-mix(in srgb, var(--color-brand-soft) 60%, var(--color-bg-card));
+}
+
+.tag-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-inset);
+  border-radius: var(--radius-full);
 }
 
 .tag-chip-remove {

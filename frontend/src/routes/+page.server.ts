@@ -10,7 +10,7 @@ import type { PageServerLoad } from './$types';
 /** 公开字段白名单：与 frontend/src/lib/api/types.ts 中的投影一一对应。
  *  任何新字段必须先过权限/隐私评审，再补充到白名单与类型。 */
 const BOARD_PUBLIC = ['id', 'slug', 'name', 'description', 'post_count', 'is_active'] as const;
-const TAG_PUBLIC = ['id', 'name', 'usage_count', 'created_at'] as const;
+const TAG_PUBLIC = ['id', 'slug', 'name', 'usage_count'] as const;
 const POST_PUBLIC = [
   'id',
   'title',

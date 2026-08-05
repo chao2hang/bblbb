@@ -21,6 +21,7 @@
   const navItems = [
     { label: '首页', href: '/' },
     { label: '板块', href: '/boards' },
+    { label: '标签', href: '/tags' },
     { label: '搜索', href: '/search' }
   ];
 
