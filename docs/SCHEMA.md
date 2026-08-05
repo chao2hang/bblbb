@@ -182,6 +182,7 @@ MySQL/MariaDB `utf8mb4_bin`），因此唯一索引对大小写与全角/连字�
 | `absolute_expires_at` | 最长有效期 |
 | `revoked_at`、`revoke_reason` | 可空 |
 | `version` | Session 旋转计数：登录、权限提升、改密、高风险重认证时递增并签发新 `token_hash`（防 fixation），默认 0 |
+| `auth_verified_at` | 最近一次“完整认证”（密码 + 可选 MFA）时间（Unix 毫秒），登录签发会话即写入；`NULL` = 从未或已过期。高风险操作（改密、停用 MFA、角色提升、退款、密钥/Secret 操作）要求近期重认证：距今超过 `BBLBB__STEP_UP_WINDOW_SECS` 时须 step-up（M02-MFA-07，迁移 0016） |
 
 浏览器 Cookie 只持有高熵随机 token；数据库不存明文 token。
 

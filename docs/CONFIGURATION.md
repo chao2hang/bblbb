@@ -53,6 +53,7 @@
 | `BBLBB__FEATURE_KILL_SWITCH` | `feature_kill_switch` | `false` | all | 重启 |
 | `BBLBB__NEW_USER_COOLDOWN_SECS` | `new_user_cooldown_secs` | `0` = 关闭 | all | 重启 |
 | `BBLBB__TOTP_WINDOW_STEPS` | `totp_window_steps` | `1` | all | 重启 |
+| `BBLBB__STEP_UP_WINDOW_SECS` | `step_up_window_secs` | `300`（5 分钟） | all | 重启 |
 
 说明：
 
