@@ -241,6 +241,9 @@ Content-Security-Policy: default-src 'self'; ...
 - 审计与业务事务原子性（M01-AUDIT-08）：高风险操作在业务事务内调用
   `AuditEntry::record_in_tx`，与业务变更、Outbox 事件同一事务提交——回滚时
   审计同步消失，保证"无审计不提交"；审计 request_id 贯通 Outbox 消费链。
+- 审计查询边界（M01-AUDIT-09）：仅授权管理员可查询；深分页使用
+  `(created_at, id)` 游标（`list_audit_logs_cursor`，LIMIT 钳制 ≤200），
+  不用 OFFSET 深翻页；游标 base64url 不透明编码，非法游标返回 400。
 - OIDC Client 所得 claim 受 scope 和同意控制。
 
 ## 19. 部署加固

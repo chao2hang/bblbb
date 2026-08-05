@@ -1,10 +1,12 @@
-//! M01-AUDIT-01/02：不可关闭的 audit_logs——actor、effective role、target、
+//! M01-AUDIT-01/02/09：不可关闭的 audit_logs——actor、effective role、target、
 //! action、reason、request_id、policy version；before/after 字段 allowlist
-//! 禁止密码、Token、Secret、隐藏正文和完整签名 URL。
+//! 禁止密码、Token、Secret、隐藏正文和完整签名 URL；管理员游标分页查询。
 
 use std::path::{Path, PathBuf};
 
-use bblbb_backend::audit::{list_audit_logs, sanitize_for_audit, AuditEntry};
+use bblbb_backend::audit::{
+    list_audit_logs, list_audit_logs_cursor, sanitize_for_audit, AuditCursor, AuditEntry,
+};
 use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
@@ -246,6 +248,119 @@ async fn audit_helpers_record_all_categories() {
         secret_meta.contains("smtp_password") && !secret_meta.contains("value"),
         "Secret 审计只含名称不含值: {secret_meta}"
     );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// 插入一条审计行（显式 id/created_at，便于游标分页断言）。
+async fn insert_audit_row(pool: &DatabasePool, id: &str, action: &str, created_at: i64) {
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO audit_logs (id, actor_id, action, created_at)
+                 VALUES (?, 'admin-1', ?, ?)",
+            )
+            .bind(id)
+            .bind(action)
+            .bind(created_at)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+}
+
+/// M01-AUDIT-09：深分页使用 cursor（created_at DESC, id DESC），走遍所有页
+/// 无重复、无遗漏，末页 next_cursor 为 None。
+#[tokio::test]
+async fn cursor_pagination_walks_all_pages_without_duplicates() {
+    let (pool, dir) = pool_with_migrations().await;
+    // 5 条，created_at 单调递增
+    insert_audit_row(&pool, "a5", "x", 5_000).await;
+    insert_audit_row(&pool, "a4", "x", 4_000).await;
+    insert_audit_row(&pool, "a3", "y", 3_000).await;
+    insert_audit_row(&pool, "a2", "x", 2_000).await;
+    insert_audit_row(&pool, "a1", "x", 1_000).await;
+
+    let mut seen: Vec<String> = Vec::new();
+    let mut after: Option<AuditCursor> = None;
+    let mut pages = 0;
+    loop {
+        let page = list_audit_logs_cursor(&pool, 2, after.as_ref(), None, None)
+            .await
+            .unwrap();
+        assert!(
+            page.items.len() <= 2,
+            "每页最多 limit 条，得到 {}",
+            page.items.len()
+        );
+        for item in &page.items {
+            assert!(!seen.contains(&item.id), "游标分页不得重复: {}", item.id);
+            seen.push(item.id.clone());
+        }
+        pages += 1;
+        match page.next_cursor {
+            Some(cursor) => after = Some(cursor),
+            None => break,
+        }
+    }
+
+    assert_eq!(
+        seen,
+        vec!["a5", "a4", "a3", "a2", "a1"],
+        "按 created_at 降序全量覆盖"
+    );
+    assert_eq!(pages, 3, "5 条 / limit 2 → 3 页");
+    assert_eq!(seen.len(), 5);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// M01-AUDIT-09：游标分页与过滤条件（action/actor）组合。
+#[tokio::test]
+async fn cursor_pagination_combines_with_filters() {
+    let (pool, dir) = pool_with_migrations().await;
+    insert_audit_row(&pool, "a5", "x", 5_000).await;
+    insert_audit_row(&pool, "a4", "x", 4_000).await;
+    insert_audit_row(&pool, "a3", "y", 3_000).await;
+    insert_audit_row(&pool, "a2", "x", 2_000).await;
+    insert_audit_row(&pool, "a1", "x", 1_000).await;
+
+    // action='x' 过滤 → 4 条，limit 3 → 两页
+    let page1 = list_audit_logs_cursor(&pool, 3, None, None, Some("x"))
+        .await
+        .unwrap();
+    assert_eq!(
+        page1
+            .items
+            .iter()
+            .map(|r| r.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a5", "a4", "a2"]
+    );
+    let cursor = page1.next_cursor.expect("还有下一页");
+    let page2 = list_audit_logs_cursor(&pool, 3, Some(&cursor), None, Some("x"))
+        .await
+        .unwrap();
+    assert_eq!(
+        page2
+            .items
+            .iter()
+            .map(|r| r.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a1"]
+    );
+    assert!(page2.next_cursor.is_none(), "过滤后末页无下一页");
+
+    // 无效过滤（action='z'）→ 空页
+    let empty = list_audit_logs_cursor(&pool, 10, None, None, Some("z"))
+        .await
+        .unwrap();
+    assert!(empty.items.is_empty());
+    assert!(empty.next_cursor.is_none());
 
     close_pool(&pool).await;
     cleanup(&dir);

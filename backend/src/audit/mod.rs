@@ -520,7 +520,159 @@ pub async fn list_audit_logs(
     }
 }
 
-#[derive(sqlx::FromRow)]
+/// 审计查询游标（M01-AUDIT-09）。
+///
+/// 深分页稳定排序键：`created_at DESC, id DESC`。编码为
+/// `base64url("created_at:id")`，避免调用方猜测内部字段。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditCursor {
+    pub created_at: i64,
+    pub id: String,
+}
+
+impl AuditCursor {
+    pub fn new(created_at: i64, id: impl Into<String>) -> Self {
+        Self {
+            created_at,
+            id: id.into(),
+        }
+    }
+
+    pub fn encode(&self) -> String {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+        URL_SAFE_NO_PAD.encode(format!("{}:{}", self.created_at, self.id))
+    }
+
+    /// 解码游标；格式非法返回 [`AuditCursorError`]。
+    pub fn decode(encoded: &str) -> Result<Self, AuditCursorError> {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+        let bytes = URL_SAFE_NO_PAD
+            .decode(encoded)
+            .map_err(|_| AuditCursorError::Malformed)?;
+        let text = String::from_utf8(bytes).map_err(|_| AuditCursorError::Malformed)?;
+        let (created_at, id) = text.split_once(':').ok_or(AuditCursorError::Malformed)?;
+        let created_at = created_at
+            .parse::<i64>()
+            .map_err(|_| AuditCursorError::Malformed)?;
+        if id.is_empty() {
+            return Err(AuditCursorError::Malformed);
+        }
+        Ok(Self {
+            created_at,
+            id: id.to_owned(),
+        })
+    }
+}
+
+/// 游标解码错误。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuditCursorError {
+    Malformed,
+}
+
+impl std::fmt::Display for AuditCursorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "malformed audit cursor")
+    }
+}
+
+impl std::error::Error for AuditCursorError {}
+
+/// 审计分页结果（M01-AUDIT-09）。
+#[derive(Debug, Clone)]
+pub struct AuditPage {
+    pub items: Vec<AuditLogRow>,
+    /// 下一页游标；`None` 表示已到末尾。
+    pub next_cursor: Option<AuditCursor>,
+}
+
+/// 仅授权管理员使用的游标分页查询（M01-AUDIT-09）。
+///
+/// - 深分页使用 `(created_at, id)` 游标，不用 OFFSET（避免深分页偏移放大）；
+/// - 每次最多 `limit` 条（钳制 1..=200）；`after` 为空从最新开始；
+/// - 支持按 `actor_id` / `action` 过滤；
+/// - 导出边界：本函数只暴露受控分页，不提供全量转储；调用方（管理员路由）
+///   负责鉴权与审计本次查询。
+pub async fn list_audit_logs_cursor(
+    pool: &DatabasePool,
+    limit: i64,
+    after: Option<&AuditCursor>,
+    actor_id: Option<&str>,
+    action: Option<&str>,
+) -> Result<AuditPage, sqlx::Error> {
+    let limit = limit.clamp(1, 200);
+    let fetch = limit + 1; // 多取一条判断是否有下一页
+
+    let mut conditions: Vec<String> = Vec::new();
+    if let Some(_actor) = actor_id {
+        conditions.push("actor_id = ?".to_owned());
+    }
+    if let Some(_act) = action {
+        conditions.push("action = ?".to_owned());
+    }
+    if let Some(_cursor) = after {
+        conditions.push("(created_at < ? OR (created_at = ? AND id < ?))".to_owned());
+    }
+    let where_clause = if conditions.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", conditions.join(" AND "))
+    };
+    let sql = format!(
+        "SELECT id, actor_id, effective_role, action, target_type, target_id, reason, policy_version, metadata, request_id, ip_address, created_at
+         FROM audit_logs{where_clause}
+         ORDER BY created_at DESC, id DESC LIMIT ?"
+    );
+
+    let rows: Vec<AuditLogRow> = match pool {
+        Either::Left(p) => {
+            let mut q = sqlx::query_as::<_, AuditLogRow>(&sql);
+            if let Some(actor) = actor_id {
+                q = q.bind(actor);
+            }
+            if let Some(act) = action {
+                q = q.bind(act);
+            }
+            if let Some(cursor) = after {
+                q = q
+                    .bind(cursor.created_at)
+                    .bind(cursor.created_at)
+                    .bind(&cursor.id);
+            }
+            q.bind(fetch).fetch_all(p).await?
+        }
+        Either::Right(p) => {
+            let mut q = sqlx::query_as::<_, AuditLogRow>(&sql);
+            if let Some(actor) = actor_id {
+                q = q.bind(actor);
+            }
+            if let Some(act) = action {
+                q = q.bind(act);
+            }
+            if let Some(cursor) = after {
+                q = q
+                    .bind(cursor.created_at)
+                    .bind(cursor.created_at)
+                    .bind(&cursor.id);
+            }
+            q.bind(fetch).fetch_all(p).await?
+        }
+    };
+
+    let has_more = rows.len() > limit as usize;
+    let items: Vec<AuditLogRow> = rows.into_iter().take(limit as usize).collect();
+    let next_cursor = if has_more {
+        items
+            .last()
+            .map(|row| AuditCursor::new(row.created_at, &row.id))
+    } else {
+        None
+    };
+
+    Ok(AuditPage { items, next_cursor })
+}
+
+#[derive(sqlx::FromRow, Debug, Clone)]
 pub struct AuditLogRow {
     pub id: String,
     pub actor_id: Option<String>,
@@ -732,5 +884,38 @@ mod tests {
             "配置变更不得记录密码"
         );
         assert_eq!(meta["after"]["max_upload_bytes"], 20_971_520);
+    }
+
+    // ── M01-AUDIT-09：游标分页 ─────────────────────────────────────────────
+
+    #[test]
+    fn audit_cursor_round_trips() {
+        let cursor = AuditCursor::new(1_700_000_000_000, "audit-123");
+        assert_eq!(AuditCursor::decode(&cursor.encode()), Ok(cursor));
+        let cursor = AuditCursor::new(-5, "id-with-dashes");
+        assert_eq!(AuditCursor::decode(&cursor.encode()), Ok(cursor));
+    }
+
+    #[test]
+    fn audit_cursor_rejects_malformed_input() {
+        assert_eq!(
+            AuditCursor::decode("not!base64"),
+            Err(AuditCursorError::Malformed)
+        );
+        assert_eq!(AuditCursor::decode(""), Err(AuditCursorError::Malformed));
+        // base64 合法但内容无 "created_at:id" 结构
+        assert_eq!(
+            AuditCursor::decode("YWJj"), // "abc"
+            Err(AuditCursorError::Malformed)
+        );
+        assert_eq!(
+            AuditCursor::decode(&base64_url("1:")), // 空 id
+            Err(AuditCursorError::Malformed)
+        );
+    }
+
+    fn base64_url(text: &str) -> String {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+        URL_SAFE_NO_PAD.encode(text)
     }
 }
