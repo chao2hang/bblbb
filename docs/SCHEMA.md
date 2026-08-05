@@ -181,6 +181,7 @@ MySQL/MariaDB `utf8mb4_bin`），因此唯一索引对大小写与全角/连字�
 | `idle_expires_at` | 滑动过期时间 |
 | `absolute_expires_at` | 最长有效期 |
 | `revoked_at`、`revoke_reason` | 可空 |
+| `version` | Session 旋转计数：登录、权限提升、改密、高风险重认证时递增并签发新 `token_hash`（防 fixation），默认 0 |
 
 浏览器 Cookie 只持有高熵随机 token；数据库不存明文 token。
 
