@@ -66,6 +66,8 @@ pub struct Me {
     pub roles: Vec<String>,
     /// 两步验证（TOTP）是否已启用（M02-UX-06）。
     pub mfa_enabled: bool,
+    /// 乐观并发版本（users.version；If-Match 更新来源，M03-PROFILE-04）。
+    pub version: i64,
 }
 
 impl Me {
@@ -87,6 +89,7 @@ impl Me {
             level: user.level,
             roles: user.roles.clone(),
             mfa_enabled,
+            version: profile.version,
         }
     }
 }

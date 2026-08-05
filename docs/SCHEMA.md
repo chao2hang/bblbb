@@ -184,6 +184,7 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | `created_at`、`updated_at`、`deleted_at` | 时间字段 |
 | `level` | 等级缓存（默认 1，可重建；真实来源 M7 经验账户，迁移 0019） |
 | `level_updated_at` | 等级缓存刷新时间，可空（NULL = 尚未计算） |
+| `version` | 乐观并发版本（迁移 0026，默认 1）；资料更新携带 `If-Match`，过期 → `409 version_conflict`（M03-PROFILE-04） |
 
 注销硬删除时，必须先执行匿名化流程；是否释放原邮箱/用户名由隐私策略明确规定。
 

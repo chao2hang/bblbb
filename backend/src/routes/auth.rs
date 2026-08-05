@@ -460,6 +460,7 @@ async fn login(
                 level: 1,
                 roles: vec![],
                 mfa_enabled,
+                version: 1,
             };
             Ok((
                 StatusCode::OK,
@@ -563,6 +564,7 @@ async fn login_mfa(
                 level: 1,
                 roles: vec![],
                 mfa_enabled: true,
+                version: 1,
             };
             Ok((
                 StatusCode::OK,

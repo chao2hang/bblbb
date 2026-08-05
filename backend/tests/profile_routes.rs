@@ -67,6 +67,7 @@ async fn request(
     uri: &str,
     cookie: &str,
     csrf: &str,
+    if_match: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
     let mut builder = Request::builder().method(method).uri(uri);
@@ -75,6 +76,9 @@ async fn request(
     }
     if !csrf.is_empty() {
         builder = builder.header("x-csrf-token", csrf);
+    }
+    if let Some(version) = if_match {
+        builder = builder.header("if-match", version);
     }
     if body.is_some() {
         builder = builder.header("content-type", "application/json");
@@ -93,6 +97,12 @@ async fn request(
     (status, body)
 }
 
+/// 读取当前资料版本（If-Match 来源）。
+async fn me_version(app: &Router, session: &str) -> i64 {
+    let (_, me) = request(app, "GET", "/api/v1/me", session, "", None, None).await;
+    me["version"].as_i64().expect("Me 必须含 version")
+}
+
 /// 注册并登录，返回会话 Cookie 与 session CSRF token。
 async fn register_and_login(app: &Router, tag: &str) -> (String, String) {
     let email = format!("{tag}_{}@example.com", uuid::Uuid::now_v7().simple());
@@ -105,6 +115,7 @@ async fn register_and_login(app: &Router, tag: &str) -> (String, String) {
         "/api/v1/auth/register",
         &preauth,
         &preauth_csrf,
+        None,
         Some(json!({ "username": username, "email": email, "password": PASSWORD })),
     )
     .await;
@@ -112,7 +123,7 @@ async fn register_and_login(app: &Router, tag: &str) -> (String, String) {
 
     let (status, login_body, cookie) = login(app, &email, PASSWORD).await;
     assert_eq!(status, StatusCode::OK, "登录必须 200: {login_body}");
-    let (_, csrf_body) = request(app, "GET", "/api/v1/auth/csrf", &cookie, "", None).await;
+    let (_, csrf_body) = request(app, "GET", "/api/v1/auth/csrf", &cookie, "", None, None).await;
     let csrf = csrf_body["token"].as_str().unwrap().to_string();
     (cookie, csrf)
 }
@@ -168,9 +179,11 @@ async fn patch_me_updates_all_profile_fields_persistently() {
     let app = app_with_key(pool.clone());
     let (session, csrf) = register_and_login(&app, "prof").await;
     let user_id = {
-        let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None).await;
+        let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
         me["id"].as_str().unwrap().to_string()
     };
+    let version = me_version(&app, &session).await;
+    assert_eq!(version, 1, "新用户版本必须为 1");
 
     let (status, me) = request(
         &app,
@@ -178,6 +191,7 @@ async fn patch_me_updates_all_profile_fields_persistently() {
         "/api/v1/me",
         &session,
         &csrf,
+        Some(&version.to_string()),
         Some(json!({
             "display_name": "新昵称",
             "bio": "我的简介",
@@ -197,9 +211,10 @@ async fn patch_me_updates_all_profile_fields_persistently() {
     assert_eq!(me["theme_name"], "dark");
     assert_eq!(me["email_visible_to"], "registered");
     assert_eq!(me["profile_visible_to"], "nobody");
+    assert_eq!(me["version"], 2, "资料更新后版本必须 +1");
 
     // GET /me 反映持久化
-    let (_, me2) = request(&app, "GET", "/api/v1/me", &session, "", None).await;
+    let (_, me2) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
     assert_eq!(me2["bio"], "我的简介");
     assert_eq!(me2["theme_name"], "dark");
     assert_eq!(me2["profile_visible_to"], "nobody");
@@ -272,7 +287,7 @@ async fn patch_me_is_partial_update() {
     let app = app_with_key(pool.clone());
     let (session, csrf) = register_and_login(&app, "part").await;
     let user_id = {
-        let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None).await;
+        let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
         me["id"].as_str().unwrap().to_string()
     };
 
@@ -282,13 +297,14 @@ async fn patch_me_is_partial_update() {
         "/api/v1/me",
         &session,
         &csrf,
+        Some(&me_version(&app, &session).await.to_string()),
         Some(json!({ "signature": "only-signature", "theme": "light" })),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
 
     // 未出现的字段保持默认/原值；出现的字段已更新
-    let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None).await;
+    let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
     assert_eq!(me["signature"], "only-signature");
     assert_eq!(me["theme_name"], "light");
     assert_eq!(me["timezone"], "UTC", "缺失时区必须保持原值");
@@ -324,6 +340,7 @@ async fn patch_me_is_partial_update() {
         "/api/v1/me",
         &session,
         &csrf,
+        Some(&me_version(&app, &session).await.to_string()),
         Some(json!({})),
     )
     .await;
@@ -348,17 +365,27 @@ async fn patch_me_rejects_invalid_values() {
     let app = app_with_key(pool.clone());
     let (session, csrf) = register_and_login(&app, "inv").await;
     let user_id = {
-        let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None).await;
+        let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
         me["id"].as_str().unwrap().to_string()
     };
 
+    let version = me_version(&app, &session).await;
     for bad in [
         json!({ "theme": "neon" }),
         json!({ "email_visible_to": "enemies" }),
         json!({ "profile_visible_to": "friends-only" }),
         json!({ "display_name": "" }),
     ] {
-        let (status, body) = request(&app, "PATCH", "/api/v1/me", &session, &csrf, Some(bad)).await;
+        let (status, body) = request(
+            &app,
+            "PATCH",
+            "/api/v1/me",
+            &session,
+            &csrf,
+            Some(&version.to_string()),
+            Some(bad),
+        )
+        .await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "非法值必须 400: {body}");
     }
     // 全部被拒 → 无修订
@@ -370,13 +397,14 @@ async fn patch_me_rejects_invalid_values() {
     .await;
     assert_eq!(rev, 0, "非法更新不得写修订");
 
-    // 连续两次合法更新 → revision 1、2
+    // 连续两次合法更新 → revision 1、2（每次带最新版本）
     let (status, _) = request(
         &app,
         "PATCH",
         "/api/v1/me",
         &session,
         &csrf,
+        Some(&me_version(&app, &session).await.to_string()),
         Some(json!({ "signature": "a" })),
     )
     .await;
@@ -387,6 +415,7 @@ async fn patch_me_rejects_invalid_values() {
         "/api/v1/me",
         &session,
         &csrf,
+        Some(&me_version(&app, &session).await.to_string()),
         Some(json!({ "bio": "b" })),
     )
     .await;
@@ -422,6 +451,7 @@ async fn theme_preference_persists_across_requests() {
         &session,
         "",
         None,
+        None,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -434,6 +464,7 @@ async fn theme_preference_persists_across_requests() {
         "/api/v1/me/preferences/theme",
         &session,
         &csrf,
+        None,
         Some(json!({ "theme": "dark" })),
     )
     .await;
@@ -448,6 +479,7 @@ async fn theme_preference_persists_across_requests() {
         &session,
         "",
         None,
+        None,
     )
     .await;
     assert_eq!(body["theme"], "dark", "GET 必须读取持久化主题");
@@ -459,10 +491,142 @@ async fn theme_preference_persists_across_requests() {
         "/api/v1/me/preferences/theme",
         &session,
         &csrf,
+        None,
         Some(json!({ "theme": "neon" })),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// If-Match 必需（缺失 400）；版本过期 → 409 version_conflict；正确 → 200。
+#[tokio::test]
+async fn patch_me_requires_if_match_and_version_conflict() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with_key(pool.clone());
+    let (session, csrf) = register_and_login(&app, "ifm").await;
+
+    // 缺失 If-Match → 400（OpenAPI updateMe 契约 required）
+    let (status, body) = request(
+        &app,
+        "PATCH",
+        "/api/v1/me",
+        &session,
+        &csrf,
+        None,
+        Some(json!({ "signature": "x" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "缺失 If-Match 必须 400: {body}"
+    );
+    assert!(body["detail"].to_string().contains("If-Match"));
+
+    // 过期版本 → 409 version_conflict
+    let (status, body) = request(
+        &app,
+        "PATCH",
+        "/api/v1/me",
+        &session,
+        &csrf,
+        Some("999"),
+        Some(json!({ "signature": "x" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "过期版本必须 409: {body}");
+    assert_eq!(
+        body["code"], "version_conflict",
+        "错误码必须 version_conflict"
+    );
+
+    // 正确版本 → 200，版本 +1
+    let v = me_version(&app, &session).await;
+    let (status, me) = request(
+        &app,
+        "PATCH",
+        "/api/v1/me",
+        &session,
+        &csrf,
+        Some(&v.to_string()),
+        Some(json!({ "signature": "new-sig" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "正确版本必须 200: {me}");
+    assert_eq!(me["version"], v + 1, "版本必须 +1");
+
+    // 旧版本再次提交（v 已过期）→ 409
+    let (status, _) = request(
+        &app,
+        "PATCH",
+        "/api/v1/me",
+        &session,
+        &csrf,
+        Some(&v.to_string()),
+        Some(json!({ "signature": "again" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "已消费的版本再次提交必须 409");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// 文本校验（M03-PROFILE-04）：控制字符 / 富文本 HTML / 危险链接 scheme 拒绝。
+#[tokio::test]
+async fn patch_me_validates_text_rules() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with_key(pool.clone());
+    let (session, csrf) = register_and_login(&app, "txt").await;
+    let version = me_version(&app, &session).await;
+
+    for bad in [
+        json!({ "display_name": "bad\u{0007}name" }), // 控制字符
+        json!({ "bio": "<script>alert(1)</script>" }), // 富文本/HTML
+        json!({ "signature": "click javascript:alert(1)" }), // 危险 scheme
+        json!({ "bio": "file:///etc/passwd 参见" }),  // file scheme
+    ] {
+        let (status, body) = request(
+            &app,
+            "PATCH",
+            "/api/v1/me",
+            &session,
+            &csrf,
+            Some(&version.to_string()),
+            Some(bad),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "非法文本必须 400: {body}");
+    }
+
+    // 合法 http/https 链接与换行 bio → 200
+    let (status, body) = request(
+        &app,
+        "PATCH",
+        "/api/v1/me",
+        &session,
+        &csrf,
+        Some(&version.to_string()),
+        Some(json!({ "bio": "主页 https://example.com 欢迎\n交流", "signature": "http://bblbb.example" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "合法链接必须 200: {body}");
+
+    // 全部被拒 + 一次成功 = 1 条修订
+    let user_id = {
+        let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
+        me["id"].as_str().unwrap().to_string()
+    };
+    let rev = db_scalar(
+        &pool,
+        "SELECT COUNT(*) FROM profile_revisions WHERE user_id = ?",
+        &user_id,
+    )
+    .await;
+    assert_eq!(rev, 1, "仅合法更新写 1 条修订");
 
     close_pool(&pool).await;
     cleanup(&dir);

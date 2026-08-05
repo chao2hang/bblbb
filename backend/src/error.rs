@@ -133,6 +133,21 @@ impl AppError {
         }
     }
 
+    /// 乐观并发冲突（`If-Match`/version 过期），错误码 `version_conflict`
+    /// （ERROR-CODES.md；OpenAPI `Conflict` 409 响应）。
+    pub fn version_conflict(detail: impl Into<String>, request_id: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            code: "version_conflict",
+            title: "Conflict",
+            detail: detail.into(),
+            request_id: request_id.into(),
+            errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
+        }
+    }
+
     /// 限流拒绝（OpenAPI `RateLimited` 响应，错误码 `rate_limited`）。
     ///
     /// 响应携带 `Retry-After` 与 `RateLimit-Limit/Remaining/Reset` 头

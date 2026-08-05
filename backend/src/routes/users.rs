@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, State},
+    http::HeaderMap,
     response::Json,
     routing::get,
     Router,
@@ -55,10 +56,12 @@ async fn get_me(State(state): State<AppState>, auth: AuthSession) -> Result<Json
 }
 
 /// PATCH /api/v1/me — 更新当前用户资料（昵称/简介/签名/时区/主题/隐私；
-/// PATCH 语义：只更新出现字段，缺失字段保持原值）
+/// PATCH 语义：只更新出现字段，缺失字段保持原值；必须携带 `If-Match`
+/// 版本（OpenAPI updateMe 契约 required），版本过期 → 409 version_conflict）
 async fn update_me(
     State(state): State<AppState>,
     auth: AuthSession,
+    headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Json<Me>, AppError> {
     let request_id = "update_me";
@@ -67,6 +70,19 @@ async fn update_me(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    // If-Match 版本（乐观并发，M03-PROFILE-04）
+    let if_match = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::bad_request("If-Match header is required", request_id, None))?;
+    let if_match = if_match.trim().parse::<i64>().map_err(|_| {
+        AppError::bad_request(
+            "If-Match must be the current version integer",
+            request_id,
+            None,
+        )
+    })?;
 
     let update = ProfileUpdate {
         display_name: body
@@ -101,9 +117,16 @@ async fn update_me(
     update
         .validate()
         .map_err(|msg| AppError::bad_request(msg, request_id, None))?;
-    update_profile(pool, &user.id, update)
+    update_profile(pool, &user.id, update, if_match)
         .await
-        .map_err(|e| AppError::internal(e, request_id))?;
+        .map_err(|e| match e {
+            crate::users::profile::ProfileUpdateError::VersionConflict => {
+                AppError::version_conflict("profile version conflict", request_id)
+            }
+            crate::users::profile::ProfileUpdateError::Database(msg) => {
+                AppError::internal(msg, request_id)
+            }
+        })?;
 
     let mfa_enabled = crate::auth::has_confirmed_totp(pool, &user.id)
         .await
