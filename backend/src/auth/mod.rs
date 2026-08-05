@@ -15,7 +15,8 @@ pub use login::{login_user, LoginError, LoginLimits, LoginOutcome};
 pub use mfa::{
     base32_decode, base32_encode, begin_enrollment, cancel_enrollment, confirm_enrollment,
     decrypt_secret, encrypt_secret, generate_totp_secret, otpauth_uri, totp_at, verify_totp,
-    MfaError, TotpChallenge, TOTP_DIGITS, TOTP_PERIOD_SECS, TOTP_SECRET_BYTES,
+    verify_totp_login, MfaError, TotpChallenge, VerifyTotpOutcome, TOTP_DIGITS, TOTP_PERIOD_SECS,
+    TOTP_SECRET_BYTES,
 };
 pub use password::{hash_password, verify_password, VerifyResult};
 pub use password_reset::{

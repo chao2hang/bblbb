@@ -206,6 +206,8 @@ pub enum MfaError {
     AlreadyConfirmed,
     /// code 无效或已重放。
     InvalidCode,
+    /// 用户未启用 TOTP。
+    TotpNotEnabled,
     /// secret 解密失败（密钥轮换或数据损坏）。
     Encryption,
     /// 数据库错误。
@@ -218,6 +220,7 @@ impl fmt::Display for MfaError {
             MfaError::NoPendingEnrollment => write!(f, "no pending totp enrollment"),
             MfaError::AlreadyConfirmed => write!(f, "totp already confirmed"),
             MfaError::InvalidCode => write!(f, "invalid totp code"),
+            MfaError::TotpNotEnabled => write!(f, "totp is not enabled"),
             MfaError::Encryption => write!(f, "totp secret decryption failed"),
             MfaError::Database(e) => write!(f, "database error: {e}"),
         }
@@ -366,6 +369,72 @@ pub async fn cancel_enrollment(pool: &DatabasePool, user_id: &str) -> Result<boo
     Ok(affected > 0)
 }
 
+/// MFA 登录验证结果。
+#[derive(Debug, Clone, Copy)]
+pub struct VerifyTotpOutcome {
+    /// 接受的时间 step。
+    pub step: u64,
+}
+
+/// MFA 登录验证（M02-MFA-03）：校验已启用 TOTP 的 6 位 code。
+///
+/// - 允许时间窗口：当前步 ±`window`（容忍客户端/服务器时钟漂移）；
+/// - 防重放：接受的 step 必须 > `last_accepted_step`，且原子更新
+///   （`WHERE last_accepted_step < ?`）——同一 step 并发验证只有一个成功；
+/// - 全程不记录 code 或 secret（本模块无任何日志输出）。
+pub async fn verify_totp_login(
+    pool: &DatabasePool,
+    user_id: &str,
+    code: &str,
+    encryption_key: &[u8],
+    now_secs: u64,
+    window: u64,
+) -> Result<VerifyTotpOutcome, MfaError> {
+    let row = load_confirmed(pool, user_id)
+        .await?
+        .ok_or(MfaError::TotpNotEnabled)?;
+    let secret =
+        decrypt_secret(encryption_key, &row.encrypted_secret).ok_or(MfaError::Encryption)?;
+    let Some(step) = verify_totp(&secret, code, now_secs, window) else {
+        return Err(MfaError::InvalidCode);
+    };
+    if step <= row.last_accepted_step as u64 {
+        // 已接受过该 step（重放）
+        return Err(MfaError::InvalidCode);
+    }
+
+    // 原子推进 last_accepted_step：并发同 step 只有一个成功
+    let affected = match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE totp_credentials SET last_accepted_step = ?
+             WHERE id = ? AND last_accepted_step < ? AND revoked_at IS NULL",
+        )
+        .bind(step as i64)
+        .bind(&row.id)
+        .bind(step as i64)
+        .execute(p)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?
+        .rows_affected(),
+        Either::Right(p) => sqlx::query(
+            "UPDATE totp_credentials SET last_accepted_step = ?
+             WHERE id = ? AND last_accepted_step < ? AND revoked_at IS NULL",
+        )
+        .bind(step as i64)
+        .bind(&row.id)
+        .bind(step as i64)
+        .execute(p)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?
+        .rows_affected(),
+    };
+    if affected != 1 {
+        // 并发竞争：该 step 已被消费
+        return Err(MfaError::InvalidCode);
+    }
+    Ok(VerifyTotpOutcome { step })
+}
+
 /// 撤销用户全部 TOTP（含已启用与 pending），用于重新 enrollment。
 async fn revoke_all_totp(pool: &DatabasePool, user_id: &str) -> Result<(), MfaError> {
     let now = crate::outbox::now_millis();
@@ -451,6 +520,41 @@ async fn has_confirmed_totp(pool: &DatabasePool, user_id: &str) -> Result<bool, 
         .map(|n| n != 0)
         .map_err(|e| MfaError::Database(e.to_string())),
     }
+}
+
+/// 加载用户最新已确认 TOTP（未撤销）。
+async fn load_confirmed(
+    pool: &DatabasePool,
+    user_id: &str,
+) -> Result<Option<ConfirmedTotpRow>, MfaError> {
+    match pool {
+        Either::Left(p) => sqlx::query_as::<_, ConfirmedTotpRow>(
+            "SELECT id, encrypted_secret, last_accepted_step FROM totp_credentials
+             WHERE user_id = ? AND confirmed_at IS NOT NULL AND revoked_at IS NULL
+             ORDER BY confirmed_at DESC LIMIT 1",
+        )
+        .bind(user_id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string())),
+        Either::Right(p) => sqlx::query_as::<_, ConfirmedTotpRow>(
+            "SELECT id, encrypted_secret, last_accepted_step FROM totp_credentials
+             WHERE user_id = ? AND confirmed_at IS NOT NULL AND revoked_at IS NULL
+             ORDER BY confirmed_at DESC LIMIT 1",
+        )
+        .bind(user_id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string())),
+    }
+}
+
+/// 已确认 TOTP 行结构。
+#[derive(sqlx::FromRow)]
+struct ConfirmedTotpRow {
+    id: String,
+    encrypted_secret: String,
+    last_accepted_step: i64,
 }
 
 #[cfg(test)]
