@@ -14,6 +14,7 @@
 //! `succeeded`/`cancelled` 无出边；`dead → queued` 是人工重放边
 //! （M01-JOBS-05，管理员审计操作）。非法迁移一律拒绝并记录。
 
+pub mod classify;
 pub mod retry;
 pub mod worker;
 pub mod worker_loop;

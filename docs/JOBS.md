@@ -151,6 +151,24 @@ SDK）。CI 失败即阻断。
   completed_at/租约，立即可领取）。管理操作，调用方必须写审计（§11）。
 - 错误文本必须是安全摘要：不写入邮件正文、Token、隐藏内容到 `last_error`。
 
+### Provider 错误分类（M01-JOBS-10）
+
+实现位于 `backend/src/jobs/classify.rs`：`ProviderError::classify()` 把具体错误
+归一化为 `FailureClass`，决定重试 / 死信 / 取消。
+
+| Provider 错误 | 分类 | 处置 |
+|---|---|---|
+| SMTP `4xx`（421/450/451/452…） | `Transient` | 退避重试 |
+| SMTP `5xx`（550/551/552/553/554…） | `Permanent` | 直接 dead-letter |
+| S3/HTTP `408`/`425`/`429`/`5xx` | `Transient` | 退避重试 |
+| S3/HTTP 其余 `4xx`（400/403/404/409…） | `Permanent` | 直接 dead-letter |
+| 超时（连接/读取/操作） | `Transient` | 重试（重试需幂等，M01-JOBS-06） |
+| 连接中断/拒绝 | `Transient` | 重试 |
+| 取消（停机/租约失效/调用方取消） | `Cancelled` | 不重试、不死信，交由租约恢复 |
+
+`FailureClass::retry_class()` 映射到 `fail_job` 的 `RetryClass`；`Cancelled`
+不调用 `fail_job`。
+
 其他建议：
 
 - 临时网络、SMTP 4xx、S3 超时：重试。
