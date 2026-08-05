@@ -1,16 +1,19 @@
 //! CSRF 防护中间件
 //!
-//! 对状态变更请求（POST/PUT/PATCH/DELETE）且携带会话 Cookie 的请求校验
-//! `X-CSRF-Token` 请求头：
+//! 对状态变更请求（POST/PUT/PATCH/DELETE）分两档校验 `X-CSRF-Token`：
 //!
-//! - 无会话 Cookie 的写请求（如 login/register 等预认证流程）采用宽松策略，
-//!   不强制校验（无状态预认证 token 无法在服务端回溯验证）。
-//! - 有会话 Cookie 的写请求必须提供与当前会话派生一致的 CSRF token，
-//!   否则返回 403 Problem JSON。
+//! - 携带会话 Cookie 的写请求：必须提供与当前会话派生一致的
+//!   synchronizer token，否则返回 403 Problem JSON（M02-SESSION-07）。
+//! - 无会话 Cookie 的预认证写路径（login/register/verify-email/
+//!   resend-verification/password-reset 及其 confirm）：必须携带服务端
+//!   可回溯的匿名预认证 CSRF 状态——`__Host-bblbb_csrf` cookie 与匹配的
+//!   `X-CSRF-Token`，否则 403（M02-SESSION-08，防 login CSRF）。
+//! - 其余无会话写请求（如 Bearer-only 端点）：宽松策略放行。
 //!
 //! 已认证请求的期望 token 由会话记录中的 `session_id` 与 `csrf_secret_hash`
 //! 确定性派生（与 `auth::session::generate_csrf_token` 一致），
-//! 因此攻击者即使能伪造请求也无法在不知晓会话秘密的情况下构造合法 token。
+//! 预认证请求同理由 `preauth_csrf_tokens` 的 `(id, csrf_secret_hash)` 派生，
+//! 因此攻击者即使能伪造请求也无法在不知晓记录秘密的情况下构造合法 token。
 
 use axum::{
     extract::{Request, State},
@@ -25,6 +28,7 @@ use sqlx::Either;
 use crate::{
     app::AppState,
     auth::{
+        preauth::{resolve_preauth, PREAUTH_COOKIE_NAME},
         session::{generate_csrf_token, get_request_id, SESSION_COOKIE_NAME},
         token::hash_token,
     },
@@ -58,19 +62,43 @@ pub async fn csrf_protection(
         .map(|rid| rid.0.clone())
         .unwrap_or_else(|| get_request_id(request.headers()));
 
-    // 无会话 Cookie → 预认证写请求（宽松策略：不强制校验）
     let jar = CookieJar::from_headers(request.headers());
-    let Some(session_cookie) = jar.get(SESSION_COOKIE_NAME) else {
-        return next.run(request).await;
-    };
+    let path = request.uri().path();
 
-    // 无数据库时不存在会话状态，等同无 Cookie 场景
+    // 无数据库时不存在任何会话/预认证状态：等同无 Cookie 场景放行
+    // （与 M02-SESSION-07 会话分支行为一致；真实部署恒有数据库）。
     let Some(pool) = &state.db else {
         return next.run(request).await;
     };
 
+    // 携带会话 Cookie → 会话绑定 synchronizer token 校验（已认证写请求）
+    if let Some(session_cookie) = jar.get(SESSION_COOKIE_NAME) {
+        return validate_session_csrf(pool, request, session_cookie.value(), &request_id, next)
+            .await;
+    }
+
+    // 无会话 Cookie 的预认证写路径（login/register/verify-email/resend/
+    // password-reset）→ 必须携带服务端可回溯的匿名预认证 CSRF 状态
+    // （`__Host-bblbb_csrf` cookie + 匹配的 X-CSRF-Token），否则 403——
+    // 防 login CSRF（M02-SESSION-08，SECURITY.md §4）。
+    if is_preauth_write_path(path) {
+        return validate_preauth_csrf(pool, request, &jar, &request_id, next).await;
+    }
+
+    // 其余无会话写请求（如 Bearer-only 端点）：宽松策略放行，由路由层处理
+    next.run(request).await
+}
+
+/// 会话绑定 synchronizer token 校验（原逻辑，M02-SESSION-07）。
+async fn validate_session_csrf(
+    pool: &DatabasePool,
+    request: Request,
+    session_cookie: &str,
+    request_id: &str,
+    next: Next,
+) -> Response {
     // 解析会话，派生期望的 CSRF token
-    let expected = match resolve_csrf_secret(pool, session_cookie.value()).await {
+    let expected = match resolve_csrf_secret(pool, session_cookie).await {
         Ok(Some((session_id, csrf_secret_hash))) => {
             generate_csrf_token(&session_id, &csrf_secret_hash)
         }
@@ -104,10 +132,82 @@ pub async fn csrf_protection(
 
     if !valid {
         tracing::warn!(request_id = %request_id, "csrf validation failed");
-        return csrf_rejected(&request_id);
+        return csrf_rejected(request_id);
     }
 
     next.run(request).await
+}
+
+/// 匿名预认证 CSRF 校验（M02-SESSION-08）：预认证写请求必须携带
+/// `__Host-bblbb_csrf` cookie 与匹配的 `X-CSRF-Token`。任一缺失/不匹配/
+/// 过期 → 403 `csrf_failed`（fail closed，防 login CSRF）。
+async fn validate_preauth_csrf(
+    pool: &DatabasePool,
+    request: Request,
+    jar: &CookieJar,
+    request_id: &str,
+    next: Next,
+) -> Response {
+    let Some(preauth_cookie) = jar.get(PREAUTH_COOKIE_NAME) else {
+        tracing::warn!(
+            request_id = %request_id,
+            "csrf: preauth write without preauth cookie"
+        );
+        return csrf_rejected(request_id);
+    };
+
+    let expected = match resolve_preauth(pool, preauth_cookie.value()).await {
+        Ok(Some((id, csrf_secret_hash))) => generate_csrf_token(&id, &csrf_secret_hash),
+        Ok(None) => {
+            tracing::warn!(
+                request_id = %request_id,
+                "csrf: preauth state missing or expired"
+            );
+            return csrf_rejected(request_id);
+        }
+        Err(error) => {
+            tracing::warn!(
+                request_id = %request_id,
+                error = %error,
+                "csrf: preauth resolution failed"
+            );
+            return csrf_rejected(request_id);
+        }
+    };
+
+    let provided = request
+        .headers()
+        .get("x-csrf-token")
+        .and_then(|value| value.to_str().ok());
+
+    let valid = match provided {
+        Some(value) => constant_time_eq(value, &expected),
+        None => false,
+    };
+
+    if !valid {
+        tracing::warn!(
+            request_id = %request_id,
+            "csrf: preauth token missing or mismatch"
+        );
+        return csrf_rejected(request_id);
+    }
+
+    next.run(request).await
+}
+
+/// 预认证写路径：与 OpenAPI `x-csrf-context: preauth` 标记一一对应。
+/// 这些端点无会话 Cookie 时也必须携带匿名预认证 CSRF 状态。
+fn is_preauth_write_path(path: &str) -> bool {
+    matches!(
+        path,
+        "/api/v1/auth/login"
+            | "/api/v1/auth/register"
+            | "/api/v1/auth/verify-email"
+            | "/api/v1/auth/resend-verification"
+            | "/api/v1/auth/password-reset"
+            | "/api/v1/auth/password-reset/confirm"
+    )
 }
 
 /// 根据会话 token 解析出会话 ID 与 CSRF 秘密哈希
@@ -210,5 +310,32 @@ mod tests {
         assert!(!constant_time_eq("abc123", "abc124"));
         assert!(!constant_time_eq("abc", "abcd"));
         assert!(!constant_time_eq("abc123", "ABC123"));
+    }
+
+    /// 预认证写路径必须完整覆盖六条预认证端点（与 OpenAPI
+    /// `x-csrf-context: preauth` 标记一一对应，M02-SESSION-08）。
+    #[test]
+    fn preauth_write_paths_are_covered() {
+        for path in [
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/verify-email",
+            "/api/v1/auth/resend-verification",
+            "/api/v1/auth/password-reset",
+            "/api/v1/auth/password-reset/confirm",
+        ] {
+            assert!(is_preauth_write_path(path), "{path} 必须强制预认证 CSRF");
+        }
+        // Session 端点到 /api/v1/auth/session(s) 不属预认证（带会话 Cookie 走会话校验）
+        for path in [
+            "/api/v1/auth/session",
+            "/api/v1/auth/sessions",
+            "/api/v1/auth/sessions/abc",
+            "/api/v1/auth/csrf",
+            "/api/v1/users/me",
+            "/api/v1/posts",
+        ] {
+            assert!(!is_preauth_write_path(path), "{path} 不应是预认证写路径");
+        }
     }
 }

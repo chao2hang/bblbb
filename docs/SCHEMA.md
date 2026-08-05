@@ -194,6 +194,23 @@ MySQL/MariaDB `utf8mb4_bin`），因此唯一索引对大小写与全角/连字�
 - 新 token 可使同用户旧 token 失效。
 - 密码重置成功后撤销其他 Session。
 
+### `preauth_csrf_tokens`（M02-SESSION-08）
+
+匿名预认证 CSRF 状态：为 login/register/verify-email/resend-verification/
+password-reset 等预认证写端点提供服务端可回溯校验，防止 login CSRF
+（SECURITY.md §4）。机制与 `user_sessions` 同构：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | UUID 主键，参与派生 CSRF token |
+| `token_hash` | `__Host-bblbb_csrf` cookie 匿名令牌的 SHA-256，唯一 |
+| `csrf_secret_hash` | 派生 CSRF token 的秘密（与 session 一致取 token_hash） |
+| `created_at`、`expires_at` | 签发/过期时间（Unix 毫秒；TTL 10 分钟） |
+
+- 无用户绑定：匿名状态不得借此获得用户身份。
+- TTL 内可复用（非一次性），过期行在签发新状态时顺带清理。
+- 浏览器 Cookie 只持有高熵随机令牌；数据库只存哈希。
+
 ### `totp_credentials`（v1 可选）
 
 - `id`、`user_id`、加密后的 TOTP secret、`confirmed_at`、`created_at`、`revoked_at`。

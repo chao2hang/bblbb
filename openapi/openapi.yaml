@@ -558,7 +558,16 @@ paths:
       x-csrf: false
       responses:
         '200':
-          "$ref": "#/components/responses/GenericSuccess"
+          description: CSRF token（已认证为 Session 绑定，未认证为匿名预认证 token）
+          headers:
+            Set-Cookie:
+              description: 未认证时签发 `__Host-bblbb_csrf` 预认证 cookie（匿名预认证 CSRF 状态，M02-SESSION-08）；已认证时不设置。
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CsrfToken"
         '401':
           "$ref": "#/components/responses/AuthenticationRequired"
         '403':

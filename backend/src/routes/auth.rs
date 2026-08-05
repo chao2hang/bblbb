@@ -1,4 +1,5 @@
 use axum::{
+    body::Body,
     extract::{Path, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
@@ -27,7 +28,6 @@ use crate::{
             revoke_session as revoke_session_service, revoke_session_by_id as revoke_by_id_service,
             AuthSession, DeviceSession,
         },
-        token::generate_token,
         verification::{verify_email_token, VerifyEmailError},
     },
     domain::registration::{validate_register, RegisterRequest},
@@ -123,27 +123,79 @@ pub fn router() -> Router<AppState> {
 
 // ─── 处理器 ──────────────────────────────────────────────────────────────────
 
-/// GET /api/v1/auth/csrf — 获取 CSRF token（M02-SESSION-07）
+/// GET /api/v1/auth/csrf — 获取 CSRF token（M02-SESSION-07/08）
 ///
 /// - 已认证：返回 Session 绑定 synchronizer token（由 session_id +
 ///   csrf_secret_hash 确定性派生，同一会话稳定）；
-/// - 未认证：返回一次性预认证 token（M02-SESSION-08 引入匿名状态）；
+/// - 未认证：签发匿名预认证 CSRF 状态（M02-SESSION-08）——写入
+///   `__Host-bblbb_csrf` cookie，返回由 (记录 id, csrf_secret_hash) 确定性
+///   派生的 token；已有有效预认证 cookie 时复用（token 稳定）；
 /// - 响应始终 `Cache-Control: private, no-store`（CSRF token 不得缓存）。
 async fn get_csrf_token(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     auth: AuthSession,
 ) -> Result<Response, AppError> {
-    let token = if let Some(csrf) = &auth.csrf_token {
-        csrf.clone()
-    } else {
-        // 未认证用户生成一次性预认证 CSRF token
-        generate_token()
+    // 已认证：Session 绑定 synchronizer token（同一会话稳定）
+    if let Some(csrf) = &auth.csrf_token {
+        return Ok((
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(CsrfResponse {
+                token: csrf.clone(),
+            }),
+        )
+            .into_response());
+    }
+
+    // 未认证：匿名预认证 CSRF 状态（服务端可回溯，防 login CSRF）
+    let request_id = "csrf";
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let jar = CookieJar::from_headers(&headers);
+    let existing = jar
+        .get(crate::auth::preauth::PREAUTH_COOKIE_NAME)
+        .map(|c| c.value().to_string());
+
+    let (issued_cookie, token) = match existing {
+        // 已有有效预认证状态：复用（浏览器已持有 cookie，仅返回稳定 token）
+        Some(cookie_token) => match crate::auth::resolve_preauth(pool, &cookie_token).await {
+            Ok(Some((id, secret_hash))) => (
+                None,
+                crate::auth::session::generate_csrf_token(&id, &secret_hash),
+            ),
+            _ => issue_preauth_state(pool, request_id).await?,
+        },
+        None => issue_preauth_state(pool, request_id).await?,
     };
-    Ok((
-        [(header::CACHE_CONTROL, "private, no-store")],
-        Json(CsrfResponse { token }),
-    )
-        .into_response())
+
+    let mut response = Response::builder()
+        .header(header::CACHE_CONTROL, "private, no-store")
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(cookie_token) = issued_cookie {
+        response = response.header(
+            header::SET_COOKIE,
+            crate::auth::build_preauth_cookie(&cookie_token).to_string(),
+        );
+    }
+    Ok(response
+        .body(Body::from(
+            serde_json::to_string(&CsrfResponse { token }).unwrap(),
+        ))
+        .unwrap())
+}
+
+/// 签发新的预认证 CSRF 状态，返回 (新 cookie 令牌, 派生 CSRF token)。
+async fn issue_preauth_state(
+    pool: &crate::db::DatabasePool,
+    request_id: &str,
+) -> Result<(Option<String>, String), AppError> {
+    let issued = crate::auth::issue_preauth(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok((Some(issued.cookie_token), issued.csrf_token))
 }
 
 /// POST /api/v1/auth/register — 注册新用户

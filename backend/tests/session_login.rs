@@ -1,6 +1,8 @@
 //! M02-SESSION-03：登录——常量时间失败 + 统一 invalid credentials（不区分
 //! 账号不存在/密码错误/账号状态）、每 IP 限流、每账号连续失败 5 次锁定 10 分钟。
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -107,6 +109,8 @@ async fn post_login(
     password: &str,
     ip: &str,
 ) -> axum::response::Response {
+    // M02-SESSION-08：登录属预认证写路径，必须先获取匿名预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(app).await;
     let body = json!({ "identifier": identifier, "password": password });
     app.clone()
         .oneshot(
@@ -115,6 +119,8 @@ async fn post_login(
                 .uri("/api/v1/auth/login")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", ip)
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )

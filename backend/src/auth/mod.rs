@@ -2,6 +2,7 @@ pub mod identity;
 pub mod login;
 pub mod password;
 pub mod password_reset;
+pub mod preauth;
 pub mod registration;
 pub mod resend;
 pub mod session;
@@ -14,6 +15,10 @@ pub use password::{hash_password, verify_password, VerifyResult};
 pub use password_reset::{
     confirm_password_reset, request_password_reset, ConfirmResetError, ConfirmResetOutcome,
     PasswordResetLimits, RequestResetError, RequestResetOutcome,
+};
+pub use preauth::{
+    build_clear_preauth_cookie, build_preauth_cookie, issue_preauth, resolve_preauth,
+    PREAUTH_COOKIE_NAME, PREAUTH_TTL_MS,
 };
 pub use registration::{register_user, RegisterUserError, RegistrationOutcome};
 pub use resend::{resend_verification_email, ResendError, ResendLimits, ResendOutcome};

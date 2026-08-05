@@ -1,6 +1,8 @@
 //! M02-SESSION-06：每次请求实时执行账号状态（pending/active/restricted/
 //! banned/deleted）、封禁与 Session revoked 检查——不依赖后台任务延迟。
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use axum::{
@@ -75,6 +77,8 @@ async fn login_as(pool: &DatabasePool, app: &Router, tag: &str, status: &str) ->
         Either::Right(_) => panic!("SQLite only"),
     }
 
+    // M02-SESSION-08：登录属预认证写路径，必须先获取匿名预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(app).await;
     let body = json!({ "identifier": email, "password": PASSWORD });
     let resp = app
         .clone()
@@ -84,6 +88,8 @@ async fn login_as(pool: &DatabasePool, app: &Router, tag: &str, status: &str) ->
                 .uri("/api/v1/auth/login")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", "198.51.100.1")
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )

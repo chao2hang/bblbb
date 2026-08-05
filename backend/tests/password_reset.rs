@@ -1,6 +1,8 @@
 //! M02-IDENTITY-10：找回密码——统一响应（不泄漏邮箱存在性）、30 分钟
 //! 一次性 token、成功改密后撤销全部 Session；请求/确认均单事务 + 限流。
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use axum::{
@@ -441,6 +443,8 @@ async fn confirm_reset_concurrent_single_winner() {
 
 /// 发送一次请求重置请求；`ip` 用于模拟客户端地址。
 async fn post_reset_request(app: &Router, email: &str, ip: &str) -> axum::response::Response {
+    // M02-SESSION-08：请求重置属预认证写路径，必须先获取匿名预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(app).await;
     let body = json!({ "email": email });
     app.clone()
         .oneshot(
@@ -449,6 +453,8 @@ async fn post_reset_request(app: &Router, email: &str, ip: &str) -> axum::respon
                 .uri("/api/v1/auth/password-reset")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", ip)
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )
@@ -515,6 +521,9 @@ async fn reset_confirm_endpoint_returns_unified_400() {
     let token = insert_reset_token(&pool, &user_id, 30 * 60 * 1000).await;
     let app = build_router(AppConfig::default(), Some(pool.clone()));
 
+    // M02-SESSION-08：confirm 属预认证写路径；预认证状态 TTL 内可复用
+    let (cookie, csrf) = common::fetch_preauth(&app).await;
+    let cookie = cookie.clone();
     let confirm = |t: &str| {
         let body = json!({ "token": t, "password": "new-passw0rd9" });
         app.clone().oneshot(
@@ -522,6 +531,8 @@ async fn reset_confirm_endpoint_returns_unified_400() {
                 .method("POST")
                 .uri("/api/v1/auth/password-reset/confirm")
                 .header("content-type", "application/json")
+                .header("cookie", &cookie)
+                .header("x-csrf-token", &csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )

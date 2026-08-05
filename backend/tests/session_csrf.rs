@@ -1,6 +1,8 @@
 //! M02-SESSION-07：Session 绑定 synchronizer CSRF token——
 //! 同一会话 token 稳定、跨会话不同、端点 private/no-store、错误 token 拒绝。
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use axum::{
@@ -50,6 +52,8 @@ fn cleanup(dir: &Path) {
 const PASSWORD: &str = "correct-password";
 
 async fn login_cookie(app: &Router, email: &str, ip: &str) -> String {
+    // M02-SESSION-08：登录属预认证写路径，必须先获取匿名预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(app).await;
     let body = json!({ "identifier": email, "password": PASSWORD });
     let resp = app
         .clone()
@@ -59,6 +63,8 @@ async fn login_cookie(app: &Router, email: &str, ip: &str) -> String {
                 .uri("/api/v1/auth/login")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", ip)
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )
@@ -164,7 +170,7 @@ async fn csrf_token_differs_per_session() {
     cleanup(&dir);
 }
 
-/// 未认证：也返回 token（预认证流程）且 no-store。
+/// 未认证：返回匿名预认证 token（签发 `__Host-bblbb_csrf` cookie）且 no-store。
 #[tokio::test]
 async fn csrf_endpoint_unauthenticated_returns_token_with_no_store() {
     let (pool, dir) = pool_with_migrations().await;
@@ -173,6 +179,26 @@ async fn csrf_endpoint_unauthenticated_returns_token_with_no_store() {
     let (cache, token) = get_csrf(&app, None).await;
     assert_eq!(cache, "private, no-store");
     assert!(!token.is_empty());
+
+    // M02-SESSION-08：未认证签发匿名预认证 CSRF 状态（Set-Cookie）
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/csrf")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let set_cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
+    assert!(
+        set_cookie.contains("__Host-bblbb_csrf="),
+        "必须签发预认证 cookie: {set_cookie}"
+    );
+    assert!(set_cookie.contains("HttpOnly"));
+    assert!(set_cookie.contains("Secure"));
 
     close_pool(&pool).await;
     cleanup(&dir);

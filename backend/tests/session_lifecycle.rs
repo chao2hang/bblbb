@@ -1,6 +1,8 @@
 //! M02-SESSION-05：Session 生命周期——idle/absolute timeout、当前登出、
 //! 全部登出、设备列表与逐设备撤销（含 CSRF 校验的 DELETE）。
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use axum::{
@@ -78,6 +80,8 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> (String, String) {
 
 /// 登录并返回 session cookie 值。
 async fn login_cookie(app: &Router, email: &str, ip: &str) -> String {
+    // M02-SESSION-08：登录属预认证写路径，必须先获取匿名预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(app).await;
     let body = json!({ "identifier": email, "password": PASSWORD });
     let resp = app
         .clone()
@@ -87,6 +91,8 @@ async fn login_cookie(app: &Router, email: &str, ip: &str) -> String {
                 .uri("/api/v1/auth/login")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", ip)
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )

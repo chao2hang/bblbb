@@ -6,6 +6,8 @@
 //! metadata、任何 Outbox payload；错误路径 detail 为固定文案，`redact_token`
 //! 对含 token 的日志文本脱敏（M01-JOBS-12 机制）。
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use axum::{
@@ -147,6 +149,8 @@ async fn post_register(
     email: &str,
     ip: &str,
 ) -> axum::response::Response {
+    // M02-SESSION-08：注册属预认证写路径，必须先获取匿名预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(app).await;
     let body = json!({ "username": username, "email": email, "password": "passw0rd9" });
     app.clone()
         .oneshot(
@@ -155,6 +159,8 @@ async fn post_register(
                 .uri("/api/v1/auth/register")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", ip)
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )
@@ -220,6 +226,8 @@ async fn known_verify_token_absent_from_db_api_audit_outbox() {
         .await;
 
     // verify 成功 → 响应、审计、事件都不含明文 token
+    // M02-SESSION-08：verify-email 属预认证写路径，必须先获取预认证 CSRF
+    let (cookie, csrf) = common::fetch_preauth(&app).await;
     let resp = app
         .clone()
         .oneshot(
@@ -228,6 +236,8 @@ async fn known_verify_token_absent_from_db_api_audit_outbox() {
                 .uri("/api/v1/auth/verify-email")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", "198.51.100.2")
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(json!({ "token": &token }).to_string()))
                 .unwrap(),
         )
@@ -262,6 +272,8 @@ async fn resend_flow_payload_and_audit_are_token_free() {
     let (email, token) = setup_pending_user_with_verify_token(&pool, "carol").await;
     let app = build_router(AppConfig::default(), Some(pool.clone()));
 
+    // M02-SESSION-08：重发属预认证写路径，必须先获取预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(&app).await;
     let resp = app
         .clone()
         .oneshot(
@@ -270,6 +282,8 @@ async fn resend_flow_payload_and_audit_are_token_free() {
                 .uri("/api/v1/auth/resend-verification")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", "198.51.100.3")
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(json!({ "email": &email }).to_string()))
                 .unwrap(),
         )
@@ -335,6 +349,8 @@ async fn password_reset_flow_outputs_are_token_free() {
 
     // 先确认重置（用已知 token）→ 200，响应/审计无明文 token；
     // token 列仍只存 hash
+    // M02-SESSION-08：confirm 属预认证写路径，必须先获取预认证 CSRF
+    let (cookie, csrf) = common::fetch_preauth(&app).await;
     let resp = app
         .clone()
         .oneshot(
@@ -343,6 +359,8 @@ async fn password_reset_flow_outputs_are_token_free() {
                 .uri("/api/v1/auth/password-reset/confirm")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", "198.51.100.4")
+                .header("cookie", &cookie)
+                .header("x-csrf-token", &csrf)
                 .body(Body::from(
                     json!({ "token": &reset_token, "password": "new-passw0rd9" }).to_string(),
                 ))
@@ -369,6 +387,7 @@ async fn password_reset_flow_outputs_are_token_free() {
 
     // 再请求重置 → 202，响应/Outbox/审计无明文 token（此时已知 token 已消费，
     // 新 token 只以引用形式进入 payload）
+    // M02-SESSION-08：请求重置属预认证写路径（预认证状态 TTL 内可复用）
     let resp = app
         .clone()
         .oneshot(
@@ -377,6 +396,8 @@ async fn password_reset_flow_outputs_are_token_free() {
                 .uri("/api/v1/auth/password-reset")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", "198.51.100.4")
+                .header("cookie", &cookie)
+                .header("x-csrf-token", &csrf)
                 .body(Body::from(json!({ "email": &email }).to_string()))
                 .unwrap(),
         )
@@ -406,6 +427,8 @@ async fn error_paths_and_log_diagnostics_are_token_free() {
     let bogus = generate_token();
 
     // confirm 用无效 token → 400，detail 固定，不含提交的 token
+    // M02-SESSION-08：confirm 属预认证写路径（预认证状态 TTL 内可复用）
+    let (cookie, csrf) = common::fetch_preauth(&app).await;
     let resp = app
         .clone()
         .oneshot(
@@ -414,6 +437,8 @@ async fn error_paths_and_log_diagnostics_are_token_free() {
                 .uri("/api/v1/auth/password-reset/confirm")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", "198.51.100.5")
+                .header("cookie", &cookie)
+                .header("x-csrf-token", &csrf)
                 .body(Body::from(
                     json!({ "token": &bogus, "password": "new-passw0rd9" }).to_string(),
                 ))
@@ -426,6 +451,7 @@ async fn error_paths_and_log_diagnostics_are_token_free() {
     assert!(body.contains("invalid or expired reset token"));
 
     // verify 用无效 token → 400，detail 固定
+    // M02-SESSION-08：verify-email 属预认证写路径（预认证状态 TTL 内可复用）
     let resp = app
         .clone()
         .oneshot(
@@ -434,6 +460,8 @@ async fn error_paths_and_log_diagnostics_are_token_free() {
                 .uri("/api/v1/auth/verify-email")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", "198.51.100.5")
+                .header("cookie", &cookie)
+                .header("x-csrf-token", &csrf)
                 .body(Body::from(json!({ "token": &bogus }).to_string()))
                 .unwrap(),
         )

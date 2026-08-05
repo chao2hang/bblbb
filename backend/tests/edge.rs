@@ -5,6 +5,7 @@
 //! 慢请求超时（408）、停机期间在途请求完成、Host/Origin 严格模式边界、
 //! openapi.json 与提交 YAML 语义一致（M00-BACKEND-11）。
 
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use axum::{
@@ -13,12 +14,40 @@ use axum::{
     routing::get,
     Router,
 };
+use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
+use bblbb_backend::db::pool::create_pool;
+use bblbb_backend::db::DatabasePool;
 use bblbb_backend::{build_router, AppConfig};
 use http_body_util::BodyExt;
+use sqlx::Either;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tower::ServiceExt;
 
 // ─── request_id 边界 ─────────────────────────────────────────────────────────
+
+/// 临时 SQLite 池（M02-SESSION-08 起 GET /auth/csrf 未认证分支需数据库）。
+async fn csrf_pool() -> (DatabasePool, PathBuf) {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
+    let dir = std::env::temp_dir().join(format!("bblbb-edge-{}", uuid::Uuid::now_v7()));
+    let url = format!("sqlite://{}", dir.display());
+    let pool = create_pool(&url).await.unwrap();
+    let files = read_migration_files(&Path::new(&manifest).join("../migrations/sqlite")).unwrap();
+    run_migrations(&pool, &files).await.unwrap();
+    (pool, dir)
+}
+
+async fn close_csrf_pool(pool: &DatabasePool) {
+    match pool {
+        Either::Left(p) => p.close().await,
+        Either::Right(p) => p.close().await,
+    }
+}
+
+fn cleanup_csrf_dir(dir: &Path) {
+    let _ = std::fs::remove_file(dir);
+    let _ = std::fs::remove_file(format!("{}-wal", dir.display()));
+    let _ = std::fs::remove_file(format!("{}-shm", dir.display()));
+}
 
 #[tokio::test]
 async fn overlong_request_id_is_replaced_with_uuid() {
@@ -370,7 +399,9 @@ async fn strict_host_accepts_allowed_hostname_with_any_port() {
         allowed_hosts: vec!["example.com".to_string()],
         ..AppConfig::default()
     };
-    let response = build_router(config, None)
+    // M02-SESSION-08：GET /auth/csrf 未认证分支需数据库签发预认证状态
+    let (pool, dir) = csrf_pool().await;
+    let response = build_router(config, Some(pool.clone()))
         .oneshot(
             Request::builder()
                 .uri("/api/v1/auth/csrf")
@@ -382,6 +413,8 @@ async fn strict_host_accepts_allowed_hostname_with_any_port() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+    close_csrf_pool(&pool).await;
+    cleanup_csrf_dir(&dir);
 }
 
 #[tokio::test]

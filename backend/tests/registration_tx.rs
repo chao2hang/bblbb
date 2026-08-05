@@ -2,6 +2,8 @@
 //! 审计与验证邮件 Outbox；唯一约束冲突整事务回滚（无半完成状态）；
 //! token 只以 hash 入库，Outbox payload 只含引用不含明文。
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -80,6 +82,8 @@ async fn post_register(
     email: &str,
     ip: &str,
 ) -> axum::response::Response {
+    // M02-SESSION-08：注册属预认证写路径，必须先获取匿名预认证 CSRF 状态
+    let (cookie, csrf) = common::fetch_preauth(app).await;
     let body = json!({
         "username": username,
         "email": email,
@@ -92,6 +96,8 @@ async fn post_register(
                 .uri("/api/v1/auth/register")
                 .header("content-type", "application/json")
                 .header("x-forwarded-for", ip)
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )
