@@ -1,15 +1,19 @@
-//! TOTP（RFC 6238）与 MFA enrollment（M02-MFA-02）
+//! TOTP（RFC 6238）与 MFA（M02-MFA-02/03/04）
 //!
 //! - `begin_enrollment`：生成 20 字节 TOTP secret（base32 展示），加密后写入
 //!   `totp_credentials`（pending 行），返回二维码所需最小数据（otpauth URI）；
 //! - `confirm_enrollment`：校验 6 位 code（时间窗口内 + 未重放 step）后原子
 //!   启用（confirmed_at + last_accepted_step）；
-//! - `cancel_enrollment`：撤销未完成的 enrollment。
+//! - `cancel_enrollment`：撤销未完成的 enrollment；
+//! - `verify_totp_login`：登录 MFA 验证——允许时间窗口 + 已接受 step 防重放；
+//! - `generate_recovery_codes` / `consume_recovery_code`：恢复码只展示一次、
+//!   只存 SHA-256 hash、消费原子标记并写审计。
 //!
-//! 安全约定（M02-MFA-03 形式化时间窗口与防重放）：
+//! 安全约定：
 //! - secret 只在数据库存 AEAD 密文（`encrypted_secret`），日志/API 一律不输出
 //!   明文或 code；
 //! - code 校验走时间窗口 + last_accepted_step，防重放；
+//! - 恢复码明文只在生成响应出现一次，数据库只存 hash；
 //! - 一个用户同一时刻至多一个启用中的 TOTP（重复启用 = 撤销旧 + 新建）。
 
 use std::fmt;
@@ -20,12 +24,17 @@ use aes_gcm::{
 };
 use hmac::{Hmac, Mac};
 use rand::{rngs::OsRng, RngCore};
+use serde_json::json;
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
 use sqlx::Either;
 use uuid::Uuid;
 
-use crate::db::pool::DatabasePool;
+use crate::{
+    audit::AuditEntry,
+    db::pool::DatabasePool,
+    outbox::{now_millis, OutboxTx},
+};
 
 /// TOTP 时间周期（秒，RFC 6238 默认 X=30）。
 pub const TOTP_PERIOD_SECS: u64 = 30;
@@ -35,6 +44,11 @@ pub const DEFAULT_WINDOW_STEPS: u64 = 1;
 pub const TOTP_DIGITS: u32 = 6;
 /// TOTP secret 字节数（RFC 6238 建议 ≥ 160 bit）。
 pub const TOTP_SECRET_BYTES: usize = 20;
+
+/// 每组恢复码数量（M02-MFA-04）。
+pub const RECOVERY_CODE_COUNT: usize = 10;
+/// 单个恢复码随机字节数（80 bit 熵 → 16 位 base32）。
+pub const RECOVERY_CODE_BYTES: usize = 10;
 
 /// base32 字母表（RFC 4648，无填充）。
 const BASE32_ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -433,6 +447,196 @@ pub async fn verify_totp_login(
         return Err(MfaError::InvalidCode);
     }
     Ok(VerifyTotpOutcome { step })
+}
+
+// ─────────────────────────── 恢复码（M02-MFA-04） ───────────────────────────
+
+/// 生成一组恢复码（M02-MFA-04）：
+/// - 明文只在本次响应返回（“只展示一次”）——数据库只存 SHA-256 hash；
+/// - 新一组使旧未用恢复码全部失效（与 password_reset 旧 token 失效语义一致）；
+/// - 审计 `auth.mfa_recovery_codes_generated` 与生成同事务（无审计不得提交）。
+pub async fn generate_recovery_codes(
+    pool: &DatabasePool,
+    user_id: &str,
+    count: usize,
+    request_id: &str,
+) -> Result<Vec<String>, MfaError> {
+    let mut tx = begin_tx(pool)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    let now = now_millis();
+
+    // 1) 使旧未用恢复码全部失效
+    invalidate_unused_codes(&mut tx, user_id, now).await?;
+
+    // 2) 插入新一组（只存 hash）
+    let mut codes = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut bytes = [0u8; RECOVERY_CODE_BYTES];
+        OsRng.fill_bytes(&mut bytes);
+        let code = base32_encode(&bytes);
+        let code_hash = hex::encode(Sha256::digest(code.as_bytes()));
+        insert_recovery_code(&mut tx, user_id, &code_hash, now).await?;
+        codes.push(code);
+    }
+
+    // 3) 审计（同事务）
+    AuditEntry::user_action(user_id, "auth.mfa_recovery_codes_generated")
+        .with_target("user", user_id)
+        .with_request_id(request_id)
+        .with_metadata(json!({ "code_count": count, "only_hashes_stored": true }))
+        .record_in_tx(&mut tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+
+    commit_tx(tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    Ok(codes)
+}
+
+/// 消费恢复码（M02-MFA-04）：
+/// - 只存 hash：以 SHA-256 匹配；
+/// - 原子消费：`UPDATE WHERE consumed_at IS NULL`，并发同码恰好一个成功；
+/// - 无效/已消费统一 `InvalidCode`（防枚举）；
+/// - 审计 `auth.mfa_recovery_code_used` 与消费同事务（恢复码使用可追踪，
+///   安全通知由 M02-MFA-08 发送）。
+pub async fn consume_recovery_code(
+    pool: &DatabasePool,
+    user_id: &str,
+    code: &str,
+    request_id: &str,
+) -> Result<(), MfaError> {
+    let mut tx = begin_tx(pool)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    let now = now_millis();
+    let code_hash = hex::encode(Sha256::digest(code.trim().to_ascii_uppercase().as_bytes()));
+
+    let affected = match &mut tx {
+        Either::Left(t) => sqlx::query(
+            "UPDATE mfa_recovery_codes SET consumed_at = ?
+             WHERE code_hash = ? AND user_id = ? AND consumed_at IS NULL",
+        )
+        .bind(now)
+        .bind(&code_hash)
+        .bind(user_id)
+        .execute(&mut **t)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?
+        .rows_affected(),
+        Either::Right(t) => sqlx::query(
+            "UPDATE mfa_recovery_codes SET consumed_at = ?
+             WHERE code_hash = ? AND user_id = ? AND consumed_at IS NULL",
+        )
+        .bind(now)
+        .bind(&code_hash)
+        .bind(user_id)
+        .execute(&mut **t)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?
+        .rows_affected(),
+    };
+    if affected != 1 {
+        // 无效或已消费：统一错误（防枚举）；tx 丢弃即回滚
+        return Err(MfaError::InvalidCode);
+    }
+
+    AuditEntry::user_action(user_id, "auth.mfa_recovery_code_used")
+        .with_target("user", user_id)
+        .with_request_id(request_id)
+        .record_in_tx(&mut tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+
+    commit_tx(tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    Ok(())
+}
+
+async fn invalidate_unused_codes(
+    tx: &mut OutboxTx<'_>,
+    user_id: &str,
+    now: i64,
+) -> Result<(), MfaError> {
+    match tx {
+        Either::Left(t) => {
+            sqlx::query(
+                "UPDATE mfa_recovery_codes SET consumed_at = ?
+                 WHERE user_id = ? AND consumed_at IS NULL",
+            )
+            .bind(now)
+            .bind(user_id)
+            .execute(&mut **t)
+            .await
+            .map_err(|e| MfaError::Database(e.to_string()))?;
+        }
+        Either::Right(t) => {
+            sqlx::query(
+                "UPDATE mfa_recovery_codes SET consumed_at = ?
+                 WHERE user_id = ? AND consumed_at IS NULL",
+            )
+            .bind(now)
+            .bind(user_id)
+            .execute(&mut **t)
+            .await
+            .map_err(|e| MfaError::Database(e.to_string()))?;
+        }
+    }
+    Ok(())
+}
+
+async fn insert_recovery_code(
+    tx: &mut OutboxTx<'_>,
+    user_id: &str,
+    code_hash: &str,
+    now: i64,
+) -> Result<(), MfaError> {
+    let id = Uuid::now_v7().to_string();
+    match tx {
+        Either::Left(t) => {
+            sqlx::query(
+                "INSERT INTO mfa_recovery_codes (id, user_id, code_hash, created_at, consumed_at)
+                 VALUES (?, ?, ?, ?, NULL)",
+            )
+            .bind(&id)
+            .bind(user_id)
+            .bind(code_hash)
+            .bind(now)
+            .execute(&mut **t)
+            .await
+            .map_err(|e| MfaError::Database(e.to_string()))?;
+        }
+        Either::Right(t) => {
+            sqlx::query(
+                "INSERT INTO mfa_recovery_codes (id, user_id, code_hash, created_at, consumed_at)
+                 VALUES (?, ?, ?, ?, NULL)",
+            )
+            .bind(&id)
+            .bind(user_id)
+            .bind(code_hash)
+            .bind(now)
+            .execute(&mut **t)
+            .await
+            .map_err(|e| MfaError::Database(e.to_string()))?;
+        }
+    }
+    Ok(())
+}
+
+async fn begin_tx(pool: &DatabasePool) -> Result<OutboxTx<'_>, sqlx::Error> {
+    match pool {
+        Either::Left(p) => Ok(Either::Left(p.begin().await?)),
+        Either::Right(p) => Ok(Either::Right(p.begin().await?)),
+    }
+}
+
+async fn commit_tx(tx: OutboxTx<'_>) -> Result<(), sqlx::Error> {
+    match tx {
+        Either::Left(t) => t.commit().await,
+        Either::Right(t) => t.commit().await,
+    }
 }
 
 /// 撤销用户全部 TOTP（含已启用与 pending），用于重新 enrollment。
