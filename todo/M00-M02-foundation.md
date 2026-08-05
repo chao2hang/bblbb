@@ -133,15 +133,15 @@
 - [x] `M01-CONFIG-06` `[20m]` 将 AI、Video Provider、Download Billing、OIDC 和 Marketplace 默认设为关闭。证据：files=backend/src/config/flags.rs,backend/src/app.rs,backend/src/error.rs,backend/tests/http.rs；commands=cargo test --all-features（142 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=FeatureName 五能力 all_default 全关 + feature_for_path 路径映射 + feature_gate 中间件 409 feature_disabled + build_router_with_flags；commit=c612061；review=3 项 HTTP 门控测试 + 路径映射单测通过
 - [x] `M01-CONFIG-07` `[45m]` 验证 Flag 关闭时核心论坛独立运行，开启时也不能绕过权限、CSRF、账本、审计或安全上限。证据：files=backend/tests/http.rs,backend/src/app.rs；commands=cargo test --all-features（146 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=核心路由不被 Gate 拦截 + kill switch 优先 + 409 带 request_id/instance + 启用请求仍过安全头栈 + 权限/CSRF/账本/审计由各领域 handler 执行（M6-M12）；commit=163ac67；review=4 项验证测试通过
 - [x] `M01-CONFIG-08` `[45m]` 为配置读取、管理更新、并发版本冲突、重启生效和 Secret 轮换编写测试。证据：files=backend/src/config/store.rs,backend/src/config/secrets.rs,docs/CONFIGURATION.md；commands=cargo test --all-features（153 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=ConfigStore 乐观锁 update + pending/apply_restart 重启生效 + Secret 轮换新值/旧值不可读/mtime 版本变化/元数据不含值；commit=bcff068；review=7 项测试通过
-- [~] `M01-CONFIG-09` `[30m]` 同步 `.env.example` 与配置文档，示例不得含真实域名、凭据或可用 Token。
+- [x] `M01-CONFIG-09` `[30m]` 同步 `.env.example` 与配置文档，示例不得含真实域名、凭据或可用 Token。证据：files=backend/src/config.rs,backend/.env.example,docs/CONFIGURATION.md；commands=cargo test --all-features（157 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=示例无可用 Token/真实域名 + CONFIGURATION §1.1 与登记表同步 + 每个登记项有赋值行；commit=2bcb438；review=4 项校验测试通过
 
 ## M01-JOBS：Transactional Outbox 与任务 Worker
 
-**元数据：** `P0` · `owner=unassigned/backend-platform` · `risk=critical` · `depends=M01-DB,M01-CONFIG` · `blocked=none`
+**元数据：** `P0` · `owner=backend-jobs` · `risk=critical` · `depends=M01-DB,M01-CONFIG` · `blocked=none`
 **目标文件：** `backend/src/jobs/`、`backend/src/outbox/`、`migrations/*/`、`docs/JOBS.md`、`docs/EVENT-CATALOG.md`
 **验收：** 三数据库运行提交/回滚、崩溃、lease、重复执行、busy 和优雅停机故障注入。
 
-- [ ] `M01-JOBS-01` `[45m]` 建立 jobs 和 outbox 迁移，包含状态、attempt、run_at、lease、payload version 和幂等约束。
+- [~] `M01-JOBS-01` `[45m]` 建立 jobs 和 outbox 迁移，包含状态、attempt、run_at、lease、payload version 和幂等约束。
 - [ ] `M01-JOBS-02` `[45m]` 实现业务事务内写 Outbox，事务回滚时事件必须同步消失。
 - [ ] `M01-JOBS-03` `[30m]` 实现 queued/running/retry_wait/succeeded/cancelled/dead 状态机及非法迁移拒绝。
 - [ ] `M01-JOBS-04` `[45m]` 实现批量领取、owner、lease 延期和 lease 到期后的安全重领。
