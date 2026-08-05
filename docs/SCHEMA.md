@@ -147,6 +147,8 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | `last_login_at` | 可空 |
 | `delete_requested_at` | 可空 |
 | `created_at`、`updated_at`、`deleted_at` | 时间字段 |
+| `level` | 等级缓存（默认 1，可重建；真实来源 M7 经验账户，迁移 0019） |
+| `level_updated_at` | 等级缓存刷新时间，可空（NULL = 尚未计算） |
 
 注销硬删除时，必须先执行匿名化流程；是否释放原邮箱/用户名由隐私策略明确规定。
 
@@ -161,11 +163,39 @@ MySQL/MariaDB `utf8mb4_bin`），因此唯一索引对大小写与全角/连字�
 | 字段 | 说明 |
 |---|---|
 | `user_id` | 主键、外键 |
-| `timezone` | IANA 时区 |
-| `locale` | 语言，例如 `zh-CN` |
+| `timezone` | IANA 时区，默认 `UTC` |
+| `locale` | 语言，默认 `zh-CN` |
 | `theme_name` | 已安装主题名，可空 |
 | `notification_json` | 通知偏好 |
 | `updated_at` | 更新时间 |
+
+行由服务层在用户首访时惰性创建（仅 `user_id`，其余取默认值）；删除用户时随 `users` 级联清理。
+
+### `user_privacy`
+
+| 字段 | 说明 |
+|---|---|
+| `user_id` | 主键、外键 |
+| `email_visible_to` | 邮箱可见范围：`everyone/registered/nobody`，默认 `nobody`（最保守） |
+| `profile_visible_to` | 资料可见范围：`everyone/registered/nobody`，默认 `everyone` |
+| `updated_at` | 更新时间 |
+
+`email_visible_to` / `profile_visible_to` 有 CHECK 约束（SQLite/MariaDB/MySQL 均强制），
+非法取值拒绝写入；行由服务层在用户首访时惰性创建。
+
+### `profile_revisions`
+
+| 字段 | 说明 |
+|---|---|
+| `id` | UUID 主键 |
+| `user_id` | 用户 ID，外键 |
+| `revision` | 每次资料变更递增 |
+| `changes_json` | 本次变更的字段/旧值/新值 |
+| `actor_user_id` | 变更执行者（本人或管理员），可空 |
+| `created_at` | 变更时间 |
+
+`UNIQUE (user_id, revision)` 保证每用户 revision 严格递增；删除用户时随
+`users` 级联清理。资料写操作（M3-PROFILE）须与 revision 行同事务写入。
 
 ### `user_sessions`
 
