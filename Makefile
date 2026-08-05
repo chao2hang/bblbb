@@ -53,11 +53,20 @@ dev-backend: ## 启动后端开发服务器
 ##@ 检查
 check: check-backend check-frontend check-prototype check-openapi check-contract check-roadmap check-docs check-secrets ## 运行全部检查
 
-check-backend: ## 后端 fmt + clippy + 编译检查
+check-backend: ## 后端 fmt + clippy + 编译检查 + 领域层依赖边界
 	@printf "$(GREEN)>>> [check-backend] Rust fmt + clippy + check$(RESET)\n"
 	@cd $(BACKEND_DIR) && cargo fmt --all -- --check
+	@$(MAKE) check-domain
 	@cd $(BACKEND_DIR) && cargo clippy --workspace --all-targets --all-features -- -D warnings
 	@cd $(BACKEND_DIR) && cargo check --all-features
+
+check-domain: ## 领域层依赖边界扫描（禁止 axum/sqlx/SMTP/S3/环境变量）
+	@printf "$(GREEN)>>> [check-domain] 领域层依赖边界$(RESET)\n"
+	@if grep -rnE "use (axum|sqlx)|::(axum|sqlx)|std::env" $(BACKEND_DIR)/src/domain/; then \
+		echo "$(RED)错误：backend/src/domain/ 不得依赖 axum、sqlx 或环境变量$(RESET)"; exit 1; \
+	else \
+		echo "领域层依赖边界 OK（无 axum/sqlx/环境变量）"; \
+	fi
 
 check-frontend: ## 前端 Svelte check + TypeScript 类型检查
 	@printf "$(GREEN)>>> [check-frontend] SvelteKit check$(RESET)\n"

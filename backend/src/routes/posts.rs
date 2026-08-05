@@ -9,7 +9,15 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Either;
 
-use crate::{app::AppState, auth::session::AuthSession, error::AppError};
+use crate::{
+    app::AppState,
+    auth::session::AuthSession,
+    domain::{
+        comments::CommentContent,
+        posts::{AccessPolicy, PostContent, PostTitle},
+    },
+    error::AppError,
+};
 
 /// 帖子路由
 pub fn router() -> Router<AppState> {
@@ -95,21 +103,17 @@ async fn create_post(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    // 验证输入
-    if req.title.is_empty() || req.title.len() > 200 {
-        return Err(AppError::bad_request(
-            "title must be 1-200 characters",
-            request_id,
-            None,
-        ));
-    }
-    if req.content.is_empty() || req.content.len() > 50000 {
-        return Err(AppError::bad_request(
-            "content must be 1-50000 characters",
-            request_id,
-            None,
-        ));
-    }
+    // 领域校验：title/content/visibility 规则在 domain 层单一维护，
+    // 路由层只负责把校验错误映射为 Problem 响应。
+    let title = PostTitle::parse(&req.title)
+        .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
+    let content = PostContent::parse(&req.content)
+        .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
+    let visibility = req
+        .visibility
+        .as_deref()
+        .and_then(AccessPolicy::parse)
+        .unwrap_or(AccessPolicy::Public);
 
     // 查找板块
     let board_id: Option<String> = match pool {
@@ -132,7 +136,6 @@ async fn create_post(
 
     let post_id = uuid::Uuid::now_v7().to_string();
     let now = chrono::Utc::now().timestamp();
-    let visibility = req.visibility.unwrap_or_else(|| "public".to_string());
 
     match pool {
         Either::Left(p) => {
@@ -147,9 +150,9 @@ async fn create_post(
             .bind(&post_id)
             .bind(&board_id)
             .bind(&user.id)
-            .bind(&req.title)
-            .bind(&req.content)
-            .bind(&visibility)
+            .bind(title.as_str())
+            .bind(content.as_str())
+            .bind(visibility.as_str())
             .bind(now)
             .bind(now)
             .bind(now)
@@ -182,9 +185,9 @@ async fn create_post(
             .bind(&post_id)
             .bind(&board_id)
             .bind(&user.id)
-            .bind(&req.title)
-            .bind(&req.content)
-            .bind(&visibility)
+            .bind(title.as_str())
+            .bind(content.as_str())
+            .bind(visibility.as_str())
             .bind(now)
             .bind(now)
             .bind(now)
@@ -215,7 +218,7 @@ async fn create_post(
             "author_id": user.id,
             "title": req.title,
             "status": "published",
-            "visibility": visibility,
+            "visibility": visibility.as_str(),
             "created_at": now,
         })),
     ))
@@ -418,30 +421,25 @@ async fn update_post(
         return Err(AppError::forbidden("not the author", request_id));
     }
 
-    if let Some(title) = &req.title {
-        if title.is_empty() || title.len() > 200 {
-            return Err(AppError::bad_request(
-                "title must be 1-200 characters",
-                request_id,
-                None,
-            ));
-        }
-    }
-    if let Some(content) = &req.content {
-        if content.is_empty() || content.len() > 50000 {
-            return Err(AppError::bad_request(
-                "content must be 1-50000 characters",
-                request_id,
-                None,
-            ));
-        }
-    }
+    // 领域校验：仅当字段提供时校验（PATCH 语义），规则在 domain 层单一维护
+    let title = req
+        .title
+        .as_deref()
+        .map(PostTitle::parse)
+        .transpose()
+        .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
+    let content = req
+        .content
+        .as_deref()
+        .map(PostContent::parse)
+        .transpose()
+        .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
 
     match pool {
         Either::Left(p) => {
             sqlx::query("UPDATE posts SET title = COALESCE(?, title), content = COALESCE(?, content), updated_at = ? WHERE id = ?")
-                .bind(&req.title)
-                .bind(&req.content)
+                .bind(title.as_ref().map(|t| t.as_str()))
+                .bind(content.as_ref().map(|c| c.as_str()))
                 .bind(now)
                 .bind(&id)
                 .execute(p)
@@ -450,8 +448,8 @@ async fn update_post(
         }
         Either::Right(p) => {
             sqlx::query("UPDATE posts SET title = COALESCE(?, title), content = COALESCE(?, content), updated_at = ? WHERE id = ?")
-                .bind(&req.title)
-                .bind(&req.content)
+                .bind(title.as_ref().map(|t| t.as_str()))
+                .bind(content.as_ref().map(|c| c.as_str()))
                 .bind(now)
                 .bind(&id)
                 .execute(p)
@@ -553,13 +551,9 @@ async fn create_comment(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    if req.content.is_empty() || req.content.len() > 10000 {
-        return Err(AppError::bad_request(
-            "content must be 1-10000 characters",
-            request_id,
-            None,
-        ));
-    }
+    // 领域校验：评论内容规则在 domain 层单一维护
+    let content = CommentContent::parse(&req.content)
+        .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
 
     let comment_id = uuid::Uuid::now_v7().to_string();
     let now = chrono::Utc::now().timestamp();
@@ -597,7 +591,7 @@ async fn create_comment(
             .bind(&id)
             .bind(&user.id)
             .bind(&req.parent_id)
-            .bind(&req.content)
+            .bind(content.as_str())
             .bind(floor)
             .bind(now)
             .bind(now)
@@ -631,7 +625,7 @@ async fn create_comment(
             .bind(&id)
             .bind(&user.id)
             .bind(&req.parent_id)
-            .bind(&req.content)
+            .bind(content.as_str())
             .bind(floor)
             .bind(now)
             .bind(now)
