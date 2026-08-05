@@ -99,7 +99,7 @@
 **目标文件：** `frontend/src/routes/users/`、`frontend/src/routes/boards/`、`frontend/src/routes/admin/`、`frontend/tests/`
 **验收：** 匿名/member/moderator/admin 的 SSR、键盘、移动端和无 JS 流程通过。
 
-- [~] `M03-UI-01` `P1` `[45m]` 实现用户主页 SSR，处理不存在、匿名化、封禁和资料隐私状态。
+- [x] `M03-UI-01` `P1` `[45m]` 实现用户主页 SSR，处理不存在、匿名化、封禁和资料隐私状态。证据：files=frontend/src/routes/users/[username]/{+page.server.ts,+page.svelte,load.test.ts},frontend/src/lib/testing/ssr/user-page-ssr.test.ts；commands=npm run check（svelte-check 0 error 0 warning，untrack 消除 state_referenced_locally）；npm run test 28 文件 193 用例全绿（load 4 项 + SSR 守卫 2 项 + 客户端隐私 1 项）；npm run build（adapter-node）通过；make check 全绿（OpenAPI 183/183、Roadmap 783 叶子 OK）；make build 后 release 后端全新 SQLite --migrate 启动两次（launch-1/launch-2）healthz 200 "ok"、readyz 200、boards 种子 5 板块、注册 201/重复注册 201/错误密码 401、GET /users/{u} 公开投影 200；前端 adapter-node 服务后 HTTP 加载首页与 /users/bob SSR 200，HTML 含 @ bob/LV.1/个人资料卡且不含 email/session/password_hash，/users/nobody 404 含"用户不存在或已注销"；Playwright 探测不可用记录 launcher-unavailable.log（诚实降级：SSR/结构回退为准）；contract=getPublicUser 公开投影九字段 allowlist 不变（后端 M03-PROFILE 已 implemented），SSR 路径不再泄漏存在性/状态/私有字段；commit=cf2334c；review=load 4 项（成功转发 X-Request-ID/404 不泄漏/5xx→500/降级投影透传）+ SSR 守卫 2 项（对抗性响应不入 DOM/降级安全渲染）+ 端到端 SSR 隐私扫描（首页与用户页无私有字段）+ 启动两次一致性 + 全量门禁全绿
 - [ ] `M03-UI-02` `P1` `[45m]` 实现资料编辑表单、版本冲突、字段错误和保存后投影刷新。
 - [ ] `M03-UI-03` `P1` `[45m]` 实现鼠标 Hover 与键盘 Focus 共用资料卡，支持离开延迟和 Escape 关闭。
 - [ ] `M03-UI-04` `P1` `[30m]` 资料卡使用 portal/fixed 边界，窄屏改为点击/底部卡，不阻挡原导航。
