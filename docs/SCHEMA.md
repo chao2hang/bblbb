@@ -619,16 +619,19 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 
 ### `outbox_events`
 
-- `id`、`event_type`、`aggregate_type`、`aggregate_id`、`payload_json`。
-- `created_at`、`available_at`、`published_at`、`attempts`、`last_error`。
-- 与业务事务同时写入。
+- `id`、`event_type`、`payload`、`payload_version`、`status`、`idempotency_key`。
+- `created_at`、`next_attempt_at`、`attempts`、`max_attempts`、`processed_at`、`error`。
+- 与业务事务同时写入；`idempotency_key` 唯一（消费者去重，M01-JOBS-01）。
+- 事务回滚时事件必须同步消失（M01-JOBS-02）。
 
 ### `jobs`
 
-- `id`、`queue`、`kind`、`payload_json`、`status`。
+- `id`、`queue`、`kind`、`payload`、`payload_version`、`status`。
 - `available_at`、`locked_by`、`locked_until`、`attempts`、`max_attempts`。
-- `last_error`、`completed_at`、`created_at`。
-- 唯一可选 `deduplication_key`。
+- `deduplication_key`（唯一，可空）、`last_error`、`completed_at`、`created_at`、`updated_at`。
+- `status` 合法值：`queued` / `running` / `retry_wait` / `succeeded` / `cancelled` / `dead`。
+- worker 通过 `locked_by`/`locked_until` 租约领取；崩溃后租约过期可重领
+  （M01-JOBS-04）。
 
 ### `audit_logs`
 
