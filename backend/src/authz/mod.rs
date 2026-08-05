@@ -19,6 +19,7 @@ use sqlx::Either;
 
 pub mod decision;
 pub mod enforce;
+pub mod hidden;
 pub mod roles;
 
 use crate::db::DatabasePool;

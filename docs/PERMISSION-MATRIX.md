@@ -233,3 +233,16 @@
   聚合角色 → 状态门 → 动作门（Handler 统一入口）。
 - 新增 DenyReason：`EmailUnverified`/`InCooldown`/`Muted`/`BoardMuted`
   （均映射 403，供审计与错误映射）。
+
+## 14. 隐藏内容显式管理投影（M03-AUTHZ-07）
+
+- `backend/src/authz/hidden.rs::require_hidden_read(pool, operator, permission,
+  target_type, target_id, reason, request_id)`：
+  显式理由（非空、≤200 字符、无控制字符）→ 权限（`moderation.review` /
+  `post.moderate`，经 `authorize_action` 默认拒绝）→ 审计
+  `moderation.read_hidden`（actor + target + reason + policy_version +
+  request_id，append-only 不可删除）。
+- 任何缺失（理由/权限）一律默认拒绝，不返回内容；理由校验先于权限判定，
+  避免未授权者探测内容存在性。
+- 隐藏正文绝不进入普通公开投影/DOM/日志/异常/遥测（SECURITY.md §6）；
+  本路径是 M4 隐藏内容投影 handler 的统一前置。
