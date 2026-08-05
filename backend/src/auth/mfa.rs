@@ -423,6 +423,77 @@ pub async fn cancel_enrollment(pool: &DatabasePool, user_id: &str) -> Result<boo
     Ok(true)
 }
 
+/// 停用已确认 TOTP（M02-UX-06）。
+///
+/// 单事务：撤销已启用 TOTP（confirmed_at 非空）→ 使全部未用恢复码失效 →
+/// 安全通知（`mfa_changed`）+ 审计 `auth.mfa_disabled`。已启用 TOTP 缺失
+/// 返回 `Ok(false)`（tx 丢弃即回滚）；调用方映射 404（防枚举）。
+///
+/// 前置：路由层已做 step-up 校验（M02-MFA-07），本服务不重复判定。
+pub async fn disable_totp(
+    pool: &DatabasePool,
+    user_id: &str,
+    request_id: &str,
+) -> Result<bool, MfaError> {
+    let mut tx = begin_tx(pool)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    let now = now_millis();
+
+    let affected = match &mut tx {
+        Either::Left(t) => sqlx::query(
+            "UPDATE totp_credentials SET revoked_at = ?
+             WHERE user_id = ? AND confirmed_at IS NOT NULL AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(user_id)
+        .execute(&mut **t)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?
+        .rows_affected(),
+        Either::Right(t) => sqlx::query(
+            "UPDATE totp_credentials SET revoked_at = ?
+             WHERE user_id = ? AND confirmed_at IS NOT NULL AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(user_id)
+        .execute(&mut **t)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?
+        .rows_affected(),
+    };
+    if affected == 0 {
+        // 从未启用 TOTP：tx 丢弃即回滚
+        return Ok(false);
+    }
+
+    // 全部未用恢复码失效（与 TOTP 停用同事务）
+    invalidate_unused_codes(&mut tx, user_id, now).await?;
+
+    // 安全通知（M02-MFA-08）+ 审计（同事务，不可被偏好关闭）
+    create_security_notification_in_tx(
+        &mut tx,
+        user_id,
+        SecurityEvent::MfaChanged,
+        "mfa_disable",
+        None,
+    )
+    .await
+    .map_err(|e| MfaError::Database(e.to_string()))?;
+    AuditEntry::user_action(user_id, "auth.mfa_disabled")
+        .with_target("user", user_id)
+        .with_request_id(request_id)
+        .with_metadata(json!({ "recovery_codes_invalidated": true }))
+        .record_in_tx(&mut tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+
+    commit_tx(tx)
+        .await
+        .map_err(|e| MfaError::Database(e.to_string()))?;
+    Ok(true)
+}
+
 /// MFA 登录验证结果。
 #[derive(Debug, Clone, Copy)]
 pub struct VerifyTotpOutcome {

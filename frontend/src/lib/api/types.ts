@@ -59,9 +59,10 @@ export type {
 
 /** 当前用户（GET /me）投影：契约 Me + 实现扩展字段（status/display_name）。
  *  后端补齐 version/created_at/updated_at 后，可塌缩为 `export type User = Me`。 */
-export type User = Omit<ContractMe, 'version' | 'created_at' | 'updated_at'> & {
+export type User = Omit<ContractMe, 'version' | 'created_at' | 'updated_at' | 'mfa_enabled'> & {
   status: string;
   display_name: string | null;
+  mfa_enabled: boolean;
 };
 
 /** 板块（GET /boards）投影：契约 Board + 实现扩展字段（post_count/is_active）。

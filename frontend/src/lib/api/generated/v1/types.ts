@@ -99,6 +99,7 @@ export type Me = ResourceMeta & {
   email_verified: boolean;
   level: number;
   roles: Array<string>;
+  mfa_enabled?: boolean;
 };
 export type Board = ResourceMeta & {
   slug: string;
@@ -154,7 +155,7 @@ export interface Problem {
   type: string;
   title: string;
   status: number;
-  code: "invalid_request" | "visibility_level_exceeds_author" | "invalid_url" | "idempotency_conflict" | "version_conflict" | "authentication_required" | "invalid_token" | "forbidden" | "not_found" | "csrf_failed" | "origin_not_allowed" | "host_not_allowed" | "rate_limited" | "feature_disabled" | "policy_disabled" | "policy_version_changed" | "insufficient_funds" | "daily_limit_exceeded" | "checkout_interaction_invalid" | "checkout_user_mismatch" | "checkout_intent_expired" | "checkout_intent_consumed" | "offer_version_changed" | "refund_not_allowed" | "product_unavailable" | "product_version_changed" | "shop_purchase_limit_exceeded" | "shop_stock_exhausted" | "entitlement_not_usable" | "presentation_slot_conflict" | "activity_already_claimed" | "activity_not_eligible" | "attachment_not_ready" | "download_authorization_pending" | "download_url_unavailable" | "media_blocked" | "media_probe_failed" | "hls_policy_exceeded" | "provider_unavailable" | "ai_consent_required" | "ai_budget_exceeded" | "ai_suggestion_stale" | "job_not_retryable" | "storage_unavailable" | "internal_error";
+  code: "invalid_request" | "visibility_level_exceeds_author" | "invalid_url" | "idempotency_conflict" | "version_conflict" | "authentication_required" | "invalid_token" | "forbidden" | "step_up_required" | "not_found" | "csrf_failed" | "origin_not_allowed" | "host_not_allowed" | "rate_limited" | "feature_disabled" | "policy_disabled" | "policy_version_changed" | "insufficient_funds" | "daily_limit_exceeded" | "checkout_interaction_invalid" | "checkout_user_mismatch" | "checkout_intent_expired" | "checkout_intent_consumed" | "offer_version_changed" | "refund_not_allowed" | "product_unavailable" | "product_version_changed" | "shop_purchase_limit_exceeded" | "shop_stock_exhausted" | "entitlement_not_usable" | "presentation_slot_conflict" | "activity_already_claimed" | "activity_not_eligible" | "attachment_not_ready" | "download_authorization_pending" | "download_url_unavailable" | "media_blocked" | "media_probe_failed" | "hls_policy_exceeded" | "provider_unavailable" | "ai_consent_required" | "ai_budget_exceeded" | "ai_suggestion_stale" | "job_not_retryable" | "storage_unavailable" | "internal_error";
   detail: string;
   instance?: string;
   request_id: string;
@@ -174,6 +175,22 @@ export interface PasswordResetRequest {
 export interface PasswordResetConfirm {
   token: string;
   password: string;
+}
+export interface TotpEnrollResponse {
+  otpauth_uri: string;
+  secret_base32: string;
+  issuer: string;
+  account: string;
+}
+export interface MfaConfirmRequest {
+  code: string;
+}
+export interface ReAuthRequest {
+  password: string;
+}
+export interface RecoveryCodesResult {
+  codes: Array<string>;
+  only_shown_once: boolean;
 }
 export interface CsrfToken {
   token: string;

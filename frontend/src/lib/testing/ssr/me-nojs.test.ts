@@ -1,6 +1,7 @@
-// M02-UX-05：/me 页无 JS 基线——SSR 输出安全投影（账号/验证状态）与
+// M02-UX-05/06：/me 页无 JS 基线——SSR 输出安全投影（账号/验证状态）与
 // 设备管理原生 form（?/revoke 隐藏 session_id、?/logoutall），且不输出
-// 任何会话 token；当前设备有标记且不可撤销。
+// 任何会话 token；当前设备有标记且不可撤销。MFA 卡：启用/停用/恢复码/
+// step-up 各态均为原生 form[method=POST]。
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import MePage from '../../../routes/me/+page.svelte';
@@ -13,7 +14,8 @@ const user = {
   status: 'active',
   display_name: null,
   level: 3,
-  roles: ['member']
+  roles: ['member'],
+  mfa_enabled: false
 };
 
 const sessions = [
@@ -113,5 +115,94 @@ describe('无 JS：/me 页（M02-UX-05）', () => {
     });
     expect(body).toContain('服务暂不可用');
     expect(body).not.toContain('账号信息');
+  });
+});
+
+describe('无 JS：/me 页 MFA 管理（M02-UX-06）', () => {
+  it('未启用：SSR 输出 ?/mfa-enroll 原生表单 + 未启用徽标', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: false }, sessions: [], currentSessionId: null, error: null },
+        form: undefined
+      }
+    });
+    expect(body).toContain('未启用');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-enroll"/);
+    expect(body).not.toContain('?/mfa-disable');
+  });
+
+  it('已启用：SSR 输出 ?/mfa-disable 与 ?/mfa-recovery 原生表单', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: true }, sessions: [], currentSessionId: null, error: null },
+        form: undefined
+      }
+    });
+    expect(body).toContain('已启用');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-disable"/);
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-recovery"/);
+    expect(body).not.toContain('?/mfa-enroll');
+  });
+
+  it('enroll-challenge：SSR 输出密钥 + ?/mfa-confirm（code 输入）与 ?/mfa-cancel', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: false }, sessions: [], currentSessionId: null, error: null },
+        form: { mfa: { kind: 'enroll-challenge', otpauth_uri: 'otpauth://totp/BBLBB:alice@example.com', secret_base32: 'JBSWY3DPEHPK3PXP' } }
+      }
+    });
+    expect(body).toContain('JBSWY3DPEHPK3PXP');
+    expect(body).toContain('otpauth://totp/');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-confirm"/);
+    expect(body).toContain('name="code"');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-cancel"/);
+  });
+
+  it('recovery-codes：SSR 一次展示恢复码并提示只显示一次', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: true }, sessions: [], currentSessionId: null, error: null },
+        form: { mfa: { kind: 'recovery-codes', codes: ['ABCDEFGHIJKLMNOP', 'QRSTUVWXYZ234567'] } }
+      }
+    });
+    expect(body).toContain('ABCDEFGHIJKLMNOP');
+    expect(body).toContain('QRSTUVWXYZ234567');
+    expect(body).toContain('只显示这一次');
+    expect(body).toContain('我已保存');
+  });
+
+  it('step-up：SSR 输出 ?/re-auth 原生表单 + intent 隐藏域', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: true }, sessions: [], currentSessionId: null, error: null },
+        form: { mfa: { kind: 'step-up', intent: 'disable' } }
+      }
+    });
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/re-auth"/);
+    expect(body).toContain('name="password"');
+    expect(body).toContain('name="intent"');
+    expect(body).toContain('验证身份');
+  });
+
+  it('reauth-done：SSR 输出重试原操作表单（intent=disable → ?/mfa-disable）', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: true }, sessions: [], currentSessionId: null, error: null },
+        form: { mfa: { kind: 'reauth-done', intent: 'disable' } }
+      }
+    });
+    expect(body).toContain('身份已验证');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-disable"/);
+  });
+
+  it('disabled：SSR 输出重新启用入口', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: false }, sessions: [], currentSessionId: null, error: null },
+        form: { mfa: { kind: 'disabled' } }
+      }
+    });
+    expect(body).toContain('两步验证已停用');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-enroll"/);
   });
 });

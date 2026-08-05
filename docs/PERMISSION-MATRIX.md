@@ -105,6 +105,10 @@
 | `user.read_public` | 1 | getPublicUser | §1 身份和标记 |
 | `user.read_own` | 1 | getMe | §1 身份和标记 |
 | `user.edit_own` | 1 | updateMe | §1 身份和标记 |
+| `mfa.enroll` | 3 | mfaEnroll、mfaConfirm、mfaCancel | §1 身份和标记 |
+| `mfa.recovery_codes` | 1 | mfaRecoveryCodes | §1 身份和标记（近期认证） |
+| `mfa.disable` | 1 | mfaDisable | §1 身份和标记（近期认证） |
+| `mfa.reauth` | 1 | reAuth | §1 身份和标记 |
 | `user.manage` | 4 | listAdminUsers、createAdminUser、getAdminUser、updateAdminUser | §1 身份和标记（管理员） |
 | `role.manage` | 4 | listAdminRoles、createAdminRole、getAdminRole、updateAdminRole | §1 身份和标记（管理员） |
 | `board.read` | 1 | getBoard | §2 核心论坛 |

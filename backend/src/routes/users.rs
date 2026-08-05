@@ -33,14 +33,24 @@ struct MeResponse {
     timezone: String,
     level: i64,
     roles: Vec<String>,
+    /// 两步验证（TOTP）是否已启用（M02-UX-06）。
+    mfa_enabled: bool,
 }
 
 /// GET /api/v1/me — 获取当前用户
 async fn get_me(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthSession,
 ) -> Result<Json<MeResponse>, AppError> {
-    let user = auth.require_auth("get_me")?;
+    let request_id = "get_me";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let mfa_enabled = crate::auth::has_confirmed_totp(pool, &user.id)
+        .await
+        .unwrap_or(false);
     Ok(Json(MeResponse {
         id: user.id.clone(),
         username: user.username.clone(),
@@ -52,6 +62,7 @@ async fn get_me(
         timezone: "UTC".to_string(),
         level: user.level,
         roles: user.roles.clone(),
+        mfa_enabled,
     }))
 }
 
@@ -106,6 +117,9 @@ async fn update_me(
         timezone: "UTC".to_string(),
         level: user.level,
         roles: user.roles.clone(),
+        mfa_enabled: crate::auth::has_confirmed_totp(pool, &user.id)
+            .await
+            .unwrap_or(false),
     }))
 }
 

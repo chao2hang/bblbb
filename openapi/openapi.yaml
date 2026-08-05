@@ -140,6 +140,174 @@ paths:
           "$ref": "#/components/responses/ValidationError"
         '429':
           "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/mfa/enroll":
+    post:
+      tags:
+      - Auth
+      operationId: mfaEnroll
+      security:
+      - sessionCookie: []
+      x-permission: mfa.enroll
+      summary: Begin TOTP enrollment
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          description: TOTP challenge (QR-code minimal data)
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TotpEnrollResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/mfa/confirm":
+    post:
+      tags:
+      - Auth
+      operationId: mfaConfirm
+      security:
+      - sessionCookie: []
+      x-permission: mfa.enroll
+      summary: Confirm TOTP enrollment with a 6-digit code
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MfaConfirmRequest"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/mfa/enrollment":
+    delete:
+      tags:
+      - Auth
+      operationId: mfaCancel
+      security:
+      - sessionCookie: []
+      x-permission: mfa.enroll
+      summary: Cancel a pending TOTP enrollment
+      x-csrf: true
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/mfa/recovery-codes":
+    post:
+      tags:
+      - Auth
+      operationId: mfaRecoveryCodes
+      security:
+      - sessionCookie: []
+      x-permission: mfa.recovery_codes
+      summary: Generate a new set of recovery codes (shown once)
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          description: New recovery codes (plaintext returned exactly once)
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/RecoveryCodesResult"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/StepUpRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/mfa":
+    delete:
+      tags:
+      - Auth
+      operationId: mfaDisable
+      security:
+      - sessionCookie: []
+      x-permission: mfa.disable
+      summary: Disable TOTP (also invalidates all recovery codes)
+      x-csrf: true
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/StepUpRequired"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/re-auth":
+    post:
+      tags:
+      - Auth
+      operationId: reAuth
+      security:
+      - sessionCookie: []
+      x-permission: mfa.reauth
+      summary: Re-authenticate the current session (step-up)
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReAuthRequest"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
   "/api/v1/auth/session":
     delete:
       tags:
@@ -6094,6 +6262,12 @@ components:
         application/problem+json:
           schema:
             "$ref": "#/components/schemas/Problem"
+    StepUpRequired:
+      description: Recent authentication required (M02-MFA-07 step-up); re-authenticate via /api/v1/auth/re-auth
+      content:
+        application/problem+json:
+          schema:
+            "$ref": "#/components/schemas/Problem"
     NotFound:
       description: Resource is missing or intentionally hidden
       content:
@@ -6517,6 +6691,9 @@ components:
             type: array
             items:
               type: string
+          mfa_enabled:
+            type: boolean
+            description: 两步验证（TOTP）是否已启用
     Board:
       allOf:
       - "$ref": "#/components/schemas/ResourceMeta"
@@ -6706,6 +6883,7 @@ components:
           - authentication_required
           - invalid_token
           - forbidden
+          - step_up_required
           - not_found
           - csrf_failed
           - origin_not_allowed
@@ -6803,6 +6981,65 @@ components:
           minLength: 8
           maxLength: 256
           writeOnly: true
+    TotpEnrollResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - otpauth_uri
+      - secret_base32
+      - issuer
+      - account
+      properties:
+        otpauth_uri:
+          type: string
+          description: otpauth:// URI（二维码内容，M02-MFA-02 二维码所需最小数据）
+          writeOnly: true
+        secret_base32:
+          type: string
+          description: base32 编码 TOTP secret（供手工录入）
+          writeOnly: true
+        issuer:
+          type: string
+        account:
+          type: string
+    MfaConfirmRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      properties:
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+          writeOnly: true
+    ReAuthRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - password
+      properties:
+        password:
+          type: string
+          minLength: 1
+          maxLength: 256
+          writeOnly: true
+    RecoveryCodesResult:
+      type: object
+      additionalProperties: false
+      required:
+      - codes
+      - only_shown_once
+      properties:
+        codes:
+          type: array
+          items:
+            type: string
+            pattern: "^[A-Z2-7]{16}$"
+          description: 明文恢复码，仅在本次响应出现一次
+          writeOnly: true
+        only_shown_once:
+          type: boolean
+          const: true
     CsrfToken:
       type: object
       additionalProperties: false

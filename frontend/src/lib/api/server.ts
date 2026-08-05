@@ -132,23 +132,29 @@ async function prepareCsrf(cookies: Cookies, requestId: string | null): Promise<
 
 async function parseProblem(
   response: Response
-): Promise<{ message: string; requestId: string | null }> {
+): Promise<{ message: string; requestId: string | null; code: string | null }> {
   let problem: Problem | null = null;
   try {
     problem = (await response.json()) as Problem;
   } catch {
     problem = null;
   }
-  return { message: problemMessage(problem), requestId: requestIdOf(problem) };
+  return {
+    message: problemMessage(problem),
+    requestId: requestIdOf(problem),
+    code: problem?.code ?? null
+  };
 }
 
-/** 预认证写操作失败结果（429 额外带 retryAfterSecs，供冷却倒计时）。 */
+/** 预认证/认证写操作失败结果（429 额外带 retryAfterSecs，供冷却倒计时）。 */
 export interface ServerWriteFailure {
   ok: false;
   status: number;
   message: string;
   requestId: string | null;
   retryAfterSecs: number | null;
+  /** Problem.code（如 step_up_required / csrf_failed），供前端分支处理。 */
+  code: string | null;
 }
 
 /** 通用预认证写操作：CSRF 配对 + Cookie/X-Request-ID 转发 + Set-Cookie 复制。 */
@@ -175,13 +181,13 @@ async function postWithCsrf(
   relaySetCookies(response, cookies);
 
   if (response.ok) return { ok: true };
-  const { message, requestId: rid } = await parseProblem(response);
+  const { message, requestId: rid, code } = await parseProblem(response);
   const retryAfterHeader = response.headers.get('Retry-After');
   const retryAfterSecs =
     retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
       ? Number(retryAfterHeader)
       : null;
-  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs };
+  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs, code };
 }
 
 /**
@@ -275,13 +281,13 @@ export async function getAuthed<T>(
   relaySetCookies(response, cookies);
 
   if (response.ok) return { ok: true, data: (await response.json()) as T };
-  const { message, requestId: rid } = await parseProblem(response);
+  const { message, requestId: rid, code } = await parseProblem(response);
   const retryAfterHeader = response.headers.get('Retry-After');
   const retryAfterSecs =
     retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
       ? Number(retryAfterHeader)
       : null;
-  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs };
+  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs, code };
 }
 
 /** 获取会话绑定 CSRF token（GET /auth/csrf，携带会话 Cookie）。 */
@@ -313,6 +319,35 @@ export async function authedDelete(
   path: string,
   requestId: string | null = null
 ): Promise<{ ok: true } | ServerWriteFailure> {
+  const result = await authedWrite('DELETE', cookies, path, undefined, requestId);
+  if (result.ok) return { ok: true };
+  return result;
+}
+
+/**
+ * POST 认证写请求（M02-UX-06，MFA 管理）：转发会话 Cookie + 会话绑定
+ * synchronizer token。成功返回 `{ ok: true, data }`（data 为响应 JSON，
+ * 如 enrollment challenge / 恢复码）。
+ */
+export async function authedPost<T = unknown>(
+  cookies: Cookies,
+  path: string,
+  body: unknown,
+  requestId: string | null = null
+): Promise<{ ok: true; data: T } | ServerWriteFailure> {
+  const result = await authedWrite('POST', cookies, path, body, requestId);
+  if (result.ok) return { ok: true, data: result.data as T };
+  return result;
+}
+
+/** 认证写请求通用实现：会话 Cookie + 会话绑定 CSRF + Set-Cookie 复制。 */
+async function authedWrite(
+  method: 'POST' | 'DELETE',
+  cookies: Cookies,
+  path: string,
+  body: unknown,
+  requestId: string | null
+): Promise<{ ok: true; data?: unknown } | ServerWriteFailure> {
   let csrf;
   try {
     csrf = await prepareSessionCsrf(cookies, requestId);
@@ -322,7 +357,8 @@ export async function authedDelete(
       status: 503,
       message: '安全校验服务暂不可用，请稍后重试',
       requestId,
-      retryAfterSecs: null
+      retryAfterSecs: null,
+      code: null
     };
   }
   const headers: Record<string, string> = {
@@ -331,18 +367,27 @@ export async function authedDelete(
   };
   if (csrf.cookieValue) headers.Cookie = `${SESSION_COOKIE}=${csrf.cookieValue}`;
   if (requestId) headers['X-Request-ID'] = requestId;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, { method: 'DELETE', headers });
+  const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined
+  });
   relaySetCookies(response, cookies);
 
-  if (response.ok) return { ok: true };
-  const { message, requestId: rid } = await parseProblem(response);
+  if (response.ok) {
+    if (response.status === 204) return { ok: true };
+    const data = (await response.json().catch(() => undefined)) as unknown;
+    return data === undefined ? { ok: true } : { ok: true, data };
+  }
+  const { message, requestId: rid, code } = await parseProblem(response);
   const retryAfterHeader = response.headers.get('Retry-After');
   const retryAfterSecs =
     retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
       ? Number(retryAfterHeader)
       : null;
-  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs };
+  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs, code };
 }
 
 export interface LoginViaServerInput {

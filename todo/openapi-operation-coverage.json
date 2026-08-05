@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 177,
+  "expected_operations": 183,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -72,6 +72,91 @@
       "evidence": null
     },
     {
+      "operation_id": "mfaDisable",
+      "method": "DELETE",
+      "path": "/api/v1/auth/mfa",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "mfaConfirm",
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/confirm",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "mfaEnroll",
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/enroll",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "mfaCancel",
+      "method": "DELETE",
+      "path": "/api/v1/auth/mfa/enrollment",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "mfaRecoveryCodes",
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/recovery-codes",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
       "operation_id": "requestPasswordReset",
       "method": "POST",
       "path": "/api/v1/auth/password-reset",
@@ -92,6 +177,23 @@
       "operation_id": "confirmPasswordReset",
       "method": "POST",
       "path": "/api/v1/auth/password-reset/confirm",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "reAuth",
+      "method": "POST",
+      "path": "/api/v1/auth/re-auth",
       "primary_tag": "Auth",
       "milestone": "M2",
       "work_package": "M02-IDENTITY",

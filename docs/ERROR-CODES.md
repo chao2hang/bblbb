@@ -12,6 +12,7 @@
 | `authentication_required` | 401 | 缺少或失效身份 | 重新登录/刷新令牌 |
 | `invalid_token` | 401 | Bearer 无效、过期或撤销 | 重新授权 |
 | `forbidden` | 403 | 无权限但资源存在 | 不重试 |
+| `step_up_required` | 403 | 高风险操作要求近期重认证（M02-MFA-07） | 经 `/api/v1/auth/re-auth` 重认证后重试 |
 | `not_found` | 404 | 资源不存在或按策略隐藏 | 不枚举重试 |
 | `csrf_failed` | 403 | Session 写请求缺少/错误 CSRF | 获取新 CSRF 后重试 |
 | `origin_not_allowed` | 400 | Cookie 写请求 Origin（缺则 Referer）不匹配 Host 或 allowed_origins | 从允许来源发起请求 |

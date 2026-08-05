@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import {
   authedDelete,
+  authedPost,
   confirmPasswordResetViaServer,
   cookieValueFromSetCookie,
   getAuthed,
@@ -520,5 +521,59 @@ describe('getAuthed / authedDelete（M02-UX-05 认证读/写代理）', () => {
 
     const result = await authedDelete(cookies, '/api/v1/auth/sessions/sess-x');
     expect(result).toMatchObject({ ok: false, status: 404, requestId: 'rid-404' });
+  });
+
+  it('authedPost：enroll 返回 challenge 数据（会话 CSRF + 转发 Cookie）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 'sess-csrf-3' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { otpauth_uri: 'otpauth://totp/BBLBB:a@example.com', secret_base32: 'JBSWY3DP' },
+          200
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies({ [SESSION_COOKIE]: 'sess-1' });
+
+    const result = await authedPost<{ secret_base32: string }>(
+      cookies,
+      '/api/v1/auth/mfa/enroll',
+      undefined,
+      'req-e'
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: { otpauth_uri: 'otpauth://totp/BBLBB:a@example.com', secret_base32: 'JBSWY3DP' }
+    });
+    const [delUrl, delInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(delUrl).toContain('/api/v1/auth/mfa/enroll');
+    expect(delInit.method).toBe('POST');
+    const headers = delInit.headers as Record<string, string>;
+    expect(headers['X-CSRF-Token']).toBe('sess-csrf-3');
+    expect(headers.Cookie).toBe(`${SESSION_COOKIE}=sess-1`);
+    expect(headers['X-Request-ID']).toBe('req-e');
+  });
+
+  it('authedPost：403 step_up_required → code 透传（供前端分支）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { status: 403, code: 'step_up_required', detail: 'recent authentication required', request_id: 'rid-403' },
+          403
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies({ [SESSION_COOKIE]: 'sess-1' });
+
+    const result = await authedPost(cookies, '/api/v1/auth/mfa/disable-any', undefined);
+    expect(result).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'step_up_required',
+      requestId: 'rid-403'
+    });
   });
 });

@@ -20,6 +20,7 @@
   const topMessage = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
+  const mfaStep = $derived(form?.mfa);
 
   const statusLabel: Record<string, string> = {
     active: '正常',
@@ -203,6 +204,117 @@
         <p class="auth-hint" style="margin-top:var(--space-2);">
           撤销设备后，该设备上的登录将立即失效；退出全部设备会把当前设备也一并退出。
         </p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:var(--space-5);">
+      <div class="card-header"><span class="card-title">两步验证（MFA）</span></div>
+      <div class="card-body">
+        {#if topMessage}
+          <p class="input-hint is-error" role="alert">{topMessage}</p>
+        {/if}
+
+        {#if mfaStep?.kind === 'enroll-challenge'}
+          <div class="input-wrapper">
+            <label class="input-label" for="mfa-secret">密钥</label>
+            <input
+              type="text"
+              class="input-field"
+              id="mfa-secret"
+              value={mfaStep.secret_base32}
+              readonly
+            />
+          </div>
+          <p class="auth-hint">在身份验证器（如 Google Authenticator / 1Password）中添加账号，然后输入当前 6 位验证码完成启用。</p>
+          <p class="auth-hint" style="word-break:break-all;">{mfaStep.otpauth_uri}</p>
+          <form method="POST" action="?/mfa-confirm" use:enhance novalidate>
+            <div class="input-wrapper">
+              <label class="input-label" for="mfa-code">6 位验证码</label>
+              <input
+                type="text"
+                class="input-field"
+                id="mfa-code"
+                name="code"
+                placeholder="6 位验证码"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                autocomplete="one-time-code"
+              />
+            </div>
+            <Button text="完成启用" variant="primary" size="sm" type="submit" />
+          </form>
+          <form method="POST" action="?/mfa-cancel" use:enhance style="margin-top:var(--space-2);">
+            <Button text="取消" variant="ghost" size="sm" type="submit" />
+          </form>
+        {:else if mfaStep?.kind === 'enroll-confirmed'}
+          <p class="input-hint" role="status">两步验证已启用。建议立即生成恢复码并妥善保存（只显示一次）。</p>
+          <form method="POST" action="?/mfa-recovery" use:enhance>
+            <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
+          </form>
+        {:else if mfaStep?.kind === 'recovery-codes'}
+          <p class="input-hint" role="status">以下恢复码<b>只显示这一次</b>，请立即抄写或保存到安全的地方；遗失后只能通过重新生成恢复。</p>
+          <ul style="list-style:none;margin:var(--space-2) 0;padding:0;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:var(--space-2);">
+            {#each mfaStep.codes as code}
+              <li style="font-family:monospace;padding:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);text-align:center;">{code}</li>
+            {/each}
+          </ul>
+          <div style="display:flex;gap:var(--space-2);align-items:center;">
+            <a class="btn btn-primary btn-sm" href="/me">我已保存</a>
+          </div>
+        {:else if mfaStep?.kind === 'disabled'}
+          <p class="input-hint" role="status">两步验证已停用，账号恢复仅凭密码登录。</p>
+          <form method="POST" action="?/mfa-enroll" use:enhance>
+            <Button text="重新启用两步验证" variant="primary" size="sm" type="submit" />
+          </form>
+        {:else if mfaStep?.kind === 'step-up'}
+          <p class="auth-hint">出于安全考虑，此操作需要重新输入密码确认身份（近期已认证则可直接执行）。</p>
+          <form method="POST" action="?/re-auth" use:enhance novalidate>
+            <input type="hidden" name="intent" value={mfaStep.intent} />
+            <div class="input-wrapper">
+              <label class="input-label" for="reauth-password">密码</label>
+              <input
+                type="password"
+                class="input-field"
+                id="reauth-password"
+                name="password"
+                placeholder="输入当前密码"
+                autocomplete="current-password"
+              />
+            </div>
+            <Button text="验证身份" variant="primary" size="sm" type="submit" />
+          </form>
+        {:else if mfaStep?.kind === 'reauth-done'}
+          <p class="input-hint" role="status">身份已验证，请再次点击原操作完成。</p>
+          {#if mfaStep.intent === 'disable'}
+            <form method="POST" action="?/mfa-disable" use:enhance>
+              <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
+            </form>
+          {:else}
+            <form method="POST" action="?/mfa-recovery" use:enhance>
+              <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
+            </form>
+          {/if}
+        {:else}
+          {#if user.mfa_enabled}
+            <p><span class="badge badge-success">已启用</span><span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">登录时需要输入身份验证器验证码</span></p>
+            <div style="display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-2);">
+              <form method="POST" action="?/mfa-recovery" use:enhance>
+                <Button text="生成新恢复码" variant="secondary" size="sm" type="submit" />
+              </form>
+              <form method="POST" action="?/mfa-disable" use:enhance>
+                <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
+              </form>
+            </div>
+          {:else}
+            <p><span class="badge badge-neutral">未启用</span><span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">开启后登录时需要输入身份验证器验证码，安全性更高</span></p>
+            <div style="margin-top:var(--space-2);">
+              <form method="POST" action="?/mfa-enroll" use:enhance>
+                <Button text="启用两步验证" variant="primary" size="sm" type="submit" />
+              </form>
+            </div>
+          {/if}
+        {/if}
       </div>
     </div>
   {:else if !error}

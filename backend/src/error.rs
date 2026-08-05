@@ -105,6 +105,21 @@ impl AppError {
         }
     }
 
+    /// 高风险操作要求近期重认证（M02-MFA-07 step-up）：403 `step_up_required`。
+    /// 前端据 `code` 判定需展示 re-auth 表单（M02-UX-06）。
+    pub fn step_up_required(request_id: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::FORBIDDEN,
+            code: "step_up_required",
+            title: "Forbidden",
+            detail: "recent authentication required".to_string(),
+            request_id: request_id.into(),
+            errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
+        }
+    }
+
     pub fn conflict(detail: impl Into<String>, request_id: impl Into<String>) -> Self {
         Self {
             status: StatusCode::CONFLICT,

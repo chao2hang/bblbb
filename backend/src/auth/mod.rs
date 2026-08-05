@@ -16,7 +16,7 @@ pub use identity::{normalize_email, normalize_username};
 pub use login::{login_user, LoginError, LoginLimits, LoginOutcome};
 pub use mfa::{
     base32_decode, base32_encode, begin_enrollment, cancel_enrollment, confirm_enrollment,
-    consume_recovery_code, decrypt_secret, encrypt_secret, generate_recovery_codes,
+    consume_recovery_code, decrypt_secret, disable_totp, encrypt_secret, generate_recovery_codes,
     generate_totp_secret, has_confirmed_totp, otpauth_uri, totp_at, verify_totp, verify_totp_login,
     MfaError, TotpChallenge, VerifyTotpOutcome, RECOVERY_CODE_BYTES, RECOVERY_CODE_COUNT,
     TOTP_DIGITS, TOTP_PERIOD_SECS, TOTP_SECRET_BYTES,

@@ -20,6 +20,7 @@ pub mod comments;
 pub mod economy;
 pub mod feeds;
 pub mod marketplace;
+pub mod mfa;
 pub mod moderation;
 pub mod oidc;
 pub mod posts;
