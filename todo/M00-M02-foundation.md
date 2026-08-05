@@ -127,8 +127,8 @@
 
 - [x] `M01-CONFIG-01` `[45m]` 将环境变量逐项映射到类型化配置，记录默认值、环境适用范围、热更新和重启要求。证据：files=backend/src/config.rs,backend/.env.example,docs/CONFIGURATION.md；commands=cargo test --all-features（112 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=CONFIG_REGISTRY 登记表（env→字段→默认→scope→reload）+ 命名约定/登记表覆盖/.env.example 双向同步三项测试 + CONFIGURATION §1.1 登记表；commit=2f04c28,6c769b3；review=3 项登记表不变量测试通过 + make check 全绿
 - [x] `M01-CONFIG-02` `[30m]` 生产模式拒绝未知键、占位 Secret、不安全 Origin、非 loopback 内部端口和冲突配置。证据：files=backend/src/config.rs,backend/src/main.rs,backend/.env.example,docs/CONFIGURATION.md；commands=cargo test --all-features（121 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=BBLBB__ENV=production 触发校验（未知键/占位 Secret/非 HTTPS Origin/非 loopback/auto_migrate 冲突/非法 env 值）+ config-rs 列表解析修复；commit=012c6f2；review=9 项校验测试 + 端到端拒绝与放行验证
-- [~] `M01-CONFIG-03` `[45m]` 定义 Secret provider 接口，支持受限环境文件/systemd credentials，并保留后续托管 Secret 扩展点。
-- [ ] `M01-CONFIG-04` `[30m]` 所有 Secret 写接口只写不读；GET 只返回 configured、source class、version 和 updated_at。
+- [x] `M01-CONFIG-03` `[45m]` 定义 Secret provider 接口，支持受限环境文件/systemd credentials，并保留后续托管 Secret 扩展点。证据：files=backend/src/config/secrets.rs,backend/src/config.rs,backend/.env.example,docs/CONFIGURATION.md；commands=cargo test --all-features（127 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=SecretProvider trait（只读/is_configured/source_class）+ Env/File（生产强制 0600/0400）/systemd/Chain + SecretValue Debug 不泄内容 + BBLBB__SECRETS_DIR/BBLBB__SECRETS_SYSTEMD_UNIT + secret_provider() 链；commit=c891f5d；review=6 项 provider 测试通过
+- [~] `M01-CONFIG-04` `[30m]` 所有 Secret 写接口只写不读；GET 只返回 configured、source class、version 和 updated_at。
 - [ ] `M01-CONFIG-05` `[45m]` 实现 Feature Flag 默认值、作用范围、生效时间、紧急关闭、版本和审计。
 - [ ] `M01-CONFIG-06` `[20m]` 将 AI、Video Provider、Download Billing、OIDC 和 Marketplace 默认设为关闭。
 - [ ] `M01-CONFIG-07` `[45m]` 验证 Flag 关闭时核心论坛独立运行，开启时也不能绕过权限、CSRF、账本、审计或安全上限。
