@@ -140,3 +140,21 @@
 | `admin.manage` | 25 | get_admin_storage_config、patch_admin_storage_config、post_admin_storage_test、get_admin_ai_config、get_admin_video_policies、get_admin_themes 等 | 管理员通用（存储/AI/视频/主题/市场配置，§8 高风险要求） |
 
 > 说明：OpenAPI 管理端 operation 的 `x-permission` 粒度比本文动作表的业务权限更粗（`admin.manage` 覆盖多个动作小节）。业务语义仍以动作表为准；`admin.manage` 是它的管理员入口聚合值，未来细化到 `storage.manage`/`ai.manage`/`video.manage` 等粒度时需同步更新本注册表与 OpenAPI。
+
+## 9. 权限注册表（Rust 事实来源，M03-AUTHZ-01）
+
+- 唯一事实来源：`backend/src/authz/mod.rs::PERMISSION_REGISTRY`——68 项 v1
+  权限 = 上文 §2-8 动作表 + 附录 operation 级注册表（不含 `public`/
+  `authenticated` 身份标记）。
+- 名称格式强制 `resource.action`（恰好一个点、两段非空、小写字母数字
+  下划线）；`PermissionNameError` 拒绝畸形名。
+- 数据库 `permissions` 表由 `verify_db_permissions` 校验：**拒绝未注册的
+  未知权限名**（`DbPermissionError::UnknownPermissions`）；缺失的已知权限
+  只报告（种子由 M03-AUTHZ-02 角色聚合落地）。
+- `RiskLevel`：`normal`/`sensitive`/`system`。`sensitive` = §8 高风险重新
+  认证清单（`storage.manage`/`download_billing.manage`/`marketplace.manage`/
+  `marketplace.refund_admin`/`ai.manage`/`video.manage`）；`system` = 可改变
+  访问控制本身的权限（`role.manage`/`user.manage`/`admin.manage`），对应
+  `permissions.is_system=1`（不可删除/改名，STATE-MACHINES §Authorization）。
+- 注册表、OpenAPI `x-permission` 与本文矩阵的自动三方比对由 M03-AUTHZ-11
+  落地。

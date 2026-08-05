@@ -356,6 +356,10 @@ TOTP enrollment（RFC 6238）：
 - 删除语义（SCHEMA-06）：非系统权限删除时 `role_permissions` 级联清理；
   `is_system=1` 的系统权限不可删除/改名由应用层（M03-AUTHZ）强制——数据库
   层无触发器防护，测试锁定这一事实。
+- 注册表契约（M03-AUTHZ-01）：`name` 必须属于
+  `backend/src/authz/mod.rs::PERMISSION_REGISTRY`（`resource.action` 格式，
+  68 项）；`verify_db_permissions` 拒绝未注册的未知权限名，缺失已知权限只
+  报告（种子由 M03-AUTHZ-02 角色聚合落地）。
 
 ### `roles`
 
