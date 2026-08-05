@@ -18,6 +18,7 @@ pub mod middleware;
 pub mod outbox;
 pub mod ratelimit;
 pub mod routes;
+pub mod search;
 pub mod tags;
 pub mod users;
 

@@ -26,6 +26,7 @@
 | `OPERATIONS.md` | Release gate | 运维 | 部署、备份、告警和故障处理 |
 | `FRONTEND.md` | Frozen candidate | 前端 | SvelteKit、SSR、SEO、a11y |
 | `CRAWLER-POLICY.md` | Frozen candidate | 搜索/安全 | AI 爬虫、索引投影、批量访问和缓存边界 |
+| `SEARCH.md` | Frozen candidate | 后端/搜索 | 搜索索引存储契约：文档模型、source/policy revision、跨库 FTS 策略 |
 | `PROTOTYPE-IA.md` / `PROTOTYPE-UI.md` | Reference | 产品/前端 | 原型路由、流程和视觉规范，不替代 API |
 
 ## 2. v0.5 v1.0 发布矩阵
