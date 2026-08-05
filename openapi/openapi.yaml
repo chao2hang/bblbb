@@ -6553,12 +6553,30 @@ components:
         bio:
           type: string
           maxLength: 2000
+        signature:
+          type: string
+          maxLength: 500
         timezone:
           type: string
           maxLength: 64
         theme:
           type: string
-          maxLength: 64
+          enum:
+          - default
+          - dark
+          - light
+        email_visible_to:
+          type: string
+          enum:
+          - everyone
+          - registered
+          - nobody
+        profile_visible_to:
+          type: string
+          enum:
+          - everyone
+          - registered
+          - nobody
     PostCreate:
       type: object
       additionalProperties: false
@@ -6718,8 +6736,28 @@ components:
             type:
             - string
             - 'null'
+          signature:
+            type:
+            - string
+            - 'null'
           timezone:
             type: string
+          theme_name:
+            type:
+            - string
+            - 'null'
+          email_visible_to:
+            type: string
+            enum:
+            - everyone
+            - registered
+            - nobody
+          profile_visible_to:
+            type: string
+            enum:
+            - everyone
+            - registered
+            - nobody
           level:
             type: integer
             minimum: 1
