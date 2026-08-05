@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 use crate::db::pool::{validate_database_url, DbOptions};
 
+pub mod flags;
 pub mod secrets;
 
 /// 配置登记条目（M01-CONFIG-01）：环境变量 → 类型化字段 → 默认值 →
@@ -156,6 +157,15 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    // Feature Flag 紧急关闭：置真后所有可选能力（AI/Video/Download Billing/
+    // OIDC/Marketplace）强制关闭，优先于一切（M01-CONFIG-05）。
+    ConfigEntry {
+        env_var: "BBLBB__FEATURE_KILL_SWITCH",
+        field: "feature_kill_switch",
+        default: "false",
+        scope: "all",
+        reload: "restart",
+    },
 ];
 
 /// 允许的运行环境
@@ -193,6 +203,9 @@ pub struct AppConfig {
     /// systemd credentials unit（M01-CONFIG-03；空 = 未启用）
     #[serde(default)]
     pub secrets_systemd_unit: String,
+    /// Feature Flag 紧急关闭（M01-CONFIG-05；默认 false）
+    #[serde(default)]
+    pub feature_kill_switch: bool,
     // ── M01-DB-02：数据库连接池与慢查询参数（经 AppConfig::validate 校验）──
     #[serde(default = "default_db_max_connections")]
     pub db_max_connections: u32,
@@ -241,6 +254,16 @@ impl AppConfig {
     /// 是否生产模式（M01-CONFIG-02）。
     pub fn is_production(&self) -> bool {
         self.env == "production"
+    }
+
+    /// 按配置构建 Feature Flag 快照（M01-CONFIG-05）：
+    /// 默认全部可选能力关闭；kill switch 置真后强制关闭。
+    pub fn feature_flags(&self) -> flags::FeatureFlags {
+        let mut flags = flags::FeatureFlags::all_default();
+        if self.feature_kill_switch {
+            flags.emergency_off("system", "BBLBB__FEATURE_KILL_SWITCH=true at startup", 0);
+        }
+        flags
     }
 
     /// 按配置构建 Secret provider 链（M01-CONFIG-03）：
@@ -363,6 +386,7 @@ impl Default for AppConfig {
             env: default_env(),
             secrets_dir: PathBuf::new(),
             secrets_systemd_unit: String::new(),
+            feature_kill_switch: false,
         }
     }
 }
@@ -580,6 +604,7 @@ mod tests {
             "db_min_connections",
             "db_slow_query_ms",
             "env",
+            "feature_kill_switch",
             "log_filter",
             "migrations_dir",
             "openapi_path",

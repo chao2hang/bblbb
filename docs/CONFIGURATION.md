@@ -50,6 +50,7 @@
 | `BBLBB__ENV` | `env` | `development` | all | 重启 |
 | `BBLBB__SECRETS_DIR` | `secrets_dir` | 空 = 未启用 | all | 重启 |
 | `BBLBB__SECRETS_SYSTEMD_UNIT` | `secrets_systemd_unit` | 空 = 未启用 | all | 重启 |
+| `BBLBB__FEATURE_KILL_SWITCH` | `feature_kill_switch` | `false` | all | 重启 |
 
 说明：
 
@@ -92,6 +93,32 @@
   元信息，不读取内容），GET 接口只返回元数据。
 - `FileSecretWriter`：原子写（临时文件 + 落盘 + rename），Unix 上强制
   `0600`；拒绝路径穿越/非法名称（`/`、`\`、`..`、空格、空名）。
+
+## 1.5 Feature Flag（M01-CONFIG-05）
+
+`backend/src/config/flags.rs` 实现可选能力开关系统：
+
+| 能力 | Flag | v1.0 默认 |
+|---|---|---|
+| AI 建议/逐次同意 | `ai` | 关闭 |
+| Video Provider（Direct/HLS/Xigua） | `video` | 关闭 |
+| 下载抵扣/计费 | `download_billing` | 关闭 |
+| OIDC Provider | `oidc` | 关闭 |
+| 第三方 Marketplace | `marketplace` | 关闭 |
+
+机制：
+
+- **默认值**：五个可选能力默认全部关闭（M01-CONFIG-06）；核心论坛不依赖
+  任何 Flag。
+- **作用范围**：v1.0 为全局启停；灰度规则由后续 policy 版本扩展
+  （`FlagScope::Global`）。
+- **生效时间**：每个 Flag 带 `effective_at`（Unix 毫秒），到达前不生效。
+- **紧急关闭**：`BBLBB__FEATURE_KILL_SWITCH=true` 或运行时
+  `emergency_off()` 置真后所有可选能力强制关闭，优先于一切。
+- **版本**：每次变更版本 +1，采用乐观锁（`set` 需传期望版本，冲突即拒绝），
+  与 `config_revisions` 版本化策略一致。
+- **审计**：每次变更与紧急关闭逐 flag 写审计（actor / reason / 前后状态 /
+  版本 / 时间）；持久化审计由 M01-AUDIT 接入 `audit_logs`。
 
 ## 1.2 生产模式校验（M01-CONFIG-02）
 
