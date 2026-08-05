@@ -3,8 +3,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import {
+  authedDelete,
   confirmPasswordResetViaServer,
   cookieValueFromSetCookie,
+  getAuthed,
   loginMfaViaServer,
   loginViaServer,
   parseSetCookie,
@@ -13,6 +15,7 @@ import {
   relaySetCookies,
   requestPasswordResetViaServer,
   resendVerificationViaServer,
+  SESSION_COOKIE,
   verifyEmailViaServer
 } from './server';
 
@@ -418,5 +421,104 @@ describe('requestPasswordResetViaServer / confirmPasswordResetViaServer（M02-UX
 
     const result = await confirmPasswordResetViaServer(cookies, 'stale', 'newpass123');
     expect(result).toMatchObject({ ok: false, status: 400, requestId: 'rid-400' });
+  });
+});
+
+describe('getAuthed / authedDelete（M02-UX-05 认证读/写代理）', () => {
+  it('getAuthed：转发会话 Cookie 与 X-Request-ID → 返回数据', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({ id: 'u-1', username: 'alice', status: 'active' }, 200)
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies({ [SESSION_COOKIE]: 'sess-1' });
+
+    const result = await getAuthed<{ username: string }>(cookies, '/api/v1/me', 'req-me');
+    expect(result).toEqual({ ok: true, data: { id: 'u-1', username: 'alice', status: 'active' } });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/api/v1/me');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Cookie).toBe(`${SESSION_COOKIE}=sess-1`);
+    expect(headers['X-Request-ID']).toBe('req-me');
+  });
+
+  it('getAuthed：401 → ok:false（会话失效，供 load 跳登录）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 401, code: 'authentication_required', detail: 'login required', request_id: 'rid-401' }, 401)
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await getAuthed(cookies, '/api/v1/me');
+    expect(result).toMatchObject({ ok: false, status: 401, requestId: 'rid-401' });
+  });
+
+  it('authedDelete：会话 CSRF（GET /auth/csrf）→ DELETE 带 X-CSRF-Token 转发会话 Cookie', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 'sess-csrf-1' }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies({ [SESSION_COOKIE]: 'sess-1' });
+
+    const result = await authedDelete(cookies, '/api/v1/auth/sessions/sess-2', 'req-d');
+    expect(result).toEqual({ ok: true });
+
+    const [csrfUrl, csrfInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(csrfUrl).toContain('/api/v1/auth/csrf');
+    expect((csrfInit.headers as Record<string, string>).Cookie).toBe(`${SESSION_COOKIE}=sess-1`);
+
+    const [delUrl, delInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(delUrl).toContain('/api/v1/auth/sessions/sess-2');
+    expect(delInit.method).toBe('DELETE');
+    const headers = delInit.headers as Record<string, string>;
+    expect(headers['X-CSRF-Token']).toBe('sess-csrf-1');
+    expect(headers.Cookie).toBe(`${SESSION_COOKIE}=sess-1`);
+    expect(headers['X-Request-ID']).toBe('req-d');
+  });
+
+  it('authedDelete（logout-all）：204 清 Cookie 逐属性复制到浏览器', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 'sess-csrf-2' }, 200))
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 204,
+          headers: {
+            'Set-Cookie': `${SESSION_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0`
+          }
+        })
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies({ [SESSION_COOKIE]: 'sess-1' });
+
+    const result = await authedDelete(cookies, '/api/v1/auth/sessions');
+    expect(result).toEqual({ ok: true });
+    expect(cookies.setCalls.some((c) => c.name === SESSION_COOKIE && c.options.maxAge === 0)).toBe(true);
+  });
+
+  it('authedDelete：会话 CSRF 获取失败 → fail(503)', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({}, 500));
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await authedDelete(cookies, '/api/v1/auth/sessions/sess-2');
+    expect(result).toMatchObject({ ok: false, status: 503 });
+  });
+
+  it('authedDelete：404（他人设备）→ ok:false', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 404, code: 'not_found', detail: 'session not found', request_id: 'rid-404' }, 404)
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies({ [SESSION_COOKIE]: 'sess-1' });
+
+    const result = await authedDelete(cookies, '/api/v1/auth/sessions/sess-x');
+    expect(result).toMatchObject({ ok: false, status: 404, requestId: 'rid-404' });
   });
 });

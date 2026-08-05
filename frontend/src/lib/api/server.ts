@@ -252,6 +252,99 @@ export async function confirmPasswordResetViaServer(
   return postWithCsrf(cookies, '/api/v1/auth/password-reset/confirm', { token, password }, requestId);
 }
 
+/** 会话 cookie 名（与后端 SESSION_COOKIE_NAME 一致）。 */
+export const SESSION_COOKIE = '__Host-bblbb_session';
+
+/**
+ * GET 认证读请求（M02-UX-05）：转发浏览器会话 Cookie 到内部后端。
+ *
+ * 幂等读走 CSRF 中间件放行路径（仅状态变更方法受检），无需 token；
+ * Set-Cookie（如会话续期）仍逐属性复制到浏览器。
+ */
+export async function getAuthed<T>(
+  cookies: Cookies,
+  path: string,
+  requestId: string | null = null
+): Promise<{ ok: true; data: T } | ServerWriteFailure> {
+  const session = cookies.get(SESSION_COOKIE) ?? null;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (session) headers.Cookie = `${SESSION_COOKIE}=${session}`;
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, { headers });
+  relaySetCookies(response, cookies);
+
+  if (response.ok) return { ok: true, data: (await response.json()) as T };
+  const { message, requestId: rid } = await parseProblem(response);
+  const retryAfterHeader = response.headers.get('Retry-After');
+  const retryAfterSecs =
+    retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
+      ? Number(retryAfterHeader)
+      : null;
+  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs };
+}
+
+/** 获取会话绑定 CSRF token（GET /auth/csrf，携带会话 Cookie）。 */
+async function prepareSessionCsrf(
+  cookies: Cookies,
+  requestId: string | null
+): Promise<{ token: string; cookieValue: string | null }> {
+  const session = cookies.get(SESSION_COOKIE) ?? null;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (session) headers.Cookie = `${SESSION_COOKIE}=${session}`;
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  const response = await fetch(`${INTERNAL_API_ORIGIN}/api/v1/auth/csrf`, { headers });
+  relaySetCookies(response, cookies);
+  if (!response.ok) {
+    throw new Error(`Session CSRF token fetch failed (status ${response.status})`);
+  }
+  const data = (await response.json()) as { token: string };
+  return { token: data.token, cookieValue: session };
+}
+
+/**
+ * DELETE 认证写请求（M02-UX-05）：转发会话 Cookie + 会话绑定 synchronizer
+ * token（M02-SESSION-07）。成功后 Set-Cookie（如 logout-all 的清 Cookie）
+ * 逐属性复制到浏览器。
+ */
+export async function authedDelete(
+  cookies: Cookies,
+  path: string,
+  requestId: string | null = null
+): Promise<{ ok: true } | ServerWriteFailure> {
+  let csrf;
+  try {
+    csrf = await prepareSessionCsrf(cookies, requestId);
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      message: '安全校验服务暂不可用，请稍后重试',
+      requestId,
+      retryAfterSecs: null
+    };
+  }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'X-CSRF-Token': csrf.token
+  };
+  if (csrf.cookieValue) headers.Cookie = `${SESSION_COOKIE}=${csrf.cookieValue}`;
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, { method: 'DELETE', headers });
+  relaySetCookies(response, cookies);
+
+  if (response.ok) return { ok: true };
+  const { message, requestId: rid } = await parseProblem(response);
+  const retryAfterHeader = response.headers.get('Retry-After');
+  const retryAfterSecs =
+    retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
+      ? Number(retryAfterHeader)
+      : null;
+  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs };
+}
+
 export interface LoginViaServerInput {
   identifier: string;
   password: string;

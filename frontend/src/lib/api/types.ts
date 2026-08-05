@@ -40,6 +40,7 @@ export type {
   Page,
   SearchResult,
   SearchPage,
+  DeviceSession,
 } from './generated/v1';
 
 export type {
