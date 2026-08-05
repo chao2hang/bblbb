@@ -426,5 +426,5 @@
 - 默认主题通过 Playwright、axe/WCAG 2.2 AA、键盘、移动端、减少动效和无 JS 关键路径。
 - 生产 release 可重复构建、Caddy/systemd 权限正确、优雅停机和回滚可演练。
 - SQLite、MySQL、MariaDB、附件、OIDC key 和账本均完成真实恢复验证。
-- RC 报告包含 172 operations、所有 P0/P1、上一版 client 兼容、性能、隐私和人工验收证据。
+- RC 报告包含 173 operations、所有 P0/P1、上一版 client 兼容、性能、隐私和人工验收证据。
 - 法律/运营批准、默认 Flag 策略、专项启用记录和发布后观察窗口完整。

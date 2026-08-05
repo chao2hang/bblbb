@@ -16,6 +16,7 @@ use crate::{
     auth::{
         password::{hash_password, verify_password, VerifyResult},
         registration::{register_user, RegisterUserError},
+        resend::{resend_verification_email, ResendError, ResendLimits},
         session::{
             build_clear_session_cookie, build_session_cookie, create_session, revoke_session,
             AuthSession,
@@ -25,7 +26,10 @@ use crate::{
     },
     domain::registration::{validate_register, RegisterRequest},
     error::AppError,
-    ratelimit::{client_ip, REGISTER_ACCOUNT_LIMIT, REGISTER_IP_LIMIT, REGISTER_WINDOW_MS},
+    ratelimit::{
+        client_ip, REGISTER_ACCOUNT_LIMIT, REGISTER_IP_LIMIT, REGISTER_WINDOW_MS, RESEND_IP_LIMIT,
+        RESEND_IP_WINDOW_MS,
+    },
 };
 
 // ─── DTO ─────────────────────────────────────────────────────────────────────
@@ -47,6 +51,12 @@ pub struct TokenRequest {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PasswordResetRequest {
+    pub email: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResendVerificationRequest {
     pub email: String,
 }
 
@@ -87,6 +97,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/auth/csrf", get(get_csrf_token))
         .route("/api/v1/auth/register", post(register))
         .route("/api/v1/auth/verify-email", post(verify_email))
+        .route(
+            "/api/v1/auth/resend-verification",
+            post(resend_verification),
+        )
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/session", delete(logout))
         .route("/api/v1/auth/password-reset", post(request_password_reset))
@@ -208,6 +222,80 @@ async fn verify_email(
             None,
         )),
         Err(VerifyEmailError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
+    }
+}
+
+/// POST /api/v1/auth/resend-verification — 重发验证邮件
+///
+/// 统一响应（M02-IDENTITY-08）：邮箱不存在、已激活与正常重发都返回 202，
+/// 不泄漏邮箱是否已注册/已验证。冷却（60s）与日上限（3 次）命中返回 429；
+/// 每 IP 每小时 10 次防刷。
+async fn resend_verification(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<ResendVerificationRequest>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "resend-verification";
+
+    let email_normalized = crate::auth::normalize_email(req.email.trim());
+    if !valid_email_shape(&email_normalized) {
+        return Err(AppError::bad_request(
+            "invalid email format",
+            request_id,
+            Some(json!({ "field": "email" })),
+        ));
+    }
+
+    // IP 维度防刷
+    let ip = client_ip(&headers);
+    let now_ms = crate::outbox::now_millis();
+    let ip_status = state.limiter.check(
+        &format!("resend:ip:{ip}"),
+        RESEND_IP_LIMIT,
+        RESEND_IP_WINDOW_MS,
+        now_ms,
+    );
+    if !ip_status.allowed {
+        return Err(AppError::rate_limited(
+            "too many resend requests, try again later",
+            request_id,
+            ip_status.retry_after_secs,
+            ip_status.limit,
+            ip_status.remaining,
+            ip_status.reset_at_ms / 1000,
+        ));
+    }
+
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    match resend_verification_email(
+        pool,
+        &state.limiter,
+        &email_normalized,
+        request_id,
+        &ResendLimits::default(),
+    )
+    .await
+    {
+        // 正常重发 / 邮箱不存在或已激活：统一 202（不泄漏）
+        Ok(_) => Ok((StatusCode::ACCEPTED, Json(json!({ "ok": true })))),
+        Err(ResendError::RateLimited {
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        }) => Err(AppError::rate_limited(
+            "too many resend requests, try again later",
+            request_id,
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        )),
+        Err(ResendError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
 }
 
@@ -560,6 +648,20 @@ fn validate_password(password: &str, request_id: &str) -> Result<(), AppError> {
         ));
     }
     Ok(())
+}
+
+/// 基础邮箱格式检查（规范化后：恰好一个 @、本地/域名非空、域名含 `.`）。
+fn valid_email_shape(email: &str) -> bool {
+    let mut parts = email.split('@');
+    let local = parts.next().unwrap_or("");
+    let domain = parts.next().unwrap_or("");
+    if parts.next().is_some() || local.is_empty() || domain.is_empty() {
+        return false;
+    }
+    if local.contains(char::is_whitespace) || domain.contains(char::is_whitespace) {
+        return false;
+    }
+    domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
 }
 
 // ─── 数据库行结构 ─────────────────────────────────────────────────────────────

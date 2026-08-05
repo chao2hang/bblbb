@@ -6,7 +6,7 @@
 # OpenAPI 3.1 structural validation for openapi/openapi.yaml:
 #   * YAML loads with aliases (Psych 3.x, Ruby 2.6 compatible).
 #   * Every internal "$ref" resolves against the same document.
-#   * The 172 operations each carry tags / security / x-permission / x-csrf /
+#   * The 173 operations each carry tags / security / x-permission / x-csrf /
 #     responses and a unique operationId.
 #   * components.schemas are structurally sane (no response-shaped schemas,
 #     no empty enum members).
@@ -165,7 +165,7 @@ document.fetch("paths", {}).each do |path, path_item|
   end
 end
 
-errors << "expected 172 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 172
+errors << "expected 173 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 173
 
 # Every declared tag must be registered in the top-level tags list.
 registered_tags = document.fetch("tags", []).map { |tag| tag["name"] }

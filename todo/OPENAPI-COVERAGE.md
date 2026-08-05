@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**172**
-- 唯一 operationId：**172**
-- 实现状态：`baseline_only` 1；`not_started` 171
-- 里程碑分配：`M0` 1；`M2` 7；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
+- 契约操作：**173**
+- 唯一 operationId：**173**
+- 实现状态：`baseline_only` 1；`not_started` 172
+- 里程碑分配：`M0` 1；`M2` 8；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
 
@@ -29,6 +29,7 @@
 | `requestPasswordReset` | `POST` | `/api/v1/auth/password-reset` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `confirmPasswordReset` | `POST` | `/api/v1/auth/password-reset/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `register` | `POST` | `/api/v1/auth/register` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
+| `resendVerification` | `POST` | `/api/v1/auth/resend-verification` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `logout` | `DELETE` | `/api/v1/auth/session` | Auth | `M2` / `M02-SESSION` | `P0` | `not_started` | `unassigned` |
 | `verifyEmail` | `POST` | `/api/v1/auth/verify-email` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |

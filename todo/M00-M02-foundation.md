@@ -43,7 +43,7 @@
 
 **元数据：** `P0` · `owner=api` · `risk=high` · `depends=M00-TOOL` · `blocked=none`
 **目标文件：** `openapi/openapi.yaml`、`openapi/operation-coverage.json`、`scripts/check-openapi.*`、`docs/API*.md`、`docs/ERROR-CODES.md`、`docs/PERMISSION-MATRIX.md`
-**验收：** `make check-openapi` 输出 `172/172 covered`，重复 ID、未注册路由或安全扩展差异均使 CI 失败。
+**验收：** `make check-openapi` 输出 `173/173 covered`，重复 ID、未注册路由或安全扩展差异均使 CI 失败。
 
 - [x] `M00-CONTRACT-01` `[45m]` 使用支持 OpenAPI 3.1 的解析器校验 YAML、内部 `$ref`、schema dialect 和 operation 结构。证据：files=openapi/openapi.yaml,scripts/check-openapi.rb；commands=make check-openapi；contract=OpenAPI 3.1 解析与 $ref 校验；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [x] `M00-CONTRACT-02` `[30m]` 自动断言 172 个 operationId 唯一，并具备 tags、security、`x-permission`、`x-csrf` 和 responses。证据：files=scripts/check-openapi.rb；commands=make check-openapi；contract=172 operationId 唯一 + 四元组齐全；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）

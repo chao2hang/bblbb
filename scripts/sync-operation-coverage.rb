@@ -183,7 +183,7 @@ existing = load_existing
 operations = operations_from(document, existing)
 operation_ids = operations.map { |entry| entry.fetch("operation_id") }
 raise "Duplicate operationId in OpenAPI" unless operation_ids.uniq.length == operation_ids.length
-raise "Expected 172 operations, got #{operations.length}" unless operations.length == 172
+raise "Expected 173 operations, got #{operations.length}" unless operations.length == 173
 
 payload = {
   "schema_version" => 1,

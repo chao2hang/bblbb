@@ -228,7 +228,7 @@ not_started → baseline_only/in_progress → implemented → verified
 
 1. 所有 544 个 P0 和 234 个 P1 任务完成并有证据；没有未批准 `[!]`；5 个 P2 若未执行，必须保持默认关闭并记录负责人和启用计划。
 2. SQLite、MySQL 8、MariaDB 10.11 的迁移、仓储契约、HTTP 契约和关键并发测试全部绿。
-3. OpenAPI 172/172 operations 为 `verified`，权限、错误码、状态机、事件和 Schema 无未批准差异。
+3. OpenAPI 173/173 operations 为 `verified`，权限、错误码、状态机、事件和 Schema 无未批准差异。
 4. 匿名、未验证、冷静期、member、moderator、administrator、restricted、mute 和 banned persona 的服务端权限通过。
 5. 隐藏正文不出现在 API、SSR、DOM、hydration、搜索、Feed、SEO、通知、日志、审计、AI、附件或公共缓存。
 6. 积分、解锁、下载、商城、Marketplace 和退款不重复扣款，不修改历史流水，故障时完整回滚。
