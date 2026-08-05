@@ -69,6 +69,29 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 - SQLite 与 MySQL/MariaDB 在以下路径使用专有实现：事务起始、行锁、UPSERT、全文搜索和批量插入。
 - 不使用一个“万能 SQL”掩盖语义差异。
 
+### 2.7 类型映射与分页排序（M01-DB-08）
+
+逻辑类型到三数据库的表示必须统一，不允许同一逻辑字段在不同库出现不同语义：
+
+| 逻辑类型 | SQLite | MySQL/MariaDB | 约束 |
+|---|---|---|---|
+| UUID v7（`id`/`*_id`/`target_id`） | `TEXT COLLATE BINARY` | `CHAR(36) CHARACTER SET ascii COLLATE ascii_bin` | 36 字符小写；时间有序，字符串排序即插入顺序 |
+| Unix 毫秒时间戳（`*_at`） | `INTEGER` | `BIGINT` | 一律 UTC 毫秒；禁止秒；有符号 64 位 |
+| 布尔（`is_*`/`pinned`/`*_verified`/`is_active`） | `INTEGER` 0/1 | `TINYINT(1)` | `1` 为真 |
+| 枚举（`status`/`type`/`visibility`/`content_format`…） | `TEXT` + `CHECK` | `VARCHAR(32)` + `CHECK` | 值为 ASCII；Rust 枚举为主校验，`CHECK` 为双保险 |
+| 计数/序号（`*_count`/`floor`/`attempts`/`sort_order`） | `INTEGER` | `INT`/`BIGINT` | 按字段语义选宽度 |
+| JSON | `TEXT` | `JSON` | 应用层版本化 schema 校验 |
+
+分页与排序约定：
+
+- 列表排序必须是确定性的：默认 `created_at DESC, id DESC`；板内评论用
+  `floor ASC`。UUID v7 时间有序，使 `id` 成为与数据库无关的稳定 tie-breaker。
+- 深分页使用基于 `(sort_key, id)` 元组的游标，不用 `OFFSET`；游标的编码与
+  表示（base64/opaque string）对三数据库一致。
+- 排序键（时间戳、floor、sort_order）的表示与比较语义三库一致，避免同一查询
+  在不同库返回不同顺序。
+
+
 ## 3. 系统与迁移
 
 ### `schema_migrations`

@@ -726,4 +726,57 @@ mod tests {
         }
         cleanup_sqlite(&dir);
     }
+
+    /// 真实迁移集端到端：种子 board 的 id 是合法 UUID v7（36 字符小写），
+    /// created_at/updated_at 是 Unix 毫秒（M01-DB-08 跨库表示约定）。
+    #[tokio::test]
+    async fn seed_boards_conform_to_uuid7_and_millis() {
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let migrations_dir = Path::new(&manifest).join("../migrations/sqlite");
+        let files = read_migration_files(&migrations_dir).unwrap();
+        assert!(files.len() >= 6, "expected at least 6 migrations");
+
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+        run_migrations(&pool, &files).await.unwrap();
+
+        match &pool {
+            Either::Left(p) => {
+                let rows: Vec<(String, i64, i64)> = sqlx::query_as(
+                    "SELECT id, created_at, updated_at FROM boards ORDER BY sort_order",
+                )
+                .fetch_all(p)
+                .await
+                .unwrap();
+                assert_eq!(rows.len(), 5, "seed must contain 5 boards");
+                for (id, created_at, updated_at) in &rows {
+                    // UUID v7：36 字符、小写、4 个连字符、时间前缀
+                    assert_eq!(id.len(), 36, "board id must be 36-char UUID v7: {id}");
+                    assert_eq!(id.chars().filter(|c| *c == '-').count(), 4, "{id}");
+                    assert_eq!(id, &id.to_lowercase(), "board id must be lowercase: {id}");
+                    assert!(
+                        id.starts_with("01911fd5-f00"),
+                        "board id must be time-ordered UUID v7: {id}"
+                    );
+                    // Unix 毫秒：必须远大于秒级种子（1722816000）
+                    assert!(
+                        *created_at >= 1_700_000_000_000,
+                        "created_at must be unix millis: {created_at}"
+                    );
+                    assert!(
+                        *updated_at >= 1_700_000_000_000,
+                        "updated_at must be unix millis: {updated_at}"
+                    );
+                }
+            }
+            Either::Right(_) => panic!("this test is SQLite-only"),
+        }
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
 }
