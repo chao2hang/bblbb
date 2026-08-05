@@ -30,11 +30,13 @@ npm run build   # adapter-node 构建，验证 SSR 产物可生成
 - **公开阅读**：所有页面（首页、板块、帖子详情、用户主页、搜索）均为 SvelteKit SSR
   渲染的静态 HTML + 客户端 `onMount` fetch 增强。禁用 JS 后导航链接、标题、公开正文
   可读；数据区域保持骨架态，不会报错。
-- **登录/注册/发帖/回复**：依赖客户端 `fetch` 提交（渐进增强交互）。无 JS 时表单不可提交，
-  但页面 HTML 本身可访问。认证裁决始终在后端，浏览器关闭 JS 不会改变安全边界。
-- **决策**：v1 先保持"公开阅读无 JS 可用；关键表单为渐进增强"，**不**在本批次
-  强行引入 server actions 重构（会改动交互与 CSRF 链路，成本高）。无 JS 表单提交
-  的 `+page.server.ts` form action 方案留待 M02-UX-08 / M14-A11Y 批次实施。
+- **注册**：`+page.server.ts` 服务端表单 action（M02-UX-01）——无 JS 时原生
+  `form[method=POST]` 直接提交到 action，字段校验与预认证 CSRF 配对均在服务端
+  完成，认证裁决始终在后端。`use:enhance` 仅为有 JS 时的渐进增强（同一 action，
+  无双重实现）。
+- **登录/重发/重置**：仍为客户端 `fetch` 提交（渐进增强交互），无 JS 时表单不可提交，
+  但页面 HTML 本身可访问。无 JS 表单提交的 `+page.server.ts` form action 方案
+  留待 M02-UX-08 / M14-A11Y 批次实施。
 
 ## 4. 隐私 / 缓存冒烟核对（M00-FRONTEND-06/-09）
 
