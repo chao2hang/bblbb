@@ -15,6 +15,7 @@
 //! （M01-JOBS-05，管理员审计操作）。非法迁移一律拒绝并记录。
 
 pub mod classify;
+pub mod metrics;
 pub mod payload;
 pub mod retry;
 pub mod worker;

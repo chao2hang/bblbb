@@ -242,6 +242,11 @@ SDK）。CI 失败即阻断。
 - SQLite busy/锁等待。
 - Outbox 未发布数量和年龄。
 
+实现（M01-JOBS-13）：`jobs/metrics.rs` 的 `snapshot(pool, queue)` 按 queue
+读取 queued/running/retry_wait/dead 计数、最老待处理年龄、平均尝试次数与
+租约过期（lease timeout）的 running 数；`LatencyTracker` 在 worker 内累计
+处理延迟（领取→完成）的 count/均值/最大值。M15 接入指标时转出到外部系统。
+
 每次执行日志包含 `job_id`、`kind`、`attempt`、`request_id/event_id`，不含敏感 payload。
 
 告警建议：

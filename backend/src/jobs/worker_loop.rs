@@ -19,6 +19,7 @@ use tokio::sync::watch;
 
 use crate::db::busy::{retry_on_busy, BusyCounter, BusyPolicy};
 use crate::db::pool::DatabasePool;
+use crate::jobs::metrics::LatencyTracker;
 use crate::jobs::retry::{fail_job, RetryClass, RetryPolicy};
 use crate::jobs::worker::{claim_batch, complete_job, renew_lease, ClaimedJob};
 
@@ -41,6 +42,8 @@ pub struct WorkerConfig {
     pub busy_policy: BusyPolicy,
     /// SQLite busy 累计计数（观测用，M15 接入指标）。
     pub busy_counter: BusyCounter,
+    /// 处理延迟追踪（领取→完成，M01-JOBS-13）。
+    pub latency: LatencyTracker,
 }
 
 impl Default for WorkerConfig {
@@ -59,6 +62,7 @@ impl Default for WorkerConfig {
             },
             busy_policy: BusyPolicy::default(),
             busy_counter: BusyCounter::default(),
+            latency: LatencyTracker::default(),
         }
     }
 }
@@ -159,8 +163,10 @@ async fn process_job<F, Fut>(
 {
     let renewer = RenewerGuard::new(pool, config, &job.id);
 
+    let started = std::time::Instant::now();
     let outcome = handler(job.clone()).await;
     drop(renewer);
+    config.latency.record(started.elapsed().as_millis() as u64);
 
     match outcome {
         JobOutcome::Succeeded => {
