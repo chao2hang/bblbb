@@ -288,27 +288,40 @@ TOTP enrollment（RFC 6238）：
 | `risk_level` | `normal/sensitive/system` |
 | `is_system` | 系统权限不能删除 |
 
+- 删除语义（SCHEMA-06）：非系统权限删除时 `role_permissions` 级联清理；
+  `is_system=1` 的系统权限不可删除/改名由应用层（M03-AUTHZ）强制——数据库
+  层无触发器防护，测试锁定这一事实。
+
 ### `roles`
 
 - `id`、`name`（唯一）、`display_name`、`description`、`is_system`、`created_at`、`updated_at`。
 - 角色本身不保存权限 JSON，避免出现两个事实来源。
+- 删除/停用语义（SCHEMA-06）：`is_system=1` 系统角色（内置 administrator/
+  moderator/member 等）不可删除或改名，由应用层（M03-AUTHZ）强制；非系统
+  角色删除时级联清理 `role_permissions`/`user_roles`/`board_roles`/
+  `board_role_assignments`（外键已建，SCHEMA-06 测试锁定）。
 
 ### `role_permissions`
 
 - 复合主键：`(role_id, permission_id)`。
-- 外键删除角色时级联删除映射。
+- 外键删除角色或权限时均级联删除映射。
 
 ### `user_roles`
 
 - 复合主键：`(user_id, role_id)`。
 - 仅代表全局角色。
 - 字段另含 `granted_by`、`granted_at`、`expires_at`。
+- `granted_by` 为软引用（授予人）；授予人被删除时由服务层置 NULL。
+- `expires_at` 可空=永久；过期 assignment 按未生效处理（M03-AUTHZ-03）。
 
 ### `board_role_assignments`
 
 - 主键 `id`。
 - 唯一约束：`(board_id, user_id, role_id)`。
 - 字段另含 `granted_by`、`granted_at`、`expires_at`。
+- `granted_by` 为软引用；授予人被删除时由服务层置 NULL；`expires_at`
+  可空=永久，过期 assignment 按未生效处理（M03-AUTHZ-03）。
+- 删板块/删用户/删角色均级联清理。
 - 角色权限只在指定板块及其明确配置的后代范围内生效；默认不自动继承到子板块。
 
 详细判定顺序见 [`AUTHORIZATION.md`](AUTHORIZATION.md)。
@@ -336,10 +349,20 @@ TOTP enrollment（RFC 6238）：
 层级完整性与环路校验在服务层）；`visibility` 默认 `public`、`posting_mode`
 默认 `normal`，二者 CHECK 约束三库强制。
 
+删除/停用语义（SCHEMA-06，迁移 0024）：
+
+- 停用：`is_active=0`（0003 已有，`routes/boards.rs` 以 `is_active=1` 过滤）。
+- 软删除：`deleted_at` 非空即软删（0024 新增）；活跃投影 =
+  `is_active=1 AND deleted_at IS NULL`。
+- 硬删除：存在子板块（`parent_id` 指向它）时禁止物理删除，层级完整性由
+  服务层（M03-BOARDS-01）裁决；删除时 `board_roles`/`board_role_assignments`/
+  `board_tags` 级联清理（外键已建，SCHEMA-06 测试锁定）。
+
 ### `board_roles`
 
 - 复合主键：`(board_id, role_id)`。
 - 表示该板块启用了哪些角色；删板块/角色级联清理。
+- `granted_by` 为软引用；授予人被删除时由服务层置 NULL。
 - 角色权限只在指定板块及其明确配置的后代范围内生效。
 - 用户在某板块持有哪些角色见 §5 `board_role_assignments`。
 
