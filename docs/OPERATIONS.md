@@ -299,3 +299,77 @@ bblbb verify-migration ...
 - 校验行数、UUID、账本余额、附件 hash、grant 和 OAuth consent。
 - OIDC token 可选择全部撤销，降低跨环境泄漏风险。
 - 迁移在维护窗口完成，不宣传为零停机连接串切换。
+
+## 18. 账号安全恢复 Runbook：管理员失去 TOTP 设备
+
+> M02-MFA-10。管理员 TOTP 恢复是高信任操作：必须双人复核（four-eyes）、
+> 全程写入不可删除审计（`audit_logs`，M01-AUDIT）、恢复后强制重新启用
+> MFA。本流程只描述"失去 TOTP 设备"的受控恢复；疑似盗号/凭证泄露走
+> 账号接管响应流程，不走本流程。
+
+### 18.1 适用与不适用
+
+- 适用：管理员无法用 TOTP 完成登录/step-up，且未持有有效恢复码
+  （恢复码一并丢失、从未生成，或已全部消费）。
+- 不适用：持有有效恢复码——直接走恢复码登录路径，不使用管理员重置。
+- 不适用：有迹象表明账号被盗（新设备登录通知、异常 IP、恢复码被他人
+  使用）。此类情况先冻结账号再按事件响应处置。
+
+### 18.2 角色与前提
+
+| 角色 | 要求 |
+|---|---|
+| 请求人 | 失去 TOTP 设备的账号所有者 |
+| 复核人 | 另一名管理员或具备账号安全权限的运维；**不得是请求人本人**（四眼原则） |
+
+复核人批准必须在执行前书面完成（工单/审批记录，含 `reason`），并作为
+审计 metadata 的一部分持久化。
+
+### 18.3 预检
+
+1. 通过站点安全策略定义的方式确认请求人身份（后台会话 + 线下/工单核对）。
+2. 确认账号确已启用 TOTP：`totp_credentials` 存在 `confirmed_at` 非空且
+   `revoked_at` 为空的行。
+3. 核查该账号最近安全通知（`auth.security_notification`：新设备登录、
+   恢复码使用）与登录审计，排除被盗迹象。
+
+### 18.4 恢复执行（每一步都必须写审计）
+
+恢复期间账号进入"无 TOTP 保护窗口"，必须记录窗口开始/结束并设上限
+（默认 60 分钟，见 18.5）。以下顺序不可打乱：
+
+1. 复核人写审计 `auth.mfa_recovery_initiated`：
+   `actor=复核人`，`target=受影响账号 user_id`，metadata 含
+   `reason`、工单号、`request_id`、双人身份。
+2. 撤销该账号全部 Session（`user_sessions.revoked_at`，
+   `revoke_all_sessions`）——全端强制登出，防止旧会话在无 MFA 窗口内
+   被利用；后续操作一律要求重新登录 + step-up（`auth_verified_at`）。
+3. 撤销该账号 TOTP（`totp_credentials.revoked_at`）并使全部未用恢复码
+   失效（`mfa_recovery_codes.consumed_at` 批量标记）——旧恢复码不再可用，
+   新一组恢复码在重新 enrollment 后生成（明文只展示一次，数据库只存
+   SHA-256 hash）。
+4. 复核人写审计 `auth.mfa_recovery_completed`：metadata 含双人身份、
+   `reason`、新 enrollment 要求与窗口截止时间。
+5. 写安全通知 `auth.security_notification`（kind=`mfa_changed`，文案注明
+   "MFA 已重置"），该通知与审计同事务、不可被用户偏好关闭。
+6. 请求人重新登录 → 系统因 `auth_verified_at` 过期要求 step-up → 重新
+   `begin_enrollment`（新 secret）+ `confirm_enrollment` 完成 MFA 重新
+   启用 → 生成新恢复码（只展示一次）。
+7. 验证：请求人用新 TOTP 完成一次 step-up 认证；复核人核对审计链完整
+   （initiated → completed → security_notification → 重新启用）。
+
+### 18.5 时间与频率限制
+
+- 无 MFA 窗口上限：从步骤 2（撤销 Session）到请求人重新完成 enrollment，
+  默认 60 分钟；超时未完成则再次撤销 Session 并重新发起流程，窗口重新
+  计时并记录。
+- 每日限次：每账号每 24 小时最多发起 1 次恢复流程，防止滥用与社工。
+- 窗口起止、每次 Session 撤销与 enrollment 状态变化都必须落在不可删除
+  审计中。
+
+### 18.6 事后
+
+- 审计按站点保留策略持久保存，不得删除/修改（M01-AUDIT）；`audit_logs`
+  只增不改，无删除路径。
+- 通知站点安全负责人；按需配置额外告警。
+- 复盘记录（事故/变更记录），改进预检与窗口控制。
