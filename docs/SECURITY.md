@@ -235,6 +235,9 @@ Content-Security-Policy: default-src 'self'; ...
   非白名单字段（密码、Token、Secret、隐藏正文、完整签名 URL）一律丢弃；
   白名单字段的字符串若含密码/Secret/Bearer/签名 URL/token 形态则脱敏为
   `[REDACTED]`。
+- 高风险操作审计 helper（M01-AUDIT-06）：管理员代操作/权限变更/配置变更/
+  账务变更/内容审核/Secret 变更/Feature Flag 变更各有专用构造函数，强制携带
+  effective role、reason 与 policy version；Secret 审计只记录名称，绝不接收值。
 - OIDC Client 所得 claim 受 scope 和同意控制。
 
 ## 19. 部署加固

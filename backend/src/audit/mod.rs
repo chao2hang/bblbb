@@ -13,7 +13,7 @@
 //! M01-AUDIT-08）；本模块的 `record` 是独立写入，供非事务路径使用。
 
 use chrono::Utc;
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::Either;
 
 use crate::db::pool::DatabasePool;
@@ -42,11 +42,11 @@ pub struct AuditEntry {
 
 impl AuditEntry {
     /// 创建用户操作审计记录。
-    pub fn user_action(user_id: &str, action: &str) -> Self {
+    pub fn user_action(user_id: &str, action: impl Into<String>) -> Self {
         Self {
             actor_id: Some(user_id.to_string()),
             effective_role: None,
-            action: action.to_string(),
+            action: action.into(),
             target_type: None,
             target_id: None,
             reason: None,
@@ -103,6 +103,125 @@ impl AuditEntry {
     pub fn with_ip(mut self, ip: &str) -> Self {
         self.ip_address = Some(ip.to_string());
         self
+    }
+
+    // ── M01-AUDIT-06：高风险操作分类 helper ────────────────────────────────
+
+    /// 管理员代操作（delegated/impersonation）：必须携带 effective role 与 reason。
+    pub fn delegated_admin_action(
+        operator: &str,
+        effective_role: &str,
+        action: &str,
+        target_type: &str,
+        target_id: &str,
+        reason: &str,
+    ) -> Self {
+        Self::user_action(operator, action)
+            .with_target(target_type, target_id)
+            .with_effective_role(effective_role)
+            .with_reason(reason)
+    }
+
+    /// 权限变更（角色/权限调整）：记录 subject、before/after 角色与策略版本。
+    pub fn permission_change(
+        actor: &str,
+        subject_id: &str,
+        role_before: &str,
+        role_after: &str,
+        reason: &str,
+        policy_version: &str,
+    ) -> Self {
+        Self::user_action(actor, "admin.permission_change")
+            .with_target("user", subject_id)
+            .with_effective_role("administrator")
+            .with_reason(reason)
+            .with_policy_version(policy_version)
+            .with_metadata(json!({
+                "role": role_after,
+                "before": json!({ "role": role_before }),
+                "after": json!({ "role": role_after })
+            }))
+    }
+
+    /// 配置变更：before/after 只记录白名单字段（M01-AUDIT-02 过滤）。
+    pub fn config_change(
+        actor: &str,
+        config_key: &str,
+        before: Option<&Value>,
+        after: Option<&Value>,
+        reason: &str,
+        policy_version: &str,
+    ) -> Self {
+        Self::user_action(actor, "admin.config_change")
+            .with_target("config", config_key)
+            .with_effective_role("administrator")
+            .with_reason(reason)
+            .with_policy_version(policy_version)
+            .with_metadata(json!({
+                "config_key": config_key,
+                "before": before.map(sanitize_for_audit).unwrap_or(Value::Null),
+                "after": after.map(sanitize_for_audit).unwrap_or(Value::Null)
+            }))
+    }
+
+    /// 账务变更（余额/扣款/退款等）：记录金额、币种与原因，不记录敏感凭据。
+    pub fn accounting_change(
+        actor: &str,
+        target_type: &str,
+        target_id: &str,
+        amount: i64,
+        currency: &str,
+        reason: &str,
+    ) -> Self {
+        Self::user_action(actor, "ledger.change")
+            .with_target(target_type, target_id)
+            .with_effective_role("administrator")
+            .with_reason(reason)
+            .with_metadata(json!({ "amount": amount, "currency": currency }))
+    }
+
+    /// 内容审核/审查动作：必须携带 reason 与策略版本。
+    pub fn moderation_action(
+        actor: &str,
+        target_type: &str,
+        target_id: &str,
+        action: &str,
+        reason: &str,
+        policy_version: &str,
+    ) -> Self {
+        Self::user_action(actor, action)
+            .with_target(target_type, target_id)
+            .with_effective_role("moderator")
+            .with_reason(reason)
+            .with_policy_version(policy_version)
+    }
+
+    /// Secret 变更：只记录 Secret 名称与动作，绝不接收/记录 Secret 值。
+    pub fn secret_change(actor: &str, secret_name: &str, action: &str) -> Self {
+        Self::user_action(actor, format!("secrets.{action}"))
+            .with_target("secret", secret_name)
+            .with_effective_role("administrator")
+            .with_metadata(json!({ "secret_name": secret_name }))
+    }
+
+    /// Feature Flag 变更：记录 flag 名称、before/after 开关状态与策略版本。
+    pub fn feature_flag_change(
+        actor: &str,
+        flag: &str,
+        before: bool,
+        after: bool,
+        reason: &str,
+        policy_version: &str,
+    ) -> Self {
+        Self::user_action(actor, "admin.feature_flag_change")
+            .with_target("feature_flag", flag)
+            .with_effective_role("administrator")
+            .with_reason(reason)
+            .with_policy_version(policy_version)
+            .with_metadata(json!({
+                "before": json!({ "enabled": before }),
+                "after": json!({ "enabled": after })
+            }))
     }
 
     /// 写入数据库（不可关闭的强制路径）。
@@ -190,6 +309,7 @@ pub const AUDIT_FIELD_ALLOWLIST: &[&str] = &[
     "tags",
     "quota_bytes",
     "storage_bytes",
+    "max_upload_bytes",
     "download_count",
     "ip_prefix",
     "session_id",
@@ -354,7 +474,6 @@ pub struct AuditLogRow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn audit_entry_builder_carries_all_m01_audit_01_fields() {
@@ -456,5 +575,97 @@ mod tests {
     fn non_object_input_is_null() {
         assert_eq!(sanitize_for_audit(&Value::String("x".into())), Value::Null);
         assert_eq!(sanitize_for_audit(&Value::Null), Value::Null);
+    }
+
+    // ── M01-AUDIT-06：分类 helper ──────────────────────────────────────────
+
+    #[test]
+    fn delegated_admin_action_carries_effective_role_and_reason() {
+        let entry = AuditEntry::delegated_admin_action(
+            "admin-1",
+            "moderator",
+            "admin.ban_user",
+            "user",
+            "u-9",
+            "代操作：按举报人工复核执行",
+        );
+        assert_eq!(entry.actor_id.as_deref(), Some("admin-1"));
+        assert_eq!(entry.effective_role.as_deref(), Some("moderator"));
+        assert_eq!(entry.reason.as_deref(), Some("代操作：按举报人工复核执行"));
+        assert_eq!(entry.target_id.as_deref(), Some("u-9"));
+    }
+
+    #[test]
+    fn permission_change_records_before_after_roles() {
+        let entry = AuditEntry::permission_change(
+            "admin-1",
+            "u-9",
+            "member",
+            "moderator",
+            "晋升",
+            "v1.0.0-rc.2",
+        );
+        assert_eq!(entry.action, "admin.permission_change");
+        let meta = entry.metadata.unwrap();
+        assert_eq!(meta["role"], "moderator");
+        assert_eq!(meta["before"]["role"], "member");
+    }
+
+    #[test]
+    fn secret_change_never_takes_a_value() {
+        let entry = AuditEntry::secret_change("admin-1", "smtp_password", "rotate");
+        assert_eq!(entry.action, "secrets.rotate");
+        assert_eq!(entry.target_id.as_deref(), Some("smtp_password"));
+        // metadata 只含名称，无任何值字段
+        let meta = entry.metadata.unwrap();
+        assert_eq!(meta["secret_name"], "smtp_password");
+        assert!(meta.get("value").is_none());
+    }
+
+    #[test]
+    fn feature_flag_change_records_before_after_state() {
+        let entry = AuditEntry::feature_flag_change(
+            "admin-1",
+            "ai_summary",
+            false,
+            true,
+            "灰度开启",
+            "v1.0.0-rc.2",
+        );
+        assert_eq!(entry.target_id.as_deref(), Some("ai_summary"));
+        let meta = entry.metadata.unwrap();
+        assert_eq!(meta["before"]["enabled"], false);
+        assert_eq!(meta["after"]["enabled"], true);
+    }
+
+    #[test]
+    fn accounting_change_records_amount_and_currency() {
+        let entry =
+            AuditEntry::accounting_change("admin-1", "ledger", "l-88", -500, "B", "手动修正");
+        let meta = entry.metadata.unwrap();
+        assert_eq!(meta["amount"], -500);
+        assert_eq!(meta["currency"], "B");
+        assert_eq!(entry.reason.as_deref(), Some("手动修正"));
+    }
+
+    #[test]
+    fn config_change_sanitizes_before_after_values() {
+        let before = json!({ "max_upload_bytes": 10_485_760, "password": "hunter2" });
+        let after = json!({ "max_upload_bytes": 20_971_520 });
+        let entry = AuditEntry::config_change(
+            "admin-1",
+            "storage.max_upload_bytes",
+            Some(&before),
+            Some(&after),
+            "提升配额",
+            "v1.0.0-rc.2",
+        );
+        let meta = entry.metadata.unwrap();
+        assert_eq!(meta["before"]["max_upload_bytes"], 10_485_760);
+        assert!(
+            meta["before"].get("password").is_none(),
+            "配置变更不得记录密码"
+        );
+        assert_eq!(meta["after"]["max_upload_bytes"], 20_971_520);
     }
 }

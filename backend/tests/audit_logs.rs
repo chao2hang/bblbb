@@ -144,6 +144,113 @@ async fn audit_metadata_never_contains_forbidden_sensitive_data() {
     cleanup(&dir);
 }
 
+/// M01-AUDIT-06：管理员代操作/权限变更/配置/账务/审核/Secret/Feature Flag
+/// 分类 helper 都能写入并读回。
+#[tokio::test]
+async fn audit_helpers_record_all_categories() {
+    let (pool, dir) = pool_with_migrations().await;
+
+    // 管理员代操作
+    AuditEntry::delegated_admin_action(
+        "admin-1",
+        "moderator",
+        "admin.ban_user",
+        "user",
+        "u-9",
+        "代操作",
+    )
+    .record(&pool)
+    .await
+    .unwrap();
+    // 权限变更
+    AuditEntry::permission_change(
+        "admin-1",
+        "u-9",
+        "member",
+        "moderator",
+        "晋升",
+        "v1.0.0-rc.2",
+    )
+    .record(&pool)
+    .await
+    .unwrap();
+    // 配置变更
+    AuditEntry::config_change(
+        "admin-1",
+        "storage.max_upload_bytes",
+        Some(&json!({ "max_upload_bytes": 10_485_760, "password": "x" })),
+        Some(&json!({ "max_upload_bytes": 20_971_520 })),
+        "提升配额",
+        "v1.0.0-rc.2",
+    )
+    .record(&pool)
+    .await
+    .unwrap();
+    // 账务变更
+    AuditEntry::accounting_change("admin-1", "ledger", "l-88", -500, "B", "手动修正")
+        .record(&pool)
+        .await
+        .unwrap();
+    // 内容审核
+    AuditEntry::moderation_action(
+        "mod-1",
+        "post",
+        "p-42",
+        "moderation.hide",
+        "违规",
+        "v1.0.0-rc.2",
+    )
+    .record(&pool)
+    .await
+    .unwrap();
+    // Secret 变更
+    AuditEntry::secret_change("admin-1", "smtp_password", "rotate")
+        .record(&pool)
+        .await
+        .unwrap();
+    // Feature Flag 变更
+    AuditEntry::feature_flag_change(
+        "admin-1",
+        "ai_summary",
+        false,
+        true,
+        "灰度开启",
+        "v1.0.0-rc.2",
+    )
+    .record(&pool)
+    .await
+    .unwrap();
+
+    let rows = list_audit_logs(&pool, 100, 0, None, None).await.unwrap();
+    assert_eq!(rows.len(), 7, "7 类审计 helper 各写一条");
+
+    // 分类 helper 都能读回（action 命中），且 Secret 记录不含任何值
+    let actions: Vec<String> = rows.iter().map(|r| r.action.clone()).collect();
+    for expected in [
+        "admin.ban_user",
+        "admin.permission_change",
+        "admin.config_change",
+        "ledger.change",
+        "moderation.hide",
+        "secrets.rotate",
+        "admin.feature_flag_change",
+    ] {
+        assert!(
+            actions.contains(&expected.to_string()),
+            "缺少分类审计 {expected}: {actions:?}"
+        );
+    }
+    let secret_row = rows.iter().find(|r| r.action == "secrets.rotate").unwrap();
+    let secret_meta = secret_row.metadata.as_deref().unwrap_or("");
+    assert!(
+        secret_meta.contains("smtp_password") && !secret_meta.contains("value"),
+        "Secret 审计只含名称不含值: {secret_meta}"
+    );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
 /// 不可关闭：audit_logs 无 status/disabled/enabled 列（只追加、无关闭开关），
 /// 且包含 M01-AUDIT-01 要求的全部列。
 #[tokio::test]
