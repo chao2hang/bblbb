@@ -167,6 +167,16 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    // 新用户冷静期（M02-IDENTITY-09）：邮箱验证后受限时长（秒），0 = 关闭
+    // （默认关闭；PRODUCT-DECISIONS：后台可配置时长与受限动作，受限动作在
+    // 内容权限层按 email_verified_at + 时长判断）。
+    ConfigEntry {
+        env_var: "BBLBB__NEW_USER_COOLDOWN_SECS",
+        field: "new_user_cooldown_secs",
+        default: "0",
+        scope: "all",
+        reload: "restart",
+    },
 ];
 
 /// 允许的运行环境
@@ -207,6 +217,9 @@ pub struct AppConfig {
     /// Feature Flag 紧急关闭（M01-CONFIG-05；默认 false）
     #[serde(default)]
     pub feature_kill_switch: bool,
+    /// 新用户冷静期时长（秒；0 = 关闭，M02-IDENTITY-09）
+    #[serde(default = "default_new_user_cooldown_secs")]
+    pub new_user_cooldown_secs: u64,
     // ── M01-DB-02：数据库连接池与慢查询参数（经 AppConfig::validate 校验）──
     #[serde(default = "default_db_max_connections")]
     pub db_max_connections: u32,
@@ -388,6 +401,7 @@ impl Default for AppConfig {
             secrets_dir: PathBuf::new(),
             secrets_systemd_unit: String::new(),
             feature_kill_switch: false,
+            new_user_cooldown_secs: default_new_user_cooldown_secs(),
         }
     }
 }
@@ -442,6 +456,10 @@ fn default_db_idle_timeout_ms() -> u64 {
 
 fn default_db_slow_query_ms() -> u64 {
     500
+}
+
+fn default_new_user_cooldown_secs() -> u64 {
+    0
 }
 
 /// 生产模式拒绝未知配置键（M01-CONFIG-02）。
@@ -608,6 +626,7 @@ mod tests {
             "feature_kill_switch",
             "log_filter",
             "migrations_dir",
+            "new_user_cooldown_secs",
             "openapi_path",
             "secrets_dir",
             "secrets_systemd_unit",

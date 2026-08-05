@@ -210,7 +210,14 @@ async fn verify_email(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    match verify_email_token(pool, &req.token).await {
+    match verify_email_token(
+        pool,
+        &req.token,
+        state.config.new_user_cooldown_secs as i64,
+        request_id,
+    )
+    .await
+    {
         Ok(_) => {
             tracing::info!("email verified successfully");
             Ok(Json(GenericSuccess { ok: true }))

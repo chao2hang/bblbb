@@ -51,6 +51,7 @@
 | `BBLBB__SECRETS_DIR` | `secrets_dir` | 空 = 未启用 | all | 重启 |
 | `BBLBB__SECRETS_SYSTEMD_UNIT` | `secrets_systemd_unit` | 空 = 未启用 | all | 重启 |
 | `BBLBB__FEATURE_KILL_SWITCH` | `feature_kill_switch` | `false` | all | 重启 |
+| `BBLBB__NEW_USER_COOLDOWN_SECS` | `new_user_cooldown_secs` | `0` = 关闭 | all | 重启 |
 
 说明：
 
