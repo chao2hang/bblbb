@@ -3,6 +3,7 @@
   import { listBoards, type Board } from '$lib/api/client';
   import BoardCard from '$lib/components/BoardCard.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import LoadingState from '$lib/components/ui/LoadingState.svelte';
   import { boardVisuals } from '$lib/board-visuals';
 
   let boards = $state<Board[]>([]);
@@ -37,7 +38,7 @@
     </div>
     <div class="card-body">
       {#if loading}
-        <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
+        <LoadingState />
       {:else if boards.length === 0}
         <EmptyState icon="message-square" title="暂无板块" desc="社区还没有板块" />
       {:else}

@@ -5,6 +5,7 @@
   import PostList from '$lib/components/PostList.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import LoadingState from '$lib/components/ui/LoadingState.svelte';
   import { boardVisuals } from '$lib/board-visuals';
   import { formatCount } from '$lib/utils';
 
@@ -75,7 +76,7 @@
       <div class="card">
         <div class="card-body" style="padding:0;">
           {#if loading}
-            <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
+            <LoadingState />
           {:else}
             <PostList posts={posts} emptyTitle="暂无帖子" emptyDesc="成为第一个发帖的人吧！" />
           {/if}

@@ -10,14 +10,19 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import TagChip from '$lib/components/ui/Tag.svelte';
+  import LoadingState from '$lib/components/ui/LoadingState.svelte';
+  import OfflineState from '$lib/components/ui/OfflineState.svelte';
 
   let boards = $state<Board[]>([]);
   let tags = $state<Tag[]>([]);
   let posts = $state<PostSummary[]>([]);
   let user = $state<{ username: string; display_name?: string | null } | null>(null);
   let loading = $state(true);
+  let offline = $state(false);
 
-  onMount(async () => {
+  async function load() {
+    loading = true;
+    offline = false;
     user = await getMe(fetch);
     const [boardResult, tagResult] = await Promise.allSettled([listBoards(fetch), listTags(fetch)]);
     if (boardResult.status === 'fulfilled') boards = boardResult.value.items;
@@ -30,8 +35,13 @@
     } catch {
       posts = [];
     }
+    if (boardResult.status === 'rejected' && tagResult.status === 'rejected') {
+      offline = true;
+    }
     loading = false;
-  });
+  }
+
+  onMount(load);
 </script>
 
 <svelte:head>
@@ -40,13 +50,16 @@
 </svelte:head>
 
 <div class="container">
+  {#if offline}
+    <div class="page-content"><OfflineState onRetry={load} /></div>
+  {:else}
   <div class="page-content content-grid home-content">
     <div class="main-col home-main">
       <section class="content-section home-discussions">
         <SectionHeader title="最新讨论" desc="社区正在发生的讨论" moreHref="/boards" />
         <div class="section-surface">
           {#if loading}
-            <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
+            <LoadingState />
           {:else}
             <PostList posts={posts} emptyTitle="暂无帖子" emptyDesc="成为第一个发帖的人吧！" />
           {/if}
@@ -111,4 +124,5 @@
       {/if}
     </div>
   </div>
+  {/if}
 </div>
