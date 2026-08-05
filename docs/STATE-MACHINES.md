@@ -212,10 +212,21 @@ claimed → reversed
 
 ```text
 queued → running → succeeded
-running → retry_wait → queued
-queued/running/retry_wait → cancelled
-running/retry_wait → dead
+running → retry_wait → running
+running → dead
+running → queued            (lease 超时重新入队)
+queued → cancelled
+queued → dead
+retry_wait → cancelled
+retry_wait → dead
 ```
+
+- `queued`/`running`/`retry_wait`/`succeeded`/`cancelled`/`dead` 六个状态
+  （M01-JOBS-03）；终态无出边。
+- 只能取消尚未运行的任务（`queued`/`retry_wait` → `cancelled`）；
+  `running` 不直接取消，靠 lease 超时安全释放或按需人工干预。
+- 非法迁移由 `backend/src/jobs/mod.rs` 的 `JobStatus::allowed_transition`
+  拒绝，测试覆盖终态无出边与非法路径。
 
 ### Outbox Event
 

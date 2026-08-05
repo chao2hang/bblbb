@@ -9,6 +9,7 @@ pub mod config;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod jobs;
 pub mod middleware;
 pub mod outbox;
 pub mod routes;
