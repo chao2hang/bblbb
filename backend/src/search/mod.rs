@@ -8,11 +8,18 @@
 //! - [`excerpt_from_clean`]：公开投影摘要——从已清洗文本按字符边界截断；
 //! - [`source_revision_for`] / [`policy_revision_for`]：source revision 与 policy
 //!   revision 语义（旧 revision 不覆盖新 revision 的单调性来源，docs/SEARCH.md §4/§5）；
-//! - [`fts`]：全文索引维护——重建命令与触发器/Job 更新策略（M03-SEARCH-STORE-02）。
+//! - [`fts`]：全文索引维护——重建命令与触发器/Job 更新策略（M03-SEARCH-STORE-02）；
+//! - [`gate`]：索引写入可见性裁决——只接受可见性裁决后的安全文本，
+//!   不存 restricted_html（M03-SEARCH-STORE-05，P0）。
 
 pub mod fts;
+pub mod gate;
 
 pub use fts::rebuild_fts;
+pub use gate::{
+    decide_board_indexability, decide_post_indexability, decide_tag_indexability,
+    decide_user_indexability, vet_index_text, ExclusionReason, IndexDecision, IndexTextError,
+};
 
 /// 索引标题长度上限（字符；与帖子标题 OpenAPI `maxLength: 240` 一致）。
 pub const TITLE_MAX: usize = 240;

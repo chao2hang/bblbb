@@ -82,8 +82,13 @@ Rust 模型：`backend/src/search/mod.rs::SearchDocument`。
 
 - 索引写入只接受经过可见性裁决的安全文本：draft/hidden/locked/deleted 正文、
   非公开可见性内容、受限板块内容、作者退出标记命中内容一律不写入。
+  裁决入口：`backend/src/search/gate.rs::decide_*_indexability`
+  （post 按 status/visibility/板块启用与可见性/作者账号；user 按 status/删除；
+  board 按启用/可见性；tag 按启用）——被排除的实体从索引移除，绝不写入受限内容。
 - 索引正文只存清洗后的纯文本（`clean_index_text`：控制字符/连续空白折叠为单个
-  空格、首尾 trim、长度上限）；绝不存 `restricted_html` 或渲染 HTML。
+  空格、首尾 trim、长度上限）；写路径先经 `vet_index_text` 拒绝
+  `restricted_html`/`restricted_markdown` 特征串与 HTML 标记——绝不存
+  `restricted_html` 或渲染 HTML（第二道防线，第一道是写路径只接收公开投影字段）。
 - 结果层（M08-INDEX-07）返回前重新执行实时可见性/处罚/退出判断——索引只是
   候选集，不是授权裁决。
 
