@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { getUser, type User } from '$lib/api/client';
+  import { getUser, type PublicProfile } from '$lib/api/client';
   import { type Problem } from '$lib/errors';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
 
   let username = $derived(page.params.username);
-  let user = $state<User | null>(null);
+  let user = $state<PublicProfile | null>(null);
   let loading = $state(true);
   let problem = $state<Problem | null>(null);
 

@@ -30,10 +30,14 @@ export interface AttachmentCreate {
   target_id?: string | null;
 }
 export interface PublicUser {
+  id: string;
   username: string;
-  display_name: string;
+  display_name: string | null;
   level: number;
-  bio?: string;
+  bio?: string | null;
+  avatar_attachment_id?: string | null;
+  signature?: string | null;
+  created_at: number;
 }
 export type GenericSuccess = Record<string, unknown>;
 export interface Health {
@@ -97,10 +101,29 @@ export type Me = ResourceMeta & {
   username: string;
   email: string;
   email_verified: boolean;
+  status: string;
+  display_name?: string | null;
+  bio?: string | null;
+  timezone?: string;
   level: number;
   roles: Array<string>;
   mfa_enabled?: boolean;
 };
+export interface AdminUser {
+  id: string;
+  username: string;
+  email: string;
+  email_verified: boolean;
+  status: string;
+  display_name?: string | null;
+  level: number;
+  roles: Array<string>;
+  created_at: number;
+  updated_at: number;
+  last_login_at?: number | null;
+  delete_requested_at?: number | null;
+  deleted_at?: number | null;
+}
 export type Board = ResourceMeta & {
   slug: string;
   name: string;

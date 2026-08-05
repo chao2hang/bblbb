@@ -16,6 +16,7 @@ pub mod middleware;
 pub mod outbox;
 pub mod ratelimit;
 pub mod routes;
+pub mod users;
 
 pub use app::{build_router, build_router_with_flags};
 pub use config::AppConfig;

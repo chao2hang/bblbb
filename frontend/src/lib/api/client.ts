@@ -14,7 +14,8 @@ import type {
   Notification,
   NotificationListResult,
   Tag,
-  ReactionResult
+  ReactionResult,
+  PublicProfile
 } from './types';
 import type { Problem } from '../errors';
 
@@ -28,7 +29,8 @@ export type {
   Notification,
   NotificationListResult,
   Tag,
-  ReactionResult
+  ReactionResult,
+  PublicProfile
 } from './types';
 export type { Problem, ProblemFieldError } from '../errors';
 
@@ -236,7 +238,7 @@ export async function createComment(
 
 // ─── Users ────────────────────────────────────────────────────────────────
 
-export async function getUser(fetchFn: typeof fetch, username: string): Promise<User> {
+export async function getUser(fetchFn: typeof fetch, username: string): Promise<PublicProfile> {
   return request(fetchFn, `/users/${username}`);
 }
 

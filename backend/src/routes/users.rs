@@ -4,11 +4,25 @@ use axum::{
     routing::get,
     Router,
 };
-use serde::Serialize;
 use serde_json::{json, Value};
 use sqlx::Either;
 
+use crate::users::dto::{Me, PublicProfile};
 use crate::{app::AppState, auth::session::AuthSession, error::AppError};
+
+/// 公开资料查询行：
+/// (id, username_normalized, display_name, bio, level, avatar_attachment_id,
+/// signature, created_at)。
+type PublicUserRow = (
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    i64,
+    Option<String>,
+    Option<String>,
+    i64,
+);
 
 /// 用户路由：个人资料、公开用户
 pub fn router() -> Router<AppState> {
@@ -21,27 +35,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/users/{username}", get(get_public_user))
 }
 
-#[derive(Serialize)]
-struct MeResponse {
-    id: String,
-    username: String,
-    email: String,
-    email_verified: bool,
-    status: String,
-    display_name: Option<String>,
-    bio: Option<String>,
-    timezone: String,
-    level: i64,
-    roles: Vec<String>,
-    /// 两步验证（TOTP）是否已启用（M02-UX-06）。
-    mfa_enabled: bool,
-}
-
-/// GET /api/v1/me — 获取当前用户
-async fn get_me(
-    State(state): State<AppState>,
-    auth: AuthSession,
-) -> Result<Json<MeResponse>, AppError> {
+/// GET /api/v1/me — 获取当前用户（本人投影 DTO，M03-PROFILE-01）
+async fn get_me(State(state): State<AppState>, auth: AuthSession) -> Result<Json<Me>, AppError> {
     let request_id = "get_me";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -51,27 +46,16 @@ async fn get_me(
     let mfa_enabled = crate::auth::has_confirmed_totp(pool, &user.id)
         .await
         .unwrap_or(false);
-    Ok(Json(MeResponse {
-        id: user.id.clone(),
-        username: user.username.clone(),
-        email: user.email.clone(),
-        email_verified: user.email_verified,
-        status: user.status.clone(),
-        display_name: user.display_name.clone(),
-        bio: None,
-        timezone: "UTC".to_string(),
-        level: user.level,
-        roles: user.roles.clone(),
-        mfa_enabled,
-    }))
+    // 当前从会话投影构建；bio/timezone 持久化读取在 M03-PROFILE-03 落地。
+    Ok(Json(Me::from_session(user, mfa_enabled, None, "UTC")))
 }
 
-/// PATCH /api/v1/me — 更新当前用户资料
+/// PATCH /api/v1/me — 更新当前用户资料（昵称/简介）
 async fn update_me(
     State(state): State<AppState>,
     auth: AuthSession,
     Json(body): Json<Value>,
-) -> Result<Json<MeResponse>, AppError> {
+) -> Result<Json<Me>, AppError> {
     let request_id = "update_me";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -106,28 +90,22 @@ async fn update_me(
         }
     }
 
-    Ok(Json(MeResponse {
-        id: user.id.clone(),
-        username: user.username.clone(),
-        email: user.email.clone(),
-        email_verified: user.email_verified,
-        status: user.status.clone(),
-        display_name: display_name.map(|s| s.to_string()),
-        bio: bio.map(|s| s.to_string()),
-        timezone: "UTC".to_string(),
-        level: user.level,
-        roles: user.roles.clone(),
-        mfa_enabled: crate::auth::has_confirmed_totp(pool, &user.id)
+    Ok(Json(Me::from_session(
+        user,
+        crate::auth::has_confirmed_totp(pool, &user.id)
             .await
             .unwrap_or(false),
-    }))
+        bio.map(|s| s.to_string()),
+        "UTC",
+    )))
 }
 
-/// GET /api/v1/users/{username} — 获取公开用户信息
+/// GET /api/v1/users/{username} — 获取公开用户资料（公开投影 DTO，
+/// M03-PROFILE-01/02：不含邮箱、状态、Session、IP、处罚与审计信息）
 async fn get_public_user(
     State(state): State<AppState>,
     Path(username): Path<String>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<PublicProfile>, AppError> {
     let request_id = "get_public_user";
     let pool = state
         .db
@@ -136,28 +114,48 @@ async fn get_public_user(
 
     let username_normalized = username.to_lowercase();
 
-    let row: Option<(String, String, Option<String>)> = match pool {
+    let row: Option<PublicUserRow> = match pool {
         Either::Left(p) => {
-            sqlx::query_as("SELECT username_normalized, status, display_name FROM users WHERE username_normalized = ? AND status != 'deleted'")
-                .bind(&username_normalized)
-                .fetch_optional(p)
-                .await
+            sqlx::query_as(
+                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, signature, created_at
+                 FROM users WHERE username_normalized = ? AND status != 'deleted'",
+            )
+            .bind(&username_normalized)
+            .fetch_optional(p)
+            .await
         }
         Either::Right(p) => {
-            sqlx::query_as("SELECT username_normalized, status, display_name FROM users WHERE username_normalized = ? AND status != 'deleted'")
-                .bind(&username_normalized)
-                .fetch_optional(p)
-                .await
+            sqlx::query_as(
+                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, signature, created_at
+                 FROM users WHERE username_normalized = ? AND status != 'deleted'",
+            )
+            .bind(&username_normalized)
+            .fetch_optional(p)
+            .await
         }
     }
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
     match row {
-        Some((username, status, display_name)) => Ok(Json(json!({
-            "username": username,
-            "display_name": display_name,
-            "status": if status == "active" { "active" } else { "restricted" },
-        }))),
+        Some((
+            id,
+            username,
+            display_name,
+            bio,
+            level,
+            avatar_attachment_id,
+            signature,
+            created_at,
+        )) => Ok(Json(PublicProfile {
+            id,
+            username,
+            display_name,
+            bio,
+            level,
+            avatar_attachment_id,
+            signature,
+            created_at,
+        })),
         None => Err(AppError::not_found("user not found", request_id)),
     }
 }

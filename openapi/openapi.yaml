@@ -5811,7 +5811,7 @@ paths:
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/GenericSuccess"
+                "$ref": "#/components/schemas/AdminUser"
         '400':
           "$ref": "#/components/responses/ProblemResponse"
         '401':
@@ -6440,18 +6440,40 @@ components:
     PublicUser:
       type: object
       required:
+      - id
       - username
       - display_name
       - level
+      - created_at
       properties:
+        id:
+          type: string
+          format: uuid
         username:
           type: string
         display_name:
-          type: string
+          type:
+          - string
+          - 'null'
         level:
           type: integer
+          minimum: 1
         bio:
-          type: string
+          type:
+          - string
+          - 'null'
+        avatar_attachment_id:
+          type:
+          - string
+          - 'null'
+          description: 头像附件 UUID 引用（禁止 URL/签名 URL）
+        signature:
+          type:
+          - string
+          - 'null'
+        created_at:
+          type: integer
+          format: int64
     GenericSuccess:
       type: object
       additionalProperties: true
@@ -6674,6 +6696,7 @@ components:
         - username
         - email
         - email_verified
+        - status
         - level
         - roles
         properties:
@@ -6684,6 +6707,19 @@ components:
             format: email
           email_verified:
             type: boolean
+          status:
+            type: string
+            description: 账号状态（pending/active/restricted/banned/pending_delete/deleted）
+          display_name:
+            type:
+            - string
+            - 'null'
+          bio:
+            type:
+            - string
+            - 'null'
+          timezone:
+            type: string
           level:
             type: integer
             minimum: 1
@@ -6694,6 +6730,63 @@ components:
           mfa_enabled:
             type: boolean
             description: 两步验证（TOTP）是否已启用
+    AdminUser:
+      type: object
+      required:
+      - id
+      - username
+      - email
+      - email_verified
+      - status
+      - level
+      - roles
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        status:
+          type: string
+        display_name:
+          type:
+          - string
+          - 'null'
+        level:
+          type: integer
+          minimum: 1
+        roles:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+        last_login_at:
+          type:
+          - integer
+          - 'null'
+          format: int64
+        delete_requested_at:
+          type:
+          - integer
+          - 'null'
+          format: int64
+        deleted_at:
+          type:
+          - integer
+          - 'null'
+          format: int64
     Board:
       allOf:
       - "$ref": "#/components/schemas/ResourceMeta"

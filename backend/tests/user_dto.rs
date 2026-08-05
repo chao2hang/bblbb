@@ -1,0 +1,151 @@
+//! M03-PROFILE-01：用户三套显式投影 DTO 契约——
+//! - `PublicProfile` 序列化键集 == 公开 allowlist，绝不泄漏
+//!   email/状态机内部状态/Session/IP/处罚/审计字段；
+//! - `Me` 为本人投影，含本人可见字段；
+//! - `AdminUser` 为管理投影，含内部状态与删除/注销时间，但绝不含凭据。
+//!
+//! 测试数据直接从 DTO 显式字段构建（不复用数据库实体序列化）。
+
+use bblbb_backend::auth::session::SessionUser;
+use bblbb_backend::users::dto::{AdminUser, Me, PublicProfile};
+use serde_json::Value;
+
+fn sample_session_user() -> SessionUser {
+    SessionUser {
+        id: "00000000-0000-7000-8000-000000000001".to_string(),
+        username: "alice".to_string(),
+        email: "alice@example.com".to_string(),
+        email_verified: true,
+        status: "active".to_string(),
+        display_name: Some("爱丽丝".to_string()),
+        level: 3,
+        roles: vec!["member".to_string()],
+    }
+}
+
+fn sorted_keys(v: &Value) -> Vec<String> {
+    let mut keys: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
+    keys.sort();
+    keys
+}
+
+/// 公开投影必须严格 allowlist：键集正好是公开字段，且不含任何私有字段。
+#[test]
+fn public_profile_is_strict_allowlist() {
+    let profile = PublicProfile {
+        id: "00000000-0000-7000-8000-000000000001".to_string(),
+        username: "alice".to_string(),
+        display_name: Some("爱丽丝".to_string()),
+        bio: Some("hello".to_string()),
+        level: 3,
+        avatar_attachment_id: Some("00000000-0000-7000-8000-000000000099".to_string()),
+        signature: Some("个性签名".to_string()),
+        created_at: 1_700_000_000_000,
+    };
+    let v = serde_json::to_value(&profile).unwrap();
+    let mut expected = vec![
+        "id",
+        "username",
+        "display_name",
+        "bio",
+        "level",
+        "avatar_attachment_id",
+        "signature",
+        "created_at",
+    ];
+    expected.sort();
+    assert_eq!(
+        sorted_keys(&v),
+        expected,
+        "公开投影必须严格 allowlist，不得多出或缺少字段"
+    );
+
+    for leaked in [
+        "email",
+        "email_verified",
+        "status",
+        "password_hash",
+        "last_login_ip",
+        "delete_requested_at",
+        "deleted_at",
+    ] {
+        assert!(
+            !v.as_object().unwrap().contains_key(leaked),
+            "公开投影泄漏私有字段: {leaked}"
+        );
+    }
+}
+
+/// Me 为本人的显式投影：含本人可见字段与 mfa_enabled。
+#[test]
+fn me_is_own_projection() {
+    let me = Me::from_session(&sample_session_user(), true, Some("bio".to_string()), "UTC");
+    let v = serde_json::to_value(&me).unwrap();
+    for field in [
+        "id",
+        "username",
+        "email",
+        "email_verified",
+        "status",
+        "display_name",
+        "bio",
+        "timezone",
+        "level",
+        "roles",
+        "mfa_enabled",
+    ] {
+        assert!(v.get(field).is_some(), "Me 投影缺少 {field}");
+    }
+    assert_eq!(v["mfa_enabled"], true);
+    assert_eq!(v["roles"][0], "member");
+    assert_eq!(v["email"], "alice@example.com");
+}
+
+/// AdminUser 为管理投影：含内部状态/时间，但绝不含凭据。
+#[test]
+fn admin_user_contains_admin_fields_without_credentials() {
+    let admin = AdminUser {
+        id: "00000000-0000-7000-8000-000000000001".to_string(),
+        username: "alice".to_string(),
+        email: "alice@example.com".to_string(),
+        email_verified: true,
+        status: "active".to_string(),
+        display_name: Some("爱丽丝".to_string()),
+        level: 3,
+        roles: vec!["member".to_string()],
+        created_at: 1_700_000_000_000,
+        updated_at: 1_700_000_000_000,
+        last_login_at: Some(1_700_000_000_000),
+        delete_requested_at: None,
+        deleted_at: None,
+    };
+    let v = serde_json::to_value(&admin).unwrap();
+    for field in [
+        "id",
+        "username",
+        "email",
+        "email_verified",
+        "status",
+        "display_name",
+        "level",
+        "roles",
+        "created_at",
+        "updated_at",
+        "last_login_at",
+        "delete_requested_at",
+        "deleted_at",
+    ] {
+        assert!(v.get(field).is_some(), "AdminUser 缺少 {field}");
+    }
+    for leaked in [
+        "password_hash",
+        "encrypted_secret",
+        "recovery_code_hash",
+        "csrf_secret_hash",
+    ] {
+        assert!(
+            !v.as_object().unwrap().contains_key(leaked),
+            "管理投影泄漏凭据字段: {leaked}"
+        );
+    }
+}

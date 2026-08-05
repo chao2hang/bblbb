@@ -36,6 +36,7 @@ use crate::{
         client_ip, REGISTER_ACCOUNT_LIMIT, REGISTER_IP_LIMIT, REGISTER_WINDOW_MS, RESEND_IP_LIMIT,
         RESEND_IP_WINDOW_MS, RESET_IP_LIMIT, RESET_IP_WINDOW_MS,
     },
+    users::dto::Me,
 };
 
 // ─── DTO ─────────────────────────────────────────────────────────────────────
@@ -98,20 +99,6 @@ struct GenericSuccess {
 #[derive(Serialize)]
 struct CsrfResponse {
     token: String,
-}
-
-#[derive(Serialize)]
-struct MeResponse {
-    id: String,
-    username: String,
-    email: String,
-    email_verified: bool,
-    status: String,
-    display_name: Option<String>,
-    level: i64,
-    roles: Vec<String>,
-    /// 两步验证（TOTP）是否已启用（与 GET /me 投影一致，M02-UX-06/09）。
-    mfa_enabled: bool,
 }
 
 // ─── 路由 ────────────────────────────────────────────────────────────────────
@@ -457,13 +444,15 @@ async fn login(
             let mfa_enabled = crate::auth::has_confirmed_totp(pool, &outcome.user_id)
                 .await
                 .unwrap_or(false);
-            let me = MeResponse {
+            let me = Me {
                 id: outcome.user_id,
                 username: outcome.username,
                 email: outcome.email,
                 email_verified: outcome.email_verified,
                 status: outcome.status,
                 display_name: outcome.display_name,
+                bio: None,
+                timezone: "UTC".to_string(),
                 level: 1,
                 roles: vec![],
                 mfa_enabled,
@@ -554,13 +543,15 @@ async fn login_mfa(
         Ok(completed) => {
             let cookie = build_session_cookie(&completed.session_token);
             // 第二步完成时 TOTP 必然已启用（mfa_required 由 has_confirmed_totp 判定）
-            let me = MeResponse {
+            let me = Me {
                 id: completed.user_id,
                 username: completed.username,
                 email: completed.email,
                 email_verified: completed.email_verified,
                 status: completed.status,
                 display_name: completed.display_name,
+                bio: None,
+                timezone: "UTC".to_string(),
                 level: 1,
                 roles: vec![],
                 mfa_enabled: true,

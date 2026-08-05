@@ -18,6 +18,7 @@ import type {
   Me as ContractMe,
   Board as ContractBoard,
   Page as ContractPage,
+  PublicUser as ContractPublicUser,
 } from './generated/v1';
 
 // ── 与契约 1:1 对应的类型（re-export，唯一来源）────────────────────────────────
@@ -57,12 +58,25 @@ export type {
 
 // ── 实现投影：以 generated 基类型组合，公共字段来自契约 ────────────────────────
 
-/** 当前用户（GET /me）投影：契约 Me + 实现扩展字段（status/display_name）。
- *  后端补齐 version/created_at/updated_at 后，可塌缩为 `export type User = Me`。 */
-export type User = Omit<ContractMe, 'version' | 'created_at' | 'updated_at' | 'mfa_enabled'> & {
+/** 当前用户（GET /me）投影：契约 Me + 实现扩展字段（status/display_name/bio/
+ * timezone 可空映射）。后端补齐 version/created_at/updated_at 后，
+ * 可塌缩为 `export type User = Me`。 */
+export type User = Omit<
+  ContractMe,
+  'version' | 'created_at' | 'updated_at' | 'mfa_enabled' | 'display_name'
+> & {
   status: string;
   display_name: string | null;
   mfa_enabled: boolean;
+};
+
+/** 公开用户资料（GET /users/{username}）投影：对应后端 PublicProfile DTO
+ *  （M03-PROFILE-01），严格公开字段（不含邮箱/状态/Session/IP）。 */
+export type PublicProfile = ContractPublicUser & {
+  display_name: string | null;
+  bio: string | null;
+  avatar_attachment_id: string | null;
+  signature: string | null;
 };
 
 /** 板块（GET /boards）投影：契约 Board + 实现扩展字段（post_count/is_active）。
