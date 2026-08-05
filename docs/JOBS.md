@@ -222,11 +222,25 @@ SDK）。CI 失败即阻断。
 
 ## 12. 优雅停机
 
-1. readiness 置失败，停止接收新外部流量。
-2. 停止领取新任务。
-3. 等待运行中任务到配置期限。
-4. 可取消任务安全释放；不可取消任务让 lease 到期后重试。
-5. 关闭连接池。
+实现位于 `backend/src/jobs/worker_loop.rs`（M01-JOBS-08）：
+`run_worker(pool, config, shutdown_watch, handler)`。
+
+停机语义（顺序执行）：
+
+1. 停机信号（`shutdown_watch` 置 `true`）到达后立即停止领取新任务。
+2. 正在执行的任务继续完成：成功 `complete_job`，失败按策略 `fail_job`。
+3. 整个收尾受 `WorkerConfig::drain_timeout` 总超时约束；超时未完成的任务
+   保持 `running`，其租约到期后由其他 worker 安全重领（M01-JOBS-04），
+   不阻塞停机。
+4. 任务执行期间周期性续租（`renew_lease`，租约过半时续租）；失去租约即
+   停止续租并放弃，避免双跑。
+
+`worker_shutdown_signal()` 把 SIGTERM/SIGINT（非 Unix 为 Ctrl-C）映射为
+worker 停机 watch，与 HTTP 服务器的优雅停机共享同一信号来源（main.rs 在
+真实 handler 落地后接入）。
+
+进程级顺序：readiness 置失败 → 停止接收新外部流量 → 停止领取新任务 →
+收尾运行中任务（受总超时约束）→ 关闭连接池。
 
 ## 13. 未来外部队列
 

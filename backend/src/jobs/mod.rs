@@ -16,6 +16,7 @@
 
 pub mod retry;
 pub mod worker;
+pub mod worker_loop;
 
 use std::fmt;
 
