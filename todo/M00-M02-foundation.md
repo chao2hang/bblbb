@@ -161,8 +161,8 @@
 **目标文件：** `backend/src/audit/`、`backend/src/idempotency/`、`migrations/*/`、`docs/EVENT-CATALOG.md`
 **验收：** 高风险操作无审计无法提交；幂等冲突、重放和敏感字段清除测试通过。
 
-- [~] `M01-AUDIT-01` `[45m]` 建立不可关闭的 audit_logs，包含 actor、effective role、target、action、reason、request_id 和 policy version。
-- [ ] `M01-AUDIT-02` `[30m]` 对 before/after 使用字段 allowlist，禁止密码、Token、Secret、隐藏正文和完整签名 URL。
+- [x] `M01-AUDIT-01` `[45m]` 建立不可关闭的 audit_logs，包含 actor、effective role、target、action、reason、request_id 和 policy version。证据：files=migrations/{sqlite,mysql,mariadb}/0009_audit_roles.sql,backend/src/audit/mod.rs,backend/tests/audit_logs.rs,docs/SCHEMA.md；commands=cargo test --all-features（227 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=audit_logs 增加 effective_role/reason/policy_version + 时间戳毫秒 + 只追加不可关闭（无 status/disabled 列、无删除/修改 API）；commit=43aac34；review=2 项集成测试（全字段往返、只追加无关闭列）+ 1 项单测
+- [~] `M01-AUDIT-02` `[30m]` 对 before/after 使用字段 allowlist，禁止密码、Token、Secret、隐藏正文和完整签名 URL。
 - [ ] `M01-AUDIT-03` `[45m]` 建立幂等记录的 scope/key/request hash/status/response reference/expiry 数据模型。
 - [ ] `M01-AUDIT-04` `[30m]` 相同 key+摘要返回原结果；相同 key+不同摘要稳定返回 409。
 - [ ] `M01-AUDIT-05` `[45m]` 并发首次请求只能有一个执行者；失败是否缓存按 operation 契约明确处理。
