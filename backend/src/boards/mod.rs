@@ -7,9 +7,12 @@
 //!   （M03-BOARDS-02）；
 //! - [`visibility`]：板块可见性（public/members/restricted/hidden）统一授权
 //!   服务门（M03-BOARDS-03）；
+//! - [`pagination`]：板块列表 cursor 分页——不透明游标 + 稳定排序
+//!   （M03-BOARDS-04）；
 //! - [`slug_exists`]：slug 唯一性检查（`boards_slug_uq` 唯一索引兜底）。
 
 pub mod hierarchy;
+pub mod pagination;
 pub mod validation;
 pub mod visibility;
 
@@ -17,6 +20,7 @@ pub use hierarchy::{
     build_hierarchy, load_hierarchy, validate_parent, BoardHierarchy, BoardRef, HierarchyError,
     MAX_BOARD_DEPTH,
 };
+pub use pagination::{decode_cursor, encode_cursor, BoardCursor, CursorDecodeError};
 pub use validation::{
     validate_board_fields, validate_board_update, validation_to_error, BoardValidationError,
     DESCRIPTION_MAX, NAME_MAX, POSTING_MODES, SLUG_MAX, SLUG_MIN, SORT_ORDER_MAX, SORT_ORDER_MIN,

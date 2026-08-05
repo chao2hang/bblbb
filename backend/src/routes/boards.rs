@@ -1,16 +1,20 @@
 use axum::{
     extract::{Path, Query, State},
-    response::Json,
+    http::header,
+    response::{IntoResponse, Json, Response},
     routing::get,
     Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Either;
 
 use crate::auth::session::AuthSession;
 use crate::authz::decision::BoardVisibility;
-use crate::boards::{board_read_gate, filter_visible_board_ids, VisibilityDeny};
+use crate::boards::{
+    board_read_gate, decode_cursor, encode_cursor, filter_visible_board_ids, BoardCursor,
+    VisibilityDeny,
+};
 use crate::{app::AppState, error::AppError};
 
 /// 板块路由
@@ -22,35 +26,30 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/tags", get(list_tags))
 }
 
-#[derive(Serialize)]
-struct BoardResponse {
-    id: String,
-    slug: String,
-    name: String,
-    description: Option<String>,
-    post_count: i64,
-    is_active: bool,
-}
-
 #[derive(Deserialize)]
 struct ListQuery {
-    /// 分页游标（接口契约保留字段，游标分页待实现）
+    /// 游标分页（OpenAPI `After`；不透明，最后一条返回项的排序键编码）
     #[serde(default)]
-    #[allow(dead_code)]
-    cursor: Option<String>,
+    after: Option<String>,
     #[serde(default = "default_limit")]
     limit: i64,
 }
 
 fn default_limit() -> i64 {
-    20
+    30
 }
 
-/// GET /api/v1/boards — 列出可见板块（按请求方可见性过滤，M03-BOARDS-03）
+/// 公开数据缓存策略：匿名公开投影可缓存 60s；按请求方裁剪的列表必须私有。
+const CACHE_PUBLIC: &str = "public, max-age=60";
+const CACHE_PRIVATE: &str = "private, no-store";
+
+/// GET /api/v1/boards — 列出可见板块（cursor 分页 + 稳定排序 + Cache-Control，
+/// M03-BOARDS-03/04）
 async fn list_boards(
     State(state): State<AppState>,
+    Query(query): Query<ListQuery>,
     auth: AuthSession,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "list_boards";
     let pool = state
         .db
@@ -58,19 +57,29 @@ async fn list_boards(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     let actor = auth.user.as_ref().map(|u| u.id.as_str());
 
+    let limit = query.limit.clamp(1, 100);
+    let after = match &query.after {
+        None => None,
+        Some(raw) => Some(
+            decode_cursor(raw)
+                .map_err(|_| AppError::bad_request("invalid after cursor", request_id, None))?,
+        ),
+    };
+
+    // 稳定排序：sort_order ASC, created_at ASC, id ASC（id 兜底确定性）
     let boards =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
-                 ORDER BY sort_order ASC, created_at ASC",
+                 ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
             .fetch_all(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
-                 ORDER BY sort_order ASC, created_at ASC",
+                 ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
             .fetch_all(p)
             .await,
@@ -89,32 +98,56 @@ async fn list_boards(
         .await
         .map_err(|e| AppError::internal(e, request_id))?;
 
-    let items: Vec<Value> = boards
-        .iter()
-        .filter(|b| visible.contains(&b.id))
-        .map(|b| {
-            json!({
-                "id": b.id,
-                "slug": b.slug,
-                "name": b.name,
-                "description": b.description,
-                "post_count": b.post_count,
-                "is_active": b.is_active != 0,
-            })
-        })
-        .collect();
+    // 按可见性过滤 + 游标跳过 + 取 limit 条；next_cursor = 最后一条已返回键
+    let mut items: Vec<Value> = Vec::new();
+    let mut last_key: Option<BoardCursor> = None;
+    let mut more_after_full = false;
+    let mut iter = boards.iter().filter(|b| visible.contains(&b.id));
+    for b in iter.by_ref() {
+        let key = BoardCursor {
+            sort_order: b.sort_order,
+            created_at: b.created_at,
+            id: b.id.clone(),
+        };
+        if let Some(after) = &after {
+            if !key.gt(after) {
+                continue;
+            }
+        }
+        if items.len() == limit as usize {
+            // 已取满且后面还有可见板块：下页从最后一条已返回键之后继续
+            more_after_full = true;
+            break;
+        }
+        items.push(board_json(b));
+        last_key = Some(key);
+    }
+    let has_more = more_after_full;
+    let next_cursor = if has_more { last_key } else { None };
 
-    Ok(Json(
-        json!({ "items": items, "next_cursor": null, "has_more": false }),
-    ))
+    let page = json!({
+        "items": items,
+        "page": {
+            "next_cursor": next_cursor.as_ref().map(encode_cursor),
+            "has_more": has_more,
+        },
+    });
+
+    let cache = if actor.is_some() {
+        CACHE_PRIVATE
+    } else {
+        CACHE_PUBLIC
+    };
+    Ok(([(header::CACHE_CONTROL, cache)], Json(page)).into_response())
 }
 
-/// GET /api/v1/boards/{slug} — 获取板块详情（可见性门，M03-BOARDS-03）
+/// GET /api/v1/boards/{slug} — 获取板块详情（可见性门 + Cache-Control，
+/// M03-BOARDS-03/04）
 async fn get_board(
     State(state): State<AppState>,
     Path(slug): Path<String>,
     auth: AuthSession,
-) -> Result<Json<BoardResponse>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_board";
     let pool = state
         .db
@@ -124,14 +157,14 @@ async fn get_board(
     let row =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
             .fetch_optional(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                "SELECT id, slug, name, description, sort_order, visibility, created_at, updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
@@ -158,14 +191,12 @@ async fn get_board(
         return Err(deny.to_error(request_id));
     }
 
-    Ok(Json(BoardResponse {
-        id: b.id,
-        slug: b.slug,
-        name: b.name,
-        description: b.description,
-        post_count: b.post_count,
-        is_active: b.is_active != 0,
-    }))
+    let cache = if visibility == BoardVisibility::Public {
+        CACHE_PUBLIC
+    } else {
+        CACHE_PRIVATE
+    };
+    Ok(([(header::CACHE_CONTROL, cache)], Json(board_json(&b))).into_response())
 }
 
 /// GET /api/v1/boards/{slug}/posts — 列出板块下的帖子
@@ -282,17 +313,32 @@ async fn list_tags(State(state): State<AppState>) -> Result<Json<Value>, AppErro
     Ok(Json(json!({ "items": items })))
 }
 
+/// Board 投影（OpenAPI `Board` = ResourceMeta + slug/name/description）。
+///
+/// boards 无独立 version 列：以 `updated_at`（Unix 毫秒）为乐观并发版本
+/// （≥1 且每次更新递增，BOARDS-05 If-Match 同源）。
+fn board_json(b: &BoardRow) -> Value {
+    json!({
+        "id": b.id,
+        "version": b.updated_at,
+        "created_at": b.created_at,
+        "updated_at": b.updated_at,
+        "slug": b.slug,
+        "name": b.name,
+        "description": b.description,
+    })
+}
+
 #[derive(sqlx::FromRow)]
 struct BoardRow {
     id: String,
     slug: String,
     name: String,
     description: Option<String>,
-    post_count: i64,
-    is_active: i64,
-    #[allow(dead_code)]
     sort_order: i64,
     visibility: String,
+    created_at: i64,
+    updated_at: i64,
 }
 
 #[derive(sqlx::FromRow)]
