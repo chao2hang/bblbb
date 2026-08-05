@@ -82,11 +82,11 @@
 **目标文件：** `frontend/src/routes/`、`frontend/src/lib/api/`、`frontend/src/lib/components/`、`frontend/src/hooks.server.ts`
 **验收：** `make check-frontend && make test-frontend`；SSR、无 JS、错误状态和缓存测试通过。
 
-- [ ] `M00-FRONTEND-01` `[45m]` 建立 SSR 根 layout、站点 shell、Session 安全投影和同源 API base URL。
+- [x] `M00-FRONTEND-01` `[45m]` 建立 SSR 根 layout、站点 shell、Session 安全投影和同源 API base URL。证据：files=frontend/src/routes/+layout.svelte,frontend/src/lib/styles/pages.css,frontend/src/routes/+page.svelte；commands=npm run check；contract=SSR 根 layout + skip-link + 站点 shell + Session 客户端投影（SSR HTML 无私密数据）+ 同源 API base；commit=ba9234e；review=svelte-check 0 error 0 warning + make check 全绿
 - [x] `M00-FRONTEND-02` `[45m]` 统一浏览器与 server load API client，正确传播 Cookie、CSRF、request ID 和 `credentials: same-origin`。证据：files=frontend/src/lib/api/client.ts；commands=npm run check；contract=统一 client（Cookie/CSRF/request_id）；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
-- [ ] `M00-FRONTEND-03` `[30m]` 让生成类型成为 API DTO 唯一类型来源，移除与契约重复的手写响应接口。
+- [x] `M00-FRONTEND-03` `[30m]` 让生成类型成为 API DTO 唯一类型来源，移除与契约重复的手写响应接口。证据：files=frontend/src/lib/api/types.ts,frontend/src/lib/api/generated/v1/；commands=npm run check; ruby scripts/generate-ts-types.rb --check；contract=生成类型为 DTO 唯一来源（User/Board 经 Omit 继承契约类型）；commit=ba9234e；review=svelte-check 0 error 0 warning + 生成类型可复现
 - [x] `M00-FRONTEND-04` `[45m]` 建立 Problem code、`message_key`、字段错误和 request ID 的统一映射。证据：files=frontend/src/lib/errors.ts；commands=npm run check；contract=Problem code/message_key/字段/request_id 映射；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
-- [ ] `M00-FRONTEND-05` `[45m]` 建立加载、空、离线、401、403、404、409、422、429、503 和审核中状态组件。
+- [x] `M00-FRONTEND-05` `[45m]` 建立加载、空、离线、401、403、404、409、422、429、503 和审核中状态组件。证据：files=frontend/src/lib/components/ui/{LoadingState,OfflineState,ReviewState}.svelte,frontend/src/lib/components/ProblemState.svelte；commands=npm run check；contract=加载/空/离线/401/403/404/409/422/429/503/审核中状态组件；commit=ba9234e；review=svelte-check 0 error 0 warning + 首页离线态带重试
 - [x] `M00-FRONTEND-06` `[30m]` 固定 SSR/浏览器缓存边界，Session、管理响应和隐藏内容一律 private/no-store。证据：files=frontend/src/routes/+layout.server.ts；commands=npm run check；contract=SSR 响应 Cache-Control: private, no-store；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [ ] `M00-FRONTEND-07` `[45m]` 建立键盘、焦点、表单错误关联、屏幕阅读器、减少动效和触屏基础测试夹具。
 - [ ] `M00-FRONTEND-08` `[45m]` 建立无 JavaScript 基线：公开阅读可用，关键表单能提交或给出服务端可理解退化。
