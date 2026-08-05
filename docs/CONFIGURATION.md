@@ -24,3 +24,35 @@
 - 外部 Provider 未配置或不可用时，不得阻塞核心发帖、阅读、登录和已提交账务。
 - 关闭功能停止新任务/新授权/新交易；不删除历史数据、不撤销已经提交账务、不让已发布内容突然泄漏。
 - Feature Flag 只负责启停和灰度，不得绕过权限、CSRF、审计、账本或安全策略。
+
+## 1.1 当前已实现配置登记表（M01-CONFIG-01）
+
+以下登记表是环境变量 ↔ 类型化字段的机械映射（`backend/src/config.rs` 的
+`CONFIG_REGISTRY`），由测试强制不变量：变量后缀小写 = 字段名；登记项与
+`backend/.env.example` 双向同步。
+
+| 环境变量 | 类型化字段 | 默认值 | 环境适用范围 | 运行时变更 |
+|---|---|---|---|---|
+| `BBLBB__BIND_ADDRESS` | `bind_address` | `127.0.0.1:8080` | all | 重启 |
+| `BBLBB__LOG_FILTER` | `log_filter` | `bblbb_backend=info,tower_http=info` | all | 重启 |
+| `BBLBB__OPENAPI_PATH` | `openapi_path` | `../openapi/openapi.yaml` | all | 重启 |
+| `BBLBB__DATABASE_URL` | `database_url` | `sqlite://../data/bblbb.sqlite` | all | 重启 |
+| `BBLBB__MIGRATIONS_DIR` | `migrations_dir` | `../migrations/sqlite` | all | 重启 |
+| `BBLBB__STORAGE_DIR` | `storage_dir` | `../uploads` | all | 重启 |
+| `BBLBB__AUTO_MIGRATE` | `auto_migrate` | `false` | dev, ci | 重启 |
+| `BBLBB__ALLOWED_HOSTS` | `allowed_hosts` | 空 = 宽松模式（仅记录） | all | 重启 |
+| `BBLBB__ALLOWED_ORIGINS` | `allowed_origins` | 空 = 宽松模式（仅记录） | all | 重启 |
+| `BBLBB__DB_MAX_CONNECTIONS` | `db_max_connections` | `8` | all | 重启 |
+| `BBLBB__DB_MIN_CONNECTIONS` | `db_min_connections` | `1` | all | 重启 |
+| `BBLBB__DB_CONNECT_TIMEOUT_MS` | `db_connect_timeout_ms` | `10000` | all | 重启 |
+| `BBLBB__DB_IDLE_TIMEOUT_MS` | `db_idle_timeout_ms` | `300000` | all | 重启 |
+| `BBLBB__DB_SLOW_QUERY_MS` | `db_slow_query_ms` | `500` | all | 重启 |
+
+说明：
+
+- **环境适用范围**：`all` = 开发/CI/生产通用；`dev,ci` = 仅限非生产（生产
+  迁移由显式 `bblbb-migrate apply` 执行，见 M01-DB-06）。
+- **运行时变更**：当前所有环境变量配置均为**重启生效**；在线热更新和 Secret
+  轮换由后续 `config_revisions`/policy 版本机制提供（M01-CONFIG-03/04/05）。
+- 新增环境变量必须同步登记表、`.env.example` 与本文档；登记表测试会拦截
+  未登记或未同步的变量。
