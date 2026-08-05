@@ -171,9 +171,10 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Transaction concurrency semantics (row lock / timeout / deadlock)
+      - name: Cross-database semantics (row locks + session behavior)
         env:
           BBLBB_TEST_MYSQL_URL: mysql://root:root@127.0.0.1:3306/bblbb
         working-directory: backend
         run: |
           cargo test --test transaction_concurrency -- --ignored
+          cargo test --test session_crossdb -- --ignored
