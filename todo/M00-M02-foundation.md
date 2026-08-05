@@ -185,8 +185,8 @@
 **目标文件：** `migrations/*/`、`backend/src/auth/`、`backend/src/routes/auth/`、`backend/tests/auth/`
 **验收：** `Auth` tag 注册/验证/密码恢复 operation 通过三数据库契约和枚举攻击测试。
 
-- [~] `M02-IDENTITY-01` `[45m]` 新增身份迁移：username/email 规范化列、password hash、status、verification 和 reset token 表。
-- [ ] `M02-IDENTITY-02` `[45m]` 为规范化用户名和邮箱建立跨库唯一约束及大小写/Unicode Fixture。
+- [x] `M02-IDENTITY-01` `[45m]` 新增身份迁移：username/email 规范化列、password hash、status、verification 和 reset token 表。证据：files=migrations/{sqlite,mysql,mariadb}/0011_identity_tokens.sql,backend/tests/identity_schema.rs；commands=cargo test --all-features（264 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=users.email_verified_at 权威字段 + token 表只存 hash（唯一/级联/外键）——0002 已提供其余身份列；commit=4ef6fed；review=3 项 schema 契约测试
+- [~] `M02-IDENTITY-02` `[45m]` 为规范化用户名和邮箱建立跨库唯一约束及大小写/Unicode Fixture。
 - [ ] `M02-IDENTITY-03` `[30m]` 实现注册 DTO 长度、格式、保留名、密码策略和请求体未知字段校验。
 - [ ] `M02-IDENTITY-04` `[45m]` 使用 Argon2id PHC hash，参数可升级；测试正确、错误及损坏 hash 的常量时间失败路径。
 - [ ] `M02-IDENTITY-05` `[45m]` 在同一事务创建 pending_verification 用户、一次性 token hash、审计和验证邮件 Outbox。
