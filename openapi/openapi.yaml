@@ -6633,6 +6633,8 @@ components:
           - forbidden
           - not_found
           - csrf_failed
+          - origin_not_allowed
+          - host_not_allowed
           - rate_limited
           - feature_disabled
           - policy_disabled

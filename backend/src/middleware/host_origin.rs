@@ -127,7 +127,8 @@ fn host_allowed(allowed: &str, host: &str) -> bool {
 }
 
 /// Origin 是否匹配允许项：scheme 必须一致；允许项无端口时匹配同主机任意端口。
-fn origin_allowed(allowed: &str, origin: &str) -> bool {
+/// `pub(crate)` 供 CSRF 中间件（M02-SESSION-09）复用配置校验。
+pub(crate) fn origin_allowed(allowed: &str, origin: &str) -> bool {
     if allowed == origin {
         return true;
     }

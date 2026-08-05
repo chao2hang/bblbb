@@ -14,6 +14,8 @@
 | `forbidden` | 403 | 无权限但资源存在 | 不重试 |
 | `not_found` | 404 | 资源不存在或按策略隐藏 | 不枚举重试 |
 | `csrf_failed` | 403 | Session 写请求缺少/错误 CSRF | 获取新 CSRF 后重试 |
+| `origin_not_allowed` | 400 | Cookie 写请求 Origin（缺则 Referer）不匹配 Host 或 allowed_origins | 从允许来源发起请求 |
+| `host_not_allowed` | 400 | 严格模式（allowed_hosts 已配置）下 Host 不在允许列表 | 使用允许的主机名 |
 | `rate_limited` | 429 | 用户、IP、对象或 Provider 限流 | 按 `Retry-After` 重试 |
 | `feature_disabled` | 409 | 功能或 Provider 当前关闭 | 等待管理员开启 |
 | `policy_disabled` | 409 | 当前范围策略关闭 | 不重试同一操作 |

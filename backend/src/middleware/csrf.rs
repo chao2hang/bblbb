@@ -17,7 +17,7 @@
 
 use axum::{
     extract::{Request, State},
-    http::{header, Method, StatusCode},
+    http::{header, HeaderMap, Method, StatusCode},
     middleware::Next,
     response::{IntoResponse, Json, Response},
 };
@@ -32,9 +32,10 @@ use crate::{
         session::{generate_csrf_token, get_request_id, SESSION_COOKIE_NAME},
         token::hash_token,
     },
+    config::AppConfig,
     db::pool::DatabasePool,
     error::Problem,
-    middleware::request_id::RequestId,
+    middleware::{host_origin::origin_allowed, request_id::RequestId},
 };
 
 /// 需要 CSRF 校验的 HTTP 方法
@@ -73,8 +74,15 @@ pub async fn csrf_protection(
 
     // 携带会话 Cookie → 会话绑定 synchronizer token 校验（已认证写请求）
     if let Some(session_cookie) = jar.get(SESSION_COOKIE_NAME) {
-        return validate_session_csrf(pool, request, session_cookie.value(), &request_id, next)
-            .await;
+        return validate_session_csrf(
+            pool,
+            &state.config,
+            request,
+            session_cookie.value(),
+            &request_id,
+            next,
+        )
+        .await;
     }
 
     // 无会话 Cookie 的预认证写路径（login/register/verify-email/resend/
@@ -82,7 +90,7 @@ pub async fn csrf_protection(
     // （`__Host-bblbb_csrf` cookie + 匹配的 X-CSRF-Token），否则 403——
     // 防 login CSRF（M02-SESSION-08，SECURITY.md §4）。
     if is_preauth_write_path(path) {
-        return validate_preauth_csrf(pool, request, &jar, &request_id, next).await;
+        return validate_preauth_csrf(pool, &state.config, request, &jar, &request_id, next).await;
     }
 
     // 其余无会话写请求（如 Bearer-only 端点）：宽松策略放行，由路由层处理
@@ -92,6 +100,7 @@ pub async fn csrf_protection(
 /// 会话绑定 synchronizer token 校验（原逻辑，M02-SESSION-07）。
 async fn validate_session_csrf(
     pool: &DatabasePool,
+    config: &AppConfig,
     request: Request,
     session_cookie: &str,
     request_id: &str,
@@ -135,6 +144,11 @@ async fn validate_session_csrf(
         return csrf_rejected(request_id);
     }
 
+    // M02-SESSION-09：Cookie 写请求同时校验请求来源（Origin，缺则 Referer）
+    if let Err(response) = validate_request_source(request.headers(), config, request_id) {
+        return response;
+    }
+
     next.run(request).await
 }
 
@@ -143,6 +157,7 @@ async fn validate_session_csrf(
 /// 过期 → 403 `csrf_failed`（fail closed，防 login CSRF）。
 async fn validate_preauth_csrf(
     pool: &DatabasePool,
+    config: &AppConfig,
     request: Request,
     jar: &CookieJar,
     request_id: &str,
@@ -193,6 +208,12 @@ async fn validate_preauth_csrf(
         return csrf_rejected(request_id);
     }
 
+    // M02-SESSION-09：预认证写请求同样校验请求来源（防 login CSRF 的
+    // 跨站表单提交：浏览器必带 Origin 或 Referer）
+    if let Err(response) = validate_request_source(request.headers(), config, request_id) {
+        return response;
+    }
+
     next.run(request).await
 }
 
@@ -208,6 +229,108 @@ fn is_preauth_write_path(path: &str) -> bool {
             | "/api/v1/auth/password-reset"
             | "/api/v1/auth/password-reset/confirm"
     )
+}
+
+/// 请求来源校验（M02-SESSION-09，SECURITY.md §4：验证 token 与 Origin，
+/// 缺少 Origin 时按策略校验 Referer）。
+///
+/// 策略：
+/// - `Origin` 存在 → 必须与请求 `Host` 同主机，或命中配置的
+///   `allowed_origins`（严格部署模式）；
+/// - `Origin` 缺失但 `Referer` 存在 → 将 Referer 归一化为 origin 后同样校验；
+/// - 两者皆缺 → 放行（非浏览器客户端；SameSite=Lax 已阻断跨站携带 cookie，
+///   Bearer-only 场景由 M02-SESSION-10 处理）。
+///
+/// 校验失败返回 `Err(400 origin_not_allowed)` 响应。
+#[allow(clippy::result_large_err)] // Response 为中间件统一拒绝载体，体积固定可接受
+fn validate_request_source(
+    headers: &HeaderMap,
+    config: &AppConfig,
+    request_id: &str,
+) -> Result<(), Response> {
+    let origin = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok());
+    let referer = headers
+        .get(header::REFERER)
+        .and_then(|value| value.to_str().ok());
+
+    // 归一化为 "scheme://host[:port]" 形式的候选来源
+    let candidate = match (origin, referer) {
+        (Some(o), _) => Some(o.to_string()),
+        (None, Some(r)) => referer_origin(r),
+        (None, None) => return Ok(()),
+    };
+    let Some(candidate) = candidate else {
+        // Referer 无法解析出合法来源 → 拒绝
+        tracing::warn!(request_id = %request_id, "csrf: referer unparseable");
+        return Err(source_rejected(request_id));
+    };
+
+    // 命中配置的 allowed_origins（严格部署模式）
+    if !config.allowed_origins.is_empty()
+        && config
+            .allowed_origins
+            .iter()
+            .any(|allowed| origin_allowed(allowed, &candidate))
+    {
+        return Ok(());
+    }
+
+    // 与请求 Host 同主机（忽略 scheme 与端口，与 SameSite 语义一致）
+    if let Some(host) = headers.get(header::HOST).and_then(|v| v.to_str().ok()) {
+        if hostname_of(host) == origin_hostname(&candidate) {
+            return Ok(());
+        }
+    }
+
+    tracing::warn!(request_id = %request_id, candidate, "csrf: request source not allowed");
+    Err(source_rejected(request_id))
+}
+
+/// 从 Referer URL 提取 origin（"scheme://host[:port]"）；无法解析返回 None。
+fn referer_origin(referer: &str) -> Option<String> {
+    let (scheme, rest) = referer.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    if authority.is_empty() {
+        return None;
+    }
+    Some(format!("{scheme}://{authority}"))
+}
+
+/// 提取 origin 字符串（"scheme://host[:port]" 或裸 host）的主机名。
+fn origin_hostname(origin: &str) -> &str {
+    let (_, rest) = origin.split_once("://").unwrap_or(("", origin));
+    let authority = rest.split(['/', '?']).next().unwrap_or(rest);
+    hostname_of(authority)
+}
+
+/// 提取 authority 的 hostname（忽略端口；支持 IPv6 字面量 `[...]`）。
+fn hostname_of(authority: &str) -> &str {
+    if let Some(rest) = authority.strip_prefix('[') {
+        return rest.split(']').next().unwrap_or(rest);
+    }
+    authority.split(':').next().unwrap_or(authority)
+}
+
+/// 400 Problem JSON 响应（来源不匹配）。
+fn source_rejected(request_id: &str) -> Response {
+    let problem = Problem {
+        type_uri: "about:blank",
+        title: "Bad Request",
+        status: StatusCode::BAD_REQUEST.as_u16(),
+        code: "origin_not_allowed",
+        detail: "Request origin is not allowed".to_string(),
+        instance: None,
+        request_id: request_id.to_string(),
+        errors: None,
+    };
+    (
+        StatusCode::BAD_REQUEST,
+        [(header::CONTENT_TYPE, "application/problem+json")],
+        Json(problem),
+    )
+        .into_response()
 }
 
 /// 根据会话 token 解析出会话 ID 与 CSRF 秘密哈希
@@ -337,5 +460,43 @@ mod tests {
         ] {
             assert!(!is_preauth_write_path(path), "{path} 不应是预认证写路径");
         }
+    }
+
+    #[test]
+    fn hostname_of_ignores_port_and_ipv6() {
+        assert_eq!(hostname_of("example.com"), "example.com");
+        assert_eq!(hostname_of("example.com:8080"), "example.com");
+        assert_eq!(hostname_of("example.com:443"), "example.com");
+        assert_eq!(hostname_of("[::1]:8080"), "::1");
+        assert_eq!(hostname_of("[2001:db8::1]"), "2001:db8::1");
+    }
+
+    #[test]
+    fn origin_hostname_strips_scheme_and_path() {
+        assert_eq!(origin_hostname("https://example.com"), "example.com");
+        assert_eq!(origin_hostname("https://example.com:8080"), "example.com");
+        assert_eq!(
+            origin_hostname("https://example.com/path?q=1"),
+            "example.com"
+        );
+        assert_eq!(origin_hostname("example.com"), "example.com");
+    }
+
+    #[test]
+    fn referer_origin_extracts_scheme_and_authority() {
+        assert_eq!(
+            referer_origin("https://example.com/login"),
+            Some("https://example.com".to_string())
+        );
+        assert_eq!(
+            referer_origin("https://example.com:8080/a?b=c#d"),
+            Some("https://example.com:8080".to_string())
+        );
+        assert_eq!(
+            referer_origin("https://example.com"),
+            Some("https://example.com".to_string())
+        );
+        assert_eq!(referer_origin("not-a-url"), None);
+        assert_eq!(referer_origin("https:///missing-host"), None);
     }
 }
