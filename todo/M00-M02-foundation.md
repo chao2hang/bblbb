@@ -141,8 +141,8 @@
 **目标文件：** `backend/src/jobs/`、`backend/src/outbox/`、`migrations/*/`、`docs/JOBS.md`、`docs/EVENT-CATALOG.md`
 **验收：** 三数据库运行提交/回滚、崩溃、lease、重复执行、busy 和优雅停机故障注入。
 
-- [~] `M01-JOBS-01` `[45m]` 建立 jobs 和 outbox 迁移，包含状态、attempt、run_at、lease、payload version 和幂等约束。
-- [ ] `M01-JOBS-02` `[45m]` 实现业务事务内写 Outbox，事务回滚时事件必须同步消失。
+- [x] `M01-JOBS-01` `[45m]` 建立 jobs 和 outbox 迁移，包含状态、attempt、run_at、lease、payload version 和幂等约束。证据：files=migrations/{sqlite,mysql,mariadb}/0007_jobs_outbox.sql,docs/SCHEMA.md,backend/tests/migration_lifecycle.rs；commands=cargo test --all-features（158 通过）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=jobs 表（status/attempts/max_attempts/available_at/locked_by/locked_until/deduplication_key 唯一/payload_version）+ outbox 扩展（payload_version/idempotency_key 唯一）；commit=299fbcc；review=结构契约测试 + 端到端 7 迁移应用成功
+- [~] `M01-JOBS-02` `[45m]` 实现业务事务内写 Outbox，事务回滚时事件必须同步消失。
 - [ ] `M01-JOBS-03` `[30m]` 实现 queued/running/retry_wait/succeeded/cancelled/dead 状态机及非法迁移拒绝。
 - [ ] `M01-JOBS-04` `[45m]` 实现批量领取、owner、lease 延期和 lease 到期后的安全重领。
 - [ ] `M01-JOBS-05` `[45m]` 实现分类重试、指数退避、jitter、最大次数、dead-letter 和人工重放。
