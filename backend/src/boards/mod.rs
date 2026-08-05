@@ -5,10 +5,13 @@
 //!   SCHEMA.md §6）；
 //! - [`validation`]：板块 slug/标题/说明/排序/状态/发帖规则校验
 //!   （M03-BOARDS-02）；
+//! - [`visibility`]：板块可见性（public/members/restricted/hidden）统一授权
+//!   服务门（M03-BOARDS-03）；
 //! - [`slug_exists`]：slug 唯一性检查（`boards_slug_uq` 唯一索引兜底）。
 
 pub mod hierarchy;
 pub mod validation;
+pub mod visibility;
 
 pub use hierarchy::{
     build_hierarchy, load_hierarchy, validate_parent, BoardHierarchy, BoardRef, HierarchyError,
@@ -17,6 +20,9 @@ pub use hierarchy::{
 pub use validation::{
     validate_board_fields, validate_board_update, validation_to_error, BoardValidationError,
     DESCRIPTION_MAX, NAME_MAX, POSTING_MODES, SLUG_MAX, SLUG_MIN, SORT_ORDER_MAX, SORT_ORDER_MIN,
+};
+pub use visibility::{
+    board_read_gate, filter_visible_board_ids, BoardAccess, VisibilityDeny, HIDDEN_READ_PERMISSIONS,
 };
 
 use sqlx::Either;

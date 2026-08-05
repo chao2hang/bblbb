@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::Either;
 
+use crate::auth::session::AuthSession;
+use crate::authz::decision::BoardVisibility;
+use crate::boards::{board_read_gate, filter_visible_board_ids, VisibilityDeny};
 use crate::{app::AppState, error::AppError};
 
 /// 板块路由
@@ -43,36 +46,52 @@ fn default_limit() -> i64 {
     20
 }
 
-/// GET /api/v1/boards — 列出所有板块
-async fn list_boards(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+/// GET /api/v1/boards — 列出可见板块（按请求方可见性过滤，M03-BOARDS-03）
+async fn list_boards(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
     let request_id = "list_boards";
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let actor = auth.user.as_ref().map(|u| u.id.as_str());
 
-    let boards = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order
-                 FROM boards WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC",
+    let boards =
+        match pool {
+            Either::Left(p) => sqlx::query_as::<_, BoardRow>(
+                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                 FROM boards WHERE is_active = 1 AND deleted_at IS NULL
+                 ORDER BY sort_order ASC, created_at ASC",
             )
             .fetch_all(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order
-                 FROM boards WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC",
+            .await,
+            Either::Right(p) => sqlx::query_as::<_, BoardRow>(
+                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                 FROM boards WHERE is_active = 1 AND deleted_at IS NULL
+                 ORDER BY sort_order ASC, created_at ASC",
             )
             .fetch_all(p)
-            .await
+            .await,
         }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let with_visibility: Vec<(String, BoardVisibility)> = boards
+        .iter()
+        .map(|b| {
+            let visibility =
+                BoardVisibility::parse(&b.visibility).unwrap_or(BoardVisibility::Public);
+            (b.id.clone(), visibility)
+        })
+        .collect();
+    let visible = filter_visible_board_ids(pool, &with_visibility, actor)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
 
     let items: Vec<Value> = boards
         .iter()
+        .filter(|b| visible.contains(&b.id))
         .map(|b| {
             json!({
                 "id": b.id,
@@ -90,10 +109,11 @@ async fn list_boards(State(state): State<AppState>) -> Result<Json<Value>, AppEr
     ))
 }
 
-/// GET /api/v1/boards/{slug} — 获取板块详情
+/// GET /api/v1/boards/{slug} — 获取板块详情（可见性门，M03-BOARDS-03）
 async fn get_board(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    auth: AuthSession,
 ) -> Result<Json<BoardResponse>, AppError> {
     let request_id = "get_board";
     let pool = state
@@ -101,39 +121,51 @@ async fn get_board(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let row = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order
-                 FROM boards WHERE slug = ? AND is_active = 1",
+    let row =
+        match pool {
+            Either::Left(p) => sqlx::query_as::<_, BoardRow>(
+                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                 FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
             .fetch_optional(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, post_count, is_active, sort_order
-                 FROM boards WHERE slug = ? AND is_active = 1",
+            .await,
+            Either::Right(p) => sqlx::query_as::<_, BoardRow>(
+                "SELECT id, slug, name, description, post_count, is_active, sort_order, visibility
+                 FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
             .fetch_optional(p)
-            .await
+            .await,
         }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    match row {
-        Some(b) => Ok(Json(BoardResponse {
-            id: b.id,
-            slug: b.slug,
-            name: b.name,
-            description: b.description,
-            post_count: b.post_count,
-            is_active: b.is_active != 0,
-        })),
-        None => Err(AppError::not_found("board not found", request_id)),
+    let Some(b) = row else {
+        return Err(AppError::not_found("board not found", request_id));
+    };
+    let visibility = BoardVisibility::parse(&b.visibility)
+        .ok_or_else(|| AppError::internal("invalid board visibility", request_id))?;
+    let access = board_read_gate(
+        pool,
+        &b.id,
+        visibility,
+        auth.user.as_ref().map(|u| u.id.as_str()),
+    )
+    .await
+    .map_err(|e| AppError::internal(e, request_id))?;
+    if !access.visible {
+        let deny = access.deny.unwrap_or(VisibilityDeny::MissingPermission);
+        return Err(deny.to_error(request_id));
     }
+
+    Ok(Json(BoardResponse {
+        id: b.id,
+        slug: b.slug,
+        name: b.name,
+        description: b.description,
+        post_count: b.post_count,
+        is_active: b.is_active != 0,
+    }))
 }
 
 /// GET /api/v1/boards/{slug}/posts — 列出板块下的帖子
@@ -260,6 +292,7 @@ struct BoardRow {
     is_active: i64,
     #[allow(dead_code)]
     sort_order: i64,
+    visibility: String,
 }
 
 #[derive(sqlx::FromRow)]
