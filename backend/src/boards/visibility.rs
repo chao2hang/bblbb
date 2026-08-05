@@ -168,13 +168,17 @@ async fn restricted_gate(
 }
 
 /// hidden：仅管理权限可读（board.manage / post.moderate / moderation.review）。
+///
+/// 防存在性推断（M03-BOARDS-08）：匿名与非特权用户一律 → `MissingPermission`
+/// （404），与不存在的 slug 返回完全相同的错误——不能用 401/403/404 差异
+/// 探测隐藏板块是否存在。
 async fn hidden_gate(
     pool: &DatabasePool,
     board_id: &str,
     actor_id: Option<&str>,
 ) -> Result<BoardAccess, String> {
     let Some(actor) = actor_id else {
-        return Ok(BoardAccess::denied(VisibilityDeny::Unauthenticated));
+        return Ok(BoardAccess::denied(VisibilityDeny::MissingPermission));
     };
     let mut account_denied = false;
     for permission in HIDDEN_READ_PERMISSIONS {

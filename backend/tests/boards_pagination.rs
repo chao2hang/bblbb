@@ -283,7 +283,11 @@ async fn visibility_applies_to_list_and_detail() {
     assert!(!slugs.contains(&"secret") && !slugs.contains(&"lounge"));
 
     let (status, _, _) = get_json(&app, "/api/v1/boards/secret").await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "hidden 匿名 401");
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "hidden 匿名 404（防存在性推断）"
+    );
     let (status, _, _) = get_json(&app, "/api/v1/boards/lounge").await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "members 匿名 401");
     let (status, _, _) = get_json(&app, "/api/v1/boards/nope").await;

@@ -294,7 +294,8 @@ async fn hidden_board_requires_management() {
 
     assert_eq!(
         gate(&pool, &board, "hidden", None).await,
-        (false, Some(VisibilityDeny::Unauthenticated))
+        (false, Some(VisibilityDeny::MissingPermission)),
+        "hidden 匿名也 404（防存在性推断，M03-BOARDS-08）"
     );
     assert_eq!(
         gate(&pool, &board, "hidden", Some(&member)).await,
