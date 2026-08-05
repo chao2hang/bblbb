@@ -251,8 +251,16 @@ impl Decision {
 pub enum DenyReason {
     /// 未认证/无 actor。
     NotAuthenticated,
-    /// 账号状态不允许该动作（AUTHZ-06 细化门槛）。
+    /// 账号状态不允许该动作（封禁/注销中/已删除等）。
     AccountNotAllowed,
+    /// 邮箱未验证（内容写入受限，M03-AUTHZ-06）。
+    EmailUnverified,
+    /// 新账户冷静期内（内容写入受限，M03-AUTHZ-06）。
+    InCooldown,
+    /// 全局 mute 生效中（内容写入受限，M03-AUTHZ-06）。
+    Muted,
+    /// 本板块 board_mute 生效中（板块内容写入受限，M03-AUTHZ-06）。
+    BoardMuted,
     /// 聚合权限中缺少所需 permission。
     MissingPermission,
     /// 对象级 owner 不匹配（edit_own 等）。
@@ -272,6 +280,10 @@ impl fmt::Display for DenyReason {
         let text = match self {
             DenyReason::NotAuthenticated => "not authenticated",
             DenyReason::AccountNotAllowed => "account status not allowed",
+            DenyReason::EmailUnverified => "email not verified",
+            DenyReason::InCooldown => "account in cooldown",
+            DenyReason::Muted => "account muted",
+            DenyReason::BoardMuted => "account board-muted",
             DenyReason::MissingPermission => "missing permission",
             DenyReason::NotResourceOwner => "not resource owner",
             DenyReason::ResourceStateNotAllowed => "resource state not allowed",
