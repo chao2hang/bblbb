@@ -100,7 +100,25 @@ running ──lease timeout──→ queued/retry_wait
 
 ## 6. 重试
 
-建议：指数退避 + jitter。
+实现位于 `backend/src/jobs/retry.rs`（M01-JOBS-05）。
+
+- 错误分类 `RetryClass`：
+  - `Transient`（临时性：网络、SMTP 4xx、S3 超时、数据库暂不可用）→ 按退避重试。
+  - `Permanent`（输入无效、模板缺失、附件格式不支持）→ 直接 dead-letter，不重试。
+- 退避 `RetryPolicy::backoff_with_jitter`：
+  第 N 次失败的等待 = `min(base * 2^(N-1), max_delay) + [0, jitter]`
+  （`base_delay_ms`/`max_delay_ms`/`jitter_ms`，指数饱和不溢出）。
+- 最大次数：`fail_job` 以行级 `max_attempts` 为准；`attempts >= max_attempts`
+  仍失败 → `dead`。`attempts` 在领取时 +1（M01-JOBS-04）。
+- `fail_job(pool, worker_id, job_id, error, class, policy)`：仅 owner 有效；
+  返回 `Retry { next_available_at }` / `Dead` / `LostLease`（lease 失效或
+  owner 不符，不做任何修改）。
+- `complete_job`：owner 标记成功（`running → succeeded`，写 `completed_at`）。
+- `replay_job`：人工重放 dead 任务（`dead → queued`，重置 attempts/last_error/
+  completed_at/租约，立即可领取）。管理操作，调用方必须写审计（§11）。
+- 错误文本必须是安全摘要：不写入邮件正文、Token、隐藏内容到 `last_error`。
+
+其他建议：
 
 - 临时网络、SMTP 4xx、S3 超时：重试。
 - 输入无效、附件格式不支持、模板缺失：直接 dead 或低次数重试。

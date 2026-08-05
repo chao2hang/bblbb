@@ -1,4 +1,5 @@
-//! 任务 Worker 状态机（M01-JOBS-03）。
+//! 任务 Worker 状态机（M01-JOBS-03）与 worker 租约/重试策略
+//! （M01-JOBS-04 / M01-JOBS-05）。
 //!
 //! 状态：
 //! ```text
@@ -7,14 +8,21 @@
 //!    │          │  └────→ dead
 //!    │          └─────(lease 超时)──→ queued
 //!    ├─→ cancelled           └──→ dead
-//!    └─→ dead
+//!    └─→ dead ──(人工重放)──→ queued
 //! ```
 //!
-//! 终态（succeeded/cancelled/dead）无出边；非法迁移一律拒绝并记录。
+//! `succeeded`/`cancelled` 无出边；`dead → queued` 是人工重放边
+//! （M01-JOBS-05，管理员审计操作）。非法迁移一律拒绝并记录。
 
+pub mod retry;
 pub mod worker;
 
 use std::fmt;
+
+/// 当前 Unix 毫秒（跨库时间约定 SCHEMA §2.2）。
+pub(crate) fn now_millis() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
 
 /// Job 状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -57,6 +65,9 @@ impl JobStatus {
     }
 
     /// 是否允许从 `from` 迁移到 `to`。
+    ///
+    /// `(Dead, Queued)` 是人工重放边（M01-JOBS-05）：仅管理员在审计下把
+    /// dead-letter 任务重新入队，普通执行路径不会经过它。
     pub fn allowed_transition(from: JobStatus, to: JobStatus) -> bool {
         use JobStatus::*;
         matches!(
@@ -74,6 +85,8 @@ impl JobStatus {
                 | (RetryWait, Running)
                 | (RetryWait, Dead)
                 | (RetryWait, Cancelled)
+                // 人工重放：dead → queued（管理员审计操作）
+                | (Dead, Queued)
         )
     }
 }
@@ -188,13 +201,42 @@ mod tests {
 
     #[test]
     fn terminal_states_have_no_outgoing_edges() {
-        for terminal in [JobStatus::Succeeded, JobStatus::Cancelled, JobStatus::Dead] {
+        // succeeded/cancelled 是真正的终态；dead 只有人工重放边
+        // （dead → queued，见 dead_can_be_replayed_to_queued_only）。
+        for terminal in [JobStatus::Succeeded, JobStatus::Cancelled] {
             for to in JobStatus::ALL {
                 assert!(
                     !JobStatus::allowed_transition(terminal, to),
                     "终态 {terminal} 不得迁往 {to}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn dead_can_be_replayed_to_queued_only() {
+        // 人工重放：dead → queued 合法
+        let mut job = Job::new("j1", "mail");
+        job.transition(JobStatus::Dead).unwrap();
+        job.transition(JobStatus::Queued).unwrap();
+        assert_eq!(job.status, JobStatus::Queued);
+
+        // 其他出边一律拒绝
+        for to in [
+            JobStatus::Running,
+            JobStatus::RetryWait,
+            JobStatus::Succeeded,
+            JobStatus::Cancelled,
+            JobStatus::Dead,
+        ] {
+            let mut job = Job::new("j1", "mail");
+            job.transition(JobStatus::Dead).unwrap();
+            assert!(
+                !JobStatus::allowed_transition(JobStatus::Dead, to),
+                "dead 不得直接迁往 {to}"
+            );
+            assert!(job.transition(to).is_err());
+            assert_eq!(job.status, JobStatus::Dead);
         }
     }
 

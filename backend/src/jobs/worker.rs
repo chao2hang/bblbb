@@ -1,4 +1,5 @@
-//! Job worker 租约：批量领取、owner 续租与 lease 过期后的安全重领（M01-JOBS-04）。
+//! Job worker 租约：批量领取、owner 续租、成功完成与 lease 过期后的安全重领
+//! （M01-JOBS-04 / M01-JOBS-05）。
 //!
 //! 契约：
 //! - [`claim_batch`]：先把本 queue 中 lease 已过期的 `running` 任务重新入队
@@ -7,8 +8,10 @@
 //!   UPDATE 的行才算领取成功，因此多 worker 并发不会重复领取。
 //! - 领取成功后 `attempts + 1`（一次领取 = 一次执行尝试），`locked_by` 记录
 //!   owner，`locked_until = now + lease`。
-//! - [`renew_lease`] 只允许 owner 在 lease 未过期时续租；lease 已过期或
-//!   owner 不符时返回 `false`，worker 必须立即放弃该任务（它可能已被重领）。
+//! - [`renew_lease`] 只允许 owner 在 lease 未过期时续租；[`complete_job`]
+//!   只允许 owner 标记成功（`running → succeeded`）。lease 已过期、owner 不符
+//!   时两者都返回 `false`，worker 必须立即放弃该任务（它可能已被重领）。
+//! - 失败路径与重试策略见 [`super::retry`]。
 //!
 //! SQLite 与 MySQL/MariaDB 使用同一套 CAS 语句；批量领取数量小、快速提交
 //! 租约，不在锁事务内执行任务（docs/JOBS.md §4）。
@@ -17,11 +20,7 @@ use serde_json::Value;
 use sqlx::Either;
 
 use crate::db::pool::DatabasePool;
-
-/// 当前 Unix 毫秒（跨库时间约定 SCHEMA §2.2）。
-fn now_millis() -> i64 {
-    chrono::Utc::now().timestamp_millis()
-}
+use crate::jobs::now_millis;
 
 /// 领取到的任务及其租约信息，供 worker 执行与续租。
 #[derive(Debug, Clone)]
@@ -117,6 +116,47 @@ pub async fn renew_lease(
         .bind(job_id)
         .bind(worker_id)
         .bind(now)
+        .execute(p)
+        .await?
+        .rows_affected(),
+    };
+    Ok(rows == 1)
+}
+
+/// 成功完成任务：`running → succeeded`，写 `completed_at` 并释放租约（M01-JOBS-05）。
+///
+/// 仅 owner 有效；lease 已失效、任务非 `running` 或 owner 不符时返回 `false`，
+/// worker 必须停止处理该任务（它可能已被重领）。
+pub async fn complete_job(
+    pool: &DatabasePool,
+    worker_id: &str,
+    job_id: &str,
+) -> Result<bool, sqlx::Error> {
+    let now = now_millis();
+    let rows = match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE jobs
+                 SET status = 'succeeded', completed_at = ?, locked_by = NULL,
+                     locked_until = NULL, updated_at = ?
+                 WHERE id = ? AND status = 'running' AND locked_by = ?",
+        )
+        .bind(now)
+        .bind(now)
+        .bind(job_id)
+        .bind(worker_id)
+        .execute(p)
+        .await?
+        .rows_affected(),
+        Either::Right(p) => sqlx::query(
+            "UPDATE jobs
+                 SET status = 'succeeded', completed_at = ?, locked_by = NULL,
+                     locked_until = NULL, updated_at = ?
+                 WHERE id = ? AND status = 'running' AND locked_by = ?",
+        )
+        .bind(now)
+        .bind(now)
+        .bind(job_id)
+        .bind(worker_id)
         .execute(p)
         .await?
         .rows_affected(),

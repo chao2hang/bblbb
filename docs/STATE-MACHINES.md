@@ -219,14 +219,18 @@ queued → cancelled
 queued → dead
 retry_wait → cancelled
 retry_wait → dead
+dead → queued               (人工重放，管理员审计操作)
 ```
 
 - `queued`/`running`/`retry_wait`/`succeeded`/`cancelled`/`dead` 六个状态
-  （M01-JOBS-03）；终态无出边。
+  （M01-JOBS-03）；`succeeded`/`cancelled` 是终态无出边。
 - 只能取消尚未运行的任务（`queued`/`retry_wait` → `cancelled`）；
   `running` 不直接取消，靠 lease 超时安全释放或按需人工干预。
+- `dead → queued` 是人工重放边（M01-JOBS-05）：仅管理员在审计下把
+  dead-letter 任务重新入队（重置 attempts/last_error），普通执行路径
+  不会经过它。
 - 非法迁移由 `backend/src/jobs/mod.rs` 的 `JobStatus::allowed_transition`
-  拒绝，测试覆盖终态无出边与非法路径。
+  拒绝，测试覆盖终态无出边、重放边与非法路径。
 
 ### Outbox Event
 
