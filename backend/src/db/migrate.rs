@@ -64,12 +64,21 @@ pub fn read_migration_files(dir: &Path) -> Result<Vec<MigrationFile>, String> {
     Ok(files)
 }
 
-/// 创建迁移历史表
+/// 创建迁移历史表 `schema_migrations`（M01-DB-07）。
+///
+/// 契约（与 docs/SCHEMA.md §3 一致，三数据库结构等价）：
+/// - `version`：迁移版本，主键，防止同版本重复应用；
+/// - `name`：迁移文件名（不含版本前缀）；
+/// - `checksum`：迁移文件全文 SHA-256；同一版本内容一旦应用后变更必须失败；
+/// - `applied_at`：应用时间（Unix 毫秒）。
+///
+/// 该表由迁移执行器在首次应用前创建，不进入迁移文件本身（不可变迁移不修改
+/// 已发布文件）。`ReadOnly` 检查路径不创建此表（见 `check_migrations_with_mode`）。
 pub async fn ensure_migration_table(pool: &DatabasePool) -> Result<(), sqlx::Error> {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "CREATE TABLE IF NOT EXISTS _sqlx_migrations (
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
                     version INTEGER PRIMARY KEY NOT NULL,
                     name TEXT NOT NULL,
                     checksum TEXT NOT NULL,
@@ -81,12 +90,12 @@ pub async fn ensure_migration_table(pool: &DatabasePool) -> Result<(), sqlx::Err
         }
         Either::Right(p) => {
             sqlx::query(
-                "CREATE TABLE IF NOT EXISTS _sqlx_migrations (
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
                     version BIGINT PRIMARY KEY NOT NULL,
                     name VARCHAR(255) NOT NULL,
                     checksum VARCHAR(64) NOT NULL,
                     applied_at BIGINT NOT NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
             )
             .execute(p)
             .await?;
@@ -99,7 +108,7 @@ pub async fn ensure_migration_table(pool: &DatabasePool) -> Result<(), sqlx::Err
 pub async fn list_applied_migrations(
     pool: &DatabasePool,
 ) -> Result<Vec<MigrationRecord>, sqlx::Error> {
-    let sql = "SELECT version, name, checksum, applied_at FROM _sqlx_migrations ORDER BY version";
+    let sql = "SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version";
     match pool {
         Either::Left(p) => sqlx::query_as::<_, MigrationRecord>(sql).fetch_all(p).await,
         Either::Right(p) => sqlx::query_as::<_, MigrationRecord>(sql).fetch_all(p).await,
@@ -111,7 +120,7 @@ pub async fn list_applied_migrations(
 /// 迁移表不存在（数据库尚未迁移）或为空时返回 `Ok(None)`，
 /// 供 `/readyz` 做版本比对，不修改数据库（M00-BACKEND-07/08）。
 pub async fn max_applied_version(pool: &DatabasePool) -> Result<Option<i64>, sqlx::Error> {
-    let sql = "SELECT MAX(version) FROM _sqlx_migrations";
+    let sql = "SELECT MAX(version) FROM schema_migrations";
     match pool {
         Either::Left(p) => match sqlx::query_scalar::<_, Option<i64>>(sql).fetch_one(p).await {
             Ok(value) => Ok(value),
@@ -156,7 +165,7 @@ pub async fn apply_migration(pool: &DatabasePool, file: &MigrationFile) -> Resul
             let mut tx = p.begin().await?;
             // SQLite 支持执行多条语句
             sqlx::raw_sql(&file.sql).execute(&mut *tx).await?;
-            sqlx::query("INSERT INTO _sqlx_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)")
+            sqlx::query("INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)")
                 .bind(file.version as i64)
                 .bind(&file.name)
                 .bind(&file.checksum)
@@ -175,7 +184,7 @@ pub async fn apply_migration(pool: &DatabasePool, file: &MigrationFile) -> Resul
                 }
                 sqlx::query(stmt).execute(&mut *tx).await?;
             }
-            sqlx::query("INSERT INTO _sqlx_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)")
+            sqlx::query("INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)")
                 .bind(file.version as i64)
                 .bind(&file.name)
                 .bind(&file.checksum)
@@ -377,7 +386,7 @@ mod tests {
         match &pool {
             Either::Left(p) => {
                 sqlx::query(
-                    "INSERT INTO _sqlx_migrations (version, name, checksum, applied_at) VALUES (5, 'x', 'y', ?)",
+                    "INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (5, 'x', 'y', ?)",
                 )
                 .bind(now)
                 .execute(p)
@@ -386,7 +395,7 @@ mod tests {
             }
             Either::Right(p) => {
                 sqlx::query(
-                    "INSERT INTO _sqlx_migrations (version, name, checksum, applied_at) VALUES (5, 'x', 'y', ?)",
+                    "INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (5, 'x', 'y', ?)",
                 )
                 .bind(now)
                 .execute(p)
@@ -446,7 +455,7 @@ mod tests {
             "pending migrations mean not clean, yet consistent"
         );
 
-        // 关键断言：数据库文件中没有任何表（_sqlx_migrations 也未被创建）。
+        // 关键断言：数据库文件中没有任何表（schema_migrations 也未被创建）。
         match &pool {
             Either::Left(p) => {
                 let tables: i64 =
@@ -592,6 +601,77 @@ mod tests {
         assert_eq!(run_migrations(&pool, &files).await.unwrap(), 1);
         assert_eq!(run_migrations(&pool, &files).await.unwrap(), 0);
         assert_eq!(list_applied_migrations(&pool).await.unwrap().len(), 1);
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 迁移历史表契约：version/name/checksum(SHA-256)/applied_at 全部正确记录。
+    #[tokio::test]
+    async fn history_table_records_full_contract() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        let sql = "CREATE TABLE a (id INTEGER PRIMARY KEY);";
+        let files = vec![test_file(1, "skeleton", sql)];
+        run_migrations(&pool, &files).await.unwrap();
+
+        let records = list_applied_migrations(&pool).await.unwrap();
+        assert_eq!(records.len(), 1);
+        let record = &records[0];
+        assert_eq!(record.version, 1);
+        assert_eq!(record.name, "skeleton");
+        // checksum 必须是迁移文件全文的 SHA-256
+        let expected = hex::encode(Sha256::digest(sql.as_bytes()));
+        assert_eq!(record.checksum, expected);
+        // applied_at 是 Unix 毫秒，必须为正值
+        assert!(
+            record.applied_at > 1_000_000_000,
+            "applied_at={}",
+            record.applied_at
+        );
+
+        match &pool {
+            Either::Left(p) => p.close().await,
+            Either::Right(p) => p.close().await,
+        }
+        cleanup_sqlite(&dir);
+    }
+
+    /// 迁移历史表结构契约：schema_migrations 恰好包含契约声明的 4 列，
+    /// version 是主键，且所有列 NOT NULL。
+    #[tokio::test]
+    async fn history_table_schema_contract() {
+        let dir = std::env::temp_dir().join(format!("bblbb-migrate-{}", uuid::Uuid::now_v7()));
+        let url = format!("sqlite://{}", dir.display());
+        let pool = crate::db::pool::create_pool(&url).await.unwrap();
+
+        ensure_migration_table(&pool).await.unwrap();
+
+        match &pool {
+            Either::Left(p) => {
+                let columns: Vec<(i64, String, String, i64, String, i64)> = sqlx::query_as(
+                    "SELECT cid, name, type, \"notnull\", dflt_value, pk
+                     FROM pragma_table_info('schema_migrations')
+                     ORDER BY cid",
+                )
+                .fetch_all(p)
+                .await
+                .unwrap();
+                let names: Vec<&str> = columns.iter().map(|c| c.1.as_str()).collect();
+                assert_eq!(names, vec!["version", "name", "checksum", "applied_at"]);
+                // version 是主键（pk=1），其余列非空
+                assert_eq!(columns[0].5, 1, "version must be primary key");
+                for column in &columns {
+                    assert_eq!(column.3, 1, "column {} must be NOT NULL", column.1);
+                }
+            }
+            Either::Right(_) => panic!("this test is SQLite-only"),
+        }
 
         match &pool {
             Either::Left(p) => p.close().await,

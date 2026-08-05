@@ -75,10 +75,20 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 
 | 字段 | 说明 |
 |---|---|
-| `version` | 迁移版本，主键 |
+| `version` | 迁移版本，主键，防止同版本重复应用 |
 | `name` | 迁移名称 |
-| `checksum` | 迁移文件 SHA-256，已应用后不可静默修改 |
-| `applied_at` | 应用时间 |
+| `checksum` | 迁移文件全文 SHA-256；已应用后内容变化必须失败 |
+| `applied_at` | 应用时间（Unix 毫秒） |
+
+迁移历史/checksum 表契约（M01-DB-07）：
+
+- 由迁移执行器在首次应用前创建（`backend/src/db/migrate.rs` 的
+  `ensure_migration_table`），不进入迁移文件本身；SQLite 与 MySQL/MariaDB
+  结构等价（MySQL 侧固定 `utf8mb4`/`utf8mb4_bin`）。
+- `checksum` 是迁移文件全文的 SHA-256；同一版本内容一旦应用后变更，
+  `migrate --check` 报告不匹配且 `migrate apply` 拒绝执行（含数据库超前时
+  的未知迁移拒绝）。
+- 四个字段全部 NOT NULL；`version` 唯一。
 
 ### `site_settings`
 
