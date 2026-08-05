@@ -1,17 +1,36 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  // M03-UI-01：用户主页 SSR——公开资料安全投影
+  //
+  // - SSR 主路径：+page.server.ts load 服务端取 `getPublicUser` 公开投影
+  //   （九字段 allowlist），页面直接渲染 data.user（无 JS 也可读）；
+  // - 不存在/已注销/匿名化 → load 抛 error(404)（不泄漏存在性）；
+  // - banned/pending_delete → 后端 200 安全降级投影（bio/signature/头像/
+  //   Cover 置空），页面隐藏缺失字段，不输出任何状态字段；
+  // - 资料隐私：页面只渲染 allowlist 公开字段；对抗性响应（混入邮箱/状态/
+  //   凭据）也不会进入 DOM（客户端兜底路径同守卫，见 user-page-privacy.test）。
+  import { onMount, untrack } from 'svelte';
   import { page } from '$app/state';
   import { getUser, type PublicProfile } from '$lib/api/client';
   import { type Problem } from '$lib/errors';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
+  import type { UserPageData } from './+page.server';
+
+  let { data = { user: null } }: { data?: UserPageData | { user: null } } = $props();
 
   let username = $derived(page.params.username);
-  let user = $state<PublicProfile | null>(null);
-  let loading = $state(true);
+  // SSR 已取到 → 直接用；load 不可用（直接客户端导航/测试）时客户端兜底。
+  // data 是每次导航重建页面时提供的一次性 SSR 初值，非响应式输入，因此用
+  // untrack 显式声明“仅取初值”，避免 state_referenced_locally 噪音。
+  let user = $state<PublicProfile | null>(untrack(() => data.user ?? null));
+  let loading = $state(untrack(() => data.user === null));
   let problem = $state<Problem | null>(null);
 
   onMount(async () => {
+    if (user) {
+      loading = false;
+      return;
+    }
     if (!username) {
       loading = false;
       return;
@@ -66,6 +85,12 @@
               <div class="profile-about-item"><dt>昵称</dt><dd>{user.display_name || user.username}</dd></div>
               <div class="profile-about-item"><dt>用户名</dt><dd>{user.username}</dd></div>
               <div class="profile-about-item"><dt>等级</dt><dd>LV.{user.level}</dd></div>
+              {#if user.bio}
+                <div class="profile-about-item"><dt>简介</dt><dd>{user.bio}</dd></div>
+              {/if}
+              {#if user.signature}
+                <div class="profile-about-item"><dt>签名</dt><dd>{user.signature}</dd></div>
+              {/if}
             </dl>
           </div>
         </div>
