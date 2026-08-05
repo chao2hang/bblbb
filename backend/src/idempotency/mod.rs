@@ -149,16 +149,29 @@ pub enum IdempotencyOutcome {
     InProgress,
     /// 相同 key 但摘要不同：调用方必须稳定返回 409。
     Conflict,
-    /// 相同 key+摘要但上次执行失败：调用方可重试（重新执行并更新记录）。
+    /// 相同 key+摘要但上次执行失败且按 [`FailureCachePolicy::Cache`] 缓存：
+    /// 返回已存储的失败结果，不重新执行。
     Failed { response_reference: Option<String> },
 }
 
+/// 失败是否缓存（M01-AUDIT-05）：由 operation 契约显式指定。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureCachePolicy {
+    /// 缓存失败：同 key+摘要且上次 `failed` → 返回 `Failed`，不重新执行。
+    Cache,
+    /// 不缓存失败：同 key+摘要且上次 `failed` → 重置为 `in_progress`
+    /// 并返回 `Created`，允许重新执行。
+    Retry,
+}
+
 /// 开始一次幂等操作：首次创建 `in_progress` 记录；重复投递返回原结果；
-/// 摘要不一致返回冲突（M01-AUDIT-04）。
+/// 摘要不一致返回冲突（M01-AUDIT-04）；并发首请求只有一个执行者
+/// （M01-AUDIT-05，唯一约束兜底）；失败是否缓存按 `failure_policy` 明确处理。
 ///
 /// - 相同 key+摘要且 `completed` → `Replay`（原结果）；
-/// - 相同 key+摘要且 `in_progress` → `InProgress`（并发，M01-AUDIT-05）；
-/// - 相同 key+摘要且 `failed` → `Failed`（可重试）；
+/// - 相同 key+摘要且 `in_progress` → `InProgress`（并发，不执行）；
+/// - 相同 key+摘要且 `failed` → 按 `failure_policy`：`Cache` → `Failed`；
+///   `Retry` → 重置并 `Created`；
 /// - 相同 key+不同摘要 → 稳定 `Conflict`（409）；
 /// - 记录已过期（`expires_at < now`）→ 删除并以 `Created` 重新开始。
 pub async fn begin_or_replay(
@@ -166,6 +179,7 @@ pub async fn begin_or_replay(
     key: &IdempotencyKey,
     request_hash: &str,
     ttl_ms: i64,
+    failure_policy: FailureCachePolicy,
 ) -> Result<IdempotencyOutcome, sqlx::Error> {
     validate_request_hash(request_hash).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
     let now = now_millis();
@@ -174,8 +188,31 @@ pub async fn begin_or_replay(
         if record.expires_at < now {
             // 记录已过期：删除后按首次请求重新开始
             delete_record(pool, &record.id).await?;
+        } else if record.request_hash != request_hash {
+            return Ok(IdempotencyOutcome::Conflict);
         } else {
-            return Ok(classify_existing(&record, request_hash));
+            match record.status {
+                IdempotencyStatus::Completed => {
+                    return Ok(IdempotencyOutcome::Replay {
+                        response_reference: record.response_reference.clone(),
+                    })
+                }
+                IdempotencyStatus::InProgress => return Ok(IdempotencyOutcome::InProgress),
+                IdempotencyStatus::Failed => match failure_policy {
+                    FailureCachePolicy::Cache => {
+                        return Ok(IdempotencyOutcome::Failed {
+                            response_reference: record.response_reference.clone(),
+                        })
+                    }
+                    FailureCachePolicy::Retry => {
+                        // 重置为 in_progress，允许同一 key+摘要重新执行
+                        reset_to_in_progress(pool, &record.id).await?;
+                        return Ok(IdempotencyOutcome::Created {
+                            record_id: record.id,
+                        });
+                    }
+                },
+            }
         }
     }
 
@@ -190,7 +227,23 @@ pub async fn begin_or_replay(
             let record = fetch_record(pool, key)
                 .await?
                 .expect("并发冲突后记录必然存在");
-            Ok(classify_existing(&record, request_hash))
+            match record.status {
+                IdempotencyStatus::InProgress => Ok(IdempotencyOutcome::InProgress),
+                IdempotencyStatus::Completed => Ok(IdempotencyOutcome::Replay {
+                    response_reference: record.response_reference.clone(),
+                }),
+                IdempotencyStatus::Failed => match failure_policy {
+                    FailureCachePolicy::Cache => Ok(IdempotencyOutcome::Failed {
+                        response_reference: record.response_reference.clone(),
+                    }),
+                    FailureCachePolicy::Retry => {
+                        reset_to_in_progress(pool, &record.id).await?;
+                        Ok(IdempotencyOutcome::Created {
+                            record_id: record.id,
+                        })
+                    }
+                },
+            }
         }
         Err(err) => Err(err),
     }
@@ -260,19 +313,30 @@ pub async fn mark_failed(pool: &DatabasePool, record_id: &str) -> Result<bool, s
     Ok(rows == 1)
 }
 
-/// 根据已存在记录判定结果。
-fn classify_existing(record: &IdempotencyRecord, request_hash: &str) -> IdempotencyOutcome {
-    if record.request_hash != request_hash {
-        return IdempotencyOutcome::Conflict;
-    }
-    match record.status {
-        IdempotencyStatus::Completed => IdempotencyOutcome::Replay {
-            response_reference: record.response_reference.clone(),
-        },
-        IdempotencyStatus::InProgress => IdempotencyOutcome::InProgress,
-        IdempotencyStatus::Failed => IdempotencyOutcome::Failed {
-            response_reference: record.response_reference.clone(),
-        },
+/// 把 `failed` 记录重置为 `in_progress`（Retry 策略：允许重新执行）。
+async fn reset_to_in_progress(pool: &DatabasePool, record_id: &str) -> Result<(), sqlx::Error> {
+    let now = now_millis();
+    match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE idempotency_records
+                 SET status = 'in_progress', response_reference = NULL, updated_at = ?
+                 WHERE id = ? AND status = 'failed'",
+        )
+        .bind(now)
+        .bind(record_id)
+        .execute(p)
+        .await
+        .map(|_| ()),
+        Either::Right(p) => sqlx::query(
+            "UPDATE idempotency_records
+                 SET status = 'in_progress', response_reference = NULL, updated_at = ?
+                 WHERE id = ? AND status = 'failed'",
+        )
+        .bind(now)
+        .bind(record_id)
+        .execute(p)
+        .await
+        .map(|_| ()),
     }
 }
 

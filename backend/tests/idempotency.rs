@@ -7,8 +7,8 @@ use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
 use bblbb_backend::idempotency::{
-    begin_or_replay, complete, mark_failed, request_hash, validate_request_hash, IdempotencyKey,
-    IdempotencyOutcome, IdempotencyStatus,
+    begin_or_replay, complete, mark_failed, request_hash, validate_request_hash,
+    FailureCachePolicy, IdempotencyKey, IdempotencyOutcome, IdempotencyStatus,
 };
 use sqlx::Either;
 
@@ -233,7 +233,7 @@ async fn replay_returns_original_result_and_conflict_is_stable() {
     let hash_b = request_hash(br#"{"amount":200}"#);
 
     // 首次请求 → Created
-    let first = begin_or_replay(&pool, &key, &hash_a, 86_400_000)
+    let first = begin_or_replay(&pool, &key, &hash_a, 86_400_000, FailureCachePolicy::Cache)
         .await
         .unwrap();
     let IdempotencyOutcome::Created { record_id } = first else {
@@ -241,7 +241,7 @@ async fn replay_returns_original_result_and_conflict_is_stable() {
     };
 
     // 进行中且同摘要 → InProgress
-    let in_progress = begin_or_replay(&pool, &key, &hash_a, 86_400_000)
+    let in_progress = begin_or_replay(&pool, &key, &hash_a, 86_400_000, FailureCachePolicy::Cache)
         .await
         .unwrap();
     assert_eq!(
@@ -254,7 +254,7 @@ async fn replay_returns_original_result_and_conflict_is_stable() {
     assert!(complete(&pool, &record_id, "resp-777").await.unwrap());
 
     // 相同 key+摘要 → Replay 原结果
-    let replay = begin_or_replay(&pool, &key, &hash_a, 86_400_000)
+    let replay = begin_or_replay(&pool, &key, &hash_a, 86_400_000, FailureCachePolicy::Cache)
         .await
         .unwrap();
     assert_eq!(
@@ -267,7 +267,7 @@ async fn replay_returns_original_result_and_conflict_is_stable() {
 
     // 相同 key+不同摘要 → 稳定 Conflict（多次调用一致）
     for _ in 0..3 {
-        let conflict = begin_or_replay(&pool, &key, &hash_b, 86_400_000)
+        let conflict = begin_or_replay(&pool, &key, &hash_b, 86_400_000, FailureCachePolicy::Cache)
             .await
             .unwrap();
         assert_eq!(
@@ -289,7 +289,7 @@ async fn failed_records_are_retryable_and_expired_records_restart() {
     let hash = request_hash(b"attachment");
 
     // 首次 → 失败
-    let first = begin_or_replay(&pool, &key, &hash, 86_400_000)
+    let first = begin_or_replay(&pool, &key, &hash, 86_400_000, FailureCachePolicy::Cache)
         .await
         .unwrap();
     let IdempotencyOutcome::Created { record_id } = first else {
@@ -298,7 +298,7 @@ async fn failed_records_are_retryable_and_expired_records_restart() {
     assert!(mark_failed(&pool, &record_id).await.unwrap());
 
     // 同 key+摘要且 failed → Failed 变体（可重试）
-    let retry = begin_or_replay(&pool, &key, &hash, 86_400_000)
+    let retry = begin_or_replay(&pool, &key, &hash, 86_400_000, FailureCachePolicy::Cache)
         .await
         .unwrap();
     assert!(matches!(
@@ -320,13 +320,121 @@ async fn failed_records_are_retryable_and_expired_records_restart() {
         }
         Either::Right(_) => panic!("SQLite only"),
     }
-    let restarted = begin_or_replay(&pool, &key, &hash, 86_400_000)
+    let restarted = begin_or_replay(&pool, &key, &hash, 86_400_000, FailureCachePolicy::Cache)
         .await
         .unwrap();
     assert!(
         matches!(restarted, IdempotencyOutcome::Created { .. }),
         "过期记录应删除并重新开始，得到 {restarted:?}"
     );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// M01-AUDIT-05：并发首次请求只能有一个执行者（唯一约束兜底，
+/// 败者看到 InProgress，绝不重复执行）。
+#[tokio::test]
+async fn concurrent_first_requests_have_single_executor() {
+    let (pool, dir) = pool_with_migrations().await;
+    let key = IdempotencyKey::new("pay", "order-concurrent").unwrap();
+    let hash = request_hash(b"amount=100");
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+
+    let mut outcomes = Vec::new();
+    for worker in ["worker-a", "worker-b"] {
+        let pool = pool.clone();
+        let key = key.clone();
+        let hash = hash.clone();
+        let barrier = barrier.clone();
+        let worker = worker.to_owned();
+        outcomes.push(tokio::spawn(async move {
+            barrier.wait().await; // 尽量同时开始
+            let outcome =
+                begin_or_replay(&pool, &key, &hash, 86_400_000, FailureCachePolicy::Cache)
+                    .await
+                    .unwrap();
+            (worker, outcome)
+        }));
+    }
+
+    let mut created = 0;
+    let mut in_progress = 0;
+    for handle in outcomes {
+        let (_worker, outcome) = handle.await.unwrap();
+        match outcome {
+            IdempotencyOutcome::Created { .. } => created += 1,
+            IdempotencyOutcome::InProgress => in_progress += 1,
+            other => panic!("并发首请求只应出现 Created/InProgress，得到 {other:?}"),
+        }
+    }
+    assert_eq!(
+        created, 1,
+        "并发首请求必须只有一个执行者（created=1），实际 {created}"
+    );
+    assert_eq!(in_progress, 1, "另一个请求必须看到 InProgress 而不执行");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// M01-AUDIT-05：失败是否缓存按 operation 契约明确处理。
+#[tokio::test]
+async fn failure_cache_policy_is_explicit_per_operation() {
+    let (pool, dir) = pool_with_migrations().await;
+    let key = IdempotencyKey::new("pay", "order-failpolicy").unwrap();
+    let hash = request_hash(b"amount=100");
+
+    // 首次执行失败
+    let first = begin_or_replay(&pool, &key, &hash, 86_400_000, FailureCachePolicy::Cache)
+        .await
+        .unwrap();
+    let IdempotencyOutcome::Created { record_id } = first else {
+        panic!("expected created")
+    };
+    assert!(mark_failed(&pool, &record_id).await.unwrap());
+
+    // Cache：返回已存储失败，不重新执行（记录仍为 failed）
+    let cached = begin_or_replay(&pool, &key, &hash, 86_400_000, FailureCachePolicy::Cache)
+        .await
+        .unwrap();
+    assert!(
+        matches!(cached, IdempotencyOutcome::Failed { .. }),
+        "Cache 策略必须返回已存储失败，得到 {cached:?}"
+    );
+    let status: String = match &pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT status FROM idempotency_records WHERE id = ?")
+                .bind(&record_id)
+                .fetch_one(p)
+                .await
+                .unwrap()
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(status, "failed", "Cache 策略不重新执行");
+
+    // Retry：重置为 in_progress 并允许重新执行（同一 record id）
+    let retried = begin_or_replay(&pool, &key, &hash, 86_400_000, FailureCachePolicy::Retry)
+        .await
+        .unwrap();
+    match retried {
+        IdempotencyOutcome::Created { record_id: id } => {
+            assert_eq!(id, record_id, "Retry 复用同一记录并重置")
+        }
+        other => panic!("Retry 策略必须返回 Created，得到 {other:?}"),
+    }
+    let status: String = match &pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT status FROM idempotency_records WHERE id = ?")
+                .bind(&record_id)
+                .fetch_one(p)
+                .await
+                .unwrap()
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(status, "in_progress", "Retry 策略重置为 in_progress");
 
     close_pool(&pool).await;
     cleanup(&dir);
