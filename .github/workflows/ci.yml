@@ -179,3 +179,4 @@ jobs:
           cargo test --test transaction_concurrency -- --ignored
           cargo test --test session_crossdb -- --ignored
           cargo test --test auth_crossdb -- --ignored
+          cargo test --test schema_fixture -- --ignored

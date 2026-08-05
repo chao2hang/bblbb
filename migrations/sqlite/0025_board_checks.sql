@@ -1,0 +1,4 @@
+-- BBLBB boards 可见性/发帖模式 CHECK 三库对齐（M03-SCHEMA-07）
+-- SQLite 已在 0022 建列时内联 CHECK（visibility/posting_mode），无需改动；
+-- 本文件仅为保持三库迁移版本平行，并记录 0025 在 mysql/mariadb 上补齐
+-- 等价 CHECK（migrations/{mysql,mariadb}/0025_board_checks.sql）这一事实。

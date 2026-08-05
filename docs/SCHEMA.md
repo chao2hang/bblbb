@@ -347,7 +347,8 @@ TOTP enrollment（RFC 6238）：
 
 `parent_id`（迁移 0022）为软自引用层级（ALTER ADD COLUMN 不能带 FK；
 层级完整性与环路校验在服务层）；`visibility` 默认 `public`、`posting_mode`
-默认 `normal`，二者 CHECK 约束三库强制。
+默认 `normal`，二者 CHECK 约束三库强制（sqlite 于 0022 建列时内联；
+mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 
 删除/停用语义（SCHEMA-06，迁移 0024）：
 
