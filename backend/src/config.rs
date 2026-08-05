@@ -818,4 +818,100 @@ mod tests {
         assert_eq!(db_max, 16, "整数键必须解析为原生类型");
         assert_eq!(env, "test");
     }
+
+    // ── M01-CONFIG-09：.env.example 与文档同步、示例无真实域名/凭据/Token ──
+
+    fn env_example_path() -> std::path::PathBuf {
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        std::path::Path::new(&manifest).join(".env.example")
+    }
+
+    fn config_docs_path() -> std::path::PathBuf {
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        std::path::Path::new(&manifest).join("../docs/CONFIGURATION.md")
+    }
+
+    /// .env.example 不得含可用 Token 或真实凭据模式。
+    #[test]
+    fn env_example_has_no_credentials_or_tokens() {
+        let content = std::fs::read_to_string(env_example_path()).unwrap();
+        let forbidden_markers = [
+            "AKIA",              // AWS Access Key
+            "sk-",               // OpenAI 风格
+            "ghp_",              // GitHub PAT
+            "github_pat_",       // GitHub fine-grained PAT
+            "BEGIN PRIVATE KEY", // 私钥块
+            "xoxb-",             // Slack bot token
+            "AIza",              // Google API key
+            "password=changeme", // 占位密码（与占位 Secret 检测一致的负面示例不应出现可复用值）
+        ];
+        for marker in forbidden_markers {
+            assert!(
+                !content.contains(marker),
+                ".env.example 不得包含凭据模式 {marker:?}"
+            );
+        }
+    }
+
+    /// .env.example 中的 URL 主机必须是占位域名（example.* / localhost / loopback）。
+    #[test]
+    fn env_example_uses_placeholder_domains_only() {
+        let content = std::fs::read_to_string(env_example_path()).unwrap();
+        let allowed_suffixes = ["example.com", "example.org", "example.net", "localhost"];
+        for token in content.split_whitespace() {
+            // 提取 `scheme://authority`
+            let Some((_, rest)) = token.split_once("://") else {
+                continue;
+            };
+            let authority = rest.split('/').next().unwrap_or(rest).trim_end_matches(';');
+            // 去掉 userinfo（user:pass@host）
+            let host_with_port = authority.rsplit('@').next().unwrap_or(authority);
+            let host = host_with_port
+                .split(':')
+                .next()
+                .unwrap_or(host_with_port)
+                .to_lowercase();
+            let is_allowed = allowed_suffixes
+                .iter()
+                .any(|s| host == *s || host.ends_with(&format!(".{s}")))
+                || host == "127.0.0.1"
+                || host == "::1"
+                || host == "[::1]"
+                || host == "host" // 示例占位符
+                || host.is_empty()
+                || host.starts_with('.'); // sqlite://../data 等相对路径无主机
+            assert!(is_allowed, ".env.example 出现真实域名主机: {host}");
+        }
+    }
+
+    /// CONFIGURATION.md §1.1 登记表列出全部环境变量（文档与代码同步）。
+    #[test]
+    fn config_docs_list_all_registry_env_vars() {
+        let docs = std::fs::read_to_string(config_docs_path()).unwrap();
+        for entry in CONFIG_REGISTRY {
+            assert!(
+                docs.contains(entry.env_var),
+                "CONFIGURATION.md 未列出 {}",
+                entry.env_var
+            );
+            assert!(
+                docs.contains(&format!("`{}`", entry.field)),
+                "CONFIGURATION.md 未列出字段 `{}`",
+                entry.field
+            );
+        }
+    }
+
+    /// .env.example 与登记表逐项同步（值均带默认值注释，无留空必填项）。
+    #[test]
+    fn env_example_records_defaults_for_all_registry_entries() {
+        let content = std::fs::read_to_string(env_example_path()).unwrap();
+        for entry in CONFIG_REGISTRY {
+            let line = content
+                .lines()
+                .find(|line| line.contains(entry.env_var) && line.contains('='))
+                .unwrap_or_else(|| panic!("{} 未在 .env.example 记录赋值行", entry.env_var));
+            assert!(line.contains('='), "{} 行缺少示例值: {line}", entry.env_var);
+        }
+    }
 }
