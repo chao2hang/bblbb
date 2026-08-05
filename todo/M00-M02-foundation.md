@@ -219,7 +219,7 @@
 
 ## M02-MFA：TOTP、恢复码与近期认证
 
-**元数据：** `P0` · `owner=backend-auth` · `risk=critical` · `depends=M02-SESSION` · `blocked=none`
+**元数据：** `P0` · `owner=backend-auth` · `risk=critical` · `depends=M02-SESSION` · `blocked=M03-AUTHZ`
 **目标文件：** `migrations/*/`、`backend/src/auth/mfa*`、`backend/tests/mfa*`、`docs/AUTH-OIDC.md`
 **验收：** 时间漂移、重放、恢复码并发、高权限强制和 step-up 流程测试通过。
 
@@ -227,9 +227,9 @@
 - [x] `M02-MFA-02` `[45m]` 实现 enrollment challenge、二维码所需最小数据、确认后启用和取消未完成 enrollment。证据：files=backend/src/auth/mfa.rs,backend/src/auth/mod.rs,backend/tests/mfa_enrollment.rs,backend/Cargo.toml,docs/AUTH-OIDC.md；commands=cargo test --all-features（418 通过/0 失败，含 mfa 6 单测 + mfa_enrollment 8 集成测试）; cargo clippy --all-features --all-targets（0 warning）; make check; contract=新增 hmac/sha1/aes-gcm 依赖：begin_enrollment 生成 20 字节 secret（base32 展示）+ AES-256-GCM 加密（nonce+密文 hex）写入 pending 行 + 返回 otpauth URI（secret/issuer/algorithm/digits/period 二维码最小数据）+ 撤销旧 TOTP（重复启用=撤销旧+新建）；confirm_enrollment 时间窗口 ±1 + 未重放 step（>last_accepted_step）后原子启用（confirmed_at+last_accepted_step），无 pending/已确认/错误 code/解密失败分别报错；cancel_enrollment 撤销未完成 enrollment；RFC 6238 官方测试向量通过；commit=8c747a9；review=6 单测（RFC 向量/base32/窗口/加密往返/otpauth）+ 8 集成（challenge/确认/错码/无 pending/重复确认/取消/撤销旧+新建/错误密钥）
 - [x] `M02-MFA-03` `[30m]` 实现允许时间窗口和已接受 time step 防重放，不在日志输出 code 或 secret。证据：files=backend/src/auth/mfa.rs,backend/src/auth/mod.rs,backend/src/config.rs,backend/tests/mfa_verify.rs,backend/.env.example,docs/CONFIGURATION.md；commands=cargo test --all-features（426 通过/0 失败，含 mfa_verify 8 项）; cargo clippy --all-features --all-targets（0 warning）; make check; contract=verify_totp_login：允许时间窗口（当前步 ±window，BBLBB__TOTP_WINDOW_STEPS 默认 1 入 CONFIG_REGISTRY）+ 防重放（接受的 step 必须 > last_accepted_step，原子推进 WHERE last_accepted_step < ?，并发同 step 恰好一个成功）+ 未启用 → TotpNotEnabled；confirm 消费的 step 写入 last_accepted_step（确认 code 不可在登录重放）；全程不输出 code/secret（模块无日志，错误信息不含 code 或 base32 secret）；commit=0e70f58；review=8 项测试（有效 code/窗口内 ±1/窗口外拒绝/重放拒绝/错误 code/未启用/并发唯一成功/错误信息不含 code+secret）
 - [x] `M02-MFA-04` `[45m]` 一次生成恢复码，只展示一次；数据库存 hash，消费时原子标记并通知用户。证据：files=backend/src/auth/mfa.rs,backend/src/auth/mod.rs,backend/tests/mfa_recovery.rs；commands=cargo test --all-features（431 通过/0 失败，含 mfa_recovery 5 项）; cargo clippy --all-features --all-targets（0 warning）; make check; contract=generate_recovery_codes：默认 10 个恢复码（每个 10 字节随机 → 16 位 base32，80 bit 熵），明文只在生成响应返回一次（“只展示一次”）——数据库只存 SHA-256 hash（64 hex 唯一约束）；新一组使旧未用码全部失效（password_reset 语义）；审计 auth.mfa_recovery_codes_generated 与生成同事务；consume_recovery_code：hash 匹配 + UPDATE WHERE consumed_at IS NULL 原子消费（并发同码恰好一个成功）+ 大小写不敏感 + 无效/已消费统一 InvalidCode 防枚举 + 审计 auth.mfa_recovery_code_used 同事务（可追踪；安全通知由 M02-MFA-08 发送）；commit=dacb176；review=5 项测试（生成只展示一次+只存 hash+审计/原子消费+并发唯一/未知码拒绝/大小写不敏感/新一组使旧码失效）
-- [~] `M02-MFA-05` `[30m]` 普通 member 可选 TOTP；administrator、moderator 和高风险账务账号强制启用。
-- [ ] `M02-MFA-06` `[30m]` 未完成强制 enrollment 的账号不得取得对应高权限 Session 或执行高风险操作。
-- [ ] `M02-MFA-07` `[45m]` 为改密、停用 MFA、角色提升、退款、密钥和 Secret 操作实现 recent-auth/step-up。
+- [!] `M02-MFA-05` `[30m]` 普通 member 可选 TOTP；administrator、moderator 和高风险账务账号强制启用。阻塞：前置契约缺失——角色聚合（administrator/global moderator/board moderator/member）由 M03-AUTHZ-02 提供，`SessionUser.roles` 当前恒为空（M3-AUTHZ 接入）；"高风险账务账号"判定依赖 M3 权限数据；无角色数据则强制启用规则无法实现与验证；负责人=backend-auth；复查日期=2026-08-12；解除条件=M03-AUTHZ-02 完成且 SessionUser.roles 携带真实角色后解除。可选 TOTP 部分已由 M02-MFA-02 交付。
+- [!] `M02-MFA-06` `[30m]` 未完成强制 enrollment 的账号不得取得对应高权限 Session 或执行高风险操作。阻塞：前置契约缺失——强制执行依赖 M02-MFA-05 的强制启用规则与 M3-AUTHZ 的角色数据（二者皆未就绪）；"高权限 Session/高风险操作"边界由 M3-AUTHZ 授权模型定义；负责人=backend-auth；复查日期=2026-08-12；解除条件=M02-MFA-05 解除且 M3-AUTHZ 授权模型可判定高权限后解除。
+- [~] `M02-MFA-07` `[45m]` 为改密、停用 MFA、角色提升、退款、密钥和 Secret 操作实现 recent-auth/step-up。
 - [ ] `M02-MFA-08` `[30m]` 实现新设备、密码/MFA 变化、Session 撤销和恢复码使用安全通知。
 - [ ] `M02-MFA-09` `[45m]` 测试时钟偏移、code 重放、并发恢复码、降权、封禁和 Session 旋转。
 - [ ] `M02-MFA-10` `[30m]` 编写管理员失去 TOTP 设备的受控恢复 Runbook，要求双人复核和不可删除审计。
