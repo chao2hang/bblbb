@@ -480,13 +480,16 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "in_progress",
+      "owner": "security-backend",
+      "handler": "backend/src/routes/admin.rs::list_admin_roles",
       "tests": [
-
+        "backend/tests/authz_persona.rs",
+        "backend/tests/authz_no_client_elevation.rs",
+        "backend/tests/authz_enforce.rs",
+        "backend/tests/authz_roles.rs"
       ],
-      "evidence": null
+      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "createAdminRole",
@@ -497,13 +500,16 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "in_progress",
+      "owner": "security-backend",
+      "handler": "backend/src/routes/admin.rs::create_admin_role",
       "tests": [
-
+        "backend/tests/authz_persona.rs",
+        "backend/tests/authz_no_client_elevation.rs",
+        "backend/tests/authz_enforce.rs",
+        "backend/tests/authz_roles.rs"
       ],
-      "evidence": null
+      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "getAdminRole",
@@ -514,13 +520,16 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "in_progress",
+      "owner": "security-backend",
+      "handler": "backend/src/routes/admin.rs::get_admin_role",
       "tests": [
-
+        "backend/tests/authz_persona.rs",
+        "backend/tests/authz_no_client_elevation.rs",
+        "backend/tests/authz_enforce.rs",
+        "backend/tests/authz_roles.rs"
       ],
-      "evidence": null
+      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "updateAdminRole",
@@ -531,13 +540,16 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "in_progress",
+      "owner": "security-backend",
+      "handler": "backend/src/routes/admin.rs::update_admin_role",
       "tests": [
-
+        "backend/tests/authz_persona.rs",
+        "backend/tests/authz_no_client_elevation.rs",
+        "backend/tests/authz_enforce.rs",
+        "backend/tests/authz_roles.rs"
       ],
-      "evidence": null
+      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "listAdminTags",
