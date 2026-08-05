@@ -33,7 +33,8 @@ const user = {
   display_name: null,
   level: 1,
   roles: ['member'],
-  mfa_enabled: false
+  mfa_enabled: false,
+  version: 1
 };
 
 const meData = {

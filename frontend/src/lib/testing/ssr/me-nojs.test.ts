@@ -15,7 +15,8 @@ const user = {
   display_name: null,
   level: 3,
   roles: ['member'],
-  mfa_enabled: false
+  mfa_enabled: false,
+  version: 3
 };
 
 const sessions = [

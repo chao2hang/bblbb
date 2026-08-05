@@ -59,11 +59,12 @@ export type {
 // ── 实现投影：以 generated 基类型组合，公共字段来自契约 ────────────────────────
 
 /** 当前用户（GET /me）投影：契约 Me + 实现扩展字段（status/display_name/bio/
- * timezone 可空映射）。后端补齐 version/created_at/updated_at 后，
- * 可塌缩为 `export type User = Me`。 */
+ * timezone 可空映射）。后端补齐 created_at/updated_at 后，可塌缩为
+ * `export type User = Me`。version 已由后端 Me 返回（M03-PROFILE-04 乐观并发
+ * 来源），保留为 If-Match 依据。 */
 export type User = Omit<
   ContractMe,
-  'version' | 'created_at' | 'updated_at' | 'mfa_enabled' | 'display_name'
+  'created_at' | 'updated_at' | 'mfa_enabled' | 'display_name'
 > & {
   status: string;
   display_name: string | null;

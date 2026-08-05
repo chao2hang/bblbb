@@ -342,11 +342,12 @@ export async function authedPost<T = unknown>(
 
 /** 认证写请求通用实现：会话 Cookie + 会话绑定 CSRF + Set-Cookie 复制。 */
 async function authedWrite(
-  method: 'POST' | 'DELETE',
+  method: 'POST' | 'DELETE' | 'PATCH',
   cookies: Cookies,
   path: string,
   body: unknown,
-  requestId: string | null
+  requestId: string | null,
+  extraHeaders: Record<string, string> = {}
 ): Promise<{ ok: true; data?: unknown } | ServerWriteFailure> {
   let csrf;
   try {
@@ -363,7 +364,8 @@ async function authedWrite(
   }
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'X-CSRF-Token': csrf.token
+    'X-CSRF-Token': csrf.token,
+    ...extraHeaders
   };
   if (csrf.cookieValue) headers.Cookie = `${SESSION_COOKIE}=${csrf.cookieValue}`;
   if (requestId) headers['X-Request-ID'] = requestId;
@@ -388,6 +390,23 @@ async function authedWrite(
       ? Number(retryAfterHeader)
       : null;
   return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs, code };
+}
+
+/**
+ * PATCH 认证写请求（M03-UI-02 资料编辑）：转发会话 Cookie + 会话绑定
+ * synchronizer token；extraHeaders 用于 If-Match 乐观并发版本头。成功返回
+ * `{ ok: true, data }`（data 为响应 JSON，如更新后的 Me 投影）。
+ */
+export async function authedPatch<T = unknown>(
+  cookies: Cookies,
+  path: string,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+  requestId: string | null = null
+): Promise<{ ok: true; data: T } | ServerWriteFailure> {
+  const result = await authedWrite('PATCH', cookies, path, body, requestId, extraHeaders);
+  if (result.ok) return { ok: true, data: result.data as T };
+  return result;
 }
 
 export interface LoginViaServerInput {
