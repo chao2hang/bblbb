@@ -19,6 +19,8 @@ pub const SESSION_COOKIE_NAME: &str = "__Host-bblbb_session";
 pub const IDLE_TIMEOUT_MS: i64 = 30 * 60 * 1000;
 /// 默认 absolute 超时：7 天（Unix 毫秒，M01-DB-08）
 pub const ABSOLUTE_TIMEOUT_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+/// 默认 step-up 窗口：5 分钟（M02-MFA-07；配置 BBLBB__STEP_UP_WINDOW_SECS）
+pub const DEFAULT_STEP_UP_WINDOW_SECS: u64 = 5 * 60;
 
 /// 已认证的会话用户信息
 #[derive(Clone, Debug, Serialize)]
@@ -248,8 +250,8 @@ pub async fn create_session(pool: &DatabasePool, user_id: &str) -> Result<String
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, created_at, last_seen_at, idle_expires_at, absolute_expires_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, created_at, last_seen_at, idle_expires_at, absolute_expires_at, auth_verified_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&session_id)
             .bind(user_id)
@@ -259,13 +261,15 @@ pub async fn create_session(pool: &DatabasePool, user_id: &str) -> Result<String
             .bind(now)
             .bind(idle_expires)
             .bind(absolute_expires)
+            // 完整认证时间：登录签发会话即视为已完整认证（M02-MFA-07 step-up）
+            .bind(now)
             .execute(p)
             .await?;
         }
         Either::Right(p) => {
             sqlx::query(
-                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, created_at, last_seen_at, idle_expires_at, absolute_expires_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO user_sessions (id, user_id, token_hash, csrf_secret_hash, created_at, last_seen_at, idle_expires_at, absolute_expires_at, auth_verified_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&session_id)
             .bind(user_id)
@@ -275,6 +279,7 @@ pub async fn create_session(pool: &DatabasePool, user_id: &str) -> Result<String
             .bind(now)
             .bind(idle_expires)
             .bind(absolute_expires)
+            .bind(now)
             .execute(p)
             .await?;
         }
@@ -552,6 +557,94 @@ pub(crate) fn generate_csrf_token(session_id: &str, token_hash: &str) -> String 
     hasher.update(token_hash.as_bytes());
     hasher.update(b":csrf");
     hex::encode(hasher.finalize())
+}
+
+// ─────────────────────────── 近期认证 / step-up ───────────────────────────
+
+/// step-up 判定（M02-MFA-07）：`auth_verified_at`（Unix 毫秒）距今是否超过
+/// 窗口（秒）。`None`（从未完整认证）→ 需要 step-up（fail closed）。
+pub fn step_up_required(auth_verified_at_ms: Option<i64>, now_secs: u64, window_secs: u64) -> bool {
+    let Some(verified_ms) = auth_verified_at_ms else {
+        return true;
+    };
+    let verified_secs = (verified_ms / 1000) as u64;
+    now_secs.saturating_sub(verified_secs) > window_secs
+}
+
+/// 标记近期认证：把当前会话的 `auth_verified_at` 刷新为 now。
+///
+/// 在高风险操作（改密、停用 MFA、角色提升、退款、密钥/Secret 操作）完成
+/// 重认证后调用；会话无效/已撤销返回 `Err(sqlx::Error::RowNotFound)`。
+pub async fn mark_step_up(pool: &DatabasePool, session_token: &str) -> Result<(), sqlx::Error> {
+    let token_hash = hash_token(session_token);
+    let now = crate::outbox::now_millis();
+    let affected = match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE user_sessions SET auth_verified_at = ?
+             WHERE token_hash = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(&token_hash)
+        .execute(p)
+        .await?
+        .rows_affected(),
+        Either::Right(p) => sqlx::query(
+            "UPDATE user_sessions SET auth_verified_at = ?
+             WHERE token_hash = ? AND revoked_at IS NULL",
+        )
+        .bind(now)
+        .bind(&token_hash)
+        .execute(p)
+        .await?
+        .rows_affected(),
+    };
+    if affected != 1 {
+        return Err(sqlx::Error::RowNotFound);
+    }
+    Ok(())
+}
+
+/// 会话是否要求 step-up（M02-MFA-07）。
+///
+/// 会话无效/已过期/已撤销一律视为需要 step-up（fail closed）。
+pub async fn is_step_up_required_for_session(
+    pool: &DatabasePool,
+    session_token: &str,
+    window_secs: u64,
+) -> Result<bool, sqlx::Error> {
+    let token_hash = hash_token(session_token);
+    let now = crate::outbox::now_millis();
+    let verified: Option<Option<i64>> = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar(
+                "SELECT auth_verified_at FROM user_sessions
+             WHERE token_hash = ? AND revoked_at IS NULL
+               AND idle_expires_at > ? AND absolute_expires_at > ?",
+            )
+            .bind(&token_hash)
+            .bind(now)
+            .bind(now)
+            .fetch_optional(p)
+            .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar(
+                "SELECT auth_verified_at FROM user_sessions
+             WHERE token_hash = ? AND revoked_at IS NULL
+               AND idle_expires_at > ? AND absolute_expires_at > ?",
+            )
+            .bind(&token_hash)
+            .bind(now)
+            .bind(now)
+            .fetch_optional(p)
+            .await?
+        }
+    };
+    Ok(step_up_required(
+        verified.flatten(),
+        (now / 1000) as u64,
+        window_secs,
+    ))
 }
 
 /// 从 HeaderMap 获取 request_id

@@ -31,8 +31,9 @@ pub use preauth::{
 pub use registration::{register_user, RegisterUserError, RegistrationOutcome};
 pub use resend::{resend_verification_email, ResendError, ResendLimits, ResendOutcome};
 pub use session::{
-    list_sessions, revoke_all_sessions, revoke_session_by_id, rotate_session, AuthSession,
-    DeviceSession, SessionUser,
+    is_step_up_required_for_session, list_sessions, mark_step_up, revoke_all_sessions,
+    revoke_session_by_id, rotate_session, step_up_required, AuthSession, DeviceSession,
+    SessionUser, DEFAULT_STEP_UP_WINDOW_SECS,
 };
 pub use token::{generate_token, hash_token};
 pub use verification::{verify_email_token, VerifyEmailError, VerifyEmailOutcome};
