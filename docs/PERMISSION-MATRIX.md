@@ -195,3 +195,20 @@
   policy_version_mismatch / default_deny）。
 - 默认拒绝：未命中任何 Allow 规则即 `Deny::DefaultDeny`（AUTHZ-05 落地
   handler 调用模式）。账号状态门槛细化由 M03-AUTHZ-06 落地。
+
+## 12. Handler 统一授权调用模式（M03-AUTHZ-05）
+
+- `backend/src/authz/enforce.rs`：
+  - `require_action(pool, user_id, status, permission, board_id, policy_version)`
+    加载聚合角色（AUTHZ-02/03）→ `decide_action` 纯函数判定；
+  - `decide_action(roles, permission, status, policy_version)`：策略版本不符 →
+    `PolicyVersionMismatch`；账号状态门槛（仅 Active/Restricted，AUTHZ-06
+    细化）→ `AccountNotAllowed`；`permission ∈ roles` → Allow；否则 →
+    `MissingPermission`（默认拒绝，绝无隐式 Allow）；
+  - `require_object_scope(actor_id, resource, expected_owner, allowed_states)`：
+    对象级 owner（`is_resource_owner`）与 resource state 判定；
+  - `deny_to_error(reason, request_id)`：NotAuthenticated → 401，其余 → 403。
+- Handler 调用模式：
+  `require_action(...) → 拒绝即 deny_to_error(reason) → require_object_scope(...)`；
+  板块范围经 `aggregate_permissions(board_id)` 实时进入聚合（board_moderator
+  只在其板块生效）。
