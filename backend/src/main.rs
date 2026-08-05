@@ -13,6 +13,12 @@ async fn main() -> ExitCode {
         }
     };
 
+    // M01-DB-02：启动前校验数据库 URL 与连接池参数，非法配置立即失败。
+    if let Err(error) = config.validate_db_config() {
+        eprintln!("invalid database configuration: {error}");
+        return ExitCode::FAILURE;
+    }
+
     // 迁移仅在显式开启时执行（M01-DB-06：生产服务启动不得自动应用未知迁移）。
     // 开关：环境变量 BBLBB__AUTO_MIGRATE=true 或 CLI 参数 --migrate。
     let auto_migrate = config.auto_migrate || std::env::args().any(|arg| arg == "--migrate");
@@ -22,7 +28,12 @@ async fn main() -> ExitCode {
         .init();
 
     // 初始化数据库连接池
-    let db_pool = match bblbb_backend::db::pool::create_pool(&config.database_url).await {
+    let db_pool = match bblbb_backend::db::pool::create_pool_with_options(
+        &config.database_url,
+        &config.db_options(),
+    )
+    .await
+    {
         Ok(pool) => {
             tracing::info!(
                 url = %bblbb_backend::db::pool::redact_dsn(&config.database_url),

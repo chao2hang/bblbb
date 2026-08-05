@@ -106,8 +106,8 @@
 **目标文件：** `backend/Cargo.toml`、`backend/src/db/`、`backend/src/bin/`、`migrations/{sqlite,mysql,mariadb}/`
 **验收：** 空库、重复执行、checksum 篡改、上一版本升级和失败回滚在三数据库通过。
 
-- [~] `M01-DB-01` `[30m]` 接入 sqlx 的 Tokio runtime、SQLite 与 MySQL 协议支持，并记录 MariaDB 兼容策略。
-- [ ] `M01-DB-02` `[45m]` 实现数据库 URL、最大/最小连接、连接超时、空闲时间和 slow query 配置校验。
+- [x] `M01-DB-01` `[30m]` 接入 sqlx 的 Tokio runtime、SQLite 与 MySQL 协议支持，并记录 MariaDB 兼容策略。证据：files=docs/SCHEMA.md,backend/Cargo.toml,backend/src/db/pool.rs；commands=cargo test --all-features（59 通过）; make check；contract=sqlx runtime-tokio + SQLite/MySQL 协议 + mariadb:// 归一化 + utf8mb4_bin 固定 + MariaDB 兼容策略（SCHEMA §1.1）；commit=1a1b694；review=make check 全绿 + 三数据库 CI 迁移/契约测试
+- [~] `M01-DB-02` `[45m]` 实现数据库 URL、最大/最小连接、连接超时、空闲时间和 slow query 配置校验。
 - [ ] `M01-DB-03` `[30m]` 为 SQLite 每连接启用 foreign_keys、WAL、busy timeout 和统一时区。
 - [ ] `M01-DB-04` `[30m]` 为 MySQL/MariaDB 固定字符集、时区、事务隔离和 sql_mode 前置检查。
 - [ ] `M01-DB-05` `[45m]` 实现 `migrate --check`，只检查版本、顺序和 checksum，不改变数据库。
