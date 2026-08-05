@@ -48,6 +48,36 @@ impl std::fmt::Display for FeatureName {
     }
 }
 
+/// 请求路径 → 可选能力映射（M01-CONFIG-06）。
+///
+/// 用于 Feature Gate 中间件：路由前缀命中即检查对应 Flag，默认关闭时返回
+/// `feature_disabled`（409）。映射随各领域里程碑细化（M6/M9/M10/M11/M12）。
+pub fn feature_for_path(path: &str) -> Option<FeatureName> {
+    if path.starts_with("/api/v1/ai/") {
+        return Some(FeatureName::Ai);
+    }
+    if path.starts_with("/api/v1/video-embeds/") {
+        return Some(FeatureName::Video);
+    }
+    if path.starts_with("/api/v1/marketplace/") {
+        return Some(FeatureName::Marketplace);
+    }
+    if path.starts_with("/oauth/")
+        || path.starts_with("/.well-known/")
+        || path.starts_with("/api/v1/oauth/")
+    {
+        return Some(FeatureName::Oidc);
+    }
+    // 下载抵扣/授权（上传不受 Download Billing Flag 控制）
+    if path.starts_with("/api/v1/download-authorizations/")
+        || path.ends_with("/download-policy")
+        || (path.starts_with("/api/v1/attachments/") && path.ends_with("/download"))
+    {
+        return Some(FeatureName::DownloadBilling);
+    }
+    None
+}
+
 /// Flag 作用范围（v1.0 为全局；灰度规则由后续 policy 版本扩展）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlagScope {
@@ -352,5 +382,40 @@ mod tests {
         for name in FeatureName::ALL {
             assert!(!name.as_str().is_empty());
         }
+    }
+
+    /// 路径映射：五个能力的路由前缀都能命中对应 Flag，无关路径不命中。
+    #[test]
+    fn feature_for_path_maps_capability_prefixes() {
+        use FeatureName::*;
+        assert_eq!(feature_for_path("/api/v1/ai/capabilities"), Some(Ai));
+        assert_eq!(feature_for_path("/api/v1/ai/drafts/x/format"), Some(Ai));
+        assert_eq!(
+            feature_for_path("/api/v1/video-embeds/resolve"),
+            Some(Video)
+        );
+        assert_eq!(
+            feature_for_path("/api/v1/marketplace/offers"),
+            Some(Marketplace)
+        );
+        assert_eq!(feature_for_path("/oauth/token"), Some(Oidc));
+        assert_eq!(
+            feature_for_path("/.well-known/openid-configuration"),
+            Some(Oidc)
+        );
+        assert_eq!(feature_for_path("/api/v1/oauth/interactions/x"), Some(Oidc));
+        assert_eq!(
+            feature_for_path("/api/v1/attachments/x/download"),
+            Some(DownloadBilling)
+        );
+        assert_eq!(
+            feature_for_path("/api/v1/download-authorizations/x/sign-url"),
+            Some(DownloadBilling)
+        );
+        // 无关路径与上传不命中
+        assert_eq!(feature_for_path("/healthz"), None);
+        assert_eq!(feature_for_path("/api/v1/attachments"), None);
+        assert_eq!(feature_for_path("/api/v1/openapi.json"), None);
+        assert_eq!(feature_for_path("/api/v1/posts"), None);
     }
 }

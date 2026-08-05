@@ -113,6 +113,18 @@ impl AppError {
         }
     }
 
+    /// 功能或 Provider 当前关闭（M01-CONFIG-06；OpenAPI/ERROR-CODES：409 feature_disabled）
+    pub fn feature_disabled(detail: impl Into<String>, request_id: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            code: "feature_disabled",
+            title: "Feature Disabled",
+            detail: detail.into(),
+            request_id: request_id.into(),
+            errors: None,
+        }
+    }
+
     /// 清理错误详情中的敏感信息
     ///
     /// 集中清除：SQL 语句、栈/回溯、密码、Token、Secret、API Key、

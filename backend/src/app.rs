@@ -3,8 +3,10 @@ use std::time::Duration;
 
 use axum::{
     body::Body,
+    extract::State,
     http::{Request as HttpRequest, StatusCode},
     middleware,
+    response::{IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -44,6 +46,7 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 pub struct AppState {
     pub config: Arc<AppConfig>,
     pub db: Option<Arc<DatabasePool>>,
+    pub flags: crate::config::flags::FeatureFlags,
 }
 
 impl AppState {
@@ -53,13 +56,25 @@ impl AppState {
     }
 }
 
-/// 构建完整路由
+/// 构建完整路由（Flag 默认全部关闭）。
 pub fn build_router(config: AppConfig, db: Option<DatabasePool>) -> Router {
+    let flags = config.feature_flags();
+    build_router_with_flags(config, db, flags)
+}
+
+/// 构建完整路由（自定义 Flag 快照；测试与未来的管理接口用）。
+pub fn build_router_with_flags(
+    config: AppConfig,
+    db: Option<DatabasePool>,
+    flags: crate::config::flags::FeatureFlags,
+) -> Router {
     let state = AppState {
         config: Arc::new(config),
         db: db.map(Arc::new),
+        flags,
     };
     let guard_state = state.clone();
+    let gate_state = state.clone();
 
     // 基础端点（不需要 AppState）
     let base_routes = Router::new()
@@ -121,7 +136,7 @@ pub fn build_router(config: AppConfig, db: Option<DatabasePool>) -> Router {
         .merge(openapi_routes)
         .merge(api_routes)
         // 中间件层（.layer 按从内到外应用；运行顺序为从外到内：
-        // problem → request_id → host_origin → trace → body_limit → timeout → security_headers → router）
+        // problem → request_id → feature_gate → host_origin → trace → body_limit → timeout → security_headers → router）
         // problem_instance 必须最外层：内层中间件（如 Host/Origin）提前返回的
         // Problem 响应也能被补齐 instance/request_id。
         .layer(middleware::from_fn(security_headers))
@@ -135,6 +150,39 @@ pub fn build_router(config: AppConfig, db: Option<DatabasePool>) -> Router {
             guard_state,
             host_origin_guard,
         ))
+        .layer(middleware::from_fn_with_state(gate_state, feature_gate))
         .layer(middleware::from_fn(request_id))
         .layer(middleware::from_fn(problem_instance))
+}
+
+/// Feature Gate（M01-CONFIG-06）：可选能力默认关闭，命中其路由前缀且 Flag
+/// 未启用时返回 `feature_disabled`（409）。放在 request_id 内层，可读取
+/// request_id；由 problem_instance 补齐 instance。
+async fn feature_gate(
+    State(state): State<AppState>,
+    request: HttpRequest<Body>,
+    next: middleware::Next,
+) -> Response {
+    let path = request.uri().path();
+    let Some(feature) = crate::config::flags::feature_for_path(path) else {
+        return next.run(request).await;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    if state.flags.is_enabled(feature, now) {
+        return next.run(request).await;
+    }
+    let request_id = request
+        .extensions()
+        .get::<RequestId>()
+        .map(|rid| rid.0.clone())
+        .unwrap_or_else(|| "unknown".to_owned());
+    tracing::info!(feature = %feature, path, "request blocked: feature disabled");
+    crate::error::AppError::feature_disabled(
+        format!("feature '{}' is currently disabled", feature),
+        request_id,
+    )
+    .into_response()
 }

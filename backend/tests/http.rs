@@ -2,7 +2,8 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use bblbb_backend::{build_router, AppConfig};
+use bblbb_backend::config::flags::{FeatureFlags, FeatureName};
+use bblbb_backend::{build_router, build_router_with_flags, AppConfig};
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 
@@ -149,4 +150,73 @@ async fn write_with_session_cookie_without_db_passes_csrf_check() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+}
+
+/// M01-CONFIG-06：可选能力默认关闭 → 命中其路由前缀返回 409 feature_disabled。
+#[tokio::test]
+async fn disabled_feature_route_returns_409_feature_disabled() {
+    for path in [
+        "/api/v1/ai/capabilities",
+        "/api/v1/video-embeds/resolve",
+        "/api/v1/marketplace/offers",
+        "/oauth/token",
+        "/.well-known/openid-configuration",
+        "/api/v1/attachments/abc/download",
+    ] {
+        let response = build_router(AppConfig::default(), None)
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .method("GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT, "path {path}");
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["code"], "feature_disabled", "path {path}: {json}");
+        assert_eq!(json["status"], 409, "path {path}");
+    }
+}
+
+/// Flag 启用后，同一路由放行到真实 handler（此时为 stub → 501）。
+#[tokio::test]
+async fn enabled_feature_route_passes_the_gate() {
+    let mut flags = FeatureFlags::all_default();
+    flags
+        .set(
+            FeatureName::Ai,
+            true,
+            1,
+            0,
+            "test",
+            "enable for test",
+            1_700_000_000_000,
+        )
+        .unwrap();
+    let response = build_router_with_flags(AppConfig::default(), None, flags)
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/ai/capabilities")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    // Gate 放行 → 走到 stub handler（501 Not Implemented）
+    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+}
+
+/// 上传与核心路径不受 Download Billing / 其他 Flag 门控。
+#[tokio::test]
+async fn upload_and_core_routes_are_not_gated() {
+    for path in ["/api/v1/attachments", "/healthz", "/api/v1/openapi.json"] {
+        let response = build_router(AppConfig::default(), None)
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_ne!(response.status(), StatusCode::CONFLICT, "path {path}");
+    }
 }
