@@ -90,6 +90,27 @@ running ──lease timeout──→ queued/retry_wait
   （`locked_until >= now`）时续租；owner 不符、任务已非 `running` 或 lease 已过期
   一律返回 `false`，worker 必须立即放弃该任务——它可能已被其他 worker 重领。
 
+### 写事务 IO 边界（M01-JOBS-07）
+
+**规则：** 数据库写事务（BEGIN..COMMIT/ROLLBACK，含 `_in_tx` 函数与
+`begin()` 调用点）内禁止调用 SMTP、S3、AI、视频 Provider 或执行图片处理。
+事务代码只做数据库读写与内存计算；任何外部 IO 必须放在独立 adapter/worker
+执行层，在事务提交之后再进行。
+
+原因：
+
+1. 缩短锁持有时间：外部 IO 的延迟（网络、转码、模型推理）会放大行锁/写锁
+   占用，阻塞其他事务。
+2. 避免部分副作用：外部调用成功后事务回滚，会造成“外部已生效、数据库未
+   生效”的不一致。
+3. 可重试性：外部 IO 留给 worker 层结合 lease 与幂等键重试，事务层保持
+   原子且可回滚。
+
+**强制检查：** `make check-tx-io`（`scripts/check-tx-io.rb`）静态扫描
+`backend/src`——任何包含事务原语（`_in_tx`/`Transaction`/`.begin(`）的源文件
+不得引用外部 IO 依赖（lettre、aws-sdk、reqwest、image、ffmpeg、AI Provider
+SDK）。CI 失败即阻断。
+
 ## 5. 幂等
 
 - Job handler 必须按“至少一次执行”设计。

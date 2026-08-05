@@ -53,10 +53,11 @@ dev-backend: ## 启动后端开发服务器
 ##@ 检查
 check: check-backend check-migrations check-frontend check-prototype check-openapi check-contract check-roadmap check-docs check-secrets ## 运行全部检查
 
-check-backend: ## 后端 fmt + clippy + 编译检查 + 领域层依赖边界
+check-backend: ## 后端 fmt + clippy + 编译检查 + 领域层依赖边界 + 事务 IO 边界
 	@printf "$(GREEN)>>> [check-backend] Rust fmt + clippy + check$(RESET)\n"
 	@cd $(BACKEND_DIR) && cargo fmt --all -- --check
 	@$(MAKE) check-domain
+	@$(MAKE) check-tx-io
 	@cd $(BACKEND_DIR) && cargo clippy --workspace --all-targets --all-features -- -D warnings
 	@cd $(BACKEND_DIR) && cargo check --all-features
 
@@ -67,6 +68,10 @@ check-domain: ## 领域层依赖边界扫描（禁止 axum/sqlx/SMTP/S3/环境�
 	else \
 		echo "领域层依赖边界 OK（无 axum/sqlx/环境变量）"; \
 	fi
+
+check-tx-io: ## 写事务 IO 边界扫描（禁止事务内 SMTP/S3/AI/视频/图片处理，M01-JOBS-07）
+	@printf "$(GREEN)>>> [check-tx-io] 写事务 IO 边界$(RESET)\n"
+	@ruby scripts/check-tx-io.rb
 
 check-migrations: ## 三数据库迁移结构等价断言（M01-DB-09）
 	@printf "$(GREEN)>>> [check-migrations] 迁移结构等价断言$(RESET)\n"
