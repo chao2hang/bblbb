@@ -10,16 +10,23 @@
 //!   revision 语义（旧 revision 不覆盖新 revision 的单调性来源，docs/SEARCH.md §4/§5）；
 //! - [`fts`]：全文索引维护——重建命令与触发器/Job 更新策略（M03-SEARCH-STORE-02）；
 //! - [`gate`]：索引写入可见性裁决——只接受可见性裁决后的安全文本，
-//!   不存 restricted_html（M03-SEARCH-STORE-05，P0）。
+//!   不存 restricted_html（M03-SEARCH-STORE-05，P0）；
+//! - [`text`]：索引安全纯文本转换——剥离 HTML 标签后清洗截断（M03-SEARCH-STORE-06）；
+//! - [`index_job`]：索引幂等 Job——创建/更新/隐藏/删除/恢复/退出索引
+//!   （M03-SEARCH-STORE-06）。
 
 pub mod fts;
 pub mod gate;
+pub mod index_job;
+pub mod text;
 
 pub use fts::rebuild_fts;
 pub use gate::{
     decide_board_indexability, decide_post_indexability, decide_tag_indexability,
     decide_user_indexability, vet_index_text, ExclusionReason, IndexDecision, IndexTextError,
 };
+pub use index_job::{enqueue_index_job, handle_index_job, INDEX_JOB_KIND};
+pub use text::to_index_plain_text;
 
 /// 索引标题长度上限（字符；与帖子标题 OpenAPI `maxLength: 240` 一致）。
 pub const TITLE_MAX: usize = 240;

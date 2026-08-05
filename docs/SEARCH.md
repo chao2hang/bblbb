@@ -105,8 +105,16 @@ Rust 模型：`backend/src/search/mod.rs::SearchDocument`。
 
 ### 7.1 触发器/Job 更新策略（M03-SEARCH-STORE-02/06）
 
-- `search_documents` 是唯一索引写入面，由索引 Job（M03-SEARCH-STORE-06）
-  维护（创建/更新/隐藏/删除/恢复/退出索引均为幂等 Job）。
+- `search_documents` 是唯一索引写入面，由索引 Job（M03-SEARCH-STORE-06，
+  `backend/src/search/index_job.rs`）维护：单一 kind `search.index`，
+  payload `{entity_type, entity_id}`，覆盖创建/更新/隐藏/删除/恢复/退出索引
+  六种语义（由源状态裁决推导，全部幂等）。
+- 写路径契约：源状态 → 可见性裁决（`gate`）→ `to_index_plain_text` 纯文本
+  转换 + `vet_index_text`（P0 门）→ `SearchDocument::new` → 条件 upsert
+  （`stored.policy_revision <= candidate` 才应用，旧 revision 不覆盖新）；
+  被排除/源行缺失 → `DELETE FROM search_documents`（幂等）。
+- 入队幂等：`deduplication_key = search:index:{type}:{id}`，同一实体待处理
+  Job 已存在则合并跳过。
 - SQLite：`search_fts` 为 FTS5 external content 表（`content='search_documents'`、
   `content_rowid='rowid'`、`tokenize='unicode61'`），0030 迁移内置三个同步
   触发器（`search_fts_ai/ad/au`）——Job 不直接写 FTS 表，触发器自动把
