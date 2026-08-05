@@ -18,7 +18,7 @@
 **目标文件：** `migrations/{sqlite,mysql,mariadb}/`、`backend/src/users/`、`backend/src/authz/`、`backend/src/boards/`
 **验收：** 三数据库空库/升级迁移、约束和 repository contract 通过。
 
-- [ ] `M03-SCHEMA-01` `P0` `[45m]` 新增用户资料、隐私设置、展示偏好、等级缓存和 profile revision 字段迁移。
+- [~] `M03-SCHEMA-01` `P0` `[45m]` 新增用户资料、隐私设置、展示偏好、等级缓存和 profile revision 字段迁移。
 - [ ] `M03-SCHEMA-02` `P0` `[30m]` 新增头像与 Cover 的稳定 attachment_id 引用，禁止保存远程 URL 或签名 URL。
 - [ ] `M03-SCHEMA-03` `P0` `[45m]` 新增 roles、permissions、role_permissions 和全局 user_role_assignments 迁移。
 - [ ] `M03-SCHEMA-04` `P0` `[45m]` 新增 boards、board_roles 和带有效期的 board_role_assignments 迁移。
