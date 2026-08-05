@@ -94,7 +94,7 @@
 
 ## 附录：operation 级 x-permission 注册表
 
-> 由 `openapi/openapi.yaml` 的 `x-permission` 扩展直接导出，并由 `ruby scripts/check-permission-matrix.rb` 双向校验。每个取值都必须在本注册表或上文动作表出现；新增 operation 必须先登记 permission。`public` 与 `authenticated` 是身份级标记：`public` = 匿名可访问；`authenticated` = 任意已登录用户，对象级判定（作者/所有者/板块范围）在 handler 内完成。下表"使用数"来自 172 个 operation；operationId 只列代表，完整映射以 openapi.yaml 为准。
+> 由 `openapi/openapi.yaml` 的 `x-permission` 扩展直接导出，并由 `ruby scripts/check-permission-matrix.rb` 三方校验：**OpenAPI → 本矩阵**（每个取值都必须在本注册表或上文动作表出现）、**OpenAPI → 权限注册表**（`backend/src/authz/mod.rs::PERMISSION_REGISTRY`，身份级标记除外）、**注册表 ↔ 本矩阵**（注册表权限必须在本文档出现，本附录行必须是已注册权限）。新增 operation 必须先登记 permission；新增权限必须先注册 `PERMISSION_REGISTRY`。`public` 与 `authenticated` 是身份级标记：`public` = 匿名可访问；`authenticated` = 任意已登录用户，对象级判定（作者/所有者/板块范围）在 handler 内完成。下表"使用数"来自 183 个 operation；operationId 只列代表，完整映射以 openapi.yaml 为准。
 
 | x-permission | 使用数 | 代表 operationId | 关联矩阵小节 |
 |---|---:|---|---|
