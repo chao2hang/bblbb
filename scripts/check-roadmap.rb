@@ -391,7 +391,10 @@ if next_task_match
   next_task = leaf_tasks.find { |task| task.fetch(:id) == next_task_match[1] }
   errors << "TODO.md next task #{next_task_match[1]} does not exist" unless next_task
   errors << "TODO.md next task #{next_task_match[1]} is already completed or blocked" if next_task && %w[x !].include?(next_task.fetch(:state))
-  errors << "TODO.md next-task link must use #m00-tool" unless next_task_match[2] == "todo/M00-M02-foundation.md#m00-tool"
+  if next_task
+    expected_link = "#{relative(next_task[:file])}##{next_task[:milestone].downcase}"
+    errors << "TODO.md next-task link must use #{expected_link}" unless next_task_match[2] == expected_link
+  end
 else
   errors << "TODO.md is missing its next-task pointer"
 end

@@ -37,7 +37,7 @@
 - [x] `M00-TOOL-07` `[30m]` 实现聚合 `make check`，并验证子命令失败能立即终止且保留可读输出。证据：files=Makefile；commands=make check；contract=聚合检查失败即终止；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [x] `M00-TOOL-08` `[30m]` 核对 `.gitignore`，阻止数据库、日志、备份、Secret、`target/`、`.svelte-kit/`、`node_modules/` 和生成临时文件入库。证据：files=.gitignore；commands=git status --short；contract=生成物不入库；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [x] `M00-TOOL-09` `[25m]` 修正 README 中后端端口、OpenAPI 返回格式和“尚未建立骨架”等过期描述。证据：files=README.md；commands=grep -n '尚未' README.md；contract=README 与现状一致；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
-- [ ] `M00-TOOL-10` `[45m]` 在全新 clone/无本地缓存环境执行安装、启动和检查演练，并记录实际耗时与前置软件。
+- [x] `M00-TOOL-10` `[45m]` 在全新 clone/无本地缓存环境执行安装、启动和检查演练，并记录实际耗时与前置软件。证据：files=Makefile；commands=git clone 至 /tmp/bblbb-clean-1YrclM 后 make check 退出码 0，real 56.65s（user 294.02 / sys 43.22，冷编译无 target/、node_modules/），前置软件=Rust stable/Node 22/npm/SQLite；contract=干净环境可复现 make check；commit=5844cac；review=clean-clone 演练通过
 
 ## M00-CONTRACT：OpenAPI 与实现覆盖治理
 
@@ -66,7 +66,7 @@
 
 - [x] `M00-BACKEND-01` `[30m]` 建立 `auth/users/content/moderation/storage/economy/ai/video/oidc/marketplace/admin` 路由模块边界。证据：files=backend/src/routes/；commands=make check-backend；contract=20 个领域路由模块边界；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [x] `M00-BACKEND-02` `[45m]` 扩展 AppState，注入配置、数据库池、Storage、Clock、任务、审计和 Feature Flag 接口。证据：files=backend/src/app.rs；commands=cargo build --all-features；contract=AppState 注入 config/db + M1 扩展点；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
-- [ ] `M00-BACKEND-03` `[45m]` 让 domain/service 不依赖 axum、sqlx、SMTP、S3 SDK 或全局环境变量。
+- [x] `M00-BACKEND-03` `[45m]` 让 domain/service 不依赖 axum、sqlx、SMTP、S3 SDK 或全局环境变量。证据：files=backend/src/domain/{mod.rs,posts.rs,comments.rs},backend/src/routes/posts.rs,Makefile；commands=cargo test --lib domain（13 领域测试通过）; make check-domain; cargo test --all-features（59 通过）；contract=domain 层无 axum/sqlx/环境变量依赖（check-domain 静态断言 + 路由委托领域校验）；commit=5844cac；review=make check 全绿 + make test 通过（59 后端测试）
 - [x] `M00-BACKEND-04` `[30m]` 贯通请求 ID 到成功响应、Problem、tracing span、审计、Job 和 Outbox metadata。证据：files=backend/src/middleware/request_id.rs,backend/src/app.rs；commands=cargo test --all-features；contract=request_id 贯通响应/trace/Problem；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [x] `M00-BACKEND-05` `[45m]` 补齐 Problem 的 `instance/request_id/errors`，集中清除 SQL、栈、Secret、Token、签名 URL 和隐藏正文。证据：files=backend/src/error.rs,backend/src/middleware/problem.rs；commands=cargo test --all-features；contract=Problem instance/request_id/errors + 脱敏；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [x] `M00-BACKEND-06` `[45m]` 增加受信代理、Host/Origin、Content-Type、请求体大小、并发、超时和响应安全头边界。证据：files=backend/src/middleware/host_origin.rs,backend/src/middleware/security_headers.rs；commands=cargo test --all-features；contract=Host/Origin/body/超时/安全头边界；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
