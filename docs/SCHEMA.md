@@ -332,6 +332,17 @@ TOTP enrollment（RFC 6238）：
 
 索引：`(parent_id, sort_order)`、`(visibility, deleted_at)`。
 
+`parent_id`（迁移 0022）为软自引用层级（ALTER ADD COLUMN 不能带 FK；
+层级完整性与环路校验在服务层）；`visibility` 默认 `public`、`posting_mode`
+默认 `normal`，二者 CHECK 约束三库强制。
+
+### `board_roles`
+
+- 复合主键：`(board_id, role_id)`。
+- 表示该板块启用了哪些角色；删板块/角色级联清理。
+- 角色权限只在指定板块及其明确配置的后代范围内生效。
+- 用户在某板块持有哪些角色见 §5 `board_role_assignments`。
+
 ### `tag_groups`
 
 - `id`、`name`、`slug`（唯一）、`sort_order`、`created_at`。
