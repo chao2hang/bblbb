@@ -11,6 +11,22 @@ use serde::Serialize;
 
 use crate::auth::session::SessionUser;
 
+/// 公开用户投影允许的字段（M03-PROFILE-02）。
+///
+/// 显式 allowlist，公开投影只能包含这些字段；排除邮箱、IP、Session、
+/// 内部处罚（sanction）、私有资产与审计信息。`PublicProfile` 序列化键集
+/// 必须与该常量一致（`backend/tests/user_dto.rs` 断言）。
+pub const PUBLIC_PROFILE_ALLOWLIST: &[&str] = &[
+    "id",
+    "username",
+    "display_name",
+    "bio",
+    "level",
+    "avatar_attachment_id",
+    "signature",
+    "created_at",
+];
+
 /// 公开用户资料（作者卡 / 公开主页）。对应 OpenAPI `PublicUser`。
 ///
 /// 严格公开 allowlist：不含邮箱、Session、IP、内部处罚、私有资产与审计

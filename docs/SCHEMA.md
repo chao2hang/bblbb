@@ -187,6 +187,12 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 
 注销硬删除时，必须先执行匿名化流程；是否释放原邮箱/用户名由隐私策略明确规定。
 
+公开用户投影 allowlist（M03-PROFILE-02）：`PublicProfile` 只允许
+`id/username/display_name/bio/level/avatar_attachment_id/signature/created_at`
+八个字段（`backend/src/users/dto.rs` 的 `PUBLIC_PROFILE_ALLOWLIST` 常量，
+序列化键集测试断言）；邮箱、IP、Session、内部处罚、私有资产与审计信息
+绝不出现在公开投影中。本人（`Me`）与管理（`AdminUser`）投影见 M03-PROFILE-01。
+
 头像/Cover 引用约定（M03-SCHEMA-02）：`avatar_attachment_id` /
 `cover_attachment_id` 只保存附件 UUID（`ProfileCoverSet.attachment_id`
 `format: uuid`），**禁止保存远程 URL 或签名 URL**——来源与格式校验在

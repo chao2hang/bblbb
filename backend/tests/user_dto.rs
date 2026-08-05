@@ -7,7 +7,7 @@
 //! 测试数据直接从 DTO 显式字段构建（不复用数据库实体序列化）。
 
 use bblbb_backend::auth::session::SessionUser;
-use bblbb_backend::users::dto::{AdminUser, Me, PublicProfile};
+use bblbb_backend::users::dto::{AdminUser, Me, PublicProfile, PUBLIC_PROFILE_ALLOWLIST};
 use serde_json::Value;
 
 fn sample_session_user() -> SessionUser {
@@ -72,6 +72,47 @@ fn public_profile_is_strict_allowlist() {
         assert!(
             !v.as_object().unwrap().contains_key(leaked),
             "公开投影泄漏私有字段: {leaked}"
+        );
+    }
+}
+
+/// PublicProfile 序列化键集必须与 allowlist 常量精确一致；allowlist 本身
+/// 不得包含任何敏感字段（M03-PROFILE-02）。
+#[test]
+fn public_profile_keys_match_allowlist_constant() {
+    let profile = PublicProfile {
+        id: "00000000-0000-7000-8000-000000000001".to_string(),
+        username: "alice".to_string(),
+        display_name: Some("爱丽丝".to_string()),
+        bio: Some("hello".to_string()),
+        level: 3,
+        avatar_attachment_id: Some("00000000-0000-7000-8000-000000000099".to_string()),
+        signature: Some("个性签名".to_string()),
+        created_at: 1_700_000_000_000,
+    };
+    let v = serde_json::to_value(&profile).unwrap();
+    let keys = sorted_keys(&v);
+    let mut allowlist = PUBLIC_PROFILE_ALLOWLIST.to_vec();
+    allowlist.sort();
+    assert_eq!(
+        keys, allowlist,
+        "PublicProfile 键集必须与 PUBLIC_PROFILE_ALLOWLIST 常量一致"
+    );
+
+    for leaked in [
+        "email",
+        "email_normalized",
+        "password_hash",
+        "last_login_ip",
+        "session",
+        "sanction",
+        "audit",
+        "delete_requested_at",
+        "deleted_at",
+    ] {
+        assert!(
+            !PUBLIC_PROFILE_ALLOWLIST.contains(&leaked),
+            "allowlist 不得包含敏感字段: {leaked}"
         );
     }
 }
