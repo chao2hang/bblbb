@@ -91,12 +91,30 @@ Rust 模型：`backend/src/search/mod.rs::SearchDocument`。
 
 | 数据库 | 索引机制 | 分词 | 已知限制 |
 |---|---|---|---|
-| SQLite 3.40+ | FTS5（external content 表） | unicode61 | 无内置中文分词；按 token 匹配 |
+| SQLite 3.40+ | FTS5 external content 表 | unicode61 | 无内置中文分词；按 token 匹配 |
 | MySQL 8 | InnoDB FULLTEXT | 默认空格/标点分词 | `innodb_ft_min_token_size` 等参数 |
 | MariaDB 10.11 | FULLTEXT | 类似 MySQL | 与 MySQL 存在已知差异（M03-SEARCH-STORE-04 记录） |
 
 三库基础查询契约（文档存在/查询命中/删除/重建/旧 revision 不覆盖新）必须一致
 （M03-SEARCH-STORE-07 同一 Fixture 验证）。
+
+### 7.1 触发器/Job 更新策略（M03-SEARCH-STORE-02/06）
+
+- `search_documents` 是唯一索引写入面，由索引 Job（M03-SEARCH-STORE-06）
+  维护（创建/更新/隐藏/删除/恢复/退出索引均为幂等 Job）。
+- SQLite：`search_fts` 为 FTS5 external content 表（`content='search_documents'`、
+  `content_rowid='rowid'`、`tokenize='unicode61'`），0030 迁移内置三个同步
+  触发器（`search_fts_ai/ad/au`）——Job 不直接写 FTS 表，触发器自动把
+  title/body 同步进 FTS5。
+- MySQL/MariaDB：FULLTEXT 索引（0031/0032）由 InnoDB 原生随行更新，
+  无需触发器。
+
+### 7.2 重建命令（M03-SEARCH-STORE-02/03/04）
+
+- SQLite：`INSERT INTO search_fts(search_fts) VALUES('rebuild')`——从
+  `search_documents` 全量重建 FTS5 external content 表，幂等。
+- MySQL/MariaDB：`OPTIMIZE TABLE search_documents`——重建表与 FULLTEXT 索引。
+- 统一入口：`backend/src/search/fts.rs::rebuild_fts(pool)`（Either 按引擎分发）。
 
 ## 8. 相关文档
 

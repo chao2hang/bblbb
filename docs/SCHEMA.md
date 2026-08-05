@@ -150,6 +150,7 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | 0027 | `deletion_lifecycle` | users 法律保留列 legal_hold_at（M03-PROFILE-08） |
 | 0028 | `tags_active` | tags 禁用状态列 is_active（M03-BOARDS-06） |
 | 0029 | `tags_version` | tags 乐观并发版本列 updated_at（M03-BOARDS-07） |
+| 0030 | `search_index` | search_documents 索引元数据表 + SQLite FTS5 external content 与同步触发器（M03-SEARCH-STORE-02） |
 
 ### `site_settings`
 
@@ -471,6 +472,23 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 ### `post_tags`
 
 - 复合主键：`(post_id, tag_id)`。
+
+### `search_documents`（M03-SEARCH-STORE-02）
+
+- 迁移 0030 新增：搜索索引文档元数据表（三库结构等价；模型见
+  `backend/src/search/mod.rs::SearchDocument` 与 `docs/SEARCH.md`）。
+- `rowid`：SQLite `INTEGER PRIMARY KEY AUTOINCREMENT`，供 FTS5 external
+  content 表 `content_rowid='rowid'` 映射；MySQL/MariaDB 为
+  `BIGINT AUTO_INCREMENT NOT NULL`。
+- `doc_id`：源实体 UUID，全局唯一（`search_documents_doc_id_uq`）。
+- `entity_type`：`post`/`user`/`board`/`tag`（SQLite CHECK 强制）。
+- `title`/`body`/`excerpt`/`slug`/`author_id`/`tags_json`：公开投影与索引
+  字段，长度与安全语义见 docs/SEARCH.md §2/§3/§6。
+- `source_revision`：源实体 `updated_at`（毫秒）；`policy_revision`：策略相关
+  行 `updated_at` 最大值（docs/SEARCH.md §4/§5，旧 revision 不覆盖新）。
+- `indexed_at`：入索引时间（毫秒）。
+- SQLite 另建 `search_fts`（FTS5 external content 虚拟表）+ 三个同步触发器
+  （`search_fts_ai/ad/au`）；MySQL/MariaDB 的 FULLTEXT 索引在 0031/0032 加入。
 
 ## 7. 帖子、回复与访问策略
 

@@ -7,7 +7,12 @@
 //! - [`clean_index_text`]：索引正文清洗——控制字符折叠、连续空白折叠、长度上限；
 //! - [`excerpt_from_clean`]：公开投影摘要——从已清洗文本按字符边界截断；
 //! - [`source_revision_for`] / [`policy_revision_for`]：source revision 与 policy
-//!   revision 语义（旧 revision 不覆盖新 revision 的单调性来源，docs/SEARCH.md §4/§5）。
+//!   revision 语义（旧 revision 不覆盖新 revision 的单调性来源，docs/SEARCH.md §4/§5）；
+//! - [`fts`]：全文索引维护——重建命令与触发器/Job 更新策略（M03-SEARCH-STORE-02）。
+
+pub mod fts;
+
+pub use fts::rebuild_fts;
 
 /// 索引标题长度上限（字符；与帖子标题 OpenAPI `maxLength: 240` 一致）。
 pub const TITLE_MAX: usize = 240;
