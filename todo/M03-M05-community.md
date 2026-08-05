@@ -68,8 +68,8 @@
 **目标文件：** `backend/src/boards/`、`backend/src/tags/`、`backend/src/routes/{boards,tags,admin}/`、`backend/tests/boards/`
 **验收：** Boards/Tags/Admin 对应 operation 在三数据库通过权限、分页和版本契约。
 
-- [~] `M03-BOARDS-01` `P1` `[45m]` 实现板块层级读取，限制最大深度并检测循环父级。
-- [ ] `M03-BOARDS-02` `P1` `[30m]` 实现板块 slug、标题、说明、排序、状态和发帖规则校验。
+- [x] `M03-BOARDS-01` `P1` `[45m]` 实现板块层级读取，限制最大深度并检测循环父级。证据：files=backend/src/boards/mod.rs,backend/src/boards/hierarchy.rs,backend/src/lib.rs,backend/tests/boards_hierarchy.rs；commands=cargo fmt --check 通过; cargo clippy --all-features --all-targets 0 警告; cargo test --all-features 全绿（boards_hierarchy 7 项，共 71 套件 613 用例）; make check（OpenAPI 183/183、write-contract/route-coverage OK、Permission matrix OK + Registry cross-check 68↔38↔38、svelte-check 0 error、事件目录 22/22、Roadmap 783 叶子 OK）; contract=boards.parent_id 软自引用层级（迁移 0022，SCHEMA.md §6）由服务层裁决：MAX_BOARD_DEPTH=4（根=第 1 级，最深 4 级=3 层子板块）；build_hierarchy 迭代式深度计算+环路/自引用/悬空父级检测（栈安全不随链长递归）；环路/自引用/超深=数据完整性故障→读取与写入均硬错误（防无限展开）；悬空父级（父板块软删/停用）读取时提升为根并记录（BoardHierarchy::dangling），写入时拒绝（DanglingParent）；validate_parent 写入侧父级校验（合成树复用 build_hierarchy 判定深度/环路）；load_hierarchy 活动投影（is_active=1 AND deleted_at IS NULL）稳定排序（sort_order, created_at, id）三数据库 Either 加载；有子板块禁止硬删除（has_children/descendant_ids 供服务层裁决，SCHEMA-06 语义）; commit=a63ff40; review=hierarchy.rs 单测 9 项（平铺/嵌套/深度边界 MAX=4 允许 5 超限/自引用/双节点环/三节点环/悬空提升/validate_parent 正负边界）+ boards_hierarchy 7 项（种子 5 根稳定排序（0006 归一化 id）/嵌套 depth+children+BFS 后代/停用与软删移出投影/DB 环路加载失败/DB 超深加载失败/软删父级提升+悬空记录/硬删除裁决）+ 全量门禁全绿
+- [~] `M03-BOARDS-02` `P1` `[30m]` 实现板块 slug、标题、说明、排序、状态和发帖规则校验。
 - [ ] `M03-BOARDS-03` `P0` `[30m]` 实现 public/members/restricted/hidden 板块可见性并统一套用授权服务。
 - [ ] `M03-BOARDS-04` `P1` `[45m]` 实现板块列表/详情 cursor 分页、稳定排序和 Cache-Control。
 - [ ] `M03-BOARDS-05` `P1` `[45m]` 实现管理员创建/更新板块的版本冲突、reason 和审计。
