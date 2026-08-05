@@ -167,8 +167,8 @@
 - [x] `M01-AUDIT-04` `[30m]` 相同 key+摘要返回原结果；相同 key+不同摘要稳定返回 409。证据：files=backend/src/idempotency/mod.rs,backend/tests/idempotency.rs；commands=cargo test --all-features（241 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=begin_or_replay（Created/Replay 原结果/InProgress/Conflict 稳定 409/Failed/过期重启）+ complete/mark_failed 守卫；commit=380b002；review=2 项集成测试 + 单测
 - [x] `M01-AUDIT-05` `[45m]` 并发首次请求只能有一个执行者；失败是否缓存按 operation 契约明确处理。证据：files=backend/src/idempotency/mod.rs,backend/tests/idempotency.rs；commands=cargo test --all-features（243 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=FailureCachePolicy（Cache 返回已存失败/Retry 重置复用）+ 唯一约束兜底并发单执行者；commit=d0b2a92；review=2 项集成测试（并发单执行者、失败策略显式化）
 - [x] `M01-AUDIT-06` `[45m]` 为管理员代操作、权限变更、配置、账务、审核、Secret 和 Feature Flag 建立审计 helper。证据：files=backend/src/audit/mod.rs,backend/tests/audit_logs.rs,docs/SECURITY.md；commands=cargo test --all-features（250 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=7 个分类 helper（代操作/权限/配置/账务/审核/Secret 无值/Flag before-after）+ allowlist 过滤；commit=ad646b4；review=6 项单测 + 1 项集成
-- [~] `M01-AUDIT-07` `[30m]` 自动比对领域事件名称、payload version 与 `docs/EVENT-CATALOG.md`。
-- [ ] `M01-AUDIT-08` `[45m]` 测试审计与业务事务原子性、Outbox request ID 贯通和敏感数据脱敏。
+- [x] `M01-AUDIT-07` `[30m]` 自动比对领域事件名称、payload version 与 `docs/EVENT-CATALOG.md`。证据：files=backend/src/events.rs,scripts/check-event-catalog.rb,Makefile；commands=cargo test --all-features（253 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check（事件目录 21/21）; ruby scripts/check-event-catalog.rb（干净通过 + 漂移样例退出码 1）；contract=21 事件注册表（<domain>.<action>.v1）+ 目录双向比对（缺失/漂移/版本不一致即失败）接入 check-contract；commit=301f0ac+0a69fdc（审计代提交 events.rs/lib.rs/Makefile + 脚本）；review=3 项单测 + 负向探针
+- [~] `M01-AUDIT-08` `[45m]` 测试审计与业务事务原子性、Outbox request ID 贯通和敏感数据脱敏。
 - [ ] `M01-AUDIT-09` `[45m]` 增加仅授权管理员可查询的审计分页与导出边界，深分页使用 cursor。
 
 ---
