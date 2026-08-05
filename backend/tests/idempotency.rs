@@ -7,7 +7,8 @@ use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
 use bblbb_backend::idempotency::{
-    request_hash, validate_request_hash, IdempotencyKey, IdempotencyStatus,
+    begin_or_replay, complete, mark_failed, request_hash, validate_request_hash, IdempotencyKey,
+    IdempotencyOutcome, IdempotencyStatus,
 };
 use sqlx::Either;
 
@@ -218,6 +219,114 @@ async fn record_model_maps_to_database_row() {
     assert_eq!(row.expires_at, now + 3_600_000);
     assert_eq!(row.request_hash, hash, "request hash 原样存储");
     assert_eq!(row.created_at, now, "created_at 为毫秒时间戳");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// M01-AUDIT-04：相同 key+摘要 → 返回原结果；相同 key+不同摘要 → 稳定 409。
+#[tokio::test]
+async fn replay_returns_original_result_and_conflict_is_stable() {
+    let (pool, dir) = pool_with_migrations().await;
+    let key = IdempotencyKey::new("pay", "order-777").unwrap();
+    let hash_a = request_hash(br#"{"amount":100}"#);
+    let hash_b = request_hash(br#"{"amount":200}"#);
+
+    // 首次请求 → Created
+    let first = begin_or_replay(&pool, &key, &hash_a, 86_400_000)
+        .await
+        .unwrap();
+    let IdempotencyOutcome::Created { record_id } = first else {
+        panic!("首次请求应 Created，得到 {first:?}");
+    };
+
+    // 进行中且同摘要 → InProgress
+    let in_progress = begin_or_replay(&pool, &key, &hash_a, 86_400_000)
+        .await
+        .unwrap();
+    assert_eq!(
+        in_progress,
+        IdempotencyOutcome::InProgress,
+        "进行中不重复执行"
+    );
+
+    // 完成：保存响应引用（原结果）
+    assert!(complete(&pool, &record_id, "resp-777").await.unwrap());
+
+    // 相同 key+摘要 → Replay 原结果
+    let replay = begin_or_replay(&pool, &key, &hash_a, 86_400_000)
+        .await
+        .unwrap();
+    assert_eq!(
+        replay,
+        IdempotencyOutcome::Replay {
+            response_reference: Some("resp-777".to_owned())
+        },
+        "相同 key+摘要必须返回原结果"
+    );
+
+    // 相同 key+不同摘要 → 稳定 Conflict（多次调用一致）
+    for _ in 0..3 {
+        let conflict = begin_or_replay(&pool, &key, &hash_b, 86_400_000)
+            .await
+            .unwrap();
+        assert_eq!(
+            conflict,
+            IdempotencyOutcome::Conflict,
+            "相同 key+不同摘要必须稳定返回 409"
+        );
+    }
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// M01-AUDIT-04/05：失败记录可重试；过期记录可重新开始。
+#[tokio::test]
+async fn failed_records_are_retryable_and_expired_records_restart() {
+    let (pool, dir) = pool_with_migrations().await;
+    let key = IdempotencyKey::new("download", "dl-999").unwrap();
+    let hash = request_hash(b"attachment");
+
+    // 首次 → 失败
+    let first = begin_or_replay(&pool, &key, &hash, 86_400_000)
+        .await
+        .unwrap();
+    let IdempotencyOutcome::Created { record_id } = first else {
+        panic!("expected created")
+    };
+    assert!(mark_failed(&pool, &record_id).await.unwrap());
+
+    // 同 key+摘要且 failed → Failed 变体（可重试）
+    let retry = begin_or_replay(&pool, &key, &hash, 86_400_000)
+        .await
+        .unwrap();
+    assert!(matches!(
+        retry,
+        IdempotencyOutcome::Failed {
+            response_reference: None
+        }
+    ));
+
+    // 记录过期后 → 删除并重新开始（Created）
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query("UPDATE idempotency_records SET expires_at = ? WHERE id = ?")
+                .bind(now_ms() - 1_000)
+                .bind(&record_id)
+                .execute(p)
+                .await
+                .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+    let restarted = begin_or_replay(&pool, &key, &hash, 86_400_000)
+        .await
+        .unwrap();
+    assert!(
+        matches!(restarted, IdempotencyOutcome::Created { .. }),
+        "过期记录应删除并重新开始，得到 {restarted:?}"
+    );
 
     close_pool(&pool).await;
     cleanup(&dir);

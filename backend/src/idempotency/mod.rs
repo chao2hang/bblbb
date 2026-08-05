@@ -1,4 +1,4 @@
-//! 幂等记录数据模型（M01-AUDIT-03）。
+//! 幂等记录数据模型与判定（M01-AUDIT-03/04）。
 //!
 //! 数据模型（表 `idempotency_records`，迁移 0010）：
 //! - `scope` + `key` 唯一标识一次业务操作（唯一约束兜底并发首请求，
@@ -8,10 +8,16 @@
 //! - `status`：`in_progress` / `completed` / `failed`；
 //! - `response_reference`：已存储响应/结果的引用（如 job id）；
 //! - `expires_at`：保留窗口，过期记录可清理/重试。
-//!
-//! 本模块只定义模型与校验；创建/读取/冲突判定逻辑在 M01-AUDIT-04/05。
 
 use sha2::{Digest, Sha256};
+use sqlx::Either;
+
+use crate::db::pool::DatabasePool;
+
+/// 当前 Unix 毫秒（跨库时间约定 SCHEMA §2.2）。
+fn now_millis() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
 
 /// 幂等记录状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -128,6 +134,266 @@ pub fn validate_request_hash(hash: &str) -> Result<(), IdempotencyError> {
         Ok(())
     } else {
         Err(IdempotencyError::InvalidRequestHash)
+    }
+}
+
+/// 幂等判定结果（M01-AUDIT-04）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdempotencyOutcome {
+    /// 首次请求：已创建 `in_progress` 记录，调用方执行操作后调用
+    /// [`complete`] / [`mark_failed`]。
+    Created { record_id: String },
+    /// 重放：相同 key+摘要且上次已完成，返回原结果引用（原响应）。
+    Replay { response_reference: Option<String> },
+    /// 相同 key+摘要但仍在处理中（并发）：调用方不得执行，等待或返回进行中。
+    InProgress,
+    /// 相同 key 但摘要不同：调用方必须稳定返回 409。
+    Conflict,
+    /// 相同 key+摘要但上次执行失败：调用方可重试（重新执行并更新记录）。
+    Failed { response_reference: Option<String> },
+}
+
+/// 开始一次幂等操作：首次创建 `in_progress` 记录；重复投递返回原结果；
+/// 摘要不一致返回冲突（M01-AUDIT-04）。
+///
+/// - 相同 key+摘要且 `completed` → `Replay`（原结果）；
+/// - 相同 key+摘要且 `in_progress` → `InProgress`（并发，M01-AUDIT-05）；
+/// - 相同 key+摘要且 `failed` → `Failed`（可重试）；
+/// - 相同 key+不同摘要 → 稳定 `Conflict`（409）；
+/// - 记录已过期（`expires_at < now`）→ 删除并以 `Created` 重新开始。
+pub async fn begin_or_replay(
+    pool: &DatabasePool,
+    key: &IdempotencyKey,
+    request_hash: &str,
+    ttl_ms: i64,
+) -> Result<IdempotencyOutcome, sqlx::Error> {
+    validate_request_hash(request_hash).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+    let now = now_millis();
+
+    if let Some(record) = fetch_record(pool, key).await? {
+        if record.expires_at < now {
+            // 记录已过期：删除后按首次请求重新开始
+            delete_record(pool, &record.id).await?;
+        } else {
+            return Ok(classify_existing(&record, request_hash));
+        }
+    }
+
+    // 首次请求：插入 in_progress 记录
+    let id = uuid::Uuid::now_v7().to_string();
+    let expires_at = now.saturating_add(ttl_ms.max(0));
+    let inserted = insert_in_progress(pool, &id, key, request_hash, expires_at, now).await;
+    match inserted {
+        Ok(()) => Ok(IdempotencyOutcome::Created { record_id: id }),
+        Err(err) if is_unique_violation(&err) => {
+            // 并发首请求：另一个执行者已创建记录，按现有记录判定
+            let record = fetch_record(pool, key)
+                .await?
+                .expect("并发冲突后记录必然存在");
+            Ok(classify_existing(&record, request_hash))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// 标记幂等操作完成（`in_progress → completed`），保存响应引用。
+///
+/// 仅 `in_progress` 可完成；返回 `false` 表示记录状态已变化（不应发生）。
+pub async fn complete(
+    pool: &DatabasePool,
+    record_id: &str,
+    response_reference: &str,
+) -> Result<bool, sqlx::Error> {
+    let now = now_millis();
+    let rows = match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE idempotency_records
+                 SET status = 'completed', response_reference = ?, updated_at = ?
+                 WHERE id = ? AND status = 'in_progress'",
+        )
+        .bind(response_reference)
+        .bind(now)
+        .bind(record_id)
+        .execute(p)
+        .await?
+        .rows_affected(),
+        Either::Right(p) => sqlx::query(
+            "UPDATE idempotency_records
+                 SET status = 'completed', response_reference = ?, updated_at = ?
+                 WHERE id = ? AND status = 'in_progress'",
+        )
+        .bind(response_reference)
+        .bind(now)
+        .bind(record_id)
+        .execute(p)
+        .await?
+        .rows_affected(),
+    };
+    Ok(rows == 1)
+}
+
+/// 标记幂等操作失败（`in_progress → failed`），供后续同摘要重试。
+pub async fn mark_failed(pool: &DatabasePool, record_id: &str) -> Result<bool, sqlx::Error> {
+    let now = now_millis();
+    let rows = match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE idempotency_records
+                 SET status = 'failed', updated_at = ?
+                 WHERE id = ? AND status = 'in_progress'",
+        )
+        .bind(now)
+        .bind(record_id)
+        .execute(p)
+        .await?
+        .rows_affected(),
+        Either::Right(p) => sqlx::query(
+            "UPDATE idempotency_records
+                 SET status = 'failed', updated_at = ?
+                 WHERE id = ? AND status = 'in_progress'",
+        )
+        .bind(now)
+        .bind(record_id)
+        .execute(p)
+        .await?
+        .rows_affected(),
+    };
+    Ok(rows == 1)
+}
+
+/// 根据已存在记录判定结果。
+fn classify_existing(record: &IdempotencyRecord, request_hash: &str) -> IdempotencyOutcome {
+    if record.request_hash != request_hash {
+        return IdempotencyOutcome::Conflict;
+    }
+    match record.status {
+        IdempotencyStatus::Completed => IdempotencyOutcome::Replay {
+            response_reference: record.response_reference.clone(),
+        },
+        IdempotencyStatus::InProgress => IdempotencyOutcome::InProgress,
+        IdempotencyStatus::Failed => IdempotencyOutcome::Failed {
+            response_reference: record.response_reference.clone(),
+        },
+    }
+}
+
+/// 删除过期记录（expires_at 已到）。
+async fn delete_record(pool: &DatabasePool, record_id: &str) -> Result<(), sqlx::Error> {
+    match pool {
+        Either::Left(p) => sqlx::query("DELETE FROM idempotency_records WHERE id = ?")
+            .bind(record_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query("DELETE FROM idempotency_records WHERE id = ?")
+            .bind(record_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+async fn fetch_record(
+    pool: &DatabasePool,
+    key: &IdempotencyKey,
+) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
+    const SELECT: &str = "SELECT id, scope, key, request_hash, status, response_reference, expires_at, created_at, updated_at
+        FROM idempotency_records WHERE scope = ? AND key = ?";
+    let row = match pool {
+        Either::Left(p) => {
+            sqlx::query_as::<_, RecordRow>(SELECT)
+                .bind(&key.scope)
+                .bind(&key.key)
+                .fetch_optional(p)
+                .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_as::<_, RecordRow>(SELECT)
+                .bind(&key.scope)
+                .bind(&key.key)
+                .fetch_optional(p)
+                .await?
+        }
+    };
+    Ok(row.map(IdempotencyRecord::from))
+}
+
+async fn insert_in_progress(
+    pool: &DatabasePool,
+    id: &str,
+    key: &IdempotencyKey,
+    request_hash: &str,
+    expires_at: i64,
+    now: i64,
+) -> Result<(), sqlx::Error> {
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO idempotency_records (id, scope, key, request_hash, status, expires_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 'in_progress', ?, ?, ?)",
+            )
+            .bind(id)
+            .bind(&key.scope)
+            .bind(&key.key)
+            .bind(request_hash)
+            .bind(expires_at)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map(|_| ())
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "INSERT INTO idempotency_records (id, scope, key, request_hash, status, expires_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 'in_progress', ?, ?, ?)",
+            )
+            .bind(id)
+            .bind(&key.scope)
+            .bind(&key.key)
+            .bind(request_hash)
+            .bind(expires_at)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map(|_| ())
+        }
+    }
+}
+
+fn is_unique_violation(err: &sqlx::Error) -> bool {
+    matches!(
+        err,
+        sqlx::Error::Database(db) if db.is_unique_violation()
+    )
+}
+
+#[derive(sqlx::FromRow)]
+struct RecordRow {
+    id: String,
+    scope: String,
+    key: String,
+    request_hash: String,
+    status: String,
+    response_reference: Option<String>,
+    expires_at: i64,
+    created_at: i64,
+    updated_at: i64,
+}
+
+impl From<RecordRow> for IdempotencyRecord {
+    fn from(row: RecordRow) -> Self {
+        Self {
+            id: row.id,
+            scope: row.scope,
+            key: row.key,
+            request_hash: row.request_hash,
+            status: IdempotencyStatus::parse(&row.status).expect("status 由 CHECK 约束保证合法"),
+            response_reference: row.response_reference,
+            expires_at: row.expires_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }
     }
 }
 
