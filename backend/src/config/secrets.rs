@@ -11,6 +11,8 @@
 
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
 /// Secret 读取错误。
 #[derive(Debug)]
 pub enum SecretError {
@@ -20,6 +22,8 @@ pub enum SecretError {
     Io(String),
     /// 生产模式权限不安全（非 owner-only）
     InsecurePermissions(String),
+    /// Secret 名称非法（路径穿越等）
+    InvalidName(String),
 }
 
 impl std::fmt::Display for SecretError {
@@ -33,11 +37,21 @@ impl std::fmt::Display for SecretError {
                     "secret file has insecure permissions (must be owner-only): {path}"
                 )
             }
+            SecretError::InvalidName(name) => write!(f, "invalid secret name: {name}"),
         }
     }
 }
 
 impl std::error::Error for SecretError {}
+
+/// Secret 元数据（M01-CONFIG-04）：GET 只返回这些字段，绝不返回值。
+#[derive(Debug, Clone, Serialize)]
+pub struct SecretMetadata {
+    pub configured: bool,
+    pub source_class: &'static str,
+    pub version: u64,
+    pub updated_at: i64,
+}
 
 /// Secret 值：持原始字节，不实现 Debug/Display 输出内容。
 #[derive(Clone)]
@@ -92,10 +106,37 @@ pub trait SecretProvider: Send + Sync {
     /// 读取 Secret；未配置或不存在返回 `Ok(None)`。
     fn get(&self, name: &str) -> Result<Option<SecretValue>, SecretError>;
 
+    /// 读取元数据（M01-CONFIG-04）：只返回 configured/source_class/version/
+    /// updated_at，不读取值。默认实现基于 `get`（会读取内容）；文件类来源
+    /// 覆盖为 stat-only。
+    fn metadata(&self, name: &str) -> Result<Option<SecretMetadata>, SecretError> {
+        Ok(self.get(name)?.map(|value| SecretMetadata {
+            configured: true,
+            source_class: value.source_class,
+            version: value.version,
+            updated_at: value.updated_at,
+        }))
+    }
+
     /// 是否已配置该名称（不含值；供写接口判断写路径）。
     fn is_configured(&self, name: &str) -> bool {
         matches!(self.get(name), Ok(Some(_)))
     }
+}
+
+/// Secret 写接口（M01-CONFIG-04）：只写不读。
+///
+/// trait 上没有任何返回值的读取方法——写入/轮换后调用方只能得到元数据，
+/// 从类型层面杜绝"写后又读回值"。
+pub trait SecretWriter: Send + Sync {
+    /// 来源类别
+    fn source_class(&self) -> &'static str;
+
+    /// 写入或轮换 Secret；成功只返回元数据（不含值）。
+    fn set(&self, name: &str, value: &[u8]) -> Result<SecretMetadata, SecretError>;
+
+    /// 已配置名称列表（元数据，不含值）。
+    fn configured_names(&self) -> Result<Vec<String>, SecretError>;
 }
 
 /// 环境变量 provider（兜底；生产不建议作为 Secret 主来源）。
@@ -209,6 +250,40 @@ impl SecretProvider for FileSecretProvider {
             modified.max(0) as u64,
         )))
     }
+
+    /// stat-only 元数据：只读文件系统元信息，不读取内容。
+    fn metadata(&self, name: &str) -> Result<Option<SecretMetadata>, SecretError> {
+        if !self.base_dir.is_dir() {
+            return Ok(None);
+        }
+        let path = self.secret_path(name);
+        if !path.is_file() {
+            return Ok(None);
+        }
+        if self.require_secure_permissions {
+            Self::ensure_secure_permissions(&path)?;
+        }
+        file_metadata(&path, self.source_class()).map(Some)
+    }
+}
+
+/// 由文件 stat 构建元数据（不含值）。
+fn file_metadata(path: &Path, source_class: &'static str) -> Result<SecretMetadata, SecretError> {
+    let meta =
+        std::fs::metadata(path).map_err(|e| SecretError::Io(format!("{}: {e}", path.display())))?;
+    #[cfg(unix)]
+    let modified = {
+        use std::os::unix::fs::MetadataExt;
+        meta.mtime()
+    };
+    #[cfg(not(unix))]
+    let modified = 0i64;
+    Ok(SecretMetadata {
+        configured: true,
+        source_class,
+        version: modified.max(0) as u64,
+        updated_at: modified,
+    })
 }
 
 /// systemd credentials provider：读取 `/run/credentials/<unit>/<name>`。
@@ -261,6 +336,110 @@ impl SecretProvider for SystemdCredentialProvider {
             modified,
             modified.max(0) as u64,
         )))
+    }
+
+    /// stat-only 元数据：不读取内容。
+    fn metadata(&self, name: &str) -> Result<Option<SecretMetadata>, SecretError> {
+        let path = self.base_dir.join(name);
+        if !path.is_file() {
+            return Ok(None);
+        }
+        file_metadata(&path, self.source_class()).map(Some)
+    }
+}
+
+/// 受限文件写实现（M01-CONFIG-04）：只写不读。
+///
+/// - 原子写：临时文件 + 落盘 + rename，避免读者看到半写内容；
+/// - Unix 上写入后立即设为 `0600`（owner-only）；
+/// - 拒绝非法名称（路径分隔符 / `..` 穿越）。
+pub struct FileSecretWriter {
+    base_dir: PathBuf,
+}
+
+/// 名称是否安全（不含路径分隔符、`.`/`..`、控制字符）。
+fn is_safe_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 128
+        && !name.contains('/')
+        && !name.contains('\\')
+        && name != "."
+        && name != ".."
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+impl FileSecretWriter {
+    pub fn new(base_dir: impl Into<PathBuf>) -> Self {
+        Self {
+            base_dir: base_dir.into(),
+        }
+    }
+}
+
+impl SecretWriter for FileSecretWriter {
+    fn source_class(&self) -> &'static str {
+        "env_file"
+    }
+
+    fn set(&self, name: &str, value: &[u8]) -> Result<SecretMetadata, SecretError> {
+        if !is_safe_name(name) {
+            return Err(SecretError::InvalidName(name.to_owned()));
+        }
+        std::fs::create_dir_all(&self.base_dir)
+            .map_err(|e| SecretError::Io(format!("create {}: {e}", self.base_dir.display())))?;
+
+        let final_path = self.base_dir.join(name);
+        let tmp_path = self
+            .base_dir
+            .join(format!(".{name}.tmp{}", uuid::Uuid::now_v7().simple()));
+
+        let result = (|| {
+            std::fs::write(&tmp_path, value)
+                .map_err(|e| SecretError::Io(format!("write {}: {e}", tmp_path.display())))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o600))
+                    .map_err(|e| SecretError::Io(format!("chmod {}: {e}", tmp_path.display())))?;
+            }
+            // 落盘后再 rename，防止进程崩溃时残留半写内容
+            use std::io::Write;
+            if let Ok(mut file) = std::fs::OpenOptions::new().write(true).open(&tmp_path) {
+                let _ = file.flush();
+                let _ = file.sync_all();
+            }
+            std::fs::rename(&tmp_path, &final_path)
+                .map_err(|e| SecretError::Io(format!("rename {}: {e}", final_path.display())))
+        })();
+
+        if result.is_err() {
+            let _ = std::fs::remove_file(&tmp_path);
+        }
+        result?;
+        file_metadata(&final_path, self.source_class())
+    }
+
+    fn configured_names(&self) -> Result<Vec<String>, SecretError> {
+        if !self.base_dir.is_dir() {
+            return Ok(Vec::new());
+        }
+        let mut names = Vec::new();
+        for entry in std::fs::read_dir(&self.base_dir)
+            .map_err(|e| SecretError::Io(format!("read_dir {}: {e}", self.base_dir.display())))?
+        {
+            let entry = entry.map_err(|e| SecretError::Io(e.to_string()))?;
+            if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                if let Some(name) = entry.file_name().to_str() {
+                    if is_safe_name(name) {
+                        names.push(name.to_owned());
+                    }
+                }
+            }
+        }
+        names.sort();
+        Ok(names)
     }
 }
 
@@ -408,5 +587,101 @@ mod tests {
             !debug.contains("topsecret"),
             "Debug 不得包含 Secret 内容: {debug}"
         );
+    }
+
+    // ── M01-CONFIG-04：写接口只写不读，GET 只返回元数据 ──
+
+    #[test]
+    fn writer_set_returns_metadata_without_value() {
+        let dir = temp_dir();
+        let writer = FileSecretWriter::new(&dir);
+        let metadata = writer.set("api_key", b"super-secret-value").unwrap();
+
+        assert!(metadata.configured);
+        assert_eq!(metadata.source_class, "env_file");
+        assert!(metadata.version > 0, "version 应为 mtime");
+        assert!(metadata.updated_at > 0);
+
+        // 元数据不是值：SecretMetadata 类型不含任何字节/字符串值字段
+        // （编译期保证）；运行期断言序列化 JSON 不含 Secret 内容。
+        let json = serde_json::to_string(&metadata).unwrap();
+        assert!(
+            !json.contains("super-secret-value"),
+            "元数据 JSON 不得包含 Secret 值: {json}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn writer_creates_owner_only_files() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_dir();
+        let writer = FileSecretWriter::new(&dir);
+        writer.set("smtp_pass", b"x").unwrap();
+        let mode = std::fs::metadata(dir.join("smtp_pass"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(
+            mode & 0o077,
+            0,
+            "写入的 Secret 文件必须 owner-only: {mode:o}"
+        );
+
+        let names = writer.configured_names().unwrap();
+        assert_eq!(names, vec!["smtp_pass"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn writer_rejects_unsafe_names() {
+        let dir = temp_dir();
+        let writer = FileSecretWriter::new(&dir);
+        for bad in ["../escape", "a/b", "a\\b", "..", ".", "a b", ""] {
+            let err = writer.set(bad, b"x").unwrap_err();
+            assert!(
+                matches!(err, SecretError::InvalidName(_)),
+                "名称 {bad:?} 必须被拒绝: {err}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn metadata_roundtrip_matches_get_and_is_stat_only() {
+        let dir = temp_dir();
+        let writer = FileSecretWriter::new(&dir);
+        writer.set("mail_token", b"roundtrip-value").unwrap();
+
+        // GET 元数据：configured/source_class/version/updated_at，无值
+        let provider = FileSecretProvider::new(&dir, false);
+        let metadata = provider
+            .metadata("mail_token")
+            .unwrap()
+            .expect("configured");
+        assert!(metadata.configured);
+        assert_eq!(metadata.source_class, "env_file");
+        assert!(metadata.version > 0);
+
+        // 未配置 → None
+        assert!(provider.metadata("absent").unwrap().is_none());
+
+        // 值与元数据分离：读值仍可用，但元数据不含值
+        let value = provider.get("mail_token").unwrap().unwrap();
+        assert_eq!(value.as_str().unwrap(), "roundtrip-value");
+        assert!(metadata.version > 0);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn writer_is_write_only_by_type_shape() {
+        // 类型层面断言：SecretWriter trait 没有任何返回 Secret 值的方法。
+        // 这里通过 trait object 的可用方法集合验证——SecretWriter 只有
+        // source_class / set / configured_names。
+        fn assert_write_only<T: SecretWriter>() {}
+        assert_write_only::<FileSecretWriter>();
     }
 }

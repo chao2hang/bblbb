@@ -80,6 +80,19 @@
 - `SecretValue` 的 `Debug` 不输出内容，防止误入日志。
 - `AppConfig::secret_provider()` 按配置构建链；生产模式自动开启文件权限校验。
 
+## 1.4 Secret 写接口（M01-CONFIG-04）
+
+`SecretWriter` trait 是**只写不读**的：
+
+- `set(name, value)` 写入/轮换后只返回 `SecretMetadata`
+  （configured / source class / version / updated_at），绝不回读值；
+- `configured_names()` 只返回已配置名称列表；
+- trait 上没有任何返回 Secret 值的方法——从类型层面杜绝"写后又读回"。
+- 元数据查询：`SecretProvider::metadata(name)` 为 stat-only（只读文件系统
+  元信息，不读取内容），GET 接口只返回元数据。
+- `FileSecretWriter`：原子写（临时文件 + 落盘 + rename），Unix 上强制
+  `0600`；拒绝路径穿越/非法名称（`/`、`\`、`..`、空格、空名）。
+
 ## 1.2 生产模式校验（M01-CONFIG-02）
 
 `BBLBB__ENV=production` 时启动强校验，任一失败立即退出：
