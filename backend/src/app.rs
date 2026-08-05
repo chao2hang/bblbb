@@ -22,6 +22,7 @@ use crate::{
         request_id::{request_id, RequestId},
         security_headers::security_headers,
     },
+    ratelimit::RateLimiter,
     routes::{
         admin, ai, auth, boards, comments, economy, feeds, health::healthz, marketplace,
         moderation, oidc, openapi::openapi, posts, ready, search, storage, themes, users, video,
@@ -47,6 +48,8 @@ pub struct AppState {
     pub config: Arc<AppConfig>,
     pub db: Option<Arc<DatabasePool>>,
     pub flags: crate::config::flags::FeatureFlags,
+    /// 进程内限流器（M02-IDENTITY-06；多实例再引入 Redis）。
+    pub limiter: Arc<RateLimiter>,
 }
 
 impl AppState {
@@ -72,6 +75,7 @@ pub fn build_router_with_flags(
         config: Arc::new(config),
         db: db.map(Arc::new),
         flags,
+        limiter: Arc::new(RateLimiter::new()),
     };
     let guard_state = state.clone();
     let gate_state = state.clone();

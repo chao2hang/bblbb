@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::{delete, get, post},
     Router,
@@ -24,6 +24,7 @@ use crate::{
     },
     domain::registration::{validate_register, RegisterRequest},
     error::AppError,
+    ratelimit::{client_ip, REGISTER_ACCOUNT_LIMIT, REGISTER_IP_LIMIT, REGISTER_WINDOW_MS},
 };
 
 // ─── DTO ─────────────────────────────────────────────────────────────────────
@@ -116,18 +117,56 @@ async fn get_csrf_token(
 
 /// POST /api/v1/auth/register — 注册新用户
 ///
-/// 领域校验（M02-IDENTITY-03）→ 事务创建（M02-IDENTITY-05）：
-/// 同一事务写入 pending 用户、一次性验证 token（hash）、审计与验证邮件
-/// Outbox；任何失败整事务回滚。唯一约束冲突与成功返回相同响应（不泄漏
-/// 用户名/邮箱是否已存在）。
+/// 领域校验（M02-IDENTITY-03）→ 事务创建（M02-IDENTITY-05）→
+/// 双维度限流（M02-IDENTITY-06）：同一事务写入 pending 用户、一次性验证
+/// token（hash）、审计与验证邮件 Outbox；任何失败整事务回滚。唯一约束冲突
+/// 与成功返回相同响应（不泄漏用户名/邮箱是否已存在）；每 IP 与每账号
+/// （规范化邮箱）分别按小时限流，超限返回 429 `rate_limited` + Retry-After。
 async fn register(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     let request_id = "register";
 
     let registration = validate_register(&req)
         .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+
+    // 双维度限流（先校验，再消费额度；超限不执行任何昂贵操作）
+    let now_ms = crate::outbox::now_millis();
+    let ip = client_ip(&headers);
+    let ip_status = state.limiter.check(
+        &format!("register:ip:{ip}"),
+        REGISTER_IP_LIMIT,
+        REGISTER_WINDOW_MS,
+        now_ms,
+    );
+    if !ip_status.allowed {
+        return Err(AppError::rate_limited(
+            "too many registration attempts, try again later",
+            request_id,
+            ip_status.retry_after_secs,
+            ip_status.limit,
+            ip_status.remaining,
+            ip_status.reset_at_ms / 1000,
+        ));
+    }
+    let account_status = state.limiter.check(
+        &format!("register:account:{}", registration.email_normalized),
+        REGISTER_ACCOUNT_LIMIT,
+        REGISTER_WINDOW_MS,
+        now_ms,
+    );
+    if !account_status.allowed {
+        return Err(AppError::rate_limited(
+            "too many registration attempts, try again later",
+            request_id,
+            account_status.retry_after_secs,
+            account_status.limit,
+            account_status.remaining,
+            account_status.reset_at_ms / 1000,
+        ));
+    }
 
     let pool = state
         .db
@@ -570,6 +609,7 @@ async fn confirm_password_reset(
 
 // ─── 验证函数 ────────────────────────────────────────────────────────────────
 
+#[allow(clippy::result_large_err)] // AppError 为全 handler 统一错误类型，体积固定可接受
 fn validate_password(password: &str, request_id: &str) -> Result<(), AppError> {
     if password.len() < 8 {
         return Err(AppError::bad_request(

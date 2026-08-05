@@ -47,6 +47,7 @@ impl AuthSession {
         self.user.is_some()
     }
 
+    #[allow(clippy::result_large_err)] // AppError 为全 handler 统一错误类型，体积固定可接受
     pub fn require_auth(&self, request_id: &str) -> Result<&SessionUser, crate::error::AppError> {
         self.user.as_ref().ok_or_else(|| {
             crate::error::AppError::unauthorized("authentication required", request_id)

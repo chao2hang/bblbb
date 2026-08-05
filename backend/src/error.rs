@@ -1,7 +1,7 @@
 use axum::{
-    http::{header, StatusCode},
+    body::Body,
+    http::{header, HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 
@@ -29,6 +29,10 @@ pub struct AppError {
     detail: String,
     request_id: String,
     errors: Option<serde_json::Value>,
+    /// 限流场景：`Retry-After` 秒数（其余场景为 None）。
+    retry_after_secs: Option<u64>,
+    /// 限流场景：(limit, remaining, reset_unix_secs) → `RateLimit-*` 头。
+    rate_limit: Option<(u32, u32, i64)>,
 }
 
 impl AppError {
@@ -40,6 +44,8 @@ impl AppError {
             detail: detail.into(),
             request_id: request_id.into(),
             errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
         }
     }
 
@@ -51,6 +57,8 @@ impl AppError {
             detail: detail.into(),
             request_id: request_id.into(),
             errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
         }
     }
 
@@ -66,6 +74,8 @@ impl AppError {
             detail: detail.into(),
             request_id: request_id.into(),
             errors,
+            retry_after_secs: None,
+            rate_limit: None,
         }
     }
 
@@ -77,6 +87,8 @@ impl AppError {
             detail: detail.into(),
             request_id: request_id.into(),
             errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
         }
     }
 
@@ -88,6 +100,8 @@ impl AppError {
             detail: detail.into(),
             request_id: request_id.into(),
             errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
         }
     }
 
@@ -99,17 +113,32 @@ impl AppError {
             detail: detail.into(),
             request_id: request_id.into(),
             errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
         }
     }
 
-    pub fn too_many_requests(detail: impl Into<String>, request_id: impl Into<String>) -> Self {
+    /// 限流拒绝（OpenAPI `RateLimited` 响应，错误码 `rate_limited`）。
+    ///
+    /// 响应携带 `Retry-After` 与 `RateLimit-Limit/Remaining/Reset` 头
+    /// （docs/API.md §17）。`reset_at_unix_secs` 为窗口重置的 Unix 秒。
+    pub fn rate_limited(
+        detail: impl Into<String>,
+        request_id: impl Into<String>,
+        retry_after_secs: u64,
+        limit: u32,
+        remaining: u32,
+        reset_at_unix_secs: i64,
+    ) -> Self {
         Self {
             status: StatusCode::TOO_MANY_REQUESTS,
-            code: "too_many_requests",
+            code: "rate_limited",
             title: "Too Many Requests",
             detail: detail.into(),
             request_id: request_id.into(),
             errors: None,
+            retry_after_secs: Some(retry_after_secs.max(1)),
+            rate_limit: Some((limit, remaining, reset_at_unix_secs)),
         }
     }
 
@@ -122,6 +151,8 @@ impl AppError {
             detail: detail.into(),
             request_id: request_id.into(),
             errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
         }
     }
 
@@ -194,12 +225,34 @@ impl IntoResponse for AppError {
             errors: self.errors,
         };
 
-        (
-            self.status,
-            [(header::CONTENT_TYPE, "application/problem+json")],
-            Json(problem),
-        )
-            .into_response()
+        let body = Body::from(serde_json::to_vec(&problem).unwrap_or_default());
+        let mut response = Response::new(body);
+        *response.status_mut() = self.status;
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/problem+json"),
+        );
+        if let Some(secs) = self.retry_after_secs {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, secs.to_string().parse().unwrap());
+        }
+        if let Some((limit, remaining, reset)) = self.rate_limit {
+            // 头名使用小写（HTTP/2 强制；HTTP/1 读取大小写不敏感）
+            response.headers_mut().insert(
+                HeaderName::from_static("ratelimit-limit"),
+                limit.to_string().parse().unwrap(),
+            );
+            response.headers_mut().insert(
+                HeaderName::from_static("ratelimit-remaining"),
+                remaining.to_string().parse().unwrap(),
+            );
+            response.headers_mut().insert(
+                HeaderName::from_static("ratelimit-reset"),
+                reset.to_string().parse().unwrap(),
+            );
+        }
+        response
     }
 }
 

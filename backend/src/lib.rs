@@ -14,6 +14,7 @@ pub mod idempotency;
 pub mod jobs;
 pub mod middleware;
 pub mod outbox;
+pub mod ratelimit;
 pub mod routes;
 
 pub use app::{build_router, build_router_with_flags};
