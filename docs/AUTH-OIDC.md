@@ -43,6 +43,17 @@ v1.0 OIDC：
 4. 旋转 Session，写安全审计并重置失败计数。
 5. 设置 `__Host-bblbb_session`。
 
+### TOTP enrollment（M02-MFA-02）
+
+1. 服务端生成 20 字节（160 bit）TOTP secret（RFC 6238，SHA-1，6 位，30 秒周期）。
+2. `begin_enrollment` 撤销该用户既有 TOTP（重复启用 = 撤销旧 + 新建），
+   将 secret 以 AES-256-GCM 加密后写入 `totp_credentials`（pending 行），
+   返回二维码最小数据（otpauth URI + base32 secret）；secret 与 code 一律
+   不落日志。
+3. 用户提交 6 位 code → 时间窗口内（当前步 ±1）且未重放的 step 通过后
+   原子启用（`confirmed_at` + `last_accepted_step`）。
+4. `cancel_enrollment` 撤销未完成的 pending enrollment。
+
 ### 重置密码
 
 - 一次性 token，数据库只存哈希，30 分钟过期。
