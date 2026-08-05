@@ -1,9 +1,10 @@
-//! M01-AUDIT-01：不可关闭的 audit_logs——actor、effective role、target、
-//! action、reason、request_id 与 policy version。
+//! M01-AUDIT-01/02：不可关闭的 audit_logs——actor、effective role、target、
+//! action、reason、request_id、policy version；before/after 字段 allowlist
+//! 禁止密码、Token、Secret、隐藏正文和完整签名 URL。
 
 use std::path::{Path, PathBuf};
 
-use bblbb_backend::audit::{list_audit_logs, AuditEntry};
+use bblbb_backend::audit::{list_audit_logs, sanitize_for_audit, AuditEntry};
 use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
@@ -84,6 +85,60 @@ async fn audit_entry_round_trips_all_m01_audit_01_fields() {
         "created_at 必须是毫秒时间戳，得到 {}",
         row.created_at
     );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// before/after 经 allowlist 过滤后写入：数据库中的 metadata 不含密码/Token/
+/// Secret/隐藏正文/完整签名 URL。
+#[tokio::test]
+async fn audit_metadata_never_contains_forbidden_sensitive_data() {
+    let (pool, dir) = pool_with_migrations().await;
+    let token = bblbb_backend::auth::token::generate_token();
+
+    let before = json!({
+        "status": "active",
+        "password_hash": "abcf00d",
+        "content": "完整隐藏正文",
+        "title": "旧标题"
+    });
+    let after = json!({
+        "status": "banned",
+        "reset_token": token,
+        "title": format!("封禁通知 {}", token),
+        "content_excerpt": "https://cdn.example.com/f?sig=X-Amz-Signature=deadbeef"
+    });
+
+    let metadata = json!({
+        "before": sanitize_for_audit(&before),
+        "after": sanitize_for_audit(&after)
+    });
+
+    AuditEntry::user_action("moderator-1", "admin.ban_user")
+        .with_target("user", "user-456")
+        .with_effective_role("moderator")
+        .with_reason("spam")
+        .with_policy_version("v1.0.0-rc.2")
+        .with_request_id("req-xyz")
+        .with_metadata(metadata)
+        .record(&pool)
+        .await
+        .unwrap();
+
+    let rows = list_audit_logs(&pool, 10, 0, None, None).await.unwrap();
+    let stored = rows[0].metadata.as_deref().unwrap_or("").to_owned();
+
+    assert!(!stored.contains(&token), "数据库不得出现原始 token");
+    assert!(!stored.contains("password_hash"), "不得出现密码字段");
+    assert!(!stored.contains("abcf00d"), "不得出现密码值");
+    assert!(!stored.contains("完整隐藏正文"), "不得出现隐藏正文");
+    assert!(
+        !stored.contains("X-Amz-Signature=deadbeef"),
+        "不得出现完整签名 URL"
+    );
+    assert!(stored.contains("旧标题"), "白名单字段应保留");
+    assert!(stored.contains("[REDACTED]"), "敏感值应被脱敏标记");
 
     close_pool(&pool).await;
     cleanup(&dir);

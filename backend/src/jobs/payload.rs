@@ -100,7 +100,8 @@ fn walk_object(
 
 /// 字符串中是否包含 token 形态连续段（≥ 40 字符、仅 URL-safe base64 字母表）。
 /// 手工扫描，避免在热路径引入正则依赖；能识别 magic-link URL 内嵌的 token。
-fn contains_token_shape(text: &str) -> bool {
+/// 审计模块（M01-AUDIT-02）复用此检测。
+pub(crate) fn contains_token_shape(text: &str) -> bool {
     let mut run = 0usize;
     for b in text.bytes() {
         if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' {

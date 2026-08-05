@@ -231,6 +231,10 @@ Content-Security-Policy: default-src 'self'; ...
 - IP 最小化保存，可保存前缀哈希并配置保留期限。
 - 用户可导出数据并发起注销；延迟期后进行匿名化/删除。
 - 审计日志不可由普通管理员 API 修改；清理需专用策略并记录清理事件。
+- 审计 before/after 使用字段 allowlist（`AUDIT_FIELD_ALLOWLIST`，M01-AUDIT-02）：
+  非白名单字段（密码、Token、Secret、隐藏正文、完整签名 URL）一律丢弃；
+  白名单字段的字符串若含密码/Secret/Bearer/签名 URL/token 形态则脱敏为
+  `[REDACTED]`。
 - OIDC Client 所得 claim 受 scope 和同意控制。
 
 ## 19. 部署加固

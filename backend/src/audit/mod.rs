@@ -164,6 +164,96 @@ impl AuditEntry {
     }
 }
 
+/// 审计 before/after 字段白名单（M01-AUDIT-02）。
+///
+/// 只允许记录这些字段；白名单之外的字段一律丢弃（含 `content`/`body`/
+/// `hidden_*` 等隐藏正文、密码/Token/Secret/完整签名 URL 字段）。
+pub const AUDIT_FIELD_ALLOWLIST: &[&str] = &[
+    "title",
+    "content_excerpt",
+    "visibility",
+    "status",
+    "role",
+    "permission",
+    "policy_version",
+    "reason",
+    "sanction",
+    "duration_days",
+    "mute_until",
+    "points",
+    "balance",
+    "currency",
+    "level",
+    "board_id",
+    "board_name",
+    "category",
+    "tags",
+    "quota_bytes",
+    "storage_bytes",
+    "download_count",
+    "ip_prefix",
+    "session_id",
+    "expires_at",
+];
+
+/// 对 before/after 对象做审计安全过滤（M01-AUDIT-02）。
+///
+/// - 字段级 allowlist：非白名单字段（含隐藏正文、密码、Token、Secret 字段）
+///   被丢弃；
+/// - 值级脱敏：白名单字段的字符串若包含密码/Secret/Bearer/完整签名 URL/
+///   token 形态，替换为 `[REDACTED]`。
+pub fn sanitize_for_audit(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut out = serde_json::Map::new();
+            for (key, val) in map {
+                if AUDIT_FIELD_ALLOWLIST.contains(&key.as_str()) {
+                    out.insert(key.clone(), sanitize_value(val));
+                }
+            }
+            Value::Object(out)
+        }
+        _ => Value::Null,
+    }
+}
+
+/// 递归脱敏允许保留的值。
+fn sanitize_value(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut out = serde_json::Map::new();
+            for (key, val) in map {
+                if AUDIT_FIELD_ALLOWLIST.contains(&key.as_str()) {
+                    out.insert(key.clone(), sanitize_value(val));
+                }
+            }
+            Value::Object(out)
+        }
+        Value::Array(items) => Value::Array(items.iter().map(sanitize_value).collect()),
+        Value::String(text) => {
+            if string_forbidden_for_audit(text) {
+                Value::String("[REDACTED]".to_owned())
+            } else {
+                Value::String(text.clone())
+            }
+        }
+        other => other.clone(),
+    }
+}
+
+/// 字符串是否包含审计禁止的敏感内容：密码/Secret/Bearer、完整签名 URL、
+/// token 形态长随机串。
+fn string_forbidden_for_audit(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.contains("password=")
+        || lower.contains("secret")
+        || lower.contains("bearer ")
+        || lower.contains("x-amz-signature")
+        || lower.contains("x-signature")
+        || lower.contains("signature=")
+        || crate::jobs::payload::contains_token_shape(text)
+}
+
 /// 查询审计日志（管理端用）。
 pub async fn list_audit_logs(
     pool: &DatabasePool,
@@ -264,6 +354,7 @@ pub struct AuditLogRow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn audit_entry_builder_carries_all_m01_audit_01_fields() {
@@ -284,5 +375,86 @@ mod tests {
         assert_eq!(entry.policy_version.as_deref(), Some("v1.0.0-rc.2"));
         assert_eq!(entry.request_id.as_deref(), Some("req-789"));
         assert_eq!(entry.ip_address.as_deref(), Some("127.0.0.1"));
+    }
+
+    // ── M01-AUDIT-02：before/after 字段 allowlist ──────────────────────────
+
+    #[test]
+    fn allowlist_keeps_only_approved_fields() {
+        let before = json!({
+            "status": "active",
+            "title": "旧标题",
+            "password_hash": "abcf00d…",
+            "content": "完整隐藏正文，禁止记录",
+            "hidden_reason": "内部敏感",
+            "points": 100,
+            "role": "member"
+        });
+        let cleaned = sanitize_for_audit(&before);
+        let obj = cleaned.as_object().unwrap();
+        assert_eq!(obj.len(), 4, "只保留白名单字段");
+        assert_eq!(obj["status"], "active");
+        assert_eq!(obj["title"], "旧标题");
+        assert_eq!(obj["points"], 100);
+        assert_eq!(obj["role"], "member");
+        for forbidden in ["password_hash", "content", "hidden_reason"] {
+            assert!(!obj.contains_key(forbidden), "字段 {forbidden} 必须被丢弃");
+        }
+    }
+
+    #[test]
+    fn token_shaped_value_in_allowlisted_field_is_redacted() {
+        let token = crate::auth::token::generate_token();
+        let before = json!({
+            "title": format!("重置链接 https://x/{token}")
+        });
+        let cleaned = sanitize_for_audit(&before);
+        let obj = cleaned.as_object().unwrap();
+        let title = obj["title"].as_str().unwrap();
+        assert!(!title.contains(&token), "token 必须被脱敏");
+        assert_eq!(title, "[REDACTED]");
+    }
+
+    #[test]
+    fn secret_and_signed_url_values_are_redacted() {
+        for value in [
+            "password=hunter2",
+            "client_secret=abc",
+            "Bearer eyJhbGciOiJIUzI1NiJ9",
+            "https://cdn.example.com/f?sig=X-Amz-Signature=deadbeef",
+            "https://cdn.example.com/f?X-Signature=abc",
+        ] {
+            let before = json!({ "content_excerpt": value });
+            let cleaned = sanitize_for_audit(&before);
+            assert_eq!(
+                cleaned["content_excerpt"], "[REDACTED]",
+                "敏感值必须脱敏: {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_objects_are_filtered_recursively() {
+        let before = json!({
+            "tags": ["ai", "forum"],
+            "board_id": "b-1",
+            "nested": {
+                "title": "ok",
+                "reset_token": "should-not-survive"
+            }
+        });
+        let cleaned = sanitize_for_audit(&before);
+        let obj = cleaned.as_object().unwrap();
+        assert_eq!(obj["tags"], json!(["ai", "forum"]), "数组白名单字段保留");
+        assert!(
+            !obj.contains_key("nested"),
+            "非白名单字段 nested 必须被丢弃"
+        );
+    }
+
+    #[test]
+    fn non_object_input_is_null() {
+        assert_eq!(sanitize_for_audit(&Value::String("x".into())), Value::Null);
+        assert_eq!(sanitize_for_audit(&Value::Null), Value::Null);
     }
 }
