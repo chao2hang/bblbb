@@ -3,6 +3,7 @@
   import { listBoards, type Board } from '$lib/api/client';
   import BoardCard from '$lib/components/BoardCard.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import { boardVisuals } from '$lib/board-visuals';
 
   let boards = $state<Board[]>([]);
   let loading = $state(true);
@@ -42,11 +43,14 @@
       {:else}
         <div class="boards-grid">
           {#each boards as board}
+            {@const visuals = boardVisuals(board.slug)}
             <BoardCard
               slug={board.slug}
               name={board.name}
               description={board.description ?? ''}
               post_count={board.post_count}
+              icon={visuals.icon}
+              color={visuals.color}
             />
           {/each}
         </div>

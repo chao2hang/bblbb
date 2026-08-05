@@ -5,6 +5,7 @@
   import Avatar from './ui/Avatar.svelte';
   import EmptyState from './ui/EmptyState.svelte';
   import { formatCount, formatRelative, escapeHtml } from '$lib/utils';
+  import { boardVisuals } from '$lib/board-visuals';
 
   export interface PostRowData {
     id: string;
@@ -49,7 +50,7 @@
           </div>
           <div class="post-row-meta">
             {#if post.board_slug && post.board_name}
-              <a href="/boards/{post.board_slug}" class="category-badge" style="--cat-color:var(--color-accent);">
+              <a href="/boards/{post.board_slug}" class="category-badge" style="--cat-color:{boardVisuals(post.board_slug).color};">
                 <span class="category-badge-square"></span><span>{post.board_name}</span>
               </a>
             {/if}

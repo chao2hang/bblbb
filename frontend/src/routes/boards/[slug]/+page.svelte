@@ -1,13 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { listBoardPosts, type PostSummary } from '$lib/api/client';
+  import { listBoardPosts, getBoard, type PostSummary } from '$lib/api/client';
   import PostList from '$lib/components/PostList.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { boardVisuals } from '$lib/board-visuals';
+  import { formatCount } from '$lib/utils';
 
   let slug = $derived(page.params.slug);
+  let visuals = $derived(boardVisuals(slug ?? ''));
   let posts = $state<PostSummary[]>([]);
+  let boardName = $state<string | null>(null);
+  let boardDesc = $state<string | null>(null);
+  let postCount = $state<number | null>(null);
   let loading = $state(true);
 
   onMount(async () => {
@@ -16,8 +22,18 @@
       return;
     }
     try {
-      const result = await listBoardPosts(fetch, slug);
-      posts = result.items;
+      const [boardResult, postsResult] = await Promise.allSettled([
+        getBoard(fetch, slug),
+        listBoardPosts(fetch, slug),
+      ]);
+      if (boardResult.status === 'fulfilled') {
+        boardName = boardResult.value.name;
+        boardDesc = boardResult.value.description;
+        postCount = boardResult.value.post_count;
+      }
+      if (postsResult.status === 'fulfilled') {
+        posts = postsResult.value.items;
+      }
     } catch {
       posts = [];
     }
@@ -26,7 +42,7 @@
 </script>
 
 <svelte:head>
-  <title>{slug} — BBLBB</title>
+  <title>{boardName ?? slug} — BBLBB</title>
 </svelte:head>
 
 <div class="container">
@@ -37,16 +53,19 @@
         <span class="breadcrumb-sep">/</span>
         <a href="/boards" class="breadcrumb-link">板块</a>
         <span class="breadcrumb-sep">/</span>
-        <span class="breadcrumb-current">{slug}</span>
+        <span class="breadcrumb-current">{boardName ?? slug}</span>
       </nav>
 
       <div class="board-header">
-        <div class="board-icon">
-          <Icon name="message-square" size={28} />
+        <div class="board-icon" style="--cat-color:{visuals.color};">
+          <Icon name={visuals.icon} size={28} />
         </div>
         <div class="board-info">
-          <h1 class="board-name">{slug}</h1>
-          <p class="board-desc">共 {posts.length} 个帖子</p>
+          <h1 class="board-name">{boardName ?? slug}</h1>
+          {#if boardDesc}<p class="board-desc">{boardDesc}</p>{/if}
+          <div class="board-stats">
+            <span><strong>{formatCount(postCount ?? posts.length)}</strong> 帖子</span>
+          </div>
         </div>
         <div>
           <Button text="发布新帖" variant="primary" icon="pen-line" href="/editor" />

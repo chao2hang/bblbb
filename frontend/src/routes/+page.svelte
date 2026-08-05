@@ -5,6 +5,7 @@
   import SectionHeader from '$lib/components/SectionHeader.svelte';
   import PostList from '$lib/components/PostList.svelte';
   import BoardCard from '$lib/components/BoardCard.svelte';
+  import { boardVisuals } from '$lib/board-visuals';
   import Card from '$lib/components/ui/Card.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -57,11 +58,14 @@
         {#if boards.length > 0}
           <div class="boards-grid home-boards">
             {#each boards as board}
+              {@const visuals = boardVisuals(board.slug)}
               <BoardCard
                 slug={board.slug}
                 name={board.name}
                 description={board.description ?? ''}
                 post_count={board.post_count}
+                icon={visuals.icon}
+                color={visuals.color}
               />
             {/each}
           </div>
