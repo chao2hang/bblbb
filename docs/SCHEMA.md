@@ -186,7 +186,13 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | `level_updated_at` | 等级缓存刷新时间，可空（NULL = 尚未计算） |
 | `version` | 乐观并发版本（迁移 0026，默认 1）；资料更新携带 `If-Match`，过期 → `409 version_conflict`（M03-PROFILE-04） |
 
-注销硬删除时，必须先执行匿名化流程；是否释放原邮箱/用户名由隐私策略明确规定。
+注销硬删除时，必须先执行匿名化流程（M03-PROFILE-07）：`username_normalized`
+→ `deleted_user_<id前12位>`、`email_normalized` → `<id前12位>@deleted.invalid`
+（均保持唯一，RFC 2606 `.invalid` 不可路由），display_name/bio/signature/
+头像/Cover/last_login_at 清空，status → `deleted`，删除
+user_preferences/user_privacy，全部 Session 立即撤销；帖子/评论等公开讨论
+保留（author_id 指向匿名化行，公开投影 404）；是否释放原邮箱/用户名由隐私
+策略明确规定。
 
 公开用户投影 allowlist（M03-PROFILE-02）：`PublicProfile` 只允许
 `id/username/display_name/bio/level/avatar_attachment_id/signature/created_at`
