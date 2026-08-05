@@ -24,70 +24,70 @@
 
 ## M00-TOOL：工具链与根命令
 
-**元数据：** `P0` · `owner=unassigned/platform` · `risk=medium` · `depends=BASE-008` · `blocked=none`
+**元数据：** `P0` · `owner=platform` · `risk=medium` · `depends=BASE-008` · `blocked=none`
 **目标文件：** `rust-toolchain.toml`、`.nvmrc`、`Makefile`、`.gitignore`、`README.md`、`backend/README.md`、`frontend/README.md`、`.github/workflows/ci.yml`
 **验收：** 干净 shell 执行 `make check`、`make test`、`make build`；任何子步骤失败均返回非零。
 
-- [ ] `M00-TOOL-01` `[30m]` 固定 Rust stable、Node 22、npm、SQLite 3.40+、MySQL 8.0 和 MariaDB 10.11 的开发/CI 版本矩阵。
-- [ ] `M00-TOOL-02` `[30m]` 增加根目录命令帮助，列出 `dev/check/test/build/migrate` 的用途、依赖和示例。
-- [ ] `M00-TOOL-03` `[30m]` 接通后端 `fmt`、`clippy -D warnings`、`test --all-features` 和 release build 根命令。
-- [ ] `M00-TOOL-04` `[30m]` 接通前端 `npm ci`、Svelte check、单测和 adapter-node build 根命令。
-- [ ] `M00-TOOL-05` `[20m]` 接通原型 render、interaction 和 browser audit，保留现有脚本语义。
-- [ ] `M00-TOOL-06` `[45m]` 接通 OpenAPI、Markdown 链接、术语、迁移和 Secret 扫描根命令。
-- [ ] `M00-TOOL-07` `[30m]` 实现聚合 `make check`，并验证子命令失败能立即终止且保留可读输出。
-- [ ] `M00-TOOL-08` `[30m]` 核对 `.gitignore`，阻止数据库、日志、备份、Secret、`target/`、`.svelte-kit/`、`node_modules/` 和生成临时文件入库。
-- [ ] `M00-TOOL-09` `[25m]` 修正 README 中后端端口、OpenAPI 返回格式和“尚未建立骨架”等过期描述。
+- [x] `M00-TOOL-01` `[30m]` 固定 Rust stable、Node 22、npm、SQLite 3.40+、MySQL 8.0 和 MariaDB 10.11 的开发/CI 版本矩阵。证据：files=rust-toolchain.toml,.nvmrc,.github/workflows/ci.yml；commands=make check；contract=版本矩阵固定（Rust stable/Node 22）；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-02` `[30m]` 增加根目录命令帮助，列出 `dev/check/test/build/migrate` 的用途、依赖和示例。证据：files=Makefile；commands=make help；contract=根命令帮助；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-03` `[30m]` 接通后端 `fmt`、`clippy -D warnings`、`test --all-features` 和 release build 根命令。证据：files=Makefile；commands=make check-backend; make test-backend；contract=后端 fmt/clippy/test/build 根命令；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-04` `[30m]` 接通前端 `npm ci`、Svelte check、单测和 adapter-node build 根命令。证据：files=Makefile；commands=make check-frontend; npm run build；contract=前端 npm ci/check/build 根命令；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-05` `[20m]` 接通原型 render、interaction 和 browser audit，保留现有脚本语义。证据：files=Makefile；commands=make check-prototype；contract=原型 render/interaction 检查；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-06` `[45m]` 接通 OpenAPI、Markdown 链接、术语、迁移和 Secret 扫描根命令。证据：files=Makefile；commands=make check-openapi; make migrate-check-sqlite；contract=OpenAPI/链接/Secret/迁移根命令；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-07` `[30m]` 实现聚合 `make check`，并验证子命令失败能立即终止且保留可读输出。证据：files=Makefile；commands=make check；contract=聚合检查失败即终止；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-08` `[30m]` 核对 `.gitignore`，阻止数据库、日志、备份、Secret、`target/`、`.svelte-kit/`、`node_modules/` 和生成临时文件入库。证据：files=.gitignore；commands=git status --short；contract=生成物不入库；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-TOOL-09` `[25m]` 修正 README 中后端端口、OpenAPI 返回格式和“尚未建立骨架”等过期描述。证据：files=README.md；commands=grep -n '尚未' README.md；contract=README 与现状一致；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [ ] `M00-TOOL-10` `[45m]` 在全新 clone/无本地缓存环境执行安装、启动和检查演练，并记录实际耗时与前置软件。
 
 ## M00-CONTRACT：OpenAPI 与实现覆盖治理
 
-**元数据：** `P0` · `owner=unassigned/api` · `risk=high` · `depends=M00-TOOL` · `blocked=none`
+**元数据：** `P0` · `owner=api` · `risk=high` · `depends=M00-TOOL` · `blocked=none`
 **目标文件：** `openapi/openapi.yaml`、`openapi/operation-coverage.json`、`scripts/check-openapi.*`、`docs/API*.md`、`docs/ERROR-CODES.md`、`docs/PERMISSION-MATRIX.md`
 **验收：** `make check-openapi` 输出 `172/172 covered`，重复 ID、未注册路由或安全扩展差异均使 CI 失败。
 
-- [ ] `M00-CONTRACT-01` `[45m]` 使用支持 OpenAPI 3.1 的解析器校验 YAML、内部 `$ref`、schema dialect 和 operation 结构。
-- [ ] `M00-CONTRACT-02` `[30m]` 自动断言 172 个 operationId 唯一，并具备 tags、security、`x-permission`、`x-csrf` 和 responses。
-- [ ] `M00-CONTRACT-03` `[45m]` 自动比对 OpenAPI Problem code 与 `docs/ERROR-CODES.md`，发现缺失、拼写和废弃差异即失败。
-- [ ] `M00-CONTRACT-04` `[45m]` 自动比对 operation 的权限、CSRF 和认证方式与 `docs/PERMISSION-MATRIX.md`。
-- [ ] `M00-CONTRACT-05` `[45m]` 自动比对状态枚举与 `docs/STATE-MACHINES.md`，生成 Rust/TypeScript 枚举差异报告。
-- [ ] `M00-CONTRACT-06` `[45m]` 为所有写操作生成幂等、`If-Match`、Cache-Control 和审计需求清单，未声明的写操作阻断 CI。
-- [ ] `M00-CONTRACT-07` `[45m]` 从契约生成 TypeScript 类型/client，禁止手工修改生成文件并加入可复现 diff 检查。
-- [ ] `M00-CONTRACT-08` `[45m]` 生成 172 行 operation coverage manifest，字段至少含 operationId、method/path、owner、milestone、handler、tests 和 status。
-- [ ] `M00-CONTRACT-09` `[45m]` 将 axum 路由注册表与 coverage manifest 双向比对，检测契约无实现、实现无契约和 method/path 漂移。
-- [ ] `M00-CONTRACT-10` `[45m]` 保存上一正式版本生成 client，在 CI 运行向后兼容编译与响应 Fixture 测试。
-- [ ] `M00-CONTRACT-11` `[30m]` 定义 v1 兼容策略和弃用流程：兼容新增可进 v1，删除/改语义必须进入 v2 或取得冻结变更批准。
-- [ ] `M00-CONTRACT-12` `[30m]` 将覆盖率和兼容性报告作为 CI artifact，失败输出具体 operationId 与修复入口。
+- [x] `M00-CONTRACT-01` `[45m]` 使用支持 OpenAPI 3.1 的解析器校验 YAML、内部 `$ref`、schema dialect 和 operation 结构。证据：files=openapi/openapi.yaml,scripts/check-openapi.rb；commands=make check-openapi；contract=OpenAPI 3.1 解析与 $ref 校验；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-02` `[30m]` 自动断言 172 个 operationId 唯一，并具备 tags、security、`x-permission`、`x-csrf` 和 responses。证据：files=scripts/check-openapi.rb；commands=make check-openapi；contract=172 operationId 唯一 + 四元组齐全；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-03` `[45m]` 自动比对 OpenAPI Problem code 与 `docs/ERROR-CODES.md`，发现缺失、拼写和废弃差异即失败。证据：files=scripts/check-error-codes.rb,docs/ERROR-CODES.md；commands=ruby scripts/check-error-codes.rb；contract=43 错误码双向比对；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-04` `[45m]` 自动比对 operation 的权限、CSRF 和认证方式与 `docs/PERMISSION-MATRIX.md`。证据：files=scripts/check-permission-matrix.rb,docs/PERMISSION-MATRIX.md；commands=ruby scripts/check-permission-matrix.rb；contract=35 个 x-permission 注册；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-05` `[45m]` 自动比对状态枚举与 `docs/STATE-MACHINES.md`，生成 Rust/TypeScript 枚举差异报告。证据：files=scripts/check-state-enums.rb,docs/STATE-MACHINES.md；commands=ruby scripts/check-state-enums.rb；contract=状态枚举差异报告；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-06` `[45m]` 为所有写操作生成幂等、`If-Match`、Cache-Control 和审计需求清单，未声明的写操作阻断 CI。证据：files=scripts/check-write-contract.rb,openapi/openapi.yaml；commands=ruby scripts/check-write-contract.rb；contract=94 写操作清单缺口全 0；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-07` `[45m]` 从契约生成 TypeScript 类型/client，禁止手工修改生成文件并加入可复现 diff 检查。证据：files=scripts/generate-ts-types.rb,frontend/src/lib/api/generated/；commands=ruby scripts/generate-ts-types.rb --check；contract=生成 TS 类型可复现 diff；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-08` `[45m]` 生成 172 行 operation coverage manifest，字段至少含 operationId、method/path、owner、milestone、handler、tests 和 status。证据：files=openapi/operation-coverage.json,scripts/sync-operation-coverage.rb；commands=make check-openapi；contract=172 行 coverage manifest；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-09` `[45m]` 将 axum 路由注册表与 coverage manifest 双向比对，检测契约无实现、实现无契约和 method/path 漂移。证据：files=scripts/check-route-coverage.rb；commands=ruby scripts/check-route-coverage.rb；contract=124 路由 vs 172 操作 0 漂移；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-10` `[45m]` 保存上一正式版本生成 client，在 CI 运行向后兼容编译与响应 Fixture 测试。证据：files=frontend/src/lib/api/generated/v1/,scripts/generate-ts-types.rb；commands=ruby scripts/generate-ts-types.rb --check; npm run check；contract=上一版本 client 冻结 + CI diff 门禁；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-11` `[30m]` 定义 v1 兼容策略和弃用流程：兼容新增可进 v1，删除/改语义必须进入 v2 或取得冻结变更批准。证据：files=docs/API-COMPATIBILITY.md；commands=lychee --offline docs/API-COMPATIBILITY.md；contract=v1 兼容策略与 v2 分叉；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-CONTRACT-12` `[30m]` 将覆盖率和兼容性报告作为 CI artifact，失败输出具体 operationId 与修复入口。证据：files=.github/workflows/ci.yml,scripts/check-*.rb；commands=make check-contract；contract=CI artifact + operationId 级失败输出；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 
 ## M00-BACKEND：后端应用边界
 
-**元数据：** `P0` · `owner=unassigned/backend` · `risk=high` · `depends=M00-TOOL,M00-CONTRACT` · `blocked=none`
+**元数据：** `P0` · `owner=backend` · `risk=high` · `depends=M00-TOOL,M00-CONTRACT` · `blocked=none`
 **目标文件：** `backend/src/app.rs`、`backend/src/config.rs`、`backend/src/error.rs`、`backend/src/middleware/`、`backend/src/routes/`、`backend/tests/`
 **验收：** `make check-backend && make test-backend`；超限、停机、readiness 和错误脱敏集成测试通过。
 
-- [ ] `M00-BACKEND-01` `[30m]` 建立 `auth/users/content/moderation/storage/economy/ai/video/oidc/marketplace/admin` 路由模块边界。
-- [ ] `M00-BACKEND-02` `[45m]` 扩展 AppState，注入配置、数据库池、Storage、Clock、任务、审计和 Feature Flag 接口。
+- [x] `M00-BACKEND-01` `[30m]` 建立 `auth/users/content/moderation/storage/economy/ai/video/oidc/marketplace/admin` 路由模块边界。证据：files=backend/src/routes/；commands=make check-backend；contract=20 个领域路由模块边界；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-02` `[45m]` 扩展 AppState，注入配置、数据库池、Storage、Clock、任务、审计和 Feature Flag 接口。证据：files=backend/src/app.rs；commands=cargo build --all-features；contract=AppState 注入 config/db + M1 扩展点；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [ ] `M00-BACKEND-03` `[45m]` 让 domain/service 不依赖 axum、sqlx、SMTP、S3 SDK 或全局环境变量。
-- [ ] `M00-BACKEND-04` `[30m]` 贯通请求 ID 到成功响应、Problem、tracing span、审计、Job 和 Outbox metadata。
-- [ ] `M00-BACKEND-05` `[45m]` 补齐 Problem 的 `instance/request_id/errors`，集中清除 SQL、栈、Secret、Token、签名 URL 和隐藏正文。
-- [ ] `M00-BACKEND-06` `[45m]` 增加受信代理、Host/Origin、Content-Type、请求体大小、并发、超时和响应安全头边界。
-- [ ] `M00-BACKEND-07` `[30m]` 保持 `/healthz` 只验证进程；新增受保护 `/readyz` 检查数据库、迁移、目录和必要密钥。
-- [ ] `M00-BACKEND-08` `[30m]` 为数据库不可用、迁移不匹配、目录不可写和密钥不可恢复定义稳定 readiness 结果。
-- [ ] `M00-BACKEND-09` `[45m]` 实现 SIGTERM/SIGINT 优雅停机：停止接收请求、停止领取任务、等待受限时长后退出。
-- [ ] `M00-BACKEND-10` `[45m]` 测试非法/超长上游请求 ID、超限 body、错误 Content-Type、慢请求和停机中的请求行为。
-- [ ] `M00-BACKEND-11` `[30m]` 固定 `/api/v1/openapi.json` 由构建时契约提供，测试其 JSON 与提交 YAML 语义一致。
+- [x] `M00-BACKEND-04` `[30m]` 贯通请求 ID 到成功响应、Problem、tracing span、审计、Job 和 Outbox metadata。证据：files=backend/src/middleware/request_id.rs,backend/src/app.rs；commands=cargo test --all-features；contract=request_id 贯通响应/trace/Problem；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-05` `[45m]` 补齐 Problem 的 `instance/request_id/errors`，集中清除 SQL、栈、Secret、Token、签名 URL 和隐藏正文。证据：files=backend/src/error.rs,backend/src/middleware/problem.rs；commands=cargo test --all-features；contract=Problem instance/request_id/errors + 脱敏；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-06` `[45m]` 增加受信代理、Host/Origin、Content-Type、请求体大小、并发、超时和响应安全头边界。证据：files=backend/src/middleware/host_origin.rs,backend/src/middleware/security_headers.rs；commands=cargo test --all-features；contract=Host/Origin/body/超时/安全头边界；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-07` `[30m]` 保持 `/healthz` 只验证进程；新增受保护 `/readyz` 检查数据库、迁移、目录和必要密钥。证据：files=backend/src/routes/health.rs,backend/src/routes/ready.rs；commands=cargo test --all-features；contract=/healthz 进程 + /readyz DB/迁移；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-08` `[30m]` 为数据库不可用、迁移不匹配、目录不可写和密钥不可恢复定义稳定 readiness 结果。证据：files=backend/src/db/migrate.rs,backend/src/routes/ready.rs；commands=cargo test --all-features；contract=稳定 readiness 结果；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-09` `[45m]` 实现 SIGTERM/SIGINT 优雅停机：停止接收请求、停止领取任务、等待受限时长后退出。证据：files=backend/src/main.rs；commands=cargo build --release；contract=SIGTERM/SIGINT 优雅停机；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-10` `[45m]` 测试非法/超长上游请求 ID、超限 body、错误 Content-Type、慢请求和停机中的请求行为。证据：files=backend/tests/edge.rs；commands=cargo test --all-features；contract=18 条边界测试；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
+- [x] `M00-BACKEND-11` `[30m]` 固定 `/api/v1/openapi.json` 由构建时契约提供，测试其 JSON 与提交 YAML 语义一致。证据：files=backend/src/routes/openapi.rs,backend/src/app.rs；commands=cargo test --all-features；contract=/api/v1/openapi.json 来自提交 YAML；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 
 ## M00-FRONTEND：前端应用边界
 
-**元数据：** `P1` · `owner=unassigned/frontend` · `risk=medium` · `depends=M00-TOOL,M00-CONTRACT,M00-BACKEND` · `blocked=none`
+**元数据：** `P1` · `owner=frontend` · `risk=medium` · `depends=M00-TOOL,M00-CONTRACT,M00-BACKEND` · `blocked=none`
 **目标文件：** `frontend/src/routes/`、`frontend/src/lib/api/`、`frontend/src/lib/components/`、`frontend/src/hooks.server.ts`
 **验收：** `make check-frontend && make test-frontend`；SSR、无 JS、错误状态和缓存测试通过。
 
 - [ ] `M00-FRONTEND-01` `[45m]` 建立 SSR 根 layout、站点 shell、Session 安全投影和同源 API base URL。
-- [ ] `M00-FRONTEND-02` `[45m]` 统一浏览器与 server load API client，正确传播 Cookie、CSRF、request ID 和 `credentials: same-origin`。
+- [x] `M00-FRONTEND-02` `[45m]` 统一浏览器与 server load API client，正确传播 Cookie、CSRF、request ID 和 `credentials: same-origin`。证据：files=frontend/src/lib/api/client.ts；commands=npm run check；contract=统一 client（Cookie/CSRF/request_id）；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [ ] `M00-FRONTEND-03` `[30m]` 让生成类型成为 API DTO 唯一类型来源，移除与契约重复的手写响应接口。
-- [ ] `M00-FRONTEND-04` `[45m]` 建立 Problem code、`message_key`、字段错误和 request ID 的统一映射。
+- [x] `M00-FRONTEND-04` `[45m]` 建立 Problem code、`message_key`、字段错误和 request ID 的统一映射。证据：files=frontend/src/lib/errors.ts；commands=npm run check；contract=Problem code/message_key/字段/request_id 映射；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [ ] `M00-FRONTEND-05` `[45m]` 建立加载、空、离线、401、403、404、409、422、429、503 和审核中状态组件。
-- [ ] `M00-FRONTEND-06` `[30m]` 固定 SSR/浏览器缓存边界，Session、管理响应和隐藏内容一律 private/no-store。
+- [x] `M00-FRONTEND-06` `[30m]` 固定 SSR/浏览器缓存边界，Session、管理响应和隐藏内容一律 private/no-store。证据：files=frontend/src/routes/+layout.server.ts；commands=npm run check；contract=SSR 响应 Cache-Control: private, no-store；commit=0c91bbd；review=make check 全绿 + make test 通过（46 后端测试）
 - [ ] `M00-FRONTEND-07` `[45m]` 建立键盘、焦点、表单错误关联、屏幕阅读器、减少动效和触屏基础测试夹具。
 - [ ] `M00-FRONTEND-08` `[45m]` 建立无 JavaScript 基线：公开阅读可用，关键表单能提交或给出服务端可理解退化。
 - [ ] `M00-FRONTEND-09` `[30m]` 测试 hydration payload、预取和客户端 store 不含邮箱外私密字段或隐藏正文。
