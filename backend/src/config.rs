@@ -191,6 +191,13 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    ConfigEntry {
+        env_var: "BBLBB__MFA_ENCRYPTION_KEY",
+        field: "mfa_encryption_key",
+        default: "",
+        scope: "all",
+        reload: "restart",
+    },
 ];
 
 /// 允许的运行环境
@@ -241,6 +248,11 @@ pub struct AppConfig {
     /// auth_verified_at 距今不超过该值，否则必须重新认证）
     #[serde(default = "default_step_up_window_secs")]
     pub step_up_window_secs: u64,
+    /// TOTP secret 加密密钥材料（M02-UX-03；AES-256-GCM，SHA-256 派生；
+    /// 空 = 未配置，MFA 验证/enrollment 路由返回 500。生产必须配置，
+    /// 与备份隔离存储）
+    #[serde(default)]
+    pub mfa_encryption_key: String,
     // ── M01-DB-02：数据库连接池与慢查询参数（经 AppConfig::validate 校验）──
     #[serde(default = "default_db_max_connections")]
     pub db_max_connections: u32,
@@ -425,6 +437,7 @@ impl Default for AppConfig {
             new_user_cooldown_secs: default_new_user_cooldown_secs(),
             totp_window_steps: default_totp_window_steps(),
             step_up_window_secs: default_step_up_window_secs(),
+            mfa_encryption_key: String::new(),
         }
     }
 }
@@ -656,6 +669,7 @@ mod tests {
             "env",
             "feature_kill_switch",
             "log_filter",
+            "mfa_encryption_key",
             "migrations_dir",
             "new_user_cooldown_secs",
             "openapi_path",

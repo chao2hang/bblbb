@@ -54,6 +54,7 @@
 | `BBLBB__NEW_USER_COOLDOWN_SECS` | `new_user_cooldown_secs` | `0` = 关闭 | all | 重启 |
 | `BBLBB__TOTP_WINDOW_STEPS` | `totp_window_steps` | `1` | all | 重启 |
 | `BBLBB__STEP_UP_WINDOW_SECS` | `step_up_window_secs` | `300`（5 分钟） | all | 重启 |
+| `BBLBB__MFA_ENCRYPTION_KEY` | `mfa_encryption_key` | 空 = 未配置 | all | 重启 |
 
 说明：
 

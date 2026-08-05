@@ -78,6 +78,47 @@ paths:
               "$ref": "#/components/schemas/LoginRequest"
       responses:
         '200':
+          description: 登录结果（未启用 TOTP → Me；启用 TOTP → MFA challenge）
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+            Set-Cookie:
+              "$ref": "#/components/headers/SessionCookie"
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/LoginResult"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/login/mfa":
+    post:
+      tags:
+      - Auth
+      operationId: loginMfa
+      security: *1
+      summary: Complete two-step MFA login (TOTP or recovery code)
+      x-permission: public
+      x-csrf: true
+      x-csrf-context: preauth
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/LoginMfaRequest"
+      responses:
+        '200':
           description: Authenticated user projection
           headers:
             Cache-Control:
@@ -6268,9 +6309,43 @@ components:
           minLength: 8
           maxLength: 256
           writeOnly: true
-        totp:
+    LoginMfaChallenge:
+      type: object
+      additionalProperties: false
+      required:
+      - mfa_required
+      - challenge_token
+      properties:
+        mfa_required:
+          type: boolean
+          const: true
+          description: 账号启用 TOTP：密码已验证，需第二步 /login/mfa 完成登录
+        challenge_token:
           type: string
-          pattern: "^[0-9]{6,8}$"
+          writeOnly: true
+          description: 一次性 MFA login challenge（5 分钟过期，只出现一次）
+    LoginMfaRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - challenge_token
+      properties:
+        challenge_token:
+          type: string
+          description: 第一步 /login 返回的一次性 challenge
+        totp_code:
+          type: string
+          pattern: "^[0-9]{6}$"
+          description: 6 位 TOTP code（totp_code 与 recovery_code 二选一）
+        recovery_code:
+          type: string
+          pattern: "^[A-Z2-7]{16}$"
+          description: 恢复码（totp_code 与 recovery_code 二选一）
+    LoginResult:
+      oneOf:
+      - "$ref": "#/components/schemas/Me"
+      - "$ref": "#/components/schemas/LoginMfaChallenge"
+      description: 未启用 TOTP → Me（含会话 Cookie）；启用 TOTP → 第一步仅返回 MFA challenge
     ProfilePatch:
       type: object
       additionalProperties: false

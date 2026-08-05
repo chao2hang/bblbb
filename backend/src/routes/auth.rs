@@ -48,6 +48,23 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// 第二步 MFA 登录请求（M02-UX-03）：totp_code 与 recovery_code 二选一。
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LoginMfaRequest {
+    /// 第一步登录返回的一次性 challenge token
+    pub challenge_token: String,
+    pub totp_code: Option<String>,
+    pub recovery_code: Option<String>,
+}
+
+/// 第一步登录的 MFA challenge 响应（M02-UX-03）：密码已验证，等待第二因素。
+#[derive(Serialize)]
+struct LoginMfaChallenge {
+    mfa_required: bool,
+    challenge_token: String,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TokenRequest {
@@ -108,6 +125,7 @@ pub fn router() -> Router<AppState> {
             post(resend_verification),
         )
         .route("/api/v1/auth/login", post(login))
+        .route("/api/v1/auth/login/mfa", post(login_mfa))
         .route("/api/v1/auth/session", delete(logout))
         .route(
             "/api/v1/auth/sessions",
@@ -416,6 +434,23 @@ async fn login(
     .await
     {
         Ok(outcome) => {
+            // 启用 TOTP：第一步只签发一次性 challenge（不写会话 Cookie），
+            // 前端进入第二步 /auth/login/mfa（M02-UX-03）。
+            if outcome.mfa_required {
+                let challenge_token = crate::auth::start_mfa_login(pool, &outcome.user_id)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                return Ok((
+                    StatusCode::OK,
+                    [(header::CACHE_CONTROL, "private, no-store")],
+                    Json(LoginMfaChallenge {
+                        mfa_required: true,
+                        challenge_token,
+                    }),
+                )
+                    .into_response());
+            }
+
             let cookie = build_session_cookie(&outcome.session_token);
             let me = MeResponse {
                 id: outcome.user_id,
@@ -452,6 +487,93 @@ async fn login(
             reset_at_unix_secs,
         )),
         Err(LoginError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
+    }
+}
+
+/// POST /api/v1/auth/login/mfa — 第二步 MFA 登录（M02-UX-03）
+///
+/// 用一次性 challenge + TOTP code 或恢复码完成登录：
+/// - challenge 不存在/已消费/过期 → 400（统一，防枚举）；
+/// - TOTP/恢复码错误 → 401 统一 invalid credentials（不泄漏细节）；
+/// - 成功 → 200 Me + 会话 Cookie。
+///
+/// 会话签发即 auth_verified_at=now（step-up 即刻满足，M02-MFA-07）。
+async fn login_mfa(
+    State(state): State<AppState>,
+    Json(req): Json<LoginMfaRequest>,
+) -> Result<Response, AppError> {
+    let request_id = "login-mfa";
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let has_code = req
+        .totp_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .is_some();
+    let has_recovery = req
+        .recovery_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .is_some();
+    // 二选一：都不给或都给 → 统一 401（不泄漏校验规则细节）
+    if has_code == has_recovery {
+        return Err(AppError::unauthorized(
+            "invalid MFA credentials",
+            request_id,
+        ));
+    }
+
+    if state.config.mfa_encryption_key.is_empty() {
+        return Err(AppError::internal(
+            "MFA encryption key is not configured (BBLBB__MFA_ENCRYPTION_KEY)",
+            request_id,
+        ));
+    }
+
+    match crate::auth::complete_mfa_login(
+        pool,
+        &req.challenge_token,
+        req.totp_code.as_deref(),
+        req.recovery_code.as_deref(),
+        state.config.mfa_encryption_key.as_bytes(),
+        request_id,
+    )
+    .await
+    {
+        Ok(completed) => {
+            let cookie = build_session_cookie(&completed.session_token);
+            let me = MeResponse {
+                id: completed.user_id,
+                username: completed.username,
+                email: completed.email,
+                email_verified: completed.email_verified,
+                status: completed.status,
+                display_name: completed.display_name,
+                level: 1,
+                roles: vec![],
+            };
+            Ok((
+                StatusCode::OK,
+                [(header::SET_COOKIE, cookie.to_string())],
+                Json(me),
+            )
+                .into_response())
+        }
+        Err(crate::auth::MfaLoginError::InvalidChallenge) => Err(AppError::bad_request(
+            "invalid or expired MFA challenge",
+            request_id,
+            None,
+        )),
+        Err(crate::auth::MfaLoginError::InvalidCode) => Err(AppError::unauthorized(
+            "invalid MFA credentials",
+            request_id,
+        )),
+        Err(crate::auth::MfaLoginError::Database(e)) => Err(AppError::internal(e, request_id)),
     }
 }
 

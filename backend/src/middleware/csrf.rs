@@ -246,6 +246,7 @@ fn is_preauth_write_path(path: &str) -> bool {
     matches!(
         path,
         "/api/v1/auth/login"
+            | "/api/v1/auth/login/mfa"
             | "/api/v1/auth/register"
             | "/api/v1/auth/verify-email"
             | "/api/v1/auth/resend-verification"

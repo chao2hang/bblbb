@@ -55,6 +55,9 @@ pub struct LoginOutcome {
     pub display_name: Option<String>,
     /// 新 Session token（仅此一次明文，handler 写入 `__Host-` Cookie）。
     pub session_token: String,
+    /// 用户启用 TOTP：密码验证成功但未签发会话，需第二步
+    /// `POST /api/v1/auth/login/mfa` 完成登录（M02-UX-03）。
+    pub mfa_required: bool,
 }
 
 /// 登录错误。
@@ -83,6 +86,15 @@ impl std::fmt::Display for LoginError {
 }
 
 impl std::error::Error for LoginError {}
+
+/// MfaError::Database(String) → LoginError::Database（保持错误类型一致）。
+fn db_err_from_mfa(e: crate::auth::mfa::MfaError) -> LoginError {
+    let msg = match e {
+        crate::auth::mfa::MfaError::Database(s) => s,
+        other => other.to_string(),
+    };
+    LoginError::Database(sqlx::Error::protocol(msg))
+}
 
 /// 常量时间兜底 hash：账号不存在时对它验证，保证两条路径耗时一致。
 const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -181,10 +193,29 @@ pub async fn login_user(
                 .map_err(LoginError::Database)?,
             None => false,
         };
-        // 登录成功：重置连续失败计数并创建 Session
+        // 登录成功：重置连续失败计数
         reset_failure_count(pool, &user.id, now)
             .await
             .map_err(LoginError::Database)?;
+
+        // 启用 TOTP：密码已验，但暂不签发会话——由 handler 签发一次性
+        // challenge，第二步 /auth/login/mfa 完成后才签发（M02-UX-03）。
+        if crate::auth::mfa::has_confirmed_totp(pool, &user.id)
+            .await
+            .map_err(db_err_from_mfa)?
+        {
+            return Ok(LoginOutcome {
+                user_id: user.id,
+                username: user.username_normalized,
+                email: user.email_normalized,
+                email_verified: user.email_verified != 0,
+                status: user.status,
+                display_name: user.display_name,
+                session_token: String::new(),
+                mfa_required: true,
+            });
+        }
+
         let session_token = create_session(pool, &user.id, ua_clean)
             .await
             .map_err(LoginError::Database)?;
@@ -204,6 +235,7 @@ pub async fn login_user(
             status: user.status,
             display_name: user.display_name,
             session_token,
+            mfa_required: false,
         });
     }
 

@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**176**
-- 唯一 operationId：**176**
-- 实现状态：`baseline_only` 1；`not_started` 175
-- 里程碑分配：`M0` 1；`M2` 11；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
+- 契约操作：**177**
+- 唯一 operationId：**177**
+- 实现状态：`baseline_only` 1；`not_started` 176
+- 里程碑分配：`M0` 1；`M2` 12；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
 
@@ -26,6 +26,7 @@
 | `getHealth` | `GET` | `/healthz` | Health | `M0` / `M00-BACKEND` | `P0` | `baseline_only` | `platform` |
 | `getCsrfToken` | `GET` | `/api/v1/auth/csrf` | Auth | `M2` / `M02-SESSION` | `P0` | `not_started` | `unassigned` |
 | `login` | `POST` | `/api/v1/auth/login` | Auth | `M2` / `M02-SESSION` | `P0` | `not_started` | `unassigned` |
+| `loginMfa` | `POST` | `/api/v1/auth/login/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `requestPasswordReset` | `POST` | `/api/v1/auth/password-reset` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `confirmPasswordReset` | `POST` | `/api/v1/auth/password-reset/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `register` | `POST` | `/api/v1/auth/register` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |

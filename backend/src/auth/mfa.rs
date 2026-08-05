@@ -754,7 +754,7 @@ async fn load_pending(
 }
 
 /// 用户是否存在启用中的 TOTP（已确认未撤销）。
-async fn has_confirmed_totp(pool: &DatabasePool, user_id: &str) -> Result<bool, MfaError> {
+pub async fn has_confirmed_totp(pool: &DatabasePool, user_id: &str) -> Result<bool, MfaError> {
     match pool {
         Either::Left(p) => sqlx::query_scalar::<_, i64>(
             "SELECT EXISTS(SELECT 1 FROM totp_credentials

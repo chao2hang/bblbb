@@ -1,6 +1,7 @@
 pub mod identity;
 pub mod login;
 pub mod mfa;
+pub mod mfa_login;
 pub mod password;
 pub mod password_reset;
 pub mod preauth;
@@ -16,9 +17,12 @@ pub use login::{login_user, LoginError, LoginLimits, LoginOutcome};
 pub use mfa::{
     base32_decode, base32_encode, begin_enrollment, cancel_enrollment, confirm_enrollment,
     consume_recovery_code, decrypt_secret, encrypt_secret, generate_recovery_codes,
-    generate_totp_secret, otpauth_uri, totp_at, verify_totp, verify_totp_login, MfaError,
-    TotpChallenge, VerifyTotpOutcome, RECOVERY_CODE_BYTES, RECOVERY_CODE_COUNT, TOTP_DIGITS,
-    TOTP_PERIOD_SECS, TOTP_SECRET_BYTES,
+    generate_totp_secret, has_confirmed_totp, otpauth_uri, totp_at, verify_totp, verify_totp_login,
+    MfaError, TotpChallenge, VerifyTotpOutcome, RECOVERY_CODE_BYTES, RECOVERY_CODE_COUNT,
+    TOTP_DIGITS, TOTP_PERIOD_SECS, TOTP_SECRET_BYTES,
+};
+pub use mfa_login::{
+    complete_mfa_login, start_mfa_login, MfaLoginCompleted, MfaLoginError, MFA_CHALLENGE_TTL_MS,
 };
 pub use password::{hash_password, verify_password, VerifyResult};
 pub use password_reset::{

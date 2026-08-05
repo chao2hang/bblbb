@@ -43,8 +43,17 @@ export interface Health {
 export interface LoginRequest {
   identifier: string;
   password: string;
-  totp?: string;
 }
+export interface LoginMfaChallenge {
+  mfa_required: boolean;
+  challenge_token: string;
+}
+export interface LoginMfaRequest {
+  challenge_token: string;
+  totp_code?: string;
+  recovery_code?: string;
+}
+export type LoginResult = Me | LoginMfaChallenge;
 export interface ProfilePatch {
   display_name?: string;
   bio?: string;

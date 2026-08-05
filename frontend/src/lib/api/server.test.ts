@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import {
   cookieValueFromSetCookie,
+  loginMfaViaServer,
+  loginViaServer,
   parseSetCookie,
   PREAUTH_COOKIE,
   registerViaServer,
@@ -264,5 +266,94 @@ describe('verifyEmailViaServer / resendVerificationViaServer（M02-UX-02）', ()
       expect(result.retryAfterSecs).toBe(45);
       expect(result.requestId).toBe('rid-429');
     }
+  });
+});
+
+describe('loginViaServer / loginMfaViaServer（M02-UX-03 两步登录）', () => {
+  it('无 TOTP 用户：密码步 → ok:true（会话 Set-Cookie 已复制）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { id: 'u1', username: 'alice', email: 'a@example.com', email_verified: true, status: 'active', display_name: null, level: 1, roles: [] },
+          200,
+          [`__Host-bblbb_session=sess1; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=604800`]
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await loginViaServer(
+      cookies,
+      { identifier: 'alice', password: 'password9' },
+      'req-1'
+    );
+    expect(result).toEqual({ kind: 'ok' });
+    expect(cookies.setCalls.map((c) => c.name)).toContain('__Host-bblbb_session');
+  });
+
+  it('TOTP 用户：密码步 → kind:mfa + challengeToken（不签发会话）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(jsonResponse({ mfa_required: true, challenge_token: 'ch-1' }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await loginViaServer(cookies, { identifier: 'bob', password: 'password9' });
+    expect(result).toEqual({ kind: 'mfa', challengeToken: 'ch-1' });
+    expect(cookies.setCalls).toHaveLength(0); // 无会话 Cookie，仅预认证 CSRF
+  });
+
+  it('密码错误 → 401 统一映射（不泄漏细节）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 401, code: 'unauthorized', detail: 'invalid credentials', request_id: 'rid-401' }, 401)
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await loginViaServer(cookies, { identifier: 'alice', password: 'wrong-pass9' });
+    expect(result).toMatchObject({ kind: 'error', status: 401, requestId: 'rid-401' });
+  });
+
+  it('第二步：challenge + TOTP → ok:true（会话 Cookie 已复制）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { id: 'u1', username: 'bob', email: 'b@example.com', email_verified: true, status: 'active', display_name: null, level: 1, roles: [] },
+          200,
+          [`__Host-bblbb_session=sess2; Path=/; Secure; HttpOnly; SameSite=Lax`]
+        )
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await loginMfaViaServer(
+      cookies,
+      { challenge_token: 'ch-1', totp_code: '123456' },
+      'req-mfa'
+    );
+    expect(result).toEqual({ ok: true });
+    expect(cookies.setCalls.map((c) => c.name)).toContain('__Host-bblbb_session');
+  });
+
+  it('第二步：验证码错误 → 401', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 401, code: 'unauthorized', detail: 'invalid MFA credentials', request_id: 'rid-2' }, 401)
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const cookies = mockCookies();
+
+    const result = await loginMfaViaServer(cookies, { challenge_token: 'ch-1', totp_code: '000000' });
+    expect(result).toMatchObject({ ok: false, status: 401 });
   });
 });

@@ -222,3 +222,79 @@ export async function resendVerificationViaServer(
 ): Promise<{ ok: true } | ServerWriteFailure> {
   return postWithCsrf(cookies, '/api/v1/auth/resend-verification', { email }, requestId);
 }
+
+export interface LoginViaServerInput {
+  identifier: string;
+  password: string;
+}
+
+/** POST /api/v1/auth/login 结果（M02-UX-03 两步登录第一步）。 */
+export type LoginServerResult =
+  | { kind: 'ok' } // 会话已签发（Set-Cookie 已复制到浏览器）
+  | { kind: 'mfa'; challengeToken: string } // 账号启用 TOTP，需第二步
+  | { kind: 'error'; status: number; message: string; requestId: string | null };
+
+/** POST /api/v1/auth/login/mfa 结果（M02-UX-03 第二步）。 */
+export type LoginMfaServerResult =
+  | { ok: true }
+  | { ok: false; status: number; message: string; requestId: string | null };
+
+/**
+ * POST /api/v1/auth/login（M02-UX-03 两步登录第一步）。
+ *
+ * 启用 TOTP 的账号：密码验证成功但**不**签发会话，返回一次性
+ * challenge_token（5 分钟过期）；前端进入第二步 ?/mfa。未启用 TOTP：
+ * 正常签发会话。失败统一映射（401 不泄漏账号状态）。
+ */
+export async function loginViaServer(
+  cookies: Cookies,
+  input: LoginViaServerInput,
+  requestId: string | null = null
+): Promise<LoginServerResult> {
+  const csrf = await prepareCsrf(cookies, requestId);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'X-CSRF-Token': csrf.token
+  };
+  if (csrf.cookieValue) headers.Cookie = `${PREAUTH_COOKIE}=${csrf.cookieValue}`;
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  const response = await fetch(`${INTERNAL_API_ORIGIN}/api/v1/auth/login`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input)
+  });
+  relaySetCookies(response, cookies);
+
+  if (!response.ok) {
+    const { message, requestId: rid } = await parseProblem(response);
+    return { kind: 'error', status: response.status, message, requestId: rid };
+  }
+
+  const data = (await response.json()) as { mfa_required?: boolean; challenge_token?: string };
+  if (data.mfa_required === true && data.challenge_token) {
+    return { kind: 'mfa', challengeToken: data.challenge_token };
+  }
+  return { kind: 'ok' };
+}
+
+/**
+ * POST /api/v1/auth/login/mfa（M02-UX-03 第二步）。
+ *
+ * 一次性 challenge + TOTP code 或恢复码完成登录，成功签发会话。
+ */
+export async function loginMfaViaServer(
+  cookies: Cookies,
+  input: { challenge_token: string; totp_code?: string; recovery_code?: string },
+  requestId: string | null = null
+): Promise<LoginMfaServerResult> {
+  const result = await postWithCsrf(cookies, '/api/v1/auth/login/mfa', input, requestId);
+  if (result.ok) return { ok: true };
+  return {
+    ok: false,
+    status: result.status,
+    message: result.message,
+    requestId: result.requestId
+  };
+}

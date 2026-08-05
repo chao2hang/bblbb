@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 176,
+  "expected_operations": 177,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -44,6 +44,23 @@
       "primary_tag": "Auth",
       "milestone": "M2",
       "work_package": "M02-SESSION",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "loginMfa",
+      "method": "POST",
+      "path": "/api/v1/auth/login/mfa",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
       "implementation_status": "not_started",
