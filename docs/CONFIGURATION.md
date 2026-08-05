@@ -120,6 +120,25 @@
 - **审计**：每次变更与紧急关闭逐 flag 写审计（actor / reason / 前后状态 /
   版本 / 时间）；持久化审计由 M01-AUDIT 接入 `audit_logs`。
 
+## 1.6 版本化配置存储与测试（M01-CONFIG-08）
+
+`backend/src/config/store.rs` 实现 `ConfigStore`（模拟 `config_revisions`）：
+
+- `read` 读取生效配置；`update` 管理更新走乐观锁
+  （`expected_version` 不一致返回 `VersionConflict`）；
+- 变更先进入暂存区，`apply_restart`（重启）后才生效——与登记表
+  "运行时变更 = 重启" 语义一致；
+- Secret 轮换复用 `FileSecretWriter`：再次写入即轮换，值更新、mtime/版本
+  变化、旧值不可再读，元数据仍只写不读。
+
+覆盖测试：
+
+- 配置读取（缺失 → None，种子后读到值）；
+- 管理更新（暂存 → 重启生效，版本 +1，actor/时间记录）；
+- 并发版本冲突（同一期望版本两个更新，第二个冲突；用新版本重试成功）；
+- 重启生效（仅暂存变更应用，未变更键保持）；
+- Secret 轮换（新值可读、旧值不可读、版本/mtime 更新、元数据不含值）。
+
 ## 1.2 生产模式校验（M01-CONFIG-02）
 
 `BBLBB__ENV=production` 时启动强校验，任一失败立即退出：

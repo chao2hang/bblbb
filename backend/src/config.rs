@@ -7,6 +7,7 @@ use crate::db::pool::{validate_database_url, DbOptions};
 
 pub mod flags;
 pub mod secrets;
+pub mod store;
 
 /// 配置登记条目（M01-CONFIG-01）：环境变量 → 类型化字段 → 默认值 →
 /// 环境适用范围 → 运行时变更方式。

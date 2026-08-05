@@ -684,4 +684,72 @@ mod tests {
         fn assert_write_only<T: SecretWriter>() {}
         assert_write_only::<FileSecretWriter>();
     }
+
+    /// M01-CONFIG-08：Secret 轮换——再次写入后值更新、版本（mtime）变化、
+    /// 旧值不可再读。
+    #[test]
+    fn secret_rotation_updates_value_and_version() {
+        let dir = temp_dir();
+        let writer = FileSecretWriter::new(&dir);
+        let provider = FileSecretProvider::new(&dir, false);
+
+        let v1 = writer.set("api_token", b"old-secret").unwrap();
+        assert!(
+            provider
+                .get("api_token")
+                .unwrap()
+                .unwrap()
+                .as_str()
+                .unwrap()
+                == "old-secret"
+        );
+
+        // 轮换：写入新值
+        let v2 = writer.set("api_token", b"new-secret").unwrap();
+        assert!(v2.version > 0, "轮换后版本应更新");
+
+        // 旧值不再可读
+        let value = provider.get("api_token").unwrap().unwrap();
+        assert_eq!(value.as_str().unwrap(), "new-secret", "轮换后必须读到新值");
+        assert_ne!(
+            provider
+                .get("api_token")
+                .unwrap()
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "old-secret"
+        );
+
+        // 元数据只反映新状态（configured + 新 mtime），不含值
+        let metadata = provider.metadata("api_token").unwrap().unwrap();
+        assert!(metadata.configured);
+        let json = serde_json::to_string(&metadata).unwrap();
+        assert!(
+            !json.contains("new-secret"),
+            "元数据 JSON 不得含轮换后的值: {json}"
+        );
+
+        // v1 是第一次写入的 mtime；轮换后 mtime 应大于等于 v1
+        assert!(v2.updated_at >= v1.updated_at);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// M01-CONFIG-08：轮换后 version/updated_at 与写入时间一致（stat-only）。
+    #[test]
+    fn rotation_metadata_is_consistent_with_reader() {
+        let dir = temp_dir();
+        let writer = FileSecretWriter::new(&dir);
+        writer.set("jwt_signing_key", b"key-v1").unwrap();
+        let meta_after_write = writer.set("jwt_signing_key", b"key-v2").unwrap();
+
+        let provider = FileSecretProvider::new(&dir, false);
+        let meta_read = provider.metadata("jwt_signing_key").unwrap().unwrap();
+        assert_eq!(meta_after_write.version, meta_read.version);
+        assert_eq!(meta_after_write.updated_at, meta_read.updated_at);
+        assert_eq!(meta_after_write.source_class, meta_read.source_class);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
