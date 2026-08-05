@@ -361,13 +361,15 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "in_progress",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::list_admin_boards",
       "tests": [
-
+        "backend/tests/boards_admin.rs",
+        "backend/tests/authz_persona.rs",
+        "backend/tests/authz_no_client_elevation.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-05/09 权限门基础就绪）handler 为 admin.rs 501 占位（not_implemented），管理端板块列表领域逻辑待对应里程碑实现；board.manage 权限门/审计基础已由 boards_admin（member 403）+ authz_persona（board.manage 仅管理员）+ authz_no_client_elevation（权限不可伪造）证明；x-permission=board.manage；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "createAdminBoard",
@@ -378,13 +380,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::create_admin_board",
       "tests": [
-
+        "backend/tests/boards_admin.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-05/09）create_admin_board：authorize_action board.manage 门（AUTHZ-05 默认拒绝，member 403）+ reason 必填 400 + 字段校验（slug/name/description/sort_order/posting_mode）+ 父级校验（深度/循环/存在性）+ slug 唯一（boards_slug_uq 兜底，并发竞态恰好一个 200 一个 409 绝不 500）+ 单事务 INSERT+admin.board_create 审计（reason/actor/request_id，M01-AUDIT-08）；x-permission=board.manage；测试：boards_admin（创建 200+审计/member 403+缺 reason 400/slug 冲突 409+非法 slug 400/并发同 slug 200+409）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "getAdminBoard",
@@ -395,13 +397,15 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "in_progress",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::get_admin_board",
       "tests": [
-
+        "backend/tests/boards_admin.rs",
+        "backend/tests/authz_persona.rs",
+        "backend/tests/authz_no_client_elevation.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-05/09 权限门基础就绪）handler 为 admin.rs 501 占位（not_implemented），管理端板块详情领域逻辑待对应里程碑实现；board.manage 权限门基础已由 boards_admin（member 403）+ authz_persona（board.manage 仅管理员）+ authz_no_client_elevation（权限不可伪造）证明；x-permission=board.manage；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "updateAdminBoard",
@@ -412,13 +416,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::update_admin_board",
       "tests": [
-
+        "backend/tests/boards_admin.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-05/09）update_admin_board：authorize_action board.manage 门 + reason 必填 + If-Match 乐观并发（boards.updated_at 为版本，缺头 400/过期 409 version_conflict/UPDATE rows=0 兜底竞态）+ 部分字段校验+父级循环拒绝（根移到子板块下 400）+ 单事务 UPDATE+admin.board_update 审计（before/after 白名单字段）；x-permission=board.manage；测试：boards_admin（正确 If-Match 200+版本递增+before/after 审计/缺头 400+过期 409/父级循环 400/is_active=false 移出公开列表）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "listBoards",
@@ -429,13 +433,15 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/boards.rs::list_boards",
       "tests": [
-
+        "backend/tests/boards_pagination.rs",
+        "backend/tests/boards_visibility.rs",
+        "backend/tests/boards_no_leak.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-03/04/08）list_boards：cursor 分页（BoardCursor (sort_order,created_at,id) 字典序，base64url no-pad 不透明游标，limit 默认 30 范围 1..=100，next_cursor=最后返回项排序键，has_more 不重不漏）+ 可见性过滤（filter_visible_board_ids，hidden/members/restricted 对匿名隐藏）+ 稳定排序 + Cache-Control（匿名 public max-age=60 / 已认证 private no-store）+ 公开投影仅 id/version(updated_at)/created_at/updated_at/slug/name/description 无计数/面包屑/可见性字段（BOARDS-08）；x-permission=board.read；测试：boards_pagination（匿名列表稳定排序+ResourceMeta+三页不重不漏+非法游标 400）、boards_visibility（列表过滤四类可见性+管理员见全部）、boards_no_leak（公开投影无计数与父级字段）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "getBoard",
@@ -446,13 +452,15 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/boards.rs::get_board",
       "tests": [
-
+        "backend/tests/boards_visibility.rs",
+        "backend/tests/boards_pagination.rs",
+        "backend/tests/boards_no_leak.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-03/04/08）get_board：board_read_gate 可见性门（public 匿名可见/members 有效已登录/restricted 板块角色或管理通道/hidden 管理权限一律 404 不泄漏）+ deleted_at/is_active 活跃投影 + Cache-Control 按可见性裁剪 + 匿名=Option；x-permission=board.read；测试：boards_visibility（public 匿名/members 匿名 401+banned 状态门/restricted 角色边界/hidden 匿名 401+成员 404+管理员可见）、boards_pagination（详情缓存策略）、boards_no_leak（hidden 与不存在 slug 完全不可区分含错误体一致性）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "listTags",
@@ -463,13 +471,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/boards.rs::list_tags",
       "tests": [
-
+        "backend/tests/tags_reading.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-06）list_tags：load_active_tags（is_active=1 启用投影，usage_count 降序）+ load_tag_groups（sort_order 稳定排序）→ {items,groups}，禁用标签不进入公开列表（BOARDS-08 不泄漏 usage_count）；x-permission=public（匿名）；测试：tags_reading（0028 默认 1+禁用移出活跃读取 / listTags 只含启用+组排序）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "listAdminRoles",
@@ -560,13 +568,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::list_admin_tags",
       "tests": [
-
+        "backend/tests/tags_reading.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-06）list_admin_tags：authorize_action tag.manage 门（member 403）+ load_all_tags 含 is_active 禁用状态（管理投影，公开 listTags 不含禁用）；x-permission=tag.manage；测试：tags_reading（listAdminTags 含禁用状态+member 403）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "createAdminTag",
@@ -577,13 +585,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::create_admin_tag",
       "tests": [
-
+        "backend/tests/tags_admin.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-07/09）create_admin_tag：authorize_action tag.manage 门 + reason 必填 + name/slug 唯一（tags.name+tags_slug_uq 兜底，并发竞态 409 不 500）+ group_id 存在性（软引用服务层校验）+ 字段格式（TAG_NAME_MAX 64/TAG_SLUG_MAX 64/TAG_DESCRIPTION_MAX 500/TAG_COLOR_MAX 16）+ 单事务 INSERT+admin.tag_create 审计；x-permission=tag.manage；测试：tags_admin（创建 200+审计/member 403+name/slug 冲突 409+非法 group_id 400/改名撞已存在 name 409）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "getAdminTag",
@@ -594,13 +602,15 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "in_progress",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::get_admin_tag",
       "tests": [
-
+        "backend/tests/tags_admin.rs",
+        "backend/tests/authz_persona.rs",
+        "backend/tests/authz_no_client_elevation.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-07/09 权限门基础就绪）handler 为 admin.rs 501 占位（not_implemented），管理端标签详情领域逻辑待对应里程碑实现；tag.manage 权限门基础已由 tags_admin（member 403）+ authz_persona（tag.manage 仅管理员）+ authz_no_client_elevation（权限不可伪造）证明；x-permission=tag.manage；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "updateAdminTag",
@@ -611,13 +621,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/admin.rs::update_admin_tag",
       "tests": [
-
+        "backend/tests/tags_admin.rs"
       ],
-      "evidence": null
+      "evidence": "（M03-BOARDS-07）update_admin_tag：authorize_action tag.manage 门 + reason 必填 + If-Match 乐观并发（tags.updated_at 迁移 0029 为版本，缺头 400/过期 409/rows=0 兜底竞态）+ 部分字段校验 + 单事务 UPDATE+admin.tag_update 审计（before/after）；x-permission=tag.manage；测试：tags_admin（正确 If-Match 200+版本递增+before/after 审计+过期 409/改名撞 409/禁用移出公开 listTags）；跨库/安全专项证据由 M16 补充"
     },
     {
       "operation_id": "listAdminUsers",

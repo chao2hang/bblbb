@@ -7,7 +7,7 @@
 
 - 契约操作：**183**
 - 唯一 operationId：**183**
-- 实现状态：`baseline_only` 3；`implemented` 21；`in_progress` 4；`not_started` 155
+- 实现状态：`baseline_only` 3；`implemented` 29；`in_progress` 7；`not_started` 144
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 16；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -42,21 +42,21 @@
 | `listSessions` | `GET` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
 | `revokeSession` | `DELETE` | `/api/v1/auth/sessions/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
 | `verifyEmail` | `POST` | `/api/v1/auth/verify-email` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
-| `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `getAdminBoard` | `GET` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `updateAdminBoard` | `PATCH` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `listBoards` | `GET` | `/api/v1/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `getBoard` | `GET` | `/api/v1/boards/{slug}` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `listTags` | `GET` | `/api/v1/tags` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
+| `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `in_progress` | `backend-content` |
+| `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
+| `getAdminBoard` | `GET` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `in_progress` | `backend-content` |
+| `updateAdminBoard` | `PATCH` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
+| `listBoards` | `GET` | `/api/v1/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
+| `getBoard` | `GET` | `/api/v1/boards/{slug}` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
+| `listTags` | `GET` | `/api/v1/tags` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
 | `listAdminRoles` | `GET` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
 | `createAdminRole` | `POST` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
 | `getAdminRole` | `GET` | `/api/v1/admin/roles/{id}` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
 | `updateAdminRole` | `PATCH` | `/api/v1/admin/roles/{id}` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
-| `listAdminTags` | `GET` | `/api/v1/admin/tags` | Tags | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `createAdminTag` | `POST` | `/api/v1/admin/tags` | Tags | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `getAdminTag` | `GET` | `/api/v1/admin/tags/{id}` | Tags | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
-| `updateAdminTag` | `PATCH` | `/api/v1/admin/tags/{id}` | Tags | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
+| `listAdminTags` | `GET` | `/api/v1/admin/tags` | Tags | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
+| `createAdminTag` | `POST` | `/api/v1/admin/tags` | Tags | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
+| `getAdminTag` | `GET` | `/api/v1/admin/tags/{id}` | Tags | `M3` / `M03-BOARDS` | `P1` | `in_progress` | `backend-content` |
+| `updateAdminTag` | `PATCH` | `/api/v1/admin/tags/{id}` | Tags | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
 | `listAdminUsers` | `GET` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `createAdminUser` | `POST` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `getAdminUser` | `GET` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
