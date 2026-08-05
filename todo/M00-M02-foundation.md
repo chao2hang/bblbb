@@ -169,7 +169,7 @@
 - [x] `M01-AUDIT-06` `[45m]` 为管理员代操作、权限变更、配置、账务、审核、Secret 和 Feature Flag 建立审计 helper。证据：files=backend/src/audit/mod.rs,backend/tests/audit_logs.rs,docs/SECURITY.md；commands=cargo test --all-features（250 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=7 个分类 helper（代操作/权限/配置/账务/审核/Secret 无值/Flag before-after）+ allowlist 过滤；commit=ad646b4；review=6 项单测 + 1 项集成
 - [x] `M01-AUDIT-07` `[30m]` 自动比对领域事件名称、payload version 与 `docs/EVENT-CATALOG.md`。证据：files=backend/src/events.rs,scripts/check-event-catalog.rb,Makefile；commands=cargo test --all-features（253 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check（事件目录 21/21）; ruby scripts/check-event-catalog.rb（干净通过 + 漂移样例退出码 1）；contract=21 事件注册表（<domain>.<action>.v1）+ 目录双向比对（缺失/漂移/版本不一致即失败）接入 check-contract；commit=301f0ac+0a69fdc（审计代提交 events.rs/lib.rs/Makefile + 脚本）；review=3 项单测 + 负向探针
 - [x] `M01-AUDIT-08` `[45m]` 测试审计与业务事务原子性、Outbox request ID 贯通和敏感数据脱敏。证据：files=backend/src/audit/mod.rs,backend/tests/audit_atomicity.rs,docs/SECURITY.md；commands=cargo test --all-features（257 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=record_in_tx 同事务提交/回滚同步 + request_id 贯通审计与 Outbox + 原子路径脱敏；commit=4e15625；review=4 项集成测试
-- [~] `M01-AUDIT-09` `[45m]` 增加仅授权管理员可查询的审计分页与导出边界，深分页使用 cursor。
+- [x] `M01-AUDIT-09` `[45m]` 增加仅授权管理员可查询的审计分页与导出边界，深分页使用 cursor。证据：files=backend/src/audit/mod.rs,backend/tests/audit_logs.rs,docs/SECURITY.md；commands=cargo test --all-features（261 通过/3 MySQL-only 忽略）; cargo clippy --all-features --all-targets（0 warning）; make check；contract=AuditCursor（base64url 不透明编码/非法返回错误）+ list_audit_logs_cursor（(created_at,id) 游标稳定排序/LIMIT≤200/过滤组合/limit+1 判末页）；commit=e21fc51；review=2 项分页集成测试 + 2 项游标单测
 
 ---
 
@@ -181,11 +181,11 @@
 
 ## M02-IDENTITY：注册、验证与密码恢复
 
-**元数据：** `P0` · `owner=unassigned/backend-auth` · `risk=critical` · `depends=M01-AUDIT` · `blocked=none`
+**元数据：** `P0` · `owner=backend-auth` · `risk=critical` · `depends=M01-AUDIT` · `blocked=none`
 **目标文件：** `migrations/*/`、`backend/src/auth/`、`backend/src/routes/auth/`、`backend/tests/auth/`
 **验收：** `Auth` tag 注册/验证/密码恢复 operation 通过三数据库契约和枚举攻击测试。
 
-- [ ] `M02-IDENTITY-01` `[45m]` 新增身份迁移：username/email 规范化列、password hash、status、verification 和 reset token 表。
+- [~] `M02-IDENTITY-01` `[45m]` 新增身份迁移：username/email 规范化列、password hash、status、verification 和 reset token 表。
 - [ ] `M02-IDENTITY-02` `[45m]` 为规范化用户名和邮箱建立跨库唯一约束及大小写/Unicode Fixture。
 - [ ] `M02-IDENTITY-03` `[30m]` 实现注册 DTO 长度、格式、保留名、密码策略和请求体未知字段校验。
 - [ ] `M02-IDENTITY-04` `[45m]` 使用 Argon2id PHC hash，参数可升级；测试正确、错误及损坏 hash 的常量时间失败路径。
