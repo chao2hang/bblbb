@@ -185,6 +185,33 @@ async fn create_custom_role(pool: &DatabasePool, name: &str, permissions: &[&str
     role_id
 }
 
+/// 全局角色 assignment（user_roles），指定 granted_at 与 expires_at。
+async fn assign_global_role_at(
+    pool: &DatabasePool,
+    user_id: &str,
+    role_name: &str,
+    granted_at: i64,
+    expires_at: Option<i64>,
+) {
+    let role_id = role_id_by_name(pool, role_name).await;
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO user_roles (user_id, role_id, granted_by, granted_at, expires_at)
+                 VALUES (?, ?, NULL, ?, ?)",
+            )
+            .bind(user_id)
+            .bind(&role_id)
+            .bind(granted_at)
+            .bind(expires_at)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+}
+
 /// 种子幂等 + 完整性：两次调用后权限 68 项全注册、4 个内置角色、映射就绪。
 #[tokio::test]
 async fn seed_is_idempotent_and_complete() {
@@ -393,6 +420,51 @@ async fn expired_assignment_is_excluded() {
         .await
         .expect("聚合必须成功");
     assert!(agg.has("post.moderate"), "未过期 assignment 必须聚合");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// 生效/到期实时判断（M03-AUTHZ-03）：未来授权不生效、行保留供审计恢复。
+#[tokio::test]
+async fn future_grant_is_not_effective_and_rows_are_retained() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    seed_builtin_roles(&pool).await.unwrap();
+    let user_id = insert_user(&pool, "fut").await;
+
+    let now = now_millis();
+    // 未来授权（granted_at 在 1 小时后）：即使 expires_at 为空也不生效
+    assign_global_role_at(&pool, &user_id, "global_moderator", now + 3_600_000, None).await;
+    let agg = aggregate_permissions(&pool, &user_id, None)
+        .await
+        .expect("聚合必须成功");
+    assert!(!agg.has("post.moderate"), "未来授权不得生效");
+    assert!(agg.global_roles.is_empty());
+
+    // 已到期（expires_at 在 1 小时前）：不生效
+    assign_global_role_at(
+        &pool,
+        &user_id,
+        "board_moderator",
+        now - 3_600_000,
+        Some(now - 3_600_000),
+    )
+    .await;
+    let agg = aggregate_permissions(&pool, &user_id, None)
+        .await
+        .expect("聚合必须成功");
+    assert!(!agg.has("post.moderate"), "已到期 assignment 不得生效");
+
+    // 行保留：未来/过期行仍在表中（供审计与恢复，不删除）
+    let rows: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM user_roles WHERE user_id = ?")
+            .bind(&user_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(rows, 2, "未来/过期 assignment 行必须保留");
 
     close_pool(&pool).await;
     cleanup(&dir);

@@ -1,4 +1,4 @@
-//! M03-AUTHZ-02：内置角色定义、幂等种子与角色聚合。
+//! M03-AUTHZ-02/03：内置角色定义、幂等种子与角色聚合。
 //!
 //! - [`BUILTIN_ROLES`]：administrator / global_moderator / board_moderator /
 //!   member 四个内置角色定义（`is_system=1`，不可删除/改名，SCHEMA-06），
@@ -10,7 +10,10 @@
 //! - [`aggregate_permissions`]：给定用户（可选板块）聚合有效权限 =
 //!   **member 基线**（已登录用户默认角色，无 assignment 也生效）∪
 //!   全局角色（`user_roles`）∪ 板块角色（`board_role_assignments`，板块范围）；
-//!   过期 assignment（`expires_at <= now`）实时排除（完整语义 M03-AUTHZ-03）。
+//! - **生效/到期实时判断（M03-AUTHZ-03）**：[`assignment_effective_at`]——
+//!   assignment 生效当且仅当 `granted_at <= now` 且 `expires_at` 为空
+//!   （永久）或 `expires_at > now`；未来授权与已到期均视为未生效，但
+//!   **过期/未来行保留**供审计与恢复（不删除，STATE-MACHINES §Authorization）。
 
 use std::collections::BTreeSet;
 
@@ -154,6 +157,15 @@ impl RoleAggregation {
     pub fn has(&self, permission: &str) -> bool {
         self.permissions.contains(permission)
     }
+}
+
+/// assignment 生效/到期实时判断（M03-AUTHZ-03）。
+///
+/// 生效当且仅当 `granted_at <= now`（含未来授权未生效）且 `expires_at`
+/// 为空（永久）或 `expires_at > now`。边界：`granted_at == now` 生效、
+/// `expires_at == now` 已到期。行本身保留供审计/恢复，判断不删除。
+pub fn assignment_effective_at(granted_at: i64, expires_at: Option<i64>, now: i64) -> bool {
+    granted_at <= now && expires_at.is_none_or(|expires| expires > now)
 }
 
 // ────────────────────────── 幂等种子 ───────────────────────────────────────
@@ -361,7 +373,10 @@ async fn role_permissions_by_role_name(
     }
 }
 
-/// 全局角色（user_roles，未过期）→ (role_name, permission_name)。
+/// 全局角色（user_roles，生效中）→ (role_name, permission_name)。
+///
+/// 生效 = `granted_at <= now` 且 `expires_at` 为空或 `> now`（M03-AUTHZ-03）；
+/// 过期/未来行保留不删除。
 async fn global_role_permissions(
     pool: &DatabasePool,
     user_id: &str,
@@ -373,10 +388,12 @@ async fn global_role_permissions(
              JOIN roles r ON r.id = ur.role_id
              JOIN role_permissions rp ON rp.role_id = r.id
              JOIN permissions p ON p.id = rp.permission_id
-             WHERE ur.user_id = ? AND (ur.expires_at IS NULL OR ur.expires_at > ?)
+             WHERE ur.user_id = ? AND ur.granted_at <= ?
+               AND (ur.expires_at IS NULL OR ur.expires_at > ?)
              ORDER BY r.name, p.name",
         )
         .bind(user_id)
+        .bind(now)
         .bind(now)
         .fetch_all(db)
         .await
@@ -386,10 +403,12 @@ async fn global_role_permissions(
              JOIN roles r ON r.id = ur.role_id
              JOIN role_permissions rp ON rp.role_id = r.id
              JOIN permissions p ON p.id = rp.permission_id
-             WHERE ur.user_id = ? AND (ur.expires_at IS NULL OR ur.expires_at > ?)
+             WHERE ur.user_id = ? AND ur.granted_at <= ?
+               AND (ur.expires_at IS NULL OR ur.expires_at > ?)
              ORDER BY r.name, p.name",
         )
         .bind(user_id)
+        .bind(now)
         .bind(now)
         .fetch_all(db)
         .await
@@ -397,7 +416,9 @@ async fn global_role_permissions(
     }
 }
 
-/// 板块角色（board_role_assignments，未过期）→ (role_name, permission_name)。
+/// 板块角色（board_role_assignments，生效中）→ (role_name, permission_name)。
+///
+/// 生效语义同上（M03-AUTHZ-03）；过期/未来行保留不删除。
 async fn board_role_permissions(
     pool: &DatabasePool,
     user_id: &str,
@@ -411,11 +432,13 @@ async fn board_role_permissions(
              JOIN role_permissions rp ON rp.role_id = r.id
              JOIN permissions p ON p.id = rp.permission_id
              WHERE bra.user_id = ? AND bra.board_id = ?
+               AND bra.granted_at <= ?
                AND (bra.expires_at IS NULL OR bra.expires_at > ?)
              ORDER BY r.name, p.name",
         )
         .bind(user_id)
         .bind(board_id)
+        .bind(now)
         .bind(now)
         .fetch_all(db)
         .await
@@ -426,11 +449,13 @@ async fn board_role_permissions(
              JOIN role_permissions rp ON rp.role_id = r.id
              JOIN permissions p ON p.id = rp.permission_id
              WHERE bra.user_id = ? AND bra.board_id = ?
+               AND bra.granted_at <= ?
                AND (bra.expires_at IS NULL OR bra.expires_at > ?)
              ORDER BY r.name, p.name",
         )
         .bind(user_id)
         .bind(board_id)
+        .bind(now)
         .bind(now)
         .fetch_all(db)
         .await
@@ -441,7 +466,8 @@ async fn board_role_permissions(
 /// 聚合用户有效权限：member 基线 ∪ 全局角色 ∪（可选）板块角色。
 ///
 /// - `board_id` 为 `None` 时只聚合全局作用域（member + user_roles）；
-/// - 过期 assignment（`expires_at <= now`）实时排除；
+/// - 生效判断：`granted_at <= now` 且 `expires_at` 为空或 `> now`
+///   （[`assignment_effective_at`]，M03-AUTHZ-03）；过期/未来行保留；
 /// - 结果权限与角色名排序，便于确定性断言。
 pub async fn aggregate_permissions(
     pool: &DatabasePool,
@@ -538,5 +564,23 @@ mod tests {
         assert!(!names.contains(&"moderation.review"));
         assert!(!names.contains(&"admin.manage"));
         assert!(!names.contains(&"user.manage"));
+    }
+
+    #[test]
+    fn assignment_effective_window_semantics() {
+        let now = 1_700_000_000_000;
+        // 生效：granted_at 在过去 + 永久（expires_at=None）
+        assert!(assignment_effective_at(now - 1, None, now));
+        // 生效：granted_at 在过去 + 未到期
+        assert!(assignment_effective_at(now - 1, Some(now + 1), now));
+        // 边界：granted_at == now 生效
+        assert!(assignment_effective_at(now, None, now));
+        // 边界：expires_at == now 已到期（不生效）
+        assert!(!assignment_effective_at(now - 1, Some(now), now));
+        // 已到期：expires_at < now 不生效
+        assert!(!assignment_effective_at(now - 1, Some(now - 1), now));
+        // 未来授权：granted_at > now 不生效（即使 expires_at 为空）
+        assert!(!assignment_effective_at(now + 1, None, now));
+        assert!(!assignment_effective_at(now + 1, Some(now + 10), now));
     }
 }

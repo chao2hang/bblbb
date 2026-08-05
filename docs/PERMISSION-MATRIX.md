@@ -174,6 +174,8 @@
   `global_moderator` 与 `administrator` 通过 `user_roles` 全局生效；
   `administrator` = 注册表全部 68 项（`RolePermissions::All`）。
 - 聚合公式：`aggregate_permissions(user_id, board_id)` = member 基线 ∪
-  `user_roles` 未过期全局角色 ∪ `board_role_assignments` 未过期板块角色；
-  自定义角色与内置角色走同一 `roles`/`role_permissions` 路径。过期
-  assignment（`expires_at <= now`）实时排除，完整语义见 M03-AUTHZ-03。
+  `user_roles` 生效全局角色 ∪ `board_role_assignments` 生效板块角色；
+  自定义角色与内置角色走同一 `roles`/`role_permissions` 路径。生效判断
+  （M03-AUTHZ-03）：`granted_at <= now` 且 `expires_at` 为空或 `> now`
+  （`assignment_effective_at`）；未来授权与已到期均不生效，行保留供审计
+  与恢复。

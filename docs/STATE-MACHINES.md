@@ -79,7 +79,9 @@ assignment.expires_at:  NULL（永久） | 时间戳（到期即未生效）
 
 - `risk_level=system` 的权限与 `is_system=1` 的角色不可删除/改名（应用约束，
   M03-AUTHZ；数据库无触发器，SCHEMA-06 测试锁定）。
-- assignment 过期按未生效实时判定（M03-AUTHZ-03），过期行保留供审计/恢复。
+- assignment 生效当且仅当 `granted_at <= now` 且 `expires_at` 为空（永久）
+  或 `expires_at > now`；未来授权与已到期均按未生效实时判定（M03-AUTHZ-03，
+  `assignment_effective_at`），过期/未来行保留供审计/恢复（不删除）。
 
 ## 3. 审核与处罚
 
