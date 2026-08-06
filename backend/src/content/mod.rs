@@ -6,4 +6,5 @@
 
 pub mod markdown;
 pub mod model;
+pub mod posts;
 pub mod repository;
