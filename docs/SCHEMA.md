@@ -602,18 +602,21 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 - 普通用户能否查看历史由权限控制；审核员始终可查看（M04-POSTS-11）。
 - `comment_revisions` 语义相同（M04-COMMENTS-05）。
 
-### `content_access_policies`
+### `content_access_policies`（M04-SCHEMA-06）
 
 | 字段 | 说明 |
 |---|---|
 | `id` | 主键 |
-| `kind` | `after_reply/level_or_reply/purchase` |
-| `min_level_id` | 可空 |
-| `currency_id`、`amount` | 付费策略时使用 |
-| `reply_grant_persists` | 删除回复后授权是否保留 |
+| `kind` | 封闭枚举 `public/logged_in/after_reply/level/paid`（M04-VISIBILITY-01，与 posts.visibility 遗留值域一致） |
+| `min_level` | level 策略所需最低等级（结构性校验强制） |
+| `currency_id`、`amount` | paid 策略（结构性校验强制；金额必须为正） |
+| `reply_grant_persists` | after_reply：回复删除后授权是否保留（M04-VISIBILITY-05 冻结规则） |
+| `policy_version` | 策略版本（评估行为变更时递增） |
 | `created_by`、`created_at` | 审计字段 |
 
-应用层验证字段组合，不允许金额为负或引用禁用货币。
+`posts.access_policy_id` 可空外键（未设 = public；策略删除置空回退 public）。
+应用层验证字段组合（`ContentAccessPolicy::validate`），不允许金额为负或
+引用禁用货币。
 
 ### `content_access_grants`
 

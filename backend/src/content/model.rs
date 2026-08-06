@@ -372,3 +372,47 @@ pub struct PostTag {
     pub tag_id: String,
     pub created_at: i64,
 }
+
+/// 内容访问策略（content_access_policies，M04-SCHEMA-06）。
+///
+/// - `kind` 复用 [`crate::domain::posts::AccessPolicy`] 封闭枚举
+///   （public/logged_in/after_reply/level/paid，M04-VISIBILITY-01）；
+/// - 字段组合由 [`ContentAccessPolicy::validate`] 强制（level 需 min_level；
+///   paid 需 currency_id+amount；after_reply 可设 reply_grant_persists）；
+/// - `policy_version` 标识策略版本，评估行为变更时递增。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentAccessPolicy {
+    pub id: String,
+    pub kind: crate::domain::posts::AccessPolicy,
+    pub min_level: Option<i64>,
+    pub currency_id: Option<String>,
+    pub amount: Option<i64>,
+    pub reply_grant_persists: bool,
+    pub policy_version: i64,
+    pub created_by: String,
+    pub created_at: i64,
+}
+
+impl ContentAccessPolicy {
+    /// 字段组合校验（与 M04-VISIBILITY-03 越级校验分离——这里是结构性校验）。
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::domain::posts::AccessPolicy::*;
+        match self.kind {
+            Level => {
+                if self.min_level.is_none() {
+                    return Err("level 策略必须指定 min_level");
+                }
+            }
+            Paid => {
+                if self.currency_id.is_none() || self.amount.is_none() {
+                    return Err("paid 策略必须指定 currency_id 与 amount");
+                }
+                if self.amount.is_some_and(|a| a <= 0) {
+                    return Err("amount 必须为正");
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}

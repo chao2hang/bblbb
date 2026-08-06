@@ -10,8 +10,8 @@ use crate::db::DatabasePool;
 use crate::outbox::now_millis;
 
 use super::model::{
-    AttachmentKind, Comment, CommentStatus, Draft, Post, PostAttachment, PostContent, PostRevision,
-    PostStatus, PostTag, PostType,
+    AttachmentKind, Comment, CommentStatus, ContentAccessPolicy, Draft, Post, PostAttachment,
+    PostContent, PostRevision, PostStatus, PostTag, PostType,
 };
 
 /// 插入一篇帖子（含元数据列；骨架遗留列写空值/默认）。
@@ -948,6 +948,128 @@ impl PostAttachmentRow {
             attachment_id: self.attachment_id,
             kind: AttachmentKind::parse(&self.kind).expect("kind 必须为稳定枚举"),
             position: self.position,
+            created_at: self.created_at,
+        }
+    }
+}
+
+// ─────────────────────── 访问策略（M04-SCHEMA-06） ───────────────────────
+
+use crate::domain::posts::AccessPolicy;
+
+/// 写入一条访问策略（结构校验在调用方经 [`ContentAccessPolicy::validate`]）。
+pub async fn insert_access_policy(
+    pool: &DatabasePool,
+    policy: &ContentAccessPolicy,
+) -> Result<(), sqlx::Error> {
+    let sql = "INSERT INTO content_access_policies (
+        id, kind, min_level, currency_id, amount, reply_grant_persists,
+        policy_version, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&policy.id)
+            .bind(policy.kind.as_str())
+            .bind(policy.min_level)
+            .bind(&policy.currency_id)
+            .bind(policy.amount)
+            .bind(policy.reply_grant_persists)
+            .bind(policy.policy_version)
+            .bind(&policy.created_by)
+            .bind(policy.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&policy.id)
+            .bind(policy.kind.as_str())
+            .bind(policy.min_level)
+            .bind(&policy.currency_id)
+            .bind(policy.amount)
+            .bind(policy.reply_grant_persists)
+            .bind(policy.policy_version)
+            .bind(&policy.created_by)
+            .bind(policy.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 读取访问策略（不存在 → `None`）。
+pub async fn get_access_policy(
+    pool: &DatabasePool,
+    id: &str,
+) -> Result<Option<ContentAccessPolicy>, sqlx::Error> {
+    let sql = "SELECT id, kind, min_level, currency_id, amount, reply_grant_persists,
+        policy_version, created_by, created_at FROM content_access_policies WHERE id = ?";
+    match pool {
+        Either::Left(p) => {
+            let row = sqlx::query_as::<_, AccessPolicyRow>(sql)
+                .bind(id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(AccessPolicyRow::into_model))
+        }
+        Either::Right(p) => {
+            let row = sqlx::query_as::<_, AccessPolicyRow>(sql)
+                .bind(id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(AccessPolicyRow::into_model))
+        }
+    }
+}
+
+/// 为帖子设置访问策略（`None` 清除 → public）。
+pub async fn set_post_access_policy(
+    pool: &DatabasePool,
+    post_id: &str,
+    policy_id: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    let sql = "UPDATE posts SET access_policy_id = ?, updated_at = ? WHERE id = ?";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(policy_id)
+            .bind(now_millis())
+            .bind(post_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(policy_id)
+            .bind(now_millis())
+            .bind(post_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct AccessPolicyRow {
+    id: String,
+    kind: String,
+    min_level: Option<i64>,
+    currency_id: Option<String>,
+    amount: Option<i64>,
+    reply_grant_persists: i64,
+    policy_version: i64,
+    created_by: String,
+    created_at: i64,
+}
+
+impl AccessPolicyRow {
+    fn into_model(self) -> ContentAccessPolicy {
+        ContentAccessPolicy {
+            id: self.id,
+            kind: AccessPolicy::parse(&self.kind).expect("kind 必须为稳定枚举"),
+            min_level: self.min_level,
+            currency_id: self.currency_id,
+            amount: self.amount,
+            reply_grant_persists: self.reply_grant_persists != 0,
+            policy_version: self.policy_version,
+            created_by: self.created_by,
             created_at: self.created_at,
         }
     }
