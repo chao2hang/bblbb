@@ -80,10 +80,11 @@ SameSite=Lax
 
 - 用户内容仅接受 Markdown，不接受原始 HTML 或 BBCode。
 - Rust 后端使用 Rust Markdown 解析器生成 HTML，并执行标签、属性和 URL 协议白名单清洗。
-- 保存 `body_markdown` 和 `body_html`；渲染器或清洗规则升级后可后台重建 HTML。
-- 前端只有专用 `SanitizedHtml` 可进入 `{@html}`。
+- 保存 `body_markdown` 和 `body_html`；渲染器或清洗规则升级后可后台重建 HTML
+  （升级/缓存失效/回滚流程见 [`MARKDOWN.md`](MARKDOWN.md) §2-§4）。
+- 前端只有专用 `SafeHtml` 可进入 `{@html}`（静态检查 `scripts/check-html-sinks.rb` 强制）。
 - 禁止 `script`、事件属性、`javascript:`、危险 `data:`、未经白名单的 iframe 和 SVG。
-- 外链增加 `ugc nofollow noopener noreferrer`。
+- 外链增加 `nofollow noopener noreferrer`（`ugc` 不用于论坛内链）。
 - 隐藏正文不包含在未授权 API 响应、DOM、日志、异常或遥测中。
 
 ## 7. 安全响应头

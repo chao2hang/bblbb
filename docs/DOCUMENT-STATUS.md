@@ -22,6 +22,7 @@
 | `AI.md` | Frozen candidate | AI/隐私 | Provider、同意和建议 |
 | `VIDEO-PLUGIN.md` | Frozen candidate | 媒体/安全 | 受控视频服务和 Provider |
 | `SECURITY.md` | Frozen candidate | 安全 | 全局威胁模型和安全基线 |
+| `MARKDOWN.md` | Implementation | 安全/后端/前端 | Markdown 渲染管线、策略版本与升级/缓存/回滚手册（M04-MARKDOWN） |
 | `TESTING.md` | Release gate | 测试 | 自动化、恢复和上线门槛 |
 | `OPERATIONS.md` | Release gate | 运维 | 部署、备份、告警和故障处理 |
 | `FRONTEND.md` | Frozen candidate | 前端 | SvelteKit、SSR、SEO、a11y |
