@@ -7,5 +7,6 @@
 //! - 领域类型一经构造即合法（parse-then-use 模式），路由层无需重复校验。
 
 pub mod comments;
+pub mod content;
 pub mod posts;
 pub mod registration;
