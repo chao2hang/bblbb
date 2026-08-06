@@ -13,9 +13,10 @@ use super::policy::{IFRAME_PROVIDERS, SANITIZER_VERSION};
 /// - **标签 allowlist**：内容语义标签（标题/段落/列表/表格/代码/引用/图片/
 ///   链接/强调）+ iframe（仅视频 Provider，见下）；`div`/`span` 受限保留；
 /// - **属性 allowlist**：`a[href,title,rel]`、`img[src,alt,title,width,height,
-///   loading]`、`code|pre[class]`（仅 `language-*` 高亮类）、`iframe[src,
-///   title,width,height,loading,allowfullscreen]`、`th|td[align,colspan,
-///   rowspan]`；其余属性（style/on* 等）一律剥离；
+///   loading]`、`code|pre[class]`（仅 `language-*` 高亮类）、`h1..h6[id]`
+///   （仅后端生成的确定性锚点）、`iframe[src,title,width,height,loading,
+///   allowfullscreen]`、`th|td[align,colspan,rowspan]`；其余属性（style/on*
+///   等）一律剥离；
 /// - **协议 allowlist**：`http`/`https`/`mailto`；相对 URL 拒绝（防协议相对
 ///   `//evil.com` 与路径绕过）；
 /// - **外链 rel/target**：所有 `<a>` 强制 `rel="nofollow noopener noreferrer"`
@@ -69,6 +70,11 @@ pub fn sanitize_html(html: &str) -> String {
     // 属性 allowlist
     let mut attrs: HashMap<&str, HashSet<&str>> = HashMap::new();
     attrs.insert("a", ["href", "title"].into_iter().collect());
+    // 标题锚点 id 仅由后端渲染器生成（确定性 slug，M04-MARKDOWN-04）——
+    // 原始 HTML 在渲染层已剥离，此处放行不会引入用户可控 id
+    for h in ["h1", "h2", "h3", "h4", "h5", "h6"] {
+        attrs.insert(h, ["id"].into_iter().collect());
+    }
     attrs.insert(
         "img",
         ["src", "alt", "title", "width", "height", "loading"]
@@ -201,6 +207,21 @@ mod tests {
         );
         assert!(out.contains("language-rust"), "language-* 高亮类保留");
         assert!(!out.contains("class=\"xss\""), "非 language-* 类剥离");
+    }
+
+    #[test]
+    fn heading_id_from_renderer_is_kept() {
+        // 标题锚点 id 仅由后端渲染器生成（M04-MARKDOWN-04）；清洗器放行
+        let out =
+            sanitize_html("<h2 id=\"hello-world\">标题</h2><h2 id=\"bad\" onclick=\"x\">x</h2>");
+        assert!(
+            out.contains("<h2 id=\"hello-world\">标题</h2>"),
+            "渲染器锚点 id 必须保留: {out}"
+        );
+        assert!(
+            !out.contains("onclick"),
+            "事件属性仍然剥离（不能借 id 放行引入）: {out}"
+        );
     }
 
     #[test]

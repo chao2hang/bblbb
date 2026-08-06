@@ -11,6 +11,7 @@
 pub mod excerpt;
 pub mod policy;
 pub mod render;
+pub mod rerender;
 pub mod sanitize;
 
 /// 完整渲染管线：Markdown → 清洗 HTML。

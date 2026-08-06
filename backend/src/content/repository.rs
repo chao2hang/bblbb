@@ -301,6 +301,64 @@ pub async fn list_post_revisions(
     }
 }
 
+/// 读取单条修订（不存在 → `None`；重渲染 Job 用，M04-MARKDOWN-05）。
+pub async fn get_post_revision(
+    pool: &DatabasePool,
+    id: &str,
+) -> Result<Option<PostRevision>, sqlx::Error> {
+    let sql = "SELECT id, post_id, editor_id, body_markdown, body_html,
+        restricted_markdown, restricted_html, renderer_version, change_reason,
+        version, created_at FROM post_revisions WHERE id = ?";
+    match pool {
+        Either::Left(p) => {
+            let row = sqlx::query_as::<_, PostRevisionRow>(sql)
+                .bind(id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(PostRevisionRow::into_model))
+        }
+        Either::Right(p) => {
+            let row = sqlx::query_as::<_, PostRevisionRow>(sql)
+                .bind(id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(PostRevisionRow::into_model))
+        }
+    }
+}
+
+/// 覆盖修订的渲染产物（M04-MARKDOWN-05 重渲染 Job）。
+///
+/// 只更新 body_html/restricted_html/renderer_version——markdown 快照、
+/// editor/version/created_at 等不变（修订快照的"不可变"指原文与元数据，
+/// 渲染产物随策略升级按需再生）。
+pub async fn update_post_revision_rendered(
+    pool: &DatabasePool,
+    revision: &PostRevision,
+) -> Result<(), sqlx::Error> {
+    let sql = "UPDATE post_revisions SET
+        body_html = ?, restricted_html = ?, renderer_version = ?
+        WHERE id = ?";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&revision.body_html)
+            .bind(&revision.restricted_html)
+            .bind(&revision.renderer_version)
+            .bind(&revision.id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&revision.body_html)
+            .bind(&revision.restricted_html)
+            .bind(&revision.renderer_version)
+            .bind(&revision.id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
 #[derive(sqlx::FromRow)]
 struct PostContentRow {
     post_id: String,

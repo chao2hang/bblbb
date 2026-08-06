@@ -10,6 +10,14 @@ pub const RENDERER_VERSION: &str = "markdown-v1";
 /// 清洗策略版本（升级 allowlist 时递增，触发重渲染 Job）。
 pub const SANITIZER_VERSION: &str = "ammonia-v1";
 
+/// 当前策略组合版本，写入 post_contents/post_revisions.renderer_version。
+///
+/// renderer 或 sanitizer 任一升级都会改变该值，使存量行判定为 stale，
+/// 由 [`super::rerender`] 的重渲染 Job 覆盖为新版本渲染结果。
+pub fn policy_version() -> String {
+    format!("{RENDERER_VERSION}+{SANITIZER_VERSION}")
+}
+
 /// 允许的 iframe 视频 Provider（按主机白名单，其他 iframe 一律剥离）。
 pub const IFRAME_PROVIDERS: &[&str] = &[
     "www.youtube.com",
