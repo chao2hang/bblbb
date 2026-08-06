@@ -8,7 +8,7 @@ use sqlx::Either;
 
 use crate::db::DatabasePool;
 
-use super::model::{Post, PostContent, PostRevision, PostStatus, PostType};
+use super::model::{Draft, Post, PostContent, PostRevision, PostStatus, PostType};
 
 /// 插入一篇帖子（含元数据列；骨架遗留列写空值/默认）。
 pub async fn insert_post(pool: &DatabasePool, post: &Post) -> Result<(), sqlx::Error> {
@@ -353,6 +353,252 @@ impl PostRevisionRow {
             change_reason: self.change_reason,
             version: self.version,
             created_at: self.created_at,
+        }
+    }
+}
+
+// ─────────────────────── 草稿（M04-SCHEMA-03） ───────────────────────
+
+/// 插入一条草稿。
+pub async fn insert_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx::Error> {
+    let sql = "INSERT INTO drafts (
+        id, owner_id, board_id, post_type, title, markdown, visibility_level,
+        access_policy, scheduled_at, version, created_at, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&draft.id)
+            .bind(&draft.owner_id)
+            .bind(&draft.board_id)
+            .bind(draft.post_type.as_str())
+            .bind(&draft.title)
+            .bind(&draft.markdown)
+            .bind(draft.visibility_level)
+            .bind(&draft.access_policy)
+            .bind(draft.scheduled_at)
+            .bind(draft.version)
+            .bind(draft.created_at)
+            .bind(draft.updated_at)
+            .bind(draft.deleted_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&draft.id)
+            .bind(&draft.owner_id)
+            .bind(&draft.board_id)
+            .bind(draft.post_type.as_str())
+            .bind(&draft.title)
+            .bind(&draft.markdown)
+            .bind(draft.visibility_level)
+            .bind(&draft.access_policy)
+            .bind(draft.scheduled_at)
+            .bind(draft.version)
+            .bind(draft.created_at)
+            .bind(draft.updated_at)
+            .bind(draft.deleted_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 按 id + owner 读取草稿（仅本人；已软删返回 `None`）。
+pub async fn get_draft(
+    pool: &DatabasePool,
+    id: &str,
+    owner_id: &str,
+) -> Result<Option<Draft>, sqlx::Error> {
+    let sql = "SELECT id, owner_id, board_id, post_type, title, markdown,
+        visibility_level, access_policy, scheduled_at, version, created_at,
+        updated_at, deleted_at FROM drafts WHERE id = ? AND owner_id = ? AND deleted_at IS NULL";
+    match pool {
+        Either::Left(p) => {
+            let row = sqlx::query_as::<_, DraftRow>(sql)
+                .bind(id)
+                .bind(owner_id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(DraftRow::into_model))
+        }
+        Either::Right(p) => {
+            let row = sqlx::query_as::<_, DraftRow>(sql)
+                .bind(id)
+                .bind(owner_id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(DraftRow::into_model))
+        }
+    }
+}
+
+/// 更新草稿并递增 version（乐观并发，If-Match 冲突由调用方用 version 判定）。
+pub async fn update_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx::Error> {
+    let sql = "UPDATE drafts SET
+        board_id = ?, post_type = ?, title = ?, markdown = ?, visibility_level = ?,
+        access_policy = ?, scheduled_at = ?, version = version + 1, updated_at = ?
+        WHERE id = ? AND owner_id = ? AND deleted_at IS NULL";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&draft.board_id)
+            .bind(draft.post_type.as_str())
+            .bind(&draft.title)
+            .bind(&draft.markdown)
+            .bind(draft.visibility_level)
+            .bind(&draft.access_policy)
+            .bind(draft.scheduled_at)
+            .bind(draft.updated_at)
+            .bind(&draft.id)
+            .bind(&draft.owner_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&draft.board_id)
+            .bind(draft.post_type.as_str())
+            .bind(&draft.title)
+            .bind(&draft.markdown)
+            .bind(draft.visibility_level)
+            .bind(&draft.access_policy)
+            .bind(draft.scheduled_at)
+            .bind(draft.updated_at)
+            .bind(&draft.id)
+            .bind(&draft.owner_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 软删除草稿（`deleted_at` 置位；行保留供审计/恢复）。
+pub async fn delete_draft(
+    pool: &DatabasePool,
+    id: &str,
+    owner_id: &str,
+    deleted_at: i64,
+) -> Result<(), sqlx::Error> {
+    let sql = "UPDATE drafts SET deleted_at = ?, updated_at = ? WHERE id = ? AND owner_id = ? AND deleted_at IS NULL";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(deleted_at)
+            .bind(deleted_at)
+            .bind(id)
+            .bind(owner_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(deleted_at)
+            .bind(deleted_at)
+            .bind(id)
+            .bind(owner_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// owner 维度 cursor 列表（按 updated_at 降序；cursor = 上次最后一条的
+/// updated_at，keyset 分页）。`before` 为 `None` 时取最新页。
+pub async fn list_drafts_cursor(
+    pool: &DatabasePool,
+    owner_id: &str,
+    before: Option<i64>,
+    limit: i64,
+) -> Result<Vec<Draft>, sqlx::Error> {
+    let sql = "SELECT id, owner_id, board_id, post_type, title, markdown,
+        visibility_level, access_policy, scheduled_at, version, created_at,
+        updated_at, deleted_at FROM drafts
+        WHERE owner_id = ? AND deleted_at IS NULL AND (? IS NULL OR updated_at < ?)
+        ORDER BY updated_at DESC, id DESC LIMIT ?";
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query_as::<_, DraftRow>(sql)
+                .bind(owner_id)
+                .bind(before)
+                .bind(before)
+                .bind(limit)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(DraftRow::into_model).collect())
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query_as::<_, DraftRow>(sql)
+                .bind(owner_id)
+                .bind(before)
+                .bind(before)
+                .bind(limit)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(DraftRow::into_model).collect())
+        }
+    }
+}
+
+/// 读取 owner 的定时发布草稿（scheduled_at 非空且未过期、未软删、未发布）。
+pub async fn list_scheduled_drafts(
+    pool: &DatabasePool,
+    due_before: i64,
+    limit: i64,
+) -> Result<Vec<Draft>, sqlx::Error> {
+    let sql = "SELECT id, owner_id, board_id, post_type, title, markdown,
+        visibility_level, access_policy, scheduled_at, version, created_at,
+        updated_at, deleted_at FROM drafts
+        WHERE deleted_at IS NULL AND scheduled_at IS NOT NULL AND scheduled_at <= ?
+        ORDER BY scheduled_at ASC LIMIT ?";
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query_as::<_, DraftRow>(sql)
+                .bind(due_before)
+                .bind(limit)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(DraftRow::into_model).collect())
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query_as::<_, DraftRow>(sql)
+                .bind(due_before)
+                .bind(limit)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(DraftRow::into_model).collect())
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct DraftRow {
+    id: String,
+    owner_id: String,
+    board_id: Option<String>,
+    post_type: String,
+    title: String,
+    markdown: String,
+    visibility_level: Option<i64>,
+    access_policy: Option<String>,
+    scheduled_at: Option<i64>,
+    version: i64,
+    created_at: i64,
+    updated_at: i64,
+    deleted_at: Option<i64>,
+}
+
+impl DraftRow {
+    fn into_model(self) -> Draft {
+        Draft {
+            id: self.id,
+            owner_id: self.owner_id,
+            board_id: self.board_id,
+            post_type: PostType::parse(&self.post_type).expect("post_type 必须为稳定枚举"),
+            title: self.title,
+            markdown: self.markdown,
+            visibility_level: self.visibility_level,
+            access_policy: self.access_policy,
+            scheduled_at: self.scheduled_at,
+            version: self.version,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            deleted_at: self.deleted_at,
         }
     }
 }

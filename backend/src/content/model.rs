@@ -179,6 +179,29 @@ pub struct PostRevision {
     pub created_at: i64,
 }
 
+/// 草稿（drafts，M04-SCHEMA-03；OpenAPI Draft，与 posts 分离）。
+///
+/// - `markdown` 为原文；发布时经 Markdown 管线渲染后写入 post_contents；
+/// - `board_id` 可空（草稿可在未选板块时创建，M04-POSTS-01/02）；
+/// - `visibility_level`/`access_policy` 为发布预设（M04-SCHEMA-06 校验）；
+/// - `scheduled_at` 非空 = 定时发布草稿（M04-POSTS-06 Job 执行）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Draft {
+    pub id: String,
+    pub owner_id: String,
+    pub board_id: Option<String>,
+    pub post_type: PostType,
+    pub title: String,
+    pub markdown: String,
+    pub visibility_level: Option<i64>,
+    pub access_policy: Option<String>,
+    pub scheduled_at: Option<i64>,
+    pub version: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub deleted_at: Option<i64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

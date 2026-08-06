@@ -534,6 +534,26 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 - `old_slug` 主键、`post_id`、`created_at`。
 - 修改文章 slug 后保留永久 301 映射。
 
+### `drafts`（M04-SCHEMA-03）
+
+独立草稿资源（OpenAPI Draft，与 posts 分离）：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | UUID 主键 |
+| `owner_id`、`board_id` | 外键；`board_id` 可空（未选板块可先建草稿），board 删除置空（SET NULL） |
+| `post_type` | `article/discussion` |
+| `title`、`markdown` | 标题与 Markdown 原文（发布时渲染进 post_contents） |
+| `visibility_level`、`access_policy` | 发布预设（M04-SCHEMA-06 校验） |
+| `scheduled_at` | 可空；非空 = 定时发布草稿（M04-POSTS-06 Job 执行） |
+| `version` | 乐观并发版本 |
+| `created_at`、`updated_at`、`deleted_at` | 时间（软删除行保留供审计/恢复） |
+
+主要索引：
+
+- `(owner_id, deleted_at, updated_at)`（owner cursor 列表，keyset 分页）。
+- `(scheduled_at)`（定时发布 Job 扫描）。
+
 ### `comments`
 
 | 字段 | 说明 |
