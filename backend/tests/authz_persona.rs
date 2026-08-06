@@ -13,6 +13,8 @@ use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
 use sqlx::Either;
 
+mod common;
+
 async fn sqlite_pool_with_migrations() -> (DatabasePool, PathBuf) {
     let dir = std::env::temp_dir().join(format!("bblbb-authz-per-{}", uuid::Uuid::now_v7()));
     let url = format!("sqlite://{}", dir.display());
@@ -153,6 +155,11 @@ async fn setup_personas(pool: &DatabasePool) -> Personas {
     assign_global_role(pool, &global_mod, "global_moderator").await;
     assign_board_role(pool, &board_mod_general, &general).await;
     assign_board_role(pool, &board_mod_tech, &tech).await;
+    // M02-MFA-05：administrator/版主属强制启用——未完成 TOTP enrollment 不得
+    // 持有高权限（member 保持可选，无需 enrollment）。
+    for elevated in [&admin, &global_mod, &board_mod_general, &board_mod_tech] {
+        common::enroll_totp(pool, elevated).await;
+    }
 
     Personas {
         admin,

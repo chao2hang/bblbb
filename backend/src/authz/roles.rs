@@ -22,7 +22,7 @@ use sqlx::Either;
 use crate::db::DatabasePool;
 use crate::outbox::now_millis;
 
-use super::{Permission, PERMISSION_REGISTRY};
+use super::{Permission, RiskLevel, PERMISSION_REGISTRY};
 
 /// 角色作用域：全局（`user_roles`）或板块（`board_role_assignments`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +157,34 @@ impl RoleAggregation {
     pub fn has(&self, permission: &str) -> bool {
         self.permissions.contains(permission)
     }
+}
+
+/// 注册表风险等级查询（权限名 → risk_level；未知权限名返回 `None`）。
+pub fn permission_risk_level(name: &str) -> Option<RiskLevel> {
+    PERMISSION_REGISTRY
+        .iter()
+        .find(|p| p.name == name)
+        .map(|p| p.risk_level)
+}
+
+/// M02-MFA-05：强制启用判定——聚合含 **elevated** 内容即必须完成 TOTP
+/// enrollment：
+/// - 任意全局角色 ≠ `member`（administrator/global_moderator/自定义角色）；
+/// - 任意板块角色（board_moderator）；
+/// - 任何 `sensitive`/`system` 风险权限（高风险账务账号，如
+///   `user.manage`/`role.manage`/`admin.manage`/`points.adjust`/
+///   `marketplace.refund_admin`/`download_billing.manage`/`storage.manage`）。
+///
+/// 纯 member 基线（全部 `normal` 权限，无额外角色）为**可选** TOTP——
+/// member 基线权限已验证均为 normal（PERMISSION_REGISTRY）。
+pub fn aggregation_requires_totp(agg: &RoleAggregation) -> bool {
+    let has_elevated_role =
+        !agg.global_roles.iter().all(|r| r == "member") || !agg.board_roles.is_empty();
+    let has_sensitive_permission = agg
+        .permissions
+        .iter()
+        .any(|p| permission_risk_level(p).is_some_and(|r| r != RiskLevel::Normal));
+    has_elevated_role || has_sensitive_permission
 }
 
 /// assignment 生效/到期实时判断（M03-AUTHZ-03）。
@@ -481,7 +509,9 @@ pub async fn aggregate_permissions(
     let mut board_role_set: BTreeSet<String> = BTreeSet::new();
 
     // 1) member 基线：已登录用户默认角色（无 assignment 也生效）
+    let mut member_permissions: BTreeSet<String> = BTreeSet::new();
     for name in role_permissions_by_role_name(pool, "member").await? {
+        member_permissions.insert(name.clone());
         permissions.insert(name);
     }
 
@@ -499,11 +529,29 @@ pub async fn aggregate_permissions(
         }
     }
 
-    Ok(RoleAggregation {
+    let full = RoleAggregation {
         permissions,
         global_roles: global_role_set.into_iter().collect(),
         board_roles: board_role_set.into_iter().collect(),
-    })
+    };
+
+    // 4) M02-MFA-05/06：强制启用——聚合含 elevated 角色/权限但未完成 TOTP
+    //    enrollment 的账号，聚合降级为 member 基线（fail-closed：未完成强制
+    //    enrollment 不得取得高权限 Session 或执行高风险操作）。纯 member 基线
+    //    不触发 TOTP 查询（TOTP 对普通 member 保持可选）。
+    if aggregation_requires_totp(&full)
+        && !crate::auth::mfa::has_confirmed_totp(pool, user_id)
+            .await
+            .map_err(|e| e.to_string())?
+    {
+        return Ok(RoleAggregation {
+            permissions: member_permissions,
+            global_roles: vec!["member".to_string()],
+            board_roles: Vec::new(),
+        });
+    }
+
+    Ok(full)
 }
 
 #[cfg(test)]

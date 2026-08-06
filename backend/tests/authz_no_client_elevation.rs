@@ -26,6 +26,8 @@ use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
 use sqlx::Either;
 
+mod common;
+
 // ────────────────────────── 测试基础设施 ───────────────────────────────────
 
 async fn sqlite_pool_with_migrations() -> (DatabasePool, PathBuf) {
@@ -185,6 +187,7 @@ async fn setup(pool: &DatabasePool) -> Personas {
     let member = insert_user(pool, "mem").await;
     let general = board_id_by_slug(pool, "general").await;
     assign_global_role(pool, &admin, "administrator").await;
+    common::enroll_totp(pool, &admin).await; // M02-MFA-05：管理员必须完成 TOTP 才能持有高权限
     Personas {
         admin,
         member,
@@ -391,6 +394,8 @@ async fn assignment_window_is_server_governed() {
     assert!(!allowed(&pool, &p.member, "admin.manage", None).await);
 
     // 永久生效授权（granted_at 在过去 + expires_at NULL）→ 生效
+    // （M02-MFA-05：member 先完成 TOTP，持有 administrator 后才能获得高权限）
+    common::enroll_totp(&pool, &p.member).await;
     update_user_role(&pool, &p.member, &admin_role, now - 1, None).await;
     assert!(allowed(&pool, &p.member, "admin.manage", None).await);
     assert!(allowed(&pool, &p.member, "role.manage", None).await);

@@ -14,6 +14,8 @@ use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
 use sqlx::Either;
 
+mod common;
+
 async fn sqlite_pool_with_migrations() -> (DatabasePool, PathBuf) {
     let dir = std::env::temp_dir().join(format!("bblbb-authz-obj-{}", uuid::Uuid::now_v7()));
     let url = format!("sqlite://{}", dir.display());
@@ -275,6 +277,7 @@ async fn expired_assignment_combined_with_object_rules() {
     let now = bblbb_backend::outbox::now_millis();
     let moderator = insert_user(&pool, "exp").await;
     let general = board_id_by_slug(&pool, "general").await;
+    common::enroll_totp(&pool, &moderator).await; // M02-MFA-05：板块版主必须完成 TOTP 才能恢复高权限
 
     // 已过期 assignment（过去 1 小时）
     assign_board_role_at(&pool, &moderator, &general, Some(now - 3_600_000)).await;

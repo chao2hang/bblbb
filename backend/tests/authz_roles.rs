@@ -12,6 +12,8 @@ use bblbb_backend::db::DatabasePool;
 use bblbb_backend::outbox::now_millis;
 use sqlx::Either;
 
+mod common;
+
 async fn sqlite_pool_with_migrations() -> (DatabasePool, PathBuf) {
     let dir = std::env::temp_dir().join(format!("bblbb-authz-{}", uuid::Uuid::now_v7()));
     let url = format!("sqlite://{}", dir.display());
@@ -286,6 +288,7 @@ async fn administrator_has_all_registry_permissions() {
     let user_id = insert_user(&pool, "adm").await;
 
     assign_global_role(&pool, &user_id, "administrator", None).await;
+    common::enroll_totp(&pool, &user_id).await; // M02-MFA-05：管理员必须完成 TOTP
 
     let agg = aggregate_permissions(&pool, &user_id, None)
         .await
@@ -315,6 +318,7 @@ async fn board_moderator_is_scoped_to_board() {
     let tech = board_id_by_slug(&pool, "tech").await;
 
     assign_board_role(&pool, &user_id, &general, "board_moderator", None).await;
+    common::enroll_totp(&pool, &user_id).await; // M02-MFA-05：板块版主必须完成 TOTP
 
     let in_board = aggregate_permissions(&pool, &user_id, Some(&general))
         .await
@@ -356,6 +360,7 @@ async fn global_moderator_applies_across_boards() {
     let general = board_id_by_slug(&pool, "general").await;
 
     assign_global_role(&pool, &user_id, "global_moderator", None).await;
+    common::enroll_totp(&pool, &user_id).await; // M02-MFA-05：全局版主必须完成 TOTP
 
     let global = aggregate_permissions(&pool, &user_id, None)
         .await
@@ -384,6 +389,7 @@ async fn custom_role_aggregates() {
 
     create_custom_role(&pool, "shop_operator", &["shop.manage", "shop.refund"]).await;
     assign_global_role(&pool, &user_id, "shop_operator", None).await;
+    common::enroll_totp(&pool, &user_id).await; // M02-MFA-05：自定义角色属 elevated，必须完成 TOTP
 
     let agg = aggregate_permissions(&pool, &user_id, None)
         .await
@@ -415,6 +421,8 @@ async fn expired_assignment_is_excluded() {
 
     // 未过期（未来 1 小时）
     assign_global_role(&pool, &user_id, "board_moderator", Some(now + 3_600_000)).await;
+    // M02-MFA-05：板块版主（elevated）未完成 TOTP 不得持有高权限——先完成 enrollment
+    common::enroll_totp(&pool, &user_id).await;
     // 通过 user_roles 赋予板块角色（语义上允许），断言实时生效
     let agg = aggregate_permissions(&pool, &user_id, None)
         .await

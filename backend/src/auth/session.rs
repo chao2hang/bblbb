@@ -169,6 +169,18 @@ async fn resolve_session(
 
                 let csrf = generate_csrf_token(&row.session_id, &token_hash);
 
+                // M02-MFA-05/06：聚合有效角色填充 SessionUser.roles（未完成
+                // 强制 enrollment 的 elevated 账号聚合降级为 member 基线，
+                // 会话不携带高权限角色）。
+                let roles = crate::authz::roles::aggregate_permissions(
+                    &Either::Left(p.clone()),
+                    &row.id,
+                    None,
+                )
+                .await
+                .map(|agg| agg.global_roles)
+                .unwrap_or_default();
+
                 Ok(Some((
                     SessionUser {
                         id: row.id,
@@ -178,7 +190,7 @@ async fn resolve_session(
                         status: row.status,
                         display_name: row.display_name,
                         level: 1,
-                        roles: vec![],
+                        roles,
                     },
                     row.session_id,
                     csrf,
@@ -223,6 +235,16 @@ async fn resolve_session(
 
                 let csrf = generate_csrf_token(&row.session_id, &token_hash);
 
+                // 角色聚合同左分支（M02-MFA-05/06：未完成强制 enrollment 降级）。
+                let roles = crate::authz::roles::aggregate_permissions(
+                    &Either::Right(p.clone()),
+                    &row.id,
+                    None,
+                )
+                .await
+                .map(|agg| agg.global_roles)
+                .unwrap_or_default();
+
                 Ok(Some((
                     SessionUser {
                         id: row.id,
@@ -232,7 +254,7 @@ async fn resolve_session(
                         status: row.status,
                         display_name: row.display_name,
                         level: 1,
-                        roles: vec![],
+                        roles,
                     },
                     row.session_id,
                     csrf,

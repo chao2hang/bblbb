@@ -176,7 +176,8 @@ async fn admin_ctx(app: &Router, pool: &DatabasePool) -> AdminCtx {
         Either::Right(_) => panic!("SQLite only"),
     };
     assign_global_role(pool, &user_id, "administrator").await;
-    let session = login_session_cookie(app, &email).await;
+    common::enroll_totp(pool, &user_id).await; // M02-MFA-05：管理员必须完成 TOTP 才能持有高权限
+    let session = common::direct_session_cookie(pool, &user_id).await;
     let csrf = session_csrf(app, &session).await;
     AdminCtx { session, csrf }
 }

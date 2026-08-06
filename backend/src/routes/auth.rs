@@ -39,6 +39,15 @@ use crate::{
     users::dto::Me,
 };
 
+/// M02-MFA-05：登录响应携带有效全局角色（未完成强制 enrollment 的 elevated
+/// 账号聚合已降级为 member 基线——会话与 Me 均不宣称高权限）。
+async fn effective_global_roles(pool: &crate::db::DatabasePool, user_id: &str) -> Vec<String> {
+    crate::authz::roles::aggregate_permissions(pool, user_id, None)
+        .await
+        .map(|agg| agg.global_roles)
+        .unwrap_or_default()
+}
+
 // ─── DTO ─────────────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -444,6 +453,7 @@ async fn login(
             let mfa_enabled = crate::auth::has_confirmed_totp(pool, &outcome.user_id)
                 .await
                 .unwrap_or(false);
+            let roles = effective_global_roles(pool, &outcome.user_id).await;
             let me = Me {
                 id: outcome.user_id,
                 username: outcome.username,
@@ -458,7 +468,7 @@ async fn login(
                 email_visible_to: "nobody".to_string(),
                 profile_visible_to: "everyone".to_string(),
                 level: 1,
-                roles: vec![],
+                roles,
                 mfa_enabled,
                 version: 1,
             };
@@ -548,6 +558,7 @@ async fn login_mfa(
         Ok(completed) => {
             let cookie = build_session_cookie(&completed.session_token);
             // 第二步完成时 TOTP 必然已启用（mfa_required 由 has_confirmed_totp 判定）
+            let roles = effective_global_roles(pool, &completed.user_id).await;
             let me = Me {
                 id: completed.user_id,
                 username: completed.username,
@@ -562,7 +573,7 @@ async fn login_mfa(
                 email_visible_to: "nobody".to_string(),
                 profile_visible_to: "everyone".to_string(),
                 level: 1,
-                roles: vec![],
+                roles,
                 mfa_enabled: true,
                 version: 1,
             };

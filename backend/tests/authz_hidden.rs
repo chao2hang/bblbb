@@ -14,6 +14,8 @@ use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
 use sqlx::Either;
 
+mod common;
+
 async fn sqlite_pool_with_migrations() -> (DatabasePool, PathBuf) {
     let dir = std::env::temp_dir().join(format!("bblbb-authz-hid-{}", uuid::Uuid::now_v7()));
     let url = format!("sqlite://{}", dir.display());
@@ -119,6 +121,7 @@ async fn moderator_with_reason_reads_hidden_and_audits() {
     let now = bblbb_backend::outbox::now_millis();
     let moderator = insert_user(&pool, "mod", Some(now - 86_400_000)).await;
     assign_global_role(&pool, &moderator, "global_moderator").await;
+    common::enroll_totp(&pool, &moderator).await; // M02-MFA-05：版主必须完成 TOTP 才能获得高权限
 
     require_hidden_read(
         &pool,

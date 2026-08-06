@@ -31,6 +31,7 @@ Rust：身份、权限、CSRF、内容可见性、业务事务和协议边界
 - 密码重置后撤销其他 Session，并发送安全通知。
 - 管理员账号建议强制 TOTP；恢复码只保存哈希。
 - 管理员失去 TOTP 设备的受控恢复必须双人复核并全程不可删除审计，流程见 [`OPERATIONS.md`](OPERATIONS.md) §18（M02-MFA-10）。
+- **强制 TOTP enrollment（M02-MFA-05/06）**：administrator / moderator / 高风险账务账号（持 `sensitive`/`system` 权限）必须完成 TOTP enrollment——未完成时 `aggregate_permissions` 将其降级为 member 基线：会话与 `/me` 不宣称高权限，elevated 操作一律 403（fail-closed，实时生效）；普通 member 保持可选。
 
 ## 3. Session Cookie
 

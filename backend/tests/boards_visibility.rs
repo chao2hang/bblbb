@@ -20,6 +20,8 @@ use bblbb_backend::db::DatabasePool;
 use bblbb_backend::outbox::now_millis;
 use sqlx::Either;
 
+mod common;
+
 async fn sqlite_pool_with_migrations() -> (DatabasePool, PathBuf) {
     let dir = std::env::temp_dir().join(format!("bblbb-vis-{}", uuid::Uuid::now_v7()));
     let url = format!("sqlite://{}", dir.display());
@@ -248,6 +250,7 @@ async fn restricted_board_requires_board_role() {
     let expired = insert_user(&pool, "exp").await;
     let admin = insert_user(&pool, "adm").await;
     assign_global_role(&pool, &admin, "administrator").await;
+    common::enroll_totp(&pool, &admin).await; // M02-MFA-05：管理员必须完成 TOTP
 
     assert_eq!(
         gate(&pool, &board, "restricted", None).await,
@@ -259,6 +262,7 @@ async fn restricted_board_requires_board_role() {
     );
 
     grant_board_role(&pool, &board, &insider, None).await;
+    common::enroll_totp(&pool, &insider).await; // M02-MFA-05：板块版主必须完成 TOTP
     assert_eq!(
         gate(&pool, &board, "restricted", Some(&insider)).await,
         (true, None),
@@ -291,6 +295,8 @@ async fn hidden_board_requires_management() {
     let admin = insert_user(&pool, "adm").await;
     assign_global_role(&pool, &gmod, "global_moderator").await;
     assign_global_role(&pool, &admin, "administrator").await;
+    common::enroll_totp(&pool, &gmod).await; // M02-MFA-05：版主/管理员必须完成 TOTP
+    common::enroll_totp(&pool, &admin).await;
 
     assert_eq!(
         gate(&pool, &board, "hidden", None).await,
@@ -329,7 +335,9 @@ async fn list_filter_respects_visibility() {
     let member = insert_user(&pool, "mem").await;
     let admin = insert_user(&pool, "adm").await;
     assign_global_role(&pool, &admin, "administrator").await;
+    common::enroll_totp(&pool, &admin).await; // M02-MFA-05：管理员必须完成 TOTP
     grant_board_role(&pool, &res_b, &member, None).await;
+    common::enroll_totp(&pool, &member).await; // M02-MFA-05：板块版主（elevated）必须完成 TOTP
 
     let all = vec![
         (pub_b.clone(), BoardVisibility::Public),

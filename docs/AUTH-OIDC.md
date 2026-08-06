@@ -54,6 +54,23 @@ v1.0 OIDC：
    原子启用（`confirmed_at` + `last_accepted_step`）。
 4. `cancel_enrollment` 撤销未完成的 pending enrollment。
 
+### 强制 TOTP enrollment（M02-MFA-05/06）
+
+- **强制范围**：administrator / global moderator / board moderator / 自定义
+  elevated 角色，以及持有任何 `sensitive`/`system` 风险权限的高风险账务账号
+  （`points.adjust`、`marketplace.refund_admin`、`download_billing.manage`、
+  `storage.manage`、`user.manage`/`role.manage`/`admin.manage` 等）——**必须**
+  完成 TOTP enrollment。普通 member（全部 normal 权限）保持**可选**。
+- **判定**：`aggregate_permissions` 在聚合角色/权限后检查
+  `aggregation_requires_totp`——未完成 enrollment 的强制账号**降级为 member
+  基线**（fail-closed）：聚合不返回 elevated 权限/角色，SessionUser.roles 与
+  `/me` 投影只宣称 `member`，需要 elevated 权限的授权判定一律拒绝（403）。
+- **实时生效**：判定实时依赖 `totp_credentials`（confirmed + 未撤销）状态，
+  完成 enrollment 后同一会话立即恢复全部权限，无需重建 Session；停用/撤销
+  TOTP 后立即降级。
+- **TOTP 禁用窗口**：停用 MFA 后（`DELETE /auth/mfa`，单事务撤销 TOTP + 失效
+  恢复码 + 安全通知）强制账号立即失去 elevated 权限，须重新 enrollment。
+
 ### 重置密码
 
 - 一次性 token，数据库只存哈希，30 分钟过期。
