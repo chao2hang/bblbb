@@ -887,13 +887,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/drafts.rs::list_drafts",
       "tests": [
-
+        "backend/tests/drafts_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
     },
     {
       "operation_id": "createDraft",
@@ -904,13 +904,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/drafts.rs::create_draft",
       "tests": [
-
+        "backend/tests/drafts_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
     },
     {
       "operation_id": "deleteDraft",
@@ -921,13 +921,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/drafts.rs::delete_draft",
       "tests": [
-
+        "backend/tests/drafts_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
     },
     {
       "operation_id": "getDraft",
@@ -938,13 +938,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/drafts.rs::get_owned_draft",
       "tests": [
-
+        "backend/tests/drafts_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
     },
     {
       "operation_id": "updateDraft",
@@ -955,13 +955,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/drafts.rs::update_draft",
       "tests": [
-
+        "backend/tests/drafts_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
     },
     {
       "operation_id": "listBoardPosts",

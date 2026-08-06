@@ -7,5 +7,6 @@
 pub mod command;
 
 pub use command::{
-    CreateDraftCommand, CreateDraftInput, CreatePostCommand, CreatePostInput, PostCreateError,
+    validate_draft_patch, CreateDraftCommand, CreateDraftInput, CreatePostCommand, CreatePostInput,
+    DraftPatch, DraftPatchInput, PostCreateError,
 };

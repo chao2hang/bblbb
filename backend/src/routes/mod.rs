@@ -17,6 +17,7 @@ pub mod ai;
 pub mod auth;
 pub mod boards;
 pub mod comments;
+pub mod drafts;
 pub mod economy;
 pub mod feeds;
 pub mod marketplace;

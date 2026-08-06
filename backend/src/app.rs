@@ -24,8 +24,9 @@ use crate::{
     },
     ratelimit::RateLimiter,
     routes::{
-        admin, ai, auth, boards, comments, economy, feeds, health::healthz, marketplace, mfa,
-        moderation, oidc, openapi::openapi, posts, ready, search, storage, themes, users, video,
+        admin, ai, auth, boards, comments, drafts, economy, feeds, health::healthz, marketplace,
+        mfa, moderation, oidc, openapi::openapi, posts, ready, search, storage, themes, users,
+        video,
     },
 };
 
@@ -98,6 +99,7 @@ pub fn build_router_with_flags(
         .merge(mfa::router())
         .merge(boards::router())
         .merge(posts::router())
+        .merge(drafts::router())
         .merge(comments::router())
         .merge(moderation::router())
         .merge(storage::router())

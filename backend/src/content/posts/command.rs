@@ -197,6 +197,79 @@ pub fn validate_draft_create(
     })
 }
 
+/// 草稿更新（PATCH，M04-POSTS-03）——全字段可选，部分更新。
+///
+/// `board_id`/`visibility_level`/`access_policy` 为 `None` 表示**不修改**；
+/// `scheduled_at: Some(None)` 表示**清除**定时（`None` 表示不修改）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DraftPatchInput {
+    pub title: Option<String>,
+    pub markdown: Option<String>,
+    pub board_id: Option<String>,
+    pub visibility_level: Option<u32>,
+    pub access_policy: Option<String>,
+    pub scheduled_at: Option<Option<i64>>,
+}
+
+/// 校验通过的草稿更新（类型化字段）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DraftPatch {
+    pub title: Option<PostTitle>,
+    pub markdown: Option<PostContent>,
+    pub board_id: Option<Uuid>,
+    pub visibility_level: Option<u32>,
+    pub access_policy: Option<AccessPolicy>,
+    pub scheduled_at: Option<Option<i64>>,
+}
+
+/// 校验草稿更新：出现的字段逐一按创建规则校验；未出现的保持不动。
+pub fn validate_draft_patch(
+    input: DraftPatchInput,
+    author_level: u32,
+    now_ms: i64,
+) -> Result<DraftPatch, PostCreateError> {
+    let title = match input.title {
+        Some(raw) => Some(PostTitle::parse(&raw).map_err(PostCreateError::InvalidTitle)?),
+        None => None,
+    };
+    let markdown = match input.markdown {
+        Some(raw) => Some(PostContent::parse(&raw).map_err(PostCreateError::InvalidMarkdown)?),
+        None => None,
+    };
+    let board_id = match input.board_id {
+        Some(raw) => Some(Uuid::parse_str(&raw).map_err(|_| PostCreateError::InvalidBoardId)?),
+        None => None,
+    };
+    let visibility_level = match input.visibility_level {
+        Some(lv) if lv < 1 => return Err(PostCreateError::InvalidVisibilityLevel),
+        Some(lv) if lv > author_level.min(MAX_VISIBILITY_LEVEL) => {
+            return Err(PostCreateError::VisibilityExceedsAuthorLevel {
+                requested: lv,
+                author_level,
+            })
+        }
+        v => v,
+    };
+    let access_policy = match input.access_policy {
+        Some(raw) => Some(AccessPolicy::parse(&raw).ok_or(PostCreateError::InvalidAccessPolicy)?),
+        None => None,
+    };
+    let scheduled_at = match input.scheduled_at {
+        Some(Some(ts)) if ts > now_ms => Some(Some(ts)),
+        Some(Some(_)) => return Err(PostCreateError::InvalidScheduledAt),
+        other => other,
+    };
+
+    Ok(DraftPatch {
+        title,
+        markdown,
+        board_id,
+        visibility_level,
+        access_policy,
+        scheduled_at,
+    })
+}
+
 /// visibility_level：缺省按 1；必须在 1..=min(author_level, MAX) 内。
 fn validate_visibility_level(
     level: Option<u32>,
@@ -452,6 +525,102 @@ mod tests {
         assert!(debug.contains("markdown"));
         assert!(debug.contains("board_id"));
         assert!(debug.contains("client_request_id"));
+    }
+
+    #[test]
+    fn draft_patch_partial_update_passes() {
+        let now = 1_000_000;
+        let patch = validate_draft_patch(
+            DraftPatchInput {
+                title: Some("新标题".to_string()),
+                markdown: None,
+                board_id: None,
+                visibility_level: None,
+                access_policy: None,
+                scheduled_at: None,
+            },
+            5,
+            now,
+        )
+        .unwrap();
+        assert_eq!(patch.title.unwrap().as_str(), "新标题");
+        assert!(patch.markdown.is_none());
+        assert!(patch.board_id.is_none());
+        assert!(patch.visibility_level.is_none());
+        assert!(patch.access_policy.is_none());
+        assert!(patch.scheduled_at.is_none());
+    }
+
+    #[test]
+    fn draft_patch_clears_scheduled_at_with_null() {
+        let now = 1_000_000;
+        let patch = validate_draft_patch(
+            DraftPatchInput {
+                title: None,
+                markdown: None,
+                board_id: None,
+                visibility_level: None,
+                access_policy: None,
+                scheduled_at: Some(None),
+            },
+            5,
+            now,
+        )
+        .unwrap();
+        assert_eq!(patch.scheduled_at, Some(None), "null 表示清除定时");
+    }
+
+    #[test]
+    fn draft_patch_rejects_invalid_fields() {
+        let now = 1_000_000;
+        // 标题非法
+        let r = validate_draft_patch(
+            DraftPatchInput {
+                title: Some("   ".into()),
+                markdown: None,
+                board_id: None,
+                visibility_level: None,
+                access_policy: None,
+                scheduled_at: None,
+            },
+            5,
+            now,
+        );
+        assert!(r.is_err(), "非法标题必须拒绝");
+        // 超等级 visibility
+        let r = validate_draft_patch(
+            DraftPatchInput {
+                title: None,
+                markdown: None,
+                board_id: None,
+                visibility_level: Some(6),
+                access_policy: None,
+                scheduled_at: None,
+            },
+            5,
+            now,
+        );
+        assert_eq!(
+            r.unwrap_err(),
+            PostCreateError::VisibilityExceedsAuthorLevel {
+                requested: 6,
+                author_level: 5
+            }
+        );
+        // 过期定时
+        let r = validate_draft_patch(
+            DraftPatchInput {
+                title: None,
+                markdown: None,
+                board_id: None,
+                visibility_level: None,
+                access_policy: None,
+                scheduled_at: Some(Some(now - 1)),
+            },
+            5,
+            now,
+        );
+        assert_eq!(r.unwrap_err(), PostCreateError::InvalidScheduledAt);
     }
 
     #[test]
