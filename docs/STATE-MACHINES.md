@@ -35,6 +35,12 @@ draft → pending_review → published → hidden → published
 pending_review → rejected → draft
 ```
 
+> **M04-SCHEMA 同步说明**：`posts.status` 的 DB CHECK 值域当前为 0003 骨架集合
+> （draft/published/hidden/deleted/locked——`locked` 为遗留值，新代码用
+> `closed_at`）；`pending_review`/`rejected` 随 M04-POSTS 迁移扩展 DB CHECK
+> （SQLite 改 CHECK 需重建表，待骨架列收口时一并落地，见 SCHEMA.md §posts）。
+> `closed_at` 非空即锁帖（禁止新增回复）。
+
 回复能力为独立属性：
 
 ```text

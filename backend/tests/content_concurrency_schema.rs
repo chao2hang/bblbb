@@ -142,10 +142,9 @@ async fn concurrent_floor_allocation_only_one_wins() {
     let pool = Arc::new(pool);
     let c1 = comment("c-a", "p1", &author, 7);
     let c2 = comment("c-b", "p1", &author, 7);
-    let (r1, r2) = tokio::join!(
-        async { insert_comment(pool.as_ref(), &c1).await },
-        async { insert_comment(pool.as_ref(), &c2).await },
-    );
+    let (r1, r2) = tokio::join!(async { insert_comment(pool.as_ref(), &c1).await }, async {
+        insert_comment(pool.as_ref(), &c2).await
+    },);
     let ok_count = [r1, r2].iter().filter(|r| r.is_ok()).count();
     assert_eq!(ok_count, 1, "同主题同楼层并发必须恰好一个成功");
 
