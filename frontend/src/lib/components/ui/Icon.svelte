@@ -1,11 +1,15 @@
 <script lang="ts">
-  import { icons } from './icons';
+  import { parseIconNodes } from './icons';
 
   let {
     name,
     size = 16,
     class: klass = ''
   }: { name: string; size?: number; class?: string } = $props();
+
+  // M04-MARKDOWN-08：{@html} 仅 SafeHtml 可用；图标经结构化节点渲染，
+  // 保持 SVG 命名空间（compile-time 已知 SVG 标签）。
+  const nodes = $derived(parseIconNodes(name));
 </script>
 
 <svg
@@ -21,5 +25,19 @@
   aria-hidden="true"
   focusable="false"
 >
-  {@html icons[name] || ''}
+  {#each nodes as node}
+    {#if node.tag === 'path'}
+      <path {...node.attrs} />
+    {:else if node.tag === 'circle'}
+      <circle {...node.attrs} />
+    {:else if node.tag === 'rect'}
+      <rect {...node.attrs} />
+    {:else if node.tag === 'line'}
+      <line {...node.attrs} />
+    {:else if node.tag === 'polyline'}
+      <polyline {...node.attrs} />
+    {:else if node.tag === 'polygon'}
+      <polygon {...node.attrs} />
+    {/if}
+  {/each}
 </svg>

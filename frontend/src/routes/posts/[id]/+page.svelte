@@ -9,6 +9,7 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import SafeHtml from '$lib/components/SafeHtml.svelte';
   import { formatTime, formatRelative, renderSafeMarkdown } from '$lib/utils';
 
   let post = $state<PostDetail | null>(null);
@@ -94,7 +95,9 @@
           {/if}
         </div>
         <div class="prose">
-          {@html renderSafeMarkdown(post.content)}
+          <!-- M04-MARKDOWN-08：{@html} 仅经 SafeHtml（唯一 sink）——
+               M04-POSTS 起内容源切为后端 body_html，届时移除 renderSafeMarkdown -->
+          <SafeHtml html={renderSafeMarkdown(post.content)} />
         </div>
       </div>
     </div>
@@ -117,7 +120,7 @@
                   <span class="badge badge-neutral" style="margin-left:auto;">#{comment.floor}</span>
                 </div>
                 <div class="prose" style="font-size:var(--text-base);">
-                  {@html renderSafeMarkdown(comment.content)}
+                  <SafeHtml html={renderSafeMarkdown(comment.content)} />
                 </div>
               </div>
             </div>

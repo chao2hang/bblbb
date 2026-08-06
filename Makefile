@@ -77,10 +77,12 @@ check-migrations: ## 三数据库迁移结构等价断言（M01-DB-09）
 	@printf "$(GREEN)>>> [check-migrations] 迁移结构等价断言$(RESET)\n"
 	@cd $(BACKEND_DIR) && cargo test --test migration_equivalence --quiet 2>&1 | tail -n 8
 
-check-frontend: ## 前端 Svelte check + TypeScript 类型检查
+check-frontend: ## 前端 Svelte check + TypeScript 类型检查 + HTML sink 静态检查
 	@printf "$(GREEN)>>> [check-frontend] SvelteKit check$(RESET)\n"
 	@cd $(FRONTEND_DIR) && npm ci --silent
 	@cd $(FRONTEND_DIR) && npm run check
+	@printf "$(GREEN)>>> [check-html-sinks] 前端 HTML sink 静态检查（M04-MARKDOWN-08）$(RESET)\n"
+	@ruby $(PROJECT_ROOT)/scripts/check-html-sinks.rb
 
 check-prototype: ## 原型 render + interaction 检查
 	@printf "$(GREEN)>>> [check-prototype] 原型渲染 + 交互检查$(RESET)\n"
