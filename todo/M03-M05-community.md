@@ -139,7 +139,7 @@
 **目标文件：** `backend/src/content/markdown/`、`backend/tests/markdown/`、`frontend/src/lib/components/SafeHtml.svelte`
 **验收：** XSS corpus、链接/图片策略、renderer version 和前端 sink 扫描通过。
 
-- [ ] `M04-MARKDOWN-01` `P0` `[30m]` 请求只接受 Markdown；显式拒绝原始 HTML、BBCode 和未知内容格式。
+- [x] `M04-MARKDOWN-01` `P0` `[30m]` 请求只接受 Markdown；显式拒绝原始 HTML、BBCode 和未知内容格式。证据：files=backend/src/domain/content.rs,backend/src/domain/mod.rs；commands=cargo test --lib domain::content（6 通过/0 失败）；cargo fmt --check 通过；cargo clippy --lib -- -D warnings 0 警告；make check 全绿（cargo fmt/clippy 0 警告、OpenAPI 183/183、事件目录 22/22、Roadmap 783 叶子 OK）RC=0；contract=ContentFormat 唯一可接受值 markdown（空/缺省按 markdown 兼容骨架；大小写与空白不敏感）；ContentFormatRejected 结构化拒绝（RawHtml=html|text/html|xhtml、Bbcode=bbcode|bbc、Unknown=其余）供路由层映射稳定 Problem detail；错误消息一律不含原始输入（防回显 XSS/注入）；ACCEPTED 单一事实来源；commit=b003767；review=6 项单测（仅 markdown 通过+缺省兼容/HTML 显式拒绝含 text/html 与大小写/BBCode 显式拒绝/未知格式分类/错误消息稳定且无原始输入回显/ACCEPTED 与 as_str 一致）+ 全量门禁全绿
 - [ ] `M04-MARKDOWN-02` `P0` `[45m]` 选择并封装 CommonMark 渲染器，禁用原始 HTML 和危险扩展。
 - [ ] `M04-MARKDOWN-03` `P0` `[45m]` 建立标签、属性、协议、图片、外链 rel/target 和 iframe Provider allowlist。
 - [ ] `M04-MARKDOWN-04` `P0` `[30m]` 对标题锚点、代码块、引用、表格和超长嵌套设置确定性输出和上限。
