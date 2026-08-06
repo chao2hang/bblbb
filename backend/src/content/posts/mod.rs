@@ -6,9 +6,12 @@
 
 pub mod command;
 pub mod publish;
+pub mod publish_job;
+pub mod service;
 
 pub use command::{
     validate_draft_patch, CreateDraftCommand, CreateDraftInput, CreatePostCommand, CreatePostInput,
     DraftPatch, DraftPatchInput, PostCreateError,
 };
 pub use publish::{publish_preflight, PublishBlocked, PublishPreflightInput};
+pub use service::{publish_new_post, publish_scheduled_post, PublishError, PublishedPost};

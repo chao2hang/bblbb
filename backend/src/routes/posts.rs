@@ -12,11 +12,16 @@ use sqlx::Either;
 use crate::{
     app::AppState,
     auth::session::AuthSession,
+    authz::decision::AUTHZ_POLICY_VERSION,
+    authz::enforce::authorize_action,
+    content::posts::command::{validate_post_create, CreatePostInput},
+    content::posts::service::{publish_new_post, PublishError},
     domain::{
         comments::CommentContent,
-        posts::{AccessPolicy, PostContent, PostTitle},
+        posts::{PostContent, PostTitle},
     },
     error::AppError,
+    outbox::now_millis,
 };
 
 /// 帖子路由
@@ -33,11 +38,16 @@ pub fn router() -> Router<AppState> {
 
 #[derive(Deserialize)]
 struct CreatePostRequest {
-    board_slug: String,
+    r#type: String,
     title: String,
-    content: String,
+    markdown: String,
+    board_id: String,
     #[serde(default)]
-    visibility: Option<String>,
+    visibility_level: Option<u32>,
+    access_policy: String,
+    #[serde(default)]
+    scheduled_at: Option<i64>,
+    client_request_id: String,
 }
 
 #[derive(Deserialize)]
@@ -81,7 +91,11 @@ struct ListPostsQuery {
     limit: i64,
 }
 
-/// POST /api/v1/posts — 创建帖子
+/// POST /api/v1/posts — 即时/定时发布新帖（M04-POSTS-06）。
+///
+/// 服务端权威流程：auth → 权限 → `validate_post_create` 字段校验 → 读取作者
+/// 等级 → [`publish_new_post`]（再次预检 + 事务写 posts/post_contents/
+/// post_revisions + 板块计数 + 搜索索引 Job）。
 async fn create_post(
     State(state): State<AppState>,
     auth: AuthSession,
@@ -89,8 +103,6 @@ async fn create_post(
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     let request_id = "create_post";
     let user = auth.require_auth(request_id)?;
-
-    // 检查邮箱验证
     if !user.email_verified {
         return Err(AppError::forbidden(
             "email verification required",
@@ -103,125 +115,76 @@ async fn create_post(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    // 领域校验：title/content/visibility 规则在 domain 层单一维护，
-    // 路由层只负责把校验错误映射为 Problem 响应。
-    let title = PostTitle::parse(&req.title)
-        .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
-    let content = PostContent::parse(&req.content)
-        .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
-    let visibility = req
-        .visibility
-        .as_deref()
-        .and_then(AccessPolicy::parse)
-        .unwrap_or(AccessPolicy::Public);
-
-    // 查找板块
-    let board_id: Option<String> = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar("SELECT id FROM boards WHERE slug = ? AND is_active = 1")
-                .bind(&req.board_slug)
-                .fetch_optional(p)
-                .await
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar("SELECT id FROM boards WHERE slug = ? AND is_active = 1")
-                .bind(&req.board_slug)
-                .fetch_optional(p)
-                .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    let board_id = board_id.ok_or_else(|| AppError::not_found("board not found", request_id))?;
-
-    let post_id = uuid::Uuid::now_v7().to_string();
-    let now = chrono::Utc::now().timestamp();
-
-    match pool {
-        Either::Left(p) => {
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "INSERT INTO posts (id, board_id, author_id, title, content, content_format, status, visibility, reply_count, view_count, pinned, created_at, updated_at, last_reply_at, last_reply_by)
-                 VALUES (?, ?, ?, ?, ?, 'markdown', 'published', ?, 0, 0, 0, ?, ?, ?, NULL)",
-            )
-            .bind(&post_id)
-            .bind(&board_id)
-            .bind(&user.id)
-            .bind(title.as_str())
-            .bind(content.as_str())
-            .bind(visibility.as_str())
-            .bind(now)
-            .bind(now)
-            .bind(now)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            sqlx::query(
-                "UPDATE boards SET post_count = post_count + 1, updated_at = ? WHERE id = ?",
-            )
-            .bind(now)
-            .bind(&board_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            tx.commit()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-        Either::Right(p) => {
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "INSERT INTO posts (id, board_id, author_id, title, content, content_format, status, visibility, reply_count, view_count, pinned, created_at, updated_at, last_reply_at, last_reply_by)
-                 VALUES (?, ?, ?, ?, ?, 'markdown', 'published', ?, 0, 0, 0, ?, ?, ?, NULL)",
-            )
-            .bind(&post_id)
-            .bind(&board_id)
-            .bind(&user.id)
-            .bind(title.as_str())
-            .bind(content.as_str())
-            .bind(visibility.as_str())
-            .bind(now)
-            .bind(now)
-            .bind(now)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            sqlx::query(
-                "UPDATE boards SET post_count = post_count + 1, updated_at = ? WHERE id = ?",
-            )
-            .bind(now)
-            .bind(&board_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            tx.commit()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
+    let decision = authorize_action(pool, &user.id, "post.create", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "post.create permission required",
+            request_id,
+        ));
     }
 
+    let level: Option<i64> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            .bind(&user.id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            .bind(&user.id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    let author_level = level.unwrap_or(1).clamp(1, u32::MAX as i64) as u32;
+
+    let cmd = validate_post_create(
+        CreatePostInput {
+            post_type: req.r#type,
+            title: req.title,
+            markdown: req.markdown,
+            board_id: req.board_id,
+            visibility_level: req.visibility_level,
+            access_policy: req.access_policy,
+            scheduled_at: req.scheduled_at,
+            client_request_id: req.client_request_id,
+        },
+        author_level,
+        now_millis(),
+    )
+    .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+
+    let published = publish_new_post(pool, &cmd, &user.id, now_millis())
+        .await
+        .map_err(map_publish_error)?;
+
+    let post = &published.post;
     Ok((
         StatusCode::CREATED,
         Json(json!({
-            "id": post_id,
-            "board_id": board_id,
-            "author_id": user.id,
-            "title": req.title,
-            "status": "published",
-            "visibility": visibility.as_str(),
-            "created_at": now,
+            "id": post.id,
+            "board_id": post.board_id,
+            "author": { "id": post.author_id },
+            "post_type": post.post_type.as_str(),
+            "title": post.title,
+            "status": post.status.as_str(),
+            "scheduled_at": post.scheduled_at,
+            "published_at": post.published_at,
+            "created_at": post.created_at,
+            "updated_at": post.updated_at,
         })),
     ))
+}
+
+/// 发布错误 → Problem detail（预检阻断 → 409/403，其余 400/404/500）。
+fn map_publish_error(err: PublishError) -> AppError {
+    const RID: &str = "create_post";
+    match err {
+        PublishError::Blocked(b) => AppError::conflict(format!("publish blocked: {b}"), RID),
+        PublishError::NotFound(msg) => AppError::not_found(msg, RID),
+        PublishError::Db(msg) => AppError::internal(msg, RID),
+    }
 }
 
 /// GET /api/v1/posts — 列出帖子（公开，可按板块过滤/排序）

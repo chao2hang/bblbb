@@ -222,6 +222,7 @@ SDK）。CI 失败即阻断。
 |---|---|---|---|
 | `search.index` | `default` | `{entity_type, entity_id}` | 索引幂等 Job（`backend/src/search/index_job.rs`，M03-SEARCH-STORE-06） |
 | `markdown.rerender` | `default` | `{target: content\|revision, id}` | 渲染/清洗策略升级后重渲染陈旧 `post_contents`/`post_revisions`（`backend/src/content/markdown/rerender.rs`，M04-MARKDOWN-05）。幂等：行缺失或已是最新策略版本 → 成功无操作；无效 payload → 永久死信 |
+| `content.publish` | `default` | `{source: post, id}` | 到期 scheduled 帖子发布（`backend/src/content/posts/publish_job.rs`，M04-POSTS-06）。执行时再次运行发布预检（授权/等级/板块）；非 scheduled/不存在 → 幂等成功；预检阻断/DB 错误 → 瞬时重试 |
 
 ## 8. 定时任务
 
