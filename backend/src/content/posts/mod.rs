@@ -5,8 +5,10 @@
 //! 预览、发布、列表/详情投影、修订与治理命令。
 
 pub mod command;
+pub mod publish;
 
 pub use command::{
     validate_draft_patch, CreateDraftCommand, CreateDraftInput, CreatePostCommand, CreatePostInput,
     DraftPatch, DraftPatchInput, PostCreateError,
 };
+pub use publish::{publish_preflight, PublishBlocked, PublishPreflightInput};
