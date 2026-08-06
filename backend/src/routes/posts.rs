@@ -1,4 +1,5 @@
 use axum::{
+    body::Bytes,
     extract::{Path, Query, State},
     http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Json, Response},
@@ -101,15 +102,16 @@ struct ListPostsQuery {
     limit: i64,
 }
 
-/// POST /api/v1/posts — 即时/定时发布新帖（M04-POSTS-06）。
+/// POST /api/v1/posts — 即时/定时发布新帖（M04-POSTS-06/10，幂等）。
 ///
 /// 服务端权威流程：auth → 权限 → `validate_post_create` 字段校验 → 读取作者
-/// 等级 → [`publish_new_post`]（再次预检 + 事务写 posts/post_contents/
-/// post_revisions + 板块计数 + 搜索索引 Job）。
+/// 等级 → 幂等门（scope `post.create`，key=client_request_id，同 key+摘要重放
+/// 返回原帖、不同摘要 409）→ [`publish_new_post`]（再次预检 + 事务写
+/// posts/post_contents/post_revisions + 板块计数 + 搜索索引 Job）。
 async fn create_post(
     State(state): State<AppState>,
     auth: AuthSession,
-    Json(req): Json<CreatePostRequest>,
+    body: Bytes,
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     let request_id = "create_post";
     let user = auth.require_auth(request_id)?;
@@ -135,6 +137,10 @@ async fn create_post(
         ));
     }
 
+    let req: CreatePostRequest = serde_json::from_slice(&body)
+        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+    let hash = crate::idempotency::request_hash(&body);
+
     let level: Option<i64> = match pool {
         Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
             .bind(&user.id)
@@ -158,33 +164,89 @@ async fn create_post(
             visibility_level: req.visibility_level,
             access_policy: req.access_policy,
             scheduled_at: req.scheduled_at,
-            client_request_id: req.client_request_id,
+            client_request_id: req.client_request_id.clone(),
         },
         author_level,
         now_millis(),
     )
     .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
 
-    let published = publish_new_post(pool, &cmd, &user.id, now_millis())
-        .await
-        .map_err(map_publish_error)?;
+    // 幂等门（M04-POSTS-10 重复请求）
+    let idem_key = crate::idempotency::IdempotencyKey::new("post.create", &req.client_request_id)
+        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+    let outcome = crate::idempotency::begin_or_replay(
+        pool,
+        &idem_key,
+        &hash,
+        24 * 60 * 60 * 1000,
+        crate::idempotency::FailureCachePolicy::Cache,
+    )
+    .await
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    let post = &published.post;
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({
-            "id": post.id,
-            "board_id": post.board_id,
-            "author": { "id": post.author_id },
-            "post_type": post.post_type.as_str(),
-            "title": post.title,
-            "status": post.status.as_str(),
-            "scheduled_at": post.scheduled_at,
-            "published_at": post.published_at,
-            "created_at": post.created_at,
-            "updated_at": post.updated_at,
-        })),
-    ))
+    match outcome {
+        crate::idempotency::IdempotencyOutcome::Created { record_id } => {
+            let published = publish_new_post(pool, &cmd, &user.id, now_millis())
+                .await
+                .map_err(map_publish_error)?;
+            let _ = crate::idempotency::complete(pool, &record_id, &published.post.id)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            Ok((
+                StatusCode::CREATED,
+                Json(post_created_json(&published.post)),
+            ))
+        }
+        crate::idempotency::IdempotencyOutcome::Replay { response_reference } => {
+            // 同 key+摘要重放：返回原帖（按引用读取）
+            if let Some(post_id) = response_reference {
+                if let Ok(Some(post)) = get_post_by_id(pool, &post_id, request_id).await {
+                    return Ok((StatusCode::CREATED, Json(post_created_json(&post))));
+                }
+            }
+            Err(AppError::conflict(
+                "idempotent replay but original post not found",
+                request_id,
+            ))
+        }
+        crate::idempotency::IdempotencyOutcome::InProgress => Err(AppError::conflict(
+            "request already in progress",
+            request_id,
+        )),
+        crate::idempotency::IdempotencyOutcome::Conflict => Err(AppError::conflict(
+            "idempotency key reused with different request",
+            request_id,
+        )),
+        crate::idempotency::IdempotencyOutcome::Failed { .. } => Err(AppError::conflict(
+            "previous attempt failed; retry with a new idempotency key",
+            request_id,
+        )),
+    }
+}
+
+fn post_created_json(post: &crate::content::model::Post) -> Value {
+    json!({
+        "id": post.id,
+        "board_id": post.board_id,
+        "author": { "id": post.author_id },
+        "post_type": post.post_type.as_str(),
+        "title": post.title,
+        "status": post.status.as_str(),
+        "scheduled_at": post.scheduled_at,
+        "published_at": post.published_at,
+        "created_at": post.created_at,
+        "updated_at": post.updated_at,
+    })
+}
+
+async fn get_post_by_id(
+    pool: &DatabasePool,
+    post_id: &str,
+    request_id: &'static str,
+) -> Result<Option<crate::content::model::Post>, AppError> {
+    crate::content::repository::get_post(pool, post_id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))
 }
 
 /// 发布错误 → Problem detail（预检阻断 → 409/403，其余 400/404/500）。

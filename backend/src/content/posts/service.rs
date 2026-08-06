@@ -512,35 +512,51 @@ pub async fn edit_post(
         updated_at: now,
     };
 
-    match pool {
-        Either::Left(p) => {
-            let mut tx = p.begin().await?;
-            save_content_and_revision_body!(tx, &updated_content, &revision);
-            sqlx::query(
-                "UPDATE posts SET title = COALESCE(?, title), version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
-            )
-            .bind(input.title.as_deref())
-            .bind(now)
-            .bind(post_id)
-            .bind(input.expected_version)
-            .execute(&mut *tx)
-            .await?;
-            tx.commit().await?;
+    // 事务写；修订 UNIQUE(post_id, version) 并发兜底 → 映射为版本冲突
+    let tx_result: Result<(), sqlx::Error> = async {
+        match pool {
+            Either::Left(p) => {
+                let mut tx = p.begin().await?;
+                save_content_and_revision_body!(tx, &updated_content, &revision);
+                sqlx::query(
+                    "UPDATE posts SET title = COALESCE(?, title), version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+                )
+                .bind(input.title.as_deref())
+                .bind(now)
+                .bind(post_id)
+                .bind(input.expected_version)
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
+            }
+            Either::Right(p) => {
+                let mut tx = p.begin().await?;
+                save_content_and_revision_body!(tx, &updated_content, &revision);
+                sqlx::query(
+                    "UPDATE posts SET title = COALESCE(?, title), version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+                )
+                .bind(input.title.as_deref())
+                .bind(now)
+                .bind(post_id)
+                .bind(input.expected_version)
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
+            }
         }
-        Either::Right(p) => {
-            let mut tx = p.begin().await?;
-            save_content_and_revision_body!(tx, &updated_content, &revision);
-            sqlx::query(
-                "UPDATE posts SET title = COALESCE(?, title), version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
-            )
-            .bind(input.title.as_deref())
-            .bind(now)
-            .bind(post_id)
-            .bind(input.expected_version)
-            .execute(&mut *tx)
-            .await?;
-            tx.commit().await?;
+        Ok(())
+    }
+    .await;
+
+    match tx_result {
+        Ok(()) => {}
+        Err(e) if is_unique_violation(&e) => {
+            return Err(PublishError::VersionMismatch {
+                expected: input.expected_version,
+                actual: current.version,
+            });
         }
+        Err(e) => return Err(PublishError::Db(e.to_string())),
     }
 
     // 重新读取（版本已递增）
@@ -548,4 +564,12 @@ pub async fn edit_post(
         .await?
         .ok_or_else(|| PublishError::NotFound("post not found".to_string()))?;
     Ok(refreshed)
+}
+
+/// 唯一约束冲突（并发兜底：同 (post_id, version) 修订 / 同板块 slug）。
+fn is_unique_violation(err: &sqlx::Error) -> bool {
+    matches!(
+        err,
+        sqlx::Error::Database(db) if db.is_unique_violation()
+    )
 }
