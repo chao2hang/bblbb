@@ -8,6 +8,7 @@ pub mod auth;
 pub mod authz;
 pub mod boards;
 pub mod config;
+pub mod content;
 pub mod db;
 pub mod domain;
 pub mod error;

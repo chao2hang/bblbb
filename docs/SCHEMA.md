@@ -499,30 +499,35 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 |---|---|
 | `id` | UUID 主键 |
 | `board_id`、`author_id` | 外键 |
-| `post_type` | `article/discussion` |
-| `slug` | 可空但唯一；文章必须有 slug |
+| `post_type` | `article/discussion`（迁移 0032 CHECK） |
+| `slug` | 可空，**板块内唯一**；文章必须有 slug（`UNIQUE(board_id, slug)`，多 NULL 不冲突） |
 | `title`、`excerpt` | 标题和公开摘要 |
-| `body_markdown` | 公开 Markdown |
-| `body_html` | 后端生成并清洗的公开 HTML |
-| `restricted_markdown`、`restricted_html` | 可空，受限部分 |
-| `access_policy_id` | 可空，受限内容策略 |
-| `cover_attachment_id` | 可空 |
-| `status` | `draft/pending_review/rejected/published/hidden/deleted` |
+| `status` | `draft/pending_review/rejected/published/hidden/deleted`（STATE-MACHINES.md §Post；`locked` 为 0003 骨架遗留值，新代码用 `closed_at`；DB CHECK 值域随 M04-POSTS 收口骨架时扩展） |
+| `version` | 乐观并发版本（If-Match 更新来源） |
 | `closed_at` | 可空；非空表示禁止新增回复，不改变发布/可见状态 |
 | `pinned_at`、`featured_at` | 可空，替代多组布尔值 |
 | `scheduled_at`、`published_at` | 可空 |
 | `canonical_url`、`seo_title`、`seo_description` | 博客/SEO 字段 |
 | `view_count`、`reply_count` | 可重建缓存 |
 | `last_reply_id`、`last_reply_at` | 列表排序缓存 |
-| `version` | 乐观并发版本 |
-| `created_at`、`updated_at`、`deleted_at` | 时间 |
+| `created_at`、`updated_at`、`deleted_at` | 时间（含软删除） |
+
+正文/受限正文/附件引用/访问策略**不在此表**——分别由
+[`post_revisions` / `comment_revisions`](#post_revisions--comment_revisions)
+（M04-SCHEMA-02）、[`content_access_policies`](#content_access_policies)
+（M04-SCHEMA-06）落地。
+
+> **迁移 0032 兼容说明**：`content`/`content_format`/`visibility`/`pinned`/
+> `last_reply_by` 为 0003 骨架遗留列（搜索/骨架路由仍引用），随 M04-POSTS
+> 替换骨架时收口移除；`visibility` 语义由 access policy（SCHEMA-06）取代。
 
 主要索引：
 
-- 唯一 `slug`。
+- `UNIQUE (board_id, slug)`（板块内 slug 唯一）。
 - `(board_id, status, pinned_at, last_reply_at)`。
 - `(author_id, status, created_at)`。
 - `(post_type, status, published_at)`。
+- `(scheduled_at)`（定时发布 Job 扫描）。
 
 ### `post_slug_redirects`
 
