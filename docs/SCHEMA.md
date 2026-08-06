@@ -559,16 +559,14 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 | 字段 | 说明 |
 |---|---|
 | `id`、`post_id`、`author_id` | 主键与外键 |
-| `parent_id`、`quoted_comment_id` | 可空 |
-| `floor_no` | **主题内**楼层号 |
-| `body_markdown`、`body_html` | 公开内容 |
-| `restricted_markdown`、`restricted_html` | 可空 |
-| `access_policy_id` | 可空 |
-| `status` | `pending/published/hidden/deleted` |
-| `version` | 乐观并发版本 |
-| `created_at`、`updated_at`、`deleted_at` | 时间 |
+| `parent_id`、`quoted_comment_id` | 可空；`quoted_comment_id` 引用删除置空（占位语义，M04-SCHEMA-04） |
+| `floor` | **主题内**楼层号（既有列；唯一约束随 M04-SCHEMA-07 落地） |
+| `content`、`content_format` | 0003 骨架遗留正文列（M04-COMMENTS 替换骨架时收口到与 post_contents 一致的正文表） |
+| `status` | `published/hidden/deleted`（0003 CHECK；`pending` 审核态随 M04-POSTS 迁移扩展） |
+| `version` | 乐观并发版本（M04-SCHEMA-04） |
+| `created_at`、`updated_at`、`deleted_at` | 时间（软删除行保留供占位投影/审计，M04-SCHEMA-04） |
 
-唯一约束：`(post_id, floor_no)`。楼层分配必须在事务内完成。
+主题内楼层唯一与并发分配语义见 M04-SCHEMA-07（`UNIQUE(post_id, floor)`）；楼层分配必须在事务内完成。
 
 ### `post_contents`（M04-SCHEMA-02）
 

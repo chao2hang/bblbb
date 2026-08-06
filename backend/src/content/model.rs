@@ -202,6 +202,67 @@ pub struct Draft {
     pub deleted_at: Option<i64>,
 }
 
+/// 评论状态（comments 表 CHECK：published/hidden/deleted；pending 审核态随
+/// M04-POSTS 迁移扩展 DB CHECK）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CommentStatus {
+    Published,
+    Hidden,
+    Deleted,
+}
+
+impl CommentStatus {
+    pub const ALL: [CommentStatus; 3] = [
+        CommentStatus::Published,
+        CommentStatus::Hidden,
+        CommentStatus::Deleted,
+    ];
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "published" => Some(Self::Published),
+            "hidden" => Some(Self::Hidden),
+            "deleted" => Some(Self::Deleted),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Published => "published",
+            Self::Hidden => "hidden",
+            Self::Deleted => "deleted",
+        }
+    }
+}
+
+impl std::fmt::Display for CommentStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// 评论（comments，M04-SCHEMA-04）。
+///
+/// - `floor` 为主题内楼层号（SCHEMA.md 语义；唯一约束随 M04-SCHEMA-07）；
+/// - `quoted_comment_id` 引用回复（删除置空，渲染"已删除"占位）；
+/// - 正文（content/content_format）为骨架遗留列，M04-COMMENTS 替换骨架时
+///   收口。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Comment {
+    pub id: String,
+    pub post_id: String,
+    pub author_id: String,
+    pub parent_id: Option<String>,
+    pub quoted_comment_id: Option<String>,
+    pub floor: i64,
+    pub status: CommentStatus,
+    pub version: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub deleted_at: Option<i64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

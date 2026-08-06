@@ -8,7 +8,9 @@ use sqlx::Either;
 
 use crate::db::DatabasePool;
 
-use super::model::{Draft, Post, PostContent, PostRevision, PostStatus, PostType};
+use super::model::{
+    Comment, CommentStatus, Draft, Post, PostContent, PostRevision, PostStatus, PostType,
+};
 
 /// 插入一篇帖子（含元数据列；骨架遗留列写空值/默认）。
 pub async fn insert_post(pool: &DatabasePool, post: &Post) -> Result<(), sqlx::Error> {
@@ -595,6 +597,177 @@ impl DraftRow {
             visibility_level: self.visibility_level,
             access_policy: self.access_policy,
             scheduled_at: self.scheduled_at,
+            version: self.version,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            deleted_at: self.deleted_at,
+        }
+    }
+}
+
+// ─────────────────────── 评论（M04-SCHEMA-04） ───────────────────────
+
+/// 插入一条评论（楼层号由调用方在事务内分配，M04-COMMENTS-03）。
+pub async fn insert_comment(pool: &DatabasePool, comment: &Comment) -> Result<(), sqlx::Error> {
+    let sql = "INSERT INTO comments (
+        id, post_id, author_id, parent_id, quoted_comment_id, content,
+        content_format, status, floor, version, created_at, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, '', 'markdown', ?, ?, 1, ?, ?, ?)";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&comment.id)
+            .bind(&comment.post_id)
+            .bind(&comment.author_id)
+            .bind(&comment.parent_id)
+            .bind(&comment.quoted_comment_id)
+            .bind(comment.status.as_str())
+            .bind(comment.floor)
+            .bind(comment.created_at)
+            .bind(comment.updated_at)
+            .bind(comment.deleted_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&comment.id)
+            .bind(&comment.post_id)
+            .bind(&comment.author_id)
+            .bind(&comment.parent_id)
+            .bind(&comment.quoted_comment_id)
+            .bind(comment.status.as_str())
+            .bind(comment.floor)
+            .bind(comment.created_at)
+            .bind(comment.updated_at)
+            .bind(comment.deleted_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 按 id 读取评论（含 deleted 行；调用方负责投影过滤）。
+pub async fn get_comment(pool: &DatabasePool, id: &str) -> Result<Option<Comment>, sqlx::Error> {
+    let sql = "SELECT id, post_id, author_id, parent_id, quoted_comment_id, status,
+        floor, version, created_at, updated_at, deleted_at FROM comments WHERE id = ?";
+    match pool {
+        Either::Left(p) => {
+            let row = sqlx::query_as::<_, CommentRow>(sql)
+                .bind(id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(CommentRow::into_model))
+        }
+        Either::Right(p) => {
+            let row = sqlx::query_as::<_, CommentRow>(sql)
+                .bind(id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(CommentRow::into_model))
+        }
+    }
+}
+
+/// 按帖子读取评论（floor 升序；调用方负责可见性过滤）。
+pub async fn list_comments_by_post(
+    pool: &DatabasePool,
+    post_id: &str,
+) -> Result<Vec<Comment>, sqlx::Error> {
+    let sql = "SELECT id, post_id, author_id, parent_id, quoted_comment_id, status,
+        floor, version, created_at, updated_at, deleted_at FROM comments
+        WHERE post_id = ? ORDER BY floor ASC";
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query_as::<_, CommentRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(CommentRow::into_model).collect())
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query_as::<_, CommentRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(CommentRow::into_model).collect())
+        }
+    }
+}
+
+/// 更新评论并递增 version（乐观并发；作者限时编辑由服务层判定）。
+pub async fn update_comment(pool: &DatabasePool, comment: &Comment) -> Result<(), sqlx::Error> {
+    let sql = "UPDATE comments SET quoted_comment_id = ?, status = ?,
+        version = version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&comment.quoted_comment_id)
+            .bind(comment.status.as_str())
+            .bind(comment.updated_at)
+            .bind(&comment.id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&comment.quoted_comment_id)
+            .bind(comment.status.as_str())
+            .bind(comment.updated_at)
+            .bind(&comment.id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 软删除评论（`deleted_at` 置位；行保留供审计/占位投影）。
+pub async fn delete_comment(
+    pool: &DatabasePool,
+    id: &str,
+    deleted_at: i64,
+) -> Result<(), sqlx::Error> {
+    let sql =
+        "UPDATE comments SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(deleted_at)
+            .bind(deleted_at)
+            .bind(id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(deleted_at)
+            .bind(deleted_at)
+            .bind(id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct CommentRow {
+    id: String,
+    post_id: String,
+    author_id: String,
+    parent_id: Option<String>,
+    quoted_comment_id: Option<String>,
+    status: String,
+    floor: i64,
+    version: i64,
+    created_at: i64,
+    updated_at: i64,
+    deleted_at: Option<i64>,
+}
+
+impl CommentRow {
+    fn into_model(self) -> Comment {
+        Comment {
+            id: self.id,
+            post_id: self.post_id,
+            author_id: self.author_id,
+            parent_id: self.parent_id,
+            quoted_comment_id: self.quoted_comment_id,
+            floor: self.floor,
+            status: CommentStatus::parse(&self.status).expect("status 必须为稳定枚举"),
             version: self.version,
             created_at: self.created_at,
             updated_at: self.updated_at,
