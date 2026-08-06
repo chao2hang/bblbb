@@ -152,11 +152,11 @@
 
 ## M04-POSTS：草稿、文章与讨论服务
 
-**元数据：** `P1` · `owner=unassigned/backend-content` · `risk=high` · `depends=M04-MARKDOWN` · `blocked=none`
+**元数据：** `P1` · `owner=backend-content` · `risk=high` · `depends=M04-MARKDOWN` · `blocked=none`
 **目标文件：** `backend/src/content/posts/`、`backend/src/routes/{posts,drafts}/`、`backend/tests/posts/`
 **验收：** Posts/Drafts/Revisions operation 在三数据库通过 CRUD、调度、权限和冲突契约。
 
-- [ ] `M04-POSTS-01` `P1` `[30m]` 定义 article/discussion 创建命令和服务端字段校验，不信任 author、状态或统计值。
+- [x] `M04-POSTS-01` `P1` `[30m]` 定义 article/discussion 创建命令和服务端字段校验，不信任 author、状态或统计值。证据：files=backend/src/content/posts/{mod.rs,command.rs},backend/src/content/mod.rs；commands=cargo test --lib content::posts（12 通过/0 失败）；cargo test --lib（319 通过/0 失败）；cargo fmt --check 通过；cargo clippy --lib --tests -- -D warnings 0 警告；make check 全绿 RC=0；make test 全绿 RC=0；contract=创建命令（content/posts/command.rs）：CreatePostInput/CreateDraftInput=客户端原样内容字段（未信任），validate_post_create/validate_draft_create 产出服务端权威命令 CreatePostCommand/CreateDraftCommand；校验规则全部服务端权威（客户端放宽上限无效）：post_type∈{article,discussion}、title 1-200 字符（trim 后，PostTitle）、markdown 1-50000 字符（Unicode char，PostContent；隐含 markdown 格式）、board_id 必须合法 UUID（草稿可空，发布时定）、visibility_level ≥1 且不得超过作者当前等级（防低等级作者隐藏到更高级别；缺省 1）、access_policy 封闭枚举（策略明细校验随 POSTS-05）、scheduled_at 可选且必须严格晚于服务端当前时间、client_request_id 16-200 字符（幂等键）；不信任原则：命令结构只含 8 个内容字段，author_id/status/version/view_count/reply_count/pinned_at/featured_at 等服务端权威字段从类型层面不存在（Debug 断言核对）；PostCreateError 稳定 Display 且不回显原始输入；commit=d7db218；review=12 项单测（合法通过含类型/未知类型拒绝/discussion 接受/标题正文边界/UUID 非法/等级矩阵（缺省 1、等级内合法、超等级拒绝、<1 拒绝）/未知 policy/定时（未来通过、现在与过去拒绝）/幂等键长度/草稿可空板块+非法拒绝/无服务端权威字段/错误消息稳定）+ 全量门禁全绿
 - [ ] `M04-POSTS-02` `P1` `[45m]` 实现创建草稿、读取自己的草稿和 cursor 列表。
 - [ ] `M04-POSTS-03` `P1` `[45m]` 实现草稿更新、client_request_id 幂等、版本冲突和软删除。
 - [ ] `M04-POSTS-04` `P1` `[45m]` 实现预览，只返回当前用户临时安全 HTML，不写公开索引或缓存。
