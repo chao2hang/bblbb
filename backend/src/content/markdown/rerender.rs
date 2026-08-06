@@ -15,7 +15,7 @@
 use serde_json::{json, Value};
 use sqlx::Either;
 
-use crate::content::markdown::excerpt::render_excerpt;
+use crate::content::markdown::excerpt::render_public_excerpt;
 use crate::content::markdown::policy::policy_version;
 use crate::content::markdown::render_and_sanitize;
 use crate::content::model::{PostContent, PostRevision};
@@ -49,12 +49,13 @@ pub struct RenderedContent {
 /// 用**当前**策略版本渲染正文：公开 HTML + 受限 HTML + 公开安全摘要。
 ///
 /// - `body_html`/`restricted_html` 经完整管线（CommonMark → allowlist 清洗）；
-/// - `excerpt` 只从公开正文提取（M04-MARKDOWN-06 语义）；
+/// - `excerpt` 经 [`render_public_excerpt`]：只从公开正文生成，隐藏正文
+///   （restricted）绝不参与（M04-MARKDOWN-06）；
 /// - `renderer_version` = [`policy_version`]（renderer+sanitizer 组合版本）。
 pub fn render_content(body_markdown: &str, restricted_markdown: Option<&str>) -> RenderedContent {
     let body_html = render_and_sanitize(body_markdown);
     let restricted_html = restricted_markdown.map(render_and_sanitize);
-    let excerpt = render_excerpt(body_markdown);
+    let excerpt = render_public_excerpt(body_markdown, restricted_markdown);
     RenderedContent {
         body_html,
         restricted_html,

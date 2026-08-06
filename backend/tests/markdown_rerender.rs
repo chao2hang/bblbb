@@ -220,6 +220,11 @@ async fn upgrade_rerenders_content_and_revisions() {
         "摘要必须重新生成: {}",
         content.excerpt
     );
+    assert!(
+        !content.excerpt.contains("受限"),
+        "摘要不得包含隐藏正文内容: {}",
+        content.excerpt
+    );
 
     // 修订行被覆盖（markdown 快照与元数据不变）
     let rev = get_post_revision(&pool, "r1").await.unwrap().unwrap();

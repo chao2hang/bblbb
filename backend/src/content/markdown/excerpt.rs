@@ -1,9 +1,9 @@
 //! M04-MARKDOWN-06：公开安全摘要生成。
 //!
-//! `render_excerpt` 从 Markdown 提取**纯文本**摘要（不输出任何 HTML 标签，
-//! 公开可见）；截断后加省略号。可见性语义（隐藏正文不得截断生成摘要、
-//! 摘要生成前先执行可见性判定）由 M04-VISIBILITY 投影层执行——本模块保证
-//! 摘要本身为清洗后的纯文本。
+//! [`render_excerpt`] 从 Markdown 提取**纯文本**摘要（不输出任何 HTML 标签，
+//! 公开可见）；截断后加省略号。[`render_public_excerpt`] 在此之上执行**可见性
+//! 语义**：摘要只从公开正文生成，隐藏正文（`restricted_markdown`）无论多长
+//! 都不参与截断与拼接——这是 M04-VISIBILITY 投影层显示摘要时调用的入口。
 
 use pulldown_cmark::{Event, Parser};
 
@@ -61,6 +61,25 @@ pub fn render_excerpt(markdown: &str) -> String {
     }
 }
 
+/// 生成**公开**安全摘要（M04-MARKDOWN-06 入口，投影层展示时调用）。
+///
+/// 可见性语义：
+/// 1. **先判定可见性**：摘要只源于公开正文 `body_markdown`；隐藏正文
+///    `restricted_markdown` 无论多长、即使公开正文为空，都**绝不**参与
+///    截断与拼接——公开正文为空（或仅空白）时返回空摘要，不回落到隐藏
+///    正文；
+/// 2. **Markdown 安全处理**：复用 [`render_excerpt`] 的纯文本提取（原始
+///    HTML 事件剔除、链接目标剔除、标签结构不输出），摘要公开可见。
+pub fn render_public_excerpt(body_markdown: &str, restricted_markdown: Option<&str>) -> String {
+    if body_markdown.trim().is_empty() {
+        return String::new();
+    }
+    // 结构保证：摘要输入永远是公开正文；隐藏正文仅作为签名参数明确语义
+    // 边界（调用方必须显式传入两部分，防误用隐藏正文生成摘要）。
+    let _ = restricted_markdown;
+    render_excerpt(body_markdown)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,5 +120,47 @@ mod tests {
         );
         assert!(!excerpt.contains('<'));
         assert!(!excerpt.contains('>'));
+    }
+
+    // ---- M04-MARKDOWN-06：公开摘要可见性语义 ----
+
+    #[test]
+    fn public_excerpt_comes_only_from_public_body() {
+        let excerpt = render_public_excerpt("公开正文开头", Some("隐藏正文很长很长"));
+        assert!(
+            excerpt.contains("公开正文"),
+            "摘要应来自公开正文: {excerpt}"
+        );
+        assert!(
+            !excerpt.contains("隐藏正文"),
+            "隐藏正文不得进入摘要: {excerpt}"
+        );
+    }
+
+    #[test]
+    fn public_excerpt_never_falls_back_to_hidden_body() {
+        // 公开正文为空、隐藏正文很长 → 摘要为空，绝不从隐藏正文截断
+        let empty = render_public_excerpt("", Some(&"隐藏内容".repeat(500)));
+        assert!(empty.is_empty(), "空公开正文必须返回空摘要: {empty}");
+        let whitespace = render_public_excerpt("   \n\t ", Some("隐藏内容"));
+        assert!(
+            whitespace.is_empty(),
+            "仅空白的公开正文必须返回空摘要: {whitespace}"
+        );
+    }
+
+    #[test]
+    fn public_excerpt_is_safe_plain_text() {
+        let excerpt = render_public_excerpt("<script>alert(1)</script> 公开 `<b>代码</b>`", None);
+        assert!(!excerpt.contains('<'), "摘要不得含标签结构: {excerpt}");
+        assert!(!excerpt.contains("script"), "原始 HTML 不得进摘要");
+    }
+
+    #[test]
+    fn public_excerpt_truncates_with_ellipsis() {
+        let body = "词".repeat(500);
+        let excerpt = render_public_excerpt(&body, Some("隐藏"));
+        assert!(excerpt.ends_with('…'), "超长公开正文截断加省略号");
+        assert!(excerpt.chars().count() <= EXCERPT_MAX_CHARS + 1);
     }
 }
