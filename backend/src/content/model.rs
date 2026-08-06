@@ -263,6 +263,29 @@ pub struct Comment {
     pub deleted_at: Option<i64>,
 }
 
+impl Comment {
+    /// 校验 parent/quote 引用属于**同一主题**（M04-COMMENTS-02：禁止跨主题
+    /// 引用泄漏）。`parent_post_id`/`quoted_post_id` 由调用方从被引用评论的
+    /// 实际行读取（不存在 → 调用方在存在性检查层拒绝）。
+    pub fn validate_quote_scope(
+        &self,
+        parent_post_id: Option<&str>,
+        quoted_post_id: Option<&str>,
+    ) -> Result<(), &'static str> {
+        if let Some(pid) = parent_post_id {
+            if pid != self.post_id {
+                return Err("parent comment must belong to the same post");
+            }
+        }
+        if let Some(qid) = quoted_post_id {
+            if qid != self.post_id {
+                return Err("quoted comment must belong to the same post");
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
