@@ -1023,13 +1023,15 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::create_post",
       "tests": [
-
+        "backend/tests/posts_publish.rs",
+        "backend/tests/drafts_routes.rs",
+        "backend/tests/posts_tx.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-06/10: 即时/定时发布 createPost——validate_post_create→幂等门(scope post.create)→publish_new_post(publish_preflight→事务写 posts/post_contents/post_revisions→板块计数→搜索索引)；scheduled_at 未来→draft 态由 content.publish Job 到期再预检发布；重复请求同 key 重放返回原帖；集成测试 posts_publish.rs/posts_tx.rs"
     },
     {
       "operation_id": "getPost",
@@ -1074,13 +1076,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::list_post_revisions",
       "tests": [
-
+        "backend/tests/posts_revisions.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-11: 修订列表/详情——post.read_revision 权限门；作者本人或 post.moderate 可见修订正文，普通成员仅元数据；管理查看写审计 post.revision.read；集成测试 backend/tests/posts_revisions.rs"
     },
     {
       "operation_id": "getPostRevision",
@@ -1091,13 +1093,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::get_post_revision",
       "tests": [
-
+        "backend/tests/posts_revisions.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-11: 修订列表/详情——post.read_revision 权限门；作者本人或 post.moderate 可见修订正文，普通成员仅元数据；管理查看写审计 post.revision.read；集成测试 backend/tests/posts_revisions.rs"
     },
     {
       "operation_id": "post_admin_moderation_sanctions",

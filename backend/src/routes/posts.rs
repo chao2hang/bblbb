@@ -37,6 +37,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/posts/{id}/comments",
             get(list_comments).post(create_comment),
         )
+        .route("/api/v1/posts/{id}/revisions", get(list_post_revisions))
+        .route(
+            "/api/v1/posts/{id}/revisions/{revision_id}",
+            get(get_post_revision),
+        )
         .route("/api/v1/posts/{id}/reactions", post(toggle_reaction))
 }
 
@@ -532,6 +537,176 @@ struct PostDetailProjection {
     author_name: Option<String>,
     body_html: Option<String>,
     excerpt: Option<String>,
+}
+
+/// 读取帖子作者与状态（revisions 可见性判定用）。
+async fn load_post_visibility(
+    pool: &DatabasePool,
+    id: &str,
+    request_id: &'static str,
+) -> Result<Option<(String, String)>, AppError> {
+    // (author_id, status)
+    let row: Option<(String, String)> = match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT author_id, status FROM posts WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_as(
+            "SELECT author_id, status FROM posts WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    Ok(row)
+}
+
+/// 判定请求者是否可查看修订正文（作者本人 或 post.moderate）。
+async fn can_view_revision_body(
+    pool: &DatabasePool,
+    user_id: &str,
+    post_author_id: &str,
+    request_id: &'static str,
+) -> Result<bool, AppError> {
+    if user_id == post_author_id {
+        return Ok(true);
+    }
+    let decision = authorize_action(pool, user_id, "post.moderate", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    Ok(decision.is_allowed())
+}
+
+/// GET /api/v1/posts/{id}/revisions — 修订列表（元数据；正文仅作者/管理可见）。
+async fn list_post_revisions(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Response, AppError> {
+    let request_id = "list_post_revisions";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let decision = authorize_action(
+        pool,
+        &user.id,
+        "post.read_revision",
+        None,
+        AUTHZ_POLICY_VERSION,
+    )
+    .await
+    .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "post.read_revision permission required",
+            request_id,
+        ));
+    }
+    let Some((post_author_id, status)) = load_post_visibility(pool, &id, request_id).await? else {
+        return Err(AppError::not_found("post not found", request_id));
+    };
+    if !matches!(status.as_str(), "published" | "hidden") {
+        return Err(AppError::not_found("post not found", request_id));
+    }
+    let can_body = can_view_revision_body(pool, &user.id, &post_author_id, request_id).await?;
+
+    let revisions = crate::content::repository::list_post_revisions(pool, &id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let items: Vec<Value> = revisions
+        .iter()
+        .map(|r| {
+            let mut v = json!({
+                "id": r.id,
+                "resource_id": r.post_id,
+                "version": r.version,
+                "editor": { "id": r.editor_id },
+                "reason": r.change_reason,
+                "created_at": r.created_at,
+            });
+            if can_body {
+                v["body_html"] = Value::String(r.body_html.clone());
+            }
+            v
+        })
+        .collect();
+    let body = json!({ "items": items });
+    Ok(read_response(body, request_id))
+}
+
+/// GET /api/v1/posts/{id}/revisions/{revision_id} — 修订详情（管理查看写审计）。
+async fn get_post_revision(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path((id, revision_id)): Path<(String, String)>,
+) -> Result<Response, AppError> {
+    let request_id = "get_post_revision";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let decision = authorize_action(
+        pool,
+        &user.id,
+        "post.read_revision",
+        None,
+        AUTHZ_POLICY_VERSION,
+    )
+    .await
+    .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "post.read_revision permission required",
+            request_id,
+        ));
+    }
+    let Some((post_author_id, status)) = load_post_visibility(pool, &id, request_id).await? else {
+        return Err(AppError::not_found("post not found", request_id));
+    };
+    if !matches!(status.as_str(), "published" | "hidden") {
+        return Err(AppError::not_found("post not found", request_id));
+    }
+    let revision = crate::content::repository::get_post_revision(pool, &revision_id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .filter(|r| r.post_id == id)
+        .ok_or_else(|| AppError::not_found("revision not found", request_id))?;
+
+    let is_author = user.id == post_author_id;
+    let is_moderator =
+        !is_author && can_view_revision_body(pool, &user.id, &post_author_id, request_id).await?;
+    // 管理查看写审计（M04-POSTS-11）
+    if is_moderator {
+        AuditEntry::user_action(&user.id, "post.revision.read")
+            .with_target("post_revision", &revision.id)
+            .with_effective_role("moderator")
+            .record(pool)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    }
+
+    let can_body = is_author || is_moderator;
+    let mut v = json!({
+        "id": revision.id,
+        "resource_id": revision.post_id,
+        "version": revision.version,
+        "editor": { "id": revision.editor_id },
+        "reason": revision.change_reason,
+        "created_at": revision.created_at,
+    });
+    if can_body {
+        v["body_html"] = Value::String(revision.body_html);
+    }
+    Ok(read_response(v, request_id))
 }
 
 /// PATCH /api/v1/posts/{id} — 编辑帖子（不可变 revision；管理员代改需 reason+recent-auth+审计，M04-POSTS-08）

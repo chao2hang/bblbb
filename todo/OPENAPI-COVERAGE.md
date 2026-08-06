@@ -7,7 +7,7 @@
 
 - 契约操作：**184**
 - 唯一 operationId：**184**
-- 实现状态：`baseline_only` 3；`implemented` 35；`in_progress` 7；`not_started` 139
+- 实现状态：`baseline_only` 3；`implemented` 38；`in_progress` 7；`not_started` 136
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -79,11 +79,11 @@
 | `previewDraft` | `POST` | `/api/v1/drafts/{id}/preview` | Drafts | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `listBoardPosts` | `GET` | `/api/v1/boards/{slug}/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `not_started` | `unassigned` |
 | `listPosts` | `GET` | `/api/v1/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `not_started` | `unassigned` |
-| `createPost` | `POST` | `/api/v1/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `not_started` | `unassigned` |
+| `createPost` | `POST` | `/api/v1/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `getPost` | `GET` | `/api/v1/posts/{postId}` | Posts | `M4` / `M04-POSTS` | `P1` | `not_started` | `unassigned` |
 | `updatePost` | `PATCH` | `/api/v1/posts/{postId}` | Posts | `M4` / `M04-POSTS` | `P1` | `not_started` | `unassigned` |
-| `listPostRevisions` | `GET` | `/api/v1/posts/{id}/revisions` | Revisions | `M4` / `M04-POSTS` | `P1` | `not_started` | `unassigned` |
-| `getPostRevision` | `GET` | `/api/v1/posts/{id}/revisions/{revisionId}` | Revisions | `M4` / `M04-POSTS` | `P1` | `not_started` | `unassigned` |
+| `listPostRevisions` | `GET` | `/api/v1/posts/{id}/revisions` | Revisions | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
+| `getPostRevision` | `GET` | `/api/v1/posts/{id}/revisions/{revisionId}` | Revisions | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `post_admin_moderation_sanctions` | `POST` | `/api/v1/admin/moderation/sanctions` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
 | `listModerationAppeals` | `GET` | `/api/v1/admin/moderation/appeals` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `getModerationAppeal` | `GET` | `/api/v1/admin/moderation/appeals/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
