@@ -632,3 +632,159 @@ async fn create_draft_idempotency_conflict_on_different_body() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+// ──────────────── M04-POSTS-04：预览 ────────────────
+
+#[tokio::test]
+async fn preview_returns_sanitized_html_for_own_draft() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (session, csrf) = authed_session(&app, &pool).await;
+
+    let (_, created, _) =
+        authed_post(&app, "/api/v1/drafts", &session, &csrf, valid_draft_body()).await;
+    let draft_id = created["id"].as_str().unwrap().to_string();
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/drafts/{draft_id}/preview"))
+                .header("content-type", "application/json")
+                .header("x-csrf-token", &csrf)
+                .header("cookie", &session)
+                .body(Body::from(
+                    json!({ "markdown": "**加粗** <script>alert(1)</script> 正文" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "预览必须 200");
+    assert_eq!(
+        resp.headers()
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok()),
+        Some("private, no-store"),
+        "预览响应必须 private, no-store"
+    );
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        body["html"]
+            .as_str()
+            .unwrap()
+            .contains("<strong>加粗</strong>"),
+        "预览 HTML 必须经 Markdown 渲染: {body}"
+    );
+    assert!(
+        !body["html"].as_str().unwrap().contains("script"),
+        "预览 HTML 必须清洗原始 HTML: {body}"
+    );
+    assert!(
+        body["excerpt"].as_str().unwrap().contains("正文"),
+        "预览必须含公开摘要: {body}"
+    );
+    assert!(
+        !body["excerpt"].as_str().unwrap().contains("script"),
+        "摘要不含原始 HTML"
+    );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn preview_does_not_persist_any_state() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (session, csrf) = authed_session(&app, &pool).await;
+
+    let (_, created, _) =
+        authed_post(&app, "/api/v1/drafts", &session, &csrf, valid_draft_body()).await;
+    let draft_id = created["id"].as_str().unwrap().to_string();
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/drafts/{draft_id}/preview"))
+                .header("content-type", "application/json")
+                .header("x-csrf-token", &csrf)
+                .header("cookie", &session)
+                .body(Body::from(
+                    json!({ "markdown": "# 预览不落库" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // 草稿行未被预览改写
+    let (_, draft) = authed_get(&app, &format!("/api/v1/drafts/{draft_id}"), &session).await;
+    assert_eq!(draft["markdown"], "草稿正文内容", "预览不得改写草稿正文");
+    assert_eq!(draft["version"], 1, "预览不得递增版本");
+
+    // 无公开索引/缓存写入：post_contents 无行、jobs 无入队、幂等记录无新增
+    let pc: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM post_contents")
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(pc, 0, "预览不得写 post_contents（公开索引）");
+    let jobs: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM jobs")
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(jobs, 0, "预览不得入队任何 Job");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn preview_requires_own_draft() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (alice_session, alice_csrf) = authed_session(&app, &pool).await;
+    let bob = insert_user(&pool, "bob", true).await;
+    let bob_session = common::direct_session_cookie(&pool, &bob).await;
+    let bob_csrf = session_csrf(&app, &bob_session).await;
+
+    let (_, created, _) = authed_post(
+        &app,
+        "/api/v1/drafts",
+        &alice_session,
+        &alice_csrf,
+        valid_draft_body(),
+    )
+    .await;
+    let draft_id = created["id"].as_str().unwrap().to_string();
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/drafts/{draft_id}/preview"))
+                .header("content-type", "application/json")
+                .header("x-csrf-token", &bob_csrf)
+                .header("cookie", &bob_session)
+                .body(Body::from(json!({ "markdown": "x" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND, "预览他人草稿必须 404");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

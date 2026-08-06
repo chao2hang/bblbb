@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 183,
+  "expected_operations": 184,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -962,6 +962,23 @@
         "backend/tests/drafts_routes.rs"
       ],
       "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
+    },
+    {
+      "operation_id": "previewDraft",
+      "method": "POST",
+      "path": "/api/v1/drafts/{id}/preview",
+      "primary_tag": "Drafts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/drafts.rs::preview_draft",
+      "tests": [
+        "backend/tests/drafts_routes.rs"
+      ],
+      "evidence": "M04-POSTS-04: 草稿预览——POST /api/v1/drafts/{id}/preview 只返回当前用户临时安全 HTML（render_content 全管线：CommonMark→allowlist 清洗→公开摘要），不写公开索引/缓存（无任何 DB 写、Cache-Control private,no-store）；集成测试 backend/tests/drafts_routes.rs"
     },
     {
       "operation_id": "listBoardPosts",

@@ -429,7 +429,7 @@ begin
     end
   end
 
-  errors << "Expected frozen OpenAPI baseline of 183 operations, got #{contract_operations.length}" unless contract_operations.length == 183
+  errors << "Expected frozen OpenAPI baseline of 184 operations, got #{contract_operations.length}" unless contract_operations.length == 184
 
   coverage = JSON.parse(File.read(COVERAGE_PATH))
   errors << "Coverage schema_version must be 1" unless coverage["schema_version"] == 1
@@ -506,7 +506,7 @@ if errors.empty?
   puts "Dependencies: valid and acyclic across #{packages.length} work packages"
   puts "Dashboard: M0-M17 counts, states, links and anchors are current"
   puts "Local roadmap links: #{roadmap_link_count} checked"
-  puts "OpenAPI coverage: 183/183 operations assigned"
+  puts "OpenAPI coverage: 184/184 operations assigned"
 else
   warn "Roadmap validation failed with #{errors.length} error(s):"
   errors.each { |error| warn "- #{error}" }

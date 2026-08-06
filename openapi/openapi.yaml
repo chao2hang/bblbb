@@ -4412,6 +4412,49 @@ paths:
           "$ref": "#/components/responses/ValidationError"
         '429':
           "$ref": "#/components/responses/RateLimited"
+  "/api/v1/drafts/{id}/preview":
+    post:
+      tags:
+      - Drafts
+      operationId: previewDraft
+      summary: Preview draft markdown as temporary safe HTML (current user only)
+      security: *2
+      x-permission: post.read_own
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Id"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/DraftPreviewRequest"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Rendered preview for the current user; nothing is persisted
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DraftPreview"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
   "/api/v1/posts/{id}/revisions":
     get:
       tags:
@@ -7376,6 +7419,35 @@ components:
           - string
           - 'null'
           format: date-time
+    DraftPreviewRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - markdown
+      properties:
+        markdown:
+          type: string
+          maxLength: 1000000
+        restricted_markdown:
+          type: string
+          maxLength: 1000000
+    DraftPreview:
+      type: object
+      additionalProperties: false
+      required:
+      - html
+      - excerpt
+      properties:
+        html:
+          type: string
+          description: Backend-rendered, sanitized public HTML (allowlist)
+        restricted_html:
+          type:
+          - string
+          - 'null'
+        excerpt:
+          type: string
+          description: Public plain-text excerpt derived only from public body
     Draft:
       allOf:
       - "$ref": "#/components/schemas/ResourceMeta"

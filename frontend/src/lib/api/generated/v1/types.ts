@@ -272,6 +272,15 @@ export interface DraftPatch {
   access_policy?: "public" | "logged_in" | "after_reply" | "level" | "paid";
   scheduled_at?: string | null;
 }
+export interface DraftPreviewRequest {
+  markdown: string;
+  restricted_markdown?: string;
+}
+export interface DraftPreview {
+  html: string;
+  restricted_html?: string | null;
+  excerpt: string;
+}
 export type Draft = ResourceMeta & {
   type: "article" | "discussion";
   title: string;

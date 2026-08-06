@@ -20,7 +20,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -30,6 +30,7 @@ use crate::app::AppState;
 use crate::auth::session::AuthSession;
 use crate::authz::decision::AUTHZ_POLICY_VERSION;
 use crate::authz::enforce::authorize_action;
+use crate::content::markdown::rerender::render_content as render_for_preview;
 use crate::content::model::Draft;
 use crate::content::posts::command::{
     validate_draft_create, validate_draft_patch, CreateDraftInput, DraftPatchInput, PostCreateError,
@@ -59,6 +60,7 @@ pub fn router() -> Router<AppState> {
                 .patch(update_draft)
                 .delete(delete_draft),
         )
+        .route("/api/v1/drafts/{id}/preview", post(preview_draft))
 }
 
 #[derive(Deserialize)]
@@ -463,6 +465,49 @@ async fn delete_draft(
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
     let resp = (StatusCode::NO_CONTENT, Json(json!({}))).into_response();
+    Ok(private_no_store(resp))
+}
+
+#[derive(Deserialize)]
+struct PreviewDraftRequest {
+    markdown: String,
+    #[serde(default)]
+    restricted_markdown: Option<String>,
+}
+
+/// POST /api/v1/drafts/{id}/preview — 当前用户临时安全 HTML 预览。
+///
+/// - 只渲染**当前用户自己的草稿**（他人/不存在 → 404）；
+/// - 经 [`render_for_preview`] 全管线（CommonMark → allowlist 清洗 → 公开
+///   摘要）产出临时 HTML，**不写任何数据库行**（不落 post_contents、不入
+///   搜索索引、不写缓存）；响应 `Cache-Control: private, no-store`。
+async fn preview_draft(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    Json(req): Json<PreviewDraftRequest>,
+) -> Result<Response, AppError> {
+    let request_id = "preview_draft";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    check_permission(pool, &user.id, "post.read_own", request_id).await?;
+
+    // 归属校验：预览只能作用于自己的草稿（不泄露他人草稿存在性）
+    let _draft = get_draft(pool, &id, &user.id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .ok_or_else(|| AppError::not_found("draft not found", request_id))?;
+
+    let rendered = render_for_preview(&req.markdown, req.restricted_markdown.as_deref());
+    let body = Json(json!({
+        "html": rendered.body_html,
+        "restricted_html": rendered.restricted_html,
+        "excerpt": rendered.excerpt,
+    }));
+    let resp = (StatusCode::OK, body).into_response();
     Ok(private_no_store(resp))
 }
 
