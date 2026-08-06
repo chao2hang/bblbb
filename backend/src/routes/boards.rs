@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::header,
+    http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::get,
     Router,
@@ -277,30 +277,37 @@ async fn parent_board_visible(
     Ok(access.visible)
 }
 
-/// GET /api/v1/boards/{slug}/posts — 列出板块下的帖子
+/// GET /api/v1/boards/{slug}/posts — 板块帖子列表（cursor/ETag/Cache-Control，M04-POSTS-07）
 async fn list_board_posts(
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Query(query): Query<ListQuery>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "list_board_posts";
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let limit = query.limit.clamp(1, 50);
+    let limit = query.limit.clamp(1, 100);
+    // keyset 游标：上一页最后一条 created_at（毫秒）
+    let after = match query.after.as_deref() {
+        None | Some("") => None,
+        Some(raw) => Some(raw.parse::<i64>().map_err(|_| {
+            AppError::bad_request("after must be an integer cursor", request_id, None)
+        })?),
+    };
 
-    // 先查找板块
+    // 板块存在 + 未删除
     let board_id: Option<String> = match pool {
         Either::Left(p) => {
-            sqlx::query_scalar("SELECT id FROM boards WHERE slug = ? AND is_active = 1")
+            sqlx::query_scalar("SELECT id FROM boards WHERE slug = ? AND deleted_at IS NULL")
                 .bind(&slug)
                 .fetch_optional(p)
                 .await
         }
         Either::Right(p) => {
-            sqlx::query_scalar("SELECT id FROM boards WHERE slug = ? AND is_active = 1")
+            sqlx::query_scalar("SELECT id FROM boards WHERE slug = ? AND deleted_at IS NULL")
                 .bind(&slug)
                 .fetch_optional(p)
                 .await
@@ -310,6 +317,7 @@ async fn list_board_posts(
 
     let board_id = board_id.ok_or_else(|| AppError::not_found("board not found", request_id))?;
 
+    let fetch_limit = limit + 1;
     let posts = match pool {
         Either::Left(p) => {
             sqlx::query_as::<_, PostListRow>(
@@ -317,11 +325,14 @@ async fn list_board_posts(
                         p.reply_count, p.view_count, p.pinned, p.created_at, p.last_reply_at
                  FROM posts p
                  LEFT JOIN users u ON u.id = p.author_id
-                 WHERE p.board_id = ? AND p.status = 'published'
-                 ORDER BY p.pinned DESC, p.last_reply_at DESC, p.created_at DESC LIMIT ?",
+                 WHERE p.board_id = ? AND p.status = 'published' AND p.deleted_at IS NULL
+                   AND (? IS NULL OR p.created_at < ?)
+                 ORDER BY p.created_at DESC, p.id DESC LIMIT ?",
             )
             .bind(&board_id)
-            .bind(limit)
+            .bind(after)
+            .bind(after)
+            .bind(fetch_limit)
             .fetch_all(p)
             .await
         }
@@ -331,25 +342,28 @@ async fn list_board_posts(
                         p.reply_count, p.view_count, p.pinned, p.created_at, p.last_reply_at
                  FROM posts p
                  LEFT JOIN users u ON u.id = p.author_id
-                 WHERE p.board_id = ? AND p.status = 'published'
-                 ORDER BY p.pinned DESC, p.last_reply_at DESC, p.created_at DESC LIMIT ?",
+                 WHERE p.board_id = ? AND p.status = 'published' AND p.deleted_at IS NULL
+                   AND (? IS NULL OR p.created_at < ?)
+                 ORDER BY p.created_at DESC, p.id DESC LIMIT ?",
             )
             .bind(&board_id)
-            .bind(limit)
+            .bind(after)
+            .bind(after)
+            .bind(fetch_limit)
             .fetch_all(p)
             .await
         }
     }
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    let items: Vec<Value> = posts
-        .iter()
+    let has_more = posts.len() as i64 > limit;
+    let page = posts.into_iter().take(limit as usize);
+    let items: Vec<Value> = page
         .map(|p| {
             json!({
                 "id": p.id,
                 "title": p.title,
-                "author_id": p.author_id,
-                "author_name": p.author_name,
+                "author": { "id": p.author_id, "username": p.author_name },
                 "reply_count": p.reply_count,
                 "view_count": p.view_count,
                 "pinned": p.pinned != 0,
@@ -358,10 +372,30 @@ async fn list_board_posts(
             })
         })
         .collect();
+    let next_cursor = if has_more {
+        items
+            .last()
+            .and_then(|v| v["created_at"].as_i64())
+            .map(|ts| ts.to_string())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    let body = json!({
+        "items": items,
+        "page": {
+            "next_cursor": if next_cursor.is_empty() { Value::Null } else { Value::String(next_cursor) },
+            "has_more": has_more,
+        },
+    });
 
-    Ok(Json(
-        json!({ "items": items, "next_cursor": null, "has_more": false }),
-    ))
+    // ETag + Cache-Control（M04-POSTS-07）
+    let mut resp = (StatusCode::OK, Json(body)).into_response();
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=60"),
+    );
+    Ok(resp)
 }
 
 /// GET /api/v1/tags — 列出启用标签与标签组（M03-BOARDS-06）

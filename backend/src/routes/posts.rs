@@ -1,12 +1,13 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::{header, HeaderValue, StatusCode},
+    response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sha2::Digest;
 use sqlx::Either;
 
 use crate::{
@@ -16,6 +17,7 @@ use crate::{
     authz::enforce::authorize_action,
     content::posts::command::{validate_post_create, CreatePostInput},
     content::posts::service::{publish_new_post, PublishError},
+    db::DatabasePool,
     domain::{
         comments::CommentContent,
         posts::{PostContent, PostTitle},
@@ -81,11 +83,13 @@ fn default_limit() -> i64 {
 struct ListPostsQuery {
     #[serde(default)]
     board_id: Option<String>,
+    /// 作者过滤（作者列表投影，M04-POSTS-07）。
+    #[serde(default)]
+    author_id: Option<String>,
     #[serde(default)]
     sort: Option<String>,
-    /// 分页游标（接口契约保留字段，游标分页待实现）
+    /// keyset 游标：上一页最后一条 created_at（毫秒）。
     #[serde(default)]
-    #[allow(dead_code)]
     after: Option<String>,
     #[serde(default = "default_limit")]
     limit: i64,
@@ -187,163 +191,278 @@ fn map_publish_error(err: PublishError) -> AppError {
     }
 }
 
-/// GET /api/v1/posts — 列出帖子（公开，可按板块过滤/排序）
+/// GET /api/v1/posts — 列出帖子（cursor/ETag/Cache-Control，M04-POSTS-07）
+///
+/// keyset 分页：`after` = 上一页最后一条 `created_at`（毫秒，`created_at DESC,
+/// id DESC` 排序）；返回 `PostPage{items, page{next_cursor, has_more}}`。
+/// 可选项：`board_id`、`author_id`（作者列表）、`sort`（latest/popular）。
 async fn list_posts(
     State(state): State<AppState>,
     Query(query): Query<ListPostsQuery>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "list_posts";
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let limit = query.limit.clamp(1, 50);
-    let sort_order = match query.sort.as_deref() {
-        Some("popular") => "p.view_count DESC, p.reply_count DESC",
-        _ => "p.pinned DESC, p.last_reply_at DESC, p.created_at DESC",
+    let limit = query.limit.clamp(1, 100);
+    let after = match query.after.as_deref() {
+        None | Some("") => None,
+        Some(raw) => Some(raw.parse::<i64>().map_err(|_| {
+            AppError::bad_request("after must be an integer cursor", request_id, None)
+        })?),
     };
+    let author_id = query.author_id.as_deref().filter(|s| !s.is_empty());
 
-    let sql = format!(
-        "SELECT p.id, p.board_id, p.author_id, p.title, p.status, p.visibility,
-                p.reply_count, p.view_count, p.pinned, p.created_at, p.last_reply_at,
-                u.username_normalized as author_name
-         FROM posts p
-         LEFT JOIN users u ON u.id = p.author_id
-         WHERE p.status = 'published' AND (? IS NULL OR p.board_id = ?)
-         ORDER BY {} LIMIT ?",
-        sort_order
-    );
+    let (rows, has_more) = list_posts_page(
+        pool,
+        query.board_id.as_deref(),
+        author_id,
+        query.sort.as_deref(),
+        after,
+        limit,
+        request_id,
+    )
+    .await?;
 
-    let posts = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, PostListRowFull>(&sql)
-                .bind(&query.board_id)
-                .bind(&query.board_id)
-                .bind(limit)
-                .fetch_all(p)
-                .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, PostListRowFull>(&sql)
-                .bind(&query.board_id)
-                .bind(&query.board_id)
-                .bind(limit)
-                .fetch_all(p)
-                .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    let items: Vec<Value> = posts
-        .iter()
-        .map(|p| {
-            json!({
-                "id": p.id,
-                "board_id": p.board_id,
-                "author": {
-                    "id": p.author_id,
-                    "username": p.author_name,
-                },
-                "title": p.title,
-                "status": p.status,
-                "visibility": p.visibility,
-                "reply_count": p.reply_count,
-                "view_count": p.view_count,
-                "pinned": p.pinned != 0,
-                "created_at": p.created_at,
-                "last_reply_at": p.last_reply_at,
-            })
-        })
-        .collect();
-
-    Ok(Json(json!({
+    let items: Vec<Value> = rows.iter().map(post_summary_json).collect();
+    let next_cursor = if has_more {
+        rows.last()
+            .map(|r| r.created_at.to_string())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    let body = json!({
         "items": items,
-        "page": { "next_cursor": null, "has_more": false },
-    })))
+        "page": { "next_cursor": if next_cursor.is_empty() { Value::Null } else { Value::String(next_cursor) }, "has_more": has_more },
+    });
+    Ok(read_response(body, request_id))
 }
 
-/// GET /api/v1/posts/{id} — 获取帖子详情
+/// 帖子列表行（不含正文；fetch limit+1 判断 has_more）。
+#[derive(sqlx::FromRow)]
+struct PostListRow {
+    id: String,
+    board_id: String,
+    author_id: String,
+    post_type: String,
+    title: String,
+    status: String,
+    reply_count: i64,
+    view_count: i64,
+    created_at: i64,
+    updated_at: i64,
+    last_reply_at: Option<i64>,
+    pinned_at: Option<i64>,
+    author_name: Option<String>,
+}
+
+fn post_summary_json(p: &PostListRow) -> Value {
+    json!({
+        "id": p.id,
+        "board_id": p.board_id,
+        "author": { "id": p.author_id, "username": p.author_name },
+        "post_type": p.post_type,
+        "title": p.title,
+        "status": p.status,
+        "reply_count": p.reply_count,
+        "view_count": p.view_count,
+        "pinned_at": p.pinned_at,
+        "created_at": p.created_at,
+        "updated_at": p.updated_at,
+        "last_reply_at": p.last_reply_at,
+    })
+}
+
+/// keyset 分页查询（published 帖子；cursor=created_at）。
+async fn list_posts_page(
+    pool: &DatabasePool,
+    board_id: Option<&str>,
+    author_id: Option<&str>,
+    sort: Option<&str>,
+    after: Option<i64>,
+    limit: i64,
+    request_id: &'static str,
+) -> Result<(Vec<PostListRow>, bool), AppError> {
+    let order = match sort {
+        Some("popular") => "p.view_count DESC, p.reply_count DESC, p.id DESC",
+        _ => "p.created_at DESC, p.id DESC",
+    };
+    let sql = format!(
+        "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
+                p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
+                p.pinned_at, u.username_normalized as author_name
+         FROM posts p
+         LEFT JOIN users u ON u.id = p.author_id
+         WHERE p.status = 'published' AND p.deleted_at IS NULL
+           AND (? IS NULL OR p.board_id = ?)
+           AND (? IS NULL OR p.author_id = ?)
+           AND (? IS NULL OR p.created_at < ?)
+         ORDER BY {} LIMIT ?",
+        order
+    );
+    let fetch_limit = limit + 1;
+    let rows: Vec<PostListRow> = match pool {
+        Either::Left(p) => sqlx::query_as::<_, PostListRow>(&sql)
+            .bind(board_id)
+            .bind(board_id)
+            .bind(author_id)
+            .bind(author_id)
+            .bind(after)
+            .bind(after)
+            .bind(fetch_limit)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_as::<_, PostListRow>(&sql)
+            .bind(board_id)
+            .bind(board_id)
+            .bind(author_id)
+            .bind(author_id)
+            .bind(after)
+            .bind(after)
+            .bind(fetch_limit)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    let has_more = rows.len() as i64 > limit;
+    let rows = rows.into_iter().take(limit as usize).collect();
+    Ok((rows, has_more))
+}
+
+/// 只读响应：Cache-Control + ETag（M04-POSTS-07）。
+fn read_response(body: Value, _request_id: &'static str) -> Response {
+    let etag = format!("\"read-{}\"", sha2_short(&body.to_string()));
+    let mut resp = (StatusCode::OK, Json(body)).into_response();
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=60"),
+    );
+    if let Ok(v) = HeaderValue::from_str(&etag) {
+        resp.headers_mut().insert(header::ETAG, v);
+    }
+    resp
+}
+
+/// 轻量响应摘要（ETag 用；非安全相关）。
+fn sha2_short(input: &str) -> String {
+    let mut hasher = <sha2::Sha256 as Digest>::new();
+    hasher.update(input.as_bytes());
+    let out = hasher.finalize();
+    out[..6].iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// GET /api/v1/posts/{id} — 详情投影（正文 + access_summary + ETag/Cache-Control）
 async fn get_post(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_post";
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let row = match pool {
+    let row: Option<PostDetailProjection> = match pool {
+        Either::Left(p) => sqlx::query_as::<_, PostDetailProjection>(
+            "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
+                    p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
+                    p.pinned_at, p.scheduled_at, p.published_at, p.slug,
+                    u.username_normalized as author_name,
+                    c.body_html, c.excerpt, c.renderer_version
+             FROM posts p
+             LEFT JOIN users u ON u.id = p.author_id
+             LEFT JOIN post_contents c ON c.post_id = p.id
+             WHERE p.id = ? AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL",
+        )
+        .bind(&id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_as::<_, PostDetailProjection>(
+            "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
+                    p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
+                    p.pinned_at, p.scheduled_at, p.published_at, p.slug,
+                    u.username_normalized as author_name,
+                    c.body_html, c.excerpt, c.renderer_version
+             FROM posts p
+             LEFT JOIN users u ON u.id = p.author_id
+             LEFT JOIN post_contents c ON c.post_id = p.id
+             WHERE p.id = ? AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL",
+        )
+        .bind(&id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+
+    let Some(r) = row else {
+        return Err(AppError::not_found("post not found", request_id));
+    };
+
+    // 增加浏览量（非关键路径，失败忽略）
+    match pool {
         Either::Left(p) => {
-            sqlx::query_as::<_, PostDetailRow>(
-                "SELECT p.id, p.board_id, p.author_id, p.title, p.content, p.content_format, p.status, p.visibility,
-                        p.reply_count, p.view_count, p.pinned, p.created_at, p.updated_at, p.last_reply_at,
-                        u.username_normalized as author_name
-                 FROM posts p
-                 LEFT JOIN users u ON u.id = p.author_id
-                 WHERE p.id = ? AND p.status != 'deleted'",
-            )
-            .bind(&id)
-            .fetch_optional(p)
-            .await
+            let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
+                .bind(&id)
+                .execute(p)
+                .await;
         }
         Either::Right(p) => {
-            sqlx::query_as::<_, PostDetailRow>(
-                "SELECT p.id, p.board_id, p.author_id, p.title, p.content, p.content_format, p.status, p.visibility,
-                        p.reply_count, p.view_count, p.pinned, p.created_at, p.updated_at, p.last_reply_at,
-                        u.username_normalized as author_name
-                 FROM posts p
-                 LEFT JOIN users u ON u.id = p.author_id
-                 WHERE p.id = ? AND p.status != 'deleted'",
-            )
-            .bind(&id)
-            .fetch_optional(p)
-            .await
+            let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
+                .bind(&id)
+                .execute(p)
+                .await;
         }
     }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    match row {
-        Some(r) => {
-            // 增加浏览量
-            match pool {
-                Either::Left(p) => {
-                    let _ =
-                        sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
-                            .bind(&id)
-                            .execute(p)
-                            .await;
-                }
-                Either::Right(p) => {
-                    let _ =
-                        sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
-                            .bind(&id)
-                            .execute(p)
-                            .await;
-                }
-            }
+    let body = json!({
+        "id": r.id,
+        "board_id": r.board_id,
+        "author": { "id": r.author_id, "username": r.author_name },
+        "post_type": r.post_type,
+        "title": r.title,
+        "status": r.status,
+        "slug": r.slug,
+        "body_html": r.body_html,
+        "excerpt": r.excerpt,
+        "access_summary": { "policy": "public", "unlocked": true },
+        "capabilities": [],
+        "reply_count": r.reply_count,
+        "view_count": r.view_count + 1,
+        "pinned_at": r.pinned_at,
+        "scheduled_at": r.scheduled_at,
+        "published_at": r.published_at,
+        "created_at": r.created_at,
+        "updated_at": r.updated_at,
+        "last_reply_at": r.last_reply_at,
+    });
+    Ok(read_response(body, request_id))
+}
 
-            Ok(Json(json!({
-                "id": r.id,
-                "board_id": r.board_id,
-                "author_id": r.author_id,
-                "author_name": r.author_name,
-                "title": r.title,
-                "content": r.content,
-                "content_format": r.content_format,
-                "status": r.status,
-                "visibility": r.visibility,
-                "reply_count": r.reply_count,
-                "view_count": r.view_count + 1,
-                "pinned": r.pinned != 0,
-                "created_at": r.created_at,
-                "updated_at": r.updated_at,
-                "last_reply_at": r.last_reply_at,
-            })))
-        }
-        None => Err(AppError::not_found("post not found", request_id)),
-    }
+#[derive(sqlx::FromRow)]
+struct PostDetailProjection {
+    id: String,
+    board_id: String,
+    author_id: String,
+    post_type: String,
+    title: String,
+    status: String,
+    reply_count: i64,
+    view_count: i64,
+    created_at: i64,
+    updated_at: i64,
+    last_reply_at: Option<i64>,
+    pinned_at: Option<i64>,
+    scheduled_at: Option<i64>,
+    published_at: Option<i64>,
+    slug: Option<String>,
+    author_name: Option<String>,
+    body_html: Option<String>,
+    excerpt: Option<String>,
 }
 
 /// PATCH /api/v1/posts/{id} — 更新帖子
@@ -723,41 +842,6 @@ async fn toggle_reaction(
         "active": has_reaction,
         "count": count,
     })))
-}
-
-#[derive(sqlx::FromRow)]
-struct PostDetailRow {
-    id: String,
-    board_id: String,
-    author_id: String,
-    title: String,
-    content: String,
-    content_format: String,
-    status: String,
-    visibility: String,
-    reply_count: i64,
-    view_count: i64,
-    pinned: i64,
-    created_at: i64,
-    updated_at: i64,
-    last_reply_at: Option<i64>,
-    author_name: Option<String>,
-}
-
-#[derive(sqlx::FromRow)]
-struct PostListRowFull {
-    id: String,
-    board_id: String,
-    author_id: String,
-    title: String,
-    status: String,
-    visibility: String,
-    reply_count: i64,
-    view_count: i64,
-    pinned: i64,
-    created_at: i64,
-    last_reply_at: Option<i64>,
-    author_name: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]

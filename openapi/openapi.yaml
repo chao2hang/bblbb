@@ -502,6 +502,11 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: author_id
+        in: query
+        schema:
+          type: string
+          format: uuid
       - name: sort
         in: query
         schema:
