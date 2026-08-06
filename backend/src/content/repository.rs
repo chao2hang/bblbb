@@ -8,7 +8,7 @@ use sqlx::Either;
 
 use crate::db::DatabasePool;
 
-use super::model::{Post, PostStatus, PostType};
+use super::model::{Post, PostContent, PostRevision, PostStatus, PostType};
 
 /// 插入一篇帖子（含元数据列；骨架遗留列写空值/默认）。
 pub async fn insert_post(pool: &DatabasePool, post: &Post) -> Result<(), sqlx::Error> {
@@ -154,6 +154,205 @@ impl PostRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             deleted_at: self.deleted_at,
+        }
+    }
+}
+
+/// 保存/覆盖帖子当前正文（post_contents，1:1 with posts）。
+pub async fn save_post_content(
+    pool: &DatabasePool,
+    content: &PostContent,
+) -> Result<(), sqlx::Error> {
+    let sql = "INSERT INTO post_contents (
+        post_id, body_markdown, body_html, restricted_markdown, restricted_html,
+        renderer_version, excerpt, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(post_id) DO UPDATE SET
+        body_markdown = excluded.body_markdown,
+        body_html = excluded.body_html,
+        restricted_markdown = excluded.restricted_markdown,
+        restricted_html = excluded.restricted_html,
+        renderer_version = excluded.renderer_version,
+        excerpt = excluded.excerpt,
+        updated_at = excluded.updated_at";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&content.post_id)
+            .bind(&content.body_markdown)
+            .bind(&content.body_html)
+            .bind(&content.restricted_markdown)
+            .bind(&content.restricted_html)
+            .bind(&content.renderer_version)
+            .bind(&content.excerpt)
+            .bind(content.updated_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&content.post_id)
+            .bind(&content.body_markdown)
+            .bind(&content.body_html)
+            .bind(&content.restricted_markdown)
+            .bind(&content.restricted_html)
+            .bind(&content.renderer_version)
+            .bind(&content.excerpt)
+            .bind(content.updated_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 读取帖子当前正文（不存在 → `None`）。
+pub async fn load_post_content(
+    pool: &DatabasePool,
+    post_id: &str,
+) -> Result<Option<PostContent>, sqlx::Error> {
+    let sql = "SELECT post_id, body_markdown, body_html, restricted_markdown, restricted_html,
+        renderer_version, excerpt, updated_at FROM post_contents WHERE post_id = ?";
+    match pool {
+        Either::Left(p) => {
+            let row = sqlx::query_as::<_, PostContentRow>(sql)
+                .bind(post_id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(PostContentRow::into_model))
+        }
+        Either::Right(p) => {
+            let row = sqlx::query_as::<_, PostContentRow>(sql)
+                .bind(post_id)
+                .fetch_optional(p)
+                .await?;
+            Ok(row.map(PostContentRow::into_model))
+        }
+    }
+}
+
+/// 写入一条不可变修订快照（post_revisions；同 (post_id, version) 冲突）。
+pub async fn insert_post_revision(
+    pool: &DatabasePool,
+    revision: &PostRevision,
+) -> Result<(), sqlx::Error> {
+    let sql = "INSERT INTO post_revisions (
+        id, post_id, editor_id, body_markdown, body_html, restricted_markdown,
+        restricted_html, renderer_version, change_reason, version, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&revision.id)
+            .bind(&revision.post_id)
+            .bind(&revision.editor_id)
+            .bind(&revision.body_markdown)
+            .bind(&revision.body_html)
+            .bind(&revision.restricted_markdown)
+            .bind(&revision.restricted_html)
+            .bind(&revision.renderer_version)
+            .bind(&revision.change_reason)
+            .bind(revision.version)
+            .bind(revision.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&revision.id)
+            .bind(&revision.post_id)
+            .bind(&revision.editor_id)
+            .bind(&revision.body_markdown)
+            .bind(&revision.body_html)
+            .bind(&revision.restricted_markdown)
+            .bind(&revision.restricted_html)
+            .bind(&revision.renderer_version)
+            .bind(&revision.change_reason)
+            .bind(revision.version)
+            .bind(revision.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 读取某帖全部修订，按 version 升序（列表/详情用，M04-POSTS-11）。
+pub async fn list_post_revisions(
+    pool: &DatabasePool,
+    post_id: &str,
+) -> Result<Vec<PostRevision>, sqlx::Error> {
+    let sql = "SELECT id, post_id, editor_id, body_markdown, body_html,
+        restricted_markdown, restricted_html, renderer_version, change_reason,
+        version, created_at FROM post_revisions WHERE post_id = ? ORDER BY version ASC";
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query_as::<_, PostRevisionRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(PostRevisionRow::into_model).collect())
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query_as::<_, PostRevisionRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(PostRevisionRow::into_model).collect())
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct PostContentRow {
+    post_id: String,
+    body_markdown: String,
+    body_html: String,
+    restricted_markdown: Option<String>,
+    restricted_html: Option<String>,
+    renderer_version: String,
+    excerpt: String,
+    updated_at: i64,
+}
+
+impl PostContentRow {
+    fn into_model(self) -> PostContent {
+        PostContent {
+            post_id: self.post_id,
+            body_markdown: self.body_markdown,
+            body_html: self.body_html,
+            restricted_markdown: self.restricted_markdown,
+            restricted_html: self.restricted_html,
+            renderer_version: self.renderer_version,
+            excerpt: self.excerpt,
+            updated_at: self.updated_at,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct PostRevisionRow {
+    id: String,
+    post_id: String,
+    editor_id: String,
+    body_markdown: String,
+    body_html: String,
+    restricted_markdown: Option<String>,
+    restricted_html: Option<String>,
+    renderer_version: String,
+    change_reason: Option<String>,
+    version: i64,
+    created_at: i64,
+}
+
+impl PostRevisionRow {
+    fn into_model(self) -> PostRevision {
+        PostRevision {
+            id: self.id,
+            post_id: self.post_id,
+            editor_id: self.editor_id,
+            body_markdown: self.body_markdown,
+            body_html: self.body_html,
+            restricted_markdown: self.restricted_markdown,
+            restricted_html: self.restricted_html,
+            renderer_version: self.renderer_version,
+            change_reason: self.change_reason,
+            version: self.version,
+            created_at: self.created_at,
         }
     }
 }

@@ -140,6 +140,45 @@ impl Post {
     }
 }
 
+/// 帖子当前正文（post_contents，M04-SCHEMA-02；与 posts 1:1）。
+///
+/// - `body_html` 为后端生成并清洗的公开 HTML（M04-MARKDOWN-02/03）；
+/// - `renderer_version` 标识渲染/清洗策略版本，升级时由 Job 重渲染旧修订
+///   （M04-MARKDOWN-05）；
+/// - `excerpt` 为公开安全摘要（M04-MARKDOWN-06：禁止从隐藏正文截断）；
+/// - `restricted_markdown/html` 为受限部分（access policy，M04-SCHEMA-06）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostContent {
+    pub post_id: String,
+    pub body_markdown: String,
+    pub body_html: String,
+    pub restricted_markdown: Option<String>,
+    pub restricted_html: Option<String>,
+    pub renderer_version: String,
+    pub excerpt: String,
+    pub updated_at: i64,
+}
+
+/// 不可变修订快照（post_revisions，M04-SCHEMA-02；M04-POSTS-08 写入）。
+///
+/// 每次编辑产生一条新快照，`version` 对应 `posts.version`（每版恰好一条，
+/// `UNIQUE(post_id, version)`）；普通作者只能查看允许版本，审核员始终可查看
+/// （M04-POSTS-11）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostRevision {
+    pub id: String,
+    pub post_id: String,
+    pub editor_id: String,
+    pub body_markdown: String,
+    pub body_html: String,
+    pub restricted_markdown: Option<String>,
+    pub restricted_html: Option<String>,
+    pub renderer_version: String,
+    pub change_reason: Option<String>,
+    pub version: i64,
+    pub created_at: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

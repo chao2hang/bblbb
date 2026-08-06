@@ -550,10 +550,28 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 
 唯一约束：`(post_id, floor_no)`。楼层分配必须在事务内完成。
 
+### `post_contents`（M04-SCHEMA-02）
+
+帖子**当前正文**（与 `posts` 1:1，`post_id` 主键 + 级联删除）：
+
+| 字段 | 说明 |
+|---|---|
+| `post_id` | 1:1 外键（主键） |
+| `body_markdown` | 公开 Markdown 原文 |
+| `body_html` | 后端生成并清洗的公开 HTML（M04-MARKDOWN-02/03） |
+| `restricted_markdown` / `restricted_html` | 可空，受限部分 |
+| `renderer_version` | 渲染/清洗策略版本（升级触发 Job 重渲染，M04-MARKDOWN-05） |
+| `excerpt` | 公开安全摘要（禁止从隐藏正文截断，M04-MARKDOWN-06） |
+| `updated_at` | 更新时间 |
+
 ### `post_revisions` / `comment_revisions`
 
-- `id`、资源 ID、`editor_id`、Markdown 快照、受限 Markdown 快照、`change_reason`、`version`、`created_at`。
-- 普通用户能否查看历史由权限控制；审核员始终可查看。
+- `post_revisions`（M04-SCHEMA-02）：不可变修订快照——`id`、`post_id`、
+  `editor_id`、正文/受限正文 Markdown+HTML 快照、`renderer_version`、
+  `change_reason`、`version`（对应 `posts.version`，`UNIQUE(post_id, version)`
+  每版恰好一条）、`created_at`；随 post 级联删除。
+- 普通用户能否查看历史由权限控制；审核员始终可查看（M04-POSTS-11）。
+- `comment_revisions` 语义相同（M04-COMMENTS-05）。
 
 ### `content_access_policies`
 
