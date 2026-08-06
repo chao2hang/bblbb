@@ -5,6 +5,7 @@
 //! 预览、发布、列表/详情投影、修订与治理命令。
 
 pub mod command;
+pub mod govern;
 pub mod publish;
 pub mod publish_job;
 pub mod service;
