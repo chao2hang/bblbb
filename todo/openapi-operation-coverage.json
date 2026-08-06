@@ -989,13 +989,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/boards.rs::list_board_posts",
       "tests": [
-
+        "backend/tests/posts_read.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-07: 板块帖子列表同 cursor 投影 + PostPage shape + Cache-Control；板块不存在/已删除 404"
     },
     {
       "operation_id": "listPosts",
@@ -1006,13 +1006,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::list_posts",
       "tests": [
-
+        "backend/tests/posts_read.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-07: 帖子列表 keyset cursor（created_at DESC、after 游标、has_more/next_cursor）+ board_id/author_id 过滤 + Cache-Control public,max-age=60 + ETag"
     },
     {
       "operation_id": "createPost",
@@ -1042,13 +1042,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::get_post",
       "tests": [
-
+        "backend/tests/posts_read.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-07: 帖子详情投影（post_type/author/status/slug/body_html/excerpt/access_summary/capabilities）+ 浏览量自增 + ETag/Cache-Control；published/hidden 可见，deleted 404"
     },
     {
       "operation_id": "updatePost",
@@ -1059,13 +1059,14 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::update_post",
       "tests": [
-
+        "backend/tests/posts_edit.rs",
+        "backend/tests/posts_tx.rs"
       ],
-      "evidence": null
+      "evidence": "M04-POSTS-08/10: 编辑帖子 If-Match 版本冲突 409→不可变修订（version+1，UNIQUE 兜底并发）→post_contents 重渲染；管理员代改需 post.moderate+reason+step-up+审计"
     },
     {
       "operation_id": "listPostRevisions",
