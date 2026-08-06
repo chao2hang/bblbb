@@ -577,7 +577,8 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 | `version` | 乐观并发版本（M04-SCHEMA-04） |
 | `created_at`、`updated_at`、`deleted_at` | 时间（软删除行保留供占位投影/审计，M04-SCHEMA-04） |
 
-主题内楼层唯一与并发分配语义见 M04-SCHEMA-07（`UNIQUE(post_id, floor)`）；楼层分配必须在事务内完成。
+主题内楼层唯一（`UNIQUE(post_id, floor)`，M04-SCHEMA-07 0038）与楼层并发分配
+语义见 M04-COMMENTS-03；楼层分配必须在事务内完成。
 
 ### `post_contents`（M04-SCHEMA-02）
 
