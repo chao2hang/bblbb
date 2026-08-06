@@ -135,7 +135,7 @@
 
 ## M04-MARKDOWN：安全渲染管线
 
-**元数据：** `P0` · `owner=unassigned/backend-security` · `risk=critical` · `depends=M04-SCHEMA` · `blocked=none`
+**元数据：** `P0` · `owner=backend-security` · `risk=critical` · `depends=M04-SCHEMA` · `blocked=none`
 **目标文件：** `backend/src/content/markdown/`、`backend/tests/markdown/`、`frontend/src/lib/components/SafeHtml.svelte`
 **验收：** XSS corpus、链接/图片策略、renderer version 和前端 sink 扫描通过。
 
