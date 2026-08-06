@@ -19,11 +19,16 @@ use crate::content::repository::{get_post, load_post_content};
 use crate::db::DatabasePool;
 use crate::search::index_job::enqueue_index_job;
 
-/// 发布错误（预检阻断 / 不存在 / 数据库）。
+/// 发布错误（预检阻断 / 不存在 / 版本冲突 / 数据库）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PublishError {
     Blocked(PublishBlocked),
     NotFound(String),
+    /// If-Match 版本与当前不一致（409）。
+    VersionMismatch {
+        expected: i64,
+        actual: i64,
+    },
     Db(String),
 }
 
@@ -44,6 +49,9 @@ impl std::fmt::Display for PublishError {
         match self {
             Self::Blocked(b) => write!(f, "publish blocked: {b}"),
             Self::NotFound(msg) => write!(f, "publish target not found: {msg}"),
+            Self::VersionMismatch { expected, actual } => {
+                write!(f, "version mismatch: expected {expected}, current {actual}")
+            }
             Self::Db(msg) => write!(f, "publish db error: {msg}"),
         }
     }
@@ -362,4 +370,182 @@ pub async fn publish_scheduled_post(
         post: refreshed,
         content,
     })
+}
+
+/// 事务内 upsert post_contents + insert revision（可复用于编辑）。
+macro_rules! save_content_and_revision_body {
+    ($tx:expr, $content:expr, $revision:expr) => {
+        sqlx::query(
+            "INSERT INTO post_contents (
+                post_id, body_markdown, body_html, restricted_markdown, restricted_html,
+                renderer_version, excerpt, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(post_id) DO UPDATE SET
+                body_markdown = excluded.body_markdown,
+                body_html = excluded.body_html,
+                restricted_markdown = excluded.restricted_markdown,
+                restricted_html = excluded.restricted_html,
+                renderer_version = excluded.renderer_version,
+                excerpt = excluded.excerpt,
+                updated_at = excluded.updated_at",
+        )
+        .bind(&$content.post_id)
+        .bind(&$content.body_markdown)
+        .bind(&$content.body_html)
+        .bind(&$content.restricted_markdown)
+        .bind(&$content.restricted_html)
+        .bind(&$content.renderer_version)
+        .bind(&$content.excerpt)
+        .bind($content.updated_at)
+        .execute(&mut *$tx)
+        .await?;
+        sqlx::query(
+            "INSERT INTO post_revisions (
+                id, post_id, editor_id, body_markdown, body_html, restricted_markdown,
+                restricted_html, renderer_version, change_reason, version, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&$revision.id)
+        .bind(&$revision.post_id)
+        .bind(&$revision.editor_id)
+        .bind(&$revision.body_markdown)
+        .bind(&$revision.body_html)
+        .bind(&$revision.restricted_markdown)
+        .bind(&$revision.restricted_html)
+        .bind(&$revision.renderer_version)
+        .bind(&$revision.change_reason)
+        .bind($revision.version)
+        .bind($revision.created_at)
+        .execute(&mut *$tx)
+        .await?;
+    };
+}
+
+/// 编辑帖子（M04-POSTS-08）：创建**不可变修订**并更新当前正文。
+///
+/// - `expected_version`：If-Match 版本号；与当前 `posts.version` 不一致 →
+///   [`PublishError::VersionMismatch`]（409）；
+/// - 事务：更新 `post_contents`（重新渲染）+ 插入 `post_revisions`
+///   （version=旧+1，UNIQUE(post_id,version) 保证每版恰好一条）+ `posts`
+///   title/version+1/updated_at；
+/// - 修订快照不可变：body_markdown 原文、editor、version、created_at 写入后
+///   不再修改（后续重渲染 Job 只覆盖 html/excerpt）。
+///
+/// 编辑输入（M04-POSTS-08）：PATCH 语义——仅提供的字段更新。
+#[derive(Debug, Clone)]
+pub struct EditPostInput {
+    pub title: Option<String>,
+    pub markdown: Option<String>,
+    pub expected_version: i64,
+    pub change_reason: Option<String>,
+}
+
+pub async fn edit_post(
+    pool: &DatabasePool,
+    post_id: &str,
+    editor_id: &str,
+    input: &EditPostInput,
+    now: i64,
+) -> Result<Post, PublishError> {
+    let current = get_post(pool, post_id)
+        .await?
+        .ok_or_else(|| PublishError::NotFound("post not found".to_string()))?;
+    if current.status == PostStatus::Deleted || current.deleted_at.is_some() {
+        return Err(PublishError::NotFound("post not found".to_string()));
+    }
+    if current.version != input.expected_version {
+        return Err(PublishError::VersionMismatch {
+            expected: input.expected_version,
+            actual: current.version,
+        });
+    }
+
+    let old_content = load_post_content(pool, post_id)
+        .await?
+        .ok_or_else(|| PublishError::NotFound("post content not found".to_string()))?;
+
+    // 新正文：markdown 提供则重新渲染；否则保留（仅改标题也创建修订）
+    let (new_body_html, new_excerpt, new_renderer_version) = match input.markdown.as_deref() {
+        Some(md) => {
+            let rendered = render_content(md, None);
+            (
+                rendered.body_html,
+                rendered.excerpt,
+                rendered.renderer_version,
+            )
+        }
+        None => (
+            old_content.body_html.clone(),
+            old_content.excerpt.clone(),
+            old_content.renderer_version.clone(),
+        ),
+    };
+
+    let new_version = current.version + 1;
+    let revision = PostRevision {
+        id: uuid::Uuid::now_v7().to_string(),
+        post_id: post_id.to_string(),
+        editor_id: editor_id.to_string(),
+        body_markdown: input
+            .markdown
+            .clone()
+            .unwrap_or_else(|| old_content.body_markdown.clone()),
+        body_html: new_body_html.clone(),
+        restricted_markdown: None,
+        restricted_html: None,
+        renderer_version: new_renderer_version.clone(),
+        change_reason: input.change_reason.clone(),
+        version: new_version,
+        created_at: now,
+    };
+    let updated_content = PostContent {
+        post_id: post_id.to_string(),
+        body_markdown: input
+            .markdown
+            .clone()
+            .unwrap_or_else(|| old_content.body_markdown.clone()),
+        body_html: new_body_html,
+        restricted_markdown: None,
+        restricted_html: None,
+        renderer_version: new_renderer_version,
+        excerpt: new_excerpt,
+        updated_at: now,
+    };
+
+    match pool {
+        Either::Left(p) => {
+            let mut tx = p.begin().await?;
+            save_content_and_revision_body!(tx, &updated_content, &revision);
+            sqlx::query(
+                "UPDATE posts SET title = COALESCE(?, title), version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+            )
+            .bind(input.title.as_deref())
+            .bind(now)
+            .bind(post_id)
+            .bind(input.expected_version)
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+        }
+        Either::Right(p) => {
+            let mut tx = p.begin().await?;
+            save_content_and_revision_body!(tx, &updated_content, &revision);
+            sqlx::query(
+                "UPDATE posts SET title = COALESCE(?, title), version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+            )
+            .bind(input.title.as_deref())
+            .bind(now)
+            .bind(post_id)
+            .bind(input.expected_version)
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+        }
+    }
+
+    // 重新读取（版本已递增）
+    let refreshed = get_post(pool, post_id)
+        .await?
+        .ok_or_else(|| PublishError::NotFound("post not found".to_string()))?;
+    Ok(refreshed)
 }

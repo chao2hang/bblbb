@@ -14,4 +14,6 @@ pub use command::{
     DraftPatch, DraftPatchInput, PostCreateError,
 };
 pub use publish::{publish_preflight, PublishBlocked, PublishPreflightInput};
-pub use service::{publish_new_post, publish_scheduled_post, PublishError, PublishedPost};
+pub use service::{
+    edit_post, publish_new_post, publish_scheduled_post, EditPostInput, PublishError, PublishedPost,
+};

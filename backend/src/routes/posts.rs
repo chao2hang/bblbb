@@ -12,11 +12,12 @@ use sqlx::Either;
 
 use crate::{
     app::AppState,
-    auth::session::AuthSession,
+    audit::AuditEntry,
+    auth::session::{is_step_up_required_for_session, AuthSession, SESSION_COOKIE_NAME},
     authz::decision::AUTHZ_POLICY_VERSION,
     authz::enforce::authorize_action,
     content::posts::command::{validate_post_create, CreatePostInput},
-    content::posts::service::{publish_new_post, PublishError},
+    content::posts::service::{edit_post, publish_new_post, EditPostInput, PublishError},
     db::DatabasePool,
     domain::{
         comments::CommentContent,
@@ -54,8 +55,13 @@ struct CreatePostRequest {
 
 #[derive(Deserialize)]
 struct UpdatePostRequest {
+    #[serde(default)]
     title: Option<String>,
-    content: Option<String>,
+    #[serde(default)]
+    markdown: Option<String>,
+    /// 管理员代改时必填（PostPatch 无此字段，服务端宽松接收）。
+    #[serde(default)]
+    reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -187,6 +193,7 @@ fn map_publish_error(err: PublishError) -> AppError {
     match err {
         PublishError::Blocked(b) => AppError::conflict(format!("publish blocked: {b}"), RID),
         PublishError::NotFound(msg) => AppError::not_found(msg, RID),
+        PublishError::VersionMismatch { .. } => AppError::conflict(err.to_string(), RID),
         PublishError::Db(msg) => AppError::internal(msg, RID),
     }
 }
@@ -465,82 +472,179 @@ struct PostDetailProjection {
     excerpt: Option<String>,
 }
 
-/// PATCH /api/v1/posts/{id} — 更新帖子
+/// PATCH /api/v1/posts/{id} — 编辑帖子（不可变 revision；管理员代改需 reason+recent-auth+审计，M04-POSTS-08）
 async fn update_post(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<UpdatePostRequest>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "update_post";
     let user = auth.require_auth(request_id)?;
+    if !user.email_verified {
+        return Err(AppError::forbidden(
+            "email verification required",
+            request_id,
+        ));
+    }
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let now = chrono::Utc::now().timestamp();
+    // If-Match 版本校验
+    let expected_version: i64 = headers
+        .get(header::IF_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::bad_request("If-Match header required", request_id, None))?
+        .parse()
+        .map_err(|_| {
+            AppError::bad_request("If-Match must be an integer version", request_id, None)
+        })?;
 
-    // 验证所有权
-    let author_id: Option<String> = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ? AND status != 'deleted'")
-                .bind(&id)
-                .fetch_optional(p)
-                .await
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ? AND status != 'deleted'")
-                .bind(&id)
-                .fetch_optional(p)
-                .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    // 加载帖子（含作者）
+    let post = get_post_row(pool, &id, request_id).await?;
+    let post = post.ok_or_else(|| AppError::not_found("post not found", request_id))?;
 
-    let author_id = author_id.ok_or_else(|| AppError::not_found("post not found", request_id))?;
-    if author_id != user.id {
-        return Err(AppError::forbidden("not the author", request_id));
-    }
-
-    // 领域校验：仅当字段提供时校验（PATCH 语义），规则在 domain 层单一维护
+    // 字段校验（PATCH 语义：仅当提供时校验）
     let title = req
         .title
         .as_deref()
         .map(PostTitle::parse)
         .transpose()
         .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
-    let content = req
-        .content
+    let markdown = req
+        .markdown
         .as_deref()
         .map(PostContent::parse)
         .transpose()
         .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
 
-    match pool {
-        Either::Left(p) => {
-            sqlx::query("UPDATE posts SET title = COALESCE(?, title), content = COALESCE(?, content), updated_at = ? WHERE id = ?")
-                .bind(title.as_ref().map(|t| t.as_str()))
-                .bind(content.as_ref().map(|c| c.as_str()))
-                .bind(now)
-                .bind(&id)
-                .execute(p)
+    // 权限判定：作者本人 → post.edit_own；他人 → 管理员代改（post.moderate）
+    let (post_author_id, _post_status, _post_version, _post_updated_at) = post;
+    let is_owner = post_author_id == user.id;
+    if !is_owner {
+        let decision =
+            authorize_action(pool, &user.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
+                .await
+                .map_err(|e| AppError::internal(e, request_id))?;
+        if !decision.is_allowed() {
+            return Err(AppError::forbidden(
+                "post.moderate permission required for delegated edit",
+                request_id,
+            ));
+        }
+        // 代改必填 reason
+        let reason = req.reason.as_deref().unwrap_or("").trim();
+        if reason.is_empty() {
+            return Err(AppError::bad_request(
+                "reason is required for delegated post edit",
+                request_id,
+                None,
+            ));
+        }
+        // recent-auth（step-up，5 分钟窗口）
+        let session_token = session_token_from_headers(&headers)
+            .ok_or_else(|| AppError::unauthorized("authentication required", request_id))?;
+        let step_up =
+            is_step_up_required_for_session(pool, &session_token, state.config.step_up_window_secs)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        if step_up {
+            return Err(AppError::step_up_required(request_id));
         }
-        Either::Right(p) => {
-            sqlx::query("UPDATE posts SET title = COALESCE(?, title), content = COALESCE(?, content), updated_at = ? WHERE id = ?")
-                .bind(title.as_ref().map(|t| t.as_str()))
-                .bind(content.as_ref().map(|c| c.as_str()))
-                .bind(now)
-                .bind(&id)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
+        // 审计：代改记录（reason/effective_role）
+        AuditEntry::delegated_admin_action(
+            &user.id,
+            "moderator",
+            "post.update",
+            "post",
+            &id,
+            reason,
+        )
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
     }
 
-    Ok(Json(json!({ "id": id, "updated_at": now })))
+    let refreshed = edit_post(
+        pool,
+        &id,
+        &user.id,
+        &EditPostInput {
+            title: title.as_ref().map(|t| t.to_string()),
+            markdown: markdown.as_ref().map(|c| c.to_string()),
+            expected_version,
+            change_reason: req.reason.clone(),
+        },
+        now_millis(),
+    )
+    .await
+    .map_err(|e| match e {
+        PublishError::VersionMismatch { .. } => {
+            AppError::version_conflict(e.to_string(), request_id)
+        }
+        PublishError::NotFound(msg) => AppError::not_found(msg, request_id),
+        PublishError::Blocked(b) => AppError::conflict(format!("edit blocked: {b}"), request_id),
+        PublishError::Db(msg) => AppError::internal(msg, request_id),
+    })?;
+
+    let body = json!({
+        "id": refreshed.id,
+        "title": refreshed.title,
+        "status": refreshed.status.as_str(),
+        "version": refreshed.version,
+        "updated_at": refreshed.updated_at,
+    });
+    let mut resp = (StatusCode::OK, Json(body)).into_response();
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(resp)
+}
+
+/// 从 Cookie 头提取会话 token（step-up 判定用）。
+fn session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+    cookie.split(';').find_map(|part| {
+        let (k, v) = part.trim().split_once('=')?;
+        if k == SESSION_COOKIE_NAME {
+            Some(v.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+/// 读取帖子元数据行（含作者）。
+async fn get_post_row(
+    pool: &DatabasePool,
+    id: &str,
+    request_id: &'static str,
+) -> Result<Option<(String, String, i64, i64)>, AppError> {
+    // (author_id, status, version, updated_at)
+    let row: Option<(String, String, i64, i64)> = match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT author_id, status, version, updated_at FROM posts WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_as(
+            "SELECT author_id, status, version, updated_at FROM posts WHERE id = ? AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    let Some((author_id, status, version, updated_at)) = row else {
+        return Ok(None);
+    };
+    Ok(Some((author_id, status, version, updated_at)))
 }
 
 /// GET /api/v1/posts/{id}/comments — 列出评论
