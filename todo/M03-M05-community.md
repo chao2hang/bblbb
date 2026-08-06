@@ -119,11 +119,11 @@
 
 ## M04-SCHEMA：内容与版本数据模型
 
-**元数据：** `P0` · `owner=unassigned/backend-db` · `risk=critical` · `depends=M03-AUTHZ,M03-BOARDS` · `blocked=none`
+**元数据：** `P0` · `owner=backend-db` · `risk=critical` · `depends=M03-AUTHZ,M03-BOARDS` · `blocked=none`
 **目标文件：** `migrations/*/`、`backend/src/content/model*`、`docs/SCHEMA.md`
 **验收：** 三数据库约束、楼层并发、revision 和软删除 repository contract 通过。
 
-- [ ] `M04-SCHEMA-01` `P0` `[45m]` 新增 posts，覆盖 article/discussion、board、author、slug、状态、revision 和发布时间。
+- [x] `M04-SCHEMA-01` `P0` `[45m]` 新增 posts，覆盖 article/discussion、board、author、slug、状态、revision 和发布时间。证据：files=migrations/{sqlite,mysql,mariadb}/0032_posts_metadata.sql,backend/src/content/{mod.rs,model.rs,repository.rs},backend/src/lib.rs,backend/tests/posts_schema.rs,docs/SCHEMA.md；commands=cargo test --all-features（703 通过/0 失败，含 posts_schema 5 项新增 + model 单测 3 项）；cargo fmt --check 通过；cargo clippy --all-features --all-targets 0 警告；make check 全绿（cargo fmt/clippy 0 警告、OpenAPI 183/183、Error codes 46/46、write-contract/route-coverage OK、Permission matrix OK、migration_equivalence 三库等价含 0032、事件目录 22/22、TS types 可复现、Roadmap 783 叶子 OK）RC=0；contract=迁移 0032（三库同名）posts 增列：post_type（article/discussion CHECK）、slug（板块内唯一 UNIQUE(board_id,slug)，多 NULL 不冲突）、excerpt、version（乐观并发，If-Match 来源）、scheduled_at/published_at/pinned_at/featured_at/closed_at（锁帖独立于发布状态）、canonical_url/seo_title/seo_description、last_reply_id、deleted_at（软删）；新增索引 (board_id,status,pinned_at,last_reply_at)/(author_id,status,created_at)/(post_type,status,published_at)/(scheduled_at)；骨架遗留列 content/content_format/visibility/pinned/last_reply_by 保留至 M04-POSTS 收口（搜索/骨架路由仍引用）；status CHECK 保持 0003 值域（locked 为遗留值，closed_at 取代；pending_review/rejected 随 M04-POSTS 迁移扩展——SQLite 改 CHECK 需重建表）；PostType/PostStatus/Post 模型 + insert/get 仓储（三库 Either 一致）；comments(post_id→posts.id) 外键不受影响；commit=6d797e2；review=posts_schema 5 项（0032 元数据列存在+骨架遗留列保留/板块内 slug 唯一：同板块冲突、跨板块允许、多 NULL 草稿允许/post_type CHECK 拒绝未知、status 四稳定值可写/仓储往返含发布时间版本视图计数/replies_open 锁帖语义/comments 外键完整）+ model 单测 3 项（枚举往返+遗留 locked 解析/replies_open）+ migration_equivalence 三库等价 + 全量门禁全绿
 - [ ] `M04-SCHEMA-02` `P0` `[45m]` 新增 post_contents/revisions，保存 Markdown、清洗 HTML、renderer version 和安全摘要。
 - [ ] `M04-SCHEMA-03` `P0` `[30m]` 新增 drafts 与 scheduled_at，并为 owner、更新时间和 cursor 建立索引。
 - [ ] `M04-SCHEMA-04` `P0` `[45m]` 新增 comments、parent_id、floor、revision、状态和软删除字段。
