@@ -508,6 +508,7 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 | `pinned_at`、`featured_at` | 可空，替代多组布尔值 |
 | `scheduled_at`、`published_at` | 可空 |
 | `canonical_url`、`seo_title`、`seo_description` | 博客/SEO 字段 |
+| `cover_attachment_id` | 封面附件 UUID 引用（M04-SCHEMA-05；attachments 表 M6 落地后补 FK，只存 UUID 禁存 URL） |
 | `view_count`、`reply_count` | 可重建缓存 |
 | `last_reply_id`、`last_reply_at` | 列表排序缓存 |
 | `created_at`、`updated_at`、`deleted_at` | 时间（含软删除） |
@@ -533,6 +534,16 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 
 - `old_slug` 主键、`post_id`、`created_at`。
 - 修改文章 slug 后保留永久 301 映射。
+
+### `post_tags` / `post_attachments`（M04-SCHEMA-05）
+
+- `post_tags`：`(post_id, tag_id)` 复合主键（0003），补 `created_at`
+  （标签列表排序）；随 post 级联删除。
+- `post_attachments`：帖子附件引用——`id`、`post_id`、`attachment_id`
+  （只存附件 UUID，attachments 表 M6 落地后补 FK）、`kind`
+  （`cover`/`gallery` CHECK）、`position`（渲染顺序）、`created_at`；
+  随 post 级联删除。
+- 引用回复关联 `quoted_comment_id` 见 `comments`（M04-SCHEMA-04）。
 
 ### `drafts`（M04-SCHEMA-03）
 

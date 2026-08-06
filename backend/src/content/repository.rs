@@ -7,9 +7,11 @@
 use sqlx::Either;
 
 use crate::db::DatabasePool;
+use crate::outbox::now_millis;
 
 use super::model::{
-    Comment, CommentStatus, Draft, Post, PostContent, PostRevision, PostStatus, PostType,
+    AttachmentKind, Comment, CommentStatus, Draft, Post, PostAttachment, PostContent, PostRevision,
+    PostStatus, PostTag, PostType,
 };
 
 /// 插入一篇帖子（含元数据列；骨架遗留列写空值/默认）。
@@ -772,6 +774,181 @@ impl CommentRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             deleted_at: self.deleted_at,
+        }
+    }
+}
+
+// ─────────────────────── 帖子关联（M04-SCHEMA-05） ───────────────────────
+
+/// 写入一条帖子-标签关联（复合主键冲突即重复）。
+pub async fn insert_post_tag(pool: &DatabasePool, tag: &PostTag) -> Result<(), sqlx::Error> {
+    let sql = "INSERT INTO post_tags (post_id, tag_id, created_at) VALUES (?, ?, ?)";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&tag.post_id)
+            .bind(&tag.tag_id)
+            .bind(tag.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&tag.post_id)
+            .bind(&tag.tag_id)
+            .bind(tag.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 读取帖子标签（按 created_at 升序，0016 前值为 0 稳定）。
+pub async fn list_post_tags(
+    pool: &DatabasePool,
+    post_id: &str,
+) -> Result<Vec<PostTag>, sqlx::Error> {
+    let sql = "SELECT post_id, tag_id, created_at FROM post_tags WHERE post_id = ? ORDER BY created_at ASC, tag_id ASC";
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query_as::<_, PostTagRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(PostTagRow::into_model).collect())
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query_as::<_, PostTagRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows.into_iter().map(PostTagRow::into_model).collect())
+        }
+    }
+}
+
+/// 写入一条帖子附件引用。
+pub async fn insert_post_attachment(
+    pool: &DatabasePool,
+    attachment: &PostAttachment,
+) -> Result<(), sqlx::Error> {
+    let sql =
+        "INSERT INTO post_attachments (id, post_id, attachment_id, kind, position, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&attachment.id)
+            .bind(&attachment.post_id)
+            .bind(&attachment.attachment_id)
+            .bind(attachment.kind.as_str())
+            .bind(attachment.position)
+            .bind(attachment.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&attachment.id)
+            .bind(&attachment.post_id)
+            .bind(&attachment.attachment_id)
+            .bind(attachment.kind.as_str())
+            .bind(attachment.position)
+            .bind(attachment.created_at)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// 读取帖子附件（position 升序）。
+pub async fn list_post_attachments(
+    pool: &DatabasePool,
+    post_id: &str,
+) -> Result<Vec<PostAttachment>, sqlx::Error> {
+    let sql = "SELECT id, post_id, attachment_id, kind, position, created_at
+               FROM post_attachments WHERE post_id = ? ORDER BY position ASC";
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query_as::<_, PostAttachmentRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows
+                .into_iter()
+                .map(PostAttachmentRow::into_model)
+                .collect())
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query_as::<_, PostAttachmentRow>(sql)
+                .bind(post_id)
+                .fetch_all(p)
+                .await?;
+            Ok(rows
+                .into_iter()
+                .map(PostAttachmentRow::into_model)
+                .collect())
+        }
+    }
+}
+
+/// 覆盖 posts.cover_attachment_id（附件 UUID 引用；M6 落地后校验存在性）。
+pub async fn set_post_cover(
+    pool: &DatabasePool,
+    post_id: &str,
+    cover_attachment_id: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    let sql = "UPDATE posts SET cover_attachment_id = ?, updated_at = ? WHERE id = ?";
+    match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(cover_attachment_id)
+            .bind(now_millis())
+            .bind(post_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(cover_attachment_id)
+            .bind(now_millis())
+            .bind(post_id)
+            .execute(p)
+            .await
+            .map(|_| ()),
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct PostTagRow {
+    post_id: String,
+    tag_id: String,
+    created_at: i64,
+}
+
+impl PostTagRow {
+    fn into_model(self) -> PostTag {
+        PostTag {
+            post_id: self.post_id,
+            tag_id: self.tag_id,
+            created_at: self.created_at,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct PostAttachmentRow {
+    id: String,
+    post_id: String,
+    attachment_id: String,
+    kind: String,
+    position: i64,
+    created_at: i64,
+}
+
+impl PostAttachmentRow {
+    fn into_model(self) -> PostAttachment {
+        PostAttachment {
+            id: self.id,
+            post_id: self.post_id,
+            attachment_id: self.attachment_id,
+            kind: AttachmentKind::parse(&self.kind).expect("kind 必须为稳定枚举"),
+            position: self.position,
+            created_at: self.created_at,
         }
     }
 }

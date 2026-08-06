@@ -322,3 +322,53 @@ mod tests {
         assert!(!closed.replies_open());
     }
 }
+
+/// 帖子附件引用（post_attachments，M04-SCHEMA-05）。
+///
+/// - `attachment_id` 只存附件 UUID（attachments 表 M6 落地后补 FK；
+///   禁止存远程/签名 URL）；
+/// - `kind`：cover（封面，与 posts.cover_attachment_id 一致）或 gallery；
+/// - `position` 决定渲染顺序。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostAttachment {
+    pub id: String,
+    pub post_id: String,
+    pub attachment_id: String,
+    pub kind: AttachmentKind,
+    pub position: i64,
+    pub created_at: i64,
+}
+
+/// 附件引用类型（post_attachments.kind CHECK）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AttachmentKind {
+    Cover,
+    Gallery,
+}
+
+impl AttachmentKind {
+    pub const ALL: [AttachmentKind; 2] = [AttachmentKind::Cover, AttachmentKind::Gallery];
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "cover" => Some(Self::Cover),
+            "gallery" => Some(Self::Gallery),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Cover => "cover",
+            Self::Gallery => "gallery",
+        }
+    }
+}
+
+/// 帖子-标签关联（post_tags，M04-SCHEMA-05；0003 已建表，补 created_at）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostTag {
+    pub post_id: String,
+    pub tag_id: String,
+    pub created_at: i64,
+}
