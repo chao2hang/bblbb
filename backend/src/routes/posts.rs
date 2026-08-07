@@ -282,6 +282,7 @@ fn map_publish_error(err: PublishError) -> AppError {
         PublishError::Blocked(b) => AppError::conflict(format!("publish blocked: {b}"), RID),
         PublishError::NotFound(msg) => AppError::not_found(msg, RID),
         PublishError::VersionMismatch { .. } => AppError::conflict(err.to_string(), RID),
+        PublishError::Risk(e) => AppError::internal(format!("risk evaluation failed: {e}"), RID),
         PublishError::Db(msg) => AppError::internal(msg, RID),
     }
 }
@@ -472,7 +473,7 @@ async fn get_post(
     let row: Option<PostDetailProjection> = match pool {
         Either::Left(p) => sqlx::query_as::<_, PostDetailProjection>(
             "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
-                    p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
+                    p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
                     u.level as author_level,
@@ -482,7 +483,7 @@ async fn get_post(
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
              LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
-             WHERE p.id = ? AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL",
+             WHERE p.id = ? AND p.deleted_at IS NULL",
         )
         .bind(&id)
         .fetch_optional(p)
@@ -490,7 +491,7 @@ async fn get_post(
         .map_err(|e| AppError::internal(e.to_string(), request_id))?,
         Either::Right(p) => sqlx::query_as::<_, PostDetailProjection>(
             "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
-                    p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
+                    p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
                     u.level as author_level,
@@ -500,7 +501,7 @@ async fn get_post(
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
              LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
-             WHERE p.id = ? AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL",
+             WHERE p.id = ? AND p.deleted_at IS NULL",
         )
         .bind(&id)
         .fetch_optional(p)
@@ -512,19 +513,34 @@ async fn get_post(
         return Err(AppError::not_found("post not found", request_id));
     };
 
-    // 增加浏览量（非关键路径，失败忽略）
-    match pool {
-        Either::Left(p) => {
-            let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
-                .bind(&id)
-                .execute(p)
-                .await;
-        }
-        Either::Right(p) => {
-            let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
-                .bind(&id)
-                .execute(p)
-                .await;
+    // M05-RISK-03/06：pending_review（status='draft' + review_status）只对
+    // 作者本人可见，且投影为安全的审核状态（不含举报人/内部 note/规则细节）。
+    let pending_review =
+        r.status == "draft" && r.review_status.as_deref() == Some("pending_review");
+    let requester_is_author = auth.user.as_ref().is_some_and(|u| u.id == r.author_id);
+    if !matches!(r.status.as_str(), "published" | "hidden")
+        && !(pending_review && requester_is_author)
+    {
+        return Err(AppError::not_found("post not found", request_id));
+    }
+    let is_pending_author_view = pending_review && requester_is_author;
+
+    // pending_review 不计数浏览量（内容尚未公开）。
+    if !is_pending_author_view {
+        // 增加浏览量（非关键路径，失败忽略）
+        match pool {
+            Either::Left(p) => {
+                let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
+                    .bind(&id)
+                    .execute(p)
+                    .await;
+            }
+            Either::Right(p) => {
+                let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?")
+                    .bind(&id)
+                    .execute(p)
+                    .await;
+            }
         }
     }
 
@@ -584,7 +600,33 @@ async fn get_post(
         search_highlight: None,
         restricted_html: None,
     };
-    let body = project_post(fields, grant, author_level);
+    let mut body = project_post(fields, grant, author_level);
+
+    // M05-RISK-06：作者查看自己待审帖子 → 投影安全审核状态（只含类别）。
+    if is_pending_author_view {
+        let reason_category = load_pending_reason_category(pool, &id, request_id).await;
+        if let Some(map) = body.as_object_mut() {
+            map.insert("status".into(), json!("pending_review"));
+            map.insert(
+                "review".into(),
+                json!({
+                    "status": "pending_review",
+                    "reason_category": reason_category,
+                }),
+            );
+        }
+    }
+
+    if is_pending_author_view {
+        // 未公开内容：禁止任何缓存（private, no-store）。
+        let mut resp = (StatusCode::OK, Json(body)).into_response();
+        resp.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        );
+        return Ok(resp);
+    }
+
     let ch = cache_headers_for(&grant, &body.to_string());
 
     let mut resp = (StatusCode::OK, Json(body)).into_response();
@@ -612,6 +654,7 @@ struct PostDetailProjection {
     post_type: String,
     title: String,
     status: String,
+    review_status: Option<String>,
     reply_count: i64,
     view_count: i64,
     created_at: i64,
@@ -629,6 +672,36 @@ struct PostDetailProjection {
     policy_min_level: Option<i64>,
     body_html: Option<String>,
     excerpt: Option<String>,
+}
+
+/// 读取待审帖子的评估 reason category（作者安全投影；缺失 → null）。
+async fn load_pending_reason_category(
+    pool: &DatabasePool,
+    post_id: &str,
+    request_id: &'static str,
+) -> Option<String> {
+    let row: Option<String> = match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT reason_category FROM risk_evaluations
+             WHERE post_id = ? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(post_id)
+        .fetch_optional(p)
+        .await
+        .ok()
+        .flatten(),
+        Either::Right(p) => sqlx::query_scalar(
+            "SELECT reason_category FROM risk_evaluations
+             WHERE post_id = ? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(post_id)
+        .fetch_optional(p)
+        .await
+        .ok()
+        .flatten(),
+    };
+    let _ = request_id;
+    row
 }
 
 /// 读取帖子作者与状态（revisions 可见性判定用）。
@@ -924,6 +997,9 @@ async fn update_post(
             request_id,
         ),
         PublishError::Blocked(b) => AppError::conflict(format!("edit blocked: {b}"), request_id),
+        PublishError::Risk(e) => {
+            AppError::internal(format!("risk evaluation failed: {e}"), request_id)
+        }
         PublishError::Db(msg) => AppError::internal(msg, request_id),
     })?;
 

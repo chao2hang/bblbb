@@ -17,9 +17,11 @@ use crate::content::posts::command::CreatePostCommand;
 use crate::content::posts::publish::{publish_preflight, PublishBlocked, PublishPreflightInput};
 use crate::content::repository::{get_post, load_post_content};
 use crate::db::DatabasePool;
+use crate::moderation::risk::policy::RiskInput;
+use crate::moderation::risk::service::{self as risk_service, RiskError, AI_SUGGEST_DEADLINE};
 use crate::search::index_job::enqueue_index_job;
 
-/// 发布错误（预检阻断 / 不存在 / 版本冲突 / 数据库）。
+/// 发布错误（预检阻断 / 不存在 / 版本冲突 / 风险评估 / 数据库）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PublishError {
     Blocked(PublishBlocked),
@@ -29,7 +31,15 @@ pub enum PublishError {
         expected: i64,
         actual: i64,
     },
+    /// 风险评估失败（fail-closed：调用方按 pending_review 处理或重试）。
+    Risk(RiskError),
     Db(String),
+}
+
+impl From<RiskError> for PublishError {
+    fn from(e: RiskError) -> Self {
+        Self::Risk(e)
+    }
 }
 
 impl From<PublishBlocked> for PublishError {
@@ -52,6 +62,7 @@ impl std::fmt::Display for PublishError {
             Self::VersionMismatch { expected, actual } => {
                 write!(f, "version mismatch: expected {expected}, current {actual}")
             }
+            Self::Risk(e) => write!(f, "publish risk evaluation failed: {e}"),
             Self::Db(msg) => write!(f, "publish db error: {msg}"),
         }
     }
@@ -62,6 +73,27 @@ impl std::fmt::Display for PublishError {
 pub struct PublishedPost {
     pub post: Post,
     pub content: PostContent,
+    /// 高风险内容进入人工队列时的安全状态投影（M05-RISK-06）：
+    /// 只含安全 reason category，不含举报人/内部 note/规则细节/Prompt。
+    pub review: Option<RiskReview>,
+}
+
+/// 作者可见的审核状态投影（安全字段白名单）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RiskReview {
+    /// 状态固定为 `pending_review`。
+    pub status: &'static str,
+    /// 安全 reason category（如 `link_heavy`），无规则细节。
+    pub reason_category: Option<String>,
+}
+
+impl RiskReview {
+    fn pending_review(reason: Option<crate::moderation::risk::policy::ReasonCategory>) -> Self {
+        Self {
+            status: "pending_review",
+            reason_category: reason.map(|c| c.as_str().to_string()),
+        }
+    }
 }
 
 /// 从标题生成板块内唯一 slug（低冲突：base-slug + post_id 前 8 位）。
@@ -110,6 +142,31 @@ pub async fn publish_new_post(
     let rendered = render_content(cmd.markdown.as_str(), None);
     let is_scheduled = cmd.scheduled_at.is_some();
 
+    // M05-RISK-03：即时发布前评估风险；scheduled 帖子在到期发布时评估。
+    // 高风险 → 原子设置 pending_review（status='draft' + review_status），
+    // 不进公开投影、不 bump 板块计数、不入索引 Job。
+    let verdict = if is_scheduled {
+        None
+    } else {
+        let t0 = std::time::Instant::now();
+        let (author_created_at, author_level) = load_author_risk_context(pool, author_id).await?;
+        let input = RiskInput {
+            author_id: author_id.to_string(),
+            author_created_at,
+            author_level,
+            board_id: cmd.board_id.to_string(),
+            title: cmd.title.to_string(),
+            body_markdown: cmd.markdown.to_string(),
+            now,
+        };
+        let v = risk_service::evaluate_risk(pool, &input, None, AI_SUGGEST_DEADLINE, now)
+            .await
+            .map_err(PublishError::from)?;
+        Some((v, t0.elapsed().as_millis() as i64))
+    };
+    let pending = verdict.as_ref().is_some_and(|(v, _)| v.is_pending_review());
+    let review_status = if pending { "pending_review" } else { "none" };
+
     let post_id = uuid::Uuid::now_v7().to_string();
     let post = Post {
         id: post_id.clone(),
@@ -118,14 +175,18 @@ pub async fn publish_new_post(
         post_type: cmd.post_type,
         slug: Some(generate_slug(cmd.title.as_str(), &post_id)),
         title: cmd.title.to_string(),
-        status: if is_scheduled {
+        status: if is_scheduled || pending {
             PostStatus::Draft
         } else {
             PostStatus::Published
         },
         version: 1,
         scheduled_at: cmd.scheduled_at,
-        published_at: if is_scheduled { None } else { Some(now) },
+        published_at: if is_scheduled || pending {
+            None
+        } else {
+            Some(now)
+        },
         pinned_at: None,
         featured_at: None,
         closed_at: None,
@@ -164,26 +225,77 @@ pub async fn publish_new_post(
         created_at: now,
     };
 
-    insert_published_tx(pool, &post, &content, &revision, !is_scheduled, now).await?;
+    insert_published_tx(
+        pool,
+        &post,
+        &content,
+        &revision,
+        !is_scheduled && !pending,
+        review_status,
+        now,
+    )
+    .await?;
 
-    if !is_scheduled {
+    if !is_scheduled && !pending {
         enqueue_index_job(pool, "post", &post_id)
             .await
             .map_err(PublishError::Db)?;
     }
-    Ok(PublishedPost { post, content })
+
+    if let Some((v, latency)) = verdict {
+        if let Err(e) =
+            risk_service::record_evaluation(pool, &post_id, author_id, &v, latency, now).await
+        {
+            tracing::warn!(post_id = %post_id, error = %e, "failed to record risk evaluation metric");
+        }
+        let review = v
+            .is_pending_review()
+            .then(|| RiskReview::pending_review(v.reason_category()));
+        return Ok(PublishedPost {
+            post,
+            content,
+            review,
+        });
+    }
+    Ok(PublishedPost {
+        post,
+        content,
+        review: None,
+    })
+}
+
+/// 读取作者等级与创建时间（风险评估输入；行缺失按老用户/等级 1 兜底）。
+async fn load_author_risk_context(
+    pool: &DatabasePool,
+    author_id: &str,
+) -> Result<(Option<i64>, i64), PublishError> {
+    let row: Option<(i64, i64)> = match pool {
+        Either::Left(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
+            .bind(author_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| PublishError::Db(e.to_string()))?,
+        Either::Right(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
+            .bind(author_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| PublishError::Db(e.to_string()))?,
+    };
+    Ok(row
+        .map(|(created_at, level)| (Some(created_at), level))
+        .unwrap_or((None, 1)))
 }
 
 /// 事务写：posts + post_contents + post_revisions（+ 即时发布时板块计数）。
 macro_rules! insert_published_body {
-    ($tx:expr, $post:expr, $content:expr, $revision:expr, $bump:expr, $now:expr) => {
+    ($tx:expr, $post:expr, $content:expr, $revision:expr, $bump:expr, $review_status:expr, $now:expr) => {
         sqlx::query(
             "INSERT INTO posts (
                 id, board_id, author_id, post_type, slug, title, status, version,
                 scheduled_at, published_at, pinned_at, featured_at, closed_at,
                 canonical_url, seo_title, seo_description, view_count, reply_count,
-                last_reply_id, last_reply_at, content, created_at, updated_at, deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)",
+                last_reply_id, last_reply_at, content, review_status, created_at, updated_at, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)",
         )
         .bind(&$post.id)
         .bind(&$post.board_id)
@@ -205,6 +317,7 @@ macro_rules! insert_published_body {
         .bind($post.reply_count)
         .bind(&$post.last_reply_id)
         .bind($post.last_reply_at)
+        .bind($review_status)
         .bind($post.created_at)
         .bind($post.updated_at)
         .bind($post.deleted_at)
@@ -264,17 +377,34 @@ async fn insert_published_tx(
     content: &PostContent,
     revision: &PostRevision,
     bump_board_count: bool,
+    review_status: &str,
     now: i64,
 ) -> Result<(), PublishError> {
     match pool {
         Either::Left(p) => {
             let mut tx = p.begin().await?;
-            insert_published_body!(tx, post, content, revision, bump_board_count, now);
+            insert_published_body!(
+                tx,
+                post,
+                content,
+                revision,
+                bump_board_count,
+                review_status,
+                now
+            );
             tx.commit().await?;
         }
         Either::Right(p) => {
             let mut tx = p.begin().await?;
-            insert_published_body!(tx, post, content, revision, bump_board_count, now);
+            insert_published_body!(
+                tx,
+                post,
+                content,
+                revision,
+                bump_board_count,
+                review_status,
+                now
+            );
             tx.commit().await?;
         }
     }
@@ -284,7 +414,9 @@ async fn insert_published_tx(
 /// scheduled 发布：到期后由 Job 再次预检并切换 `status='draft' → 'published'`。
 ///
 /// - 再次运行 [`publish_preflight`]（账号/等级/板块/策略在**执行时**重读）；
-/// - 事务：置 published_at、status、板块 post_count+1；
+/// - M05-RISK：执行时评估风险——低风险置 published；高风险原子置
+///   `review_status='pending_review'`（保持 draft、清 scheduled_at、不 bump、
+///   不入索引，等待人工审核）；
 /// - 搜索索引 Job 入队；返回 PublishedPost。
 pub async fn publish_scheduled_post(
     pool: &DatabasePool,
@@ -315,50 +447,101 @@ pub async fn publish_scheduled_post(
         .await
         .map_err(PublishError::from)?;
 
+    // M05-RISK-03：执行时风险评估（内容在 post_contents）。
+    let t0 = std::time::Instant::now();
+    let (author_created_at, author_level) = load_author_risk_context(pool, &post.author_id).await?;
+    let body_markdown = load_post_content(pool, post_id)
+        .await?
+        .map(|c| c.body_markdown)
+        .unwrap_or_default();
+    let input = RiskInput {
+        author_id: post.author_id.clone(),
+        author_created_at,
+        author_level,
+        board_id: post.board_id.clone(),
+        title: post.title.clone(),
+        body_markdown,
+        now,
+    };
+    let verdict = risk_service::evaluate_risk(pool, &input, None, AI_SUGGEST_DEADLINE, now)
+        .await
+        .map_err(PublishError::from)?;
+    let latency = t0.elapsed().as_millis() as i64;
+    let pending = verdict.is_pending_review();
+
     match pool {
         Either::Left(p) => {
             let mut tx = p.begin().await?;
-            sqlx::query(
-                "UPDATE posts SET status = 'published', published_at = ?, updated_at = ? WHERE id = ? AND status = 'draft'",
-            )
-            .bind(now)
-            .bind(now)
-            .bind(post_id)
-            .execute(&mut *tx)
-            .await?;
-            sqlx::query(
-                "UPDATE boards SET post_count = post_count + 1, updated_at = ? WHERE id = ?",
-            )
-            .bind(now)
-            .bind(&post.board_id)
-            .execute(&mut *tx)
-            .await?;
+            if pending {
+                sqlx::query(
+                    "UPDATE posts SET status = 'draft', review_status = 'pending_review', scheduled_at = NULL, published_at = NULL, updated_at = ? WHERE id = ? AND status = 'draft'",
+                )
+                .bind(now)
+                .bind(post_id)
+                .execute(&mut *tx)
+                .await?;
+            } else {
+                sqlx::query(
+                    "UPDATE posts SET status = 'published', review_status = 'none', published_at = ?, updated_at = ? WHERE id = ? AND status = 'draft'",
+                )
+                .bind(now)
+                .bind(now)
+                .bind(post_id)
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "UPDATE boards SET post_count = post_count + 1, updated_at = ? WHERE id = ?",
+                )
+                .bind(now)
+                .bind(&post.board_id)
+                .execute(&mut *tx)
+                .await?;
+            }
             tx.commit().await?;
         }
         Either::Right(p) => {
             let mut tx = p.begin().await?;
-            sqlx::query(
-                "UPDATE posts SET status = 'published', published_at = ?, updated_at = ? WHERE id = ? AND status = 'draft'",
-            )
-            .bind(now)
-            .bind(now)
-            .bind(post_id)
-            .execute(&mut *tx)
-            .await?;
-            sqlx::query(
-                "UPDATE boards SET post_count = post_count + 1, updated_at = ? WHERE id = ?",
-            )
-            .bind(now)
-            .bind(&post.board_id)
-            .execute(&mut *tx)
-            .await?;
+            if pending {
+                sqlx::query(
+                    "UPDATE posts SET status = 'draft', review_status = 'pending_review', scheduled_at = NULL, published_at = NULL, updated_at = ? WHERE id = ? AND status = 'draft'",
+                )
+                .bind(now)
+                .bind(post_id)
+                .execute(&mut *tx)
+                .await?;
+            } else {
+                sqlx::query(
+                    "UPDATE posts SET status = 'published', review_status = 'none', published_at = ?, updated_at = ? WHERE id = ? AND status = 'draft'",
+                )
+                .bind(now)
+                .bind(now)
+                .bind(post_id)
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "UPDATE boards SET post_count = post_count + 1, updated_at = ? WHERE id = ?",
+                )
+                .bind(now)
+                .bind(&post.board_id)
+                .execute(&mut *tx)
+                .await?;
+            }
             tx.commit().await?;
         }
     }
 
-    enqueue_index_job(pool, "post", post_id)
-        .await
-        .map_err(PublishError::Db)?;
+    if !pending {
+        enqueue_index_job(pool, "post", post_id)
+            .await
+            .map_err(PublishError::Db)?;
+    }
+
+    if let Err(e) =
+        risk_service::record_evaluation(pool, post_id, &post.author_id, &verdict, latency, now)
+            .await
+    {
+        tracing::warn!(post_id = %post_id, error = %e, "failed to record risk evaluation metric");
+    }
 
     let content = load_post_content(pool, post_id)
         .await?
@@ -366,9 +549,11 @@ pub async fn publish_scheduled_post(
     let refreshed = get_post(pool, post_id)
         .await?
         .ok_or_else(|| PublishError::NotFound("post not found".to_string()))?;
+    let review = pending.then(|| RiskReview::pending_review(verdict.reason_category()));
     Ok(PublishedPost {
         post: refreshed,
         content,
+        review,
     })
 }
 

@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
 axum-extra = { version = "0.10", features = ["cookie", "typed-header"] }
+async-trait = "0.1"
 config = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -46,3 +47,8 @@ path = "tests/moderation/schema.rs"
 [[test]]
 name = "notifications_schema"
 path = "tests/notifications/schema.rs"
+
+# M05-RISK 测试（嵌套目录不参与自动发现，需显式注册）
+[[test]]
+name = "moderation_risk"
+path = "tests/moderation/risk.rs"

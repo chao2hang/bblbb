@@ -6,7 +6,10 @@
 //! 子模块按 Wave 推进顺序逐个落地：
 //! - `model`（M05-SCHEMA）：reports/moderation_cases/case_assignments/notes、
 //!   moderation_actions/revisions、sanctions、appeals 的数据模型与迁移约束；
-//! - `risk`/`cases`/`sanctions`/`appeals`：后续 Wave（M05-RISK/CASES/
-//!   SANCTIONS/APPEALS）由各自 agent 添加 `pub mod` 声明并落地实现。
+//! - `risk`（M05-RISK）：发布前后风险评估（版本化策略、规则、AI 建议接口、
+//!   pending_review 门禁、指标），由主代理实现（需集成共享发布路径）；
+//! - `cases`/`sanctions`/`appeals`：后续 Wave 由各自 agent 添加 `pub mod`
+//!   声明并落地实现。
 
 pub mod model;
+pub mod risk;

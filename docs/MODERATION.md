@@ -115,6 +115,41 @@ v1 可提供：
 
 所有自动动作记录：规则版本、分数、输入摘要和最终结果。敏感词命中日志不得复制完整私密/隐藏正文。
 
+### 7.1 风险审核（M05-RISK）
+
+**发布路径门禁（M05-RISK-03）：**
+
+- 即时发布前与 scheduled 到期发布时都执行风险评估。
+- 低风险：照常发布（`status='published'`、`review_status='none'`）。
+- 高风险：**原子**设置 `status='draft' + review_status='pending_review'`，
+  不 bump 板块计数、不入索引 Job、不进公开投影（公开查询按
+  `status='published'/'hidden'` 过滤天然排除）。
+- `pending_review` 只对作者本人可见，投影为安全审核状态
+  （`status='pending_review'` + `review.reason_category`），缓存 `private, no-store`。
+
+**风险输入最小集合（M05-RISK-01）：** 作者 id、账号创建时间、等级、板块、
+标题与正文。评估与 Provider（AI 建议接口）**只接收**这些特征；举报人、
+内部 note、隐藏正文、Prompt 与规则细节（如具体敏感词）一律不进入评估输出。
+
+**规则（M05-RISK-02）：** 新用户前 N 帖、链接数、重复内容（归一化正文
+SHA-256 指纹，窗口内有界扫描）、敏感词、发布频率。命中 → 进入人工队列，
+作者只看到安全 reason category（`spam_like/link_heavy/duplicate/sensitive/
+frequency/new_user`）。
+
+**AI 建议接口（M05-RISK-04/05）：** `AiModerationProvider::suggest` 只返回
+建议（`NoAction` / `Flag(category)`），从类型上杜绝 AI 直接执行封禁、删除、
+放行、权限变更或账务动作；禁用时用 `NullAiModerationProvider`（恒 NoAction）。
+建议有截止时间：AI 关闭/失败/迟到时按规则结果兜底，不阻塞发布流程。
+
+**版本化策略（M05-RISK-01/08）：** `risk_policies` 按 `(id, version)` 追加，
+管理员更新必须提供 reason、写审计、期望版本匹配（并发版本控制，
+`UNIQUE(id, version)` 兜底）；评估总是使用**当前**版本，旧 policy 结果不复用。
+内置默认阈值 = version 0（`Thresholds::default`）。
+
+**指标（M05-RISK-09）：** `risk_evaluations` 只记 verdict/reason category/
+延迟/策略版本，**不记录正文**；`reviewed_at` 给出队列时长，`false_positive`
+记录误判反馈。评估与发布同事务写入，保证与 post 同生共死。
+
 ## 8. 权限范围
 
 - 板块 moderator：处理本板块内容、举报和板块处罚。
