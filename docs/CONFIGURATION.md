@@ -39,6 +39,14 @@
 | `BBLBB__DATABASE_URL` | `database_url` | `sqlite://../data/bblbb.sqlite` | all | 重启 |
 | `BBLBB__MIGRATIONS_DIR` | `migrations_dir` | `../migrations/sqlite` | all | 重启 |
 | `BBLBB__STORAGE_DIR` | `storage_dir` | `../uploads` | all | 重启 |
+| `BBLBB__STORAGE_BACKEND` | `storage_backend` | `local` | all | 重启 |
+| `BBLBB__S3_BUCKET` | `s3_bucket` | 空 = 仅 local | all | 重启 |
+| `BBLBB__S3_REGION` | `s3_region` | `auto` | all | 重启 |
+| `BBLBB__S3_ENDPOINT` | `s3_endpoint` | 空 = AWS 默认 | all | 重启 |
+| `BBLBB__S3_PATH_STYLE` | `s3_path_style` | `false` | all | 重启 |
+| `BBLBB__S3_ACCESS_KEY_ID` | `s3_access_key_id` | 空 = 环境凭据链 | all | 重启 |
+| `BBLBB__S3_SECRET_ACCESS_KEY` | `s3_secret_access_key` | 空 = 环境凭据链 | all | 重启 |
+| `BBLBB__S3_SESSION_TOKEN` | `s3_session_token` | 空 | all | 重启 |
 | `BBLBB__AUTO_MIGRATE` | `auto_migrate` | `false` | dev, ci | 重启 |
 | `BBLBB__ALLOWED_HOSTS` | `allowed_hosts` | 空 = 宽松模式（仅记录） | all | 重启 |
 | `BBLBB__ALLOWED_ORIGINS` | `allowed_origins` | 空 = 宽松模式（仅记录） | all | 重启 |

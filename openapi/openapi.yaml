@@ -1119,6 +1119,43 @@ paths:
         schema:
           type: string
           format: uuid
+    put:
+      tags:
+      - Attachments
+      operationId: updateAttachment
+      security:
+      - sessionCookie: []
+      x-permission: attachment.upload
+      x-csrf: true
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '413':
+          "$ref": "#/components/responses/ProblemResponse"
+        '409':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: updateAttachment
   "/api/v1/attachments/{id}/complete":
     post:
       tags:
@@ -1643,6 +1680,70 @@ paths:
         '429':
           "$ref": "#/components/responses/RateLimited"
       summary: get api v1 notifications
+  "/api/v1/notifications/read-all":
+    post:
+      tags:
+      - Notifications
+      operationId: markAllNotificationsRead
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: markAllNotificationsRead
+  "/api/v1/notifications/preferences":
+    get:
+      tags:
+      - Notifications
+      operationId: getNotificationPreferences
+      security: *2
+      x-permission: authenticated
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: getNotificationPreferences
+    put:
+      tags:
+      - Notifications
+      operationId: updateNotificationPreferences
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: updateNotificationPreferences
+
   "/api/v1/notifications/{id}/read":
     post:
       tags:
@@ -1771,6 +1872,21 @@ paths:
           type: string
           format: uuid
   "/api/v1/reports":
+    get:
+      tags:
+      - Moderation
+      operationId: listOwnReports
+      security: *2
+      x-permission: authenticated
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: listOwnReports
     post:
       tags:
       - Moderation
@@ -4597,6 +4713,43 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/AppealCreate"
+  "/api/v1/reports/{id}/withdraw":
+    post:
+      tags:
+      - Moderation
+      operationId: withdrawReport
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: withdrawReport
   "/api/v1/appeals/{id}":
     get:
       tags:
@@ -4627,6 +4780,43 @@ paths:
           "$ref": "#/components/responses/ValidationError"
         '429':
           "$ref": "#/components/responses/RateLimited"
+  "/api/v1/appeals/{id}/withdraw":
+    post:
+      tags:
+      - Moderation
+      operationId: withdrawAppeal
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: withdrawAppeal
   "/api/v1/admin/moderation/cases":
     get:
       tags:
@@ -4656,6 +4846,34 @@ paths:
           "$ref": "#/components/responses/ValidationError"
         '429':
           "$ref": "#/components/responses/RateLimited"
+    post:
+      tags:
+      - Admin
+      operationId: createAdminModerationCase
+      security: *3
+      x-permission: moderation.review
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '201':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: createAdminModerationCase
+
   "/api/v1/admin/moderation/cases/{id}":
     get:
       tags:
@@ -4728,6 +4946,40 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/ModerationDecision"
+  "/api/v1/admin/moderation/cases/{id}/assign":
+    post:
+      tags:
+      - Admin
+      operationId: assignAdminModerationCase
+      security: *3
+      x-permission: moderation.review
+      x-csrf: true
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: assignAdminModerationCase
   "/api/v1/admin/moderation/appeals":
     get:
       tags:

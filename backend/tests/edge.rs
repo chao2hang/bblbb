@@ -473,13 +473,15 @@ async fn strict_origin_accepts_allowed_origin_on_write() {
                 .method("POST")
                 .uri("/api/v1/admin/storage/test")
                 .header(header::ORIGIN, "http://localhost:8080")
-                .body(Body::empty())
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    // 允许的 origin 通过门禁到达 handler（未认证 → 401）。
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -492,13 +494,15 @@ async fn lenient_mode_does_not_reject_host_or_origin() {
                 .uri("/api/v1/admin/storage/test")
                 .header(header::HOST, "attacker.example.com")
                 .header(header::ORIGIN, "http://attacker.example.com")
-                .body(Body::empty())
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    // 宽松模式不拒绝 → 到达 handler（未认证 → 401）。
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 // ─── openapi.json 与提交 YAML 语义一致（M00-BACKEND-11） ─────────────────────

@@ -390,6 +390,73 @@ impl AuditEntry {
         tracing::debug!(audit_id = %id, action = %self.action, "audit log recorded in transaction");
         Ok(())
     }
+
+    /// 在 SQLite 调用方事务内写审计（调用方已 `BEGIN IMMEDIATE`，使用
+    /// `&mut PoolConnection` 连接；M07-SHOP/M06-DOWNLOAD 同事务审计用）。
+    pub async fn record_into_sqlite(
+        self,
+        conn: &mut sqlx::SqliteConnection,
+    ) -> Result<(), sqlx::Error> {
+        let id = uuid::Uuid::now_v7().to_string();
+        let now = now_millis();
+        let metadata_json = self
+            .metadata
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_default());
+        sqlx::query(
+            "INSERT INTO audit_logs
+                 (id, actor_id, effective_role, action, target_type, target_id, reason, policy_version, metadata, request_id, ip_address, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(&self.actor_id)
+        .bind(&self.effective_role)
+        .bind(&self.action)
+        .bind(&self.target_type)
+        .bind(&self.target_id)
+        .bind(&self.reason)
+        .bind(&self.policy_version)
+        .bind(&metadata_json)
+        .bind(&self.request_id)
+        .bind(&self.ip_address)
+        .bind(now)
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
+
+    /// 在 MySQL 调用方事务内写审计（调用方已 begin；M07-SHOP/M06-DOWNLOAD 用）。
+    pub async fn record_into_mysql(
+        self,
+        tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+    ) -> Result<(), sqlx::Error> {
+        let id = uuid::Uuid::now_v7().to_string();
+        let now = now_millis();
+        let metadata_json = self
+            .metadata
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_default());
+        sqlx::query(
+            "INSERT INTO audit_logs
+                 (id, actor_id, effective_role, action, target_type, target_id, reason, policy_version, metadata, request_id, ip_address, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(&self.actor_id)
+        .bind(&self.effective_role)
+        .bind(&self.action)
+        .bind(&self.target_type)
+        .bind(&self.target_id)
+        .bind(&self.reason)
+        .bind(&self.policy_version)
+        .bind(&metadata_json)
+        .bind(&self.request_id)
+        .bind(&self.ip_address)
+        .bind(now)
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
 }
 
 /// 审计 before/after 字段白名单（M01-AUDIT-02）。

@@ -12,7 +12,10 @@
     { label: '板块', href: '/admin/boards' },
     { label: '标签', href: '/admin/tags' },
     { label: '角色', href: '/admin/roles' },
-    { label: 'Assignment', href: '/admin/assignments' }
+    { label: 'Assignment', href: '/admin/assignments' },
+    { label: '商城', href: '/admin/shop' },
+    { label: '存储', href: '/admin/storage' },
+    { label: '活跃', href: '/admin/activity' }
   ];
 </script>
 

@@ -87,9 +87,7 @@ describe('M05-UI-08 失效资源通知不泄漏标题/正文', () => {
         template_key: 'reply.created'
       }
     ];
-    const { body } = render(NotificationsPage, {
-      props: { data: {} as any, form: null }
-    });
+    const { body } = render(NotificationsPage);
     // 页面数据由 onMount 拉取；此处用泄漏检查逻辑等价断言：
     // unavailable 通知不得出现原文标题/正文/链接。
     const item = items[0];

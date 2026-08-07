@@ -198,3 +198,40 @@ v1 目标为 WCAG 2.2 AA：
 - 测试必须覆盖无 JavaScript 的核心浏览和表单退化路径。
 
 验收矩阵见 [`TESTING.md`](TESTING.md)。
+
+## 12. M6/M7：附件、存储、商城与活跃（UI 约定）
+
+> 本节为 M06-UI / M07-UI 前端约定（2026-08 追加，随工作包交付）。
+
+- **附件上传（M06-UI-01..04）**：统一走 `frontend/src/lib/components/upload/AttachmentUploader.svelte`
+  两阶段流程——`POST /api/v1/attachments` 创建（S3 返回短期预签名 PUT 参数 / 本地
+  流式）→ 浏览器直传（S3 用 XHR 显示字节进度；403/401 表示签名过期，自动重新
+  create，不删除附件）→ `POST /attachments/{id}/complete`（服务端 HEAD 校验）→
+  轮询进入 `ready`。取消时中断 XHR 并尽力 `DELETE` 服务端 pending 附件。
+- **容量展示（M06-UI-02）**：`QuotaDisplay.svelte` 渲染单文件上限/总容量/已用/
+  剩余/预留与计费；数据来自创建响应或 `GET /attachments` 的 quota 摘要，字段缺失
+  降级。附件在物理删除后才释放容量。
+- **附件选择（M06-UI-03）**：Cover/头像/封面引用只选本人 `ready` 附件
+  （`AttachmentPicker.svelte`）；预览走稳定内容端点 `/api/v1/attachments/{id}/content`
+  （本地流式或 302 短期签名 URL），签名 URL 失效只重取不缓存不删除。
+- **下载抵扣（M06-UI-05）**：`POST /attachments/{id}/download`（强制 Idempotency-Key）
+  返回 `DownloadResult`；有效授权重签走 `/download-authorizations/{id}/sign-url`，
+  不重复扣费。余额不足/URL 失败/授权待处理各态均有独立提示。
+- **存储后台（M06-UI-06/07）**：`/admin/storage` 只展示脱敏状态（Secret 用掩码、
+  不回显）；env 来源字段只读并标注；`test` 返回稳定错误码 + 脱敏诊断。TTL 修改只
+  影响新签发 URL；后端切换需按 OPERATIONS.md 预演→hash→回滚（按钮禁用并提示）。
+- **商城（M07-UI-02..04）**：商品列表展示价格/库存/等级门槛/限购/有效期；购买确认
+  页显示准确价格、余额变化与不可退款说明；下单表单携带稳定 `client_request_id`
+  （隐藏域，SSR 生成）作为幂等键，重试不重复扣款；`/shop/orders/[id]` 展示订单
+  快照与 entitlement 发放/补偿待处理态。
+- **衣柜（M07-UI-05/06）**：`/me/wardrobe` 展示白名单 Token（`wardrobe/tokens.ts`
+  固定调色板/图标/文案映射，未知 Token 一律不渲染）；装备/卸下走原生表单 +
+  `expected_presentation_version` 乐观并发；徽章 ≤3；过期自动卸下（只展示历史）；
+  动效尊重 `prefers-reduced-motion`；隐私设置降级由后端投影决定。
+- **积分与签到（M07-UI-01）**：`/me/balance` 渲染余额/等级/经验/连续签到；
+  签到为每日首次有效页面访问自动领取，页面按钮走 `POST /activity/visit`（幂等）。
+- **Reaction（M07-UI-07）**：`ReactionBar.svelte` 独立组件（选择/撤销/429 冷却/
+  403/未登录提示），demo 于 `/me/wardrobe`；接入帖子/评论页时把每行 reactions
+  传入并接入既有列表。
+- **后台商城/活跃（M07-UI-08）**：`/admin/shop`、`/admin/activity` 商品/订单/退款/
+  任务配置；`reason` 必填（审计），If-Match 版本冲突 409 提示刷新。

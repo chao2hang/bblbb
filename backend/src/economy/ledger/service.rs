@@ -183,9 +183,7 @@ pub fn validate_command(cmd: &LedgerCommand) -> Result<(), LedgerError> {
     if cmd.delta_balance == 0 && cmd.delta_frozen == 0 {
         return Err(LedgerError::Invalid("no-op command".to_string()));
     }
-    if matches!(cmd.kind, LedgerKind::Adjust | LedgerKind::Reversal)
-        && cmd.memo.trim().is_empty()
-    {
+    if matches!(cmd.kind, LedgerKind::Adjust | LedgerKind::Reversal) && cmd.memo.trim().is_empty() {
         return Err(LedgerError::Invalid(
             "memo required for adjust/reversal".to_string(),
         ));
@@ -200,7 +198,15 @@ pub fn validate_command(cmd: &LedgerCommand) -> Result<(), LedgerError> {
     }
     // 禁止现实价值承诺类操作：不允许任何「现金/提现/兑换」形态。
     let lower = cmd.memo.to_lowercase();
-    for banned in ["提现", "充值", "现金", "兑换法币", "real-world", "cash out", "withdraw to"] {
+    for banned in [
+        "提现",
+        "充值",
+        "现金",
+        "兑换法币",
+        "real-world",
+        "cash out",
+        "withdraw to",
+    ] {
         if lower.contains(banned) {
             return Err(LedgerError::Invalid(
                 "real-value / cash operations are prohibited".to_string(),
@@ -491,6 +497,184 @@ pub async fn apply_operation(
     }
 }
 
+/// 在调用方事务内执行账本操作（M07-SHOP-02 / M06-DOWNLOAD-04 同事务需求）。
+///
+/// 与 [`apply_operation`] 语义一致（幂等/锁账户/version 乐观更新/不可变流水），
+/// 但不管理事务生命周期：调用方负责 `BEGIN IMMEDIATE`（SQLite）或事务 begin
+/// （MySQL），并在成功后统一 commit；失败时整体回滚（含本函数已写部分）。
+/// 调用方在提交前调用本函数，返回的 `OperationResult.operation_id` 用于关联
+/// 订单/授权等业务行。
+///
+/// `explicit_auto_deref` 说明同 [`apply_operation`]：`&mut PoolConnection`/
+/// `&mut Transaction` 需显式解引用才能作为 sqlx Executor。
+#[allow(clippy::explicit_auto_deref)]
+pub async fn apply_operation_in_sqlite_tx(
+    conn: &mut sqlx::SqliteConnection,
+    cmd: LedgerCommand,
+    now: i64,
+) -> Result<OperationResult, LedgerError> {
+    validate_command(&cmd)?;
+    let hash = cmd.request_hash();
+    // 幂等：同键同摘要返回原流水；同键不同摘要冲突。
+    if let Some(existing) = existing_operation_sqlite(conn, &cmd, &hash).await? {
+        return Ok(existing);
+    }
+    let operation_id = uuid::Uuid::now_v7().to_string();
+    insert_operation_sqlite(conn, &operation_id, &cmd, &hash, now).await?;
+    sqlx::query(
+        "INSERT OR IGNORE INTO point_accounts
+             (user_id, currency_id, balance, frozen_balance, version, updated_at)
+         VALUES (?, ?, 0, 0, 0, ?)",
+    )
+    .bind(&cmd.user_id)
+    .bind(&cmd.currency_id)
+    .bind(now)
+    .execute(&mut *conn)
+    .await?;
+    let (balance, frozen_balance, version) =
+        account_sqlite(conn, &cmd.user_id, &cmd.currency_id).await?;
+    let allow_negative = currency_allow_negative_sqlite(conn, &cmd.currency_id).await?;
+    let (new_balance, new_frozen) = apply_delta(
+        AccountState {
+            balance,
+            frozen_balance,
+            version,
+            allow_negative,
+        },
+        cmd.delta_balance,
+        cmd.delta_frozen,
+    )?;
+    let affected = sqlx::query(
+        "UPDATE point_accounts SET balance = ?, frozen_balance = ?, version = version + 1, updated_at = ?
+         WHERE user_id = ? AND currency_id = ? AND version = ?",
+    )
+    .bind(new_balance)
+    .bind(new_frozen)
+    .bind(now)
+    .bind(&cmd.user_id)
+    .bind(&cmd.currency_id)
+    .bind(version)
+    .execute(&mut *conn)
+    .await?
+    .rows_affected();
+    if affected != 1 {
+        return Err(LedgerError::ConcurrentModification);
+    }
+    insert_transaction_sqlite(
+        conn,
+        &operation_id,
+        &cmd,
+        now,
+        balance,
+        frozen_balance,
+        new_balance,
+        new_frozen,
+    )
+    .await?;
+    Ok(OperationResult {
+        operation_id: operation_id.clone(),
+        transactions: vec![LedgerTxRow {
+            id: uuid::Uuid::now_v7().to_string(),
+            operation_id: operation_id.clone(),
+            user_id: cmd.user_id.clone(),
+            currency_id: cmd.currency_id.clone(),
+            delta_balance: cmd.delta_balance,
+            delta_frozen: cmd.delta_frozen,
+            balance_after: new_balance,
+            frozen_after: new_frozen,
+            created_at: now,
+        }],
+    })
+}
+
+/// MySQL/MariaDB 版本：调用方已 begin 事务，本函数在事务内执行账本操作。
+#[allow(clippy::explicit_auto_deref)]
+pub async fn apply_operation_in_mysql_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+    cmd: LedgerCommand,
+    now: i64,
+) -> Result<OperationResult, LedgerError> {
+    validate_command(&cmd)?;
+    let hash = cmd.request_hash();
+    if let Some(existing) = existing_operation_mysql(tx, &cmd, &hash).await? {
+        return Ok(existing);
+    }
+    let operation_id = uuid::Uuid::now_v7().to_string();
+    if let Err(insert_err) = insert_operation_mysql(tx, &operation_id, &cmd, &hash, now).await {
+        if is_duplicate_key(&insert_err) {
+            if let Some(existing) = existing_operation_mysql(tx, &cmd, &hash).await? {
+                return Ok(existing);
+            }
+            return Err(LedgerError::IdempotencyConflict);
+        }
+        return Err(LedgerError::from(insert_err));
+    }
+    sqlx::query(
+        "INSERT IGNORE INTO point_accounts
+             (user_id, currency_id, balance, frozen_balance, version, updated_at)
+         VALUES (?, ?, 0, 0, 0, ?)",
+    )
+    .bind(&cmd.user_id)
+    .bind(&cmd.currency_id)
+    .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    let (balance, frozen_balance, version) =
+        account_for_update_mysql(tx, &cmd.user_id, &cmd.currency_id).await?;
+    let allow_negative = currency_allow_negative_mysql(tx, &cmd.currency_id).await?;
+    let (new_balance, new_frozen) = apply_delta(
+        AccountState {
+            balance,
+            frozen_balance,
+            version,
+            allow_negative,
+        },
+        cmd.delta_balance,
+        cmd.delta_frozen,
+    )?;
+    let affected = sqlx::query(
+        "UPDATE point_accounts SET balance = ?, frozen_balance = ?, version = version + 1, updated_at = ?
+         WHERE user_id = ? AND currency_id = ? AND version = ?",
+    )
+    .bind(new_balance)
+    .bind(new_frozen)
+    .bind(now)
+    .bind(&cmd.user_id)
+    .bind(&cmd.currency_id)
+    .bind(version)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    if affected != 1 {
+        return Err(LedgerError::ConcurrentModification);
+    }
+    insert_transaction_mysql(
+        tx,
+        &operation_id,
+        &cmd,
+        now,
+        balance,
+        frozen_balance,
+        new_balance,
+        new_frozen,
+    )
+    .await?;
+    Ok(OperationResult {
+        operation_id: operation_id.clone(),
+        transactions: vec![LedgerTxRow {
+            id: uuid::Uuid::now_v7().to_string(),
+            operation_id: operation_id.clone(),
+            user_id: cmd.user_id.clone(),
+            currency_id: cmd.currency_id.clone(),
+            delta_balance: cmd.delta_balance,
+            delta_frozen: cmd.delta_frozen,
+            balance_after: new_balance,
+            frozen_after: new_frozen,
+            created_at: now,
+        }],
+    })
+}
+
 /// 奖励/入账（credit）。
 pub async fn credit(
     pool: &DatabasePool,
@@ -700,13 +884,9 @@ pub async fn admin_grant(
         ));
     }
     if dual_review {
-        let second = second_approver
-            .filter(|s| *s != actor_id)
-            .ok_or_else(|| {
-                LedgerError::Invalid(
-                    "dual review requires a distinct second approver".to_string(),
-                )
-            })?;
+        let second = second_approver.filter(|s| *s != actor_id).ok_or_else(|| {
+            LedgerError::Invalid("dual review requires a distinct second approver".to_string())
+        })?;
         let _ = AuditEntry::user_action(actor_id, "ledger.admin_grant.second_approval")
             .with_target("user", &input.user_id)
             .with_effective_role("administrator")
@@ -884,11 +1064,10 @@ async fn currency_allow_negative_sqlite(
     conn: &mut sqlx::SqliteConnection,
     currency_id: &str,
 ) -> Result<bool, LedgerError> {
-    let row: Option<i64> =
-        sqlx::query_scalar("SELECT allow_negative FROM currencies WHERE id = ?")
-            .bind(currency_id)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let row: Option<i64> = sqlx::query_scalar("SELECT allow_negative FROM currencies WHERE id = ?")
+        .bind(currency_id)
+        .fetch_optional(&mut *conn)
+        .await?;
     row.map(|v| v != 0)
         .ok_or_else(|| LedgerError::NotFound("currency not found".to_string()))
 }
@@ -1015,11 +1194,10 @@ async fn currency_allow_negative_mysql(
     tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
     currency_id: &str,
 ) -> Result<bool, LedgerError> {
-    let row: Option<i64> =
-        sqlx::query_scalar("SELECT allow_negative FROM currencies WHERE id = ?")
-            .bind(currency_id)
-            .fetch_optional(&mut **tx)
-            .await?;
+    let row: Option<i64> = sqlx::query_scalar("SELECT allow_negative FROM currencies WHERE id = ?")
+        .bind(currency_id)
+        .fetch_optional(&mut **tx)
+        .await?;
     row.map(|v| v != 0)
         .ok_or_else(|| LedgerError::NotFound("currency not found".to_string()))
 }

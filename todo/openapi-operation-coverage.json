@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 184,
+  "expected_operations": 193,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -1109,6 +1109,40 @@
       "evidence": "M04-POSTS-11: 修订列表/详情——post.read_revision 权限门；作者本人或 post.moderate 可见修订正文，普通成员仅元数据；管理查看写审计 post.revision.read；集成测试 backend/tests/posts_revisions.rs"
     },
     {
+      "operation_id": "createAdminModerationCase",
+      "method": "POST",
+      "path": "/api/v1/admin/moderation/cases",
+      "primary_tag": "Admin",
+      "milestone": "M5",
+      "work_package": "M05-SANCTIONS",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "assignAdminModerationCase",
+      "method": "POST",
+      "path": "/api/v1/admin/moderation/cases/{id}/assign",
+      "primary_tag": "Admin",
+      "milestone": "M5",
+      "work_package": "M05-SANCTIONS",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
       "operation_id": "post_admin_moderation_sanctions",
       "method": "POST",
       "path": "/api/v1/admin/moderation/sanctions",
@@ -1279,6 +1313,40 @@
       "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
+      "operation_id": "withdrawAppeal",
+      "method": "POST",
+      "path": "/api/v1/appeals/{id}/withdraw",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-APPEALS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "listOwnReports",
+      "method": "GET",
+      "path": "/api/v1/reports",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
       "operation_id": "post_reports",
       "method": "POST",
       "path": "/api/v1/reports",
@@ -1294,6 +1362,23 @@
         "backend/tests/moderation/cases.rs"
       ],
       "evidence": "M05-CASES-01/02: target_type/reason_code 封闭枚举 + 详情限长 2000；目标资源存在校验；report_dedup_key 归一化 + 锚定窗口 UNIQUE 窗口内去重 → 统一 DuplicateReport 响应（不泄漏其他举报人/案件状态）；HTTP 201/409/400 测试；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+    },
+    {
+      "operation_id": "withdrawReport",
+      "method": "POST",
+      "path": "/api/v1/reports/{id}/withdraw",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
     },
     {
       "operation_id": "get_notifications",
@@ -1312,6 +1397,57 @@
         "backend/tests/notifications/notify.rs::permission_recheck_hides_unavailable_content"
       ],
       "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+    },
+    {
+      "operation_id": "getNotificationPreferences",
+      "method": "GET",
+      "path": "/api/v1/notifications/preferences",
+      "primary_tag": "Notifications",
+      "milestone": "M5",
+      "work_package": "M05-NOTIFY",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateNotificationPreferences",
+      "method": "PUT",
+      "path": "/api/v1/notifications/preferences",
+      "primary_tag": "Notifications",
+      "milestone": "M5",
+      "work_package": "M05-NOTIFY",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "markAllNotificationsRead",
+      "method": "POST",
+      "path": "/api/v1/notifications/read-all",
+      "primary_tag": "Notifications",
+      "milestone": "M5",
+      "work_package": "M05-NOTIFY",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
     },
     {
       "operation_id": "post_notifications_id_read",
@@ -1452,6 +1588,23 @@
     {
       "operation_id": "get_attachments_id_",
       "method": "GET",
+      "path": "/api/v1/attachments/{id}",
+      "primary_tag": "Attachments",
+      "milestone": "M6",
+      "work_package": "M06-UPLOAD",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAttachment",
+      "method": "PUT",
       "path": "/api/v1/attachments/{id}",
       "primary_tag": "Attachments",
       "milestone": "M6",

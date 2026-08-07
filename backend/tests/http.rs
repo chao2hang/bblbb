@@ -116,19 +116,20 @@ async fn security_headers_are_present() {
 #[tokio::test]
 async fn write_without_session_cookie_passes_csrf_check() {
     // 预认证写请求（无会话 Cookie）走宽松策略，不应被 CSRF 中间件拦截。
-    // 该路由为未实现桩，返回 501 说明请求已到达处理器。
+    // 该路由已实现：合法 JSON body 到达 handler（无 DB → 认证层拒绝 401）。
     let response = build_router(AppConfig::default(), None)
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/admin/storage/test")
-                .body(Body::empty())
+                .header("content-type", "application/json")
+                .body(Body::from("{\"probe\":true}"))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -139,17 +140,18 @@ async fn write_with_session_cookie_without_db_passes_csrf_check() {
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/admin/storage/test")
+                .header("content-type", "application/json")
                 .header(
                     "cookie",
                     "bblbb_session=invalid-cookie-value-without-db; __Host-bblbb_session=also-invalid",
                 )
-                .body(Body::empty())
+                .body(Body::from("{\"probe\":true}"))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 /// M01-CONFIG-06：可选能力默认关闭 → 命中其路由前缀返回 409 feature_disabled。

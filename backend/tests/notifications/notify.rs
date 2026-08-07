@@ -7,7 +7,9 @@ use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
 use bblbb_backend::db::DatabasePool;
 use bblbb_backend::email::service as email;
-use bblbb_backend::email::service::{deliver_email_job, enqueue_email, sanitize_log, RecordingSender};
+use bblbb_backend::email::service::{
+    deliver_email_job, enqueue_email, sanitize_log, RecordingSender,
+};
 use bblbb_backend::jobs::classify::ProviderError;
 use bblbb_backend::jobs::worker::claim_batch;
 use bblbb_backend::notifications::model::NotificationCategory;
@@ -115,13 +117,13 @@ async fn set_post_status(pool: &DatabasePool, post_id: &str, status: &str) {
 
 async fn job_status(pool: &DatabasePool, job_id: &str) -> (String, i64) {
     match pool {
-        Either::Left(p) => sqlx::query_as::<_, (String, i64)>(
-            "SELECT status, attempts FROM jobs WHERE id = ?",
-        )
-        .bind(job_id)
-        .fetch_one(p)
-        .await
-        .unwrap(),
+        Either::Left(p) => {
+            sqlx::query_as::<_, (String, i64)>("SELECT status, attempts FROM jobs WHERE id = ?")
+                .bind(job_id)
+                .fetch_one(p)
+                .await
+                .unwrap()
+        }
         Either::Right(_) => panic!("SQLite only"),
     }
 }
@@ -212,7 +214,9 @@ async fn create_notification_validates_and_dedups() {
     assert!(bblbb_backend::notifications::templates::is_known_template(
         TemplateKey::SecurityNotice.as_str()
     ));
-    assert!(!bblbb_backend::notifications::templates::is_known_template("unknown.template"));
+    assert!(!bblbb_backend::notifications::templates::is_known_template(
+        "unknown.template"
+    ));
 
     // 禁止参数：隐藏正文 / 内部 note
     for forbidden in FORBIDDEN_NOTIFICATION_PARAMS {
@@ -285,13 +289,19 @@ async fn list_cursor_and_read_flows() {
     // 未读计数 + 单条已读
     assert_eq!(notify::unread_count(&pool, &user).await.unwrap(), 5);
     let first_id = page1[0].id.clone();
-    assert!(notify::mark_read(&pool, &user, &first_id, now + 1000).await.unwrap());
+    assert!(notify::mark_read(&pool, &user, &first_id, now + 1000)
+        .await
+        .unwrap());
     assert_eq!(notify::unread_count(&pool, &user).await.unwrap(), 4);
     // 重复已读幂等
-    assert!(!notify::mark_read(&pool, &user, &first_id, now + 2000).await.unwrap());
+    assert!(!notify::mark_read(&pool, &user, &first_id, now + 2000)
+        .await
+        .unwrap());
 
     // 批量已读
-    let updated = notify::mark_all_read(&pool, &user, now + 3000).await.unwrap();
+    let updated = notify::mark_all_read(&pool, &user, now + 3000)
+        .await
+        .unwrap();
     assert_eq!(updated, 4);
     assert_eq!(notify::unread_count(&pool, &user).await.unwrap(), 0);
 
@@ -450,7 +460,9 @@ async fn email_job_transient_retry_permanent_dead_replay() {
         .await
         .unwrap();
     assert_eq!(claimed.len(), 1);
-    deliver_email_job(&pool, "w1", &job_id, &sender).await.unwrap_err();
+    deliver_email_job(&pool, "w1", &job_id, &sender)
+        .await
+        .unwrap_err();
     let (status, attempts) = job_status(&pool, &job_id).await;
     assert_eq!(status, "retry_wait");
     assert_eq!(attempts, 1);
@@ -461,7 +473,9 @@ async fn email_job_transient_retry_permanent_dead_replay() {
         .await
         .unwrap();
     assert_eq!(claimed.len(), 1);
-    deliver_email_job(&pool, "w1", &job_id, &sender).await.unwrap();
+    deliver_email_job(&pool, "w1", &job_id, &sender)
+        .await
+        .unwrap();
     let (status, _) = job_status(&pool, &job_id).await;
     assert_eq!(status, "succeeded");
     {
@@ -559,7 +573,10 @@ async fn email_payload_and_log_sanitization() {
     // 日志安全：完整邮箱、正文、token、Provider 响应不进入日志文本
     let detail = format!("smtp rejected (code 550) token={token}");
     let log = sanitize_log("alice@example.com", "有处罚", &detail);
-    assert!(!log.contains("alice@example.com"), "完整邮箱不得入日志: {log}");
+    assert!(
+        !log.contains("alice@example.com"),
+        "完整邮箱不得入日志: {log}"
+    );
     assert!(log.contains("a***@example.com"));
     assert!(!log.contains(&token), "token 必须脱敏");
     assert!(!log.contains("正文"), "正文不得入日志");

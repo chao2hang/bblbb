@@ -33,6 +33,9 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "mysql", "chron
 pulldown-cmark = { version = "0.10", features = ["html"] }
 ammonia = "4.1.4"
 url = "2.5.8"
+aws-config = { version = "1", default-features = false, features = ["rustls"] }
+aws-sdk-s3 = { version = "1", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-credential-types = { version = "1", default-features = false }
 
 [dev-dependencies]
 tower = "0.5"
@@ -77,3 +80,43 @@ path = "tests/notifications/notify.rs"
 [[test]]
 name = "economy_ledger"
 path = "tests/economy/ledger.rs"
+
+# M6 存储域测试（M06-ADAPTER/UPLOAD/QUOTA/MIGRATION）
+[[test]]
+name = "storage_adapter"
+path = "tests/storage/adapter.rs"
+
+[[test]]
+name = "storage_upload"
+path = "tests/storage/upload.rs"
+
+[[test]]
+name = "storage_quota"
+path = "tests/storage/quota.rs"
+
+[[test]]
+name = "storage_migration"
+path = "tests/storage/migration.rs"
+
+# M06-DOWNLOAD 测试
+[[test]]
+name = "download_billing"
+path = "tests/download/billing.rs"
+
+[[test]]
+name = "download_http"
+path = "tests/download/http.rs"
+
+# M07-LEVELS / ACTIVITY 测试
+[[test]]
+name = "economy_activity"
+path = "tests/economy/activity.rs"
+
+# M07-SHOP / REACTIONS 测试
+[[test]]
+name = "shop_core"
+path = "tests/shop/core.rs"
+
+[[test]]
+name = "reactions"
+path = "tests/reactions.rs"

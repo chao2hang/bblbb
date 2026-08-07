@@ -16,6 +16,11 @@ use crate::error::AppError;
 use crate::tags::admin::{create_tag, update_tag};
 
 /// 管理后台路由
+///
+/// M6/M7 域路由委托给按域分区的子模块（admin_storage / admin_download /
+/// admin_activity / admin_shop），由对应域 agent 填充，避免单文件并发冲突。
+use super::{admin_activity, admin_download, admin_shop, admin_storage};
+
 pub fn router() -> Router<AppState> {
     Router::new()
         // 用户管理
@@ -54,61 +59,14 @@ pub fn router() -> Router<AppState> {
             "/api/v1/admin/tags/{id}",
             get(get_admin_tag).patch(update_admin_tag),
         )
-        // 存储配额
-        .route(
-            "/api/v1/admin/storage/config",
-            get(get_storage_config).patch(update_storage_config),
-        )
-        .route("/api/v1/admin/storage/test", post(test_storage))
-        .route(
-            "/api/v1/admin/levels/{id}/attachment-quota",
-            get(get_attachment_quota).patch(update_attachment_quota),
-        )
-        // 下载计费
-        .route(
-            "/api/v1/admin/attachments/{id}/download-policy",
-            get(get_admin_download_policy).patch(update_admin_download_policy),
-        )
-        .route(
-            "/api/v1/admin/download-billing/config",
-            get(get_billing_config).patch(update_billing_config),
-        )
-        // 活跃任务
-        .route(
-            "/api/v1/admin/activity/config",
-            get(get_activity_config).patch(update_activity_config),
-        )
-        .route(
-            "/api/v1/admin/activity/tasks",
-            get(list_activity_tasks).post(create_activity_task),
-        )
-        .route(
-            "/api/v1/admin/activity/tasks/{id}",
-            patch(update_activity_task),
-        )
-        // 商城
-        .route(
-            "/api/v1/admin/shop/config",
-            get(get_shop_config).patch(update_shop_config),
-        )
-        .route(
-            "/api/v1/admin/shop/products",
-            get(list_admin_products).post(create_admin_product),
-        )
-        .route(
-            "/api/v1/admin/shop/products/{id}",
-            patch(update_admin_product),
-        )
-        .route(
-            "/api/v1/admin/shop/products/{id}/disable",
-            post(disable_product),
-        )
-        .route(
-            "/api/v1/admin/shop/products/{id}/publish",
-            post(publish_product),
-        )
-        .route("/api/v1/admin/shop/orders", get(list_admin_orders))
-        .route("/api/v1/admin/shop/orders/{id}/refund", post(refund_order))
+        // M6 存储配额（admin_storage 域 agent 填充）
+        .merge(admin_storage::router())
+        // M6 下载计费（admin_download 域 agent 填充）
+        .merge(admin_download::router())
+        // M7 活跃任务（admin_activity 域 agent 填充）
+        .merge(admin_activity::router())
+        // M7 商城（admin_shop 域 agent 填充）
+        .merge(admin_shop::router())
         // AI 管理
         .route(
             "/api/v1/admin/ai/config",
@@ -541,102 +499,6 @@ async fn get_admin_tag(
     Path(_id): Path<String>,
 ) -> (StatusCode, Json<Value>) {
     not_implemented("getAdminTag")
-}
-async fn get_storage_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_storage_config")
-}
-async fn update_storage_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("patch_admin_storage_config")
-}
-async fn test_storage(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_storage_test")
-}
-async fn get_attachment_quota(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_levels_id_attachment_quota")
-}
-async fn update_attachment_quota(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("patch_admin_levels_id_attachment_quota")
-}
-async fn get_admin_download_policy(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("getAttachmentDownloadPolicyAdmin")
-}
-async fn update_admin_download_policy(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAttachmentDownloadPolicyAdmin")
-}
-async fn get_billing_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("getDownloadBillingConfig")
-}
-async fn update_billing_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("updateDownloadBillingConfig")
-}
-async fn get_activity_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("getAdminActivityConfig")
-}
-async fn update_activity_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminActivityConfig")
-}
-async fn list_activity_tasks(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminActivityTasks")
-}
-async fn create_activity_task(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("createAdminActivityTask")
-}
-async fn update_activity_task(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminActivityTask")
-}
-async fn get_shop_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("getAdminShopConfig")
-}
-async fn update_shop_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminShopConfig")
-}
-async fn list_admin_products(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminShopProducts")
-}
-async fn create_admin_product(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("createAdminShopProduct")
-}
-async fn update_admin_product(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminShopProduct")
-}
-async fn disable_product(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("disableAdminShopProduct")
-}
-async fn publish_product(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("publishAdminShopProduct")
-}
-async fn list_admin_orders(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminShopOrders")
-}
-async fn refund_order(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("refundAdminShopOrder")
 }
 async fn get_ai_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("get_admin_ai_config")

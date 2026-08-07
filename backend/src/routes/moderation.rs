@@ -19,7 +19,9 @@ use crate::{
     moderation::appeals::service::AppealsError,
     moderation::cases::service as cases,
     moderation::cases::service::CasesError,
-    moderation::model::{AppealDecisionValue, CasePriority, CaseStatus, ReportReasonCode, ReportTargetType},
+    moderation::model::{
+        AppealDecisionValue, CasePriority, CaseStatus, ReportReasonCode, ReportTargetType,
+    },
     notifications::service as notifications,
 };
 
@@ -30,10 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/reports/{id}/withdraw", post(withdraw_report))
         .route("/api/v1/appeals", get(list_own_appeals).post(create_appeal))
         .route("/api/v1/appeals/{id}", get(get_own_appeal))
-        .route(
-            "/api/v1/appeals/{id}/withdraw",
-            post(withdraw_appeal),
-        )
+        .route("/api/v1/appeals/{id}/withdraw", post(withdraw_appeal))
         .route("/api/v1/notifications", get(list_notifications))
         .route(
             "/api/v1/notifications/{id}/read",
@@ -103,10 +102,15 @@ async fn list_notifications(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
     let unread_filter = query.unread_only.unwrap_or(false);
-    let (items, has_more) =
-        notifications::list_notifications(pool, &user.id, query.limit, unread_filter, query.cursor.as_deref())
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let (items, has_more) = notifications::list_notifications(
+        pool,
+        &user.id,
+        query.limit,
+        unread_filter,
+        query.cursor.as_deref(),
+    )
+    .await
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
     let unread_count = notifications::unread_count(pool, &user.id)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -239,7 +243,9 @@ async fn put_notification_preferences(
         notifications::NotifyError::Invalid(msg) => AppError::bad_request(msg, request_id, None),
         notifications::NotifyError::Db(msg) => AppError::internal(msg, request_id),
     })?;
-    Ok(Json(json!({ "category": category.as_str(), "updated": true })))
+    Ok(Json(
+        json!({ "category": category.as_str(), "updated": true }),
+    ))
 }
 
 // ─── 举报端点 ─────────────────────────────────────────────────────────────
@@ -394,10 +400,9 @@ fn map_appeals_error(err: AppealsError, request_id: &'static str) -> AppError {
         AppealsError::Invalid(msg) => AppError::bad_request(msg, request_id, None),
         AppealsError::Conflict(msg) => AppError::conflict(msg, request_id),
         AppealsError::ReviewerConflict(msg) => AppError::conflict(msg, request_id),
-        AppealsError::StaleVersion => AppError::conflict(
-            "appeal version mismatch: concurrent decision",
-            request_id,
-        ),
+        AppealsError::StaleVersion => {
+            AppError::conflict("appeal version mismatch: concurrent decision", request_id)
+        }
         AppealsError::Db(msg) => AppError::internal(msg, request_id),
     }
 }
@@ -423,10 +428,7 @@ async fn list_own_appeals(
     let items = appeals::list_own_appeals(pool, &user.id, 50)
         .await
         .map_err(|e| map_appeals_error(e, request_id))?;
-    let items: Vec<Value> = items
-        .iter()
-        .map(appeals::own_appeal_projection)
-        .collect();
+    let items: Vec<Value> = items.iter().map(appeals::own_appeal_projection).collect();
     Ok(Json(
         json!({ "items": items, "next_cursor": null, "has_more": false }),
     ))

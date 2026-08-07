@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**184**
-- 唯一 operationId：**184**
-- 实现状态：`baseline_only` 3；`implemented` 58；`in_progress` 7；`not_started` 116
-- 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
+- 契约操作：**193**
+- 唯一 operationId：**193**
+- 实现状态：`baseline_only` 3；`implemented` 58；`in_progress` 7；`not_started` 125
+- 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 21；`M6` 20；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
 
@@ -84,6 +84,8 @@
 | `updatePost` | `PATCH` | `/api/v1/posts/{postId}` | Posts | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `listPostRevisions` | `GET` | `/api/v1/posts/{id}/revisions` | Revisions | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `getPostRevision` | `GET` | `/api/v1/posts/{id}/revisions/{revisionId}` | Revisions | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
+| `createAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
+| `assignAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases/{id}/assign` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
 | `post_admin_moderation_sanctions` | `POST` | `/api/v1/admin/moderation/sanctions` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
 | `listModerationAppeals` | `GET` | `/api/v1/admin/moderation/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `getModerationAppeal` | `GET` | `/api/v1/admin/moderation/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
@@ -94,8 +96,14 @@
 | `listOwnAppeals` | `GET` | `/api/v1/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `createAppeal` | `POST` | `/api/v1/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `getOwnAppeal` | `GET` | `/api/v1/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
+| `withdrawAppeal` | `POST` | `/api/v1/appeals/{id}/withdraw` | Moderation | `M5` / `M05-APPEALS` | `P1` | `not_started` | `unassigned` |
+| `listOwnReports` | `GET` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `post_reports` | `POST` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-moderation` |
+| `withdrawReport` | `POST` | `/api/v1/reports/{id}/withdraw` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `get_notifications` | `GET` | `/api/v1/notifications` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `implemented` | `backend-notifications` |
+| `getNotificationPreferences` | `GET` | `/api/v1/notifications/preferences` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
+| `updateNotificationPreferences` | `PUT` | `/api/v1/notifications/preferences` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
+| `markAllNotificationsRead` | `POST` | `/api/v1/notifications/read-all` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
 | `post_notifications_id_read` | `POST` | `/api/v1/notifications/{id}/read` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `implemented` | `backend-notifications` |
 | `get_admin_levels_id_attachment_quota` | `GET` | `/api/v1/admin/levels/{id}/attachment-quota` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |
 | `patch_admin_levels_id_attachment_quota` | `PATCH` | `/api/v1/admin/levels/{id}/attachment-quota` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |
@@ -105,6 +113,7 @@
 | `createAttachment` | `POST` | `/api/v1/attachments` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
 | `delete_attachments_id_` | `DELETE` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
 | `get_attachments_id_` | `GET` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
+| `updateAttachment` | `PUT` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
 | `post_attachments_id_complete` | `POST` | `/api/v1/attachments/{id}/complete` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
 | `get_attachments_id_content` | `GET` | `/api/v1/attachments/{id}/content` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
 | `post_attachments_id_download` | `POST` | `/api/v1/attachments/{id}/download` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |

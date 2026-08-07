@@ -29,9 +29,40 @@ import type {
   AppealListResult,
   ModerationCaseItem,
   ModerationCaseDetail,
-  ModerationAppealDetail
+  ModerationAppealDetail,
+  // M6/M7：附件、下载、商城、权益、活跃与后台（自建投影）
+  ActivityConfig,
+  ActivitySummary,
+  ActivityTask,
+  Attachment,
+  AttachmentCreateResult,
+  AttachmentListResult,
+  AttachmentQuota,
+  DownloadAuthorizationView,
+  DownloadBillingConfig,
+  DownloadPolicyView,
+  DownloadTransaction,
+  Entitlement,
+  LevelQuotaView,
+  OrderCreateResult,
+  Presentation,
+  ProductKind,
+  ProductStatus,
+  RefundPolicy,
+  ShopConfig,
+  ShopOrder,
+  ShopProduct,
+  StorageConfig,
+  StorageConfigPatch,
+  StorageTestResult
 } from './types';
 import type { Problem } from '../errors';
+import type {
+  DownloadResult,
+  EntitlementEquip,
+  Money,
+  ShopOrderCreate
+} from './types';
 
 export type {
   User,
@@ -58,9 +89,35 @@ export type {
   AppealListResult,
   ModerationCaseItem,
   ModerationCaseDetail,
-  ModerationAppealDetail
+  ModerationAppealDetail,
+  // M6/M7 自建投影类型
+  ActivityConfig,
+  ActivitySummary,
+  ActivityTask,
+  Attachment,
+  AttachmentCreateResult,
+  AttachmentListResult,
+  AttachmentQuota,
+  DownloadAuthorizationView,
+  DownloadBillingConfig,
+  DownloadPolicyView,
+  DownloadTransaction,
+  Entitlement,
+  LevelQuotaView,
+  OrderCreateResult,
+  Presentation,
+  ProductKind,
+  ProductStatus,
+  RefundPolicy,
+  ShopConfig,
+  ShopOrder,
+  ShopProduct,
+  StorageConfig,
+  StorageConfigPatch,
+  StorageTestResult
 } from './types';
 export type { Problem, ProblemFieldError } from '../errors';
+export type { DownloadResult, EntitlementEquip, Money, ShopOrderCreate } from './types';
 
 const API_BASE = '/api/v1';
 
@@ -532,4 +589,514 @@ export async function fetchHealth(
     throw new Error(`Health check failed with status ${response.status}`);
   }
   return response.json();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M6/M7：附件、下载、商城、权益、活跃与后台（自建投影类型见 types.ts）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 幂等键透传辅助：把 client_request_id 同时作为 Idempotency-Key 头。 */
+function idemHeaders(key: string): Record<string, string> {
+  return { 'Idempotency-Key': key };
+}
+
+// ─── 附件（M06-UPLOAD / M06-QUOTA） ─────────────────────────────────────
+
+/** POST /api/v1/attachments：创建上传（返回 presigned PUT 参数或本地直传
+ *  信息 + 配额摘要）。body 见契约 AttachmentCreate。 */
+export async function createAttachment(
+  fetchFn: typeof fetch,
+  input: {
+    filename: string;
+    size: number;
+    declared_media_type: string;
+    target_type?: string | null;
+    target_id?: string | null;
+  }
+): Promise<AttachmentCreateResult> {
+  return request(fetchFn, '/attachments', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+}
+
+/** POST /api/v1/attachments/{id}/complete：完成上传并触发服务端校验（幂等）。 */
+export async function completeAttachment(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string
+): Promise<Attachment> {
+  return request(fetchFn, `/attachments/${encodeURIComponent(id)}/complete`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ client_request_id: clientRequestId })
+  });
+}
+
+/** GET /api/v1/attachments/{id}：附件元数据。 */
+export async function getAttachment(fetchFn: typeof fetch, id: string): Promise<Attachment> {
+  return request(fetchFn, `/attachments/${encodeURIComponent(id)}`);
+}
+
+/** GET /api/v1/attachments：本人附件列表 + 配额摘要（后端扩展接口；后端
+ *  未实现或 501 时返回空列表，由调用方展示配额缺失降级）。 */
+export async function listMyAttachments(fetchFn: typeof fetch): Promise<AttachmentListResult> {
+  try {
+    return await request<AttachmentListResult>(fetchFn, '/attachments');
+  } catch {
+    return { items: [], quota: null };
+  }
+}
+
+/** DELETE /api/v1/attachments/{id}：删除未引用附件（删除仅解除对象；容量在
+ *  物理释放后归还）。 */
+export async function deleteAttachment(fetchFn: typeof fetch, id: string): Promise<void> {
+  await request(fetchFn, `/attachments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
+/** 稳定内容端点（预览/下载字节流）：GET /api/v1/attachments/{id}/content。
+ *  返回字节流（本地直传）或 302 到短期签名 URL（S3）；前端直接作为
+ *  img/链接 src，不把签名 URL 当永久状态。 */
+export function attachmentContentUrl(id: string): string {
+  return `${API_BASE}/attachments/${encodeURIComponent(id)}/content`;
+}
+
+// ─── 下载（M06-DOWNLOAD） ────────────────────────────────────────────────
+
+/** GET /api/v1/attachments/{id}/download-policy：当前下载价格与授权状态。 */
+export async function getDownloadPolicy(
+  fetchFn: typeof fetch,
+  id: string
+): Promise<DownloadPolicyView> {
+  return request(fetchFn, `/attachments/${encodeURIComponent(id)}/download-policy`);
+}
+
+/** POST /api/v1/attachments/{id}/download：鉴权、必要时原子扣费并签发临时
+ *  URL。返回 DownloadResult（契约）；`url_expires_at` 为 ISO date-time。 */
+export async function downloadAttachment(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string,
+  options: { target_type?: 'post' | 'comment' | null; target_id?: string | null } = {}
+): Promise<DownloadResult> {
+  return request(fetchFn, `/attachments/${encodeURIComponent(id)}/download`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ client_request_id: clientRequestId, ...options })
+  });
+}
+
+/** GET /api/v1/download-authorizations/{id}：查询本人下载授权。 */
+export async function getDownloadAuthorization(
+  fetchFn: typeof fetch,
+  id: string
+): Promise<DownloadAuthorizationView> {
+  return request(fetchFn, `/download-authorizations/${encodeURIComponent(id)}`);
+}
+
+/** POST /api/v1/download-authorizations/{id}/sign-url：有效授权重新签发
+ *  URL，不重复扣费（M06-UI-04：URL 过期只重签，不删除附件）。 */
+export async function signDownloadUrl(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string
+): Promise<DownloadResult> {
+  return request(fetchFn, `/download-authorizations/${encodeURIComponent(id)}/sign-url`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ client_request_id: clientRequestId })
+  });
+}
+
+/** GET /api/v1/me/download-transactions：我的下载流水。 */
+export async function listDownloadTransactions(
+  fetchFn: typeof fetch
+): Promise<DownloadTransaction[]> {
+  const data = await request<{ items?: DownloadTransaction[] } | DownloadTransaction[]>(
+    fetchFn,
+    '/me/download-transactions'
+  );
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+// ─── 商城（M07-SHOP） ─────────────────────────────────────────────────────
+
+/** GET /api/v1/shop/products：在售商品列表。 */
+export async function listShopProducts(fetchFn: typeof fetch): Promise<ShopProduct[]> {
+  const data = await request<{ items?: ShopProduct[] } | ShopProduct[]>(fetchFn, '/shop/products');
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+/** GET /api/v1/shop/products/{id}：商品详情。 */
+export async function getShopProduct(fetchFn: typeof fetch, id: string): Promise<ShopProduct> {
+  return request(fetchFn, `/shop/products/${encodeURIComponent(id)}`);
+}
+
+/** POST /api/v1/shop/orders（契约 ShopOrderCreate）：服务端重算价格/库存/
+ *  等级/限购，同一幂等键重放不重复扣款。响应见 OrderCreateResult。 */
+export async function createShopOrder(
+  fetchFn: typeof fetch,
+  input: ShopOrderCreate
+): Promise<OrderCreateResult> {
+  return request(fetchFn, '/shop/orders', {
+    method: 'POST',
+    headers: idemHeaders(input.client_request_id),
+    body: JSON.stringify(input)
+  });
+}
+
+/** GET /api/v1/shop/orders/{id}：订单结果（含 entitlement 发放状态）。 */
+export async function getShopOrder(fetchFn: typeof fetch, id: string): Promise<ShopOrder> {
+  return request(fetchFn, `/shop/orders/${encodeURIComponent(id)}`);
+}
+
+// ─── 权益与展示（M07-SHOP） ──────────────────────────────────────────────
+
+/** GET /api/v1/me/entitlements：我的权益。 */
+export async function listEntitlements(fetchFn: typeof fetch): Promise<Entitlement[]> {
+  const data = await request<{ items?: Entitlement[] } | Entitlement[]>(
+    fetchFn,
+    '/me/entitlements'
+  );
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+/** POST /api/v1/me/entitlements/{id}/equip：装备（expected_presentation_version
+ *  乐观并发；409 版本冲突/槽位冲突提示刷新）。 */
+export async function equipEntitlement(
+  fetchFn: typeof fetch,
+  id: string,
+  body: EntitlementEquip
+): Promise<Presentation> {
+  return request(fetchFn, `/me/entitlements/${encodeURIComponent(id)}/equip`, {
+    method: 'POST',
+    headers: idemHeaders(String(body.expected_presentation_version)),
+    body: JSON.stringify(body)
+  });
+}
+
+/** POST /api/v1/me/entitlements/{id}/unequip。 */
+export async function unequipEntitlement(
+  fetchFn: typeof fetch,
+  id: string,
+  body: EntitlementEquip
+): Promise<Presentation> {
+  return request(fetchFn, `/me/entitlements/${encodeURIComponent(id)}/unequip`, {
+    method: 'POST',
+    headers: idemHeaders(String(body.expected_presentation_version)),
+    body: JSON.stringify(body)
+  });
+}
+
+/** GET /api/v1/me/presentation：服务端编译的安全 Token 展示投影。 */
+export async function getPresentation(fetchFn: typeof fetch): Promise<Presentation> {
+  return request(fetchFn, '/me/presentation');
+}
+
+// ─── 活跃与等级（M07-LEVELS） ────────────────────────────────────────────
+
+/** GET /api/v1/activity/summary：等级/经验/签到/余额安全投影。 */
+export async function getActivitySummary(fetchFn: typeof fetch): Promise<ActivitySummary> {
+  return request(fetchFn, '/activity/summary');
+}
+
+/** POST /api/v1/activity/visit：每日首次有效业务页面访问自动签到（幂等）；
+ *  前端也可显式触发领取。返回 ActivityVisitResult（契约）。 */
+export async function recordVisit(
+  fetchFn: typeof fetch,
+  clientRequestId: string
+): Promise<{ checked_in_today: boolean; streak_days: number; today_earned: Money[]; point_operation_id?: string }> {
+  return request(fetchFn, '/activity/visit', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ client_request_id: clientRequestId })
+  });
+}
+
+// ─── 反应（M07-SHOP-08） ─────────────────────────────────────────────────
+
+/** POST /api/v1/posts/{id}/reactions（body 含 reaction，契约 ReactionCreate）。 */
+export async function addPostReaction(
+  fetchFn: typeof fetch,
+  postId: string,
+  reaction: string
+): Promise<ReactionResult> {
+  return request(fetchFn, `/posts/${postId}/reactions`, {
+    method: 'POST',
+    body: JSON.stringify({ reaction })
+  });
+}
+
+/** DELETE /api/v1/posts/{id}/reactions/{reaction}：撤销帖子反应。 */
+export async function removePostReaction(
+  fetchFn: typeof fetch,
+  postId: string,
+  reaction: string
+): Promise<void> {
+  await request(fetchFn, `/posts/${postId}/reactions/${encodeURIComponent(reaction)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
+/** POST /api/v1/comments/{id}/reactions。 */
+export async function addCommentReaction(
+  fetchFn: typeof fetch,
+  commentId: string,
+  reaction: string
+): Promise<ReactionResult> {
+  return request(fetchFn, `/comments/${commentId}/reactions`, {
+    method: 'POST',
+    body: JSON.stringify({ reaction })
+  });
+}
+
+/** DELETE /api/v1/comments/{id}/reactions/{reaction}：撤销评论反应。 */
+export async function removeCommentReaction(
+  fetchFn: typeof fetch,
+  commentId: string,
+  reaction: string
+): Promise<void> {
+  await request(fetchFn, `/comments/${commentId}/reactions/${encodeURIComponent(reaction)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
+// ─── 管理端：存储（M06-UI-06/07） ────────────────────────────────────────
+
+/** GET /api/v1/admin/storage/config：脱敏配置（Secret 只给布尔）。 */
+export async function getStorageConfig(fetchFn: typeof fetch): Promise<StorageConfig> {
+  return request(fetchFn, '/admin/storage/config');
+}
+
+/** PATCH /api/v1/admin/storage/config：If-Match 版本守卫；空 Secret 保持原值。 */
+export async function updateStorageConfig(
+  fetchFn: typeof fetch,
+  patch: StorageConfigPatch
+): Promise<StorageConfig> {
+  return request(fetchFn, '/admin/storage/config', {
+    method: 'PATCH',
+    headers: { 'If-Match': String(patch.expected_version) },
+    body: JSON.stringify(patch)
+  });
+}
+
+/** POST /api/v1/admin/storage/test：测试候选/当前配置（脱敏诊断）。 */
+export async function testStorageConfig(
+  fetchFn: typeof fetch,
+  candidate: Record<string, unknown>,
+  clientRequestId: string
+): Promise<StorageTestResult> {
+  return request(fetchFn, '/admin/storage/test', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify(candidate)
+  });
+}
+
+/** GET /api/v1/admin/levels/{id}/attachment-quota：等级附件配额。 */
+export async function getLevelAttachmentQuota(
+  fetchFn: typeof fetch,
+  levelId: string
+): Promise<LevelQuotaView> {
+  return request(fetchFn, `/admin/levels/${encodeURIComponent(levelId)}/attachment-quota`);
+}
+
+/** PATCH /api/v1/admin/levels/{id}/attachment-quota：修改后立即影响新上传。 */
+export async function updateLevelAttachmentQuota(
+  fetchFn: typeof fetch,
+  levelId: string,
+  body: { max_file_bytes: number; total_bytes: number; expected_version: number; reason: string }
+): Promise<LevelQuotaView> {
+  return request(fetchFn, `/admin/levels/${encodeURIComponent(levelId)}/attachment-quota`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(body.expected_version) },
+    body: JSON.stringify(body)
+  });
+}
+
+/** GET /api/v1/admin/download-billing/config：下载计费站点配置。 */
+export async function getDownloadBillingConfig(fetchFn: typeof fetch): Promise<DownloadBillingConfig> {
+  return request(fetchFn, '/admin/download-billing/config');
+}
+
+/** PATCH /api/v1/admin/download-billing/config（If-Match + reason）。 */
+export async function updateDownloadBillingConfig(
+  fetchFn: typeof fetch,
+  body: { expected_version: number; reason: string; changes: Record<string, unknown> }
+): Promise<DownloadBillingConfig> {
+  return request(fetchFn, '/admin/download-billing/config', {
+    method: 'PATCH',
+    headers: { 'If-Match': String(body.expected_version) },
+    body: JSON.stringify(body)
+  });
+}
+
+// ─── 管理端：商城（M07-UI-08） ───────────────────────────────────────────
+
+/** GET /api/v1/admin/shop/config。 */
+export async function getShopConfig(fetchFn: typeof fetch): Promise<ShopConfig> {
+  return request(fetchFn, '/admin/shop/config');
+}
+
+/** PATCH /api/v1/admin/shop/config。 */
+export async function updateShopConfig(
+  fetchFn: typeof fetch,
+  body: { expected_version: number; reason: string; changes: Record<string, unknown> }
+): Promise<ShopConfig> {
+  return request(fetchFn, '/admin/shop/config', {
+    method: 'PATCH',
+    headers: { 'If-Match': String(body.expected_version) },
+    body: JSON.stringify(body)
+  });
+}
+
+/** GET /api/v1/admin/shop/products：全部商品（含草稿/下架）。 */
+export async function listAdminShopProducts(fetchFn: typeof fetch): Promise<ShopProduct[]> {
+  const data = await request<{ items?: ShopProduct[] } | ShopProduct[]>(
+    fetchFn,
+    '/admin/shop/products'
+  );
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+/** POST /api/v1/admin/shop/products：新建商品。 */
+export async function createAdminShopProduct(
+  fetchFn: typeof fetch,
+  body: Record<string, unknown>
+): Promise<ShopProduct> {
+  return request(fetchFn, '/admin/shop/products', { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** PATCH /api/v1/admin/shop/products/{id}：更新商品（If-Match 版本守卫）。 */
+export async function updateAdminShopProduct(
+  fetchFn: typeof fetch,
+  id: string,
+  body: Record<string, unknown>,
+  version: number
+): Promise<ShopProduct> {
+  return request(fetchFn, `/admin/shop/products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(version) },
+    body: JSON.stringify(body)
+  });
+}
+
+/** POST /api/v1/admin/shop/products/{id}/publish。 */
+export async function publishAdminShopProduct(fetchFn: typeof fetch, id: string): Promise<void> {
+  await request(fetchFn, `/admin/shop/products/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+/** POST /api/v1/admin/shop/products/{id}/disable。 */
+export async function disableAdminShopProduct(fetchFn: typeof fetch, id: string): Promise<void> {
+  await request(fetchFn, `/admin/shop/products/${encodeURIComponent(id)}/disable`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+/** GET /api/v1/admin/shop/orders：订单列表。 */
+export async function listAdminShopOrders(fetchFn: typeof fetch): Promise<ShopOrder[]> {
+  const data = await request<{ items?: ShopOrder[] } | ShopOrder[]>(
+    fetchFn,
+    '/admin/shop/orders'
+  );
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+/** POST /api/v1/admin/shop/orders/{id}/refund：补偿退款（reason 必填）。 */
+export async function refundAdminShopOrder(
+  fetchFn: typeof fetch,
+  id: string,
+  body: { reason_code: string; reason: string; amount?: Money | null }
+): Promise<ShopOrder> {
+  return request(fetchFn, `/admin/shop/orders/${encodeURIComponent(id)}/refund`, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+}
+
+// ─── 管理端：活跃（M07-UI-08） ───────────────────────────────────────────
+
+/** GET /api/v1/admin/activity/config。 */
+export async function getActivityConfig(fetchFn: typeof fetch): Promise<ActivityConfig> {
+  return request(fetchFn, '/admin/activity/config');
+}
+
+/** PATCH /api/v1/admin/activity/config。 */
+export async function updateActivityConfig(
+  fetchFn: typeof fetch,
+  body: { expected_version: number; reason: string; changes: Record<string, unknown> }
+): Promise<ActivityConfig> {
+  return request(fetchFn, '/admin/activity/config', {
+    method: 'PATCH',
+    headers: { 'If-Match': String(body.expected_version) },
+    body: JSON.stringify(body)
+  });
+}
+
+/** GET /api/v1/admin/activity/tasks。 */
+export async function listAdminActivityTasks(fetchFn: typeof fetch): Promise<ActivityTask[]> {
+  const data = await request<{ items?: ActivityTask[] } | ActivityTask[]>(
+    fetchFn,
+    '/admin/activity/tasks'
+  );
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+/** POST /api/v1/admin/activity/tasks：新建任务。 */
+export async function createAdminActivityTask(
+  fetchFn: typeof fetch,
+  body: Record<string, unknown>
+): Promise<ActivityTask> {
+  return request(fetchFn, '/admin/activity/tasks', { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** PATCH /api/v1/admin/activity/tasks/{id}：更新任务（If-Match）。 */
+export async function updateAdminActivityTask(
+  fetchFn: typeof fetch,
+  id: string,
+  body: Record<string, unknown>,
+  version: number
+): Promise<ActivityTask> {
+  return request(fetchFn, `/admin/activity/tasks/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(version) },
+    body: JSON.stringify(body)
+  });
+}
+
+/** 商品类型 → 中文名（页面展示）。 */
+export function productKindLabel(kind: ProductKind | undefined): string {
+  const map: Record<string, string> = {
+    cosmetic_nickname: '昵称装扮',
+    cosmetic_avatar: '头像框',
+    cosmetic_avatar_attachment: '头像挂件',
+    cosmetic_badge: '徽章',
+    profile_effect: '主页装饰',
+    post_effect: '帖子装饰',
+    reaction_pack: '反应包',
+    title_prefix: '昵称前缀',
+    utility: '道具'
+  };
+  return kind ? (map[kind] ?? kind) : '商品';
+}
+
+/** 商品状态 → 中文标签。 */
+export function productStatusLabel(status: ProductStatus | undefined): string {
+  const map: Record<string, string> = {
+    draft: '草稿',
+    pending_review: '待审核',
+    published: '在售',
+    disabled: '已停售',
+    retired: '已下架'
+  };
+  return status ? (map[status] ?? status) : '';
 }

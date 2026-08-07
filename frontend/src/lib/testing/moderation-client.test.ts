@@ -27,7 +27,7 @@ function mockFetch(routes: Record<string, { status: number; body?: unknown }>) {
       status,
       headers: { get: () => null },
       json: async () => body ?? {}
-    } as Response;
+    } as unknown as Response;
   });
   return { fetchFn, calls };
 }

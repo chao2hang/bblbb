@@ -5,7 +5,8 @@
 //! 内部 note——`params` 中含 `body`/`content`/`note` 等键即拒绝。
 
 /// 模板键 → 安全参数白名单。渲染只允许这些键出现。
-const TEMPLATE_PARAM_WHITELIST: &[(&str, &[&str])] = &[    ("reply.created", &["actor_name"]),
+const TEMPLATE_PARAM_WHITELIST: &[(&str, &[&str])] = &[
+    ("reply.created", &["actor_name"]),
     ("quote.referenced", &["actor_name"]),
     ("mention.created", &["actor_name", "mention_count"]),
     ("moderation.action", &["action", "resource_type"]),
@@ -79,9 +80,9 @@ impl TemplateKey {
     /// 遗留通知类型（notifications.type CHECK）。
     pub fn legacy_type(self) -> &'static str {
         match self {
-            TemplateKey::ReplyCreated | TemplateKey::QuoteReferenced | TemplateKey::MentionCreated => {
-                "reply"
-            }
+            TemplateKey::ReplyCreated
+            | TemplateKey::QuoteReferenced
+            | TemplateKey::MentionCreated => "reply",
             TemplateKey::ModerationAction
             | TemplateKey::SanctionApplied
             | TemplateKey::SanctionRevoked
@@ -129,10 +130,10 @@ pub fn render(
         TemplateKey::SecurityNotice => "安全提醒".to_string(),
     };
     let body = match key {
-        TemplateKey::ReplyCreated => p("actor_name")
-            .map(|name| format!("{name} 回复了你的内容")),
-        TemplateKey::QuoteReferenced => p("actor_name")
-            .map(|name| format!("{name} 引用了你的内容")),
+        TemplateKey::ReplyCreated => p("actor_name").map(|name| format!("{name} 回复了你的内容")),
+        TemplateKey::QuoteReferenced => {
+            p("actor_name").map(|name| format!("{name} 引用了你的内容"))
+        }
         TemplateKey::MentionCreated => {
             let count = p("mention_count").unwrap_or_else(|| "1".to_string());
             p("actor_name")
@@ -170,9 +171,7 @@ pub fn render(
 }
 
 /// 校验通知参数（M05-NOTIFY-02）：拒绝携带隐藏正文/内部 note 键。
-pub fn validate_params(
-    params: &serde_json::Map<String, serde_json::Value>,
-) -> Result<(), String> {
+pub fn validate_params(params: &serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
     for key in params.keys() {
         if FORBIDDEN_NOTIFICATION_PARAMS.contains(&key.as_str()) {
             return Err(format!(

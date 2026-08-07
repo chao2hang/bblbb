@@ -17,12 +17,8 @@ use sqlx::Either;
 
 use crate::db::DatabasePool;
 use crate::moderation::model::SanctionKind;
-use crate::notifications::model::{
-    Notification, NotificationCategory, NotificationPreference,
-};
-use crate::notifications::templates::{
-    is_known_template, render, validate_params, TemplateKey,
-};
+use crate::notifications::model::{Notification, NotificationCategory, NotificationPreference};
+use crate::notifications::templates::{is_known_template, render, validate_params, TemplateKey};
 use crate::outbox::now_millis;
 
 /// 通知服务错误。
@@ -106,7 +102,9 @@ pub async fn create_notification(
     let notification = Notification {
         id: uuid::Uuid::now_v7().to_string(),
         user_id: input.user_id,
-        r#type: input.r#type.unwrap_or_else(|| input.template_key.legacy_type().to_string()),
+        r#type: input
+            .r#type
+            .unwrap_or_else(|| input.template_key.legacy_type().to_string()),
         title: rendered.title,
         body: rendered.body,
         link: if resource_type.is_empty() {
@@ -314,18 +312,22 @@ pub async fn mark_all_read(
 /// 未读计数（M05-NOTIFY-03）。
 pub async fn unread_count(pool: &DatabasePool, user_id: &str) -> Result<i64, NotifyError> {
     let count: i64 = match pool {
-        Either::Left(p) => sqlx::query_scalar(
-            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0",
-        )
-        .bind(user_id)
-        .fetch_one(p)
-        .await?,
-        Either::Right(p) => sqlx::query_scalar(
-            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0",
-        )
-        .bind(user_id)
-        .fetch_one(p)
-        .await?,
+        Either::Left(p) => {
+            sqlx::query_scalar(
+                "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0",
+            )
+            .bind(user_id)
+            .fetch_one(p)
+            .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar(
+                "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0",
+            )
+            .bind(user_id)
+            .fetch_one(p)
+            .await?
+        }
     };
     Ok(count)
 }
@@ -335,26 +337,27 @@ pub async fn get_preferences(
     pool: &DatabasePool,
     user_id: &str,
 ) -> Result<Vec<NotificationPreference>, NotifyError> {
-    let rows: Vec<PrefRow> = match pool {
-        Either::Left(p) => sqlx::query_as::<_, PrefRow>(
-            "SELECT user_id, category, email_enabled, in_app_enabled, push_enabled, updated_at
+    let rows: Vec<PrefRow> =
+        match pool {
+            Either::Left(p) => sqlx::query_as::<_, PrefRow>(
+                "SELECT user_id, category, email_enabled, in_app_enabled, push_enabled, updated_at
              FROM notification_preferences WHERE user_id = ?",
-        )
-        .bind(user_id)
-        .fetch_all(p)
-        .await?,
-        Either::Right(p) => sqlx::query_as::<_, PrefRow>(
-            "SELECT user_id, category, email_enabled, in_app_enabled, push_enabled, updated_at
+            )
+            .bind(user_id)
+            .fetch_all(p)
+            .await?,
+            Either::Right(p) => sqlx::query_as::<_, PrefRow>(
+                "SELECT user_id, category, email_enabled, in_app_enabled, push_enabled, updated_at
              FROM notification_preferences WHERE user_id = ?",
-        )
-        .bind(user_id)
-        .fetch_all(p)
-        .await?,
-    };
+            )
+            .bind(user_id)
+            .fetch_all(p)
+            .await?,
+        };
     let mut found = HashMap::new();
     for row in rows {
-        let category = NotificationCategory::parse(&row.category)
-            .unwrap_or(NotificationCategory::System);
+        let category =
+            NotificationCategory::parse(&row.category).unwrap_or(NotificationCategory::System);
         found.insert(category, row.into_model());
     }
     let mut prefs = Vec::new();
@@ -453,9 +456,7 @@ pub async fn project_list(
             Either::Left(p) => {
                 // 动态占位符（SQLite 也支持 ?）
                 let placeholders = vec!["?"; post_ids.len()].join(",");
-                let sql = format!(
-                    "SELECT id, status FROM posts WHERE id IN ({placeholders})"
-                );
+                let sql = format!("SELECT id, status FROM posts WHERE id IN ({placeholders})");
                 let mut q = sqlx::query_as::<_, (String, String)>(&sql);
                 for id in &post_ids {
                     q = q.bind(id);
@@ -464,9 +465,7 @@ pub async fn project_list(
             }
             Either::Right(p) => {
                 let placeholders = vec!["?"; post_ids.len()].join(",");
-                let sql = format!(
-                    "SELECT id, status FROM posts WHERE id IN ({placeholders})"
-                );
+                let sql = format!("SELECT id, status FROM posts WHERE id IN ({placeholders})");
                 let mut q = sqlx::query_as::<_, (String, String)>(&sql);
                 for id in &post_ids {
                     q = q.bind(id);

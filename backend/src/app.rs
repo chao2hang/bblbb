@@ -24,9 +24,9 @@ use crate::{
     },
     ratelimit::RateLimiter,
     routes::{
-        admin, ai, auth, boards, comments, drafts, economy, feeds, health::healthz, marketplace,
-        mfa, moderation, oidc, openapi::openapi, posts, ready, search, storage, themes, users,
-        video,
+        admin, ai, auth, boards, comments, download, drafts, economy, feeds, health::healthz,
+        marketplace, mfa, moderation, oidc, openapi::openapi, posts, reactions, ready, search,
+        shop, storage, themes, users, video,
     },
 };
 
@@ -51,6 +51,8 @@ pub struct AppState {
     pub flags: crate::config::flags::FeatureFlags,
     /// 进程内限流器（M02-IDENTITY-06；多实例再引入 Redis）。
     pub limiter: Arc<RateLimiter>,
+    /// 对象存储服务（M06-ADAPTER；None = 存储域路由返回 503）。
+    pub storage: Option<Arc<crate::storage::StorageService>>,
 }
 
 impl AppState {
@@ -63,7 +65,17 @@ impl AppState {
 /// 构建完整路由（Flag 默认全部关闭）。
 pub fn build_router(config: AppConfig, db: Option<DatabasePool>) -> Router {
     let flags = config.feature_flags();
-    build_router_with_flags(config, db, flags)
+    build_router_full(config, db, flags, None)
+}
+
+/// 构建完整路由（预构建存储服务；Flag 默认全部关闭）。
+pub fn build_router_with_storage(
+    config: AppConfig,
+    db: Option<DatabasePool>,
+    storage: Option<crate::storage::StorageService>,
+) -> Router {
+    let flags = config.feature_flags();
+    build_router_full(config, db, flags, storage)
 }
 
 /// 构建完整路由（自定义 Flag 快照；测试与未来的管理接口用）。
@@ -72,11 +84,22 @@ pub fn build_router_with_flags(
     db: Option<DatabasePool>,
     flags: crate::config::flags::FeatureFlags,
 ) -> Router {
+    build_router_full(config, db, flags, None)
+}
+
+/// 构建完整路由（自定义 Flag 快照 + 预构建存储服务；M6 存储/下载测试用）。
+pub fn build_router_full(
+    config: AppConfig,
+    db: Option<DatabasePool>,
+    flags: crate::config::flags::FeatureFlags,
+    storage: Option<crate::storage::StorageService>,
+) -> Router {
     let state = AppState {
         config: Arc::new(config),
         db: db.map(Arc::new),
         flags,
         limiter: Arc::new(RateLimiter::new()),
+        storage: storage.map(Arc::new),
     };
     let guard_state = state.clone();
     let gate_state = state.clone();
@@ -103,7 +126,10 @@ pub fn build_router_with_flags(
         .merge(comments::router())
         .merge(moderation::router())
         .merge(storage::router())
+        .merge(download::router())
         .merge(economy::router())
+        .merge(shop::router())
+        .merge(reactions::router())
         .merge(ai::router())
         .merge(video::router())
         .merge(oidc::router())

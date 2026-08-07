@@ -11,6 +11,7 @@
     disabled = false,
     type = 'button',
     extraClass = '',
+    formaction = '',
     onclick,
     children
   }: {
@@ -22,6 +23,8 @@
     disabled?: boolean;
     type?: 'button' | 'submit';
     extraClass?: string;
+    /** 原生 formaction（提交到指定 action，如表单内“测试连接”按钮）。 */
+    formaction?: string;
     onclick?: (event: MouseEvent) => void;
     children?: Snippet;
   } = $props();
@@ -36,7 +39,7 @@
     {@render children?.()}
   </a>
 {:else}
-  <button type={type} class={classes} {disabled} onclick={onclick}>
+  <button type={type} class={classes} {disabled} formaction={formaction || undefined} onclick={onclick}>
     {#if icon}<Icon name={icon} size={size === 'sm' ? 14 : 16} />{/if}
     {#if text}<span>{text}</span>{/if}
     {@render children?.()}

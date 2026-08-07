@@ -74,6 +74,62 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    ConfigEntry {
+        env_var: "BBLBB__STORAGE_BACKEND",
+        field: "storage_backend",
+        default: "local",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__S3_BUCKET",
+        field: "s3_bucket",
+        default: "（空 = 仅 local）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__S3_REGION",
+        field: "s3_region",
+        default: "auto",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__S3_ENDPOINT",
+        field: "s3_endpoint",
+        default: "（空 = AWS 默认）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__S3_PATH_STYLE",
+        field: "s3_path_style",
+        default: "false",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__S3_ACCESS_KEY_ID",
+        field: "s3_access_key_id",
+        default: "（空 = 环境凭据链）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__S3_SECRET_ACCESS_KEY",
+        field: "s3_secret_access_key",
+        default: "（空 = 环境凭据链）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__S3_SESSION_TOKEN",
+        field: "s3_session_token",
+        default: "（空）",
+        scope: "all",
+        reload: "restart",
+    },
     // 生产服务启动不得自动应用未知迁移（M01-DB-06）；生产环境应显式运行
     // `bblbb-migrate apply`，故 AUTO_MIGRATE 仅限 dev/ci。
     ConfigEntry {
@@ -217,6 +273,24 @@ pub struct AppConfig {
     pub migrations_dir: PathBuf,
     #[serde(default = "default_storage_dir")]
     pub storage_dir: PathBuf,
+    /// 存储后端（`local`/`s3`；M06-ADAPTER-03：凭据只由 Rust 配置层读取）
+    #[serde(default = "default_storage_backend")]
+    pub storage_backend: String,
+    #[serde(default)]
+    pub s3_bucket: String,
+    #[serde(default = "default_s3_region")]
+    pub s3_region: String,
+    /// 自定义 S3 endpoint（MinIO/R2 网关）；空 = AWS 默认。
+    #[serde(default)]
+    pub s3_endpoint: String,
+    #[serde(default)]
+    pub s3_path_style: bool,
+    #[serde(default)]
+    pub s3_access_key_id: String,
+    #[serde(default)]
+    pub s3_secret_access_key: String,
+    #[serde(default)]
+    pub s3_session_token: String,
     /// 启动时是否自动应用数据库迁移（M01-DB-06：生产默认关闭）
     #[serde(default = "default_auto_migrate")]
     pub auto_migrate: bool,
@@ -422,6 +496,14 @@ impl Default for AppConfig {
             database_url: default_database_url(),
             migrations_dir: default_migrations_dir(),
             storage_dir: default_storage_dir(),
+            storage_backend: default_storage_backend(),
+            s3_bucket: String::new(),
+            s3_region: default_s3_region(),
+            s3_endpoint: String::new(),
+            s3_path_style: false,
+            s3_access_key_id: String::new(),
+            s3_secret_access_key: String::new(),
+            s3_session_token: String::new(),
             auto_migrate: default_auto_migrate(),
             allowed_hosts: Vec::new(),
             allowed_origins: Vec::new(),
@@ -468,6 +550,58 @@ fn default_migrations_dir() -> PathBuf {
 
 fn default_storage_dir() -> PathBuf {
     PathBuf::from("../uploads")
+}
+
+fn default_storage_backend() -> String {
+    "local".to_owned()
+}
+
+fn default_s3_region() -> String {
+    "auto".to_owned()
+}
+
+impl AppConfig {
+    /// 构造存储服务配置（M06-ADAPTER：local 根目录 + 可选 S3）。
+    /// S3 凭据仅在本层读取；前端/API 永不接触。
+    pub fn storage_config(&self) -> crate::storage::StorageConfig {
+        let s3 = if self.storage_backend == "s3" && !self.s3_bucket.is_empty() {
+            Some(crate::storage::S3Config {
+                bucket: self.s3_bucket.clone(),
+                region: if self.s3_region.is_empty() {
+                    "auto".to_string()
+                } else {
+                    self.s3_region.clone()
+                },
+                endpoint: if self.s3_endpoint.is_empty() {
+                    None
+                } else {
+                    Some(self.s3_endpoint.clone())
+                },
+                path_style: self.s3_path_style,
+                access_key_id: if self.s3_access_key_id.is_empty() {
+                    None
+                } else {
+                    Some(self.s3_access_key_id.clone())
+                },
+                secret_access_key: if self.s3_secret_access_key.is_empty() {
+                    None
+                } else {
+                    Some(self.s3_secret_access_key.clone())
+                },
+                session_token: if self.s3_session_token.is_empty() {
+                    None
+                } else {
+                    Some(self.s3_session_token.clone())
+                },
+            })
+        } else {
+            None
+        };
+        crate::storage::StorageConfig {
+            local_root: self.storage_dir.clone(),
+            s3,
+        }
+    }
 }
 
 fn default_auto_migrate() -> bool {
@@ -673,9 +807,17 @@ mod tests {
             "migrations_dir",
             "new_user_cooldown_secs",
             "openapi_path",
+            "s3_access_key_id",
+            "s3_bucket",
+            "s3_endpoint",
+            "s3_path_style",
+            "s3_region",
+            "s3_secret_access_key",
+            "s3_session_token",
             "secrets_dir",
             "secrets_systemd_unit",
             "step_up_window_secs",
+            "storage_backend",
             "storage_dir",
             "totp_window_steps",
         ];

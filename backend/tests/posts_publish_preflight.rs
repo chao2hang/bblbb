@@ -219,16 +219,16 @@ async fn preflight_blocks_bad_board_state() {
 }
 
 #[tokio::test]
-async fn preflight_rejects_attachments_before_m6() {
+async fn preflight_rejects_unknown_attachment() {
     let (pool, dir) = sqlite_pool_with_migrations().await;
     let author = fresh_valid_author(&pool).await;
     let mut i = input(&author, BOARD_ID, None);
     i.attachment_ids = vec!["01911fd5-f000-0000-0000-000000000001".to_string()];
-    // attachments 表 M6 才落地：有引用且表不存在 → 明确拒绝（不静默忽略）
+    // attachments 表 M6 已落地：不存在的引用 → 明确拒绝（不静默忽略）
     let r = publish_preflight(&pool, &i).await;
     assert!(matches!(
         r,
-        Err(PublishBlocked::AttachmentNotAllowed(msg)) if msg.contains("not supported")
+        Err(PublishBlocked::AttachmentNotAllowed(msg)) if msg.contains("not found")
     ));
     close_pool(&pool).await;
     cleanup(&dir);

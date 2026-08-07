@@ -327,15 +327,17 @@ export async function authedDelete(
 /**
  * POST 认证写请求（M02-UX-06，MFA 管理）：转发会话 Cookie + 会话绑定
  * synchronizer token。成功返回 `{ ok: true, data }`（data 为响应 JSON，
- * 如 enrollment challenge / 恢复码）。
+ * 如 enrollment challenge / 恢复码）。extraHeaders 用于 Idempotency-Key
+ * 等写请求头（M06/M07 幂等操作）。
  */
 export async function authedPost<T = unknown>(
   cookies: Cookies,
   path: string,
   body: unknown,
-  requestId: string | null = null
+  requestId: string | null = null,
+  extraHeaders: Record<string, string> = {}
 ): Promise<{ ok: true; data: T } | ServerWriteFailure> {
-  const result = await authedWrite('POST', cookies, path, body, requestId);
+  const result = await authedWrite('POST', cookies, path, body, requestId, extraHeaders);
   if (result.ok) return { ok: true, data: result.data as T };
   return result;
 }

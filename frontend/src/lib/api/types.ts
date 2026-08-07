@@ -19,6 +19,7 @@ import type {
   Board as ContractBoard,
   Page as ContractPage,
   PublicUser as ContractPublicUser,
+  Money,
 } from './generated/v1';
 
 // ── 与契约 1:1 对应的类型（re-export，唯一来源）────────────────────────────────
@@ -56,6 +57,16 @@ export type {
   ReportCreateTargetType,
   ReportCreateReasonCode,
   SanctionCreateType,
+  // M6/M7 契约类型（generated 兜底，供 client/页面直接引用）
+  AttachmentCreate,
+  AttachmentComplete,
+  DownloadRequest,
+  DownloadResult,
+  EntitlementEquip,
+  ShopOrderCreate,
+  ReactionCreate,
+  ActivityVisitResult,
+  ProfileCoverSet,
 } from './generated/v1';
 
 // ── 实现投影：以 generated 基类型组合，公共字段来自契约 ────────────────────────
@@ -400,3 +411,387 @@ export interface ReactionResult {
 // 契约 Page 与实现 PageResult 同构（next_cursor/has_more），供泛型边界使用。
 
 export type ContractPageShape = ContractPage;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M6/M7：附件、下载、商城、权益、活跃（自建投影类型）
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 契约（openapi/openapi.yaml）中 M6/M7 写响应用 GenericSuccess 兜底、读响应
+// 未定义具体 schema（M06-UI/M07-UI 交付时由并行 backend 域 agent 实现）。本层
+// 按 migrations/0048-0050 与 docs/SCHEMA.md §11/§14 定义字段形状；后端收敛后
+// 可按契约塌缩为 re-export。所有时间戳统一为 Unix 毫秒（与 M01-DB-08 一致）。
+
+// ── 附件与配额（M06） ──────────────────────────────────────────────────────
+
+/** 附件元数据投影（POST/GET /attachments）。契约目标：Attachment。 */
+export interface Attachment {
+  id: string;
+  owner_id?: string;
+  storage_backend?: 'local' | 's3';
+  original_name?: string | null;
+  media_type: string;
+  size_bytes: number;
+  sha256?: string;
+  width?: number | null;
+  height?: number | null;
+  status: 'pending' | 'processing' | 'ready' | 'quarantined' | 'deleted';
+  /** 计入所有者配额的字节数（含策略计费 variant）。 */
+  quota_bytes_charged?: number;
+  is_public?: boolean;
+  processing_error?: string | null;
+  created_at: number;
+}
+
+/** 上传创建响应（POST /attachments）：附件 id + 上传方式 + 配额摘要。
+ *  - S3 预签名：`upload.url` + `upload.headers`（PUT，短 TTL）；
+ *  - 本地直传：`upload.mode === 'local'`，走流式 content 端点。
+ * 配额字段来自 API.md §12（max_file_bytes/total_bytes/used_bytes/remaining_bytes）。 */
+export interface AttachmentCreateResult {
+  id: string;
+  status?: Attachment['status'];
+  upload?: {
+    mode: 'presigned_put' | 'local';
+    url?: string | null;
+    headers?: Record<string, string>;
+    expires_at?: number | null;
+  } | null;
+  quota?: AttachmentQuota | null;
+}
+
+/** 容量摘要（创建响应 / GET /attachments quota）。字段缺失时前端兼容降级。 */
+export interface AttachmentQuota {
+  /** 当前等级单文件上限。 */
+  max_file_bytes: number;
+  /** 用户附件总容量。 */
+  total_bytes: number;
+  /** 已用（计费）字节。 */
+  used_bytes: number;
+  /** 剩余可上传字节。 */
+  remaining_bytes: number;
+  /** pending/processing 预留字节（可选）。 */
+  reserved_bytes?: number;
+  /** 已确认计费字节（可选；与 used_bytes 可能口径不同）。 */
+  charged_bytes?: number;
+  daily_upload_bytes?: number;
+  daily_used_bytes?: number;
+  retention_days?: number;
+}
+
+/** GET /attachments（本人附件列表 + 配额摘要；后端扩展接口，字段缺失容忍）。 */
+export interface AttachmentListResult {
+  items: Attachment[];
+  quota?: AttachmentQuota | null;
+}
+
+// ── 下载授权与抵扣（M06-DOWNLOAD） ─────────────────────────────────────────
+
+/** 下载策略投影（GET /attachments/{id}/download-policy）。 */
+export interface DownloadPolicyView {
+  mode: 'disabled' | 'free' | 'fixed' | 'inherit' | 'forced_free' | 'forced_paid';
+  currency?: string;
+  /** 单价（最小单位）。 */
+  amount?: number;
+  authorization_ttl_seconds?: number;
+  /** 当前用户是否持有有效授权（有效期内重签不重复扣费）。 */
+  has_active_authorization?: boolean;
+  authorization_expires_at?: number | null;
+  daily_user_limit?: number | null;
+  version?: number;
+  is_enabled?: boolean;
+}
+
+/** 下载授权投影（GET /download-authorizations/{id}）。 */
+export interface DownloadAuthorizationView {
+  id: string;
+  attachment_id: string;
+  status: 'active' | 'expired' | 'revoked';
+  charged_amount: number;
+  currency_id?: string;
+  valid_from: number;
+  expires_at: number;
+}
+
+/** 我的下载流水（GET /me/download-transactions）。 */
+export interface DownloadTransaction {
+  id: string;
+  attachment_id?: string;
+  attachment_name?: string | null;
+  /** 实扣金额（免费授权为 0 额度）。 */
+  charged?: Money;
+  reused_authorization?: boolean;
+  created_at: number;
+}
+
+// ── 商城（M07-SHOP） ───────────────────────────────────────────────────────
+
+export type ProductKind =
+  | 'cosmetic_nickname'
+  | 'cosmetic_avatar'
+  | 'cosmetic_avatar_attachment'
+  | 'cosmetic_badge'
+  | 'profile_effect'
+  | 'post_effect'
+  | 'reaction_pack'
+  | 'title_prefix'
+  | 'utility';
+
+export type ProductStatus = 'draft' | 'pending_review' | 'published' | 'disabled' | 'retired';
+
+export type RefundPolicy = 'non_refundable' | 'compensation_only' | 'full_refund';
+
+/** 商城商品投影（GET /shop/products、GET /admin/shop/products）。
+ *  `presentation_tokens` 只含后端注册白名单 Token，禁止任意 CSS/HTML/URL。 */
+export interface ShopProduct {
+  id: string;
+  kind: ProductKind;
+  status: ProductStatus;
+  slug: string;
+  title: string;
+  description_safe?: string | null;
+  icon_token?: string | null;
+  presentation_tokens?: string[] | null;
+  slot?: string | null;
+  /** 货币（currency_id 或契约 Money.currency 风格）。 */
+  currency: string;
+  /** 单价（最小单位，coin 为 1）。 */
+  unit_price: number;
+  /** 用户限购数量。 */
+  quantity_limit: number;
+  /** 剩余库存；null = 不限。 */
+  stock_remaining?: number | null;
+  required_level: number;
+  /** 限时商品有效期（秒）；null = 永久。 */
+  validity_seconds?: number | null;
+  sale_start_at?: number | null;
+  sale_end_at?: number | null;
+  refund_policy: RefundPolicy;
+  version: number;
+  created_at: number;
+  updated_at: number;
+  // ── 请求方视角（后端按需返回，缺失容忍） ──
+  /** 当前用户是否可购买（等级/库存/窗口由服务端裁决）。 */
+  purchasable?: boolean;
+  /** 不可购买时的安全原因（服务端给出中文/稳定码）。 */
+  purchase_reason?: string | null;
+  /** 当前用户已购数量（用于展示限购剩余）。 */
+  user_purchase_count?: number;
+}
+
+export type OrderStatus = 'succeeded' | 'refunded' | 'partially_refunded';
+
+/** 订单投影（GET /shop/orders/{id}、GET /admin/shop/orders）。 */
+export interface ShopOrder {
+  id: string;
+  user_id?: string;
+  product_id: string;
+  product_version: number;
+  product_title?: string | null;
+  quantity: number;
+  currency: string;
+  unit_price: number;
+  total_amount: number;
+  status: OrderStatus;
+  /** 权益发放状态；补偿/发放中可缺省或为 pending。 */
+  entitlement_status?: 'pending' | 'granted' | 'revoked' | null;
+  entitlement_id?: string | null;
+  idempotency_key?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+/** POST /shop/orders 响应（契约 GenericSuccess；字段缺失容忍）。 */
+export interface OrderCreateResult {
+  order: ShopOrder;
+  entitlement?: Entitlement | null;
+  /** 扣费后余额（可选）。 */
+  balance?: Money | null;
+}
+
+// ── 权益与展示（M07-SHOP） ─────────────────────────────────────────────────
+
+export type EntitlementStatus = 'owned' | 'equipped' | 'expired' | 'revoked' | 'consumed';
+
+/** 我的权益投影（GET /me/entitlements）。 */
+export interface Entitlement {
+  id: string;
+  product_id: string;
+  product_title?: string | null;
+  kind?: ProductKind;
+  slot?: string | null;
+  status: EntitlementStatus;
+  quantity: number;
+  remaining_quantity: number;
+  valid_from: number;
+  /** 限时商品到期时间；null = 永久。 */
+  expires_at?: number | null;
+  equipped_at?: number | null;
+  revoked_at?: number | null;
+  icon_token?: string | null;
+  presentation_tokens?: string[] | null;
+  created_at: number;
+}
+
+/** 我的展示投影（GET /me/presentation）：服务端编译的安全 Token 集合。
+ *  `presentation_tokens` 的 key/value 全部来自后端白名单枚举，前端只渲染
+ *  自身 allowlist（见 lib/components/wardrobe/tokens.ts），绝不解释任意样式。 */
+export interface Presentation {
+  version: number;
+  nickname_decoration_id?: string | null;
+  nickname_color_id?: string | null;
+  avatar_frame_id?: string | null;
+  avatar_attachment_id?: string | null;
+  profile_effect_id?: string | null;
+  title_prefix_id?: string | null;
+  post_effect_id?: string | null;
+  profile_badge_ids?: string[] | null;
+  presentation_tokens?: Record<string, string | string[] | null>;
+  updated_at: number;
+}
+
+// ── 活跃与等级（M07-LEVELS） ───────────────────────────────────────────────
+
+/** 活动摘要（GET /activity/summary）。字段缺失时前端兼容降级。 */
+export interface ActivitySummary {
+  level: number;
+  level_name?: string | null;
+  /** 当前经验余额（experience 货币）。 */
+  xp: number;
+  /** 距下一级所需经验；null = 已满级。 */
+  xp_to_next?: number | null;
+  /** 本自然日是否已签到（自动领取）。 */
+  checked_in_today: boolean;
+  /** 连续签到天数。 */
+  streak_days: number;
+  /** 今日已入账奖励。 */
+  today_earned?: Money[];
+  /** 账户余额（可多币种；展示取 coin）。 */
+  balances?: Money[];
+  /** 今日任务（含签到）。 */
+  tasks?: Array<{
+    id?: string;
+    kind: string;
+    title?: string | null;
+    reward?: Money;
+    /** claimed = 已完成、available = 可领、locked = 未满足。 */
+    status?: 'claimed' | 'available' | 'locked';
+    progress?: number | null;
+    target?: number | null;
+  }>;
+  updated_at?: number;
+}
+
+// ── 管理端：存储/配额/下载计费/商城/活跃（M06-UI/M07-UI） ──────────────────
+
+/** 存储配置脱敏视图（GET /admin/storage/config）。
+ *  Secret 只返回 secret_configured 布尔；来源为 env 的字段只读。 */
+export interface StorageConfig {
+  backend: 'local' | 's3';
+  /** 配置来源：env（部署配置只读）或 db（后台可改）。 */
+  source: 'env' | 'db';
+  local_path?: string | null;
+  s3_endpoint?: string | null;
+  s3_region?: string | null;
+  s3_bucket?: string | null;
+  s3_path_style?: boolean;
+  s3_presigned_uploads?: boolean;
+  s3_public_base_url?: string | null;
+  /** S3 签名 URL TTL（秒）；修改只影响新签发 URL。 */
+  signed_url_ttl_seconds?: number;
+  upload_max_bytes?: number;
+  /** 是否已配置 Secret（不返回明文）。 */
+  secret_configured: boolean;
+  /** 由环境变量/Workload Identity 管理、不可在线修改的字段。 */
+  managed_fields?: string[];
+  version: number;
+  updated_at?: number;
+}
+
+/** PATCH /admin/storage/config body：只包含变化字段；secret 空串=保持不变。 */
+export interface StorageConfigPatch {
+  backend?: 'local' | 's3';
+  local_path?: string | null;
+  s3_endpoint?: string | null;
+  s3_region?: string | null;
+  s3_bucket?: string | null;
+  s3_path_style?: boolean;
+  s3_presigned_uploads?: boolean;
+  s3_public_base_url?: string | null;
+  signed_url_ttl_seconds?: number;
+  upload_max_bytes?: number;
+  /** 空串表示保持原值；写操作不接受读取。 */
+  s3_secret_access_key?: string;
+  s3_access_key_id?: string;
+  expected_version: number;
+  reason: string;
+}
+
+/** POST /admin/storage/test 响应：稳定错误码 + 脱敏诊断，不回显凭证。 */
+export interface StorageTestResult {
+  ok: boolean;
+  message: string;
+  code?: string | null;
+  elapsed_ms?: number | null;
+}
+
+/** 等级附件配额（GET /admin/levels/{id}/attachment-quota）。 */
+export interface LevelQuotaView {
+  level: number;
+  max_file_bytes: number;
+  total_bytes: number;
+  daily_upload_bytes?: number;
+  retention_days?: number;
+  policy_version?: number;
+  updated_at?: number;
+}
+
+/** 下载计费站点配置（GET /admin/download-billing/config）。 */
+export interface DownloadBillingConfig {
+  mode: 'disabled' | 'free' | 'fixed' | 'inherit';
+  currency?: string;
+  amount?: number;
+  authorization_ttl_seconds: number;
+  daily_user_limit?: number | null;
+  single_charge_limit?: number | null;
+  is_enabled: boolean;
+  version: number;
+  updated_at?: number;
+}
+
+/** 商城站点配置（GET /admin/shop/config）。 */
+export interface ShopConfig {
+  enabled?: boolean;
+  currency_id?: string;
+  /** 数字装扮默认退款策略。 */
+  default_refund_policy?: RefundPolicy;
+  max_quantity_per_order?: number;
+  version: number;
+  updated_at?: number;
+}
+
+/** 活跃配置（GET /admin/activity/config）。 */
+export interface ActivityConfig {
+  /** 自动签到（每日首次有效页面访问）是否开启。 */
+  check_in_enabled: boolean;
+  /** 签到奖励（exp/coin）。 */
+  check_in_reward?: Money;
+  /** 连续签到奖励规则（JSON 简化展示）。 */
+  streak_bonus_enabled?: boolean;
+  /** 经验货币。 */
+  exp_currency?: string;
+  version: number;
+  updated_at?: number;
+}
+
+/** 活跃任务（GET /admin/activity/tasks）。 */
+export interface ActivityTask {
+  id: string;
+  kind: 'check_in' | 'task' | 'reaction' | 'post' | 'comment' | 'leaderboard';
+  title?: string | null;
+  currency: string;
+  amount: number;
+  daily_limit?: number | null;
+  cooldown_seconds?: number | null;
+  is_enabled: boolean;
+  version: number;
+  updated_at: number;
+}

@@ -100,7 +100,13 @@ async fn assign_global_role(pool: &DatabasePool, user_id: &str, role_name: &str)
     }
 }
 
-fn base_cmd(user_id: &str, currency_id: &str, key: &str, delta_balance: i64, delta_frozen: i64) -> LedgerCommand {
+fn base_cmd(
+    user_id: &str,
+    currency_id: &str,
+    key: &str,
+    delta_balance: i64,
+    delta_frozen: i64,
+) -> LedgerCommand {
     LedgerCommand {
         idempotency_scope: "test".to_string(),
         idempotency_key: key.to_string(),
@@ -163,7 +169,10 @@ async fn credit_debit_freeze_unfreeze_conserve_total() {
     ledger::freeze(&pool, base_cmd(&user, CURRENCY_COIN, "k3", 0, 0), 200, now)
         .await
         .unwrap();
-    assert_eq!(account_row(&pool, &user, CURRENCY_COIN).await, (500, 200, 3));
+    assert_eq!(
+        account_row(&pool, &user, CURRENCY_COIN).await,
+        (500, 200, 3)
+    );
 
     // 解冻 150：可用 650 / 冻结 50
     ledger::unfreeze(&pool, base_cmd(&user, CURRENCY_COIN, "k4", 0, 0), 150, now)
@@ -191,7 +200,10 @@ async fn prohibited_operations_rejected() {
 
     // 现金/提现/充值形态被拒
     let cash = base_cmd(&user, CURRENCY_COIN, "t2", 100, 0);
-    let cash = LedgerCommand { memo: "充值 100 元".to_string(), ..cash };
+    let cash = LedgerCommand {
+        memo: "充值 100 元".to_string(),
+        ..cash
+    };
     let err = apply_operation(&pool, cash, now).await.unwrap_err();
     assert!(matches!(err, LedgerError::Invalid(_)));
 
@@ -229,9 +241,13 @@ async fn insufficient_negative_overflow_rollback() {
     assert_eq!(err, LedgerError::NegativeBalance);
 
     // 溢出：i64 上界
-    ledger::credit(&pool, base_cmd(&user, CURRENCY_COIN, "a5", i64::MAX - 50, 0), now)
-        .await
-        .unwrap();
+    ledger::credit(
+        &pool,
+        base_cmd(&user, CURRENCY_COIN, "a5", i64::MAX - 50, 0),
+        now,
+    )
+    .await
+    .unwrap();
     let err = ledger::credit(&pool, base_cmd(&user, CURRENCY_COIN, "a6", 100, 0), now)
         .await
         .unwrap_err();
@@ -286,10 +302,20 @@ async fn concurrent_double_debit_only_one_succeeds() {
     let now_b = now + 2;
     let (r1, r2) = tokio::join!(
         async move {
-            ledger::debit(&pool_a, base_cmd(&user_a, CURRENCY_COIN, "cc-1", -80, 0), now_a).await
+            ledger::debit(
+                &pool_a,
+                base_cmd(&user_a, CURRENCY_COIN, "cc-1", -80, 0),
+                now_a,
+            )
+            .await
         },
         async move {
-            ledger::debit(&pool_b, base_cmd(&user_b, CURRENCY_COIN, "cc-2", -80, 0), now_b).await
+            ledger::debit(
+                &pool_b,
+                base_cmd(&user_b, CURRENCY_COIN, "cc-2", -80, 0),
+                now_b,
+            )
+            .await
         }
     );
     let ok_count = [r1.is_ok(), r2.is_ok()].iter().filter(|x| **x).count();
@@ -331,25 +357,39 @@ async fn property_invariant_initial_plus_deltas_equals_balance() {
             allow_negative: false,
         };
         let applied = match kind {
-            LedgerKind::Award => ledger::credit(
-                &pool,
-                base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), *db, *df),
-                now + i as i64,
-            )
-            .await,
-            LedgerKind::Consume => ledger::debit(
-                &pool,
-                base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), *db, *df),
-                now + i as i64,
-            )
-            .await,
+            LedgerKind::Award => {
+                ledger::credit(
+                    &pool,
+                    base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), *db, *df),
+                    now + i as i64,
+                )
+                .await
+            }
+            LedgerKind::Consume => {
+                ledger::debit(
+                    &pool,
+                    base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), *db, *df),
+                    now + i as i64,
+                )
+                .await
+            }
             LedgerKind::Freeze => {
-                ledger::freeze(&pool, base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), 0, 0), -*db, now + i as i64)
-                    .await
+                ledger::freeze(
+                    &pool,
+                    base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), 0, 0),
+                    -*db,
+                    now + i as i64,
+                )
+                .await
             }
             LedgerKind::Unfreeze => {
-                ledger::unfreeze(&pool, base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), 0, 0), *db, now + i as i64)
-                    .await
+                ledger::unfreeze(
+                    &pool,
+                    base_cmd(&user, CURRENCY_COIN, &format!("p{i}"), 0, 0),
+                    *db,
+                    now + i as i64,
+                )
+                .await
             }
             _ => unreachable!(),
         };
@@ -359,7 +399,10 @@ async fn property_invariant_initial_plus_deltas_equals_balance() {
                 // 恒等式：balance_after = balance_before + delta；frozen 同理。
                 let expected_balance = before.balance + tx.delta_balance;
                 let expected_frozen = before.frozen_balance + tx.delta_frozen;
-                assert_eq!(tx.balance_after, expected_balance, "balance 恒等式（op {i}）");
+                assert_eq!(
+                    tx.balance_after, expected_balance,
+                    "balance 恒等式（op {i}）"
+                );
                 assert_eq!(tx.frozen_after, expected_frozen, "frozen 恒等式（op {i}）");
                 // 冻结/解冻总额守恒：balance + frozen 不变。
                 if *db != 0 && *df != 0 {
@@ -372,24 +415,29 @@ async fn property_invariant_initial_plus_deltas_equals_balance() {
                 balance = tx.balance_after;
                 frozen = tx.frozen_after;
                 version += 1;
-                assert_eq!(account_row(&pool, &user, CURRENCY_COIN).await, (balance, frozen, version));
+                assert_eq!(
+                    account_row(&pool, &user, CURRENCY_COIN).await,
+                    (balance, frozen, version)
+                );
             }
             Err(LedgerError::InsufficientBalance) => {
                 // 失败步不改余额（回滚语义）。
-                assert_eq!(account_row(&pool, &user, CURRENCY_COIN).await, (balance, frozen, version));
+                assert_eq!(
+                    account_row(&pool, &user, CURRENCY_COIN).await,
+                    (balance, frozen, version)
+                );
             }
             Err(other) => panic!("op {i}: unexpected {other:?}"),
         }
     }
 
     // 最终：initial(0) + Σ(delta_balance) = balance；冻结恒等式单独成立。
-    let sum_delta: i64 = ops
-        .iter()
-        .take(6)
-        .map(|(db, _, _)| *db)
-        .sum();
+    let sum_delta: i64 = ops.iter().take(6).map(|(db, _, _)| *db).sum();
     let final_account = get_account(&pool, &user, CURRENCY_COIN).await.unwrap();
-    assert_eq!(final_account.balance, sum_delta, "initial + Σ(delta) = balance");
+    assert_eq!(
+        final_account.balance, sum_delta,
+        "initial + Σ(delta) = balance"
+    );
     // 冻结链：+200（freeze）−50（unfreeze）+10（freeze）= 160。
     assert_eq!(final_account.frozen_balance, 160, "冻结恒等式");
 
@@ -518,9 +566,17 @@ async fn reversal_appends_compensation_without_mutating_history() {
     let original_created = original.transactions[0].created_at;
 
     // 撤销：反向补偿流水
-    let rev = ledger::reversal(&pool, "test", "r2", None, &original_id, "奖励撤销", now + 1000)
-        .await
-        .unwrap();
+    let rev = ledger::reversal(
+        &pool,
+        "test",
+        "r2",
+        None,
+        &original_id,
+        "奖励撤销",
+        now + 1000,
+    )
+    .await
+    .unwrap();
     assert_eq!(rev.transactions[0].delta_balance, -500);
     assert_eq!(rev.transactions[0].balance_after, 0);
 

@@ -129,12 +129,10 @@ async fn assign_board_role(pool: &DatabasePool, user_id: &str, board_id: &str) {
 
 async fn count_rows(pool: &DatabasePool, table: &str) -> i64 {
     match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table}"))
-                .fetch_one(p)
-                .await
-                .unwrap()
-        }
+        Either::Left(p) => sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table}"))
+            .fetch_one(p)
+            .await
+            .unwrap(),
         Either::Right(_) => panic!("SQLite only"),
     }
 }
@@ -617,19 +615,17 @@ async fn decide_uphold_revokes_sanction_and_restores_ban() {
 
     let (sanction_status, reversals): (String, i64) = match &pool {
         Either::Left(p) => {
-            let status: String =
-                sqlx::query_scalar("SELECT status FROM sanctions WHERE id = ?")
+            let status: String = sqlx::query_scalar("SELECT status FROM sanctions WHERE id = ?")
+                .bind(&sanction_id)
+                .fetch_one(p)
+                .await
+                .unwrap();
+            let n: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM sanction_reversals WHERE sanction_id = ?")
                     .bind(&sanction_id)
                     .fetch_one(p)
                     .await
                     .unwrap();
-            let n: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM sanction_reversals WHERE sanction_id = ?",
-            )
-            .bind(&sanction_id)
-            .fetch_one(p)
-            .await
-            .unwrap();
             (status, n)
         }
         Either::Right(_) => panic!("SQLite only"),
@@ -765,11 +761,14 @@ async fn projections_do_not_cross_boundaries() {
     // 申诉人侧：不含内部 note / 复核人 / 利益冲突
     let own = own_appeal_projection(&appeal);
     assert!(own.get("message").is_some(), "申诉人可看自己的说明");
-    for key in ["reviewed_by", "decision_note", "conflict_of_interest", "decisions", "user_id"] {
-        assert!(
-            own.get(key).is_none(),
-            "申诉人侧投影不得泄漏 {key}: {own}"
-        );
+    for key in [
+        "reviewed_by",
+        "decision_note",
+        "conflict_of_interest",
+        "decisions",
+        "user_id",
+    ] {
+        assert!(own.get(key).is_none(), "申诉人侧投影不得泄漏 {key}: {own}");
     }
 
     // 审核员侧：含内部 note 与复核人

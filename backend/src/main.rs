@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use bblbb_backend::{build_router, AppConfig};
+use bblbb_backend::{build_router_with_storage, storage::StorageService, AppConfig};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -130,9 +130,21 @@ async fn main() -> ExitCode {
         }
     };
 
-    if let Err(error) = axum::serve(listener, build_router(config, db_pool))
-        .with_graceful_shutdown(shutdown)
-        .await
+    // 初始化对象存储服务（M06-ADAPTER；local 根目录 + 可选 S3）。
+    let storage = match StorageService::new(&config.storage_config()).await {
+        Ok(storage) => Some(storage),
+        Err(error) => {
+            tracing::error!(%error, "failed to initialize storage service");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if let Err(error) = axum::serve(
+        listener,
+        build_router_with_storage(config, db_pool, storage),
+    )
+    .with_graceful_shutdown(shutdown)
+    .await
     {
         tracing::error!(%error, "server stopped unexpectedly");
         return ExitCode::FAILURE;

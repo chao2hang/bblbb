@@ -176,14 +176,18 @@ pub async fn deliver_email_job(
     sender: &dyn EmailSender,
 ) -> Result<(), EmailError> {
     let row: Option<(String, i64)> = match pool {
-        Either::Left(p) => sqlx::query_as("SELECT payload, payload_version FROM jobs WHERE id = ?")
-            .bind(job_id)
-            .fetch_optional(p)
-            .await?,
-        Either::Right(p) => sqlx::query_as("SELECT payload, payload_version FROM jobs WHERE id = ?")
-            .bind(job_id)
-            .fetch_optional(p)
-            .await?,
+        Either::Left(p) => {
+            sqlx::query_as("SELECT payload, payload_version FROM jobs WHERE id = ?")
+                .bind(job_id)
+                .fetch_optional(p)
+                .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_as("SELECT payload, payload_version FROM jobs WHERE id = ?")
+                .bind(job_id)
+                .fetch_optional(p)
+                .await?
+        }
     };
     let Some((payload_str, _version)) = row else {
         return Err(EmailError::NotFound("email job not found".to_string()));
@@ -246,13 +250,18 @@ pub async fn deliver_email_job(
         }
         Err(provider_err) => {
             let class = provider_err.classify();
-            let retry_class = class
-                .retry_class()
-                .unwrap_or(RetryClass::Permanent);
+            let retry_class = class.retry_class().unwrap_or(RetryClass::Permanent);
             let detail = provider_detail(&provider_err);
             let safe = sanitize_log(&recipient, &rendered.title, &detail);
-            let _ = fail_job(pool, worker_id, job_id, &safe, retry_class, &email_retry_policy())
-                .await;
+            let _ = fail_job(
+                pool,
+                worker_id,
+                job_id,
+                &safe,
+                retry_class,
+                &email_retry_policy(),
+            )
+            .await;
             Err(EmailError::Invalid(safe))
         }
     }

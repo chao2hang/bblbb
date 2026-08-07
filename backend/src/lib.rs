@@ -11,6 +11,7 @@ pub mod config;
 pub mod content;
 pub mod db;
 pub mod domain;
+pub mod download;
 pub mod economy;
 pub mod email;
 pub mod error;
@@ -22,10 +23,15 @@ pub mod moderation;
 pub mod notifications;
 pub mod outbox;
 pub mod ratelimit;
+pub mod reactions;
 pub mod routes;
 pub mod search;
+pub mod shop;
+pub mod storage;
 pub mod tags;
 pub mod users;
 
-pub use app::{build_router, build_router_with_flags};
+pub use app::{
+    build_router, build_router_full, build_router_with_flags, build_router_with_storage,
+};
 pub use config::AppConfig;

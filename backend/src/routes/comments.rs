@@ -7,7 +7,7 @@ use axum::{
     Router,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use sqlx::Either;
 
 use crate::{
@@ -300,7 +300,7 @@ fn private_no_store(resp: Response) -> Response {
     resp
 }
 
-/// POST /api/v1/comments/{id}/reactions — 创建评论反应（toggle）
+/// POST /api/v1/comments/{id}/reactions — 创建评论反应（M07-SHOP-08）
 async fn create_comment_reaction(
     State(state): State<AppState>,
     auth: AuthSession,
@@ -312,125 +312,54 @@ async fn create_comment_reaction(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-
-    let now = chrono::Utc::now().timestamp();
     let reaction = "like";
-
-    // 尝试删除已有反应，如果删除了行说明之前有反应（toggle off）
-    let deleted = match pool {
-        Either::Left(p) => sqlx::query(
-            "DELETE FROM comment_reactions WHERE comment_id = ? AND user_id = ? AND reaction = ?",
-        )
-        .bind(&id)
-        .bind(&user.id)
-        .bind(reaction)
-        .execute(p)
+    crate::reactions::service::add_reaction(pool, &user.id, "comment", &id, reaction, false)
         .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        .rows_affected(),
-        Either::Right(p) => sqlx::query(
-            "DELETE FROM comment_reactions WHERE comment_id = ? AND user_id = ? AND reaction = ?",
-        )
-        .bind(&id)
-        .bind(&user.id)
-        .bind(reaction)
-        .execute(p)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        .rows_affected(),
-    };
-
-    let has_reaction = if deleted == 0 {
-        match pool {
-            Either::Left(p) => {
-                sqlx::query("INSERT INTO comment_reactions (comment_id, user_id, reaction, created_at) VALUES (?, ?, ?, ?)")
-                    .bind(&id)
-                    .bind(&user.id)
-                    .bind(reaction)
-                    .bind(now)
-                    .execute(p)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            }
-            Either::Right(p) => {
-                sqlx::query("INSERT INTO comment_reactions (comment_id, user_id, reaction, created_at) VALUES (?, ?, ?, ?)")
-                    .bind(&id)
-                    .bind(&user.id)
-                    .bind(reaction)
-                    .bind(now)
-                    .execute(p)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            }
-        }
-        true
-    } else {
-        false
-    };
-
-    // 获取总反应数
-    let count: i64 = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar(
-                "SELECT COUNT(*) FROM comment_reactions WHERE comment_id = ? AND reaction = ?",
-            )
-            .bind(&id)
-            .bind(reaction)
-            .fetch_one(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar(
-                "SELECT COUNT(*) FROM comment_reactions WHERE comment_id = ? AND reaction = ?",
-            )
-            .bind(&id)
-            .bind(reaction)
-            .fetch_one(p)
-            .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    Ok(Json(json!({
-        "reaction": reaction,
-        "active": has_reaction,
-        "count": count,
-    })))
+        .map(Json)
+        .map_err(|e| map_reaction_error(e, request_id))
 }
 
-/// DELETE /api/v1/comments/{id}/reactions/{reaction} — 删除评论反应
+/// DELETE /api/v1/comments/{id}/reactions/{reaction} — 移除评论反应
 async fn delete_comment_reaction(
     State(state): State<AppState>,
     auth: AuthSession,
     Path((id, reaction)): Path<(String, String)>,
-) -> Result<StatusCode, AppError> {
+) -> Result<Json<Value>, AppError> {
     let request_id = "delete_comment_reaction";
     let user = auth.require_auth(request_id)?;
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    crate::reactions::service::remove_reaction(pool, &user.id, "comment", &id, &reaction)
+        .await
+        .map(Json)
+        .map_err(|e| map_reaction_error(e, request_id))
+}
 
-    match pool {
-        Either::Left(p) => {
-            sqlx::query("DELETE FROM comment_reactions WHERE comment_id = ? AND user_id = ? AND reaction = ?")
-                .bind(&id)
-                .bind(&user.id)
-                .bind(&reaction)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+/// 反应错误 → AppError（不泄漏目标细节）。
+fn map_reaction_error(e: crate::reactions::ReactionError, request_id: &str) -> AppError {
+    use crate::reactions::ReactionError;
+    match e {
+        ReactionError::Db(m) => AppError::internal(m, request_id),
+        ReactionError::NotFound(m) => AppError::not_found(m, request_id),
+        ReactionError::Invalid(m) => AppError::bad_request(m, request_id, None),
+        ReactionError::Forbidden(m) => AppError::forbidden(m, request_id),
+        ReactionError::SelfReaction => {
+            AppError::bad_request("cannot react to own content", request_id, None)
         }
-        Either::Right(p) => {
-            sqlx::query("DELETE FROM comment_reactions WHERE comment_id = ? AND user_id = ? AND reaction = ?")
-                .bind(&id)
-                .bind(&user.id)
-                .bind(&reaction)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        ReactionError::RateLimited { retry_after_ms } => AppError::rate_limited(
+            "too many reactions",
+            request_id,
+            (retry_after_ms / 1000).max(1) as u64,
+            20,
+            0,
+            crate::outbox::now_millis() / 1000 + (retry_after_ms / 1000),
+        ),
+        ReactionError::PackExhausted => {
+            AppError::bad_request("reaction pack exhausted", request_id, None)
         }
+        ReactionError::AlreadyExists => AppError::conflict("reaction already exists", request_id),
+        ReactionError::NotFoundReaction => AppError::not_found("reaction not found", request_id),
     }
-
-    Ok(StatusCode::NO_CONTENT)
 }

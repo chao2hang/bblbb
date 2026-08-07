@@ -31,9 +31,9 @@ export const PROTOTYPE_ROUTE_MATRIX: PrototypeRouteEntry[] = [
   { prototype: '/publish', production: '/editor', status: 'planned', milestone: 'M4', note: '发帖编辑器随 M4 POSTS 落地' },
   { prototype: '/notifications', production: '/notifications', status: 'shipped', milestone: 'M5', note: '通知列表/已读/偏好/失效态随 M05-UI 落地' },
   { prototype: '/favorites', production: '/search', status: 'planned', milestone: 'M5', note: '收藏/关注随 M5 落地' },
-  { prototype: '/shop', production: '/', status: 'planned', milestone: 'M7', note: '积分商城随 M07-SHOP 落地' },
-  { prototype: '/activity', production: '/', status: 'planned', milestone: 'M7', note: '活跃随 M07-LEVELS 落地' },
-  { prototype: '/me/closet', production: '/me', status: 'planned', milestone: 'M7', note: '装扮衣橱随 M07-SHOP 落地' },
+  { prototype: '/shop', production: '/shop', status: 'shipped', milestone: 'M7', note: '积分商城列表（价格/库存/等级门槛/限购）随 M07-SHOP 落地' },
+  { prototype: '/activity', production: '/me/balance', status: 'shipped', milestone: 'M7', note: '余额/等级/经验/签到随 M07-LEVELS 落地（/me/balance）' },
+  { prototype: '/me/closet', production: '/me/wardrobe', status: 'shipped', milestone: 'M7', note: '装扮衣橱（装备/徽章/预览）随 M07-SHOP 落地' },
 
   // ── 身份 ─────────────────────────────────────────────────────────────────
   { prototype: '/login', production: '/login', status: 'shipped', milestone: 'M2', note: '登录（含 TOTP 两步）' },
@@ -56,7 +56,7 @@ export const PROTOTYPE_ROUTE_MATRIX: PrototypeRouteEntry[] = [
   { prototype: '/admin/download-billing', production: '/admin', status: 'planned', milestone: 'M13', note: '下载计费随 M13 落地' },
   { prototype: '/admin/ai', production: '/admin', status: 'planned', milestone: 'M13', note: 'AI 管理随 M13 落地' },
   { prototype: '/admin/video', production: '/admin', status: 'planned', milestone: 'M13', note: '视频管理随 M13 落地' },
-  { prototype: '/admin/storage', production: '/admin', status: 'planned', milestone: 'M13', note: '存储管理随 M13 落地' },
+  { prototype: '/admin/storage', production: '/admin/storage', status: 'shipped', milestone: 'M6', note: '存储管理（local/S3 配置/测试/脱敏状态）随 M06-UI 落地' },
   { prototype: '/admin/notifications', production: '/admin', status: 'planned', milestone: 'M13', note: '通知管理随 M13 落地' },
   { prototype: '/admin/audit', production: '/admin', status: 'planned', milestone: 'M13', note: '审计随 M13 落地' },
   { prototype: '/admin/reports', production: '/moderation/report', status: 'shipped', milestone: 'M5', note: '举报页（M05-UI，无 JS 退化）' },
@@ -67,7 +67,7 @@ export const PROTOTYPE_ROUTE_MATRIX: PrototypeRouteEntry[] = [
   { prototype: '/admin/plugins', production: '/admin', status: 'planned', milestone: 'M13', note: '插件随 M13 落地' },
   { prototype: '/admin/oauth', production: '/admin', status: 'planned', milestone: 'M13', note: 'OIDC 随 M13 落地' },
   { prototype: '/admin/marketplace', production: '/admin', status: 'planned', milestone: 'M13', note: 'Marketplace 随 M13 落地' },
-  { prototype: '/admin/shop', production: '/admin', status: 'planned', milestone: 'M13', note: '商城管理随 M13 落地' },
-  { prototype: '/admin/activity', production: '/admin', status: 'planned', milestone: 'M13', note: '活跃管理随 M13 落地' },
+  { prototype: '/admin/shop', production: '/admin/shop', status: 'shipped', milestone: 'M7', note: '商城管理（商品/订单/退款）随 M07-UI 落地' },
+  { prototype: '/admin/activity', production: '/admin/activity', status: 'shipped', milestone: 'M7', note: '活跃管理（签到/任务配置）随 M07-UI 落地' },
   { prototype: '/admin/settings', production: '/admin', status: 'planned', milestone: 'M13', note: '后台设置随 M13 落地' }
 ];

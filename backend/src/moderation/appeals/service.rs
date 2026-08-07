@@ -138,18 +138,18 @@ pub async fn create_appeal(
     validate_message(&input.message)?;
 
     let sanction: Option<(String, String, i64)> = match pool {
-        Either::Left(p) => sqlx::query_as(
-            "SELECT user_id, kind, created_at FROM sanctions WHERE id = ?",
-        )
-        .bind(&input.sanction_id)
-        .fetch_optional(p)
-        .await?,
-        Either::Right(p) => sqlx::query_as(
-            "SELECT user_id, kind, created_at FROM sanctions WHERE id = ?",
-        )
-        .bind(&input.sanction_id)
-        .fetch_optional(p)
-        .await?,
+        Either::Left(p) => {
+            sqlx::query_as("SELECT user_id, kind, created_at FROM sanctions WHERE id = ?")
+                .bind(&input.sanction_id)
+                .fetch_optional(p)
+                .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_as("SELECT user_id, kind, created_at FROM sanctions WHERE id = ?")
+                .bind(&input.sanction_id)
+                .fetch_optional(p)
+                .await?
+        }
     };
     let Some((sanction_user_id, _kind, created_at)) = sanction else {
         return Err(AppealsError::NotFound(
@@ -169,14 +169,18 @@ pub async fn create_appeal(
     }
     // 重复提交：每处罚至多一条（0044 UNIQUE(sanction_id) 兜底）。
     let existing: Option<String> = match pool {
-        Either::Left(p) => sqlx::query_scalar("SELECT id FROM appeals WHERE sanction_id = ?")
-            .bind(&input.sanction_id)
-            .fetch_optional(p)
-            .await?,
-        Either::Right(p) => sqlx::query_scalar("SELECT id FROM appeals WHERE sanction_id = ?")
-            .bind(&input.sanction_id)
-            .fetch_optional(p)
-            .await?,
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT id FROM appeals WHERE sanction_id = ?")
+                .bind(&input.sanction_id)
+                .fetch_optional(p)
+                .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar("SELECT id FROM appeals WHERE sanction_id = ?")
+                .bind(&input.sanction_id)
+                .fetch_optional(p)
+                .await?
+        }
     };
     if existing.is_some() {
         return Err(AppealsError::Conflict(
@@ -407,18 +411,18 @@ async fn load_sanction_context(
     appellant_id: &str,
 ) -> Result<AppealSanctionContext, AppealsError> {
     let row: Option<(String, String, Option<String>, String)> = match pool {
-        Either::Left(p) => sqlx::query_as(
-            "SELECT user_id, created_by, board_id, kind FROM sanctions WHERE id = ?",
-        )
-        .bind(sanction_id)
-        .fetch_optional(p)
-        .await?,
-        Either::Right(p) => sqlx::query_as(
-            "SELECT user_id, created_by, board_id, kind FROM sanctions WHERE id = ?",
-        )
-        .bind(sanction_id)
-        .fetch_optional(p)
-        .await?,
+        Either::Left(p) => {
+            sqlx::query_as("SELECT user_id, created_by, board_id, kind FROM sanctions WHERE id = ?")
+                .bind(sanction_id)
+                .fetch_optional(p)
+                .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_as("SELECT user_id, created_by, board_id, kind FROM sanctions WHERE id = ?")
+                .bind(sanction_id)
+                .fetch_optional(p)
+                .await?
+        }
     };
     let Some((sanction_user_id, created_by, board_id, kind)) = row else {
         return Err(AppealsError::NotFound("sanction not found".to_string()));
@@ -445,24 +449,28 @@ async fn has_moderation_scope(
     now: i64,
 ) -> Result<bool, AppealsError> {
     let global: i64 = match pool {
-        Either::Left(p) => sqlx::query_scalar(
-            "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+        Either::Left(p) => {
+            sqlx::query_scalar(
+                "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id = ur.role_id
              WHERE ur.user_id = ? AND r.name IN ('administrator', 'global_moderator')
                AND (ur.expires_at IS NULL OR ur.expires_at > ?)",
-        )
-        .bind(reviewer_id)
-        .bind(now)
-        .fetch_one(p)
-        .await?,
-        Either::Right(p) => sqlx::query_scalar(
-            "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+            )
+            .bind(reviewer_id)
+            .bind(now)
+            .fetch_one(p)
+            .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar(
+                "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id = ur.role_id
              WHERE ur.user_id = ? AND r.name IN ('administrator', 'global_moderator')
                AND (ur.expires_at IS NULL OR ur.expires_at > ?)",
-        )
-        .bind(reviewer_id)
-        .bind(now)
-        .fetch_one(p)
-        .await?,
+            )
+            .bind(reviewer_id)
+            .bind(now)
+            .fetch_one(p)
+            .await?
+        }
     };
     if global > 0 {
         return Ok(true);
