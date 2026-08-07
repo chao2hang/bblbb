@@ -939,6 +939,57 @@ pub async fn apply_post_action(
         now,
     )
     .await?;
+    // M05-CASES-09：restore 不复用旧状态，重新运行当前风险策略——
+    // 高风险内容恢复后再次进入 pending_review（不进公开投影）。
+    if matches!(action, ContentAction::Restore) {
+        let body_markdown = crate::content::repository::load_post_content(pool, post_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|c| c.body_markdown)
+            .unwrap_or_default();
+        let (author_created_at, author_level) = load_author_risk_context(pool, &author_id).await;
+        let input = crate::moderation::risk::policy::RiskInput {
+            author_id: author_id.clone(),
+            author_created_at,
+            author_level,
+            board_id: String::new(),
+            title: String::new(),
+            body_markdown,
+            now,
+        };
+        let verdict = crate::moderation::risk::service::evaluate_risk(
+            pool,
+            &input,
+            None,
+            crate::moderation::risk::service::AI_SUGGEST_DEADLINE,
+            now,
+        )
+        .await
+        .map_err(|e| CasesError::Db(e.to_string()))?;
+        if verdict.is_pending_review() {
+            match pool {
+                Either::Left(p) => {
+                    sqlx::query(
+                        "UPDATE posts SET status = 'draft', review_status = 'pending_review', updated_at = ? WHERE id = ?",
+                    )
+                    .bind(now)
+                    .bind(post_id)
+                    .execute(p)
+                    .await?;
+                }
+                Either::Right(p) => {
+                    sqlx::query(
+                        "UPDATE posts SET status = 'draft', review_status = 'pending_review', updated_at = ? WHERE id = ?",
+                    )
+                    .bind(now)
+                    .bind(post_id)
+                    .execute(p)
+                    .await?;
+                }
+            }
+        }
+    }
     let _ = enqueue(
         pool,
         POST_VISIBILITY_CHANGED,
@@ -946,6 +997,26 @@ pub async fn apply_post_action(
     )
     .await;
     Ok(())
+}
+
+/// 读取作者等级与创建时间（restore 风险复查用；行缺失按老用户/等级 1 兜底）。
+async fn load_author_risk_context(pool: &DatabasePool, author_id: &str) -> (Option<i64>, i64) {
+    let row: Option<(i64, i64)> = match pool {
+        Either::Left(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
+            .bind(author_id)
+            .fetch_optional(p)
+            .await
+            .ok()
+            .flatten(),
+        Either::Right(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
+            .bind(author_id)
+            .fetch_optional(p)
+            .await
+            .ok()
+            .flatten(),
+    };
+    row.map(|(created_at, level)| (Some(created_at), level))
+        .unwrap_or((None, 1))
 }
 
 /// 写内容动作记录（只追加 `moderation_actions`）+ 审计。

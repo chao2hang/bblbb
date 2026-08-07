@@ -794,6 +794,58 @@ async fn content_action_requires_reason() {
     cleanup(&dir);
 }
 
+#[tokio::test]
+async fn restore_rechecks_risk_and_flags_high_risk() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let author = insert_user(&pool, "authorrr", 5).await;
+    let moderator = insert_user(&pool, "modrr", 5).await;
+    assign_global_role(&pool, &moderator, "global_moderator").await;
+    // 链接超阈值内容（M05-RISK link_heavy）
+    let post_id = publish_post(
+        &pool,
+        &author,
+        "restore risk target",
+        "[1](https://a.com) [2](https://b.com) [3](https://c.com) [4](https://d.com)",
+    )
+    .await;
+
+    let now = now_millis();
+    // 隐藏后恢复 → 重跑风险策略命中 → 再次 pending_review（draft，不进公开投影）
+    cases::apply_post_action(
+        &pool,
+        &moderator,
+        &post_id,
+        ContentAction::Hide,
+        "先隐藏",
+        now,
+    )
+    .await
+    .unwrap();
+    cases::apply_post_action(
+        &pool,
+        &moderator,
+        &post_id,
+        ContentAction::Restore,
+        "复核后恢复内容",
+        now + 1_000,
+    )
+    .await
+    .unwrap();
+    let (status, review_status): (String, String) = match &pool {
+        Either::Left(p) => sqlx::query_as("SELECT status, review_status FROM posts WHERE id = ?")
+            .bind(&post_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(status, "draft");
+    assert_eq!(review_status, "pending_review");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
 /// ── HTTP 集成（M05-CASES-01/02）──
 
 #[tokio::test]
