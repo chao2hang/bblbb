@@ -3053,7 +3053,7 @@
       "tests": [
         "backend/tests/marketplace/clients.rs::public_oauth_client_is_rejected_and_secret_is_hash_only"
       ],
-      "evidence": "M12 complete: admin.manage client list with scopes and merchant balance; cargo test --test marketplace_clients (9 passed); commit=PENDING"
+      "evidence": "M12 complete: admin.manage client list with scopes and merchant balance; cargo test --test marketplace_clients (9 passed); commit=9c40184"
     },
     {
       "operation_id": "patch_admin_marketplace_clients_id_",
@@ -3070,7 +3070,7 @@
       "tests": [
         "backend/tests/marketplace/clients.rs::scope_approval_workflow_and_ordinary_oidc_scopes_cannot_debit"
       ],
-      "evidence": "M12 complete: admin upsert client + per-scope approval + limits, reason/recent-auth/If-Match/audit; cargo test --test marketplace_clients (9 passed); commit=PENDING"
+      "evidence": "M12 complete: admin upsert client + per-scope approval + limits, reason/recent-auth/If-Match/audit; cargo test --test marketplace_clients (9 passed); commit=9c40184"
     },
     {
       "operation_id": "post_admin_marketplace_clients_id_rotate_webhook_secret",
@@ -3087,7 +3087,7 @@
       "tests": [
         "backend/tests/marketplace/refund.rs::webhook_hmac_time_window_replay_and_delivery_records"
       ],
-      "evidence": "M12 complete: webhook secret rotation (encrypted storage, plaintext once); cargo test --test marketplace_refund (9 passed); commit=PENDING"
+      "evidence": "M12 complete: webhook secret rotation (encrypted storage, plaintext once); cargo test --test marketplace_refund (9 passed); commit=9c40184"
     },
     {
       "operation_id": "get_admin_marketplace_transactions",
@@ -3104,7 +3104,7 @@
       "tests": [
         "backend/tests/marketplace/refund.rs::reconciliation_classifies_diffs_and_identity_holds"
       ],
-      "evidence": "M12 complete: admin transaction view (purchases/refunds/balances); cargo test --test marketplace_refund (9 passed); commit=PENDING"
+      "evidence": "M12 complete: admin transaction view (purchases/refunds/balances); cargo test --test marketplace_refund (9 passed); commit=9c40184"
     },
     {
       "operation_id": "post_marketplace_checkout_intents",
@@ -3121,7 +3121,7 @@
       "tests": [
         "backend/tests/marketplace/checkout.rs::idempotency_replay_and_conflict"
       ],
-      "evidence": "M12 complete: session-bound short-TTL intent, server-derived amount/currency/recipient, Idempotency-Key; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
+      "evidence": "M12 complete: session-bound short-TTL intent, server-derived amount/currency/recipient, Idempotency-Key; cargo test --test marketplace_checkout (11 passed); commit=9c40184"
     },
     {
       "operation_id": "post_marketplace_checkout_intents_id_confirm",
@@ -3138,7 +3138,7 @@
       "tests": [
         "backend/tests/marketplace/checkout.rs::concurrent_confirms_exactly_one_succeeds"
       ],
-      "evidence": "M12 complete: Session+CSRF atomic purchase, fixed lock order, BEGIN IMMEDIATE concurrency; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
+      "evidence": "M12 complete: Session+CSRF atomic purchase, fixed lock order, BEGIN IMMEDIATE concurrency; cargo test --test marketplace_checkout (11 passed); commit=9c40184"
     },
     {
       "operation_id": "post_marketplace_offers",
@@ -3155,7 +3155,7 @@
       "tests": [
         "backend/tests/marketplace/clients.rs::offers_are_scoped_to_owning_client"
       ],
-      "evidence": "M12 complete: server-side offer registration via confidential client secret; cargo test --test marketplace_clients (9 passed); commit=PENDING"
+      "evidence": "M12 complete: server-side offer registration via confidential client secret; cargo test --test marketplace_clients (9 passed); commit=9c40184"
     },
     {
       "operation_id": "get_marketplace_offers_id_",
@@ -3172,7 +3172,7 @@
       "tests": [
         "backend/tests/marketplace/checkout.rs::intent_binds_user_client_offer_and_is_one_shot_with_ttl"
       ],
-      "evidence": "M12 complete: offer read for session/service/admin; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
+      "evidence": "M12 complete: offer read for session/service/admin; cargo test --test marketplace_checkout (11 passed); commit=9c40184"
     },
     {
       "operation_id": "patch_marketplace_offers_id_",
@@ -3189,7 +3189,7 @@
       "tests": [
         "backend/tests/marketplace/clients.rs::disabled_client_and_revoked_scope_and_old_offer_and_over_limit"
       ],
-      "evidence": "M12 complete: If-Match versioned offer update creating new snapshot; cargo test --test marketplace_clients (9 passed); commit=PENDING"
+      "evidence": "M12 complete: If-Match versioned offer update creating new snapshot; cargo test --test marketplace_clients (9 passed); commit=9c40184"
     },
     {
       "operation_id": "get_marketplace_purchases",
@@ -3206,7 +3206,7 @@
       "tests": [
         "backend/tests/marketplace/checkout.rs::list_and_get_purchases_respect_scoping"
       ],
-      "evidence": "M12 complete: user-own or client-service scoped list with refunds; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
+      "evidence": "M12 complete: user-own or client-service scoped list with refunds; cargo test --test marketplace_checkout (11 passed); commit=9c40184"
     },
     {
       "operation_id": "get_marketplace_purchases_id_",
@@ -3223,7 +3223,7 @@
       "tests": [
         "backend/tests/marketplace/checkout.rs::list_and_get_purchases_respect_scoping"
       ],
-      "evidence": "M12 complete: owner/client/admin scoped purchase detail; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
+      "evidence": "M12 complete: owner/client/admin scoped purchase detail; cargo test --test marketplace_checkout (11 passed); commit=9c40184"
     },
     {
       "operation_id": "post_marketplace_purchases_id_refund",
@@ -3240,7 +3240,7 @@
       "tests": [
         "backend/tests/marketplace/refund.rs::refund_is_reversal_only_and_respects_cumulative_cap"
       ],
-      "evidence": "M12 complete: reversal-only refund, client service credential or admin (reason+recent-auth); cargo test --test marketplace_refund (9 passed); commit=PENDING"
+      "evidence": "M12 complete: reversal-only refund, client service credential or admin (reason+recent-auth); cargo test --test marketplace_refund (9 passed); commit=9c40184"
     },
     {
       "operation_id": "get_admin_themes",
