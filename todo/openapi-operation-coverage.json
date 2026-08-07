@@ -2815,7 +2815,7 @@
       "tests": [
         "backend/tests/oidc.rs::discovery_and_jwks_have_contract_shape_and_cache_headers"
       ],
-      "evidence": "M11 complete: discovery issuer-derived endpoints; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: discovery issuer-derived endpoints; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "get_oauth_interactions_id_",
@@ -2832,7 +2832,7 @@
       "tests": [
         "backend/tests/oidc.rs::authorize_creates_interaction_visible_only_to_owner"
       ],
-      "evidence": "M11 complete: interaction query (Session + owner-only); cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: interaction query (Session + owner-only); cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "post_oauth_interactions_id_decision",
@@ -2849,7 +2849,7 @@
       "tests": [
         "backend/tests/oidc.rs::consent_decision_requires_csrf_and_binds_request"
       ],
-      "evidence": "M11 complete: consent decision Session+CSRF+request binding; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: consent decision Session+CSRF+request binding; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "get_oauth_authorize",
@@ -2866,7 +2866,7 @@
       "tests": [
         "backend/tests/oidc.rs::anonymous_authorize_redirects_to_login_preserving_request"
       ],
-      "evidence": "M11 complete: authorize + PKCE + interaction + implicit rejection; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: authorize + PKCE + interaction + implicit rejection; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "get_oauth_jwks_json",
@@ -2883,7 +2883,7 @@
       "tests": [
         "backend/tests/oidc.rs::discovery_and_jwks_have_contract_shape_and_cache_headers"
       ],
-      "evidence": "M11 complete: JWKS ETag/304/cache headers + key rotation publishing; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: JWKS ETag/304/cache headers + key rotation publishing; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "get_oauth_logout",
@@ -2900,7 +2900,7 @@
       "tests": [
         "backend/tests/oidc.rs::rp_initiated_logout_honors_registered_redirect_and_revokes_session"
       ],
-      "evidence": "M11 complete: RP-initiated logout with id_token_hint + post-logout redirect; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: RP-initiated logout with id_token_hint + post-logout redirect; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "post_oauth_logout",
@@ -2917,7 +2917,7 @@
       "tests": [
         "backend/tests/oidc.rs::rp_initiated_logout_honors_registered_redirect_and_revokes_session"
       ],
-      "evidence": "M11 complete: RP-initiated logout POST path (same handler contract); cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: RP-initiated logout POST path (same handler contract); cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "post_oauth_revoke",
@@ -2934,7 +2934,7 @@
       "tests": [
         "backend/tests/oidc.rs::revoke_access_token_blocks_userinfo"
       ],
-      "evidence": "M11 complete: revoke constant-200 anti-enumeration + userinfo 401; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: revoke constant-200 anti-enumeration + userinfo 401; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "post_oauth_token",
@@ -2951,7 +2951,7 @@
       "tests": [
         "backend/tests/oidc.rs::token_exchange_issues_opaque_tokens_and_valid_rs256_id_token"
       ],
-      "evidence": "M11 complete: token exchange + refresh rotation + protocol negative cases; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: token exchange + refresh rotation + protocol negative cases; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "get_oauth_userinfo",
@@ -2968,7 +2968,7 @@
       "tests": [
         "backend/tests/oidc.rs::userinfo_projects_pairwise_sub_and_scope_filtered_claims"
       ],
-      "evidence": "M11 complete: userinfo scope filtering + pairwise sub + revoke; cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: userinfo scope filtering + pairwise sub + revoke; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "listAdminOAuthClients",
@@ -2985,7 +2985,7 @@
       "tests": [
         "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": "M11 complete: admin client list (admin.manage); cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: admin client list (admin.manage); cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "createAdminOAuthClient",
@@ -3002,7 +3002,7 @@
       "tests": [
         "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": "M11 complete: admin client create (reason+step-up+audit+URI validation, secret hashed); cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: admin client create (reason+step-up+audit+URI validation, secret hashed); cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "getAdminOAuthClient",
@@ -3019,7 +3019,7 @@
       "tests": [
         "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": "M11 complete: admin client get (admin.manage); cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: admin client get (admin.manage); cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "updateAdminOAuthClient",
@@ -3036,7 +3036,7 @@
       "tests": [
         "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": "M11 complete: admin client update/disable (If-Match+reason+step-up+audit); cargo test --test oidc (17 passed); commit=<hash>"
+      "evidence": "M11 complete: admin client update/disable (If-Match+reason+step-up+audit); cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
       "operation_id": "get_admin_marketplace_clients",
