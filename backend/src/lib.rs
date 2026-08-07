@@ -33,6 +33,8 @@ pub mod shop;
 pub mod storage;
 pub mod tags;
 pub mod users;
+pub mod video;
+pub mod oidc;
 
 pub use app::{
     build_router, build_router_full, build_router_with_flags, build_router_with_storage,

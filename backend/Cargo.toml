@@ -144,3 +144,11 @@ path = "tests/ai/tasks.rs"
 [[test]]
 name = "ai_suggestions"
 path = "tests/ai/suggestions.rs"
+
+[[test]]
+name = "video"
+path = "tests/video.rs"
+
+[[test]]
+name = "oidc"
+path = "tests/oidc.rs"
