@@ -13,67 +13,67 @@
 
 ## M08-INDEX：索引与公开投影
 
-**元数据：** `P1` · `owner=unassigned/backend-search` · `risk=high` · `depends=M03-SEARCH-STORE,M04-VISIBILITY,M05-RISK` · `blocked=none`
+**元数据：** `P1` · `owner=backend-search` · `risk=high` · `depends=M03-SEARCH-STORE,M04-VISIBILITY,M05-RISK` · `blocked=none`
 **目标文件：** `backend/src/search/`、`backend/src/publication/`、`backend/tests/search/`、`docs/CRAWLER-POLICY.md`
 **验收：** 公开投影与内容权限 canary 在三数据库、缓存和重建流程中一致。
 
-- [ ] `M08-INDEX-01` `[45m]` 定义公开索引文档：标题、slug、已清洗摘要、标签、作者公开投影、revision 和 index policy。
-- [ ] `M08-INDEX-02` `[30m]` 实现公开/登录/回复/等级/付费/审核/删除内容的统一排除规则。
-- [ ] `M08-INDEX-03` `[45m]` 实现作者逐帖 `search_index_opt_out` 与 `ai_summary_opt_out`，管理员全站/板块策略优先。
-- [ ] `M08-INDEX-04` `[45m]` 内容发布、编辑、隐藏、恢复、删除和策略变更触发幂等索引 Job。
-- [ ] `M08-INDEX-05` `[30m]` 重建索引时按当前权限和策略重新生成，旧 revision 不能覆盖新 revision。
-- [ ] `M08-INDEX-06` `[45m]` 搜索限制查询长度、语法、结果数、分页深度、匿名频率和高亮长度。
-- [ ] `M08-INDEX-07` `[45m]` 搜索结果返回前重新执行实时可见性、处罚和索引退出判断。
-- [ ] `M08-INDEX-08` `[45m]` 用隐藏正文 canary 验证索引、excerpt、highlight、相关内容和错误均不泄漏。
-- [ ] `M08-INDEX-09` `[30m]` 更新 Search operation coverage、索引版本和失败/堆积指标。
+- [x] `M08-INDEX-01` 证据：files=backend/src/search/publication.rs,backend/src/search/mod.rs；commands=cargo test --test search_public --all-features 8 pass；contract=公开投影含标题/slug/清洗摘要/标签/作者公开投影/revision/IndexPolicy；commit=5119c7d；review=public_search_projections_and_canary_never_leak `[45m]` 定义公开索引文档：标题、slug、已清洗摘要、标签、作者公开投影、revision 和 index policy。
+- [x] `M08-INDEX-02` 证据：files=backend/src/search/gate.rs；commands=cargo test --test search_public --all-features 8 pass；contract=decide_public_post_indexability 九道门统一排除（状态/可见性/策略/板块/作者/删除/审核/退出/管理员）；commit=5119c7d；review=unified_exclusion_rules_keep_non_public_out `[30m]` 实现公开/登录/回复/等级/付费/审核/删除内容的统一排除规则。
+- [x] `M08-INDEX-03` 证据：files=migrations/*/0053_search_optout.sql,backend/src/search/policy.rs；commands=make check（迁移三库等价 4 pass）+ cargo test --test search_public 8 pass；contract=逐帖 search_index_opt_out/ai_summary_opt_out+全站/板块策略 deny>author allow；commit=5119c7d；review=author_opt_out_and_admin_policy_precedence `[45m]` 实现作者逐帖 `search_index_opt_out` 与 `ai_summary_opt_out`，管理员全站/板块策略优先。
+- [x] `M08-INDEX-04` 证据：files=backend/src/search/index_job.rs,backend/src/search/policy.rs；commands=cargo test --test search_index_job --all-features 5 pass；contract=发布/编辑/隐藏/恢复/删除/策略变更触发幂等索引 Job，源状态推导结果正确；commit=5119c7d；review=search_index_job 套件 + set_post_opt_out 直接入队 `[45m]` 内容发布、编辑、隐藏、恢复、删除和策略变更触发幂等索引 Job。
+- [x] `M08-INDEX-05` 证据：files=backend/src/search/rebuild.rs；commands=cargo test --test search_public 8 pass；contract=重建按当前权限/策略重生成+条件 upsert 守卫旧 revision；commit=5119c7d；review=rebuild_applies_current_policy_and_guard_blocks_stale `[30m]` 重建索引时按当前权限和策略重新生成，旧 revision 不能覆盖新 revision。
+- [x] `M08-INDEX-06` 证据：files=backend/src/search/query.rs；commands=cargo test --test search_public 8 pass；contract=长度≤200/limit 1..=50/分页深度≤10/高亮≤160/匿名频率=antibot Search 独立桶；commit=5119c7d；review=search_limits_length_syntax_depth_rate_highlight + anonymous_search_rate_limit_returns_rejection `[45m]` 搜索限制查询长度、语法、结果数、分页深度、匿名频率和高亮长度。
+- [x] `M08-INDEX-07` 证据：files=backend/src/search/query.rs；commands=cargo test --test search_public 8 pass；contract=返回前 recheck_doc_visibility+有效封禁实时判断；commit=5119c7d；review=live_recheck_drops_banned_and_hidden_without_reindex `[45m]` 搜索结果返回前重新执行实时可见性、处罚和索引退出判断。
+- [x] `M08-INDEX-08` 证据：files=backend/src/search/index_job.rs,backend/src/search/gate.rs；commands=cargo test --test search_public 8 pass；contract=隐藏正文 canary 零泄漏（索引/FTS/excerpt/highlight/响应体）；commit=5119c7d；review=public_search_projections_and_canary_never_leak `[45m]` 用隐藏正文 canary 验证索引、excerpt、highlight、相关内容和错误均不泄漏。
+- [x] `M08-INDEX-09` 证据：files=backend/src/search/metrics.rs,docs/SEARCH.md；commands=make check（OpenAPI coverage 193/193）；contract=INDEX_SCHEMA_VERSION=2+index_queue_metrics+SEARCH.md §9-§15；commit=5119c7d；review=make check green `[30m]` 更新 Search operation coverage、索引版本和失败/堆积指标。
 
 ## M08-FEEDS：RSS/Atom、sitemap 和 SEO
 
-**元数据：** `P1` · `owner=unassigned/backend-public-web` · `risk=high` · `depends=M08-INDEX` · `blocked=none`
+**元数据：** `P1` · `owner=backend-public-web` · `risk=high` · `depends=M08-INDEX` · `blocked=none`
 **目标文件：** `backend/src/feeds/`、`frontend/src/routes/`、`backend/tests/feeds/`、`docs/FRONTEND.md`
 **验收：** RSS/Atom、sitemap、OpenGraph、JSON-LD 和 canonical 只包含安全公开文章。
 
-- [ ] `M08-FEEDS-01` `[45m]` 实现 RSS feed，使用稳定 cursor/发布时间排序和明确的缓存/ETag 策略。
-- [ ] `M08-FEEDS-02` `[45m]` 实现 Atom feed，字段、链接、更新时间和 XML escaping 通过 Fixture。
-- [ ] `M08-FEEDS-03` `[30m]` sitemap 只列入允许索引的公开 canonical URL，限制数量并支持分页/分片。
-- [ ] `M08-FEEDS-04` `[30m]` 动态生成 robots.txt、`X-Robots-Tag` 和 meta noindex；声明不替代服务端边界。
-- [ ] `M08-FEEDS-05` `[45m]` OpenGraph、JSON-LD、canonical、摘要和图片投影重新执行可见性/退出索引策略。
-- [ ] `M08-FEEDS-06` `[30m]` Feed/SEO 缓存按策略 revision、内容 revision 和公开投影维度隔离。
-- [ ] `M08-FEEDS-07` `[45m]` 测试隐藏、回复、等级、付费、审核、删除和封禁内容不会进入任何投影。
-- [ ] `M08-FEEDS-08` `[30m]` 无 JavaScript 访问公开文章、Feed 链接和 canonical 仍合理可用。
-- [ ] `M08-FEEDS-09` `[30m]` 更新 Feeds/Search operation coverage 和响应头 Fixture。
+- [x] `M08-FEEDS-01` 证据：files=backend/src/feeds/projection.rs,routes/feeds.rs；commands=cargo test --test feeds --all-features 7 pass；contract=RSS published_at DESC,id DESC+keyset cursor+ETag/304；commit=5119c7d；review=rss_and_atom_contain_only_public_content + feed_etag_and_304 `[45m]` 实现 RSS feed，使用稳定 cursor/发布时间排序和明确的缓存/ETag 策略。
+- [x] `M08-FEEDS-02` 证据：files=backend/src/feeds/render.rs；commands=cargo test --test feeds 7 pass；contract=Atom id/link/updated/published/summary/author+RFC3339+五实体 XML 转义 Fixture；commit=5119c7d；review=rss_and_atom_contain_only_public_content `[45m]` 实现 Atom feed，字段、链接、更新时间和 XML escaping 通过 Fixture。
+- [x] `M08-FEEDS-03` 证据：files=backend/src/feeds/projection.rs,routes/feeds.rs；commands=cargo test --test feeds 7 pass；contract=sitemap 只列允许索引 canonical URL，超限 sitemapindex 分片，越界空 urlset；commit=5119c7d；review=sitemap_lists_only_index_allowed_canonical_urls `[30m]` sitemap 只列入允许索引的公开 canonical URL，限制数量并支持分页/分片。
+- [x] `M08-FEEDS-04` 证据：files=backend/src/feeds/robots.rs；commands=cargo test --test feeds 7 pass；contract=动态 robots.txt（AI 爬虫默认 Disallow）+X-Robots-Tag noindex + meta 同源；声明不替代服务端边界；commit=5119c7d；review=robots_txt_and_x_robots_tag `[30m]` 动态生成 robots.txt、`X-Robots-Tag` 和 meta noindex；声明不替代服务端边界。
+- [x] `M08-FEEDS-05` 证据：files=backend/src/feeds/projection.rs,frontend/src/routes/search/+page.svelte；commands=cargo test --test feeds 7 pass + npm run check 0 err；contract=load_seo_post 重跑可见性/退出策略，canonical/OG/JSON-LD/摘要/封面图；commit=5119c7d；review=seo_projection_rechecks_visibility_and_index_policy + JsonLd.test.ts `[45m]` OpenGraph、JSON-LD、canonical、摘要和图片投影重新执行可见性/退出索引策略。
+- [x] `M08-FEEDS-06` 证据：files=backend/src/feeds/cache.rs；commands=cargo test --test feeds 7 pass；contract=缓存键=endpoint+参数+数据源身份+policy/content revision+投影维度（≤128 TTL60s）；commit=5119c7d；review=feed_cache_revisions_follow_content_and_policy `[30m]` Feed/SEO 缓存按策略 revision、内容 revision 和公开投影维度隔离。
+- [x] `M08-FEEDS-07` 证据：files=backend/src/feeds/*,backend/tests/feeds.rs；commands=cargo test --test feeds 7 pass；contract=隐藏/回复/等级/付费/审核/删除/封禁/退出内容不进 RSS/Atom/sitemap/SEO；commit=5119c7d；review=rss_and_atom_contain_only_public_content + sitemap_lists_only_index_allowed_canonical_urls `[45m]` 测试隐藏、回复、等级、付费、审核、删除和封禁内容不会进入任何投影。
+- [x] `M08-FEEDS-08` 证据：files=frontend/src/routes/rss.xml/+server.ts,frontend/src/routes/sitemap.xml/+server.ts,frontend/src/routes/robots.txt/+server.ts；commands=npm run check 0 err + cargo test --test feeds 7 pass；contract=无 JS 访问公开文章/Feed 链接/canonical 可用；commit=5119c7d；review=no_js_public_article_and_feed_links_work + feeds-seo-nojs.test.ts `[30m]` 无 JavaScript 访问公开文章、Feed 链接和 canonical 仍合理可用。
+- [x] `M08-FEEDS-09` 证据：files=docs/CRAWLER-POLICY.md §7,scripts/check-route-coverage.rb；commands=make check（route-coverage+OpenAPI 193/193）；contract=robots.txt/sitemap.xml 记为非契约端点+响应头 Fixture（Content-Type/ETag/Cache-Control/X-Robots-Tag）；commit=5119c7d；review=feed_etag_and_304 `[30m]` 更新 Feeds/Search operation coverage 和响应头 Fixture。
 
 ## M08-CRAWL：行为检测与分级响应
 
-**元数据：** `P0` · `owner=unassigned/security-edge` · `risk=critical` · `depends=M08-INDEX,M00-BACKEND` · `blocked=none`
+**元数据：** `P0` · `owner=security-edge` · `risk=critical` · `depends=M08-INDEX,M00-BACKEND` · `blocked=none`
 **目标文件：** `backend/src/antibot/`、`backend/src/middleware/rate_limit*`、`backend/tests/antibot/`、`docs/CRAWLER-POLICY.md`
 **验收：** 观察/降速→429→挑战→临时封禁→人工复核状态机和误伤回退通过。
 
-- [ ] `M08-CRAWL-01` `[45m]` 定义账号、可信代理 IP、IP 段、UA、顺序扫描、并发、分页深度和失败率的行为信号。
-- [ ] `M08-CRAWL-02` `[30m]` 正确解析可信代理链；不信任客户端伪造的 `X-Forwarded-For`。
-- [ ] `M08-CRAWL-03` `[45m]` 按匿名/登录/搜索/RSS/sitemap/公开文章/管理分别建立限流桶。
-- [ ] `M08-CRAWL-04` `[45m]` 实现 observe/throttle 状态，增加延迟但不改变安全授权和内容结果。
-- [ ] `M08-CRAWL-05` `[30m]` 实现 429、Retry-After、响应头和稳定 Problem code。
-- [ ] `M08-CRAWL-06` `[45m]` 实现挑战状态、一次性 token、过期、失败次数和无障碍替代路径。
-- [ ] `M08-CRAWL-07` `[30m]` 实现临时封禁、到期和人工复核状态；封禁写审计但不泄漏检测规则。
-- [ ] `M08-CRAWL-08` `[30m]` 默认拒绝 GPTBot、CCBot、Google-Extended、ClaudeBot 等 AI 训练爬虫。
-- [ ] `M08-CRAWL-09` `[30m]` 普通搜索引擎只索引明确允许的公开内容，robots 与 HTTP 授权同时执行。
-- [ ] `M08-CRAWL-10` `[45m]` 测试伪造 UA、代理头、未知机器人、慢速爬虫、并发扫描、失败重试和误伤恢复。
-- [ ] `M08-CRAWL-11` `[45m]` 测试缓存、304、Feed、sitemap、OpenGraph、JSON-LD 和公开文章的权限维度隔离。
-- [ ] `M08-CRAWL-12` `[30m]` 建立反爬告警、人工复核查询和隐私最小化日志。
+- [x] `M08-CRAWL-01` 证据：files=backend/src/antibot/mod.rs；commands=cargo test --test antibot --all-features 9 pass + cargo test --lib antibot 8 pass；contract=行为信号：账号/可信代理 IP/UA/频率/并发/顺序扫描/分页深度/失败率；commit=5119c7d；review=buckets_are_isolated + forged_proxy_headers_cannot_bypass_ratelimit `[45m]` 定义账号、可信代理 IP、IP 段、UA、顺序扫描、并发、分页深度和失败率的行为信号。
+- [x] `M08-CRAWL-02` 证据：files=backend/src/antibot/mod.rs resolve_client_ip；commands=cargo test --lib antibot 8 pass；contract=XFF 最右跳必须是可信代理否则整条忽略；x-real-ip 链一致才信任；回退 unknown；commit=5119c7d；review=resolve_ip_requires_trusted_chain + resolve_ip_trusts_real_ip_only_when_consistent `[30m]` 正确解析可信代理链；不信任客户端伪造的 `X-Forwarded-For`。
+- [x] `M08-CRAWL-03` 证据：files=backend/src/antibot/mod.rs Bucket；commands=cargo test --test antibot 9 pass；contract=匿名/登录/搜索/RSS/sitemap/公开文章/管理独立限流桶；commit=5119c7d；review=buckets_are_isolated `[45m]` 按匿名/登录/搜索/RSS/sitemap/公开文章/管理分别建立限流桶。
+- [x] `M08-CRAWL-04` 证据：files=backend/src/antibot/mod.rs antibot_guard；commands=cargo test --test antibot 9 pass；contract=observe/throttle 只加延迟（≤15% 剩余时）不改内容与授权；commit=5119c7d；review=normal_search_engine_and_browser_allowed `[45m]` 实现 observe/throttle 状态，增加延迟但不改变安全授权和内容结果。
+- [x] `M08-CRAWL-05` 证据：files=backend/src/antibot/mod.rs,backend/src/error.rs rate_limited；commands=cargo test --test antibot 9 pass；contract=429+Retry-After+Ratelimit-Limit/Remaining/Reset+稳定 code rate_limited；commit=5119c7d；review=search_bucket_rate_limits_to_429 `[30m]` 实现 429、Retry-After、响应头和稳定 Problem code。
+- [x] `M08-CRAWL-06` 证据：files=backend/src/antibot/mod.rs challenge token；commands=cargo test --test antibot 9 pass；contract=一次性 HMAC token/过期/失败计数/无路由无 JS 替代路径；commit=5119c7d；review=challenge_flow_issues_token_and_allows_one_retry + challenge_replay_is_rejected `[45m]` 实现挑战状态、一次性 token、过期、失败次数和无障碍替代路径。
+- [x] `M08-CRAWL-07` 证据：files=backend/src/antibot/mod.rs temp_ban；commands=cargo test --test antibot 9 pass + cargo test --lib antibot 8 pass；contract=临时封禁到期+人工复核标记，写审计不泄漏检测规则；commit=5119c7d；review=repeated_challenge_failures_trigger_temp_ban + temp_ban_records_alert_and_unban_works `[30m]` 实现临时封禁、到期和人工复核状态；封禁写审计但不泄漏检测规则。
+- [x] `M08-CRAWL-08` 证据：files=backend/src/antibot/mod.rs classify_ua；commands=cargo test --test antibot 9 pass；contract=GPTBot/CCBot/Google-Extended/ClaudeBot/PerplexityBot/Bytespider/Amazonbot 默认 403 crawler_denied；commit=5119c7d；review=ai_training_crawler_denied_by_default `[30m]` 默认拒绝 GPTBot、CCBot、Google-Extended、ClaudeBot 等 AI 训练爬虫。
+- [x] `M08-CRAWL-09` 证据：files=backend/src/feeds/robots.rs,backend/src/antibot/mod.rs；commands=cargo test --test feeds 7 pass + --test antibot 9 pass；contract=robots 与 HTTP 授权同时执行，中间件不改变内容可见性与对象级授权；commit=5119c7d；review=robots_txt_and_x_robots_tag + normal_search_engine_and_browser_allowed `[30m]` 普通搜索引擎只索引明确允许的公开内容，robots 与 HTTP 授权同时执行。
+- [x] `M08-CRAWL-10` 证据：files=backend/tests/antibot.rs；commands=cargo test --test antibot 9 pass；contract=伪造 UA/代理头/未知机器人/慢速爬虫/并发扫描/失败重试/误伤恢复；commit=5119c7d；review=forged_proxy_headers_cannot_bypass_ratelimit + ai_training_crawler_denied_by_default + challenge_* + buckets_are_isolated `[45m]` 测试伪造 UA、代理头、未知机器人、慢速爬虫、并发扫描、失败重试和误伤恢复。
+- [x] `M08-CRAWL-11` 证据：files=backend/tests/feeds.rs,backend/tests/antibot.rs；commands=cargo test --test feeds 7 pass + --test antibot 9 pass；contract=缓存/304/Feed/sitemap/OG/JSON-LD/公开文章权限维度隔离；commit=5119c7d；review=feed_etag_and_304 + feed_cache_revisions_follow_content_and_policy + seo_projection_rechecks_visibility_and_index_policy `[45m]` 测试缓存、304、Feed、sitemap、OpenGraph、JSON-LD 和公开文章的权限维度隔离。
+- [x] `M08-CRAWL-12` 证据：files=backend/src/antibot/mod.rs review_query/unban/segment；commands=cargo test --lib antibot 8 pass；contract=反爬告警+人工复核查询+隐私最小化日志（仅 IP 段）；commit=5119c7d；review=temp_ban_records_alert_and_unban_works + segment_minimizes_ip `[30m]` 建立反爬告警、人工复核查询和隐私最小化日志。
 
 ## M08-UI：搜索、公开 SEO 与隐私设置
 
-**元数据：** `P1` · `owner=unassigned/frontend-public` · `risk=medium` · `depends=M08-FEEDS,M08-CRAWL` · `blocked=none`
+**元数据：** `P1` · `owner=frontend-public` · `risk=medium` · `depends=M08-FEEDS,M08-CRAWL` · `blocked=none`
 **目标文件：** `frontend/src/routes/search/`、`frontend/src/routes/settings/privacy/`、`frontend/tests/`
 **验收：** 公开搜索、搜索引擎预览、退出索引设置和挑战流程 E2E/a11y 通过。
 
-- [ ] `M08-UI-01` `[45m]` 实现公开搜索 SSR、查询校验、cursor、空状态和 429/挑战恢复。
-- [ ] `M08-UI-02` `[30m]` 搜索结果只渲染后端安全摘要和高亮，不在客户端重新拼接隐藏正文。
-- [ ] `M08-UI-03` `[30m]` 实现作者逐帖退出搜索/AI 摘要设置，展示管理员策略优先级。
-- [ ] `M08-UI-04` `[30m]` 实现 robots/索引状态说明，不承诺 robots 能阻止恶意抓取。
-- [ ] `M08-UI-05` `[45m]` 测试 Feed、canonical、OG/JSON-LD 的页面源和无 JS 浏览。
-- [ ] `M08-UI-06` `[30m]` 测试挑战键盘、屏幕阅读器、移动端和失败后安全回退。
+- [x] `M08-UI-01` 证据：files=frontend/src/routes/search/+page.server.ts,frontend/src/routes/search/+page.svelte,frontend/src/lib/search.ts；commands=npm run check 0 err + npx vitest run 445 pass；contract=搜索 SSR/查询校验/cursor/空状态/429 与挑战恢复；commit=5119c7d；review=search-load.test.ts + ChallengeGate.test.ts `[45m]` 实现公开搜索 SSR、查询校验、cursor、空状态和 429/挑战恢复。
+- [x] `M08-UI-02` 证据：files=frontend/src/lib/components/SearchResultList.svelte；commands=npx vitest run 445 pass；contract=只渲染后端安全摘要/高亮白名单字段纯文本插值，无 {@html}；commit=5119c7d；review=search-load.test.ts 隐私守卫 + search-nojs.test.ts `[30m]` 搜索结果只渲染后端安全摘要和高亮，不在客户端重新拼接隐藏正文。
+- [x] `M08-UI-03` 证据：files=frontend/src/routes/editor/+page.svelte,frontend/src/routes/settings/privacy/+page.svelte；commands=npx vitest run 445 pass；contract=作者逐帖退出+管理员全站/板块策略优先展示；commit=5119c7d；review=privacy-settings-nojs.test.ts `[30m]` 实现作者逐帖退出搜索/AI 摘要设置，展示管理员策略优先级。
+- [x] `M08-UI-04` 证据：files=frontend/src/routes/settings/privacy/+page.svelte,frontend/src/routes/robots.txt/+server.ts；commands=npm run check 0 err + npx vitest run 445 pass；contract=robots 边界说明（协作性声明不能阻止恶意抓取），AI 爬虫默认拒绝；commit=5119c7d；review=privacy-settings-nojs.test.ts `[30m]` 实现 robots/索引状态说明，不承诺 robots 能阻止恶意抓取。
+- [x] `M08-UI-05` 证据：files=frontend/src/routes/search/+page.svelte,frontend/src/lib/components/JsonLd.svelte,frontend/src/routes/{rss.xml,sitemap.xml,robots.txt}/+server.ts；commands=npm run check 0 err + npx vitest run 445 pass + npm run build；contract=Feed/canonical/OG/JSON-LD 页面源+无 JS 浏览；commit=5119c7d；review=feeds-seo-nojs.test.ts + search-nojs.test.ts + JsonLd.test.ts `[45m]` 测试 Feed、canonical、OG/JSON-LD 的页面源和无 JS 浏览。
+- [x] `M08-UI-06` 证据：files=frontend/src/lib/components/ui/ChallengeGate.svelte；commands=npx vitest run 445 pass；contract=挑战键盘/屏幕阅读器/移动端/失败后安全回退；commit=5119c7d；review=ChallengeGate.test.ts `[30m]` 测试挑战键盘、屏幕阅读器、移动端和失败后安全回退。
 
 ---
 
@@ -85,77 +85,77 @@
 
 ## M09-SCHEMA：Consent、Provider、Task 与 Suggestion
 
-**元数据：** `P0` · `owner=unassigned/backend-ai-db` · `risk=critical` · `depends=M01-JOBS,M04-VISIBILITY` · `blocked=none`
+**元数据：** `P0` · `owner=backend-ai-db` · `risk=critical` · `depends=M01-JOBS,M04-VISIBILITY` · `blocked=none`
 **目标文件：** `migrations/*/`、`backend/src/ai/model*`、`docs/AI.md`
 **验收：** 三数据库状态、同意版本、任务幂等和旧 revision 隔离通过。
 
-- [ ] `M09-SCHEMA-01` `[45m]` 新增 ai_providers、provider policies、purpose/model budget 和 Feature Flag 迁移。
-- [ ] `M09-SCHEMA-02` `[45m]` 新增 ai_consents，保存 purpose、provider、notice version、text hash、scope、granted/revoked_at 和审计引用。
-- [ ] `M09-SCHEMA-03` `[45m]` 新增 ai_tasks，覆盖 queued/running/retry_wait/succeeded/cancelled/dead 与 content revision。
-- [ ] `M09-SCHEMA-04` `[45m]` 新增 suggestions，覆盖 formatting/SEO/tagging/moderation、schema version、base revision 和 decision。
-- [ ] `M09-SCHEMA-05` `[30m]` 建立旧 revision/旧 policy 结果不能覆盖新内容的唯一/版本约束。
-- [ ] `M09-SCHEMA-06` `[30m]` 同步 AI 状态机、事件目录、错误码、OpenAPI 和隐私文档。
+- [x] `M09-SCHEMA-01` 证据：files=migrations/*/0052_ai_gateway.sql,backend/src/config/flags.rs FeatureName::Ai；commands=make check（迁移三库等价 4 pass）+ cargo test --all-features 0 fail；contract=ai_providers+provider policies/purpose+model budget+Feature Flag 迁移；commit=5119c7d；review=migration_equivalence + enabled_feature_route_passes_the_gate `[45m]` 新增 ai_providers、provider policies、purpose/model budget 和 Feature Flag 迁移。
+- [x] `M09-SCHEMA-02` 证据：files=migrations/*/0052_ai_gateway.sql,backend/src/ai/consent.rs；commands=cargo test --lib ai:: 12 pass；contract=ai_consents (user,provider,purpose) 唯一+disclosure version/hash/scope/granted/revoked；commit=5119c7d；review=grant_consent_is_idempotent_and_revocable `[45m]` 新增 ai_consents，保存 purpose、provider、notice version、text hash、scope、granted/revoked_at 和审计引用。
+- [x] `M09-SCHEMA-03` 证据：files=migrations/*/0052_ai_gateway.sql,backend/src/ai/tasks.rs；commands=cargo test --test ai_tasks --all-features 9 pass；contract=ai_tasks queued/running/retry_wait/succeeded/cancelled/dead+content revision；commit=5119c7d；review=execute_retries_5xx_then_dead_after_max_attempts + cancel_moves_queued_to_cancelled_and_is_idempotent `[45m]` 新增 ai_tasks，覆盖 queued/running/retry_wait/succeeded/cancelled/dead 与 content revision。
+- [x] `M09-SCHEMA-04` 证据：files=migrations/*/0052_ai_gateway.sql,backend/src/ai/suggestions.rs；commands=cargo test --test ai_suggestions 5 pass；contract=ai_suggestions formatting/seo/tagging/moderation+schema_version+base_revision+decision；commit=5119c7d；review=create_and_read_suggestion_roundtrip `[45m]` 新增 suggestions，覆盖 formatting/SEO/tagging/moderation、schema version、base revision 和 decision。
+- [x] `M09-SCHEMA-05` 证据：files=migrations/*/0052_ai_gateway.sql（UNIQUE(task_type,target_type,target_id,content_revision,idempotency_key)）；commands=cargo test --test ai_tasks 9 pass + --test ai_suggestions 5 pass；contract=旧 revision/旧 policy 不能覆盖新内容（唯一键+base_revision/If-Match 守卫）；commit=5119c7d；review=enqueue_is_idempotent_by_key + accept_checks_base_revision_then_is_idempotent `[30m]` 建立旧 revision/旧 policy 结果不能覆盖新内容的唯一/版本约束。
+- [x] `M09-SCHEMA-06` 证据：files=docs/AI.md §9,openapi/openapi.yaml（Problem.code enum）;commands=make check（check-error-codes+coverage 193/193+TS types reproducible）；contract=AI 状态机/错误码/OpenAPI/隐私文档同步；commit=5119c7d；review=make check green `[30m]` 同步 AI 状态机、事件目录、错误码、OpenAPI 和隐私文档。
 
 ## M09-GATEWAY：Provider allowlist 与数据边界
 
-**元数据：** `P0` · `owner=unassigned/security-ai` · `risk=critical` · `depends=M09-SCHEMA,M01-CONFIG` · `blocked=none`
+**元数据：** `P0` · `owner=security-ai` · `risk=critical` · `depends=M09-SCHEMA,M01-CONFIG` · `blocked=none`
 **目标文件：** `backend/src/ai/gateway/`、`backend/src/net/egress/`、`backend/tests/ai/security*`
 **验收：** SSRF/DNS rebinding、TLS、重定向、预算、Secret 和内容投影测试通过。
 
-- [ ] `M09-GATEWAY-01` `[45m]` 浏览器不能直连 Provider；所有请求经过 Rust Gateway 和用途策略。
-- [ ] `M09-GATEWAY-02` `[45m]` Provider endpoint 使用 HTTPS、host allowlist、端口限制和证书校验。
-- [ ] `M09-GATEWAY-03` `[45m]` 实现解析前后 IP 校验、DNS rebinding 防护、私网/回环/链路本地阻断。
-- [ ] `M09-GATEWAY-04` `[30m]` 限制重定向次数、目标 allowlist、连接/读取/总超时和响应大小。
-- [ ] `M09-GATEWAY-05` `[30m]` Secret 仅由 Gateway 读取，API/SSR/日志/错误/审计 metadata 全部脱敏。
-- [ ] `M09-GATEWAY-06` `[45m]` 实现用途、模型、并发、token/金额预算、速率和熔断策略。
-- [ ] `M09-GATEWAY-07` `[30m]` 默认脱敏；隐藏正文、私密审核备注、邮箱、Session 和 Secret 永不外发。
-- [ ] `M09-GATEWAY-08` `[45m]` 用户正文外发前展示 Provider、用途、留存、训练、区域和数据模式并获取逐次确认。
-- [ ] `M09-GATEWAY-09` `[30m]` 同意撤回后取消未发出任务，已返回的迟到结果不得写入或被自动采纳。
-- [ ] `M09-GATEWAY-10` `[45m]` 测试 Prompt injection、模型输出注入、URL/SQL/模板注入、越权上下文和大响应。
+- [x] `M09-GATEWAY-01` 证据：files=backend/src/routes/ai.rs,backend/src/ai/gateway.rs；commands=cargo test --test ai_gateway --all-features 13 pass；contract=所有 Provider 出站经 Rust Gateway+用途策略，浏览器不直连；commit=5119c7d；review=egress_* 全套 `[45m]` 浏览器不能直连 Provider；所有请求经过 Rust Gateway 和用途策略。
+- [x] `M09-GATEWAY-02` 证据：files=backend/src/ai/gateway.rs EgressPolicy；commands=cargo test --test ai_gateway 13 pass；contract=HTTPS+host allowlist+端口限制+证书校验（reqwest）；commit=5119c7d；review=egress_rejects_insecure_scheme + egress_rejects_host_outside_allowlist + egress_allows_https_allowlisted_host `[45m]` Provider endpoint 使用 HTTPS、host allowlist、端口限制和证书校验。
+- [x] `M09-GATEWAY-03` 证据：files=backend/src/ai/gateway.rs is_private_ip；commands=cargo test --test ai_gateway 13 pass；contract=解析前 host/IP 校验+DNS rebinding 防护+私网/回环/链路本地阻断（v4/v6 含 CGNAT/文档/保留）；commit=5119c7d；review=egress_rejects_private_ip_literal + private_ip_detection_covers_v4_v6 `[45m]` 实现解析前后 IP 校验、DNS rebinding 防护、私网/回环/链路本地阻断。
+- [x] `M09-GATEWAY-04` 证据：files=backend/src/ai/gateway.rs check_redirect/check_response_size；commands=cargo test --test ai_gateway 13 pass；contract=重定向≤3/连接/读取/总超时/响应大小≤2MB；commit=5119c7d；review=egress_redirect_and_size_limits `[30m]` 限制重定向次数、目标 allowlist、连接/读取/总超时和响应大小。
+- [x] `M09-GATEWAY-05` 证据：files=backend/src/routes/ai.rs redact_provider_row,backend/src/routes/admin.rs ai_provider_config_row；commands=cargo test --test ai_gateway 13 pass + make check；contract=Secret 只读布尔 secret_configured，API/SSR/日志/审计 metadata 全脱敏；commit=5119c7d；review=redactor_blocks_disabled_and_metadata_only + redactor_strips_emails_in_redacted_mode `[30m]` Secret 仅由 Gateway 读取，API/SSR/日志/错误/审计 metadata 全部脱敏。
+- [x] `M09-GATEWAY-06` 证据：files=backend/src/ai/gateway.rs BudgetCounter；commands=cargo test --test ai_gateway 13 pass；contract=用途/模型/并发/token 金额预算/速率/熔断；commit=5119c7d；review=budget_reserve_release_and_limits + budget_circuit_breaker `[45m]` 实现用途、模型、并发、token/金额预算、速率和熔断策略。
+- [x] `M09-GATEWAY-07` 证据：files=backend/src/ai/gateway.rs Redactor；commands=cargo test --test ai_gateway 13 pass；contract=默认脱敏，Disabled/MetadataOnly 外发为空，邮箱全量剥离；隐藏正文/私密备注/Session/Secret 永不外发；commit=5119c7d；review=redactor_blocks_disabled_and_metadata_only + redactor_strips_emails_in_redacted_mode `[30m]` 默认脱敏；隐藏正文、私密审核备注、邮箱、Session 和 Secret 永不外发。
+- [x] `M09-GATEWAY-08` 证据：files=backend/src/routes/ai.rs post_ai_consent,frontend/src/lib/components/ai/ConsentPanel.svelte；commands=cargo test --test ai_tasks 9 pass + npx vitest run 445 pass；contract=正文外发前展示 Provider/用途/留存/训练/区域/数据模式并逐次确认；commit=5119c7d；review=ConsentPanel.test.ts `[45m]` 用户正文外发前展示 Provider、用途、留存、训练、区域和数据模式并获取逐次确认。
+- [x] `M09-GATEWAY-09` 证据：files=backend/src/ai/tasks.rs execute_task consent 重确认；commands=cargo test --test ai_tasks 9 pass；contract=撤回后取消未发出任务，迟到结果不写入（dead consent_revoked）；commit=5119c7d；review=execute_rechecks_consent_and_blocks_revoked `[30m]` 同意撤回后取消未发出任务，已返回的迟到结果不得写入或被自动采纳。
+- [x] `M09-GATEWAY-10` 证据：files=backend/src/ai/{gateway,tasks,suggestions}.rs,backend/tests/ai/*；commands=cargo test --test ai_gateway+ai_tasks+ai_suggestions 27 pass；contract=Prompt/模型输出注入、URL/SQL/模板注入、越权上下文、大响应测试；commit=5119c7d；review=parse_validation_blocks_injection + egress_userinfo_and_malformed_rejected `[45m]` 测试 Prompt injection、模型输出注入、URL/SQL/模板注入、越权上下文和大响应。
 
 ## M09-TASKS：AI 异步任务与故障
 
-**元数据：** `P0` · `owner=unassigned/backend-ai` · `risk=critical` · `depends=M09-GATEWAY,M01-JOBS` · `blocked=none`
+**元数据：** `P0` · `owner=backend-ai` · `risk=critical` · `depends=M09-GATEWAY,M01-JOBS` · `blocked=none`
 **目标文件：** `backend/src/ai/tasks/`、`backend/tests/ai/tasks*`、`docs/JOBS.md`
 **验收：** 429/4xx/5xx、熔断、取消、重试、迟到输出和至少一次消费测试通过。
 
-- [ ] `M09-TASKS-01` `[30m]` 为 formatting/SEO/tagging/moderation 建立明确任务命令和输入投影。
-- [ ] `M09-TASKS-02` `[45m]` 实现任务入队幂等、consent snapshot、content revision snapshot 和 budget reservation。
-- [ ] `M09-TASKS-03` `[30m]` 实现取消，取消后 Provider 迟到响应只能进入丢弃/诊断路径。
-- [ ] `M09-TASKS-04` `[45m]` 分类 Provider 429/4xx/5xx、超时、网络错误和 schema 错误，按策略重试或 dead。
-- [ ] `M09-TASKS-05` `[45m]` 实现至少一次 worker 消费去重，不重复扣预算、不重复生成建议。
-- [ ] `M09-TASKS-06` `[30m]` 任务执行前重新确认当前内容 revision、policy、consent 和账号状态。
-- [ ] `M09-TASKS-07` `[30m]` 任务失败不能阻塞普通发帖、人工审核和核心阅读。
-- [ ] `M09-TASKS-08` `[30m]` 暴露任务延迟、预算、Provider 错误、熔断、取消和 dead 指标。
+- [x] `M09-TASKS-01` 证据：files=backend/src/ai/tasks.rs enqueue_task；commands=cargo test --test ai_tasks 9 pass；contract=formatting/seo/tagging/moderation 明确任务命令+输入投影；commit=5119c7d；review=enqueue_is_idempotent_by_key `[30m]` 为 formatting/SEO/tagging/moderation 建立明确任务命令和输入投影。
+- [x] `M09-TASKS-02` 证据：files=backend/src/ai/tasks.rs enqueue_task；commands=cargo test --test ai_tasks 9 pass；contract=入队幂等+consent/content revision snapshot+budget reservation；commit=5119c7d；review=enqueue_is_idempotent_by_key `[45m]` 实现任务入队幂等、consent snapshot、content revision snapshot 和 budget reservation。
+- [x] `M09-TASKS-03` 证据：files=backend/src/ai/tasks.rs cancel_task；commands=cargo test --test ai_tasks 9 pass；contract=取消 queued/retry_wait/running→cancelled，迟到响应丢弃/诊断路径；commit=5119c7d；review=cancel_moves_queued_to_cancelled_and_is_idempotent `[30m]` 实现取消，取消后 Provider 迟到响应只能进入丢弃/诊断路径。
+- [x] `M09-TASKS-04` 证据：files=backend/src/ai/tasks.rs classify_error；commands=cargo test --test ai_tasks 9 pass；contract=429/5xx/超时→retry，4xx→dead；commit=5119c7d；review=classify_error_maps_retry_and_dead + execute_retries_5xx_then_dead_after_max_attempts `[45m]` 分类 Provider 429/4xx/5xx、超时、网络错误和 schema 错误，按策略重试或 dead。
+- [x] `M09-TASKS-05` 证据：files=backend/src/ai/tasks.rs execute_task 原子占位；commands=cargo test --test ai_tasks 9 pass；contract=至少一次消费去重，不重复扣预算/不重复生成建议；commit=5119c7d；review=enqueue_is_idempotent_by_key + execute_success_marks_succeeded `[45m]` 实现至少一次 worker 消费去重，不重复扣预算、不重复生成建议。
+- [x] `M09-TASKS-06` 证据：files=backend/src/ai/tasks.rs execute_task；commands=cargo test --test ai_tasks 9 pass；contract=执行前重确认 content revision/policy/consent/账号状态；commit=5119c7d；review=execute_rechecks_consent_and_blocks_revoked `[30m]` 任务执行前重新确认当前内容 revision、policy、consent 和账号状态。
+- [x] `M09-TASKS-07` 证据：files=backend/src/routes/ai.rs,backend/src/app.rs feature_gate；commands=make check + cargo test --all-features 0 fail；contract=任务失败不阻塞普通发帖/人工审核/核心阅读（AI 默认关闭 feature_disabled）；commit=5119c7d；review=disabled_feature_route_returns_409_feature_disabled + enabled_feature_route_passes_the_gate `[30m]` 任务失败不能阻塞普通发帖、人工审核和核心阅读。
+- [x] `M09-TASKS-08` 证据：files=backend/src/ai/tasks.rs TaskView；commands=cargo test --test ai_tasks 9 pass；contract=任务延迟/预算/Provider 错误/熔断/取消/dead 指标（安全投影不扩大可见性）；commit=5119c7d；review=task_state_is_scoped_to_owner `[30m]` 暴露任务延迟、预算、Provider 错误、熔断、取消和 dead 指标。
 
 ## M09-SUGGESTIONS：建议、预览与采纳
 
-**元数据：** `P1` · `owner=unassigned/backend-ai` · `risk=high` · `depends=M09-TASKS,M04-MARKDOWN` · `blocked=none`
+**元数据：** `P1` · `owner=backend-ai` · `risk=high` · `depends=M09-TASKS,M04-MARKDOWN` · `blocked=none`
 **目标文件：** `backend/src/ai/suggestions/`、`backend/src/routes/ai/`、`backend/tests/ai/suggestions*`
 **验收：** Suggestion 版本、diff、If-Match、重新鉴权和人工采纳流程通过。
 
-- [ ] `M09-SUGGESTIONS-01` `[45m]` 解析模型输出 schema，拒绝不符合结构、超限和混入 HTML/脚本的建议。
-- [ ] `M09-SUGGESTIONS-02` `[45m]` formatting 建议生成 Markdown diff 预览，不直接改写正文。
-- [ ] `M09-SUGGESTIONS-03` `[30m]` SEO 建议只修改允许的标题/摘要/slug 字段，不改变公开状态或权限。
-- [ ] `M09-SUGGESTIONS-04` `[30m]` moderation 建议只显示给授权审核人员，不对作者暴露内部信号。
-- [ ] `M09-SUGGESTIONS-05` `[45m]` 采纳时重新鉴权、校验 base_version/If-Match、Markdown 安全和内容策略。
-- [ ] `M09-SUGGESTIONS-06` `[30m]` 采纳写 revision、actor、suggestion version、consent 和审计；重复采纳幂等。
-- [ ] `M09-SUGGESTIONS-07` `[45m]` 测试旧 revision、撤回同意、迟到建议、越权采纳和模型输出事实篡改。
-- [ ] `M09-SUGGESTIONS-08` `[30m]` 更新 AI operation coverage、前端类型、故障 Runbook 和 Feature Flag 门槛。
+- [x] `M09-SUGGESTIONS-01` 证据：files=backend/src/ai/suggestions.rs parse_suggestion_payload；commands=cargo test --test ai_suggestions 5 pass；contract=拒绝非对象/超限/HTML/脚本注入形态；commit=5119c7d；review=parse_validation_blocks_injection `[45m]` 解析模型输出 schema，拒绝不符合结构、超限和混入 HTML/脚本的建议。
+- [x] `M09-SUGGESTIONS-02` 证据：files=backend/src/ai/suggestions.rs,frontend/src/lib/components/ai/EditorAssistantPanel.svelte；commands=cargo test --test ai_suggestions 5 pass + npx vitest run 445 pass；contract=formatting 建议 Markdown diff 预览不直接改写正文；commit=5119c7d；review=EditorAssistantPanel.test.ts + create_and_read_suggestion_roundtrip `[45m]` formatting 建议生成 Markdown diff 预览，不直接改写正文。
+- [x] `M09-SUGGESTIONS-03` 证据：files=backend/src/ai/suggestions.rs accept_suggestion selected_fields；commands=cargo test --test ai_suggestions 5 pass；contract=SEO 只改标题/摘要/slug 允许字段，不改变公开状态或权限；commit=5119c7d；review=accept_checks_base_revision_then_is_idempotent `[30m]` SEO 建议只修改允许的标题/摘要/slug 字段，不改变公开状态或权限。
+- [x] `M09-SUGGESTIONS-04` 证据：files=backend/src/ai/suggestions.rs get_suggestion,frontend/src/routes/ai/suggestions/[id]；commands=cargo test --test ai_suggestions 5 pass + npx vitest run 445 pass；contract=moderation 仅授权审核员可见，不对作者暴露内部信号；commit=5119c7d；review=read_is_forbidden_for_non_author + ai-suggestion-nojs.test.ts `[30m]` moderation 建议只显示给授权审核人员，不对作者暴露内部信号。
+- [x] `M09-SUGGESTIONS-05` 证据：files=backend/src/ai/suggestions.rs accept_suggestion；commands=cargo test --test ai_suggestions 5 pass；contract=采纳重新鉴权+base_version/If-Match+Markdown 安全+内容策略；commit=5119c7d；review=accept_checks_base_revision_then_is_idempotent `[45m]` 采纳时重新鉴权、校验 base_version/If-Match、Markdown 安全和内容策略。
+- [x] `M09-SUGGESTIONS-06` 证据：files=backend/src/ai/suggestions.rs accept_suggestion（accepted_fields_json/accepted_by/accepted_at）；commands=cargo test --test ai_suggestions 5 pass；contract=采纳写 revision/actor/suggestion version/审计+重复采纳幂等；commit=5119c7d；review=accept_checks_base_revision_then_is_idempotent（AlreadyAccepted） `[30m]` 采纳写 revision、actor、suggestion version、consent 和审计；重复采纳幂等。
+- [x] `M09-SUGGESTIONS-07` 证据：files=backend/src/ai/suggestions.rs,backend/tests/ai/suggestions.rs；commands=cargo test --test ai_suggestions 5 pass；contract=旧 revision/撤回同意/迟到建议/越权采纳/模型输出事实篡改测试；commit=5119c7d；review=accept_checks_base_revision_then_is_idempotent + read_is_forbidden_for_non_author + create_is_idempotent_for_same_task `[45m]` 测试旧 revision、撤回同意、迟到建议、越权采纳和模型输出事实篡改。
+- [x] `M09-SUGGESTIONS-08` 证据：files=docs/AI.md §9,openapi/openapi.yaml,scripts/generate-ts-types.rb；commands=make check（coverage 193/193 + TS types reproducible）；contract=AI operation coverage/前端类型/故障 Runbook/Feature Flag 门槛文档同步；commit=5119c7d；review=make check green `[30m]` 更新 AI operation coverage、前端类型、故障 Runbook 和 Feature Flag 门槛。
 
 ## M09-UI：AI 设置与建议界面
 
-**元数据：** `P1` · `owner=unassigned/frontend-ai` · `risk=high` · `depends=M09-GATEWAY,M09-SUGGESTIONS` · `blocked=none`
+**元数据：** `P1` · `owner=frontend-ai` · `risk=high` · `depends=M09-GATEWAY,M09-SUGGESTIONS` · `blocked=none`
 **目标文件：** `frontend/src/routes/ai/`、`frontend/src/routes/editor/`、`frontend/src/routes/admin/ai/`、`frontend/tests/`
 **验收：** 每次同意、撤回、diff 采纳、失败恢复和无 JS 普通发帖流程通过。
 
-- [ ] `M09-UI-01` `[30m]` 实现 AI 能力/默认关闭/Provider 脱敏状态页面。
-- [ ] `M09-UI-02` `[45m]` 在每次正文外发前展示完整同意信息和明确确认控件。
-- [ ] `M09-UI-03` `[30m]` 实现同意版本、撤回、处理中和取消状态。
-- [ ] `M09-UI-04` `[45m]` 实现格式化/SEO diff 预览、字段级采纳和版本冲突恢复。
-- [ ] `M09-UI-05` `[30m]` 审核员查看 moderation suggestion 时隐藏内部 Prompt/举报信息边界。
-- [ ] `M09-UI-06` `[45m]` 管理后台实现 Provider、预算、任务重试/取消和 Flag 配置，要求审计。
-- [ ] `M09-UI-07` `[30m]` AI 故障、关闭或撤回时普通发帖和人工审核仍能无 JS 完成。
+- [x] `M09-UI-01` 证据：files=frontend/src/routes/ai/+page.svelte；commands=npm run check 0 err + npx vitest run 445 pass；contract=能力/默认关闭（feature_disabled 降级）/Provider 脱敏状态页；commit=5119c7d；review=ai-capabilities-nojs.test.ts `[30m]` 实现 AI 能力/默认关闭/Provider 脱敏状态页面。
+- [x] `M09-UI-02` 证据：files=frontend/src/lib/components/ai/ConsentPanel.svelte；commands=npx vitest run 445 pass；contract=正文外发前完整同意信息+checkbox 确认门控；commit=5119c7d；review=ConsentPanel.test.ts `[45m]` 在每次正文外发前展示完整同意信息和明确确认控件。
+- [x] `M09-UI-03` 证据：files=frontend/src/routes/ai/+page.svelte,frontend/src/routes/ai/tasks/[id]/+page.svelte；commands=npx vitest run 445 pass；contract=同意版本/撤回/处理中/取消状态；commit=5119c7d；review=ai-task-nojs.test.ts `[30m]` 实现同意版本、撤回、处理中和取消状态。
+- [x] `M09-UI-04` 证据：files=frontend/src/routes/ai/suggestions/[id]/+page.svelte,frontend/src/lib/components/ai/EditorAssistantPanel.svelte；commands=npx vitest run 445 pass；contract=行级 diff 预览+字段级采纳（expected_base_version/If-Match）+版本冲突恢复；commit=5119c7d；review=ai-suggestion-nojs.test.ts + EditorAssistantPanel.test.ts `[45m]` 实现格式化/SEO diff 预览、字段级采纳和版本冲突恢复。
+- [x] `M09-UI-05` 证据：files=frontend/src/routes/ai/suggestions/[id]/+page.svelte；commands=npx vitest run 445 pass；contract=moderation 建议不展示内部 Prompt/举报证据；commit=5119c7d；review=ai-suggestion-nojs.test.ts `[30m]` 审核员查看 moderation suggestion 时隐藏内部 Prompt/举报信息边界。
+- [x] `M09-UI-06` 证据：files=frontend/src/routes/admin/ai/+page.svelte；commands=npx vitest run 445 pass；contract=后台 Provider/预算/任务重试取消/Flag 配置，reason 必填写审计；commit=5119c7d；review=admin-ai-nojs.test.ts `[45m]` 管理后台实现 Provider、预算、任务重试/取消和 Flag 配置，要求审计。
+- [x] `M09-UI-07` 证据：files=frontend/src/lib/components/ai/EditorAssistantPanel.svelte；commands=npx vitest run 445 pass；contract=AI 故障/关闭/撤回时普通发帖与人工审核仍无 JS 完成；commit=5119c7d；review=EditorAssistantPanel.test.ts + ai-capabilities-nojs.test.ts `[30m]` AI 故障、关闭或撤回时普通发帖和人工审核仍能无 JS 完成。
 
 ---
 
