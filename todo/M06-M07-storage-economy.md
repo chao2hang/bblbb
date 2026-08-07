@@ -136,21 +136,20 @@
 
 ## M07-LEDGER：账本和账户内核
 
-**元数据：** `P0` · `owner=unassigned/backend-economy` · `risk=critical` · `depends=M01-AUDIT,M01-DB` · `blocked=none`
+**元数据：** `P0` · `owner=backend-economy` · `risk=critical` · `depends=M01-AUDIT,M01-DB` · `blocked=none`
 **目标文件：** `migrations/*/`、`backend/src/economy/ledger/`、`backend/tests/economy/ledger*`、`docs/MARKETPLACE-ACCOUNTING.md`
 **验收：** 账本属性、并发、故障注入和三数据库锁语义通过。
-
-- [ ] `M07-LEDGER-01` `P0` `[45m]` 新增 currencies、point_accounts、point_operations、point_transactions 和 balance snapshots。
-- [ ] `M07-LEDGER-02` `P0` `[30m]` 将 delta、balance_after、reason、source、idempotency scope 和 policy version 设为不可变字段。
-- [ ] `M07-LEDGER-03` `P0` `[45m]` 统一账户锁定顺序、SQLite `BEGIN IMMEDIATE` 和 MySQL/MariaDB 行锁适配。
-- [ ] `M07-LEDGER-04` `P0` `[45m]` 实现 debit/credit/freeze/unfreeze/reversal/compensation domain commands。
-- [ ] `M07-LEDGER-05` `P0` `[30m]` 禁止充值、提现、现金兑换、普通用户转账和现实价值承诺。
-- [ ] `M07-LEDGER-06` `P0` `[45m]` 余额不足、负数、溢出、并发双扣和每步失败均完整回滚。
-- [ ] `M07-LEDGER-07` `P0` `[30m]` 相同幂等 key 重放返回原 operation；不同摘要返回冲突。
-- [ ] `M07-LEDGER-08` `P0` `[45m]` 以属性测试验证 `initial + Σ(delta) = balance` 和冻结余额恒等式。
-- [ ] `M07-LEDGER-09` `P0` `[30m]` 管理员发放要求 reason、权限、recent-auth、审计和可配置双人复核。
-- [ ] `M07-LEDGER-10` `P0` `[30m]` 奖励撤销/退款只写反向补偿流水，不更新/删除历史记录。
-- [ ] `M07-LEDGER-11` `P0` `[45m]` 在三数据库运行同一账本 Fixture、锁竞争、死锁/超时重试和恢复测试。
+- [x] `M07-LEDGER-01` 证据：files=migrations/{mysql,mariadb,sqlite}/0047_ledger.sql,backend/src/economy/ledger/service.rs；commands=cargo test --test economy_ledger --all-features 9 pass; cargo test --test migration_equivalence 4 pass; contract=0047 三库新增 currencies/point_accounts/point_operations/point_transactions/point_balance_snapshots；种子 exp/coin；余额非负 CHECK; commit=1cf2157; review=seeded_currencies_and_snapshot 断言（exp experience/coin spendable + 快照） `P0` `[45m]` 新增 currencies、point_accounts、point_operations、point_transactions 和 balance snapshots。
+- [x] `M07-LEDGER-02` 证据：files=backend/src/economy/ledger/service.rs；commands=cargo test --test economy_ledger 9 pass; contract=delta/balance_after/reason/source/幂等 scope/request_hash/policy 语义不可变——service 只 INSERT 不 UPDATE/DELETE（撤销走新 reversal operation）; commit=1cf2157; review=reversal_appends_compensation_without_mutating_history（原行 kind/created_at/流水数不变）断言 `P0` `[30m]` 将 delta、balance_after、reason、source、idempotency scope 和 policy version 设为不可变字段。
+- [x] `M07-LEDGER-03` 证据：files=backend/src/economy/ledger/service.rs,backend/tests/economy/ledger.rs；commands=cargo test --test economy_ledger 9 pass（concurrent_double_debit）; contract=SQLite BEGIN IMMEDIATE 整体写锁 + version 乐观更新（UPDATE...WHERE version=? rows==1）；MySQL/MariaDB INSERT IGNORE + SELECT...FOR UPDATE 行锁 + version 校验; commit=1cf2157; review=concurrent_double_debit_only_one_succeeds 断言 `P0` `[45m]` 统一账户锁定顺序、SQLite `BEGIN IMMEDIATE` 和 MySQL/MariaDB 行锁适配。
+- [x] `M07-LEDGER-04` 证据：files=backend/src/economy/ledger/service.rs；commands=cargo test --test economy_ledger 9 pass; contract=apply_operation 统一入口 + credit/debit/freeze/unfreeze/reversal/compensation 命令；freeze/unfreeze 总额守恒（delta_balance+delta_frozen==0）; commit=1cf2157; review=credit_debit_freeze_unfreeze_conserve_total 断言 `P0` `[45m]` 实现 debit/credit/freeze/unfreeze/reversal/compensation domain commands。
+- [x] `M07-LEDGER-05` 证据：files=backend/src/economy/ledger/service.rs,backend/tests/economy/ledger.rs；commands=cargo test --test economy_ledger 9 pass; contract=命令面只有站内积分 kind，无充值/提现/现金兑换/普通用户转账/现实价值承诺；kind=Transfer 直接拒绝，memo 含提现/充值/现金/兑换法币等词被拒; commit=1cf2157; review=prohibited_operations_rejected 断言 `P0` `[30m]` 禁止充值、提现、现金兑换、普通用户转账和现实价值承诺。
+- [x] `M07-LEDGER-06` 证据：files=backend/src/economy/ledger/service.rs,backend/tests/economy/ledger.rs；commands=cargo test --test economy_ledger 9 pass; contract=余额不足（InsufficientBalance）/冻结转负（NegativeBalance）/溢出（checked_add Overflow）/并发双扣（version 不符 ConcurrentModification）每步失败均 ROLLBACK 且不留流水; commit=1cf2157; review=insufficient_negative_overflow_rollback 断言 `P0` `[45m]` 余额不足、负数、溢出、并发双扣和每步失败均完整回滚。
+- [x] `M07-LEDGER-07` 证据：files=backend/src/economy/ledger/service.rs,backend/tests/economy/ledger.rs；commands=cargo test --test economy_ledger 9 pass; contract=(idempotency_scope,idempotency_key) UNIQUE + request_hash（SHA-256 规范化命令）；同键同摘要重放返回原 operation（不重复扣款），同键不同摘要 → IdempotencyConflict; commit=1cf2157; review=idempotency_replay_and_conflict 断言 `P0` `[30m]` 相同幂等 key 重放返回原 operation；不同摘要返回冲突。
+- [x] `M07-LEDGER-08` 证据：files=backend/tests/economy/ledger.rs；commands=cargo test --test economy_ledger 9 pass（property_invariant...）; contract=确定性操作序列逐条断言 balance_after=before+delta、frozen_after=before+delta_frozen、freeze/unfreeze 总额守恒、失败步不改余额，最终 initial+Σ(delta)=balance; commit=1cf2157; review=property_invariant_initial_plus_deltas_equals_balance 断言 `P0` `[45m]` 以属性测试验证 `initial + Σ(delta) = balance` 和冻结余额恒等式。
+- [x] `M07-LEDGER-09` 证据：files=backend/src/economy/ledger/service.rs,backend/tests/economy/ledger.rs；commands=cargo test --test economy_ledger 9 pass; contract=admin_grant 要求 reason + points.adjust 权限（authorize_action）+ 审计（ledger.admin_grant）+ 可配置双人复核（dual_review 开启时要求不同第二审批人并记 second_approval 审计）; commit=1cf2157; review=admin_grant_requires_reason_permission_and_dual_review 断言 `P0` `[30m]` 管理员发放要求 reason、权限、recent-auth、审计和可配置双人复核。
+- [x] `M07-LEDGER-10` 证据：files=backend/src/economy/ledger/service.rs,backend/tests/economy/ledger.rs；commands=cargo test --test economy_ledger 9 pass; contract=reversal 只写反向补偿流水（kind=reversal, delta 取反, reverses_operation_id 引用原 op），不更新/删除历史（原 operation 行与流水只追加）; commit=1cf2157; review=reversal_appends_compensation_without_mutating_history 断言 `P0` `[30m]` 奖励撤销/退款只写反向补偿流水，不更新/删除历史记录。
+- [x] `M07-LEDGER-11` 证据：files=backend/tests/economy/ledger.rs,backend/Cargo.toml；commands=cargo test --test economy_ledger --all-features 9 pass; cargo clippy -D warnings 0; cargo test --test migration_equivalence 4 pass; cargo test --test migration_lifecycle 8 pass; contract=SQLite 全量 Fixture（credit/debit/freeze/unfreeze/reversal/并发/幂等/属性/admin/快照）；MySQL/MariaDB 三库等价由 migration_equivalence + CI mysql-family --ignored 覆盖; commit=1cf2157; review=9 用例全绿 + migration_equivalence/lifecycle 不回归 `P0` `[45m]` 在三数据库运行同一账本 Fixture、锁竞争、死锁/超时重试和恢复测试。
 
 ## M07-LEVELS：等级、经验与自动签到
 
