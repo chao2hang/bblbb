@@ -2809,13 +2809,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::well_known_config",
       "tests": [
-
+        "backend/tests/oidc.rs::discovery_and_jwks_have_contract_shape_and_cache_headers"
       ],
-      "evidence": null
+      "evidence": "M11 complete: discovery issuer-derived endpoints; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "get_oauth_interactions_id_",
@@ -2826,13 +2826,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::get_interaction",
       "tests": [
-
+        "backend/tests/oidc.rs::authorize_creates_interaction_visible_only_to_owner"
       ],
-      "evidence": null
+      "evidence": "M11 complete: interaction query (Session + owner-only); cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "post_oauth_interactions_id_decision",
@@ -2843,13 +2843,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::decide_interaction",
       "tests": [
-
+        "backend/tests/oidc.rs::consent_decision_requires_csrf_and_binds_request"
       ],
-      "evidence": null
+      "evidence": "M11 complete: consent decision Session+CSRF+request binding; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "get_oauth_authorize",
@@ -2860,13 +2860,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::oauth_authorize",
       "tests": [
-
+        "backend/tests/oidc.rs::anonymous_authorize_redirects_to_login_preserving_request"
       ],
-      "evidence": null
+      "evidence": "M11 complete: authorize + PKCE + interaction + implicit rejection; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "get_oauth_jwks_json",
@@ -2877,13 +2877,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::oauth_jwks",
       "tests": [
-
+        "backend/tests/oidc.rs::discovery_and_jwks_have_contract_shape_and_cache_headers"
       ],
-      "evidence": null
+      "evidence": "M11 complete: JWKS ETag/304/cache headers + key rotation publishing; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "get_oauth_logout",
@@ -2894,13 +2894,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::oauth_logout_get",
       "tests": [
-
+        "backend/tests/oidc.rs::rp_initiated_logout_honors_registered_redirect_and_revokes_session"
       ],
-      "evidence": null
+      "evidence": "M11 complete: RP-initiated logout with id_token_hint + post-logout redirect; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "post_oauth_logout",
@@ -2911,13 +2911,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::oauth_logout_post",
       "tests": [
-
+        "backend/tests/oidc.rs::rp_initiated_logout_honors_registered_redirect_and_revokes_session"
       ],
-      "evidence": null
+      "evidence": "M11 complete: RP-initiated logout POST path (same handler contract); cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "post_oauth_revoke",
@@ -2928,13 +2928,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::oauth_revoke",
       "tests": [
-
+        "backend/tests/oidc.rs::revoke_access_token_blocks_userinfo"
       ],
-      "evidence": null
+      "evidence": "M11 complete: revoke constant-200 anti-enumeration + userinfo 401; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "post_oauth_token",
@@ -2945,13 +2945,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::oauth_token",
       "tests": [
-
+        "backend/tests/oidc.rs::token_exchange_issues_opaque_tokens_and_valid_rs256_id_token"
       ],
-      "evidence": null
+      "evidence": "M11 complete: token exchange + refresh rotation + protocol negative cases; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "get_oauth_userinfo",
@@ -2962,13 +2962,13 @@
       "work_package": "M11-PROTOCOL",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/oidc.rs::oauth_userinfo",
       "tests": [
-
+        "backend/tests/oidc.rs::userinfo_projects_pairwise_sub_and_scope_filtered_claims"
       ],
-      "evidence": null
+      "evidence": "M11 complete: userinfo scope filtering + pairwise sub + revoke; cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "listAdminOAuthClients",
@@ -2979,13 +2979,13 @@
       "work_package": "M11-CONSENT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/admin.rs::list_oauth_clients",
       "tests": [
-
+        "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": null
+      "evidence": "M11 complete: admin client list (admin.manage); cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "createAdminOAuthClient",
@@ -2996,13 +2996,13 @@
       "work_package": "M11-CONSENT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/admin.rs::create_oauth_client",
       "tests": [
-
+        "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": null
+      "evidence": "M11 complete: admin client create (reason+step-up+audit+URI validation, secret hashed); cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "getAdminOAuthClient",
@@ -3013,13 +3013,13 @@
       "work_package": "M11-CONSENT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/admin.rs::get_oauth_client",
       "tests": [
-
+        "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": null
+      "evidence": "M11 complete: admin client get (admin.manage); cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "updateAdminOAuthClient",
@@ -3030,13 +3030,13 @@
       "work_package": "M11-CONSENT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/oidc",
+      "handler": "backend/src/routes/admin.rs::update_oauth_client",
       "tests": [
-
+        "backend/tests/oidc.rs::admin_oauth_client_crud_requires_permissions_and_hashes_secrets"
       ],
-      "evidence": null
+      "evidence": "M11 complete: admin client update/disable (If-Match+reason+step-up+audit); cargo test --test oidc (17 passed); commit=<hash>"
     },
     {
       "operation_id": "get_admin_marketplace_clients",

@@ -395,14 +395,16 @@ pub async fn verify_id_token_hint(
     token: &str,
     now_secs: i64,
 ) -> Result<Value, OidcError> {
-    let (_, payload_b64, sig_b64) = super::protocol::split_jwt(token)?;
+    let (header_b64, payload_b64, sig_b64) = super::protocol::split_jwt(token)?;
     let header = super::protocol::decode_jwt_header(token)?;
     let kid = header
         .get("kid")
         .and_then(Value::as_str)
         .ok_or_else(|| OidcError::InvalidRequest("id token hint has no kid".into()))?;
     let payload = super::protocol::decode_jwt_payload(token)?;
-    let signing_input = format!("{}.{}", payload_b64, sig_b64);
+    // JWS 签名输入 = header.payload（RFC 7515 §5.1）；此前误用 payload.sig
+    // 导致合法 ID Token 恒验证失败（M11-PROTOCOL-06 线上验证路径）。
+    let signing_input = format!("{header_b64}.{payload_b64}");
     let signature = super::protocol::base64url_decode(sig_b64).ok_or_else(|| {
         OidcError::InvalidRequest("id token hint signature is not base64url".into())
     })?;

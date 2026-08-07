@@ -1,16 +1,18 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::Json,
     routing::{delete, get, patch, post, put},
     Router,
 };
+use axum_extra::extract::CookieJar;
 use serde_json::{json, Value};
 use sqlx::Row;
 
 use crate::app::AppState;
 use crate::audit::AuditEntry;
 use crate::auth::session::AuthSession;
+use crate::auth::token::hash_token;
 use crate::authz::decision::AUTHZ_POLICY_VERSION;
 use crate::authz::enforce::authorize_action;
 use crate::boards::admin::{create_board, update_board, BoardCreateInput, BoardUpdateInput};
@@ -1079,23 +1081,265 @@ fn video_policy_error_to_app(e: VideoError, request_id: &str) -> AppError {
     }
 }
 
-async fn list_oauth_clients(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminOAuthClients")
+/// 高风险管理操作前置：会话必须处于近期认证窗口（M02-MFA-07 step-up，
+/// M11-CONSENT-05 recent-auth）。会话缺失/过期/超出窗口 → 拒绝（fail closed）。
+async fn require_recent_auth(
+    state: &AppState,
+    jar: &CookieJar,
+    request_id: &str,
+) -> Result<String, AppError> {
+    let Some(pool) = state.db.as_deref() else {
+        return Err(AppError::internal("database not configured", request_id));
+    };
+    let Some(token) = jar
+        .get(crate::auth::session::SESSION_COOKIE_NAME)
+        .map(|c| c.value().to_string())
+    else {
+        return Err(AppError::unauthorized(
+            "authentication required",
+            request_id,
+        ));
+    };
+    let required = crate::auth::session::is_step_up_required_for_session(
+        pool,
+        &token,
+        state.config.step_up_window_secs,
+    )
+    .await
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    if required {
+        return Err(AppError::step_up_required(request_id));
+    }
+    Ok(token)
 }
-async fn create_oauth_client(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("createAdminOAuthClient")
+
+/// OIDC 服务层错误 → 业务 Problem 响应（admin 域走业务格式）。
+fn oidc_admin_error(e: crate::oidc::OidcError, request_id: &str) -> AppError {
+    match e {
+        crate::oidc::OidcError::InvalidRequest(d) => AppError::bad_request(d, request_id, None),
+        crate::oidc::OidcError::NotFound(d) => AppError::not_found(d, request_id),
+        crate::oidc::OidcError::AccessDenied(d) => AppError::forbidden(d, request_id),
+        other => AppError::internal(other.to_string(), request_id),
+    }
 }
+
+fn string_array(value: Option<&Value>) -> Option<Vec<String>> {
+    value.and_then(Value::as_array).map(|items| {
+        items
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect()
+    })
+}
+
+/// GET /api/v1/admin/oauth-clients — 分页列出 Client（admin.manage）。
+async fn list_oauth_clients(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "listAdminOAuthClients";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let after = params.get("after").map(String::as_str);
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(30);
+    let (clients, next_cursor) = crate::oidc::clients::list_clients(pool, after, limit)
+        .await
+        .map_err(|e| oidc_admin_error(e, request_id))?;
+    Ok(Json(json!({
+        "clients": clients.iter().map(crate::oidc::clients::client_admin_view).collect::<Vec<_>>(),
+        "next_cursor": next_cursor,
+    })))
+}
+
+/// POST /api/v1/admin/oauth-clients — 创建 Client（admin.manage + reason +
+/// recent-auth + 精确 URI 校验 + 审计；confidential secret 只显示一次）。
+async fn create_oauth_client(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "createAdminOAuthClient";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+
+    let name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let client_type = body
+        .get("client_type")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let redirect_uris = string_array(body.get("redirect_uris")).unwrap_or_default();
+    let post_logout_uris = string_array(body.get("post_logout_uris")).unwrap_or_default();
+    let scopes = string_array(body.get("scopes")).unwrap_or_default();
+
+    let input = crate::oidc::clients::ClientCreateInput {
+        name,
+        client_type,
+        redirect_uris,
+        post_logout_uris,
+        scopes,
+    };
+    let (client, secret) =
+        crate::oidc::clients::create_client(pool, &input, &user.id, now_millis())
+            .await
+            .map_err(|e| oidc_admin_error(e, request_id))?;
+
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    AuditEntry::user_action(&user.id, "oauth_client.create")
+        .with_target("oauth_client", &client.id)
+        .with_reason(&reason)
+        .with_policy_version(crate::authz::decision::AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let mut view = crate::oidc::clients::client_admin_view(&client);
+    if let Some(secret) = secret {
+        // 明文 secret 仅在创建时返回一次。
+        view["secret"] = json!(secret);
+    }
+    Ok((StatusCode::CREATED, Json(json!({ "client": view }))))
+}
+
+/// GET /api/v1/admin/oauth-clients/{id} — 单个 Client（admin.manage）。
 async fn get_oauth_client(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("getAdminOAuthClient")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "getAdminOAuthClient";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let client = crate::oidc::clients::fetch_client_by_internal_id(pool, &id)
+        .await
+        .map_err(|e| oidc_admin_error(e, request_id))?
+        .ok_or_else(|| AppError::not_found("oauth client not found", request_id))?;
+    Ok(Json(json!({
+        "client": crate::oidc::clients::client_admin_view(&client),
+    })))
 }
+
+/// PATCH /api/v1/admin/oauth-clients/{id} — 更新/停用 Client（admin.manage +
+/// reason + recent-auth + If-Match 乐观锁 + 精确 URI 校验 + 审计）。
 async fn update_oauth_client(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminOAuthClient")
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "updateAdminOAuthClient";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+
+    let client = crate::oidc::clients::fetch_client_by_internal_id(pool, &id)
+        .await
+        .map_err(|e| oidc_admin_error(e, request_id))?
+        .ok_or_else(|| AppError::not_found("oauth client not found", request_id))?;
+
+    // If-Match 版本守卫（M11-CONSENT-05 版本化更新）。
+    if let Some(if_match) = headers.get("if-match").and_then(|v| v.to_str().ok()) {
+        let expected = if_match
+            .trim()
+            .parse::<i64>()
+            .map_err(|_| AppError::bad_request("If-Match must be an integer", request_id, None))?;
+        if expected != client.version {
+            return Err(AppError::version_conflict(
+                "oauth client version conflict",
+                request_id,
+            ));
+        }
+    }
+
+    let input = crate::oidc::clients::ClientUpdateInput {
+        name: body.get("name").and_then(Value::as_str).map(str::to_string),
+        client_type: body
+            .get("client_type")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        redirect_uris: string_array(body.get("redirect_uris")),
+        post_logout_uris: string_array(body.get("post_logout_uris")),
+        scopes: string_array(body.get("scopes")),
+        status: body
+            .get("status")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        reset_secret: body.get("reset_secret").and_then(Value::as_bool),
+    };
+
+    crate::oidc::clients::update_client(pool, &client, &input, &user.id, now_millis())
+        .await
+        .map_err(|e| oidc_admin_error(e, request_id))?;
+
+    // secret 重置：仅 Confidential，仅回传一次。
+    let mut view = {
+        let updated = crate::oidc::clients::fetch_client_by_internal_id(pool, &id)
+            .await
+            .map_err(|e| oidc_admin_error(e, request_id))?
+            .ok_or_else(|| AppError::not_found("oauth client not found", request_id))?;
+        crate::oidc::clients::client_admin_view(&updated)
+    };
+    if input.reset_secret == Some(true) && client.client_type == "confidential" {
+        let secret = crate::auth::token::generate_token();
+        crate::oidc::clients::update_client_secret(
+            pool,
+            &client.id,
+            &hash_token(&secret),
+            &user.id,
+            now_millis(),
+        )
+        .await
+        .map_err(|e| oidc_admin_error(e, request_id))?;
+        view["secret"] = json!(secret);
+        AuditEntry::user_action(&user.id, "oauth_client.secret_reset")
+            .with_target("oauth_client", &client.id)
+            .with_reason(&reason)
+            .record(pool)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    }
+
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    AuditEntry::user_action(&user.id, "oauth_client.update")
+        .with_target("oauth_client", &client.id)
+        .with_reason(&reason)
+        .with_policy_version(crate::authz::decision::AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    Ok(Json(json!({ "client": view })))
 }
 async fn list_marketplace_clients(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("get_admin_marketplace_clients")

@@ -1,6 +1,6 @@
 # BBLBB — 本地认证与 OpenID Connect Provider
 
-> 版本：v0.4
+> 版本：v0.5
 > 本文同时定义论坛本地 Session 和 v1.0 的 OIDC Provider。OAuth 2.0 负责授权；OpenID Connect 在其上提供身份登录。
 
 ## 1. 支持范围
@@ -140,6 +140,17 @@ SvelteKit 不接收、重建或自行验证原始 `redirect_uri`，避免形成�
 - 禁止 fragment、通配符和开放重定向器。
 - 状态为 disabled 时不能新授权或刷新，现有 token 按管理员策略撤销。
 
+### 6.1 管理端 Client 管理（`/api/v1/admin/oauth-clients`）
+
+- 列表/创建/查询/更新全部要求 `admin.manage` 权限，写操作额外要求
+  `reason` 与近期认证（step-up，默认 5 分钟窗口）并写审计。
+- 创建：`name`、`client_type`（`public`/`confidential`）、`redirect_uris`、
+  `post_logout_uris`、`scopes`（仅 `openid/profile/email` 白名单）。
+- URI 精确校验（§6）；`confidential` secret 只在创建/重置时返回一次，
+  数据库恒存 SHA-256 hash。
+- 更新为版本化（`If-Match` 乐观锁），可停用/启用（`status`）与重置 secret。
+- 停用后 authorize/token/refresh 全部拒绝；历史 token 按管理员策略撤销。
+
 ## 7. 授权请求
 
 最小请求：
@@ -222,18 +233,21 @@ Provider 校验：
 
 ## 12. 签名密钥
 
-状态：`pending → active → retiring → revoked`。
+状态：`active → retiring →（超过保留期后移除）`。
 
 轮换：
 
 1. 生成新密钥并加密保存私钥。
-2. 先将公钥发布到 JWKS。
-3. 等待传播窗口后切换 active 签名 key。
-4. 旧 key 保留到所有签发 ID Token 过期及安全余量后移除。
+2. 在同一事务内先将现有 active key 标记 `retiring`（仍发布在 JWKS），
+   再插入新 active key——先发布、再切换，期间新旧公钥同时可验证。
+3. 旧 key 保留到所有签发 Token 过期及安全余量（默认 24h + 最长 Refresh
+   Token 有效期）后由 `purge_expired_keys` 移除。
+4. 轮换写 `key_audit_json` 与审计日志（actor/reason）。
 
 - 私钥加密主密钥来自秘密文件/系统凭据，不和数据库备份放在同一未隔离位置。
-- 备份必须包含加密私钥和解密主密钥的独立恢复方案。
-- 服务启动不得临时生成新 key 掩盖丢失；应 readiness 失败。
+- 备份必须包含加密私钥和解密主密钥的独立恢复方案（见 `OPERATIONS.md` §10）。
+- 服务启动不得临时生成新 key 掩盖丢失；已存在密钥无法用主密钥解密时
+  直接失败（readiness 失败，fail-closed）。
 
 ## 13. Logout 与 Revocation
 
