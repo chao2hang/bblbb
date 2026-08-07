@@ -140,11 +140,31 @@ pub async fn load_account_gates(
     };
     let status =
         AccountStatus::parse(&status).ok_or_else(|| format!("unknown account status: {status}"))?;
+    let now = crate::outbox::now_millis();
+    // M05-SANCTIONS-03：全局 mute / 生效中的 ban 请求时实时计算（不依赖
+    // worker 到期任务）；预约 ban 生效窗口内视同 banned。
+    let effective =
+        crate::moderation::sanctions::service::effective_sanctions(pool, user_id, None, now)
+            .await
+            .unwrap_or_default();
+    let banned = effective
+        .iter()
+        .any(|s| s.kind == crate::moderation::model::SanctionKind::Ban);
+    let status = if banned {
+        AccountStatus::Banned
+    } else {
+        status
+    };
+    let mute_until = effective
+        .iter()
+        .filter(|s| s.kind == crate::moderation::model::SanctionKind::Mute)
+        .filter_map(|s| s.ends_at)
+        .max();
     Ok(AccountGates {
         status,
         email_verified: email_verified_at.is_some(),
         cooldown_until: email_verified_at.map(|verified| verified + ACCOUNT_COOLDOWN_MS),
-        mute_until: None,
+        mute_until,
         board_mute_until: None,
     })
 }

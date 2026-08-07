@@ -10,8 +10,11 @@
 //!   pending_review 门禁、指标），由主代理实现（需集成共享发布路径）；
 //! - `cases`（M05-CASES）：举报创建/撤回/去重、案件状态机与派单、利益冲突、
 //!   内容动作（hide/restore/delete 等）与审计/Outbox；
-//! - `sanctions`/`appeals`：后续 Wave 由各自 agent 添加 `pub mod` 声明并落地实现。
+//! - `sanctions`（M05-SANCTIONS）：处罚创建/撤销/实时计算、ban 撤销 Session、
+//!   越权防护与安全状态投影；
+//! - `appeals`：后续 Wave 由对应 agent 添加 `pub mod` 声明并落地实现。
 
 pub mod cases;
 pub mod model;
 pub mod risk;
+pub mod sanctions;
