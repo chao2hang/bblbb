@@ -1117,13 +1117,13 @@
       "work_package": "M05-SANCTIONS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
     },
     {
       "operation_id": "assignAdminModerationCase",
@@ -1134,13 +1134,13 @@
       "work_package": "M05-SANCTIONS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
     },
     {
       "operation_id": "post_admin_moderation_sanctions",
@@ -1321,13 +1321,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/moderation/appeals.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test moderation_appeals 8 pass; contract=申诉撤回; commit=f242434; review=withdraw_appeal 断言"
     },
     {
       "operation_id": "listOwnReports",
@@ -1338,13 +1338,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
     },
     {
       "operation_id": "post_reports",
@@ -1372,13 +1372,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
     },
     {
       "operation_id": "get_notifications",
@@ -1407,13 +1407,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/notifications/notify.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言"
     },
     {
       "operation_id": "updateNotificationPreferences",
@@ -1424,13 +1424,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/notifications/notify.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言"
     },
     {
       "operation_id": "markAllNotificationsRead",
@@ -1441,13 +1441,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/moderation.rs",
       "tests": [
-
+        "backend/tests/notifications/notify.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言"
     },
     {
       "operation_id": "post_notifications_id_read",
@@ -1475,13 +1475,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
-
+        "backend/tests/storage/quota.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
     },
     {
       "operation_id": "patch_admin_levels_id_attachment_quota",
@@ -1492,13 +1492,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
-
+        "backend/tests/storage/quota.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
     },
     {
       "operation_id": "get_admin_storage_config",
@@ -1509,13 +1509,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
-
+        "backend/tests/storage/quota.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
     },
     {
       "operation_id": "patch_admin_storage_config",
@@ -1526,13 +1526,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
-
+        "backend/tests/storage/quota.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
     },
     {
       "operation_id": "post_admin_storage_test",
@@ -1543,13 +1543,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
-
+        "backend/tests/storage/quota.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
     },
     {
       "operation_id": "createAttachment",
@@ -1560,13 +1560,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/storage.rs",
       "tests": [
-
+        "backend/tests/storage/upload.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
     },
     {
       "operation_id": "delete_attachments_id_",
@@ -1577,13 +1577,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/storage.rs",
       "tests": [
-
+        "backend/tests/storage/upload.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
     },
     {
       "operation_id": "get_attachments_id_",
@@ -1594,13 +1594,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/storage.rs",
       "tests": [
-
+        "backend/tests/storage/upload.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
     },
     {
       "operation_id": "updateAttachment",
@@ -1611,13 +1611,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/storage.rs",
       "tests": [
-
+        "backend/tests/storage/upload.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
     },
     {
       "operation_id": "post_attachments_id_complete",
@@ -1628,13 +1628,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/storage.rs",
       "tests": [
-
+        "backend/tests/storage/upload.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
     },
     {
       "operation_id": "get_attachments_id_content",
@@ -1645,13 +1645,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-storage",
+      "handler": "backend/src/routes/storage.rs",
       "tests": [
-
+        "backend/tests/storage/upload.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
     },
     {
       "operation_id": "post_attachments_id_download",
@@ -1662,13 +1662,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs",
+        "backend/tests/download/http.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
     },
     {
       "operation_id": "get_attachments_id_download_policy",
@@ -1679,13 +1680,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs",
+        "backend/tests/download/http.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
     },
     {
       "operation_id": "get_download_authorizations_id_",
@@ -1696,13 +1698,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs",
+        "backend/tests/download/http.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
     },
     {
       "operation_id": "post_download_authorizations_id_sign_url",
@@ -1713,13 +1716,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs",
+        "backend/tests/download/http.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
     },
     {
       "operation_id": "get_me_download_transactions",
@@ -1730,13 +1734,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs",
+        "backend/tests/download/http.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
     },
     {
       "operation_id": "getAttachmentDownloadPolicyAdmin",
@@ -1747,13 +1752,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/admin_download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
     },
     {
       "operation_id": "updateAttachmentDownloadPolicyAdmin",
@@ -1764,13 +1769,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/admin_download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
     },
     {
       "operation_id": "getDownloadBillingConfig",
@@ -1781,13 +1786,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/admin_download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
     },
     {
       "operation_id": "updateDownloadBillingConfig",
@@ -1798,13 +1803,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-download",
+      "handler": "backend/src/routes/admin_download.rs",
       "tests": [
-
+        "backend/tests/download/billing.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
     },
     {
       "operation_id": "get_activity_summary",
@@ -1815,13 +1820,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-economy",
+      "handler": "backend/src/routes/economy.rs",
       "tests": [
-
+        "backend/tests/economy/activity.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动摘要与签到访问(排除匿名/爬虫/健康检查); commit=3a46751; review=http_summary_and_visit_flow + visit_validation_rejects_crawler_prefetch_static_health"
     },
     {
       "operation_id": "recordAuthenticatedVisit",
@@ -1832,13 +1837,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-economy",
+      "handler": "backend/src/routes/economy.rs",
       "tests": [
-
+        "backend/tests/economy/activity.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动摘要与签到访问(排除匿名/爬虫/健康检查); commit=3a46751; review=http_summary_and_visit_flow + visit_validation_rejects_crawler_prefetch_static_health"
     },
     {
       "operation_id": "getAdminActivityConfig",
@@ -1849,13 +1854,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-economy",
+      "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
-
+        "backend/tests/economy/activity.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
     },
     {
       "operation_id": "updateAdminActivityConfig",
@@ -1866,13 +1871,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-economy",
+      "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
-
+        "backend/tests/economy/activity.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
     },
     {
       "operation_id": "listAdminActivityTasks",
@@ -1883,13 +1888,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-economy",
+      "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
-
+        "backend/tests/economy/activity.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
     },
     {
       "operation_id": "createAdminActivityTask",
@@ -1900,13 +1905,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-economy",
+      "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
-
+        "backend/tests/economy/activity.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
     },
     {
       "operation_id": "updateAdminActivityTask",
@@ -1917,13 +1922,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-economy",
+      "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
-
+        "backend/tests/economy/activity.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
     },
     {
       "operation_id": "post_comments_id_reactions",
@@ -1934,13 +1939,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/posts.rs|backend/src/routes/comments.rs",
       "tests": [
-
+        "backend/tests/reactions.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test reactions 5 pass; contract=Reaction 切换(添加/撤销), 限流/自赞/通知偏好; commit=3a46751; review=add_remove_and_summarize + self_reaction_is_rejected"
     },
     {
       "operation_id": "delete_comments_id_reactions_reaction_",
@@ -1968,13 +1973,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/posts.rs|backend/src/routes/comments.rs",
       "tests": [
-
+        "backend/tests/reactions.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test reactions 5 pass; contract=Reaction 切换(添加/撤销), 限流/自赞/通知偏好; commit=3a46751; review=add_remove_and_summarize + self_reaction_is_rejected"
     },
     {
       "operation_id": "delete_posts_id_reactions_reaction_",
@@ -2002,13 +2007,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "updateAdminShopConfig",
@@ -2019,13 +2024,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "listAdminShopOrders",
@@ -2036,13 +2041,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "refundAdminShopOrder",
@@ -2053,13 +2058,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "listAdminShopProducts",
@@ -2070,13 +2075,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "createAdminShopProduct",
@@ -2087,13 +2092,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "updateAdminShopProduct",
@@ -2104,13 +2109,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "disableAdminShopProduct",
@@ -2121,13 +2126,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "publishAdminShopProduct",
@@ -2138,13 +2143,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
     },
     {
       "operation_id": "get_me_entitlements",
@@ -2155,13 +2160,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "post_me_entitlements_id_equip",
@@ -2172,13 +2177,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "post_me_entitlements_id_unequip",
@@ -2189,13 +2194,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "get_me_presentation",
@@ -2206,13 +2211,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "post_shop_orders",
@@ -2223,13 +2228,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "get_shop_orders_id_",
@@ -2240,13 +2245,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "get_shop_products",
@@ -2257,13 +2262,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "get_shop_products_id_",
@@ -2274,13 +2279,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/shop.rs",
       "tests": [
-
+        "backend/tests/shop/core.rs"
       ],
-      "evidence": null
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
     },
     {
       "operation_id": "getPublicAtomFeed",

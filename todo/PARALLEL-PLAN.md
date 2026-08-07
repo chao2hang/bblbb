@@ -65,7 +65,7 @@
 | W0 | 已完成 | 2026-08-06 | 既有基线 | 历史基线：12 审计问题已在更早会话修复 |
 | W5 (M4) | 已完成 | 2026-08-07 | `da4840b`(COMMENTS)、`afeb696`(VISIBILITY)、`3b73bae`(UI)、`+roadmap-sync` | M4 收口：30 个叶子任务全部 `[x]`（246/783 完成）；3 域并行 agent（backend-COMMENTS / backend-VISIBILITY / frontend-UI）+ 主代理收尾（after_reply grant、canary/边界测试、路由集成、Playwright UI-10、session level 修复） |
 | W6 (M5) | 已完成 | 2026-08-07 | `aaae708`(M05-SCHEMA)、`c90e8db`(SCHEMA 仪表盘)、`ed909fe`(M05-RISK)、`f23cb4d`(RISK 仪表盘)、`b8552fa`+`16de278`(M05-CASES)、`2bde5db`(CASES 仪表盘)、`300ebfd`(M05-SANCTIONS)、`656b095`(SANCTIONS 仪表盘)、`f242434`(M05-APPEALS)、`82d7401`(APPEALS 仪表盘)、`64ce403`(M05-NOTIFY)、`36ac455`(NOTIFY 仪表盘)、`7f97651`(M05-UI)、`f827bb2`(UI 仪表盘) | M5 收口：63 个叶子任务全部 `[x]`（309/783 完成）；SCHEMA/RISK/CASES/SANCTIONS/APPEALS/NOTIFY/UI 七包闭环，全门禁绿（cargo clippy 0 警告 + 86 后端用例 + 306 前端用例） |
-| W8 (M7) | 进行中 | — | `1cf2157`(M07-LEDGER) | M07-LEDGER 闭环（11 任务，320/783，0047 三库迁移 + 不可变账本内核：BEGIN IMMEDIATE/行锁/幂等/冻结/撤销补偿/admin 双人复核/属性测试 9 绿）；M07-LEVELS/SHOP 与 M6 逐包推进 |
+| W7/W8a (M6+M7) | 已完成 | 2026-08-07 | `3a46751` | W7/W8a 收口：M6 存储（SCHEMA/ADAPTER/UPLOAD/QUOTA/DOWNLOAD/MIGRATION/UI）+ M7 其余（LEVELS/SHOP-SCHEMA/SHOP/UI）111 个叶子任务全部 `[x]`（431/783 完成）；5 并行 agent（upload+quota / levels+activity / shop+reactions / frontend / main 存储脊柱+download+migration）；0048/0049/0050/0051 三库迁移；90 领域测试 + 76 后端二进制全绿；clippy -D warnings 0；frontend 0 warn 360 测试；openapi 契约 +9 op（193）并修复 M5 路由缺契约与 write-contract 缺口；make check 全绿 |
 
 ## 5. 首批（W0）并行分工
 

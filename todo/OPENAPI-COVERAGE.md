@@ -7,7 +7,7 @@
 
 - 契约操作：**193**
 - 唯一 operationId：**193**
-- 实现状态：`baseline_only` 3；`implemented` 58；`in_progress` 7；`not_started` 125
+- 实现状态：`baseline_only` 3；`implemented` 112；`in_progress` 7；`not_started` 71
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 21；`M6` 20；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -84,8 +84,8 @@
 | `updatePost` | `PATCH` | `/api/v1/posts/{postId}` | Posts | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `listPostRevisions` | `GET` | `/api/v1/posts/{id}/revisions` | Revisions | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `getPostRevision` | `GET` | `/api/v1/posts/{id}/revisions/{revisionId}` | Revisions | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
-| `createAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
-| `assignAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases/{id}/assign` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
+| `createAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `implemented` | `backend-content` |
+| `assignAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases/{id}/assign` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `implemented` | `backend-content` |
 | `post_admin_moderation_sanctions` | `POST` | `/api/v1/admin/moderation/sanctions` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
 | `listModerationAppeals` | `GET` | `/api/v1/admin/moderation/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `getModerationAppeal` | `GET` | `/api/v1/admin/moderation/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
@@ -96,63 +96,63 @@
 | `listOwnAppeals` | `GET` | `/api/v1/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `createAppeal` | `POST` | `/api/v1/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `getOwnAppeal` | `GET` | `/api/v1/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
-| `withdrawAppeal` | `POST` | `/api/v1/appeals/{id}/withdraw` | Moderation | `M5` / `M05-APPEALS` | `P1` | `not_started` | `unassigned` |
-| `listOwnReports` | `GET` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
+| `withdrawAppeal` | `POST` | `/api/v1/appeals/{id}/withdraw` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-content` |
+| `listOwnReports` | `GET` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-content` |
 | `post_reports` | `POST` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-moderation` |
-| `withdrawReport` | `POST` | `/api/v1/reports/{id}/withdraw` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
+| `withdrawReport` | `POST` | `/api/v1/reports/{id}/withdraw` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-content` |
 | `get_notifications` | `GET` | `/api/v1/notifications` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `implemented` | `backend-notifications` |
-| `getNotificationPreferences` | `GET` | `/api/v1/notifications/preferences` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
-| `updateNotificationPreferences` | `PUT` | `/api/v1/notifications/preferences` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
-| `markAllNotificationsRead` | `POST` | `/api/v1/notifications/read-all` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
+| `getNotificationPreferences` | `GET` | `/api/v1/notifications/preferences` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `implemented` | `backend-content` |
+| `updateNotificationPreferences` | `PUT` | `/api/v1/notifications/preferences` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `implemented` | `backend-content` |
+| `markAllNotificationsRead` | `POST` | `/api/v1/notifications/read-all` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `implemented` | `backend-content` |
 | `post_notifications_id_read` | `POST` | `/api/v1/notifications/{id}/read` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `implemented` | `backend-notifications` |
-| `get_admin_levels_id_attachment_quota` | `GET` | `/api/v1/admin/levels/{id}/attachment-quota` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |
-| `patch_admin_levels_id_attachment_quota` | `PATCH` | `/api/v1/admin/levels/{id}/attachment-quota` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |
-| `get_admin_storage_config` | `GET` | `/api/v1/admin/storage/config` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |
-| `patch_admin_storage_config` | `PATCH` | `/api/v1/admin/storage/config` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |
-| `post_admin_storage_test` | `POST` | `/api/v1/admin/storage/test` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |
-| `createAttachment` | `POST` | `/api/v1/attachments` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
-| `delete_attachments_id_` | `DELETE` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
-| `get_attachments_id_` | `GET` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
-| `updateAttachment` | `PUT` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
-| `post_attachments_id_complete` | `POST` | `/api/v1/attachments/{id}/complete` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
-| `get_attachments_id_content` | `GET` | `/api/v1/attachments/{id}/content` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `not_started` | `unassigned` |
-| `post_attachments_id_download` | `POST` | `/api/v1/attachments/{id}/download` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `get_attachments_id_download_policy` | `GET` | `/api/v1/attachments/{id}/download-policy` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `get_download_authorizations_id_` | `GET` | `/api/v1/download-authorizations/{id}` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `post_download_authorizations_id_sign_url` | `POST` | `/api/v1/download-authorizations/{id}/sign-url` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `get_me_download_transactions` | `GET` | `/api/v1/me/download-transactions` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `getAttachmentDownloadPolicyAdmin` | `GET` | `/api/v1/admin/attachments/{id}/download-policy` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `updateAttachmentDownloadPolicyAdmin` | `PATCH` | `/api/v1/admin/attachments/{id}/download-policy` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `getDownloadBillingConfig` | `GET` | `/api/v1/admin/download-billing/config` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `updateDownloadBillingConfig` | `PATCH` | `/api/v1/admin/download-billing/config` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `not_started` | `unassigned` |
-| `get_activity_summary` | `GET` | `/api/v1/activity/summary` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `recordAuthenticatedVisit` | `POST` | `/api/v1/activity/visit` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `getAdminActivityConfig` | `GET` | `/api/v1/admin/activity/config` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `updateAdminActivityConfig` | `PATCH` | `/api/v1/admin/activity/config` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `listAdminActivityTasks` | `GET` | `/api/v1/admin/activity/tasks` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `createAdminActivityTask` | `POST` | `/api/v1/admin/activity/tasks` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `updateAdminActivityTask` | `PATCH` | `/api/v1/admin/activity/tasks/{id}` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `post_comments_id_reactions` | `POST` | `/api/v1/comments/{id}/reactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
+| `get_admin_levels_id_attachment_quota` | `GET` | `/api/v1/admin/levels/{id}/attachment-quota` | Admin | `M6` / `M06-QUOTA` | `P0` | `implemented` | `backend-storage` |
+| `patch_admin_levels_id_attachment_quota` | `PATCH` | `/api/v1/admin/levels/{id}/attachment-quota` | Admin | `M6` / `M06-QUOTA` | `P0` | `implemented` | `backend-storage` |
+| `get_admin_storage_config` | `GET` | `/api/v1/admin/storage/config` | Admin | `M6` / `M06-QUOTA` | `P0` | `implemented` | `backend-storage` |
+| `patch_admin_storage_config` | `PATCH` | `/api/v1/admin/storage/config` | Admin | `M6` / `M06-QUOTA` | `P0` | `implemented` | `backend-storage` |
+| `post_admin_storage_test` | `POST` | `/api/v1/admin/storage/test` | Admin | `M6` / `M06-QUOTA` | `P0` | `implemented` | `backend-storage` |
+| `createAttachment` | `POST` | `/api/v1/attachments` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `implemented` | `backend-storage` |
+| `delete_attachments_id_` | `DELETE` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `implemented` | `backend-storage` |
+| `get_attachments_id_` | `GET` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `implemented` | `backend-storage` |
+| `updateAttachment` | `PUT` | `/api/v1/attachments/{id}` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `implemented` | `backend-storage` |
+| `post_attachments_id_complete` | `POST` | `/api/v1/attachments/{id}/complete` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `implemented` | `backend-storage` |
+| `get_attachments_id_content` | `GET` | `/api/v1/attachments/{id}/content` | Attachments | `M6` / `M06-UPLOAD` | `P0` | `implemented` | `backend-storage` |
+| `post_attachments_id_download` | `POST` | `/api/v1/attachments/{id}/download` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `get_attachments_id_download_policy` | `GET` | `/api/v1/attachments/{id}/download-policy` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `get_download_authorizations_id_` | `GET` | `/api/v1/download-authorizations/{id}` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `post_download_authorizations_id_sign_url` | `POST` | `/api/v1/download-authorizations/{id}/sign-url` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `get_me_download_transactions` | `GET` | `/api/v1/me/download-transactions` | Attachments | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `getAttachmentDownloadPolicyAdmin` | `GET` | `/api/v1/admin/attachments/{id}/download-policy` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `updateAttachmentDownloadPolicyAdmin` | `PATCH` | `/api/v1/admin/attachments/{id}/download-policy` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `getDownloadBillingConfig` | `GET` | `/api/v1/admin/download-billing/config` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `updateDownloadBillingConfig` | `PATCH` | `/api/v1/admin/download-billing/config` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `implemented` | `backend-download` |
+| `get_activity_summary` | `GET` | `/api/v1/activity/summary` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-economy` |
+| `recordAuthenticatedVisit` | `POST` | `/api/v1/activity/visit` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-economy` |
+| `getAdminActivityConfig` | `GET` | `/api/v1/admin/activity/config` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-economy` |
+| `updateAdminActivityConfig` | `PATCH` | `/api/v1/admin/activity/config` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-economy` |
+| `listAdminActivityTasks` | `GET` | `/api/v1/admin/activity/tasks` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-economy` |
+| `createAdminActivityTask` | `POST` | `/api/v1/admin/activity/tasks` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-economy` |
+| `updateAdminActivityTask` | `PATCH` | `/api/v1/admin/activity/tasks/{id}` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-economy` |
+| `post_comments_id_reactions` | `POST` | `/api/v1/comments/{id}/reactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-shop` |
 | `delete_comments_id_reactions_reaction_` | `DELETE` | `/api/v1/comments/{id}/reactions/{reaction}` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `post_posts_id_reactions` | `POST` | `/api/v1/posts/{id}/reactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
+| `post_posts_id_reactions` | `POST` | `/api/v1/posts/{id}/reactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `backend-shop` |
 | `delete_posts_id_reactions_reaction_` | `DELETE` | `/api/v1/posts/{id}/reactions/{reaction}` | Activity | `M7` / `M07-LEVELS` | `P1` | `not_started` | `unassigned` |
-| `getAdminShopConfig` | `GET` | `/api/v1/admin/shop/config` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `updateAdminShopConfig` | `PATCH` | `/api/v1/admin/shop/config` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `listAdminShopOrders` | `GET` | `/api/v1/admin/shop/orders` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `refundAdminShopOrder` | `POST` | `/api/v1/admin/shop/orders/{id}/refund` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `listAdminShopProducts` | `GET` | `/api/v1/admin/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `createAdminShopProduct` | `POST` | `/api/v1/admin/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `updateAdminShopProduct` | `PATCH` | `/api/v1/admin/shop/products/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `disableAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/disable` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `publishAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/publish` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `get_me_entitlements` | `GET` | `/api/v1/me/entitlements` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `post_me_entitlements_id_equip` | `POST` | `/api/v1/me/entitlements/{id}/equip` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `post_me_entitlements_id_unequip` | `POST` | `/api/v1/me/entitlements/{id}/unequip` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `get_me_presentation` | `GET` | `/api/v1/me/presentation` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `post_shop_orders` | `POST` | `/api/v1/shop/orders` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `get_shop_orders_id_` | `GET` | `/api/v1/shop/orders/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `get_shop_products` | `GET` | `/api/v1/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
-| `get_shop_products_id_` | `GET` | `/api/v1/shop/products/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `not_started` | `unassigned` |
+| `getAdminShopConfig` | `GET` | `/api/v1/admin/shop/config` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `updateAdminShopConfig` | `PATCH` | `/api/v1/admin/shop/config` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `listAdminShopOrders` | `GET` | `/api/v1/admin/shop/orders` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `refundAdminShopOrder` | `POST` | `/api/v1/admin/shop/orders/{id}/refund` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `listAdminShopProducts` | `GET` | `/api/v1/admin/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `createAdminShopProduct` | `POST` | `/api/v1/admin/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `updateAdminShopProduct` | `PATCH` | `/api/v1/admin/shop/products/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `disableAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/disable` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `publishAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/publish` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `get_me_entitlements` | `GET` | `/api/v1/me/entitlements` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `post_me_entitlements_id_equip` | `POST` | `/api/v1/me/entitlements/{id}/equip` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `post_me_entitlements_id_unequip` | `POST` | `/api/v1/me/entitlements/{id}/unequip` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `get_me_presentation` | `GET` | `/api/v1/me/presentation` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `post_shop_orders` | `POST` | `/api/v1/shop/orders` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `get_shop_orders_id_` | `GET` | `/api/v1/shop/orders/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `get_shop_products` | `GET` | `/api/v1/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
+| `get_shop_products_id_` | `GET` | `/api/v1/shop/products/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
 | `getPublicAtomFeed` | `GET` | `/api/v1/atom` | Feeds | `M8` / `M08-FEEDS` | `P1` | `not_started` | `unassigned` |
 | `getPublicRssFeed` | `GET` | `/api/v1/rss` | Feeds | `M8` / `M08-FEEDS` | `P1` | `not_started` | `unassigned` |
 | `searchPublicContent` | `GET` | `/api/v1/search` | Search | `M8` / `M08-INDEX` | `P1` | `not_started` | `unassigned` |
