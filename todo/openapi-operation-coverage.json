@@ -1140,7 +1140,7 @@
       "tests": [
         "backend/tests/moderation/appeals.rs::decide_reject_and_partial_are_append_only"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "getModerationAppeal",
@@ -1157,7 +1157,7 @@
       "tests": [
         "backend/tests/moderation/appeals.rs::projections_do_not_cross_boundaries"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "decideModerationAppeal",
@@ -1174,7 +1174,7 @@
       "tests": [
         "backend/tests/moderation/appeals.rs::decide_uphold_revokes_sanction_and_restores_ban"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "listModerationCases",
@@ -1191,7 +1191,7 @@
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-03/05: moderation.review 权限门（TOTP 强制启用）；案件列表投影；开案/状态机/派单由 service + tests 覆盖"
+      "evidence": "M05-CASES-03/05: moderation.review 权限门（TOTP 强制启用）；案件列表投影；开案/状态机/派单由 service + tests 覆盖；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "getModerationCase",
@@ -1208,7 +1208,7 @@
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-03: moderation.review 权限门；案件详情投影（status/priority/assigned_to/resolved_at/resolution）"
+      "evidence": "M05-CASES-03: moderation.review 权限门；案件详情投影（status/priority/assigned_to/resolved_at/resolution）；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "updateModerationCase",
@@ -1225,7 +1225,7 @@
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-03/05: 状态迁移走 CaseStatus::can_transition_to（非法 → 409），写审计 + Outbox moderation.case_changed.v1；自处理/利益冲突在开案与派单服务中阻断并审计"
+      "evidence": "M05-CASES-03/05: 状态迁移走 CaseStatus::can_transition_to（非法 → 409），写审计 + Outbox moderation.case_changed.v1；自处理/利益冲突在开案与派单服务中阻断并审计；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "listOwnAppeals",
@@ -1242,7 +1242,7 @@
       "tests": [
         "backend/tests/moderation/appeals.rs::create_appeal_validates_rules_and_window"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "createAppeal",
@@ -1259,7 +1259,7 @@
       "tests": [
         "backend/tests/moderation/appeals.rs::create_appeal_validates_rules_and_window"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "getOwnAppeal",
@@ -1276,7 +1276,7 @@
       "tests": [
         "backend/tests/moderation/appeals.rs::projections_do_not_cross_boundaries"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "post_reports",
@@ -1293,7 +1293,7 @@
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-01/02: target_type/reason_code 封闭枚举 + 详情限长 2000；目标资源存在校验；report_dedup_key 归一化 + 锚定窗口 UNIQUE 窗口内去重 → 统一 DuplicateReport 响应（不泄漏其他举报人/案件状态）；HTTP 201/409/400 测试"
+      "evidence": "M05-CASES-01/02: target_type/reason_code 封闭枚举 + 详情限长 2000；目标资源存在校验；report_dedup_key 归一化 + 锚定窗口 UNIQUE 窗口内去重 → 统一 DuplicateReport 响应（不泄漏其他举报人/案件状态）；HTTP 201/409/400 测试；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "get_notifications",
@@ -1311,7 +1311,7 @@
         "backend/tests/notifications/notify.rs::list_cursor_and_read_flows",
         "backend/tests/notifications/notify.rs::permission_recheck_hides_unavailable_content"
       ],
-      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD"
+      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "post_notifications_id_read",
@@ -1328,7 +1328,7 @@
       "tests": [
         "backend/tests/notifications/notify.rs::list_cursor_and_read_flows"
       ],
-      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD"
+      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
     },
     {
       "operation_id": "get_admin_levels_id_attachment_quota",

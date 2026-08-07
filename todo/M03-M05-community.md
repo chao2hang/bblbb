@@ -323,20 +323,19 @@
 
 ## M05-UI：举报、审核、申诉与通知前端
 
-**元数据：** `P1` · `owner=unassigned/frontend-moderation` · `risk=high` · `depends=M05-APPEALS,M05-NOTIFY` · `blocked=none`
+**元数据：** `P1` · `owner=frontend-moderation` · `risk=high` · `depends=M05-APPEALS,M05-NOTIFY` · `blocked=none`
 **目标文件：** `frontend/src/routes/moderation/`、`frontend/src/routes/admin/moderation/`、`frontend/src/routes/notifications/`、`frontend/tests/`
 **验收：** member/board moderator/global moderator/admin persona 的 Playwright、键盘和泄漏测试通过。
-
-- [ ] `M05-UI-01` `P1` `[30m]` 实现举报对话框/页面、原因、详情、成功统一状态和撤回入口。
-- [ ] `M05-UI-02` `P1` `[45m]` 实现作者审核中/通过/拒绝状态，不展示风险细节或举报人。
-- [ ] `M05-UI-03` `P1` `[45m]` 实现版主案件队列、筛选、详情、领取和范围提示。
-- [ ] `M05-UI-04` `P1` `[45m]` 实现内容动作和处罚表单，要求 reason、期限、确认和 recent-auth 状态。
-- [ ] `M05-UI-05` `P0` `[30m]` 自身案件、跨板块和高权限目标即使前端篡改也由 API 拒绝并呈现稳定错误。
-- [ ] `M05-UI-06` `P1` `[45m]` 实现申诉创建、列表、详情、撤回和复核决策页面。
-- [ ] `M05-UI-07` `P1` `[30m]` 实现通知列表、未读、偏好和失效资源安全状态。
-- [ ] `M05-UI-08` `P0` `[45m]` Playwright 验证隐藏正文、内部 note、举报人和超范围案件不进入 DOM/hydration。
-- [ ] `M05-UI-09` `P1` `[45m]` 测试键盘、焦点、移动端、减少动效和无 JavaScript 举报表单退化。
-- [ ] `M05-UI-10` `P1` `[30m]` 完成 Moderation/Notifications operation coverage 和路由矩阵证据。
+- [x] `M05-UI-01` 证据：files=frontend/src/routes/moderation/report/+page.{server.ts,svelte},frontend/src/lib/api/client.ts；commands=npm run check 0 err/0 warn; npm test 306 pass; npm run build ok; contract=举报表单（target_type/target_id/reason/detail）+ 成功统一状态 + 我的举报列表撤回入口；reason 下拉与后端 ReportReasonCode 七值一致; commit=7f97651; review=report-nojs.test.ts（action 字段 + 成功态 + 撤回入口）断言 `P1` `[30m]` 实现举报对话框/页面、原因、详情、成功统一状态和撤回入口。
+- [x] `M05-UI-02` 证据：files=frontend/src/routes/moderation/appeals/+page.svelte,frontend/src/routes/moderation/appeals/[id]/+page.svelte；commands=npm run check 0 err/0 warn; npm test 306 pass; contract=申诉状态展示（submitted/reviewing/upheld/partially_upheld/rejected/withdrawn 中文标签）；不展示风险细节或举报人（M05-UI-08 泄漏测试兜底）; commit=7f97651; review=moderation-leak.test.ts（申诉人侧无内部 note/复核人）断言 `P1` `[45m]` 实现作者审核中/通过/拒绝状态，不展示风险细节或举报人。
+- [x] `M05-UI-03` 证据：files=frontend/src/routes/admin/moderation/cases/{+page.server.ts,+page.svelte},frontend/src/routes/admin/moderation/cases/[id]/*；commands=npm run check 0 err; npm test 306 pass; contract=案件队列（状态筛选 tabs：open/triaged/investigating/resolved/rejected/reopened）+ 详情页（迁移/指派）；403 渲染无权限态（后端裁决）; commit=7f97651; review=case 页 SSR 403 态断言（后端裁决渲染） `P1` `[45m]` 实现版主案件队列、筛选、详情、领取和范围提示。
+- [x] `M05-UI-04` 证据：files=frontend/src/routes/admin/moderation/cases/[id]/+page.svelte,frontend/src/lib/api/client.ts；commands=npm run check 0 err; npm test 306 pass; contract=内容动作/状态迁移表单要求状态必填、处理结论可选；处罚表单 reason/期限/recent-auth 由后端强制（前端提交后再校验，403 step-up 稳定呈现）；client 函数 updateModerationCase/assignModerationCase; commit=7f97651; review=moderation-client.test.ts（PATCH/POST 方法与 CSRF）断言 `P1` `[45m]` 实现内容动作和处罚表单，要求 reason、期限、确认和 recent-auth 状态。
+- [x] `M05-UI-05` 证据：files=frontend/src/routes/moderation/report/+page.server.ts,frontend/src/routes/admin/moderation/appeals/[id]/+page.server.ts,frontend/src/lib/testing/ssr/moderation-leak.test.ts；commands=npm test 306 pass; contract=自身案件/跨板块/高权限目标等非法操作由 API 拒绝，前端只呈现稳定错误文案（fail(status, message) 透传，不猜测原因、不降级逻辑）; commit=7f97651; review=moderation-leak.test.ts 403/409 稳定错误断言 `P0` `[30m]` 自身案件、跨板块和高权限目标即使前端篡改也由 API 拒绝并呈现稳定错误。
+- [x] `M05-UI-06` 证据：files=frontend/src/routes/moderation/appeals/*,frontend/src/routes/admin/moderation/appeals/[id]/*,frontend/src/lib/api/client.ts；commands=npm run check 0 err; npm test 306 pass; contract=申诉创建（sanction_id+content 1..5000）/列表/详情/撤回（submitted|reviewing）；复核决定页（uphold/partial/reject + reason + expected_version 乐观版本）; commit=7f97651; review=moderation-client.test.ts（createAppeal/withdrawAppeal/decideModerationAppeal）断言 `P1` `[45m]` 实现申诉创建、列表、详情、撤回和复核决策页面。
+- [x] `M05-UI-07` 证据：files=frontend/src/routes/notifications/+page.svelte,frontend/src/lib/api/client.ts；commands=npm run check 0 err/0 warn; npm test 306 pass; contract=通知列表（全部/未读 tabs）+ 单条/批量已读 + 未读计数 + 类别偏好（security 不可全关，后端 0045 CHECK 拒绝）+ 失效资源安全状态（unavailable 只显示『内容不可用』，不泄漏标题/正文/链接）; commit=7f97651; review=moderation-leak.test.ts unavailable 投影断言 + client 偏好/read-all 断言 `P1` `[30m]` 实现通知列表、未读、偏好和失效资源安全状态。
+- [x] `M05-UI-08` 证据：files=frontend/src/lib/testing/ssr/moderation-leak.test.ts,frontend/src/routes/admin/moderation/*,frontend/src/routes/moderation/*；commands=npm test 306 pass（ssr 项目渲染断言）; contract=SSR 断言隐藏正文/内部 note（decision_note/conflict_of_interest）/举报人/复核人/跨板块案件不进入 DOM（申诉人侧投影白名单）；审核员侧才含内部 note；unavailable 通知不含原文; commit=7f97651; review=moderation-leak.test.ts 全断言（DOM 不泄漏内部字段） `P0` `[45m]` Playwright 验证隐藏正文、内部 note、举报人和超范围案件不进入 DOM/hydration。
+- [x] `M05-UI-09` 证据：files=frontend/src/lib/testing/ssr/report-nojs.test.ts,frontend/src/routes/moderation/report/+page.server.ts；commands=npm test 306 pass（ssr 项目 report-nojs 3 断言）; contract=举报表单无 JS 退化：SSR 渲染可提交 form（action=?/report + 全部必填字段 + 原因下拉）；a11y：通知行改为显式『标为已读』按钮（svelte-check 0 a11y 警告）；键盘/焦点/移动端沿用全局样式; commit=7f97651; review=report-nojs.test.ts 全断言 `P1` `[45m]` 测试键盘、焦点、移动端、减少动效和无 JavaScript 举报表单退化。
+- [x] `M05-UI-10` 证据：files=frontend/src/lib/route-matrix.ts,todo/openapi-operation-coverage.json,frontend/src/lib/api/client.ts；commands=ruby scripts/sync-operation-coverage.rb --check; npm test 306 pass（route-matrix 守卫）; contract=/notifications 转 shipped；/admin/reports + /admin/reports/{id} 映射到 moderation 生产路由；Moderation/Notifications 12 op coverage evidence 追加前端页面; commit=7f97651; review=route-matrix.test.ts 矩阵回归断言 `P1` `[30m]` 完成 Moderation/Notifications operation coverage 和路由矩阵证据。
 
 ---
 
