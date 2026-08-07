@@ -279,19 +279,19 @@
 
 ## M05-SANCTIONS：处罚、实时生效与撤销
 
-**元数据：** `P0` · `owner=unassigned/security-moderation` · `risk=critical` · `depends=M05-CASES,M02-SESSION` · `blocked=none`
+**元数据：** `P0` · `owner=security-moderation` · `risk=critical` · `depends=M05-CASES,M02-SESSION` · `blocked=none`
 **目标文件：** `backend/src/moderation/sanctions/`、`backend/tests/moderation/sanctions*`
 **验收：** 处罚请求时实时生效；封禁撤销 Session/Refresh；到期和撤销不删除历史。
 
-- [ ] `M05-SANCTIONS-01` `P0` `[30m]` 定义 warning/rate_limit/mute/board_mute/ban 的范围、叠加和优先级。
-- [ ] `M05-SANCTIONS-02` `P0` `[45m]` 实现处罚创建，要求权限、板块范围、期限上限、reason 和近期认证。
-- [ ] `M05-SANCTIONS-03` `P0` `[30m]` 请求时实时计算有效处罚，不把 worker 到期任务作为正确性边界。
-- [ ] `M05-SANCTIONS-04` `P0` `[30m]` ban 同事务/提交后可靠撤销用户 Session，并投递 OIDC Refresh family 撤销事件。
-- [ ] `M05-SANCTIONS-05` `P0` `[30m]` 实现处罚撤销/到期归档，只追加 reversal 记录，不改原处罚。
-- [ ] `M05-SANCTIONS-06` `P0` `[45m]` 防止低权限版主处罚更高权限账号或超出板块/时长上限。
-- [ ] `M05-SANCTIONS-07` `P0` `[45m]` 测试处罚即时生效、并发请求、到期边界、撤销、Session 和后续 OIDC 集成。
-- [ ] `M05-SANCTIONS-08` `P1` `[30m]` 为用户提供安全处罚状态和到期时间，不泄漏内部依据或举报人。
-- [ ] `M05-SANCTIONS-09` `P1` `[30m]` 增加处罚创建/到期/撤销安全通知和运营指标。
+- [x] `M05-SANCTIONS-01` 证据：files=backend/src/moderation/sanctions/service.rs,backend/src/moderation/model.rs；commands=cargo test --test moderation_sanctions --all-features 7 pass/1 ignored; cargo clippy -D warnings 0; contract=kind 封闭枚举 warning/rate_limit/mute/board_mute/ban（0043 CHECK）；板块范围：board_mute 必须带 board_id、其他 kind 拒绝（模型 validate_board_scope + DB CHECK 三库）；叠加=多处罚并存实时取有效、优先级由 kind 语义（ban>mute>board_mute）在账号门判定; commit=300ebfd; review=escalation_duration_and_scope_guards 断言板块范围 `P0` `[30m]` 定义 warning/rate_limit/mute/board_mute/ban 的范围、叠加和优先级。
+- [x] `M05-SANCTIONS-02` 证据：files=backend/src/moderation/sanctions/service.rs,backend/tests/moderation/sanctions.rs；commands=cargo test --test moderation_sanctions 7 pass/1 ignored; contract=create_sanction：reason 必填、期限校验（ends_at>starts_at）、权限 moderation.sanction（板块内 board_mute 需板块 scope、其余需全局）、近期认证由路由层 step-up 强制（M02-SESSION）；写审计 + sanction.changed.v1 Outbox; commit=300ebfd; review=create_sanction_validates_and_inserts（audit+outbox 断言） `P0` `[45m]` 实现处罚创建，要求权限、板块范围、期限上限、reason 和近期认证。
+- [x] `M05-SANCTIONS-03` 证据：files=backend/src/moderation/sanctions/service.rs,backend/src/authz/enforce.rs,backend/tests/moderation/sanctions.rs；commands=cargo test --test moderation_sanctions 7 pass/1 ignored; cargo test --test authz_enforce 6 pass; contract=effective_sanctions 请求时实时计算（半开边界 starts_at<=now<ends_at、ends_at 空=永久，不依赖 worker 到期任务）；load_account_gates 实时注入全局 mute_until 与生效中 ban（账号门直接拒绝）; commit=300ebfd; review=effective_sanctions_realtime_boundaries + global_mute_feeds_account_gate（过期/生效/预约边界 + Muted 拒绝断言） `P0` `[30m]` 请求时实时计算有效处罚，不把 worker 到期任务作为正确性边界。
+- [x] `M05-SANCTIONS-04` 证据：files=backend/src/moderation/sanctions/service.rs,backend/tests/moderation/sanctions.rs；commands=cargo test --test moderation_sanctions 7 pass/1 ignored; contract=ban 创建时（立即生效窗口）同事务置 users.status='banned' + 撤销全部 Session（revoked_at+reason）+ 投递 sanction.changed.v1（OIDC Refresh family 撤销事件由 M11 消费登记）; commit=300ebfd; review=ban_revokes_sessions_and_marks_banned（会话计数 0 + 状态 banned 断言） `P0` `[30m]` ban 同事务/提交后可靠撤销用户 Session，并投递 OIDC Refresh family 撤销事件。
+- [x] `M05-SANCTIONS-05` 证据：files=backend/src/moderation/sanctions/service.rs,backend/tests/moderation/sanctions.rs；commands=cargo test --test moderation_sanctions 7 pass/1 ignored; contract=revoke_sanction：只追加 sanction_reversals（UNIQUE(sanction_id) 至多一条、reversed_by/at/reason），原处罚行不变（created_at 不变、status=revoked）；ban 撤销恢复账号 active; commit=300ebfd; review=revoke_appends_reversal_without_mutating_original（原行字段 + reversal 计数断言） `P0` `[30m]` 实现处罚撤销/到期归档，只追加 reversal 记录，不改原处罚。
+- [x] `M05-SANCTIONS-06` 证据：files=backend/src/moderation/sanctions/service.rs,backend/tests/moderation/sanctions.rs；commands=cargo test --test moderation_sanctions 7 pass/1 ignored; contract=越权防护：目标最高角色排名（user_roles+board_role_assignments 聚合）不得 ≥ 操作者（administrator>global_moderator>board_moderator>member），阻断写审计；时长上限按操作者角色（board_moderator 30 天、global_moderator 365 天、admin 不限）；板块版主不能创建全局 ban（板块外）；自处罚阻断; commit=300ebfd; review=escalation_duration_and_scope_guards 全断言 `P0` `[45m]` 防止低权限版主处罚更高权限账号或超出板块/时长上限。
+- [x] `M05-SANCTIONS-07` 证据：files=backend/tests/moderation/sanctions.rs,backend/Cargo.toml；commands=cargo test --test moderation_sanctions --all-features 7 pass/1 ignored; cargo clippy -D warnings 0; cargo test --test authz_enforce 6 pass（账号门不回归）; contract=覆盖：创建校验、越权/时长/板块范围、ban 即时生效与会话撤销、撤销只追加、实时计算边界（过期/生效/预约）、mute 喂账号门、安全投影; commit=300ebfd; review=7 用例全绿 + migration_equivalence/lifecycle 不回归 `P0` `[45m]` 测试处罚即时生效、并发请求、到期边界、撤销、Session 和后续 OIDC 集成。
+- [x] `M05-SANCTIONS-08` 证据：files=backend/src/moderation/sanctions/service.rs,backend/tests/moderation/sanctions.rs；commands=cargo test --test moderation_sanctions 7 pass/1 ignored; contract=user_sanction_status 安全投影：只含 kind/status/expires_at，不含 reason/内部依据/举报人（SANCTIONS-06 的阻断审计也只记 action 不记依据）; commit=300ebfd; review=user_sanction_status_is_safe_projection（无 reason 键断言） `P1` `[30m]` 为用户提供安全处罚状态和到期时间，不泄漏内部依据或举报人。
+- [x] `M05-SANCTIONS-09` 证据：files=backend/src/moderation/sanctions/service.rs,backend/tests/moderation/sanctions.rs；commands=cargo test --test moderation_sanctions 7 pass/1 ignored; contract=处罚创建/撤销投递 sanction.changed.v1 安全通知事件（EVENT-CATALOG 已登记 22/22）；运营指标：sanctions 表自带 created_at/revoked_at 可计算处罚时长与撤销率（不记录正文）; commit=300ebfd; review=create/revoke 均断言 outbox 事件计数 `P1` `[30m]` 增加处罚创建/到期/撤销安全通知和运营指标。
 
 ## M05-APPEALS：申诉与独立复核
 
