@@ -21,6 +21,8 @@
     getDraft,
     deleteDraft,
     getMe,
+    resolveVideoEmbed,
+    createVideoEmbed,
     newClientRequestId,
     type Board,
     type Tag,
@@ -28,7 +30,8 @@
     type Draft,
     type PostCreateInput,
     type DraftCreateInput,
-    type DraftPatchInput
+    type DraftPatchInput,
+    type VideoResolveResult
   } from '$lib/api/client';
   import {
     problemText,
@@ -39,6 +42,8 @@
   import Button from '$lib/components/ui/Button.svelte';
   import SafeHtml from '$lib/components/SafeHtml.svelte';
   import EditorAssistantPanel from '$lib/components/ai/EditorAssistantPanel.svelte';
+  import VideoInsertPanel from '$lib/components/video/VideoInsertPanel.svelte';
+  import { videoProviderLabel } from '$lib/video/labels';
   import { renderSafeMarkdown, charCount } from '$lib/utils';
 
   const MAX_TITLE_CHARS = 200;
@@ -71,6 +76,12 @@
   let previewMode = $state(false);
   let submitting = $state(false);
   let error = $state<Problem | null>(null);
+
+  // ── 视频引用（M10-UI-01/02） ──
+  let videoResolutions = $state<VideoResolveResult[]>([]);
+  let videoNotice = $state<string | null>(null);
+  /** 发布成功但视频引用有失败时的停留态（不阻塞发帖，提示外链）。 */
+  let published = $state<{ id: string; videoFailed: number } | null>(null);
 
   // ── 草稿状态（M04-UI-03） ──
   let draftId = $state<string | null>(null);
@@ -269,6 +280,7 @@
     if (!title.trim() || !markdown.trim() || !boardId) return;
     submitting = true;
     error = null;
+    published = null;
     const input: PostCreateInput = {
       type: postType,
       title: title.trim(),
@@ -283,6 +295,26 @@
     };
     try {
       const result = await createPost(fetch, input);
+      // 视频引用（M10-UI-02）：只提交 resolution_id + 允许字段；创建失败
+      // 不阻塞发帖（VIDEO-PLUGIN.md §3）——有失败时留在编辑器提示并给出
+      // 帖子的外链，用户可稍后重试或使用外链。
+      let videoFailed = 0;
+      if (videoResolutions.length > 0) {
+        const withPolicy = videoResolutions.filter((r) => typeof r.policy_version === 'number');
+        // 缺少策略版本的引用无法创建（expected_policy_version 必填），计入失败。
+        videoFailed += videoResolutions.length - withPolicy.length;
+        const settled = await Promise.allSettled(
+          withPolicy.map((r) =>
+            createVideoEmbed(fetch, {
+              resolution_id: r.resolution_id,
+              target_type: 'post',
+              target_id: result.id,
+              expected_policy_version: r.policy_version as number
+            })
+          )
+        );
+        videoFailed += settled.filter((s) => s.status === 'rejected').length;
+      }
       // 发布成功即清掉草稿（best-effort）。
       if (draftId) {
         try {
@@ -291,11 +323,31 @@
           // 忽略清理失败：帖子已发布，草稿残留不影响。
         }
       }
-      goto(`/posts/${result.id}`);
+      if (videoFailed > 0) {
+        published = { id: result.id, videoFailed };
+      } else {
+        goto(`/posts/${result.id}`);
+      }
     } catch (err: unknown) {
       error = err as Problem;
     }
     submitting = false;
+  }
+
+  // ── 视频引用（M10-UI-01/02） ────────────────────────────────────────────
+  /** 触发后端 resolve（面板负责投影白名单挑选）。解析要求登录：401 由面板
+   *  展示登录提示。 */
+  async function handleResolveVideo(url: string): Promise<unknown> {
+    return resolveVideoEmbed(fetch, url, 'post');
+  }
+
+  function acceptVideo(result: VideoResolveResult) {
+    videoNotice = null;
+    videoResolutions = [...videoResolutions, result];
+  }
+
+  function removeVideo(resolutionId: string) {
+    videoResolutions = videoResolutions.filter((r) => r.resolution_id !== resolutionId);
   }
 
   /** datetime-local 输入 → Unix 毫秒（后端 scheduled_at 实现为毫秒，见报告）。 */
@@ -491,6 +543,50 @@
             </div>
             <p class="input-hint">逐帖退出（M08-INDEX-03）：只影响本帖子在公开搜索索引与 AI 摘要中的出现；管理员全站/板块策略优先于你的选择。</p>
           </div>
+
+          <VideoInsertPanel
+            onResolve={handleResolveVideo}
+            onAccept={acceptVideo}
+          />
+
+          {#if videoNotice}
+            <p class="input-hint is-error" role="alert" style="margin:0;">{videoNotice}</p>
+          {/if}
+          {#if videoResolutions.length > 0}
+            <div class="input-wrapper" style="display:flex;flex-direction:column;gap:var(--space-2);">
+              <span class="input-label" id="publish-video-refs-label">待发布的视频引用（{videoResolutions.length}）</span>
+              <ul
+                style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);"
+                aria-labelledby="publish-video-refs-label"
+              >
+                {#each videoResolutions as videoRef (videoRef.resolution_id)}
+                  <li style="border:var(--border-default);border-radius:var(--radius-md);padding:var(--space-2);display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
+                    <span class="badge badge-neutral">{videoProviderLabel(videoRef.provider)}</span>
+                    <span class="text-secondary" style="font-size:var(--text-sm);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                      {videoRef.title ?? '视频引用'}
+                    </span>
+                    {#if videoRef.embeddable === false}
+                      <span class="badge badge-warning">外链</span>
+                    {/if}
+                    <button type="button" class="btn btn-ghost btn-sm" onclick={() => removeVideo(videoRef.resolution_id)}>移除</button>
+                  </li>
+                {/each}
+              </ul>
+              <p class="input-hint" style="margin:0;">发布时只提交 resolution_id 与允许字段；视频解析失败不影响发帖（降级为外链卡片）。</p>
+            </div>
+          {/if}
+
+          {#if published}
+            <div class="card" role="status" style="border-color:var(--color-warning);">
+              <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
+                <strong>帖子已发布</strong>
+                <p class="input-hint" style="margin:0;">
+                  {published.videoFailed} 个视频引用创建失败（不影响帖子发布）。你可以稍后在帖子里重试，或直接用外链打开：
+                  <a class="text-link" href={`/posts/${published.id}`}>查看已发布的帖子</a>。
+                </p>
+              </div>
+            </div>
+          {/if}
 
           <EditorAssistantPanel
             {draftId}

@@ -15,7 +15,9 @@ use crate::authz::decision::AUTHZ_POLICY_VERSION;
 use crate::authz::enforce::authorize_action;
 use crate::boards::admin::{create_board, update_board, BoardCreateInput, BoardUpdateInput};
 use crate::error::AppError;
+use crate::outbox::now_millis;
 use crate::tags::admin::{create_tag, update_tag};
+use crate::video::{load_policy, update_provider_policy, Provider, VideoError};
 
 /// 管理权限门（M03-AUTHZ-05）：admin.manage + 账号状态实时门。
 async fn require_admin(
@@ -901,24 +903,182 @@ async fn retry_ai_task(
     };
     Ok(Json(json!({ "id": id, "retried": affected })))
 }
-async fn list_video_policies(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_video_policies")
+/// GET /api/v1/admin/video/policies — 全部 Provider 策略（含缺省关闭态）。
+async fn list_video_policies(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_video_policies";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let mut items = Vec::new();
+    for provider in Provider::ALL {
+        let policy = load_policy(pool, provider)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        items.push(video_policy_json(&policy));
+    }
+    Ok(Json(json!({ "policies": items })))
 }
-async fn test_video_policy(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_video_policies_test")
+
+/// POST /api/v1/admin/video/policies/test — 策略自检（离线分类 + 策略门）。
+async fn test_video_policy(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_video_policies_test";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let provider = body
+        .get("provider")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("provider required", request_id, None))?;
+    let provider = Provider::parse(provider)
+        .ok_or_else(|| AppError::bad_request("unknown provider", request_id, None))?;
+    let policy = load_policy(pool, provider)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let mut result = json!({
+        "ok": false,
+        "backend": "video_provider",
+        "provider": provider.as_str(),
+        "policy_enabled": policy.enabled,
+    });
+    match body.get("source_url").and_then(Value::as_str) {
+        Some(url) => match crate::video::classify(url) {
+            Ok(c) => {
+                if !policy.enabled {
+                    result["error_class"] = json!("video_provider_disabled");
+                } else if !crate::video::is_allowed_host(&c.host, &policy.allow_hosts) {
+                    result["error_class"] = json!("video_provider_host_not_allowed");
+                } else {
+                    result["ok"] = json!(true);
+                    result["classified"] = json!({
+                        "provider": c.provider.as_str(),
+                        "host": c.host,
+                        "media_type": c.media_type,
+                    });
+                }
+            }
+            Err(e) => {
+                result["error_class"] = json!(e.code());
+            }
+        },
+        None => {
+            result["ok"] = json!(policy.enabled);
+        }
+    }
+    Ok(Json(result))
 }
+
+/// GET /api/v1/admin/video/policies/{provider} — 单 Provider 策略。
 async fn get_video_policy(
-    State(_state): State<AppState>,
-    Path(_provider): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_video_policies_provider_")
+    State(state): State<AppState>,
+    Path(provider): Path<String>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_video_policies_provider_";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let provider = Provider::parse(&provider)
+        .ok_or_else(|| AppError::bad_request("unknown provider", request_id, None))?;
+    let policy = load_policy(pool, provider)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok(Json(json!({ "policy": video_policy_json(&policy) })))
 }
+
+/// PATCH /api/v1/admin/video/policies/{provider} — 更新策略（If-Match + reason
+/// + 审计；写入后触发历史引用重检）。
 async fn update_video_policy(
-    State(_state): State<AppState>,
-    Path(_provider): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("patch_admin_video_policies_provider_")
+    State(state): State<AppState>,
+    Path(provider): Path<String>,
+    headers: HeaderMap,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "patch_admin_video_policies_provider_";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let provider = Provider::parse(&provider)
+        .ok_or_else(|| AppError::bad_request("unknown provider", request_id, None))?;
+    let if_match = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::bad_request("If-Match header is required", request_id, None))?
+        .trim()
+        .parse::<i64>()
+        .map_err(|_| AppError::bad_request("If-Match must be an integer", request_id, None))?;
+
+    let (policy, downgraded) =
+        update_provider_policy(pool, provider, &body, if_match, now_millis())
+            .await
+            .map_err(|e| video_policy_error_to_app(e, request_id))?;
+
+    let audit = AuditEntry::user_action(&user.id, "video_policy.update")
+        .with_target("video_provider", provider.as_str())
+        .with_reason(&reason)
+        .with_metadata(json!({
+            "enabled": policy.enabled,
+            "version": policy.version,
+            "rechecked_references": downgraded,
+        }));
+    let _ = audit.record(pool).await;
+
+    Ok(Json(json!({
+        "policy": video_policy_json(&policy),
+        "rechecked_references": downgraded,
+    })))
 }
+
+fn video_policy_json(p: &crate::video::VideoPolicy) -> Value {
+    json!({
+        "provider": p.provider.as_str(),
+        "enabled": p.enabled,
+        "allow_hosts": p.allow_hosts,
+        "max_redirects": p.max_redirects,
+        "max_response_bytes": p.max_response_bytes,
+        "max_playlist_depth": p.max_playlist_depth,
+        "max_segments": p.max_segments,
+        "max_duration_ms": p.max_duration_ms,
+        "config": p.config,
+        "version": p.version,
+        "updated_at": p.updated_at,
+    })
+}
+
+fn video_policy_error_to_app(e: VideoError, request_id: &str) -> AppError {
+    match e {
+        VideoError::VersionConflict { .. } => {
+            AppError::version_conflict("video policy version conflict", request_id)
+        }
+        VideoError::Invalid(msg) => AppError::bad_request(msg, request_id, None),
+        VideoError::Classify(_) => {
+            AppError::bad_request("invalid policy host list", request_id, None)
+        }
+        _ => AppError::internal(e.code(), request_id),
+    }
+}
+
 async fn list_oauth_clients(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("listAdminOAuthClients")
 }

@@ -2619,13 +2619,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/admin.rs::list_video_policies",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "post_admin_video_policies_test",
@@ -2636,13 +2638,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/admin.rs::test_video_policy",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "get_admin_video_policies_provider_",
@@ -2653,13 +2657,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/admin.rs::get_video_policy",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "patch_admin_video_policies_provider_",
@@ -2670,13 +2676,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/admin.rs::update_video_policy",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "post_video_embeds",
@@ -2687,13 +2695,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/video.rs::create_video_embed",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "post_video_embeds_resolve",
@@ -2704,13 +2714,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/video.rs::resolve_video_embed",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "delete_video_embeds_id_",
@@ -2721,13 +2733,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/video.rs::delete_video_embed",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "get_video_embeds_id_",
@@ -2738,13 +2752,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/video.rs::get_video_embed",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "patch_video_embeds_id_",
@@ -2755,13 +2771,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/video.rs::update_video_embed",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "post_video_embeds_id_refresh",
@@ -2772,13 +2790,15 @@
       "work_package": "M10-VIDEO",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/video",
+      "handler": "backend/src/routes/video.rs::refresh_video_embed",
       "tests": [
-
+        "backend/tests/video.rs",
+        "backend/tests/http.rs",
+        "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": null
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
     },
     {
       "operation_id": "get_well_known_openid_configuration",

@@ -46,6 +46,10 @@ export type {
   DeviceSession,
   DraftCreate,
   DraftPatch,
+  // M10 契约请求体（generated 来源；响应为自建投影见文件尾部）
+  VideoResolveRequest,
+  VideoEmbedCreate,
+  VideoEmbedPatch,
 } from './generated/v1';
 
 export type {
@@ -1069,6 +1073,160 @@ export interface AiAdminTaskRow extends AiTask {
 
 /** POST /admin/ai/providers/test 响应：稳定错误码 + 脱敏诊断（不回显凭证）。 */
 export interface AiProviderTestResult {
+  ok: boolean;
+  message: string;
+  code?: string | null;
+  elapsed_ms?: number | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M10：视频嵌入（自建投影类型）
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 契约（openapi/openapi.yaml）中视频读写响应以 GenericSuccess/GenericRequest
+// 兜底（M10-VIDEO/M10-UI 交付时由并行 backend 域 agent 实现具体 schema）；
+// 请求体 schema 已由 generated 提供（VideoResolveRequest/VideoEmbedCreate/
+// VideoEmbedPatch，见下方 re-export）。本层按 docs/VIDEO-PLUGIN.md §4/§5
+// 定义投影字段形状，字段缺失一律容忍；后端收敛后可按契约塌缩为 re-export。
+// 时间戳统一为 Unix 毫秒（与 M01-DB-08 一致）。
+//
+// Security 边界（VIDEO-PLUGIN.md §3/§4）：
+//  - 隐藏/审核中/删除/封禁内容：后端**省略** media_url/official_url/
+//    poster_url/source_url 等渲染字段——前端绝不猜测或拼接 URL；
+//  - Provider Secret、平台签名播放 URL、Cookie/授权头、HLS 密钥永远不进
+//    前端投影（lib/video/projection.ts 白名单挑选 + 组件纯渲染后端字段）。
+
+// ── 视频嵌入视图（阅读/管理端） ─────────────────────────────────────────
+
+/** 视频引用类型（VIDEO-PLUGIN.md §4 `video_embeds.provider`）。 */
+export type VideoEmbedProvider = 'direct' | 'hls' | 'xigua';
+
+/** 视频引用状态（VIDEO-PLUGIN.md §4 `video_embeds.status`）。 */
+export type VideoEmbedStatus = 'pending' | 'ready' | 'blocked' | 'error' | 'removed';
+
+/** 视频挂载目标（帖子或评论，契约 VideoResolveRequest.target_type）。 */
+export type VideoTargetType = 'post' | 'comment';
+
+/** 视频嵌入视图（GET /api/v1/video-embeds/{id} 投影）。
+ *
+ * Security 边界：
+ *  - `media_url`（direct/hls 源）/`official_url`（xigua 官方 iframe）/
+ *    `source_url`/`poster_url`/`caption_url` 只来自后端白名单投影——受限
+ *    内容后端省略这些字段（undefined），前端一律不自行拼接 URL；
+ *  - blocked/removed 时渲染层连后端返回的 URL 都不渲染（M10-UI-04 双保险，
+ *    见 lib/video/projection.ts 与 VideoEmbedView.svelte）；
+ *  - `title`/`poster_url` 为不可信内容，仅作安全纯文本/受限 img 渲染。 */
+export interface VideoEmbedView {
+  id: string;
+  provider: VideoEmbedProvider;
+  status: VideoEmbedStatus;
+  media_type?: string | null;
+  title?: string | null;
+  /** Direct/HLS 媒体源（浏览器直连已验证 HTTPS 来源；ready 且可见时返回）。 */
+  media_url?: string | null;
+  /** 官方 iframe 嵌入 URL（xigua；ready 且可见时返回）。 */
+  official_url?: string | null;
+  /** 规范化来源 URL（外链卡片；后端控制返回）。 */
+  source_url?: string | null;
+  /** 来源白名单内的封面 URL（受限内容省略）。 */
+  poster_url?: string | null;
+  /** 字幕/说明轨 URL（后端提供时用于 `<track kind="captions">`）。 */
+  caption_url?: string | null;
+  duration_seconds?: number | null;
+  /** 生成/校验此投影时生效的 Provider 策略版本。 */
+  policy_version?: number;
+  last_checked_at?: number | null;
+  version: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Provider 脱敏状态（resolve 预览用；Secret 只返回布尔，与 AI Provider
+ *  投影同策略）。 */
+export interface VideoProviderStatusView {
+  provider: string;
+  /** Provider 是否启用（管理员策略）。 */
+  enabled?: boolean;
+  /** Provider 当前是否可用（健康/限流/预算裁决）。 */
+  available?: boolean;
+}
+
+/** POST /api/v1/video-embeds/resolve 响应投影。
+ *
+ * 只保留展示/创建所需字段；不可嵌入时（无嵌入权限/限流/下架/Provider 故障）
+ * `embeddable=false` + `degraded_reason` 稳定码 → 前端降级为安全外链卡片，
+ * 不阻塞发帖（VIDEO-PLUGIN.md §3）。Provider Secret/签名播放 URL 不进投影。 */
+export interface VideoResolveResult {
+  resolution_id: string;
+  provider: VideoEmbedProvider | null;
+  media_type?: string | null;
+  title?: string | null;
+  poster_url?: string | null;
+  media_url?: string | null;
+  official_url?: string | null;
+  source_url?: string | null;
+  duration_seconds?: number | null;
+  /** 当前 Provider 策略版本（创建 embed 时作为 expected_policy_version）。 */
+  policy_version?: number;
+  /** 是否可嵌入；false → 只渲染安全外链卡片。 */
+  embeddable: boolean;
+  /** 不可嵌入的稳定原因码（如 no_embed_permission / provider_unavailable）。 */
+  degraded_reason?: string | null;
+  provider_status?: VideoProviderStatusView | null;
+  checked_at?: number | null;
+}
+
+// ── 管理端 Provider 策略（M10-UI-06） ───────────────────────────────────
+
+/** Provider 策略视图（GET /api/v1/admin/video/policies）。
+ *  字段形状按 docs/VIDEO-PLUGIN.md §4 `video_provider_policies`。 */
+export interface VideoProviderPolicyView {
+  provider: VideoEmbedProvider;
+  enabled: boolean;
+  allowed_hosts: string[];
+  embed_hosts: string[];
+  allowed_media_types: string[];
+  max_duration_seconds?: number | null;
+  max_bytes?: number | null;
+  max_redirects?: number | null;
+  hls_max_depth?: number | null;
+  hls_max_segments?: number | null;
+  hls_max_bytes?: number | null;
+  timeout_ms?: number | null;
+  /** 审计依据之一：策略版本（PATCH If-Match）。 */
+  policy_version: number;
+  updated_at?: number | null;
+}
+
+/** GET /api/v1/admin/video/policies 投影（字段缺失容忍）。 */
+export interface VideoProviderPoliciesView {
+  items: VideoProviderPolicyView[];
+  /** 站点视频能力总开关（Feature Flag；后端返回时使用）。 */
+  enabled?: boolean;
+  version?: number;
+}
+
+/** PATCH /api/v1/admin/video/policies/{provider} body（If-Match + reason 审计）。 */
+export interface VideoProviderPolicyPatch {
+  enabled?: boolean;
+  allowed_hosts?: string[];
+  embed_hosts?: string[];
+  allowed_media_types?: string[];
+  max_duration_seconds?: number | null;
+  max_bytes?: number | null;
+  max_redirects?: number | null;
+  hls_max_depth?: number | null;
+  hls_max_segments?: number | null;
+  hls_max_bytes?: number | null;
+  timeout_ms?: number | null;
+  expected_version: number;
+  /** 必填操作原因（写审计）。 */
+  reason: string;
+}
+
+/** POST /api/v1/admin/video/policies/test 响应：稳定错误码 + 脱敏诊断
+ *  （不回显凭证/内部探测详情）。 */
+export interface VideoProviderTestResult {
   ok: boolean;
   message: string;
   code?: string | null;

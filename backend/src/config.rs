@@ -300,6 +300,11 @@ pub struct AppConfig {
     /// 严格模式下允许的 Origin 集合（默认空 = 宽松模式，仅记录日志）
     #[serde(default)]
     pub allowed_origins: Vec<String>,
+    /// 站点公开源（`https://forum.example.com`，M11-OIDC）：OIDC Discovery/
+    /// issuer/授权码回调等全部 URL 只从该固定、验证过的源派生，不根据不可信
+    /// Host 头动态生成（docs/AUTH-OIDC.md §5）。空 = OIDC 端点返回 server_error。
+    #[serde(default)]
+    pub public_origin: String,
     /// 运行环境（development / test / production；M01-CONFIG-02）
     #[serde(default = "default_env")]
     pub env: String,
@@ -327,6 +332,12 @@ pub struct AppConfig {
     /// 与备份隔离存储）
     #[serde(default)]
     pub mfa_encryption_key: String,
+    /// OIDC 签名私钥加密主密钥（M11-CONSENT-03）：AES-256-GCM 加密
+    /// `oauth_signing_keys.private_key_ciphertext`；空 = OIDC 密钥生成/轮换
+    /// 直接失败（不临时生成新 key 掩盖丢失，readiness 失败）。生产必须配置，
+    /// 与数据库备份分离存储。
+    #[serde(default)]
+    pub oidc_key_encryption_key: String,
     // ── M01-DB-02：数据库连接池与慢查询参数（经 AppConfig::validate 校验）──
     #[serde(default = "default_db_max_connections")]
     pub db_max_connections: u32,
@@ -520,6 +531,8 @@ impl Default for AppConfig {
             totp_window_steps: default_totp_window_steps(),
             step_up_window_secs: default_step_up_window_secs(),
             mfa_encryption_key: String::new(),
+            oidc_key_encryption_key: String::new(),
+            public_origin: String::new(),
         }
     }
 }

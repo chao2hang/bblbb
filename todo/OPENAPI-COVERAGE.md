@@ -7,7 +7,7 @@
 
 - 契约操作：**193**
 - 唯一 operationId：**193**
-- 实现状态：`baseline_only` 3；`implemented` 112；`in_progress` 7；`not_started` 71
+- 实现状态：`baseline_only` 3；`implemented` 112；`in_progress` 7；`not_started` 61；`verified` 10
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 21；`M6` 20；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -172,16 +172,16 @@
 | `get_admin_ai_tasks` | `GET` | `/api/v1/admin/ai/tasks` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
 | `post_admin_ai_tasks_id_cancel` | `POST` | `/api/v1/admin/ai/tasks/{id}/cancel` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
 | `post_admin_ai_tasks_id_retry` | `POST` | `/api/v1/admin/ai/tasks/{id}/retry` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
-| `get_admin_video_policies` | `GET` | `/api/v1/admin/video/policies` | Admin | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `post_admin_video_policies_test` | `POST` | `/api/v1/admin/video/policies/test` | Admin | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `get_admin_video_policies_provider_` | `GET` | `/api/v1/admin/video/policies/{provider}` | Admin | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `patch_admin_video_policies_provider_` | `PATCH` | `/api/v1/admin/video/policies/{provider}` | Admin | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `post_video_embeds` | `POST` | `/api/v1/video-embeds` | Video | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `post_video_embeds_resolve` | `POST` | `/api/v1/video-embeds/resolve` | Video | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `delete_video_embeds_id_` | `DELETE` | `/api/v1/video-embeds/{id}` | Video | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `get_video_embeds_id_` | `GET` | `/api/v1/video-embeds/{id}` | Video | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `patch_video_embeds_id_` | `PATCH` | `/api/v1/video-embeds/{id}` | Video | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
-| `post_video_embeds_id_refresh` | `POST` | `/api/v1/video-embeds/{id}/refresh` | Video | `M10` / `M10-VIDEO` | `P0` | `not_started` | `unassigned` |
+| `get_admin_video_policies` | `GET` | `/api/v1/admin/video/policies` | Admin | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `post_admin_video_policies_test` | `POST` | `/api/v1/admin/video/policies/test` | Admin | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `get_admin_video_policies_provider_` | `GET` | `/api/v1/admin/video/policies/{provider}` | Admin | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `patch_admin_video_policies_provider_` | `PATCH` | `/api/v1/admin/video/policies/{provider}` | Admin | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `post_video_embeds` | `POST` | `/api/v1/video-embeds` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `post_video_embeds_resolve` | `POST` | `/api/v1/video-embeds/resolve` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `delete_video_embeds_id_` | `DELETE` | `/api/v1/video-embeds/{id}` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `get_video_embeds_id_` | `GET` | `/api/v1/video-embeds/{id}` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `patch_video_embeds_id_` | `PATCH` | `/api/v1/video-embeds/{id}` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
+| `post_video_embeds_id_refresh` | `POST` | `/api/v1/video-embeds/{id}/refresh` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
 | `get_well_known_openid_configuration` | `GET` | `/.well-known/openid-configuration` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `not_started` | `unassigned` |
 | `get_oauth_interactions_id_` | `GET` | `/api/v1/oauth/interactions/{id}` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `not_started` | `unassigned` |
 | `post_oauth_interactions_id_decision` | `POST` | `/api/v1/oauth/interactions/{id}/decision` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `not_started` | `unassigned` |

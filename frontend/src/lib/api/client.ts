@@ -66,7 +66,20 @@ import type {
   AiSuggestionAccept,
   AiAdminConfig,
   AiAdminTaskRow,
-  AiProviderTestResult
+  AiProviderTestResult,
+  // M10：视频嵌入（自建投影 + 契约请求体）
+  VideoEmbedProvider,
+  VideoEmbedStatus,
+  VideoTargetType,
+  VideoEmbedView,
+  VideoResolveResult,
+  VideoProviderPoliciesView,
+  VideoProviderPolicyView,
+  VideoProviderPolicyPatch,
+  VideoProviderTestResult,
+  VideoResolveRequest,
+  VideoEmbedCreate,
+  VideoEmbedPatch
 } from './types';
 import type { Problem } from '../errors';
 import { normalizeSearchPage } from '../search';
@@ -139,7 +152,20 @@ export type {
   AiSuggestionAccept,
   AiAdminConfig,
   AiAdminTaskRow,
-  AiProviderTestResult
+  AiProviderTestResult,
+  // M10：视频嵌入（自建投影 + 契约请求体）
+  VideoEmbedProvider,
+  VideoEmbedStatus,
+  VideoTargetType,
+  VideoEmbedView,
+  VideoResolveResult,
+  VideoProviderPoliciesView,
+  VideoProviderPolicyView,
+  VideoProviderPolicyPatch,
+  VideoProviderTestResult,
+  VideoResolveRequest,
+  VideoEmbedCreate,
+  VideoEmbedPatch
 } from './types';
 export type { Problem, ProblemFieldError } from '../errors';
 export type { DownloadResult, EntitlementEquip, Money, ShopOrderCreate } from './types';
@@ -1344,4 +1370,117 @@ export function aiDataModeLabel(mode: string | null | undefined): string {
     full_with_consent: '征得同意后发送完整内容'
   };
   return mode ? (map[mode] ?? mode) : '不发送任何数据';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M10：视频嵌入（M10-UI）
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 端点要求登录 + CSRF + Idempotency-Key（openapi/openapi.yaml：resolve/
+// create/refresh 带 IdempotencyKey 参数；本模块复用 request() 的 CSRF 配对
+// 与 idemHeaders 幂等透传）。请求体只提交 resolution_id 与允许字段
+// （M10-UI-02），Provider Secret/Key 从不进入浏览器 Bundle 或请求体。
+
+/** 稳定短 hash（FNV-1a 32bit → 8 位 hex）：为 URL 生成确定性幂等键
+ *  （契约 Idempotency-Key 16-200 字符；不依赖随机数，重试/重放稳定）。 */
+export function stableShortHash(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/** POST /api/v1/video-embeds/resolve：解析 URL，返回类型与安全元数据
+ *  （M10-UI-01）。返回后端投影原始 JSON；调用方经 pickVideoResolve 白名单
+ *  挑选后再渲染/存储（Provider Secret 绝不入状态）。 */
+export async function resolveVideoEmbed(
+  fetchFn: typeof fetch,
+  sourceUrl: string,
+  targetType: VideoTargetType = 'post'
+): Promise<VideoResolveResult> {
+  return request(fetchFn, '/video-embeds/resolve', {
+    method: 'POST',
+    headers: idemHeaders(`video-resolve-${stableShortHash(sourceUrl.trim().toLowerCase())}`),
+    body: JSON.stringify({ source_url: sourceUrl, target_type: targetType })
+  });
+}
+
+/** POST /api/v1/video-embeds：创建结构化视频引用（M10-UI-02）。
+ *  body 只含契约 VideoEmbedCreate 允许字段（resolution_id/target_type/
+ *  target_id/expected_policy_version）。 */
+export async function createVideoEmbed(
+  fetchFn: typeof fetch,
+  input: VideoEmbedCreate
+): Promise<VideoEmbedView> {
+  return request(fetchFn, '/video-embeds', {
+    method: 'POST',
+    headers: idemHeaders(`video-embed-${input.resolution_id}`),
+    body: JSON.stringify(input)
+  });
+}
+
+/** GET /api/v1/video-embeds/{id}：当前请求方可见投影（受限内容后端省略
+ *  URL 字段；前端经 pickVideoEmbedView 再次挑选）。 */
+export async function getVideoEmbed(fetchFn: typeof fetch, id: string): Promise<VideoEmbedView> {
+  return request(fetchFn, `/video-embeds/${encodeURIComponent(id)}`);
+}
+
+/** POST /api/v1/video-embeds/{id}/refresh：按当前策略异步重新解析元数据
+ *  （返回 202 {task_id,status,poll_url}；失败保留安全外链）。 */
+export async function refreshVideoEmbed(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string
+): Promise<{ task_id: string; status: string; poll_url?: string | null }> {
+  return request(fetchFn, `/video-embeds/${encodeURIComponent(id)}/refresh`, {
+    method: 'POST',
+    headers: idemHeaders(`video-refresh-${id}`),
+    body: JSON.stringify({ client_request_id: clientRequestId })
+  });
+}
+
+/** DELETE /api/v1/video-embeds/{id}：删除未引用视频引用。 */
+export async function deleteVideoEmbed(fetchFn: typeof fetch, id: string): Promise<void> {
+  await request(fetchFn, `/video-embeds/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
+// ─── 管理端：Provider 策略（M10-UI-06） ─────────────────────────────────
+
+/** GET /api/v1/admin/video/policies：全部 Provider 策略（脱敏视图；
+ *  server load 经 pickVideoPolicies 白名单挑选）。 */
+export async function listVideoPolicies(fetchFn: typeof fetch): Promise<VideoProviderPoliciesView> {
+  return request(fetchFn, '/admin/video/policies');
+}
+
+/** PATCH /api/v1/admin/video/policies/{provider}：If-Match 版本守卫 +
+ *  reason（审计）。 */
+export async function updateVideoPolicy(
+  fetchFn: typeof fetch,
+  provider: VideoEmbedProvider,
+  patch: VideoProviderPolicyPatch
+): Promise<VideoProviderPolicyView> {
+  return request(fetchFn, `/admin/video/policies/${encodeURIComponent(provider)}`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(patch.expected_version) },
+    body: JSON.stringify(patch)
+  });
+}
+
+/** POST /api/v1/admin/video/policies/test：测试 Provider 候选/当前配置
+ *  （脱敏诊断，不回显凭证）。 */
+export async function testVideoPolicy(
+  fetchFn: typeof fetch,
+  candidate: Record<string, unknown>,
+  clientRequestId: string
+): Promise<VideoProviderTestResult> {
+  return request(fetchFn, '/admin/video/policies/test', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify(candidate)
+  });
 }

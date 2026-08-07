@@ -317,12 +317,17 @@ async fn enabled_feature_requests_also_pass_security_stack() {
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/video-embeds/resolve")
-                .body(Body::empty())
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"source_url":"https://cdn.example.com/a.mp4","target_type":"post"}"#,
+                ))
                 .unwrap(),
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    // M10-VIDEO-01 已实现该路由：未认证请求进入真实 handler → 401（认证栈），
+    // 而不是 M01 脚手架期的 501（路由不存在）。
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
         response.headers().get("x-content-type-options").unwrap(),
         "nosniff",

@@ -3,7 +3,7 @@
 > 路线图版本：v1.0.0-rc.2
 > 更新日期：2026-08-05
 > 产品基线：Frozen v0.5；产品所有者已确认。
-> 当前阶段：**M0–M9 全部完成（495/783）**；下一任务：[`M10-VIDEO-01`](todo/M08-M12-integrations.md#m10)。
+> 当前阶段：**M10 全部完成（513/783）**；下一任务：[`M11-OIDC-SCHEMA-01`](todo/M08-M12-integrations.md#m11)。
 > 目标：从已交付的规格、OpenAPI、Rust/SvelteKit/迁移/CI 骨架，推进到可正式上线并可恢复的 v1.0。
 
 ## 1. 结论与使用方式
@@ -106,7 +106,7 @@ commit=<hash 或 PR>；review=<评审人/日期或 none>
 | M7 | 账本、等级、签到、商城、装扮 | 5 | 46 | 18 / 28 / 0 | 完成 | [`M06-M07`](todo/M06-M07-storage-economy.md#m7) |
 | M8 | 搜索、Feed、SEO、反爬 | 4 | 36 | 12 / 24 / 0 | 完成 | [`M08-M12`](todo/M08-M12-integrations.md#m8) |
 | M9 | AI Gateway、同意、任务、建议 | 5 | 39 | 24 / 15 / 0 | 完成 | [`M08-M12`](todo/M08-M12-integrations.md#m9) |
-| M10 | Direct/HLS/Xigua 视频 | 2 | 18 | 12 / 6 / 0 | 未开始 | [`M08-M12`](todo/M08-M12-integrations.md#m10) |
+| M10 | Direct/HLS/Xigua 视频 | 2 | 18 | 12 / 6 / 0 | 完成 | [`M08-M12`](todo/M08-M12-integrations.md#m10) |
 | M11 | OIDC Provider | 3 | 27 | 27 / 0 / 0 | 未开始 | [`M08-M12`](todo/M08-M12-integrations.md#m11) |
 | M12 | 第三方 Marketplace 原子账务 | 5 | 43 | 36 / 7 / 0 | 未开始 | [`M08-M12`](todo/M08-M12-integrations.md#m12) |
 | M13 | 主题、插件、管理后台 | 4 | 34 | 18 / 16 / 0 | 未开始 | [`M13-M17`](todo/M13-M17-release.md#m13) |
@@ -114,7 +114,7 @@ commit=<hash 或 PR>；review=<评审人/日期或 none>
 | M15 | 部署、观测、备份、恢复、升级 | 5 | 42 | 42 / 0 / 0 | 未开始 | [`M13-M17`](todo/M13-M17-release.md#m15) |
 | M16 | 契约、安全、故障、性能、RC 测试 | 6 | 48 | 48 / 0 / 0 | 未开始 | [`M13-M17`](todo/M13-M17-release.md#m16) |
 | M17 | 冻结、预发布、专项 Gate、上线 | 6 | 44 | 39 / 0 / 5 | 未开始 | [`M13-M17`](todo/M13-M17-release.md#m17) |
-| **总计** |  | **87** | **783** | **544 / 234 / 5** | **495 完成 / 0 进行中 / 0 阻塞 / 288 未开始** |  |
+| **总计** |  | **87** | **783** | **544 / 234 / 5** | **513 完成 / 0 进行中 / 0 阻塞 / 270 未开始** |  |
 
 5 个 P2 任务只负责在生产中实际开启 Download Billing、AI、Video、OIDC 和 Marketplace。对应实现、安全和专项门槛仍属于 P0/P1，不能用“保持关闭”掩盖实现未完成。若 v1.0 首发继续关闭某项 P2，必须记录负责人、原因、观察条件和后续启用计划。
 
