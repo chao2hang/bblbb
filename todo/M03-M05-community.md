@@ -295,17 +295,16 @@
 
 ## M05-APPEALS：申诉与独立复核
 
-**元数据：** `P1` · `owner=unassigned/backend-moderation` · `risk=high` · `depends=M05-SANCTIONS` · `blocked=none`
+**元数据：** `P1` · `owner=backend-moderation` · `risk=high` · `depends=M05-SANCTIONS` · `blocked=none`
 **目标文件：** `backend/src/moderation/appeals/`、`backend/tests/moderation/appeals*`
 **验收：** submitted/reviewing/upheld/partially_upheld/rejected/withdrawn 合法迁移和权限测试通过。
-
-- [ ] `M05-APPEALS-01` `P1` `[30m]` 实现可申诉对象、窗口、次数、文字长度和附件引用规则。
-- [ ] `M05-APPEALS-02` `P1` `[45m]` 实现用户创建、列表、详情和未审理前撤回。
-- [ ] `M05-APPEALS-03` `P0` `[30m]` 分配复核人时排除原处理者、自身、超范围和无有效 assignment 人员。
-- [ ] `M05-APPEALS-04` `P0` `[45m]` 实现 uphold/partial/reject decision；接受申诉以补偿/撤销记录修正，不删历史。
-- [ ] `M05-APPEALS-05` `P0` `[30m]` 申诉 DTO 分离用户说明与内部 note，双方投影不越界。
-- [ ] `M05-APPEALS-06` `P1` `[45m]` 测试窗口、重复提交、利益冲突、并发 decision 和处罚撤销联动。
-- [ ] `M05-APPEALS-07` `P1` `[30m]` 更新 appeals operation coverage、状态机和通知事件。
+- [x] `M05-APPEALS-01` 证据：files=backend/src/moderation/appeals/service.rs,backend/tests/moderation/appeals.rs；commands=cargo test --test moderation_appeals --all-features 8 pass; contract=可申诉对象=本人名下未撤销处罚；7 天窗口（APPEAL_WINDOW_MS）；每处罚至多一条（0044 UNIQUE）；文字 1..5000 字符；禁止附件引用（![ / attachment:// / @[）; commit=f242434; review=create_appeal_validates_rules_and_window 全断言 `P1` `[30m]` 实现可申诉对象、窗口、次数、文字长度和附件引用规则。
+- [x] `M05-APPEALS-02` 证据：files=backend/src/moderation/appeals/service.rs,backend/src/routes/moderation.rs,backend/tests/moderation/appeals.rs；commands=cargo test --test moderation_appeals 8 pass; contract=create_appeal 写审计+appeal.changed.v1 Outbox；list_own_appeals/get_own_appeal 本人范围（横向越权隔离）；withdraw_appeal 仅 submitted/reviewing 可撤回（STATE-MACHINES Appeal）；路由 /api/v1/appeals(+/{id}/withdraw) 已接线; commit=f242434; review=withdraw_before_decision_only（撤回/已撤回再撤/非本人）断言 `P1` `[45m]` 实现用户创建、列表、详情和未审理前撤回。
+- [x] `M05-APPEALS-03` 证据：files=backend/src/moderation/appeals/service.rs,backend/tests/moderation/appeals.rs；commands=cargo test --test moderation_appeals 8 pass; contract=reviewer_eligibility：排除申诉人本人、原处罚执行者（created_by）、无有效 assignment、超范围（板块处罚需同板块版主/全局角色；全局处罚需全局角色；过期 assignment 无效）；assign_reviewer 置 reviewing; commit=f242434; review=reviewer_eligibility_exclusions + board_scope_reviewer_must_be_in_scope 全断言 `P0` `[30m]` 分配复核人时排除原处理者、自身、超范围和无有效 assignment 人员。
+- [x] `M05-APPEALS-04` 证据：files=backend/src/moderation/appeals/service.rs,backend/tests/moderation/appeals.rs；commands=cargo test --test moderation_appeals 8 pass; contract=decide_appeal 只追加 appeal_decisions（decision_note 记录补偿/理由）；uphold 追加 sanction_reversals 撤销原处罚（ban 恢复账号 active，不删历史）；partial/reject 不改处罚；审计+Outbox；决定者=复核人并过资格校验; commit=f242434; review=decide_uphold_revokes_sanction_and_restores_ban（reversals 1 条 + 账号恢复 + 原行 created_at 不变）断言 `P0` `[45m]` 实现 uphold/partial/reject decision；接受申诉以补偿/撤销记录修正，不删历史。
+- [x] `M05-APPEALS-05` 证据：files=backend/src/moderation/appeals/service.rs,backend/tests/moderation/appeals.rs；commands=cargo test --test moderation_appeals 8 pass; contract=own_appeal_projection 只含本人字段（无 reviewed_by/decision_note/conflict_of_interest/decisions/user_id）；admin_appeal_projection 含内部 note 与复核人（MODERATION.md §6 申诉内容仅审核员可见）; commit=f242434; review=projections_do_not_cross_boundaries 断言双方投影键不越界 `P0` `[30m]` 申诉 DTO 分离用户说明与内部 note，双方投影不越界。
+- [x] `M05-APPEALS-06` 证据：files=backend/tests/moderation/appeals.rs,backend/Cargo.toml；commands=cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; cargo test --test moderation_cases 13 pass; cargo test --test moderation_sanctions 7 pass（处罚撤销联动不回归）; contract=覆盖：窗口/重复提交/越权/附件引用、撤回、利益冲突排除（本人/原处理者/无 assignment/超范围）、并发 decision（updated_at 乐观版本守卫 StaleVersion）、uphold 撤销联动; commit=f242434; review=8 用例全绿 + migration_equivalence/lifecycle 不回归 `P1` `[45m]` 测试窗口、重复提交、利益冲突、并发 decision 和处罚撤销联动。
+- [x] `M05-APPEALS-07` 证据：files=scripts/sync-operation-coverage.rb,todo/openapi-operation-coverage.json,docs/EVENT-CATALOG.md,backend/src/events.rs；commands=ruby scripts/sync-operation-coverage.rb --check; ruby scripts/check-event-catalog.rb 23/23; cargo test --lib events 3 pass; contract=appeal 6 op（listOwnAppeals/createAppeal/getOwnAppeal/listModerationAppeals/getModerationAppeal/decideModerationAppeal）标记 implemented（owner=backend-moderation，work_package=M05-APPEALS）；EVENT-CATALOG 登记 appeal.changed.v1 并注册 events.rs; commit=f242434; review=coverage --check + event-catalog 23/23 + events.rs registry 23 项断言 `P1` `[30m]` 更新 appeals operation coverage、状态机和通知事件。
 
 ## M05-NOTIFY：站内通知与邮件投递
 
