@@ -308,19 +308,18 @@
 
 ## M05-NOTIFY：站内通知与邮件投递
 
-**元数据：** `P1` · `owner=unassigned/backend-notifications` · `risk=high` · `depends=M05-CASES,M01-JOBS` · `blocked=none`
+**元数据：** `P1` · `owner=backend-notifications` · `risk=high` · `depends=M05-CASES,M01-JOBS` · `blocked=none`
 **目标文件：** `backend/src/notifications/`、`backend/src/email/`、`backend/tests/notifications/`
 **验收：** Notifications operation、Outbox/Job 重试、偏好和隐藏内容摘要测试通过。
-
-- [ ] `M05-NOTIFY-01` `P1` `[30m]` 定义回复、引用、提及、审核、处罚、申诉、等级和安全通知模板键。
-- [ ] `M05-NOTIFY-02` `P0` `[30m]` 通知 payload 只存资源 ID 与安全模板参数，不复制隐藏正文或内部 note。
-- [ ] `M05-NOTIFY-03` `P1` `[45m]` 实现站内通知 cursor 列表、单条/批量已读和未读计数。
-- [ ] `M05-NOTIFY-04` `P1` `[30m]` 实现类别偏好；强制安全通知不能被普通偏好完全关闭。
-- [ ] `M05-NOTIFY-05` `P1` `[30m]` 以事件/收件人/template 建立去重，重放 Outbox 不重复通知。
-- [ ] `M05-NOTIFY-06` `P0` `[45m]` 读取通知时重新检查目标权限；失权后只显示安全失效状态。
-- [ ] `M05-NOTIFY-07` `P1` `[45m]` 邮件通过 Job 投递，处理临时/永久失败、退避、dead 和管理员重放。
-- [ ] `M05-NOTIFY-08` `P0` `[30m]` 验证邮箱 token、完整邮箱、隐藏正文和 Provider 响应不进入日志。
-- [ ] `M05-NOTIFY-09` `P1` `[45m]` 测试偏好、去重、资源隐藏/删除、邮件失败和无正文泄漏。
+- [x] `M05-NOTIFY-01` 证据：files=backend/src/notifications/templates.rs；commands=cargo test --lib templates 4 pass; contract=TemplateKey 封闭枚举 9 键：reply.created/quote.referenced/mention.created/moderation.action/sanction.applied/sanction.revoked/appeal.changed/level.up/security.notice，各含 legacy type 映射与白名单参数; commit=64ce403; review=template_keys_are_registered_and_parse 断言 `P1` `[30m]` 定义回复、引用、提及、审核、处罚、申诉、等级和安全通知模板键。
+- [x] `M05-NOTIFY-02` 证据：files=backend/src/notifications/templates.rs,backend/src/notifications/service.rs,backend/tests/notifications/notify.rs；commands=cargo test --test notifications_notify 6 pass; contract=create_notification 只存资源 ID（resource_type/id）+ 安全模板参数；FORBIDDEN_NOTIFICATION_PARAMS（body/content/note/reason 等）一律拒绝，不复制隐藏正文或内部 note; commit=64ce403; review=create_notification_validates_and_dedups 全断言 `P0` `[30m]` 通知 payload 只存资源 ID 与安全模板参数，不复制隐藏正文或内部 note。
+- [x] `M05-NOTIFY-03` 证据：files=backend/src/notifications/service.rs,backend/src/routes/moderation.rs,backend/tests/notifications/notify.rs；commands=cargo test --test notifications_notify 6 pass; contract=list_notifications 游标分页（UUIDv7 id 字典序即时间序、has_more）；mark_read/mark_all_read/unread_count；路由 /api/v1/notifications + /{id}/read + /read-all 已接线; commit=64ce403; review=list_cursor_and_read_flows（翻页不重复/未读计数/幂等已读）断言 `P1` `[45m]` 实现站内通知 cursor 列表、单条/批量已读和未读计数。
+- [x] `M05-NOTIFY-04` 证据：files=backend/src/notifications/service.rs,backend/tests/notifications/notify.rs；commands=cargo test --test notifications_notify 6 pass; contract=get_preferences 缺行默认全开；set_preference upsert；security 类别全关被拒（模型 validate + 0045 CHECK 双保险），普通类别允许全关; commit=64ce403; review=preferences_security_never_fully_disabled 断言 `P1` `[30m]` 实现类别偏好；强制安全通知不能被普通偏好完全关闭。
+- [x] `M05-NOTIFY-05` 证据：files=backend/src/notifications/service.rs,backend/tests/notifications/notify.rs；commands=cargo test --test notifications_notify 6 pass; contract=去重键 = {user_id}|{template}|{resource_type}|{resource_id} 配合 UNIQUE(user_id,delivery_dedup_key)，INSERT OR IGNORE/INSERT IGNORE 幂等——重放 Outbox 不重复通知; commit=64ce403; review=create_notification_validates_and_dedups（同键重放 inserted=false）断言 `P1` `[30m]` 以事件/收件人/template 建立去重，重放 Outbox 不重复通知。
+- [x] `M05-NOTIFY-06` 证据：files=backend/src/notifications/service.rs,backend/tests/notifications/notify.rs；commands=cargo test --test notifications_notify 6 pass; contract=project_list 读取时复查 posts.status，hidden/deleted 只显示安全失效状态（title=内容不可用/link=null/unavailable=true），不泄漏原标题/正文; commit=64ce403; review=permission_recheck_hides_unavailable_content 断言 `P0` `[45m]` 读取通知时重新检查目标权限；失权后只显示安全失效状态。
+- [x] `M05-NOTIFY-07` 证据：files=backend/src/email/service.rs,backend/tests/notifications/notify.rs；commands=cargo test --test notifications_notify 6 pass; cargo clippy -D warnings 0; contract=email.deliver Job（payload 只存 user_id 引用）；成功 complete_job；ProviderError::classify：SMTP 4xx 临时→退避重试（retry_wait），5xx 永久→dead；replay_email_job 管理员重放（dead→queued）; commit=64ce403; review=email_job_transient_retry_permanent_dead_replay 全断言 `P1` `[45m]` 邮件通过 Job 投递，处理临时/永久失败、退避、dead 和管理员重放。
+- [x] `M05-NOTIFY-08` 证据：files=backend/src/email/service.rs,backend/tests/notifications/notify.rs；commands=cargo test --test notifications_notify 6 pass; contract=payload 经 validate_mail_payload（禁明文 token）+ validate_params（禁隐藏正文）；sanitize_log 掩码完整邮箱（a***@domain）+ redact_token + 不输出正文/Provider 响应原文; commit=64ce403; review=email_payload_and_log_sanitization（token 入参被拒 + 日志不含邮箱/正文/token）断言 `P0` `[30m]` 验证邮箱 token、完整邮箱、隐藏正文和 Provider 响应不进入日志。
+- [x] `M05-NOTIFY-09` 证据：files=backend/tests/notifications/notify.rs,backend/Cargo.toml；commands=cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; cargo test --test notifications_schema 4 pass; cargo test --test http 通过（通知路由不回归）; contract=覆盖：偏好（含 security 不可全关）、去重重放、资源隐藏/删除后安全失效、邮件临时/永久失败与重放、payload 与日志无正文泄漏; commit=64ce403; review=6 用例全绿 + migration_equivalence/lifecycle 不回归 `P1` `[45m]` 测试偏好、去重、资源隐藏/删除、邮件失败和无正文泄漏。
 
 ## M05-UI：举报、审核、申诉与通知前端
 
