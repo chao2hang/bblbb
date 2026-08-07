@@ -62,3 +62,8 @@ path = "tests/moderation/cases.rs"
 [[test]]
 name = "moderation_sanctions"
 path = "tests/moderation/sanctions.rs"
+
+# M05-APPEALS 测试（嵌套目录不参与自动发现，需显式注册）
+[[test]]
+name = "moderation_appeals"
+path = "tests/moderation/appeals.rs"

@@ -16,6 +16,7 @@ pub mod types {
     pub const COMMENT_CREATED: &str = "comment.created.v1";
     pub const MODERATION_CASE_CHANGED: &str = "moderation.case_changed.v1";
     pub const SANCTION_CHANGED: &str = "sanction.changed.v1";
+    pub const APPEAL_CHANGED: &str = "appeal.changed.v1";
     pub const ATTACHMENT_READY: &str = "attachment.ready.v1";
     pub const DOWNLOAD_AUTHORIZATION_CREATED: &str = "download.authorization_created.v1";
     pub const POINTS_OPERATION_COMPLETED: &str = "points.operation_completed.v1";
@@ -43,6 +44,7 @@ pub fn all_event_types() -> &'static [&'static str] {
         types::COMMENT_CREATED,
         types::MODERATION_CASE_CHANGED,
         types::SANCTION_CHANGED,
+        types::APPEAL_CHANGED,
         types::ATTACHMENT_READY,
         types::DOWNLOAD_AUTHORIZATION_CREATED,
         types::POINTS_OPERATION_COMPLETED,
@@ -99,7 +101,7 @@ mod tests {
         events.sort();
         events.dedup();
         assert_eq!(events.len(), total, "事件注册表不得有重复");
-        assert_eq!(total, 22, "与 EVENT-CATALOG.md 的 22 个事件一致");
+        assert_eq!(total, 23, "与 EVENT-CATALOG.md 的 23 个事件一致");
     }
 
     #[test]

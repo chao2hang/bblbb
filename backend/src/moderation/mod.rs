@@ -12,8 +12,10 @@
 //!   内容动作（hide/restore/delete 等）与审计/Outbox；
 //! - `sanctions`（M05-SANCTIONS）：处罚创建/撤销/实时计算、ban 撤销 Session、
 //!   越权防护与安全状态投影；
-//! - `appeals`：后续 Wave 由对应 agent 添加 `pub mod` 声明并落地实现。
+//! - `appeals`（M05-APPEALS）：申诉创建/撤回/分配复核人/决定、只追加决定、
+//!   uphold 联动撤销记录修正、申诉人/审核员双投影。
 
+pub mod appeals;
 pub mod cases;
 pub mod model;
 pub mod risk;

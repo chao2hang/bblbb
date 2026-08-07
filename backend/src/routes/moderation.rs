@@ -15,9 +15,11 @@ use crate::{
     authz::decision::AUTHZ_POLICY_VERSION,
     authz::enforce::authorize_action,
     error::AppError,
+    moderation::appeals::service as appeals,
+    moderation::appeals::service::AppealsError,
     moderation::cases::service as cases,
     moderation::cases::service::CasesError,
-    moderation::model::{CasePriority, CaseStatus, ReportReasonCode, ReportTargetType},
+    moderation::model::{AppealDecisionValue, CasePriority, CaseStatus, ReportReasonCode, ReportTargetType},
 };
 
 /// 审核路由：举报、案件、申诉、处罚、通知
@@ -27,6 +29,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/reports/{id}/withdraw", post(withdraw_report))
         .route("/api/v1/appeals", get(list_own_appeals).post(create_appeal))
         .route("/api/v1/appeals/{id}", get(get_own_appeal))
+        .route(
+            "/api/v1/appeals/{id}/withdraw",
+            post(withdraw_appeal),
+        )
         .route("/api/v1/notifications", get(list_notifications))
         .route(
             "/api/v1/notifications/{id}/read",
@@ -376,62 +382,148 @@ async fn withdraw_report(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ─── 申诉端点（桩实现） ──────────────────────────────────────────────────
+// ─── 申诉端点（M05-APPEALS） ───────────────────────────────────────────
 
+fn map_appeals_error(err: AppealsError, request_id: &'static str) -> AppError {
+    match err {
+        AppealsError::NotFound(msg) => AppError::not_found(msg, request_id),
+        AppealsError::Forbidden(msg) => AppError::forbidden(msg, request_id),
+        AppealsError::Invalid(msg) => AppError::bad_request(msg, request_id, None),
+        AppealsError::Conflict(msg) => AppError::conflict(msg, request_id),
+        AppealsError::ReviewerConflict(msg) => AppError::conflict(msg, request_id),
+        AppealsError::StaleVersion => AppError::conflict(
+            "appeal version mismatch: concurrent decision",
+            request_id,
+        ),
+        AppealsError::Db(msg) => AppError::internal(msg, request_id),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct CreateAppealRequest {
+    sanction_id: String,
+    content: String,
+}
+
+/// GET /api/v1/appeals — 我的申诉列表（申诉人侧投影）
 async fn list_own_appeals(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthSession,
 ) -> Result<Json<Value>, AppError> {
-    let _user = auth.require_auth("list_own_appeals")?;
+    let request_id = "list_own_appeals";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let items = appeals::list_own_appeals(pool, &user.id, 50)
+        .await
+        .map_err(|e| map_appeals_error(e, request_id))?;
+    let items: Vec<Value> = items
+        .iter()
+        .map(appeals::own_appeal_projection)
+        .collect();
     Ok(Json(
-        json!({ "items": [], "next_cursor": null, "has_more": false }),
+        json!({ "items": items, "next_cursor": null, "has_more": false }),
     ))
 }
 
+/// POST /api/v1/appeals — 创建申诉
 async fn create_appeal(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthSession,
+    Json(req): Json<CreateAppealRequest>,
 ) -> Result<(StatusCode, Json<Value>), AppError> {
-    let _user = auth.require_auth("create_appeal")?;
+    let request_id = "create_appeal";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let appeal = appeals::create_appeal(
+        pool,
+        &user.id,
+        appeals::CreateAppealInput {
+            sanction_id: req.sanction_id,
+            message: req.content,
+        },
+        appeals::now(),
+    )
+    .await
+    .map_err(|e| map_appeals_error(e, request_id))?;
     Ok((
         StatusCode::CREATED,
-        Json(json!({ "id": uuid::Uuid::now_v7().to_string(), "status": "pending" })),
+        Json(appeals::own_appeal_projection(&appeal)),
     ))
 }
 
+/// GET /api/v1/appeals/{id} — 我的申诉详情
 async fn get_own_appeal(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthSession,
-    Path(_id): Path<String>,
+    Path(id): Path<String>,
 ) -> Result<Json<Value>, AppError> {
-    let _user = auth.require_auth("get_own_appeal")?;
-    Err(AppError::not_found("appeal not found", "get_own_appeal"))
+    let request_id = "get_own_appeal";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let appeal = appeals::get_own_appeal(pool, &user.id, &id)
+        .await
+        .map_err(|e| map_appeals_error(e, request_id))?;
+    Ok(Json(appeals::own_appeal_projection(&appeal)))
+}
+
+/// POST /api/v1/appeals/{id}/withdraw — 未审理前撤回
+async fn withdraw_appeal(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let request_id = "withdraw_appeal";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    appeals::withdraw_appeal(pool, &user.id, &id, appeals::now())
+        .await
+        .map_err(|e| map_appeals_error(e, request_id))?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ─── 管理端审核端点（M05-CASES-03/04/05） ───────────────────────────────
 
-async fn require_moderation(
+async fn require_moderation_perm(
     pool: &crate::db::DatabasePool,
     user_id: &str,
-    board_id: Option<&str>,
+    permission: &str,
     request_id: &'static str,
 ) -> Result<(), AppError> {
-    let decision = authorize_action(
-        pool,
-        user_id,
-        "moderation.review",
-        board_id,
-        AUTHZ_POLICY_VERSION,
-    )
-    .await
-    .map_err(|e| AppError::internal(e, request_id))?;
+    let decision = authorize_action(pool, user_id, permission, None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
     if !decision.is_allowed() {
         return Err(AppError::forbidden(
-            "moderation.review permission required",
+            format!("{permission} permission required"),
             request_id,
         ));
     }
     Ok(())
+}
+
+async fn require_moderation(
+    pool: &crate::db::DatabasePool,
+    user_id: &str,
+    _board_id: Option<&str>,
+    request_id: &'static str,
+) -> Result<(), AppError> {
+    require_moderation_perm(pool, user_id, "moderation.review", request_id).await
 }
 
 #[derive(serde::Deserialize)]
@@ -667,22 +759,115 @@ async fn assign_moderation_case(
     Ok(Json(json!({ "id": id, "assigned_to": req.assignee_id })))
 }
 
-async fn list_moderation_appeals(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listModerationAppeals")
+/// GET /api/v1/admin/moderation/appeals — 管理端申诉列表（审核员侧投影）
+async fn list_moderation_appeals(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "list_moderation_appeals";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_moderation(pool, &user.id, None, request_id).await?;
+
+    let items = appeals::list_all_appeals(pool, 100)
+        .await
+        .map_err(|e| map_appeals_error(e, request_id))?;
+    let mut projected = Vec::with_capacity(items.len());
+    for appeal in items {
+        let decisions = appeals::list_decisions(pool, &appeal.id)
+            .await
+            .map_err(|e| map_appeals_error(e, request_id))?;
+        projected.push(appeals::admin_appeal_projection(&appeal, &decisions));
+    }
+    Ok(Json(json!({ "items": projected })))
 }
 
+/// GET /api/v1/admin/moderation/appeals/{id} — 管理端申诉详情
 async fn get_moderation_appeal(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("getModerationAppeal")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_moderation_appeal";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_moderation(pool, &user.id, None, request_id).await?;
+
+    let row: Option<AppealAdminRow> = match pool {
+        Either::Left(p) => sqlx::query_as::<_, AppealAdminRow>(
+            "SELECT id, sanction_id, user_id, message, status, reviewed_by, decided_at, submitted_at, updated_at
+             FROM appeals WHERE id = ?",
+        )
+        .bind(&id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_as::<_, AppealAdminRow>(
+            "SELECT id, sanction_id, user_id, message, status, reviewed_by, decided_at, submitted_at, updated_at
+             FROM appeals WHERE id = ?",
+        )
+        .bind(&id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    let Some(row) = row else {
+        return Err(AppError::not_found("appeal not found", request_id));
+    };
+    let appeal = row.into_model();
+    let decisions = appeals::list_decisions(pool, &id)
+        .await
+        .map_err(|e| map_appeals_error(e, request_id))?;
+    Ok(Json(appeals::admin_appeal_projection(&appeal, &decisions)))
 }
 
+#[derive(serde::Deserialize)]
+struct ModerationDecisionRequest {
+    decision: String,
+    reason: String,
+    expected_version: i64,
+}
+
+/// PATCH /api/v1/admin/moderation/appeals/{id} — 决定申诉（uphold/partial/reject）
 async fn decide_moderation_appeal(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("decideModerationAppeal")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    Json(req): Json<ModerationDecisionRequest>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "decide_moderation_appeal";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_moderation_perm(pool, &user.id, "moderation.sanction", request_id).await?;
+
+    let decision = AppealDecisionValue::parse(&req.decision).ok_or_else(|| {
+        AppError::bad_request(
+            "decision must be upheld, partially_upheld or rejected",
+            request_id,
+            None,
+        )
+    })?;
+    let result = appeals::decide_appeal(
+        pool,
+        &user.id,
+        &id,
+        decision,
+        &req.reason,
+        req.expected_version,
+        appeals::now(),
+    )
+    .await
+    .map_err(|e| map_appeals_error(e, request_id))?;
+    Ok(Json(result))
 }
 
 async fn create_sanction(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
@@ -702,6 +887,37 @@ struct NotificationRow {
     is_read: i64,
     created_at: i64,
     read_at: Option<i64>,
+}
+
+/// 管理端申诉详情行（管理端读取任意申诉）。
+#[derive(sqlx::FromRow)]
+struct AppealAdminRow {
+    id: String,
+    sanction_id: String,
+    user_id: String,
+    message: String,
+    status: String,
+    reviewed_by: Option<String>,
+    decided_at: Option<i64>,
+    submitted_at: i64,
+    updated_at: i64,
+}
+
+impl AppealAdminRow {
+    fn into_model(self) -> crate::moderation::model::Appeal {
+        crate::moderation::model::Appeal {
+            id: self.id,
+            sanction_id: self.sanction_id,
+            user_id: self.user_id,
+            message: self.message,
+            status: crate::moderation::model::AppealStatus::parse(&self.status)
+                .unwrap_or(crate::moderation::model::AppealStatus::Submitted),
+            reviewed_by: self.reviewed_by,
+            decided_at: self.decided_at,
+            submitted_at: self.submitted_at,
+            updated_at: self.updated_at,
+        }
+    }
 }
 
 fn not_implemented(operation: &str) -> (StatusCode, Json<Value>) {

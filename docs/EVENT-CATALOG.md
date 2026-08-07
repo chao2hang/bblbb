@@ -33,6 +33,7 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 | `comment.created.v1` | Comment 提交 | 通知、计数 | 清洗摘要可选 |
 | `moderation.case_changed.v1` | 案件状态迁移（含指派/取消指派） | 通知、报表 | 不含内部备注（`moderation_notes` 不随事件外发） |
 | `sanction.changed.v1` | 处罚创建/生效/到期/撤销 | Session/权限失效、通知 | kind/scope/期限；撤销引用 `sanction_reversals` id |
+| `appeal.changed.v1` | 申诉提交/进入复核/决定/撤回 | 通知、报表 | 仅 appeal/sanction id 与状态，不含正文与内部 note |
 | `attachment.ready.v1` | 完成验证 | 通知、引用 | MIME/大小，无 URL |
 | `download.authorization_created.v1` | 免费或扣费授权 | 风控、统计 | 金额/策略版本 |
 | `points.operation_completed.v1` | 账务提交 | 等级、通知、对账 | 整数 delta，无余额全量 |
@@ -55,7 +56,7 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 > 强制目录与注册表一致）。
 >
 > M05-SCHEMA 落地了治理与通知数据模型（0041-0045）；上报/申诉/通知的
-> 领域事件（`appeal.*`、`sanction.revoked.v1`、`notification.*` 等）在
+> 领域事件（`appeal.changed.v1`、`sanction.changed.v1`、`notification.*` 等）在
 > M05-APPEALS/M05-NOTIFY 实现并注册 `events.rs` 后同步登记到本目录。
 
 ## 3. Webhook

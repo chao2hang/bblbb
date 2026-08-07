@@ -1131,16 +1131,16 @@
       "path": "/api/v1/admin/moderation/appeals",
       "primary_tag": "Moderation",
       "milestone": "M5",
-      "work_package": "M05-CASES",
-      "priority": "P0",
+      "work_package": "M05-APPEALS",
+      "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::list_moderation_appeals",
       "tests": [
-
+        "backend/tests/moderation/appeals.rs::decide_reject_and_partial_are_append_only"
       ],
-      "evidence": null
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
     },
     {
       "operation_id": "getModerationAppeal",
@@ -1148,16 +1148,16 @@
       "path": "/api/v1/admin/moderation/appeals/{id}",
       "primary_tag": "Moderation",
       "milestone": "M5",
-      "work_package": "M05-CASES",
-      "priority": "P0",
+      "work_package": "M05-APPEALS",
+      "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::get_moderation_appeal",
       "tests": [
-
+        "backend/tests/moderation/appeals.rs::projections_do_not_cross_boundaries"
       ],
-      "evidence": null
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
     },
     {
       "operation_id": "decideModerationAppeal",
@@ -1165,16 +1165,16 @@
       "path": "/api/v1/admin/moderation/appeals/{id}",
       "primary_tag": "Moderation",
       "milestone": "M5",
-      "work_package": "M05-CASES",
-      "priority": "P0",
+      "work_package": "M05-APPEALS",
+      "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::decide_moderation_appeal",
       "tests": [
-
+        "backend/tests/moderation/appeals.rs::decide_uphold_revokes_sanction_and_restores_ban"
       ],
-      "evidence": null
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
     },
     {
       "operation_id": "listModerationCases",
@@ -1233,16 +1233,16 @@
       "path": "/api/v1/appeals",
       "primary_tag": "Moderation",
       "milestone": "M5",
-      "work_package": "M05-CASES",
-      "priority": "P0",
+      "work_package": "M05-APPEALS",
+      "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::list_own_appeals",
       "tests": [
-
+        "backend/tests/moderation/appeals.rs::create_appeal_validates_rules_and_window"
       ],
-      "evidence": null
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
     },
     {
       "operation_id": "createAppeal",
@@ -1250,16 +1250,16 @@
       "path": "/api/v1/appeals",
       "primary_tag": "Moderation",
       "milestone": "M5",
-      "work_package": "M05-CASES",
-      "priority": "P0",
+      "work_package": "M05-APPEALS",
+      "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::create_appeal",
       "tests": [
-
+        "backend/tests/moderation/appeals.rs::create_appeal_validates_rules_and_window"
       ],
-      "evidence": null
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
     },
     {
       "operation_id": "getOwnAppeal",
@@ -1267,16 +1267,16 @@
       "path": "/api/v1/appeals/{id}",
       "primary_tag": "Moderation",
       "milestone": "M5",
-      "work_package": "M05-CASES",
-      "priority": "P0",
+      "work_package": "M05-APPEALS",
+      "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::get_own_appeal",
       "tests": [
-
+        "backend/tests/moderation/appeals.rs::projections_do_not_cross_boundaries"
       ],
-      "evidence": null
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD"
     },
     {
       "operation_id": "post_reports",

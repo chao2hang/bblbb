@@ -33,6 +33,7 @@ def assignment_for(tag, path, operation_id)
   when "Comments"
     ["M4", "M04-COMMENTS", "P1"]
   when "Moderation"
+    return ["M5", "M05-APPEALS", "P1"] if path.include?("/appeals")
     ["M5", "M05-CASES", "P0"]
   when "Notifications"
     ["M5", "M05-NOTIFY", "P1"]
