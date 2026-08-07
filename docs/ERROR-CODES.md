@@ -32,6 +32,11 @@
 | `checkout_intent_consumed` | 409 | 意图已被其他请求消费 | 查询原 Purchase |
 | `offer_version_changed` | 409 | 报价版本变化 | 重新读取 Offer |
 | `refund_not_allowed` | 409 | 退款不符合政策 | 转人工或展示原因 |
+| `marketplace_disabled` | 409 | Client/Scope 未激活、被禁用或紧急停用 | 联系管理员；历史交易仍可查询 |
+| `marketplace_invalid_client` | 401 | Client 未知、非 Confidential 或凭证无效 | 修正 Client 凭证 |
+| `refund_exceeds_purchase` | 409 | 累计退款超过原购买金额 | 使用剩余可退金额或转人工 |
+| `merchant_balance_insufficient` | 409 | 商户余额不足，退款进入 requested 且新销售被冻结 | 管理员补足/冲正后重试 |
+| `webhook_invalid_signature` | 401 | Webhook 签名校验失败（错误密钥/过期时间窗/event_id 不匹配） | 校验密钥与 5 分钟时间窗后重放 |
 | `product_unavailable` | 409 | 内部商城商品未发布、过期或停售 | 重新读取商品 |
 | `product_version_changed` | 409 | 商品价格/库存版本变化 | 展示新价格并重新确认 |
 | `shop_purchase_limit_exceeded` | 409 | 商品限购或活动上限 | 不重试同一购买 |

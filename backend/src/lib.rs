@@ -21,6 +21,7 @@ pub mod events;
 pub mod feeds;
 pub mod idempotency;
 pub mod jobs;
+pub mod marketplace;
 pub mod middleware;
 pub mod moderation;
 pub mod notifications;

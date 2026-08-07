@@ -215,6 +215,9 @@ mod tests {
             1,
             now(),
         );
+        // 立即消费 a，避免与同进程并行测试共享的全局 TTL 存储在满载时按最旧
+        // 驱逐本测试的固定时间戳记录（M10 既有并发抖动，测试级加固）。
+        assert!(consume_resolution("u1", &a, now()).is_some());
         let b = issue_resolution(
             "u1",
             Provider::Direct,
@@ -230,7 +233,8 @@ mod tests {
             now(),
         );
         assert_ne!(a, b);
-        assert!(consume_resolution("u1", &a, now()).is_some());
         assert!(consume_resolution("u1", &b, now()).is_some());
+        // 一次性：a 已消费，二次消费返回 None。
+        assert!(consume_resolution("u1", &a, now()).is_none());
     }
 }

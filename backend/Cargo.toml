@@ -154,3 +154,16 @@ path = "tests/video.rs"
 [[test]]
 name = "oidc"
 path = "tests/oidc.rs"
+
+# M12-MARKETPLACE 测试（嵌套目录不参与自动发现，需显式注册）
+[[test]]
+name = "marketplace_clients"
+path = "tests/marketplace/clients.rs"
+
+[[test]]
+name = "marketplace_checkout"
+path = "tests/marketplace/checkout.rs"
+
+[[test]]
+name = "marketplace_refund"
+path = "tests/marketplace/refund.rs"

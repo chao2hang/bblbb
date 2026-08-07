@@ -802,65 +802,70 @@ SQLite：
 
 ## 10. 公开市场交易
 
-完整协议见 [`MARKETPLACE.md`](MARKETPLACE.md)。所有金额继续复用整数最小单位和不可变积分账本。
+完整协议见 [`MARKETPLACE.md`](MARKETPLACE.md)。所有金额继续复用整数最小单位和不可变积分账本。实现版本为不可变迁移 `0056_marketplace.sql`（三库等价）。
 
 ### `marketplace_clients`
 
-- `id`、`oauth_client_id`（唯一，只允许 Confidential Client）、`owner_user_id`、`status`（`pending/enabled/suspended/disabled`）。
-- `approved_scopes_json`、`per_transaction_limit`、`daily_limit`、`risk_level`。
-- `terms_url`、`privacy_url`、`webhook_url`、`webhook_secret_hash/encrypted_secret`、`webhook_key_version`。
-- `approved_by`、`approved_at`、`created_at`、`updated_at`。
-- Webhook Secret 仅创建/轮换时返回一次；按实现选择不可逆验证 hash 或可解密发送密钥，解密主密钥必须与数据库隔离。
+- `id`、`client_id`（唯一，对公开 OAuth `oauth_clients.client_id`）、`oauth_client_id`（唯一，只允许 Confidential Client）、`owner_user_id`、`name`、`status`（`pending/active/disabled/emergency_disabled`）。
+- `terms_url`、`privacy_url`（HTTPS CHECK）、`webhook_url`（HTTPS CHECK）、`webhook_secret_hash`（AES-256-GCM 密文，签名时可解密）、`webhook_secret_version`、`redirect_uris_json`。
+- `fee_bps`（0..=10000）、`version`（If-Match 乐观锁）、`approval_history_json`、`created_by`、`created_at`、`updated_by`、`updated_at`。
+- Webhook Secret 仅创建/轮换时返回一次；解密主密钥（`marketplace_webhook_encryption_key`）必须与数据库隔离，空主密钥 fail closed。
+- 新 Client 注册必须关联已激活的 Confidential OAuth Client；Public Client 拒绝。
+
+### `client_scopes`
+
+- `id`、`client_id`、`scope`（`marketplace.checkout.create/marketplace.purchase/marketplace.offer.write/marketplace.purchases.read/marketplace.refund/marketplace.webhook.manage`）、`status`（`pending/approved/disabled`）。
+- `limits_json`（`max_amount_per_transaction`/`max_amount_daily`/`max_purchases_daily`）、`version`、`effective_at`、`approved_by`、`approved_at`、`revoke_reason`、时间字段。
+- 唯一约束 `(client_id, scope)`；普通 OIDC scope（openid/profile/email）不进入本表（M11 白名单冻结）。
 
 ### `marketplace_merchant_accounts`
 
-- `id`、`client_id`、`owner_user_id`、`currency_id`、`available_balance`、`pending_balance`、`frozen_balance`、`version`、`status`、时间字段。
-- `(client_id, currency_id)` 唯一；余额均为整数且不得为负。所有变更必须由 point operation/transaction 支撑，禁止管理端直接改余额。
-- v1.0 仅为站内托管价值，不支持法币或站外提现；完整规则见 [`MARKETPLACE-ACCOUNTING.md`](MARKETPLACE-ACCOUNTING.md)。
+- `id`、`client_id`、`owner_user_id`、`currency_id`、`available_balance`、`pending_balance`、`frozen_balance`、`version`、`status`（`active/frozen`）、时间字段。
+- `(client_id, currency_id)` 唯一；余额均为整数且不得为负（CHECK）。购买入账 `pending += net`，退款按 pending→available 顺序扣减。
+- 商户资金变动与不可变账本 operation 组（`source_type=marketplace_purchase, source_id=purchase_id`）对账一致；v1.0 仅为站内托管价值，不支持法币或站外提现；完整规则见 [`MARKETPLACE-ACCOUNTING.md`](MARKETPLACE-ACCOUNTING.md)。
 
-### `marketplace_offers`
+### `offers` + `offer_versions`
 
-- `id`、`client_id`、`external_offer_id`、`version`、`status`。
-- `title`、`description_safe`、`currency_id`、`unit_amount`、`stock_policy`、`stock_remaining`、`fee_bps`、`fee_refundable`、`settlement_delay_seconds`。
-- `metadata_json` 仅保存受限、非敏感展示字段；`created_at`、`updated_at`。
-- 唯一约束 `(client_id, external_offer_id, version)`；金额必须非负且受站点上限约束。
-- 换价创建新版本或增加 version；已经创建的 Checkout Intent 保留不可变快照。
+- `id`、`client_id`、`external_offer_id`、`title`、`description_safe`、`currency_id`、`amount`（unit_amount）、`quantity_min/max`。
+- `stock_policy`（`unlimited/finite`）、`stock_remaining`、`status`（`draft/active/paused/disabled`）、`fee_bps`、`version`。
+- 唯一约束 `(client_id, external_offer_id)`；金额非负、库存非负 CHECK。
+- 换价/换库存/换状态创建新版本并写入 `offer_versions` 不可变快照；旧版本不能创建新 Intent（`offer_version_changed` 409）。
 
-### `marketplace_checkout_intents`
+### `checkout_intents`
 
-- `id`（高熵不可猜）、`client_id`、`user_id`、`offer_id`、`offer_version`、`merchant_order_id`。
-- `currency_id`、`quantity`、`unit_amount`、`total_amount` 是服务端报价快照。
-- `status`（`requires_confirmation/succeeded/expired/cancelled`）、`expires_at`、`consumed_at`、`purchase_id`。
-- `created_at`；唯一约束 `(client_id, merchant_order_id)`。
-- 成功状态与 `purchase_id` 必须同时出现；一个 Intent 最多关联一个成功 Purchase。
+- `id`（高熵不可猜）、`client_id`、`user_id`、`offer_id`、`offer_version`、`quantity`、`amount`（服务端快照）、`fee_refundable`、`currency_id`、`merchant_order_id`。
+- `request_hash`、`expires_at`（5 分钟 TTL）、`status`（`pending/consumed/denied/expired`）、`consumed_at`、`version`、`idempotency_scope/key`。
+- 唯一约束 `(client_id, merchant_order_id)` 与 `(idempotency_scope, idempotency_key)`；一次性消费由 `status='consumed'` 条件更新保证。
 
-### `marketplace_purchases`
+### `purchases`
 
-- `id`、`client_id`、`user_id`、`checkout_intent_id`、`merchant_order_id`、`offer_id`、`offer_version`。
-- `currency_id`、`quantity`、`total_amount`、`point_operation_id`。
-- `status`（v1 提交后为 `succeeded/refunded/partially_refunded`）、`refunded_amount`、`created_at`、`updated_at`。
-- 唯一约束 `checkout_intent_id`、`point_operation_id` 和 `(client_id, merchant_order_id)`。
+- `id`、`intent_id`（唯一）、`client_id`、`user_id`、`offer_id`、`offer_version`、`quantity`、`amount`、`fee_amount`、`merchant_net`、`currency_id`。
+- `status`（`succeeded/refunded/partially_refunded`）、`refunded_amount`、`point_operation_id`（买方扣款，唯一）、`merchant_operation_id`（商户入账，唯一）、`fee_operation_id`、`merchant_order_id`、时间字段。
+- 唯一约束 `intent_id`、`point_operation_id`、`merchant_operation_id`、`(client_id, merchant_order_id)`；`refunded_amount <= amount` CHECK 兜底。
 - 普通接口禁止删除；状态只能由受控退款事务按合法状态机推进。
 
-### `marketplace_refunds`
+### `refunds`
 
-- `id`、`purchase_id`、`client_id`、`amount`、`reason_code`、`point_operation_id`、`status`、`created_at`。
-- `idempotency_scope`、`idempotency_key` 组合唯一；`point_operation_id` 唯一。
-- 同一 Purchase 的已提交退款总额不得超过购买金额；在锁定原 Purchase 的事务内验证和更新。
+- `id`、`purchase_id`、`client_id`、`amount`、`status`（`requested/processed`）、`reason_code`、`reason`、`merchant_refund_id`、`reversal_operation_id`、`refunded_by`、`refunded_by_type`（`client/admin`）。
+- `idempotency_scope`、`idempotency_key` 组合唯一；`(client_id, merchant_refund_id)` 唯一。
+- 同一 Purchase 的已提交退款总额不得超过购买金额；在锁定原 Purchase 的事务内验证和更新。余额不足的退款进入 `requested` 并冻结该 Client 新销售，管理员补足/冲正后重试。
 
-### `marketplace_webhook_deliveries`
+### `webhook_deliveries`
 
-- `id`、`client_id`、`outbox_event_id`、`event_id`、`endpoint_snapshot`、`key_version`。
-- `status`、`attempts`、`next_attempt_at`、`last_status_code`、`last_error_code`、`delivered_at`、`created_at`。
-- 唯一约束 `(client_id, event_id)`；不保存完整签名、Secret、Token 或包含敏感信息的响应体。
+- `id`、`event_id`、`client_id`、`event_type`、`payload`（最小化 JSON）、`status`（`pending/sent/failed/dead_letter`）、`attempts`、`max_attempts`、`next_retry_at`、`last_status_code`、`last_error`、`delivered_at`、时间字段。
+- 唯一约束 `(client_id, event_id)`（重放保持原 event_id）；不保存完整签名、Secret、Token 或包含敏感信息的响应体。
+
+### `reconciliation_records`
+
+- `id`、`client_id`、`after_cursor`、`purchases_count`、`amount_sum`、`fee_sum`、`ledger_delta_sum`、`status`（`consistent/diff_found`）、`diffs_json`（差异分类：`missing_ledger_op/amount_mismatch/identity_break/merchant_balance_mismatch`）、`created_at`。
 
 ### 市场购买事务
 
-MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → Offer/库存 → Purchase（退款时）→ point account，避免不同 handler 反向加锁。SQLite 使用 `BEGIN IMMEDIATE`。
+MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → Offer/库存 → 买方 point account → 商户账户 → 平台费账户，避免不同 handler 反向加锁。SQLite 使用 `BEGIN IMMEDIATE`。
 
-事务内依次校验 Client/scope/用户/限额和 Intent，条件消费库存与 Intent，创建 Purchase，更新 `point_accounts`，追加 `point_operations` 与 `point_transactions`，最后写 `audit_logs` 和 `outbox_events`。任何步骤失败全部回滚。相同幂等键重放读取首次持久化结果，不再次扣款。
+事务内依次校验 Client/scope/用户/限额和 Intent，条件消费库存与 Intent，创建 Purchase，更新买方 `point_accounts`（`delta_balance=-amount`）、商户合成账户 `merchant:{client_id}`（`+merchant_net`）与平台费账户 `platform:fees`（`+fee`），追加 `point_operations` 与 `point_transactions`，最后写 `audit_logs` 和 `outbox_events`。任何步骤失败全部回滚。相同幂等键重放读取首次持久化结果，不再次扣款。恒等式 `Σ(delta_balance + delta_pending + delta_frozen) = 0` 由每次购买/退款的对账校验。
 
-退款在锁定原 Purchase 后创建 `marketplace_refunds` 和 `reversal` point operation，更新累计退款并写 Outbox；禁止修改原账本流水。
+退款在锁定原 Purchase 后创建 `refunds` 和 reversal point operation（买方 credit / 商户 debit / 平台费按比例返还），更新累计退款并写 Outbox；禁止修改原账本流水。
 
 ## 11. 附件与对象存储
 

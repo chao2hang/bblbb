@@ -62,6 +62,9 @@ pub fn feature_for_path(path: &str) -> Option<FeatureName> {
     if path.starts_with("/api/v1/marketplace/") {
         return Some(FeatureName::Marketplace);
     }
+    if path.starts_with("/api/v1/admin/marketplace/") {
+        return Some(FeatureName::Marketplace);
+    }
     if path.starts_with("/oauth/")
         || path.starts_with("/.well-known/")
         || path.starts_with("/api/v1/oauth/")
@@ -396,6 +399,10 @@ mod tests {
         );
         assert_eq!(
             feature_for_path("/api/v1/marketplace/offers"),
+            Some(Marketplace)
+        );
+        assert_eq!(
+            feature_for_path("/api/v1/admin/marketplace/clients"),
             Some(Marketplace)
         );
         assert_eq!(feature_for_path("/oauth/token"), Some(Oidc));

@@ -134,3 +134,36 @@ SQLite：使用 `BEGIN IMMEDIATE`，以唯一约束和账户 `version` 条件更
 - OpenAPI 提交并生成兼容性测试客户端。
 - Webhook 签名测试向量、密钥轮换、重试和对账流程有公开接入文档。
 - 在正式实现和上述测试通过前，原型中的市场功能只用于设计演示，不允许接真实资产或生产 Client。
+
+## 12. M12 实现说明（v1.0）
+
+实现对应不可变迁移 `0056_marketplace.sql`（SQLite/MySQL/MariaDB 三库等价），
+领域层在 `backend/src/marketplace/`（clients/offers/checkout/refunds/webhooks/
+reconcile/balance），路由在 `backend/src/routes/marketplace.rs` 与管理端
+`backend/src/routes/admin.rs`，前端在 `frontend/src/routes/marketplace/` 与
+`frontend/src/routes/admin/marketplace/`。
+
+- **认证决策（M12 设计约束 #1）**：OIDC scope 白名单冻结为
+  `openid/profile/email`（M11-CONSENT-06），不存在可用的 user-bound
+  `marketplace.*` Access Token，因此 v1 的 Checkout Intent 创建使用 Session
+  认证（AuthSession），请求体只接受 `client_id/offer_id/
+  expected_offer_version/merchant_order_id/quantity`，金额/货币/收款方全部
+  服务端派生；confirm 使用 Session + CSRF + intent/user/client 一致性校验
+  （`checkout_user_mismatch` 403 / `checkout_interaction_invalid` 409）。
+  服务操作（Offer 创建/更新、退款、服务端 Purchase 查询）使用
+  `Authorization: Basic client_id:client_secret`（Confidential Client 秘密）
+  或管理员（reason + recent-auth）；普通 OIDC scope 永远不能调用扣款接口。
+- **账务恒等式**：买方扣款走不可变账本；商户与平台费使用合成账本账户
+  （`merchant:{client_id}`、`platform:fees`，需真实 users 行以满足
+  `point_accounts` 的 FK，密码哈希 `!` 无法登录），每次购买/退款同事务写
+  多个账本 operation，`Σ(delta_balance + delta_pending + delta_frozen) = 0`
+  由对账校验（docs/MARKETPLACE-ACCOUNTING.md §8）。
+- **Webhook Secret 存储**：明文只在创建/轮换时返回一次；库中保存
+  AES-256-GCM 密文（`marketplace_webhook_encryption_key` 主密钥，空则
+  fail closed），签名时解密；不使用不可逆 hash（HMAC 需要明文密钥）。
+- 管理端扩展接口（Client 注册、scope 审批、Offers、Webhook 投递与重放、
+  对账运行、紧急停用、requested 退款重试）为内部管理端点，不在冻结的
+  193-op OpenAPI 契约中；OpenAPI 已登记的市场/Admin marketplace 操作全部
+  `verified`。
+- v1.0 结算等待期为 7 天（`SETTLEMENT_DELAY_MS`）；`settle_pending` 由
+  定时任务调用（pending→available 不改变总额，version 条件更新 + 审计）。

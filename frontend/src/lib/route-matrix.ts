@@ -66,7 +66,7 @@ export const PROTOTYPE_ROUTE_MATRIX: PrototypeRouteEntry[] = [
   { prototype: '/admin/themes', production: '/admin', status: 'planned', milestone: 'M13', note: '主题随 M13 落地' },
   { prototype: '/admin/plugins', production: '/admin', status: 'planned', milestone: 'M13', note: '插件随 M13 落地' },
   { prototype: '/admin/oauth', production: '/admin', status: 'planned', milestone: 'M13', note: 'OIDC 随 M13 落地' },
-  { prototype: '/admin/marketplace', production: '/admin', status: 'planned', milestone: 'M13', note: 'Marketplace 随 M13 落地' },
+  { prototype: '/admin/marketplace', production: '/admin/marketplace', status: 'shipped', milestone: 'M12', note: 'Marketplace 管理（Client/Scope/Offer/余额/Webhook/对账/紧急停用）随 M12-UI 落地' },
   { prototype: '/admin/shop', production: '/admin/shop', status: 'shipped', milestone: 'M7', note: '商城管理（商品/订单/退款）随 M07-UI 落地' },
   { prototype: '/admin/activity', production: '/admin/activity', status: 'shipped', milestone: 'M7', note: '活跃管理（签到/任务配置）随 M07-UI 落地' },
   { prototype: '/admin/settings', production: '/admin', status: 'planned', milestone: 'M13', note: '后台设置随 M13 落地' }

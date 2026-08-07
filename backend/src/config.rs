@@ -338,6 +338,12 @@ pub struct AppConfig {
     /// 与数据库备份分离存储。
     #[serde(default)]
     pub oidc_key_encryption_key: String,
+    /// Marketplace Webhook Secret 加密主密钥（M12-REFUND-05）：AES-256-GCM
+    /// 加密 `marketplace_clients.webhook_secret_hash`（实为可恢复密文，
+    /// 用于 HMAC 签名）；空 = 轮换/加密直接失败（fail closed）。生产必须
+    /// 配置，与数据库备份分离存储。
+    #[serde(default)]
+    pub marketplace_webhook_encryption_key: String,
     // ── M01-DB-02：数据库连接池与慢查询参数（经 AppConfig::validate 校验）──
     #[serde(default = "default_db_max_connections")]
     pub db_max_connections: u32,
@@ -532,6 +538,7 @@ impl Default for AppConfig {
             step_up_window_secs: default_step_up_window_secs(),
             mfa_encryption_key: String::new(),
             oidc_key_encryption_key: String::new(),
+            marketplace_webhook_encryption_key: String::new(),
             public_origin: String::new(),
         }
     }

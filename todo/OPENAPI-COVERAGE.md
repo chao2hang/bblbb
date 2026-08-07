@@ -7,7 +7,7 @@
 
 - 契约操作：**193**
 - 唯一 operationId：**193**
-- 实现状态：`baseline_only` 3；`implemented` 112；`in_progress` 7；`not_started` 47；`verified` 24
+- 实现状态：`baseline_only` 3；`implemented` 112；`in_progress` 7；`not_started` 35；`verified` 36
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 21；`M6` 20；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -196,18 +196,18 @@
 | `createAdminOAuthClient` | `POST` | `/api/v1/admin/oauth-clients` | OAuth Clients | `M11` / `M11-CONSENT` | `P0` | `verified` | `platform/oidc` |
 | `getAdminOAuthClient` | `GET` | `/api/v1/admin/oauth-clients/{id}` | OAuth Clients | `M11` / `M11-CONSENT` | `P0` | `verified` | `platform/oidc` |
 | `updateAdminOAuthClient` | `PATCH` | `/api/v1/admin/oauth-clients/{id}` | OAuth Clients | `M11` / `M11-CONSENT` | `P0` | `verified` | `platform/oidc` |
-| `get_admin_marketplace_clients` | `GET` | `/api/v1/admin/marketplace/clients` | Admin | `M12` / `M12-CLIENTS` | `P0` | `not_started` | `unassigned` |
-| `patch_admin_marketplace_clients_id_` | `PATCH` | `/api/v1/admin/marketplace/clients/{id}` | Admin | `M12` / `M12-CLIENTS` | `P0` | `not_started` | `unassigned` |
-| `post_admin_marketplace_clients_id_rotate_webhook_secret` | `POST` | `/api/v1/admin/marketplace/clients/{id}/rotate-webhook-secret` | Admin | `M12` / `M12-CLIENTS` | `P0` | `not_started` | `unassigned` |
-| `get_admin_marketplace_transactions` | `GET` | `/api/v1/admin/marketplace/transactions` | Admin | `M12` / `M12-CLIENTS` | `P0` | `not_started` | `unassigned` |
-| `post_marketplace_checkout_intents` | `POST` | `/api/v1/marketplace/checkout-intents` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
-| `post_marketplace_checkout_intents_id_confirm` | `POST` | `/api/v1/marketplace/checkout-intents/{id}/confirm` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
-| `post_marketplace_offers` | `POST` | `/api/v1/marketplace/offers` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
-| `get_marketplace_offers_id_` | `GET` | `/api/v1/marketplace/offers/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
-| `patch_marketplace_offers_id_` | `PATCH` | `/api/v1/marketplace/offers/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
-| `get_marketplace_purchases` | `GET` | `/api/v1/marketplace/purchases` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
-| `get_marketplace_purchases_id_` | `GET` | `/api/v1/marketplace/purchases/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
-| `post_marketplace_purchases_id_refund` | `POST` | `/api/v1/marketplace/purchases/{id}/refund` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `not_started` | `unassigned` |
+| `get_admin_marketplace_clients` | `GET` | `/api/v1/admin/marketplace/clients` | Admin | `M12` / `M12-CLIENTS` | `P0` | `verified` | `platform/marketplace` |
+| `patch_admin_marketplace_clients_id_` | `PATCH` | `/api/v1/admin/marketplace/clients/{id}` | Admin | `M12` / `M12-CLIENTS` | `P0` | `verified` | `platform/marketplace` |
+| `post_admin_marketplace_clients_id_rotate_webhook_secret` | `POST` | `/api/v1/admin/marketplace/clients/{id}/rotate-webhook-secret` | Admin | `M12` / `M12-CLIENTS` | `P0` | `verified` | `platform/marketplace` |
+| `get_admin_marketplace_transactions` | `GET` | `/api/v1/admin/marketplace/transactions` | Admin | `M12` / `M12-CLIENTS` | `P0` | `verified` | `platform/marketplace` |
+| `post_marketplace_checkout_intents` | `POST` | `/api/v1/marketplace/checkout-intents` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `post_marketplace_checkout_intents_id_confirm` | `POST` | `/api/v1/marketplace/checkout-intents/{id}/confirm` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `post_marketplace_offers` | `POST` | `/api/v1/marketplace/offers` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `get_marketplace_offers_id_` | `GET` | `/api/v1/marketplace/offers/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `patch_marketplace_offers_id_` | `PATCH` | `/api/v1/marketplace/offers/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `get_marketplace_purchases` | `GET` | `/api/v1/marketplace/purchases` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `get_marketplace_purchases_id_` | `GET` | `/api/v1/marketplace/purchases/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `post_marketplace_purchases_id_refund` | `POST` | `/api/v1/marketplace/purchases/{id}/refund` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
 | `get_admin_themes` | `GET` | `/api/v1/admin/themes` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
 | `post_admin_themes_data_packages` | `POST` | `/api/v1/admin/themes/data-packages` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
 | `put_admin_themes_default` | `PUT` | `/api/v1/admin/themes/default` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |

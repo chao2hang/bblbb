@@ -3047,13 +3047,13 @@
       "work_package": "M12-CLIENTS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/admin.rs::list_marketplace_clients",
       "tests": [
-
+        "backend/tests/marketplace/clients.rs::public_oauth_client_is_rejected_and_secret_is_hash_only"
       ],
-      "evidence": null
+      "evidence": "M12 complete: admin.manage client list with scopes and merchant balance; cargo test --test marketplace_clients (9 passed); commit=PENDING"
     },
     {
       "operation_id": "patch_admin_marketplace_clients_id_",
@@ -3064,13 +3064,13 @@
       "work_package": "M12-CLIENTS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/admin.rs::update_marketplace_client",
       "tests": [
-
+        "backend/tests/marketplace/clients.rs::scope_approval_workflow_and_ordinary_oidc_scopes_cannot_debit"
       ],
-      "evidence": null
+      "evidence": "M12 complete: admin upsert client + per-scope approval + limits, reason/recent-auth/If-Match/audit; cargo test --test marketplace_clients (9 passed); commit=PENDING"
     },
     {
       "operation_id": "post_admin_marketplace_clients_id_rotate_webhook_secret",
@@ -3081,13 +3081,13 @@
       "work_package": "M12-CLIENTS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/admin.rs::rotate_webhook_secret",
       "tests": [
-
+        "backend/tests/marketplace/refund.rs::webhook_hmac_time_window_replay_and_delivery_records"
       ],
-      "evidence": null
+      "evidence": "M12 complete: webhook secret rotation (encrypted storage, plaintext once); cargo test --test marketplace_refund (9 passed); commit=PENDING"
     },
     {
       "operation_id": "get_admin_marketplace_transactions",
@@ -3098,13 +3098,13 @@
       "work_package": "M12-CLIENTS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/admin.rs::list_marketplace_transactions",
       "tests": [
-
+        "backend/tests/marketplace/refund.rs::reconciliation_classifies_diffs_and_identity_holds"
       ],
-      "evidence": null
+      "evidence": "M12 complete: admin transaction view (purchases/refunds/balances); cargo test --test marketplace_refund (9 passed); commit=PENDING"
     },
     {
       "operation_id": "post_marketplace_checkout_intents",
@@ -3115,13 +3115,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::create_checkout_intent",
       "tests": [
-
+        "backend/tests/marketplace/checkout.rs::idempotency_replay_and_conflict"
       ],
-      "evidence": null
+      "evidence": "M12 complete: session-bound short-TTL intent, server-derived amount/currency/recipient, Idempotency-Key; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
     },
     {
       "operation_id": "post_marketplace_checkout_intents_id_confirm",
@@ -3132,13 +3132,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::confirm_checkout_intent",
       "tests": [
-
+        "backend/tests/marketplace/checkout.rs::concurrent_confirms_exactly_one_succeeds"
       ],
-      "evidence": null
+      "evidence": "M12 complete: Session+CSRF atomic purchase, fixed lock order, BEGIN IMMEDIATE concurrency; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
     },
     {
       "operation_id": "post_marketplace_offers",
@@ -3149,13 +3149,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::create_offer",
       "tests": [
-
+        "backend/tests/marketplace/clients.rs::offers_are_scoped_to_owning_client"
       ],
-      "evidence": null
+      "evidence": "M12 complete: server-side offer registration via confidential client secret; cargo test --test marketplace_clients (9 passed); commit=PENDING"
     },
     {
       "operation_id": "get_marketplace_offers_id_",
@@ -3166,13 +3166,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::get_offer",
       "tests": [
-
+        "backend/tests/marketplace/checkout.rs::intent_binds_user_client_offer_and_is_one_shot_with_ttl"
       ],
-      "evidence": null
+      "evidence": "M12 complete: offer read for session/service/admin; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
     },
     {
       "operation_id": "patch_marketplace_offers_id_",
@@ -3183,13 +3183,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::update_offer",
       "tests": [
-
+        "backend/tests/marketplace/clients.rs::disabled_client_and_revoked_scope_and_old_offer_and_over_limit"
       ],
-      "evidence": null
+      "evidence": "M12 complete: If-Match versioned offer update creating new snapshot; cargo test --test marketplace_clients (9 passed); commit=PENDING"
     },
     {
       "operation_id": "get_marketplace_purchases",
@@ -3200,13 +3200,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::list_purchases",
       "tests": [
-
+        "backend/tests/marketplace/checkout.rs::list_and_get_purchases_respect_scoping"
       ],
-      "evidence": null
+      "evidence": "M12 complete: user-own or client-service scoped list with refunds; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
     },
     {
       "operation_id": "get_marketplace_purchases_id_",
@@ -3217,13 +3217,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::get_purchase",
       "tests": [
-
+        "backend/tests/marketplace/checkout.rs::list_and_get_purchases_respect_scoping"
       ],
-      "evidence": null
+      "evidence": "M12 complete: owner/client/admin scoped purchase detail; cargo test --test marketplace_checkout (11 passed); commit=PENDING"
     },
     {
       "operation_id": "post_marketplace_purchases_id_refund",
@@ -3234,13 +3234,13 @@
       "work_package": "M12-CHECKOUT",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/marketplace",
+      "handler": "backend/src/routes/marketplace.rs::refund_purchase",
       "tests": [
-
+        "backend/tests/marketplace/refund.rs::refund_is_reversal_only_and_respects_cumulative_cap"
       ],
-      "evidence": null
+      "evidence": "M12 complete: reversal-only refund, client service credential or admin (reason+recent-auth); cargo test --test marketplace_refund (9 passed); commit=PENDING"
     },
     {
       "operation_id": "get_admin_themes",

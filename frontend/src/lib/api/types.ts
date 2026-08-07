@@ -1232,3 +1232,143 @@ export interface VideoProviderTestResult {
   code?: string | null;
   elapsed_ms?: number | null;
 }
+// ── M12 第三方 Marketplace 投影（docs/MARKETPLACE.md）──────────────────────
+
+/** 托管 Checkout 确认页视图（GET /api/v1/marketplace/checkout-intents/{id}）。
+ *  金额/货币/余额全部来自服务端快照；页面不提交可篡改的价格/用户/余额。 */
+export interface MarketplaceCheckoutView {
+  intent_id: string;
+  interaction_id: string;
+  version: number;
+  client_id: string;
+  merchant_name: string;
+  terms_url: string;
+  privacy_url: string;
+  offer_id: string;
+  offer_title: string;
+  offer_description?: string | null;
+  offer_version: number;
+  quantity: number;
+  amount: number;
+  currency_id: string;
+  fee_bps: number;
+  fee_refundable: boolean;
+  scopes: string[];
+  balance: number;
+  frozen_balance: number;
+  balance_after: number;
+  expires_at: number;
+  status: string;
+  created_at: number;
+}
+
+/** 市场应用（管理端投影）。 */
+export interface MarketplaceClientView {
+  id: string;
+  client_id: string;
+  owner_user_id: string;
+  name: string;
+  status: string;
+  terms_url: string;
+  privacy_url: string;
+  webhook_url?: string | null;
+  webhook_secret_version: number;
+  redirect_uris: string[];
+  fee_bps: number;
+  version: number;
+  approval_history?: unknown[];
+  created_at: number;
+  updated_at: number;
+  scopes?: MarketplaceScopeView[];
+  balance?: MarketplaceBalanceView | null;
+}
+
+export interface MarketplaceScopeView {
+  scope: string;
+  status: string;
+  limits: Record<string, number>;
+  version: number;
+  effective_at: number;
+  approved_at?: number | null;
+}
+
+export interface MarketplaceBalanceView {
+  client_id: string;
+  currency_id: string;
+  available_balance: number;
+  pending_balance: number;
+  frozen_balance: number;
+  total: number;
+  status: string;
+  version: number;
+}
+
+export interface MarketplaceOfferView {
+  id: string;
+  client_id: string;
+  external_offer_id: string;
+  title: string;
+  description_safe?: string | null;
+  currency_id: string;
+  unit_amount: number;
+  quantity_min: number;
+  quantity_max: number;
+  stock_policy: string;
+  stock_remaining?: number | null;
+  status: string;
+  fee_bps: number;
+  version: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface MarketplaceRefundView {
+  id: string;
+  purchase_id: string;
+  client_id: string;
+  amount: number;
+  status: string;
+  reason_code: string;
+  reason?: string | null;
+  merchant_refund_id: string;
+  reversal_operation_id?: string | null;
+  refunded_by: string;
+  refunded_by_type: string;
+  created_at: number;
+  processed_at?: number | null;
+}
+
+export interface MarketplacePurchaseView {
+  id: string;
+  intent_id: string;
+  client_id: string;
+  user_id: string;
+  offer_id: string;
+  offer_version: number;
+  quantity: number;
+  amount: number;
+  fee_amount: number;
+  merchant_net: number;
+  currency_id: string;
+  status: string;
+  refunded_amount: number;
+  merchant_order_id: string;
+  created_at: number;
+  updated_at: number;
+  refunds?: MarketplaceRefundView[];
+}
+
+export interface MarketplaceDeliveryView {
+  id: string;
+  event_id: string;
+  client_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  status: string;
+  attempts: number;
+  next_retry_at: number;
+  last_status_code?: number | null;
+  last_error?: string | null;
+  delivered_at?: number | null;
+  created_at: number;
+}

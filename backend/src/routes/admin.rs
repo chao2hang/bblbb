@@ -146,15 +146,39 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/v1/admin/marketplace/clients/{id}",
-            patch(update_marketplace_client),
+            get(get_marketplace_client).patch(update_marketplace_client),
         )
         .route(
             "/api/v1/admin/marketplace/clients/{id}/rotate-webhook-secret",
             post(rotate_webhook_secret),
         )
         .route(
+            "/api/v1/admin/marketplace/clients/{id}/emergency-disable",
+            post(emergency_disable_client),
+        )
+        .route(
+            "/api/v1/admin/marketplace/offers",
+            get(list_marketplace_offers),
+        )
+        .route(
             "/api/v1/admin/marketplace/transactions",
             get(list_marketplace_transactions),
+        )
+        .route(
+            "/api/v1/admin/marketplace/webhook-deliveries",
+            get(list_webhook_deliveries),
+        )
+        .route(
+            "/api/v1/admin/marketplace/webhook-deliveries/{id}/replay",
+            post(replay_webhook_delivery),
+        )
+        .route(
+            "/api/v1/admin/marketplace/reconciliation/run",
+            post(run_reconciliation),
+        )
+        .route(
+            "/api/v1/admin/marketplace/refunds/{id}/retry",
+            post(retry_requested_refund),
         )
         // 主题（管理端，公开端在 themes.rs）
         .route("/api/v1/admin/themes", get(list_themes))
@@ -1341,25 +1365,470 @@ async fn update_oauth_client(
 
     Ok(Json(json!({ "client": view })))
 }
-async fn list_marketplace_clients(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_marketplace_clients")
+fn marketplace_err(e: crate::marketplace::MarketplaceError, request_id: &str) -> AppError {
+    crate::marketplace::marketplace_error_to_app(e, request_id)
 }
+
+/// GET /api/v1/admin/marketplace/clients — 列出 Marketplace Client
+/// （admin.manage；含 scope 与商户余额摘要）。
+async fn list_marketplace_clients(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_marketplace_clients";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let after = params.get("after").map(String::as_str);
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(30);
+    let (clients, next_cursor) = crate::marketplace::clients::list_clients(pool, after, limit)
+        .await
+        .map_err(|e| marketplace_err(e, request_id))?;
+    let mut items = Vec::new();
+    for view in clients {
+        let client_id = view["id"].as_str().unwrap_or("").to_string();
+        let scopes = crate::marketplace::clients::list_scopes(pool, &client_id)
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?;
+        let balance = crate::marketplace::balance::balance_view(pool, &client_id).await;
+        let mut v = view;
+        v["scopes"] = json!(scopes);
+        v["balance"] = balance.unwrap_or(json!({"error": "no_merchant_account"}));
+        items.push(v);
+    }
+    Ok(Json(
+        json!({ "clients": items, "next_cursor": next_cursor }),
+    ))
+}
+
+/// GET /api/v1/admin/marketplace/clients/{id} — 单个 Client（admin.manage）。
+async fn get_marketplace_client(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_marketplace_clients_id_";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let client = match crate::marketplace::clients::fetch_client_by_client_id(pool, &id)
+        .await
+        .map_err(|e| marketplace_err(e, request_id))?
+    {
+        Some(c) => c,
+        None => crate::marketplace::clients::fetch_client_by_internal_id(pool, &id)
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?
+            .ok_or_else(|| AppError::not_found("marketplace client not found", request_id))?,
+    };
+    let mut view = crate::marketplace::clients::client_view_json(&client);
+    view["scopes"] = json!(crate::marketplace::clients::list_scopes(pool, &client.id)
+        .await
+        .map_err(|e| marketplace_err(e, request_id))?);
+    view["balance"] = crate::marketplace::balance::balance_view(pool, &client.id)
+        .await
+        .map_err(|e| marketplace_err(e, request_id))?;
+    Ok(Json(view))
+}
+
+/// PATCH /api/v1/admin/marketplace/clients/{id} — 注册/更新 Client、
+/// 逐 scope 审批、状态切换（admin.manage + reason + recent-auth + If-Match +
+/// 审计）。
 async fn update_marketplace_client(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("patch_admin_marketplace_clients_id_")
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "patch_admin_marketplace_clients_id_";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let expected_version = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(1);
+    let client = crate::marketplace::clients::upsert_client(
+        pool,
+        &id,
+        &body,
+        expected_version,
+        &user.id,
+        &user.username,
+        now_millis(),
+    )
+    .await
+    .map_err(|e| marketplace_err(e, request_id))?;
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    AuditEntry::user_action(&user.id, "marketplace.client.update")
+        .with_target("client", &client.client_id)
+        .with_reason(&reason)
+        .with_metadata(json!({ "status": client.status, "version": client.version }))
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let mut view = crate::marketplace::clients::client_view_json(&client);
+    view["scopes"] = json!(crate::marketplace::clients::list_scopes(pool, &client.id)
+        .await
+        .map_err(|e| marketplace_err(e, request_id))?);
+    Ok(Json(view))
 }
+
+/// POST /api/v1/admin/marketplace/clients/{id}/rotate-webhook-secret —
+/// 轮换 Webhook Secret（明文只返回一次）。
 async fn rotate_webhook_secret(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_marketplace_clients_id_rotate_webhook_secret")
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_marketplace_clients_id_rotate_webhook_secret";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let (client, secret) = crate::marketplace::clients::rotate_webhook_secret(
+        pool,
+        &id,
+        &user.id,
+        &reason,
+        &state.config.marketplace_webhook_encryption_key,
+        now_millis(),
+    )
+    .await
+    .map_err(|e| marketplace_err(e, request_id))?;
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let mut view = crate::marketplace::clients::client_view_json(&client);
+    view["webhook_secret"] = json!(secret);
+    Ok(Json(view))
 }
+
+/// POST /api/v1/admin/marketplace/clients/{id}/emergency-disable —
+/// 紧急停用（立即阻止新 Intent/confirm/refund；历史保留）。
+async fn emergency_disable_client(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_marketplace_clients_id_emergency_disable";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let expected_version = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(1);
+    let client = crate::marketplace::clients::emergency_disable(
+        pool,
+        &id,
+        &reason,
+        &user.id,
+        &user.username,
+        expected_version,
+        now_millis(),
+    )
+    .await
+    .map_err(|e| marketplace_err(e, request_id))?;
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    Ok(Json(crate::marketplace::clients::client_view_json(&client)))
+}
+
+/// GET /api/v1/admin/marketplace/offers — 列出报价（可传 client_id 过滤）。
+async fn list_marketplace_offers(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_marketplace_offers";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let items = match params.get("client_id") {
+        Some(client_id) => {
+            let c = crate::marketplace::clients::fetch_client_by_client_id(pool, client_id)
+                .await
+                .map_err(|e| marketplace_err(e, request_id))?;
+            match c {
+                Some(c) => crate::marketplace::offers::list_offers_for_client(pool, &c.id, true)
+                    .await
+                    .map_err(|e| marketplace_err(e, request_id))?,
+                None => Vec::new(),
+            }
+        }
+        None => {
+            // 全部 Client 的 Offer（管理端跨 Client 视图）。
+            let (clients, _) = crate::marketplace::clients::list_clients(pool, None, 500)
+                .await
+                .map_err(|e| marketplace_err(e, request_id))?;
+            let mut all = Vec::new();
+            for c in clients {
+                let id = c["id"].as_str().unwrap_or("").to_string();
+                let mut offers =
+                    crate::marketplace::offers::list_offers_for_client(pool, &id, true)
+                        .await
+                        .map_err(|e| marketplace_err(e, request_id))?;
+                all.append(&mut offers);
+            }
+            all
+        }
+    };
+    Ok(Json(json!({ "offers": items })))
+}
+
+/// GET /api/v1/admin/marketplace/transactions — 交易视图（Purchase + Refund
+/// + 商户余额 + 对账记录）。
 async fn list_marketplace_transactions(
-    State(_state): State<AppState>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_marketplace_transactions")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_marketplace_transactions";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let client_id = params.get("client_id").map(String::as_str);
+    let after = params.get("after").map(String::as_str);
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(30);
+    let purchases = if let Some(c) = client_id {
+        let client = crate::marketplace::clients::fetch_client_by_client_id(pool, c)
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?;
+        match client {
+            Some(client) => crate::marketplace::checkout::list_purchases(
+                pool,
+                None,
+                Some(&client.id),
+                after,
+                limit,
+            )
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?,
+            None => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+    let refunds = if let Some(c) = client_id {
+        let client = crate::marketplace::clients::fetch_client_by_client_id(pool, c)
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?;
+        match client {
+            Some(client) => crate::marketplace::refunds::list_refunds(
+                pool,
+                None,
+                Some(&client.id),
+                after,
+                limit,
+            )
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?,
+            None => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+    let balances = if let Some(c) = client_id {
+        let client = crate::marketplace::clients::fetch_client_by_client_id(pool, c)
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?;
+        match client {
+            Some(client) => vec![crate::marketplace::balance::balance_view(pool, &client.id)
+                .await
+                .map_err(|e| marketplace_err(e, request_id))?],
+            None => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+    Ok(Json(json!({
+        "purchases": purchases,
+        "refunds": refunds,
+        "balances": balances,
+    })))
+}
+
+/// GET /api/v1/admin/marketplace/webhook-deliveries — 投递记录列表。
+async fn list_webhook_deliveries(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_marketplace_webhook_deliveries";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let client_id = params.get("client_id").map(String::as_str);
+    let status = params.get("status").map(String::as_str);
+    let after = params.get("after").map(String::as_str);
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(30);
+    let rows = crate::marketplace::webhooks::list_deliveries(pool, client_id, status, after, limit)
+        .await
+        .map_err(|e| marketplace_err(e, request_id))?;
+    Ok(Json(json!({
+        "deliveries": rows.iter().map(crate::marketplace::webhooks::delivery_json).collect::<Vec<_>>()
+    })))
+}
+
+/// POST /api/v1/admin/marketplace/webhook-deliveries/{id}/replay — 手动重放
+/// （保持原 event_id）。
+async fn replay_webhook_delivery(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_marketplace_webhook_deliveries_id_replay";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let _token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let view = crate::marketplace::webhooks::replay_delivery(
+        pool,
+        &id,
+        None,
+        &state.config.marketplace_webhook_encryption_key,
+        &crate::marketplace::webhooks::UnavailableWebhookClient,
+        now_millis(),
+    )
+    .await
+    .map_err(|e| marketplace_err(e, request_id))?;
+    let _ = AuditEntry::user_action(&user.id, "marketplace.webhook.replay")
+        .with_target("delivery", &id)
+        .with_reason(&reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok(Json(view))
+}
+
+/// POST /api/v1/admin/marketplace/reconciliation/run — 增量对账。
+async fn run_reconciliation(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_marketplace_reconciliation_run";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let _token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let client_key = body
+        .get("client_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("client_id required", request_id, None))?;
+    let after_cursor = body
+        .get("after_cursor")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let client = crate::marketplace::clients::fetch_client_by_client_id(pool, client_key)
+        .await
+        .map_err(|e| marketplace_err(e, request_id))?
+        .ok_or_else(|| AppError::not_found("marketplace client not found", request_id))?;
+    let view = crate::marketplace::reconcile::run_reconciliation(
+        pool,
+        &client.id,
+        after_cursor,
+        now_millis(),
+    )
+    .await
+    .map_err(|e| marketplace_err(e, request_id))?;
+    let _ = AuditEntry::user_action(&user.id, "marketplace.reconciliation.run")
+        .with_target("client", &client.client_id)
+        .with_reason(&reason)
+        .with_metadata(json!({ "status": view["status"] }))
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok(Json(view))
+}
+
+/// POST /api/v1/admin/marketplace/refunds/{id}/retry — 处理 requested 退款
+/// （管理员补偿/冲正后重试）。
+async fn retry_requested_refund(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_marketplace_refunds_id_retry";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let _token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let view =
+        crate::marketplace::refunds::retry_requested_refund(pool, &id, &user.id, now_millis())
+            .await
+            .map_err(|e| marketplace_err(e, request_id))?;
+    let _ = AuditEntry::user_action(&user.id, "marketplace.refund.retry")
+        .with_target("refund", &id)
+        .with_reason(&reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok(Json(view))
 }
 async fn list_themes(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("get_admin_themes")

@@ -63,6 +63,14 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 
 Marketplace 外发 Webhook 从上述已提交事件生成，必须包含 `event_id`、类型、时间、Client、Purchase/Refund ID、状态、金额和货币，不包含内部用户 ID或余额。签名 Header、时间窗和测试向量由 OpenAPI 定义。
 
+M12 实现（`backend/src/marketplace/webhooks.rs`）：
+
+- 事件在业务事务提交后由 Outbox 登记 `webhook_deliveries`（`event_id` 即 Outbox 事件 ID），worker/手动重放异步投递；投递结果不改变已提交购买结果；
+- 签名：`X-BBLBB-Signature = HMAC-SHA-256(secret, "{timestamp}.{event_id}.{body}")`（hex），密钥为该 Client 可轮换的 Webhook Secret（明文只显示一次，库中 AES-256-GCM 密文存储）；附带 `X-BBLBB-Webhook-Timestamp` 与 `X-BBLBB-Webhook-Event-Id`；
+- 接收方必须校验 5 分钟时间窗并按 `event_id` 去重（`event_id_hash` 提供去重摘要）；重放保持原 `event_id`；
+- 非 2xx 指数退避（30s·2^n，上限 10 分钟），超过 `max_attempts`（5）进入 `dead_letter` 保留手动重放；
+- 发送前再次执行 SSRF 校验（私网/回环/链路本地/IPv6 拒绝）；`UnavailableWebhookClient` 在 egress 未配置时安全拒绝。
+
 ## 4. 审计
 
 - 审计记录不是可重放领域事件；不得用 Event 删除或修改审计历史。
