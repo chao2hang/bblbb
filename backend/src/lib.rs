@@ -24,6 +24,7 @@ pub mod jobs;
 pub mod middleware;
 pub mod moderation;
 pub mod notifications;
+pub mod oidc;
 pub mod outbox;
 pub mod ratelimit;
 pub mod reactions;
@@ -34,7 +35,6 @@ pub mod storage;
 pub mod tags;
 pub mod users;
 pub mod video;
-pub mod oidc;
 
 pub use app::{
     build_router, build_router_full, build_router_with_flags, build_router_with_storage,
