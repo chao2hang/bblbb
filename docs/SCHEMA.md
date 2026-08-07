@@ -580,6 +580,14 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 主题内楼层唯一（`UNIQUE(post_id, floor)`，M04-SCHEMA-07 0038）与楼层并发分配
 语义见 M04-COMMENTS-03；楼层分配必须在事务内完成。
 
+**楼层语义（M04-COMMENTS-03，稳定约定）**：
+- 楼层在**写事务内**分配：`MAX(floor)+1`（同主题），`UNIQUE(post_id, floor)`
+  兜底并发；冲突由应用层稳定返回 409（重试需换幂等键），不重编号；
+- 楼层**保持连续**：软删评论（`status='deleted'` + `deleted_at`）保留其楼层，
+  列表以占位投影继续占用该位置（M04-COMMENTS-04），删除不触发重编号；
+- `posts.reply_count` 表示"已发布的回复总数"：创建 +1；软删**不递减**
+  （占位保留，与楼层语义一致）。
+
 ### `post_contents`（M04-SCHEMA-02）
 
 帖子**当前正文**（与 `posts` 1:1，`post_id` 主键 + 级联删除）：

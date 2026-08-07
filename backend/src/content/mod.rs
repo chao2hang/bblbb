@@ -8,3 +8,8 @@ pub mod markdown;
 pub mod model;
 pub mod posts;
 pub mod repository;
+
+// M04-COMMENTS / M04-VISIBILITY：模块骨架由主代理预注册，各域 agent 只填充
+// 各自目录下的实现文件，避免并行编辑本文件产生冲突。
+pub mod comments;
+pub mod visibility;

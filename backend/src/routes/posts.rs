@@ -17,8 +17,19 @@ use crate::{
     auth::session::{is_step_up_required_for_session, AuthSession, SESSION_COOKIE_NAME},
     authz::decision::AUTHZ_POLICY_VERSION,
     authz::enforce::authorize_action,
+    content::comments::service::{
+        comment_json, create_comment as service_create_comment, list_comments_page,
+        load_comment_projection, validate_parent_scope, CommentCursor, CreateCommentError,
+        CreateCommentInput,
+    },
     content::posts::command::{validate_post_create, CreatePostInput},
+    content::posts::publish::PublishBlocked,
     content::posts::service::{edit_post, publish_new_post, EditPostInput, PublishError},
+    content::visibility::cache::cache_headers_for,
+    content::visibility::evaluate::{
+        evaluate, post_grant_key, AccessContent, Actor, DbGrantLookup, EvaluateContext,
+    },
+    content::visibility::projection::{project_post, PostFields},
     db::DatabasePool,
     domain::{
         comments::CommentContent,
@@ -72,17 +83,17 @@ struct UpdatePostRequest {
 
 #[derive(Deserialize)]
 struct CreateCommentRequest {
-    content: String,
+    markdown: String,
     #[serde(default)]
     parent_id: Option<String>,
+    client_request_id: String,
 }
 
 #[derive(Deserialize)]
 struct ListQuery {
-    /// 分页游标（接口契约保留字段，游标分页待实现）
+    /// keyset 游标（`base64url("floor:id")`，M04-COMMENTS-04）。
     #[serde(default)]
-    #[allow(dead_code)]
-    cursor: Option<String>,
+    after: Option<String>,
     #[serde(default = "default_limit")]
     limit: i64,
 }
@@ -255,9 +266,19 @@ async fn get_post_by_id(
 }
 
 /// 发布错误 → Problem detail（预检阻断 → 409/403，其余 400/404/500）。
+///
+/// M04-VISIBILITY-03/04：`VisibilityExceedsLevel` 稳定映射为 422
+/// `visibility_level_exceeds_author`（作者等级不足），其余阻断保持 409。
 fn map_publish_error(err: PublishError) -> AppError {
     const RID: &str = "create_post";
     match err {
+        PublishError::Blocked(PublishBlocked::VisibilityExceedsLevel {
+            requested,
+            author_level,
+        }) => AppError::visibility_level_exceeds_author(
+            format!("visibility_level {requested} exceeds author level {author_level}"),
+            RID,
+        ),
         PublishError::Blocked(b) => AppError::conflict(format!("publish blocked: {b}"), RID),
         PublishError::NotFound(msg) => AppError::not_found(msg, RID),
         PublishError::VersionMismatch { .. } => AppError::conflict(err.to_string(), RID),
@@ -429,9 +450,17 @@ fn sha2_short(input: &str) -> String {
     out[..6].iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// GET /api/v1/posts/{id} — 详情投影（正文 + access_summary + ETag/Cache-Control）
+/// GET /api/v1/posts/{id} — 详情投影（M04-VISIBILITY-07/08/09 集成）。
+///
+/// 统一评估链路：读取帖子 + 访问策略行 → `evaluate(actor, content, ctx)`
+/// （after_reply/paid 走 `content_access_grants`，fail-closed）→ 经
+/// `project_post` 投影（未解锁时 `body_html`/`excerpt`/附件/高亮等敏感键
+/// **完全缺失**，`access_summary`/`capabilities` 恒存在）→ persona 感知
+/// 缓存头（public → `public, max-age=60` + `Vary: Cookie` + 稳定 ETag；
+/// 其余策略 → `private, no-store`，无 ETag，禁止跨 persona 304 泄漏）。
 async fn get_post(
     State(state): State<AppState>,
+    auth: AuthSession,
     Path(id): Path<String>,
 ) -> Result<Response, AppError> {
     let request_id = "get_post";
@@ -444,12 +473,15 @@ async fn get_post(
         Either::Left(p) => sqlx::query_as::<_, PostDetailProjection>(
             "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
                     p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
-                    p.pinned_at, p.scheduled_at, p.published_at, p.slug,
-                    u.username_normalized as author_name,
+                    p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
+                    u.username_normalized as author_name, u.display_name as author_display_name,
+                    u.level as author_level,
+                    pol.kind as policy_kind, pol.min_level as policy_min_level,
                     c.body_html, c.excerpt, c.renderer_version
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
+             LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
              WHERE p.id = ? AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL",
         )
         .bind(&id)
@@ -459,12 +491,15 @@ async fn get_post(
         Either::Right(p) => sqlx::query_as::<_, PostDetailProjection>(
             "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
                     p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
-                    p.pinned_at, p.scheduled_at, p.published_at, p.slug,
-                    u.username_normalized as author_name,
+                    p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
+                    u.username_normalized as author_name, u.display_name as author_display_name,
+                    u.level as author_level,
+                    pol.kind as policy_kind, pol.min_level as policy_min_level,
                     c.body_html, c.excerpt, c.renderer_version
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
+             LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
              WHERE p.id = ? AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL",
         )
         .bind(&id)
@@ -493,28 +528,80 @@ async fn get_post(
         }
     }
 
-    let body = json!({
-        "id": r.id,
-        "board_id": r.board_id,
-        "author": { "id": r.author_id, "username": r.author_name },
-        "post_type": r.post_type,
-        "title": r.title,
-        "status": r.status,
-        "slug": r.slug,
-        "body_html": r.body_html,
-        "excerpt": r.excerpt,
-        "access_summary": { "policy": "public", "unlocked": true },
-        "capabilities": [],
-        "reply_count": r.reply_count,
-        "view_count": r.view_count + 1,
-        "pinned_at": r.pinned_at,
-        "scheduled_at": r.scheduled_at,
-        "published_at": r.published_at,
-        "created_at": r.created_at,
-        "updated_at": r.updated_at,
-        "last_reply_at": r.last_reply_at,
+    // ── M04-VISIBILITY：统一评估 + 投影 + persona 缓存头 ──
+    let policy =
+        crate::domain::posts::AccessPolicy::parse(r.policy_kind.as_deref().unwrap_or("public"))
+            .unwrap_or(crate::domain::posts::AccessPolicy::Public);
+    let min_level = r
+        .policy_min_level
+        .map(|lv| lv.clamp(1, i64::from(u32::MAX)) as u32);
+    let key = post_grant_key(&id);
+    let actor = auth.user.as_ref().map(|u| Actor {
+        id: &u.id,
+        level: u.level.clamp(1, i64::from(u32::MAX)) as u32,
+        username: &u.username,
     });
-    Ok(read_response(body, request_id))
+    let author_level = r.author_level.unwrap_or(1).clamp(1, i64::from(u32::MAX)) as u32;
+    let content = AccessContent {
+        grant_target_key: Some(&key),
+        author_id: Some(&r.author_id),
+        policy,
+        min_level,
+        visibility_level: 1,
+        author_level,
+    };
+    let lookup = DbGrantLookup { pool };
+    let ctx = EvaluateContext {
+        grants: &lookup,
+        now: now_millis(),
+        moderator_override: false,
+    };
+    let grant = evaluate(actor.as_ref(), &content, &ctx).await;
+
+    let fields = PostFields {
+        id: r.id,
+        title: r.title,
+        author_id: r.author_id,
+        author_username: r.author_name,
+        author_display_name: r.author_display_name,
+        author_level: r.author_level.unwrap_or(1),
+        post_type: r.post_type,
+        status: r.status,
+        board_id: r.board_id,
+        slug: r.slug,
+        reply_count: r.reply_count,
+        view_count: r.view_count + 1,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        pinned_at: r.pinned_at,
+        scheduled_at: r.scheduled_at,
+        published_at: r.published_at,
+        last_reply_at: r.last_reply_at,
+        closed_at: r.closed_at,
+        body_html: r.body_html,
+        excerpt: r.excerpt,
+        attachments: Vec::new(),
+        search_highlight: None,
+        restricted_html: None,
+    };
+    let body = project_post(fields, grant, author_level);
+    let ch = cache_headers_for(&grant, &body.to_string());
+
+    let mut resp = (StatusCode::OK, Json(body)).into_response();
+    if let Ok(v) = HeaderValue::from_str(ch.cache_control) {
+        resp.headers_mut().insert(header::CACHE_CONTROL, v);
+    }
+    if let Some(vary) = ch.vary {
+        if let Ok(v) = HeaderValue::from_str(vary) {
+            resp.headers_mut().insert(header::VARY, v);
+        }
+    }
+    if let Some(etag) = ch.etag {
+        if let Ok(v) = HeaderValue::from_str(&etag) {
+            resp.headers_mut().insert(header::ETAG, v);
+        }
+    }
+    Ok(resp)
 }
 
 #[derive(sqlx::FromRow)]
@@ -534,7 +621,12 @@ struct PostDetailProjection {
     scheduled_at: Option<i64>,
     published_at: Option<i64>,
     slug: Option<String>,
+    closed_at: Option<i64>,
     author_name: Option<String>,
+    author_display_name: Option<String>,
+    author_level: Option<i64>,
+    policy_kind: Option<String>,
+    policy_min_level: Option<i64>,
     body_html: Option<String>,
     excerpt: Option<String>,
 }
@@ -823,6 +915,14 @@ async fn update_post(
             AppError::version_conflict(e.to_string(), request_id)
         }
         PublishError::NotFound(msg) => AppError::not_found(msg, request_id),
+        // M04-VISIBILITY-04：编辑时作者等级重检被阻断 → 稳定 422
+        PublishError::Blocked(PublishBlocked::VisibilityExceedsLevel {
+            requested,
+            author_level,
+        }) => AppError::visibility_level_exceeds_author(
+            format!("visibility_level {requested} exceeds author level {author_level}"),
+            request_id,
+        ),
         PublishError::Blocked(b) => AppError::conflict(format!("edit blocked: {b}"), request_id),
         PublishError::Db(msg) => AppError::internal(msg, request_id),
     })?;
@@ -884,12 +984,17 @@ async fn get_post_row(
     Ok(Some((author_id, status, version, updated_at)))
 }
 
-/// GET /api/v1/posts/{id}/comments — 列出评论
+/// GET /api/v1/posts/{id}/comments — 列出评论（keyset 分页 + 软删占位，M04-COMMENTS-04）
+///
+/// 稳定排序 `floor ASC, id ASC`；`after` 为不透明游标 `base64url("floor:id")`
+/// （[`CommentCursor`]）；fetch limit+1 判定 `has_more`。软删/隐藏评论返回
+/// 占位投影（`body_html:null`，不泄漏正文；占位保留楼层）。匿名可读（OpenAPI
+/// `security: *2` = 可选会话）。响应 `Cache-Control: public, max-age=60` + ETag。
 async fn list_comments(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Query(query): Query<ListQuery>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "list_comments";
     let pool = state
         .db
@@ -897,71 +1002,75 @@ async fn list_comments(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
     let limit = query.limit.clamp(1, 50);
+    let after = match query.after.as_deref() {
+        None | Some("") => None,
+        Some(raw) => Some(CommentCursor::decode(raw).map_err(|_| {
+            AppError::bad_request("after must be a valid comment cursor", request_id, None)
+        })?),
+    };
 
-    let comments = match pool {
-        Either::Left(p) => {
-            sqlx::query_as::<_, CommentRow>(
-                "SELECT c.id, c.post_id, c.author_id, c.parent_id, c.content, c.content_format, c.status, c.floor, c.created_at,
-                        u.username_normalized as author_name
-                 FROM comments c
-                 LEFT JOIN users u ON u.id = c.author_id
-                 WHERE c.post_id = ? AND c.status = 'published'
-                 ORDER BY c.floor ASC LIMIT ?",
-            )
-            .bind(&id)
-            .bind(limit)
-            .fetch_all(p)
-            .await
-        }
-        Either::Right(p) => {
-            sqlx::query_as::<_, CommentRow>(
-                "SELECT c.id, c.post_id, c.author_id, c.parent_id, c.content, c.content_format, c.status, c.floor, c.created_at,
-                        u.username_normalized as author_name
-                 FROM comments c
-                 LEFT JOIN users u ON u.id = c.author_id
-                 WHERE c.post_id = ? AND c.status = 'published'
-                 ORDER BY c.floor ASC LIMIT ?",
-            )
-            .bind(&id)
-            .bind(limit)
-            .fetch_all(p)
-            .await
-        }
+    // 主题存在性（published/hidden 且未删除），否则 404
+    let post_exists: Option<i64> = match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT 1 FROM posts WHERE id = ? AND status IN ('published', 'hidden') AND deleted_at IS NULL",
+        )
+        .bind(&id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar(
+            "SELECT 1 FROM posts WHERE id = ? AND status IN ('published', 'hidden') AND deleted_at IS NULL",
+        )
+        .bind(&id)
+        .fetch_optional(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    if post_exists != Some(1) {
+        return Err(AppError::not_found("post not found", request_id));
     }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    let items: Vec<Value> = comments
-        .iter()
-        .map(|c| {
-            json!({
-                "id": c.id,
-                "post_id": c.post_id,
-                "author_id": c.author_id,
-                "author_name": c.author_name,
-                "parent_id": c.parent_id,
-                "content": c.content,
-                "content_format": c.content_format,
-                "floor": c.floor,
-                "created_at": c.created_at,
-            })
-        })
-        .collect();
-
-    Ok(Json(
-        json!({ "items": items, "next_cursor": null, "has_more": false }),
-    ))
+    let (rows, has_more) = list_comments_page(pool, &id, after.as_ref(), limit)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let items: Vec<Value> = rows.iter().map(comment_json).collect();
+    let next_cursor = if has_more {
+        rows.last()
+            .map(|r| CommentCursor::new(r.floor, &r.id).encode())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    let body = json!({
+        "items": items,
+        "page": {
+            "next_cursor": if next_cursor.is_empty() { Value::Null } else { Value::String(next_cursor) },
+            "has_more": has_more,
+        },
+    });
+    Ok(read_response(body, request_id))
 }
 
-/// POST /api/v1/posts/{id}/comments — 创建评论
+/// POST /api/v1/posts/{id}/comments — 创建回复（M04-COMMENTS-01/02/03，幂等）。
+///
+/// 服务端权威流程（与 `create_post` 同一模式）：auth → 邮箱门 → `comment.create`
+/// 权限（含账号状态门）→ 内容/幂等键校验 → 主题 + 板块 + 锁帖（closed_at 即
+/// 回复开关）重检 → parent 存在性 + 同主题 + 可见性（status published 且
+/// `deleted_at IS NULL`，M04-COMMENTS-02）重检 → 幂等门（scope `comment.create`，
+/// 同 key+摘要重放返回原评论、不同摘要 409）→ 事务内原子楼层分配
+/// （MAX(floor)+1，UNIQUE 兜底，M04-COMMENTS-03）→ `complete` → 201 +
+/// `Cache-Control: private, no-store`。
+///
+/// 响应满足 OpenAPI Comment 投影；`body_html` 读取时经
+/// [`crate::content::markdown::render_and_sanitize`] 计算。
 async fn create_comment(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
-    Json(req): Json<CreateCommentRequest>,
-) -> Result<(StatusCode, Json<Value>), AppError> {
+    body: Bytes,
+) -> Result<Response, AppError> {
     let request_id = "create_comment";
     let user = auth.require_auth(request_id)?;
-
     if !user.email_verified {
         return Err(AppError::forbidden(
             "email verification required",
@@ -974,116 +1083,220 @@ async fn create_comment(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    // 领域校验：评论内容规则在 domain 层单一维护
-    let content = CommentContent::parse(&req.content)
+    let decision = authorize_action(pool, &user.id, "comment.create", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "comment.create permission required",
+            request_id,
+        ));
+    }
+
+    let req: CreateCommentRequest = serde_json::from_slice(&body)
+        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+    let hash = crate::idempotency::request_hash(&body);
+
+    // 内容校验（domain 层单一维护；契约 1..300000，domain 权威 1..10000）
+    let content = CommentContent::parse(&req.markdown)
         .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
+    // client_request_id 长度校验（契约 16-200）
+    let crl = req.client_request_id.chars().count();
+    if !(16..=200).contains(&crl) {
+        return Err(AppError::bad_request(
+            "client_request_id must be 16-200 characters",
+            request_id,
+            None,
+        ));
+    }
 
-    let comment_id = uuid::Uuid::now_v7().to_string();
-    let now = chrono::Utc::now().timestamp();
-
-    // 获取当前 floor 数
-    let floor: i64 = match pool {
+    // 主题 + 板块 + 锁帖 重新检查（closed_at 即回复开关）
+    let topic: Option<(String, String, Option<i64>, Option<i64>)> = match pool {
+        // (board_id, status, closed_at, deleted_at)
         Either::Left(p) => {
-            sqlx::query_scalar("SELECT COUNT(*) FROM comments WHERE post_id = ?")
+            sqlx::query_as("SELECT board_id, status, closed_at, deleted_at FROM posts WHERE id = ?")
                 .bind(&id)
-                .fetch_one(p)
+                .fetch_optional(p)
                 .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
         }
         Either::Right(p) => {
-            sqlx::query_scalar("SELECT COUNT(*) FROM comments WHERE post_id = ?")
+            sqlx::query_as("SELECT board_id, status, closed_at, deleted_at FROM posts WHERE id = ?")
                 .bind(&id)
-                .fetch_one(p)
+                .fetch_optional(p)
                 .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
+    };
+    let Some((board_id, status, closed_at, deleted_at)) = topic else {
+        return Err(AppError::not_found("post not found", request_id));
+    };
+    if deleted_at.is_some() || !matches!(status.as_str(), "published" | "hidden") {
+        return Err(AppError::not_found("post not found", request_id));
+    }
+    if closed_at.is_some() {
+        return Err(AppError::conflict(
+            "post is closed for new replies",
+            request_id,
+        ));
+    }
+    // 板块启用
+    let board_active: Option<i64> = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT is_active FROM boards WHERE id = ? AND deleted_at IS NULL")
+                .bind(&board_id)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar("SELECT is_active FROM boards WHERE id = ? AND deleted_at IS NULL")
+                .bind(&board_id)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
+    };
+    if board_active != Some(1) {
+        return Err(AppError::conflict(
+            "board is not accepting replies",
+            request_id,
+        ));
+    }
+
+    // parent 存在性 + 同主题 + 可见性（M04-COMMENTS-02 防跨主题引用泄漏；
+    // 隐藏/已删 parent 返回稳定 400，不泄漏 deleted vs hidden）
+    if let Some(parent_id) = req.parent_id.as_deref() {
+        let parent: Option<(String, String, Option<i64>)> = match pool {
+            // (post_id, status, deleted_at)
+            Either::Left(p) => {
+                sqlx::query_as("SELECT post_id, status, deleted_at FROM comments WHERE id = ?")
+                    .bind(parent_id)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            }
+            Either::Right(p) => {
+                sqlx::query_as("SELECT post_id, status, deleted_at FROM comments WHERE id = ?")
+                    .bind(parent_id)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            }
+        };
+        match parent {
+            Some((pid, parent_status, parent_deleted_at))
+                if pid == id && parent_status == "published" && parent_deleted_at.is_none() =>
+            {
+                // 同主题断言（复用 Comment::validate_quote_scope）
+                validate_parent_scope(&id, &pid)
+                    .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
+            }
+            Some((pid, _, _)) if pid != id => {
+                return Err(AppError::bad_request(
+                    "parent comment must belong to the same post",
+                    request_id,
+                    None,
+                ))
+            }
+            _ => {
+                return Err(AppError::bad_request(
+                    "parent comment not found or not visible",
+                    request_id,
+                    None,
+                ))
+            }
         }
     }
+
+    // 幂等门（M04-COMMENTS-01，镜像 create_post 模式）
+    let idem_key =
+        crate::idempotency::IdempotencyKey::new("comment.create", &req.client_request_id)
+            .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+    let outcome = crate::idempotency::begin_or_replay(
+        pool,
+        &idem_key,
+        &hash,
+        24 * 60 * 60 * 1000,
+        crate::idempotency::FailureCachePolicy::Cache,
+    )
+    .await
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    let floor = floor + 1;
-
-    match pool {
-        Either::Left(p) => {
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "INSERT INTO comments (id, post_id, author_id, parent_id, content, content_format, status, floor, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, 'markdown', 'published', ?, ?, ?)",
+    match outcome {
+        crate::idempotency::IdempotencyOutcome::Created { record_id } => {
+            let comment_id = uuid::Uuid::now_v7().to_string();
+            let now = now_millis();
+            let created = service_create_comment(
+                pool,
+                &CreateCommentInput {
+                    comment_id: comment_id.clone(),
+                    post_id: &id,
+                    author_id: &user.id,
+                    parent_id: req.parent_id.as_deref(),
+                    markdown: content.as_str(),
+                    now,
+                },
             )
-            .bind(&comment_id)
-            .bind(&id)
-            .bind(&user.id)
-            .bind(&req.parent_id)
-            .bind(content.as_str())
-            .bind(floor)
-            .bind(now)
-            .bind(now)
-            .execute(&mut *tx)
             .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            sqlx::query("UPDATE posts SET reply_count = reply_count + 1, last_reply_at = ?, last_reply_by = ?, updated_at = ? WHERE id = ?")
-                .bind(now)
-                .bind(&user.id)
-                .bind(now)
-                .bind(&id)
-                .execute(&mut *tx)
+            .map_err(|e| match e {
+                CreateCommentError::FloorContended => AppError::conflict(
+                    "floor allocation raced with a concurrent reply; retry with a new idempotency key",
+                    request_id,
+                ),
+                CreateCommentError::Db(msg) => AppError::internal(msg, request_id),
+            })?;
+            let _ = crate::idempotency::complete(pool, &record_id, &comment_id)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            tx.commit()
+            // 重读投影（含作者卡 display_name/level）组装响应
+            let projection = load_comment_projection(pool, &comment_id)
                 .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                .ok_or_else(|| AppError::internal("comment not found after insert", request_id))?;
+            let mut resp_body = comment_json(&projection);
+            resp_body["floor"] = json!(created.floor);
+            Ok(private_no_store_response(
+                (StatusCode::CREATED, Json(resp_body)).into_response(),
+            ))
         }
-        Either::Right(p) => {
-            let mut tx = p
-                .begin()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "INSERT INTO comments (id, post_id, author_id, parent_id, content, content_format, status, floor, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, 'markdown', 'published', ?, ?, ?)",
-            )
-            .bind(&comment_id)
-            .bind(&id)
-            .bind(&user.id)
-            .bind(&req.parent_id)
-            .bind(content.as_str())
-            .bind(floor)
-            .bind(now)
-            .bind(now)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            sqlx::query("UPDATE posts SET reply_count = reply_count + 1, last_reply_at = ?, last_reply_by = ?, updated_at = ? WHERE id = ?")
-                .bind(now)
-                .bind(&user.id)
-                .bind(now)
-                .bind(&id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-            tx.commit()
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        crate::idempotency::IdempotencyOutcome::Replay { response_reference } => {
+            // 同 key+摘要重放：返回原评论（按引用读取）
+            if let Some(comment_id) = response_reference {
+                if let Ok(Some(projection)) = load_comment_projection(pool, &comment_id).await {
+                    return Ok(private_no_store_response(
+                        (StatusCode::CREATED, Json(comment_json(&projection))).into_response(),
+                    ));
+                }
+            }
+            Err(AppError::conflict(
+                "idempotent replay but original comment not found",
+                request_id,
+            ))
         }
+        crate::idempotency::IdempotencyOutcome::InProgress => Err(AppError::conflict(
+            "request already in progress",
+            request_id,
+        )),
+        crate::idempotency::IdempotencyOutcome::Conflict => Err(AppError::conflict(
+            "idempotency key reused with different request",
+            request_id,
+        )),
+        crate::idempotency::IdempotencyOutcome::Failed { .. } => Err(AppError::conflict(
+            "previous attempt failed; retry with a new idempotency key",
+            request_id,
+        )),
     }
+}
 
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({
-            "id": comment_id,
-            "post_id": id,
-            "author_id": user.id,
-            "author_name": user.username,
-            "parent_id": req.parent_id,
-            "content": req.content,
-            "floor": floor,
-            "created_at": now,
-        })),
-    ))
+/// 写响应：`Cache-Control: private, no-store`。
+fn private_no_store_response(resp: Response) -> Response {
+    let mut resp = resp;
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    resp
 }
 
 /// POST /api/v1/posts/{id}/reactions — 切换反应（点赞）
@@ -1183,19 +1396,4 @@ async fn toggle_reaction(
         "active": has_reaction,
         "count": count,
     })))
-}
-
-#[derive(sqlx::FromRow)]
-struct CommentRow {
-    id: String,
-    post_id: String,
-    author_id: String,
-    parent_id: Option<String>,
-    content: String,
-    content_format: String,
-    #[allow(dead_code)]
-    status: String,
-    floor: i64,
-    created_at: i64,
-    author_name: Option<String>,
 }
