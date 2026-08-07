@@ -245,19 +245,19 @@
 
 ## M05-RISK：发布前后风险评估
 
-**元数据：** `P0` · `owner=unassigned/trust-safety` · `risk=critical` · `depends=M05-SCHEMA` · `blocked=none`
+**元数据：** `P0` · `owner=trust-safety` · `risk=critical` · `depends=M05-SCHEMA` · `blocked=none`
 **目标文件：** `backend/src/moderation/risk/`、`backend/tests/moderation/risk*`、`docs/MODERATION.md`
 **验收：** 低风险直接发布；高风险只进入人工队列；AI 失败/关闭不阻塞人工流程。
 
-- [ ] `M05-RISK-01` `P0` `[30m]` 定义风险输入最小集合和版本化 policy，不向 Provider 暴露内部/隐藏数据。
-- [ ] `M05-RISK-02` `P0` `[45m]` 实现新用户前 N 帖、链接数、重复内容、敏感词和频率规则。
-- [ ] `M05-RISK-03` `P0` `[30m]` 普通内容保持先发布；命中高风险则原子设置 pending_review 且不进入公开投影。
-- [ ] `M05-RISK-04` `P0` `[30m]` 定义 AI moderation suggestion 接口与禁用 Null Adapter，结果只能是建议。
-- [ ] `M05-RISK-05` `P0` `[30m]` 禁止 AI 直接执行封禁、删除、放行、权限变更或账务动作。
-- [ ] `M05-RISK-06` `P0` `[45m]` 作者状态投影只包含安全 reason category，不含举报人、内部 note、规则细节或 Prompt。
-- [ ] `M05-RISK-07` `P0` `[45m]` 测试规则超时、AI 关闭/失败/迟到、重复评估和旧 policy 结果。
-- [ ] `M05-RISK-08` `P1` `[30m]` 管理员可版本化更新风险阈值，要求 reason、审计和并发版本控制。
-- [ ] `M05-RISK-09` `P1` `[30m]` 记录风险命中率、队列时长和误判反馈指标，不记录正文。
+- [x] `M05-RISK-01` 证据：files=backend/src/moderation/risk/policy.rs,migrations/{sqlite,mysql,mariadb}/0046_risk_review.sql,docs/MODERATION.md；commands=cargo test --test moderation_risk --all-features 14 pass/1 ignored; cargo clippy --workspace --all-targets --all-features -- -D warnings 0 警告; cargo test --test migration_lifecycle --all-features 8/8; contract=RiskInput 最小特征集（author/创建时间/等级/板块/标题/正文），评估与 Provider 只接收这些特征，举报人/内部 note/隐藏正文/Prompt/规则细节一律不进入输出；risk_policies 版本化策略（UNIQUE(id,version)），内置默认 version 0; commit=ed909fe; review=规则/verdict/策略解析单元测试 + 发布流程集成测试全绿 `P0` `[30m]` 定义风险输入最小集合和版本化 policy，不向 Provider 暴露内部/隐藏数据。
+- [x] `M05-RISK-02` 证据：files=backend/src/moderation/risk/rules.rs,backend/tests/moderation/risk.rs,docs/MODERATION.md；commands=cargo test --test moderation_risk 14 pass/1 ignored; contract=5 条规则：新用户前 N 帖（created_at 窗口 + 发帖计数）、链接数（Markdown+裸 URL 计数）、重复内容（归一化正文 SHA-256 指纹，窗口内有界扫描）、敏感词（只给类别不暴露命中词）、频率（窗口内发帖计数）；规则固定顺序执行; commit=ed909fe; review=new_user/link/sensitive/frequency/duplicate 逐规则断言通过 `P0` `[45m]` 实现新用户前 N 帖、链接数、重复内容、敏感词和频率规则。
+- [x] `M05-RISK-03` 证据：files=backend/src/content/posts/service.rs,backend/src/moderation/risk/service.rs,migrations/{sqlite,mysql,mariadb}/0046_risk_review.sql,backend/tests/moderation/risk.rs；commands=cargo test --test moderation_risk 14 pass/1 ignored; cargo test --test migration_lifecycle 8/8; contract=即时发布与 scheduled 到期发布都执行评估；低风险先发布（status=published/review_status=none）；高风险原子设置 status=draft+review_status=pending_review，不 bump 板块计数、不入索引 Job、不进公开投影（status='published' 过滤天然排除），作者仅本人可见; commit=ed909fe; review=低风险发布+bump、链接高风险 pending、scheduled 高风险/低风险两条路径断言通过 `P0` `[30m]` 普通内容保持先发布；命中高风险则原子设置 pending_review 且不进入公开投影。
+- [x] `M05-RISK-04` 证据：files=backend/src/moderation/risk/provider.rs,backend/tests/moderation/risk.rs,docs/MODERATION.md；commands=cargo test --test moderation_risk 14 pass/1 ignored; contract=AiModerationProvider 接口 + 禁用 NullAiModerationProvider（恒 NoAction）；建议有截止时间（AI_SUGGEST_DEADLINE），结果只能是建议（NoAction/Flag(category)）; commit=ed909fe; review=Null provider 恒 NoAction + Flag 只路由 pending_review 断言通过 `P0` `[30m]` 定义 AI moderation suggestion 接口与禁用 Null Adapter，结果只能是建议。
+- [x] `M05-RISK-05` 证据：files=backend/src/moderation/risk/provider.rs,backend/src/moderation/risk/service.rs,backend/tests/moderation/risk.rs；commands=cargo test --test moderation_risk 14 pass/1 ignored; contract=AiSuggestion 无任何执行动作变体（无 ban/delete/release/permission/accounting），类型层杜绝 AI 直接执行；评估编排只能产出 allow 或 pending_review（人工队列）; commit=ed909fe; review=Flag 建议最终只进入人工队列，不执行任何动作 `P0` `[30m]` 禁止 AI 直接执行封禁、删除、放行、权限变更或账务动作。
+- [x] `M05-RISK-06` 证据：files=backend/src/routes/posts.rs,backend/src/content/posts/service.rs,backend/tests/moderation/risk.rs；commands=cargo test --test moderation_risk 14 pass/1 ignored; contract=作者状态投影只含安全 reason category（RiskReview{status:pending_review, reason_category}），不含举报人/内部 note/规则细节/Prompt；pending_review 仅作者本人 200（他人/匿名 404）、private no-store 缓存、不 bump 浏览量; commit=ed909fe; review=HTTP 测试断言 status/review 安全字段与无 reporter/notes 泄漏、匿名 404、列表排除 `P0` `[45m]` 作者状态投影只包含安全 reason category，不含举报人、内部 note、规则细节或 Prompt。
+- [x] `M05-RISK-07` 证据：files=backend/tests/moderation/risk.rs,backend/src/moderation/risk/service.rs；commands=cargo test --test moderation_risk 14 pass/1 ignored; contract=覆盖：AI 迟到（>deadline）放行且评估在期限内返回、AI 正常 NoAction 放行、Flag 路由审核、重复评估稳定、旧 policy 结果不复用（策略更新后同内容按新版本评估）; commit=ed909fe; review=ai_late_or_failed_does_not_block_publish/duplicate_evaluation_is_stable_and_old_policy_not_reused 等断言通过 `P0` `[45m]` 测试规则超时、AI 关闭/失败/迟到、重复评估和旧 policy 结果。
+- [x] `M05-RISK-08` 证据：files=backend/src/moderation/risk/service.rs,backend/tests/moderation/risk.rs,backend/src/audit/mod.rs；commands=cargo test --test moderation_risk 14 pass/1 ignored; contract=update_risk_policy：reason 必填（空拒绝）、事务内写审计（risk_policy.update + with_reason + policy_version）、并发版本控制（期望版本≠当前 → PolicyConflict 409 语义，UNIQUE(id,version) 兜底），事务提交后才生效; commit=ed909fe; review=reason 空/版本冲突/审计行/当前版本 4 项断言通过 `P1` `[30m]` 管理员可版本化更新风险阈值，要求 reason、审计和并发版本控制。
+- [x] `M05-RISK-09` 证据：files=backend/src/moderation/risk/service.rs,migrations/{sqlite,mysql,mariadb}/0046_risk_review.sql,backend/tests/moderation/risk.rs；commands=cargo test --test moderation_risk 14 pass/1 ignored; contract=risk_evaluations 只记 verdict/reason_category/latency_ms/policy_version/created_at（**无正文列**）；record_review_outcome 回填 reviewed_at（队列时长=reviewed_at-created_at）与 false_positive 误判反馈；评估指标与发布同事务写入; commit=ed909fe; review=metrics_recorded_without_body 断言表结构无正文列 + reviewed_at/false_positive 回填 `P1` `[30m]` 记录风险命中率、队列时长和误判反馈指标，不记录正文。
 
 ## M05-CASES：举报、案件与内容动作
 
