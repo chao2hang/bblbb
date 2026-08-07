@@ -15,7 +15,13 @@ import type {
   NotificationListResult,
   Tag,
   ReactionResult,
-  PublicProfile
+  PublicProfile,
+  Draft,
+  PostCreateInput,
+  CommentCreateInput,
+  CommentPatchInput,
+  DraftCreateInput,
+  DraftPatchInput
 } from './types';
 import type { Problem } from '../errors';
 
@@ -30,11 +36,26 @@ export type {
   NotificationListResult,
   Tag,
   ReactionResult,
-  PublicProfile
+  PublicProfile,
+  Draft,
+  PostCreateInput,
+  CommentCreateInput,
+  CommentPatchInput,
+  DraftCreateInput,
+  DraftPatchInput
 } from './types';
 export type { Problem, ProblemFieldError } from '../errors';
 
 const API_BASE = '/api/v1';
+
+/** 幂等键（client_request_id，契约 16-200 字符）：优先 crypto.randomUUID()，
+ *  无则退化生成稳定前缀的随机串（与 Field.svelte 同一退化策略）。 */
+export function newClientRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof (crypto as Crypto).randomUUID === 'function') {
+    return (crypto as Crypto).randomUUID();
+  }
+  return `bblbb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 interface CsrfResponse {
   token: string;
@@ -199,20 +220,56 @@ export async function listBoardPosts(
 // ─── Posts ────────────────────────────────────────────────────────────────
 
 export async function getPost(fetchFn: typeof fetch, id: string): Promise<PostDetail> {
-  return request(fetchFn, `/posts/${id}`);
+  return request(fetchFn, `/posts/${encodeURIComponent(id)}`);
 }
 
+/** POST /api/v1/posts（契约 PostCreate）：返回 201 帖子的 {id}（详情跳转用）。 */
 export async function createPost(
   fetchFn: typeof fetch,
-  boardSlug: string,
-  title: string,
-  content: string,
-  visibility?: string
+  input: PostCreateInput
 ): Promise<{ id: string }> {
   return request(fetchFn, '/posts', {
     method: 'POST',
-    body: JSON.stringify({ board_slug: boardSlug, title, content, visibility }),
+    body: JSON.stringify(input),
   });
+}
+
+// ─── Drafts ────────────────────────────────────────────────────────────────
+
+export async function listDrafts(fetchFn: typeof fetch): Promise<PageResult<Draft>> {
+  return request(fetchFn, '/drafts');
+}
+
+export async function getDraft(fetchFn: typeof fetch, id: string): Promise<Draft> {
+  return request(fetchFn, `/drafts/${encodeURIComponent(id)}`);
+}
+
+export async function createDraft(
+  fetchFn: typeof fetch,
+  input: DraftCreateInput
+): Promise<Draft> {
+  return request(fetchFn, '/drafts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** PATCH /api/v1/drafts/{id}（契约 DraftPatch）：If-Match 版本守卫（409 version_conflict）。 */
+export async function updateDraft(
+  fetchFn: typeof fetch,
+  id: string,
+  input: DraftPatchInput,
+  version: number
+): Promise<Draft> {
+  return request(fetchFn, `/drafts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(version) },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteDraft(fetchFn: typeof fetch, id: string): Promise<void> {
+  return request(fetchFn, `/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────
@@ -221,19 +278,47 @@ export async function listComments(
   fetchFn: typeof fetch,
   postId: string
 ): Promise<PageResult<Comment>> {
-  return request(fetchFn, `/posts/${postId}/comments`);
+  // 契约 CommentPage 为 {items, page{next_cursor,has_more}}；实现曾返回平面
+  // {items,next_cursor,has_more}，此处归一化以容忍两种形状。
+  const data = await request<
+    { items?: Comment[] } & Partial<PageResult<Comment>> & { page?: { next_cursor: string | null; has_more: boolean } }
+  >(fetchFn, `/posts/${encodeURIComponent(postId)}/comments`);
+  return {
+    items: data.items ?? [],
+    next_cursor: data.next_cursor ?? data.page?.next_cursor ?? null,
+    has_more: data.has_more ?? data.page?.has_more ?? false
+  };
 }
 
+/** POST /api/v1/posts/{postId}/comments（契约 CommentCreate）。 */
 export async function createComment(
   fetchFn: typeof fetch,
   postId: string,
-  content: string,
-  parentId?: string
+  input: CommentCreateInput
 ): Promise<Comment> {
-  return request(fetchFn, `/posts/${postId}/comments`, {
+  return request(fetchFn, `/posts/${encodeURIComponent(postId)}/comments`, {
     method: 'POST',
-    body: JSON.stringify({ content, parent_id: parentId }),
+    body: JSON.stringify(input),
   });
+}
+
+/** PATCH /api/v1/comments/{id}：作者限时编辑（M04-COMMENTS-05），If-Match 版本守卫。 */
+export async function updateComment(
+  fetchFn: typeof fetch,
+  id: string,
+  input: CommentPatchInput,
+  version: number
+): Promise<Comment> {
+  return request(fetchFn, `/comments/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(version) },
+    body: JSON.stringify(input),
+  });
+}
+
+/** DELETE /api/v1/comments/{id}：作者删除（M04-COMMENTS-06）。 */
+export async function deleteComment(fetchFn: typeof fetch, id: string): Promise<void> {
+  return request(fetchFn, `/comments/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────

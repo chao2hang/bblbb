@@ -56,7 +56,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   validation_failed: '提交的内容未通过校验',
 
   // 校验（422）
-  visibility_level_exceeds_author: '内容的最低可见等级高于你的当前等级',
+  visibility_level_exceeds_author: '可见等级高于你的当前等级，请调低可见等级',
   invalid_url: '链接地址无效，请修改后重试',
   media_probe_failed: '媒体探测失败，请更换来源或改用外链',
   hls_policy_exceeded: '视频流超出限制，请使用更小流或外链',
@@ -116,7 +116,15 @@ const MESSAGE_BY_FIELD: Record<string, string> = {
   title: '标题不符合要求',
   content: '内容不符合要求',
   board_slug: '请选择正确的板块',
-  visibility: '可见性设置无效'
+  visibility: '可见性设置无效',
+  // M04 内容接口字段（PostCreate/Draft/CommentCreate）
+  post_type: '请选择文章或讨论类型',
+  markdown: '正文不符合要求（1–50000 字符）',
+  board_id: '请选择正确的板块',
+  visibility_level: '可见等级无效',
+  access_policy: '可见性设置无效',
+  scheduled_at: '定时发布时间无效',
+  client_request_id: '请求标识无效，请刷新后重试'
 };
 
 export function problemMessage(problem: Problem | null | undefined): string {
@@ -154,4 +162,59 @@ export function problemText(problem: Problem | null | undefined): string {
   const message = problemMessage(problem);
   const rid = requestIdOf(problem);
   return rid ? `${message}（请求号 ${rid}）` : message;
+}
+
+// ─── M04-UI-08：可恢复流程 —— 错误码 → 用户动作 ──────────────────────────────
+
+export type RecoveryAction = 'reload' | 'retry' | 'adjust' | 'wait' | 'none';
+
+export interface RecoveryHint {
+  /** 建议用户执行的动作：重新加载 / 重试 / 调整表单 / 等待 / 无需动作。 */
+  action: RecoveryAction;
+  /** 面向用户的中文指引文案。 */
+  message: string;
+}
+
+/** 按 Problem code/status 映射为可恢复的用户动作提示（M04-UI-08）。
+ *  - version_conflict        → 重新加载（内容已被他人更新）
+ *  - visibility_level_exceeds_author → 调整可见等级（422 等级变化）
+ *  - rate_limited / 429      → 稍后重试（带 Retry-After 秒数）
+ *  - idempotency_conflict    → 使用新内容重试
+ *  - 其余                    → 通用重试文案
+ */
+export function problemRecovery(problem: Problem | null | undefined): RecoveryHint {
+  const code = problem?.code;
+  if (code === 'version_conflict') {
+    return { action: 'reload', message: '内容已被他人更新，重新加载后继续编辑' };
+  }
+  if (code === 'visibility_level_exceeds_author') {
+    return { action: 'adjust', message: '可见等级高于你的当前等级，请调低可见等级后重试' };
+  }
+  if (code === 'rate_limited' || problem?.status === 429) {
+    const wait = retryAfterOf(problem);
+    const suffix = wait ? `（约 ${wait} 秒后）` : '';
+    return { action: 'wait', message: `操作过于频繁，请稍后重试${suffix}` };
+  }
+  if (code === 'idempotency_conflict') {
+    return { action: 'retry', message: '已提交过相同内容，请稍作修改或使用新内容重试' };
+  }
+  if (code === 'step_up_required') {
+    return { action: 'retry', message: '需要重新验证身份，请刷新后重试' };
+  }
+  if (code === 'csrf_failed') {
+    return { action: 'reload', message: '安全校验失败，请刷新页面后重试' };
+  }
+  return { action: 'none', message: problemMessage(problem) };
+}
+
+/** 内容状态 → 面向用户的通知（非错误）。pending_review → 审核中提示。 */
+export function postStatusNotice(status: string | null | undefined): string | null {
+  switch (status) {
+    case 'pending_review':
+      return '内容审核中，通过后将自动公开';
+    case 'draft':
+      return '内容保存为草稿，尚未公开';
+    default:
+      return null;
+  }
 }

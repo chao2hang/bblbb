@@ -42,6 +42,8 @@ export type {
   SearchResult,
   SearchPage,
   DeviceSession,
+  DraftCreate,
+  DraftPatch,
 } from './generated/v1';
 
 export type {
@@ -112,50 +114,155 @@ export type Board = Omit<
 // ── 实现投影：契约暂未覆盖的列表/详情浅投影 ──────────────────────────────────
 // 对应契约目标类型见注释；后端实现对应 operation 后按注释机械替换，不改页面。
 
-/** 帖子列表行投影（GET /posts、GET /boards/{slug}/posts）；契约目标：Post。 */
+/** 访问策略（PostCreate/DraftCreate 封闭枚举，与契约 AccessSummary.policy 一致）。 */
+export type AccessPolicy = 'public' | 'logged_in' | 'after_reply' | 'level' | 'paid';
+
+/** 内容访问摘要（契约 AccessSummary：policy/unlocked/required_level?）。 */
+export interface AccessSummary {
+  policy: AccessPolicy;
+  unlocked: boolean;
+  required_level?: number;
+}
+
+/** 帖子/评论作者投影：契约 Author + id（后端列表/详情投影含 id；字段可缺省以
+ *  容忍不同接口的投影宽度，见 openapi Author schema）。 */
+export interface PostAuthor {
+  id: string;
+  username?: string | null;
+  display_name?: string | null;
+  level?: number;
+  profile_url?: string;
+}
+
+/** 帖子列表行投影（GET /posts、GET /boards/{slug}/posts、GET /search）；
+ *  契约目标：Post。公开列表投影不含正文（body_html 仅详情接口按可见性返回）。 */
 export interface PostSummary {
   id: string;
+  board_id?: string;
+  board_slug?: string | null;
+  board_name?: string | null;
+  post_type?: 'article' | 'discussion';
   title: string;
-  author_id: string;
-  /** 作者用户名（搜索/板块帖子接口返回；供列表作者头像展示）。 */
+  /** 列表行作者投影（GET /posts、GET /boards/{slug}/posts）。 */
+  author?: { id: string; username?: string | null } | null;
+  /** 搜索接口的平面投影（GET /search）。 */
+  author_id?: string;
   author_name?: string | null;
+  status?: string;
   reply_count: number;
   view_count: number;
-  pinned: boolean;
+  pinned?: boolean;
+  pinned_at?: number | null;
   created_at: number;
+  updated_at?: number;
   last_reply_at: number | null;
 }
 
-/** 帖子详情投影（GET /posts/{id}）；契约目标：Post + body_html。 */
+/** 帖子详情投影（GET /posts/{id}）；契约目标：Post + body_html。
+ *
+ * 可见性契约（M04-VISIBILITY）：未授权请求方 `body_html` 字段**缺失**
+ * （undefined，而非 null）；access_summary.unlocked=true 才含正文。 */
 export interface PostDetail {
   id: string;
-  board_id: string;
-  author_id: string;
-  author_name: string | null;
+  post_type?: 'article' | 'discussion';
   title: string;
-  content: string;
-  content_format: string;
-  status: string;
-  visibility: string;
-  reply_count: number;
-  view_count: number;
-  pinned: boolean;
+  status?: string;
+  author?: PostAuthor | null;
+  /** 公开字段白名单（posts/[id]/+page.server.ts）逐项挑选。 */
+  access_summary?: AccessSummary;
+  capabilities?: string[];
+  reply_count?: number;
+  view_count?: number;
   created_at: number;
   updated_at: number;
-  last_reply_at: number | null;
+  /** 锁帖时间（M04-POSTS-09 治理：closed_at 置位即锁帖，M04-UI-06 锁定横幅）。 */
+  closed_at?: number | null;
+  /** 未授权时缺失（undefined）；公开/已解锁时后端渲染的清洗 HTML。 */
+  body_html?: string | null;
 }
 
-/** 评论投影（GET /posts/{id}/comments）；契约目标：Comment + body_html。 */
+/** 评论投影（GET /posts/{id}/comments）；契约目标：Comment + body_html +
+ *  floor/parent_id/post_id（后端投影扩展字段）。 */
 export interface Comment {
   id: string;
   post_id: string;
-  author_id: string;
-  author_name: string | null;
+  author?: PostAuthor | null;
   parent_id: string | null;
-  content: string;
-  content_format: string;
   floor: number;
+  status: string;
+  /** 已解锁才返回；未授权/受限时缺失。 */
+  body_html?: string | null;
+  /** 作者限时编辑（M04-COMMENTS-05）所需的原文 Markdown（契约扩展字段，
+   *  仅作者/有权限请求方返回；缺失时编辑表单提示重输完整内容）。 */
+  markdown?: string | null;
+  version: number;
   created_at: number;
+  updated_at: number;
+}
+
+/** 草稿（GET/POST /drafts）；契约目标：Draft（ResourceMeta + 内容字段）。
+ *  时间戳按后端 M01-DB-08 统一为 Unix 毫秒。 */
+export interface Draft {
+  id: string;
+  type: 'article' | 'discussion';
+  title: string;
+  markdown: string;
+  board_id: string | null;
+  visibility_level: number;
+  access_policy: string;
+  scheduled_at?: number | null;
+  version: number;
+  created_at: number;
+  updated_at: number;
+}
+
+// ── 写请求输入（POST/PATCH body，契约对应 schema）────────────────────────────
+
+/** POST /api/v1/posts body（契约 PostCreate）。scheduled_at 按后端实现为
+ *  Unix 毫秒（契约 date-time 字符串与实现偏差见 M04-UI-04 报告）。 */
+export interface PostCreateInput {
+  type: 'article' | 'discussion';
+  title: string;
+  markdown: string;
+  board_id: string;
+  visibility_level: number;
+  access_policy: AccessPolicy;
+  scheduled_at?: number | null;
+  client_request_id: string;
+}
+
+/** POST /api/v1/posts/{postId}/comments body（契约 CommentCreate）。 */
+export interface CommentCreateInput {
+  markdown: string;
+  parent_id?: string | null;
+  client_request_id: string;
+}
+
+/** PATCH /api/v1/comments/{id} body（评论编辑，M04-COMMENTS-05）。 */
+export interface CommentPatchInput {
+  markdown: string;
+}
+
+/** POST /api/v1/drafts body（契约 DraftCreate）。 */
+export interface DraftCreateInput {
+  type: 'article' | 'discussion';
+  title: string;
+  markdown: string;
+  board_id?: string | null;
+  visibility_level: number;
+  access_policy: AccessPolicy;
+  scheduled_at?: number | null;
+  client_request_id: string;
+}
+
+/** PATCH /api/v1/drafts/{id} body（契约 DraftPatch，部分更新）。 */
+export interface DraftPatchInput {
+  title?: string;
+  markdown?: string;
+  board_id?: string | null;
+  visibility_level?: number;
+  access_policy?: AccessPolicy;
+  scheduled_at?: number | null;
 }
 
 /** 通用分页投影；契约目标：Page（next_cursor/has_more）+ items。 */

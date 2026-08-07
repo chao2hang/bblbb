@@ -7,6 +7,11 @@ export function escapeHtml(text: unknown): string {
   });
 }
 
+/** Unicode 字符数（代理对按 1 计；与后端 PostContent/CommentContent 一致）。 */
+export function charCount(text: string): number {
+  return [...text].length;
+}
+
 export function formatCount(n: number | null | undefined): string {
   if (typeof n !== 'number' || Number.isNaN(n)) return String(n ?? 0);
   if (n >= 100000) return `${(n / 1000).toFixed(0)}k`;
