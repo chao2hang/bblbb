@@ -7,7 +7,7 @@
 
 - 契约操作：**184**
 - 唯一 operationId：**184**
-- 实现状态：`baseline_only` 3；`implemented` 42；`in_progress` 7；`not_started` 132
+- 实现状态：`baseline_only` 3；`implemented` 46；`in_progress` 7；`not_started` 128
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -67,10 +67,10 @@
 | `post_me_profile_cover` | `POST` | `/api/v1/me/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `get_users_user_id_profile_cover` | `GET` | `/api/v1/users/{user_id}/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
 | `getPublicUser` | `GET` | `/api/v1/users/{username}` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `security-backend` |
-| `delete_comments_id_` | `DELETE` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
-| `patch_comments_id_` | `PATCH` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
-| `listComments` | `GET` | `/api/v1/posts/{postId}/comments` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
-| `createComment` | `POST` | `/api/v1/posts/{postId}/comments` | Comments | `M4` / `M04-COMMENTS` | `P1` | `not_started` | `unassigned` |
+| `delete_comments_id_` | `DELETE` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `implemented` | `backend-content` |
+| `patch_comments_id_` | `PATCH` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `implemented` | `backend-content` |
+| `listComments` | `GET` | `/api/v1/posts/{postId}/comments` | Comments | `M4` / `M04-COMMENTS` | `P1` | `implemented` | `backend-content` |
+| `createComment` | `POST` | `/api/v1/posts/{postId}/comments` | Comments | `M4` / `M04-COMMENTS` | `P1` | `implemented` | `backend-content` |
 | `listDrafts` | `GET` | `/api/v1/drafts` | Drafts | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `createDraft` | `POST` | `/api/v1/drafts` | Drafts | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `deleteDraft` | `DELETE` | `/api/v1/drafts/{id}` | Drafts | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |

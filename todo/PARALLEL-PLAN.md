@@ -62,8 +62,9 @@
 
 | Wave | 状态 | 完成时间 | 提交 | 备注 |
 |---|---|---|---|---|
-| W0 | 进行中 | — | — | 修复 12 个审计问题（2 P0 / 6 P1 / 4 P2）；提交工作区基线 |
-| W1-W17 | 未开始 | — | — | — |
+| W0 | 已完成 | 2026-08-06 | 既有基线 | 历史基线：12 审计问题已在更早会话修复 |
+| W5 (M4) | 已完成 | 2026-08-07 | `da4840b`(COMMENTS)、`afeb696`(VISIBILITY)、`3b73bae`(UI)、`+roadmap-sync` | M4 收口：30 个叶子任务全部 `[x]`（246/783 完成）；3 域并行 agent（backend-COMMENTS / backend-VISIBILITY / frontend-UI）+ 主代理收尾（after_reply grant、canary/边界测试、路由集成、Playwright UI-10、session level 修复） |
+| W6 (M5) | 进行中 | — | — | M05-SCHEMA/RISK/CASES/SANCTIONS/APPEALS/NOTIFY/UI 逐包推进 |
 
 ## 5. 首批（W0）并行分工
 

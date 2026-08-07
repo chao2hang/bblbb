@@ -819,13 +819,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/comments.rs::delete_comment",
       "tests": [
-
+        "backend/tests/comments_routes.rs",
+        "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": null
+      "evidence": "M04-COMMENTS-01..07: 作者删除=软删除（status='deleted'+deleted_at，行保留占位，可选 If-Match，204 private,no-store）；管理员/版主（post.moderate，权限注册表无 comment.moderate）删除他人评论=软删除+delegated_admin_action 审计；软删不递减 posts.reply_count（占位保留楼层）；已删/非 published 统一 404 不泄漏；测试 delete_comment_author_soft_delete/delete_comment_admin_with_audit_and_non_moderator_403/delete_comment_with_stale_if_match_is_conflict"
     },
     {
       "operation_id": "patch_comments_id_",
@@ -836,13 +837,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/comments.rs::update_comment",
       "tests": [
-
+        "backend/tests/comments_routes.rs",
+        "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": null
+      "evidence": "M04-COMMENTS-01..07: 作者限时编辑（created_at 起 30 分钟 COMMENT_EDIT_WINDOW_MS，超窗 409 conflict）；作者本人+published+未软删否则 404/403；版本守卫 If-Match 头优先/body version（冲突 409 version_conflict）；写入=版本守卫 UPDATE+不可变 comment_revisions 快照（UNIQUE(comment_id,version)，version=old+1，renderer policy_version）；响应更新后 Comment 投影+private,no-store；测试 update_comment_edits_within_window_and_writes_revision/update_comment_via_if_match_header/update_comment_version_conflict_and_non_author/update_comment_window_expired"
     },
     {
       "operation_id": "listComments",
@@ -853,13 +855,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::list_comments",
       "tests": [
-
+        "backend/tests/comments_routes.rs",
+        "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": null
+      "evidence": "M04-COMMENTS-01..07: keyset 分页（floor ASC,id ASC；after=base64url(\"floor:id\") 不透明游标，fetch limit+1 判 has_more；Limit 1..50 默认 20）；软删/隐藏评论占位投影（status 如实、body_html=null 不泄漏正文，占位保留楼层）；匿名可读（OpenAPI security 可选会话）；响应 public,max-age=60+ETag；主题不存在/deleted 404；published 评论 body_html 读取时 render_and_sanitize；测试 list_comments_paginates_by_floor/list_comments_404_when_post_missing_or_hidden_state/list_comments_shows_deleted_placeholder"
     },
     {
       "operation_id": "createComment",
@@ -870,13 +873,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-content",
+      "handler": "backend/src/routes/posts.rs::create_comment",
       "tests": [
-
+        "backend/tests/comments_routes.rs",
+        "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": null
+      "evidence": "M04-COMMENTS-01..07: 幂等创建（scope comment.create + client_request_id，同 key+摘要重放返回原评论、不同摘要 409，镜像 create_post）；email_verified/comment.create（含账号状态门）→ 内容 domain 校验（1..10000 权威）→ 主题 published|hidden/未删/未锁（closed_at 即回复开关）→ 板块 is_active → parent 同主题+可见（status published 且 deleted_at IS NULL，稳定 400 不泄漏）→ 事务内原子楼层分配（MAX(floor)+1，UNIQUE(post_id,floor) 兜底，SQLite busy 指数退避 M01-JOBS-09）；响应 Comment 投影+private,no-store；测试 create_comment_returns_201_with_full_projection/create_comment_rejects_locked_post/create_comment_rejects_banned_and_unverified/create_comment_on_hidden_post_is_allowed/create_comment_rejects_invisible_parent/create_comment_idempotency_replay_and_conflict/concurrent_creates_allocate_unique_contiguous_floors"
     },
     {
       "operation_id": "listDrafts",
@@ -1046,9 +1050,11 @@
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::get_post",
       "tests": [
-        "backend/tests/posts_read.rs"
+        "backend/tests/posts_read.rs",
+        "backend/tests/visibility_canary.rs",
+        "backend/tests/visibility_boundary.rs"
       ],
-      "evidence": "M04-POSTS-07: 帖子详情投影（post_type/author/status/slug/body_html/excerpt/access_summary/capabilities）+ 浏览量自增 + ETag/Cache-Control；published/hidden 可见，deleted 404"
+      "evidence": "M04-POSTS-07 + M04-VISIBILITY-07/08/09/10/11: 帖子详情投影（post_type/author/status/slug/access_summary/capabilities）经 evaluate+project_post 统一评估——未授权时 body_html/excerpt 等敏感键完全缺失（canary 不出现在 API/SSR/网络/浏览器状态），persona 感知缓存头（public→public,max-age=60+Vary:Cookie+ETag；其余→private,no-store 无 ETag）；等级边界/作者降级编辑 422/封禁无提升/paid grant 撤销重锁；浏览量自增；deleted 404"
     },
     {
       "operation_id": "updatePost",
