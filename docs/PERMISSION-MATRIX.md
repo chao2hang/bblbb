@@ -23,6 +23,13 @@
 | 管理存储配置 | S | — | `storage.manage` | R + Secret 不回显 | 是 | 必须 |
 | 修改等级附件配额 | S | — | `level.manage` | R + policy version | 是 | 必须 |
 
+> 内容读取的访问策略统一由 VISIBILITY 域评估（`backend/src/content/visibility`，
+> M04-VISIBILITY-02/06）：`after_reply` 的管理 override 必须来自 `post.moderate`
+> 权限的实时聚合（evaluate context 的 `moderator_override`，禁止客户端自证）；
+> 作者自见由 `post.author_id` 判定，不依赖额外权限。grant 查询（
+> `content_access_grants`，source_kind ∈ reply/purchase/moderator/import）失败
+> 时评估 fail-closed（按未解锁处理）。
+
 ## 3. 下载计费和经济
 
 | 动作 | 身份 | OAuth Scope | Permission | 额外规则 | CSRF | 审计 |

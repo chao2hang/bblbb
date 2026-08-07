@@ -54,3 +54,4 @@
 - 503 响应不得表示数据库事务已成功，除非同时返回明确的资源 ID 和上述可查询状态码。
 - `download_url_unavailable` 不得重复扣费；客户端使用原 authorization 或幂等键恢复。
 - 新错误码必须更新本表、OpenAPI、前端映射和测试向量；错误码语义不能复用。
+- 可见性（M04-VISIBILITY）：读路径未解锁**不是错误**——响应 200，正文键缺失并返回 `access_summary`；`visibility_level_exceeds_author`（422）只用于写路径等级越级。grant 查询（`content_access_grants`）失败时评估 fail-closed（按未解锁处理），不产生错误响应。

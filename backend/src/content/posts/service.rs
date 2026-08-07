@@ -460,6 +460,13 @@ pub async fn edit_post(
         });
     }
 
+    // M04-VISIBILITY-04：编辑前重读作者等级（fail-closed）。
+    //
+    // EditPostInput 不携带可见性字段，因此按帖子的**当前有效可见等级**重检：
+    // 若作者已被降级到帖子有效可见等级之下（如降级后编辑高隐藏帖），阻断。
+    // 有效可见等级 = access policy 为 level 时的 min_level，否则 1。
+    recheck_edit_author_level(pool, &current).await?;
+
     let old_content = load_post_content(pool, post_id)
         .await?
         .ok_or_else(|| PublishError::NotFound("post content not found".to_string()))?;
@@ -572,4 +579,88 @@ fn is_unique_violation(err: &sqlx::Error) -> bool {
         err,
         sqlx::Error::Database(db) if db.is_unique_violation()
     )
+}
+
+// ─────────────────────── M04-VISIBILITY-04：编辑前作者等级重检 ──────────────
+
+/// 编辑前作者等级重检（fail-closed）：重读 `users.level`，若帖子当前有效
+/// 可见等级超过作者当前等级 → [`PublishBlocked::VisibilityExceedsLevel`]。
+///
+/// `EditPostInput` 无可见性字段（编辑不改变可见性），重检锚点是帖子**当前
+/// 有效可见等级**——`access_policy_id` 指向 level 策略时取其 `min_level`，
+/// 其余（public/logged_in/after_reply/paid/未设置）按 1。
+async fn recheck_edit_author_level(pool: &DatabasePool, post: &Post) -> Result<(), PublishBlocked> {
+    let author_level = read_author_level(pool, &post.author_id).await?;
+    let effective = current_effective_visibility(pool, &post.id).await?;
+    let requested = effective.max(1);
+    if requested > author_level {
+        return Err(PublishBlocked::VisibilityExceedsLevel {
+            requested,
+            author_level,
+        });
+    }
+    Ok(())
+}
+
+/// 重读作者当前等级（服务端权威，不信任客户端缓存）。
+async fn read_author_level(pool: &DatabasePool, author_id: &str) -> Result<u32, PublishBlocked> {
+    let level: Option<i64> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            .bind(author_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| PublishBlocked::Internal(e.to_string()))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            .bind(author_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| PublishBlocked::Internal(e.to_string()))?,
+    };
+    Ok(level
+        .ok_or_else(|| PublishBlocked::AccountUnavailable("author not found".to_string()))?
+        .clamp(1, i64::from(u32::MAX)) as u32)
+}
+
+/// 帖子当前有效可见等级（见 [`recheck_edit_author_level`] 文档）。
+async fn current_effective_visibility(
+    pool: &DatabasePool,
+    post_id: &str,
+) -> Result<u32, PublishBlocked> {
+    let policy_id: Option<String> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT access_policy_id FROM posts WHERE id = ?")
+            .bind(post_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| PublishBlocked::Internal(e.to_string()))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT access_policy_id FROM posts WHERE id = ?")
+            .bind(post_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| PublishBlocked::Internal(e.to_string()))?,
+    };
+    let Some(pid) = policy_id else {
+        return Ok(1);
+    };
+    let row: Option<(String, Option<i64>)> = match pool {
+        Either::Left(p) => {
+            sqlx::query_as("SELECT kind, min_level FROM content_access_policies WHERE id = ?")
+                .bind(&pid)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| PublishBlocked::Internal(e.to_string()))?
+        }
+        Either::Right(p) => {
+            sqlx::query_as("SELECT kind, min_level FROM content_access_policies WHERE id = ?")
+                .bind(&pid)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| PublishBlocked::Internal(e.to_string()))?
+        }
+    };
+    match row {
+        Some((kind, min_level)) if kind == "level" => {
+            Ok(min_level.map_or(1, |lv| lv.clamp(1, i64::from(u32::MAX)) as u32))
+        }
+        _ => Ok(1),
+    }
 }

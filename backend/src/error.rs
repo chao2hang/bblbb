@@ -148,6 +148,25 @@ impl AppError {
         }
     }
 
+    /// 可见等级超过作者当前等级（M04-VISIBILITY-03/04；ERROR-CODES.md：
+    /// 422 `visibility_level_exceeds_author`）。创建/编辑/草稿发布/定时发布/
+    /// 管理员代发均必须服务端重读作者等级并稳定返回此错误。
+    pub fn visibility_level_exceeds_author(
+        detail: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "visibility_level_exceeds_author",
+            title: "Unprocessable Entity",
+            detail: detail.into(),
+            request_id: request_id.into(),
+            errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
+        }
+    }
+
     /// 限流拒绝（OpenAPI `RateLimited` 响应，错误码 `rate_limited`）。
     ///
     /// 响应携带 `Retry-After` 与 `RateLimit-Limit/Remaining/Reset` 头

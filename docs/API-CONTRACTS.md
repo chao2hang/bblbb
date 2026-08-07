@@ -41,6 +41,20 @@ PostCreate {
 
 `PostProjection` 至少包含：`id, version, post_type, title, author, board, status, closed_at, published_at, capabilities, access_summary`。只有授权后才包含 `body_html` 和当前可见的受限块；未授权正文不是 `null`，而是完全缺失。
 
+### 2.1 可见性评估与投影（M04-VISIBILITY）
+
+- 单一事实来源：封闭枚举 `access_policy ∈ {public, logged_in, after_reply, level, paid}`（`AccessPolicy`）。**不存在** named-user 可见性成员（`private`/`followers`/`mentioned` 等一律拒绝）。
+- 所有内容可读路径（列表/详情/通知/Feed/SEO/AI/附件）必须复用统一评估
+  `evaluate(actor, content, context) -> AccessGrant`（`backend/src/content/visibility`）：
+  - `public` → 恒解锁；`logged_in` → 已登录即解锁；
+  - `level` → `actor.level >= min_level`（`access_summary.required_level` 暴露门槛）；
+  - `after_reply` → 作者本人 / 管理 override（`post.moderate` 实时聚合）/ 有效 reply grant
+    （`content_access_grants`：`grant_target_key='post:{post_id}'`、`source_kind='reply'`、`revoked_at IS NULL`）；
+  - `paid` → 有效 purchase grant（`source_kind='purchase'`；扣款/grant 创建为 M7）；
+  - 匿名 + 非 public → 不解锁；grant 查询失败一律 fail-closed（不解锁）。
+- 投影不变量：未解锁时 `body_html`、`excerpt`、`attachments`、`search_highlight`、受限块等可逆编码字段的键**完全缺失**（不置 `null`）；`access_summary`、`capabilities` 恒存在。
+- 缓存头（只读响应）：`public` 策略 → `Cache-Control: public, max-age=60` + `Vary: Cookie` + 稳定 `ETag`（由**完整投影体**派生，不同 persona 永不共享 304）；其余策略 → `Cache-Control: private, no-store`（无 ETag）。
+
 ## 3. Download Billing
 
 ```text

@@ -143,7 +143,7 @@ async fn resolve_session(
             // 获取用户和会话信息
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        s.id as session_id
+                        u.level, s.id as session_id
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -189,7 +189,7 @@ async fn resolve_session(
                         email_verified: row.email_verified != 0,
                         status: row.status,
                         display_name: row.display_name,
-                        level: 1,
+                        level: row.level,
                         roles,
                     },
                     row.session_id,
@@ -215,7 +215,7 @@ async fn resolve_session(
 
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        s.id as session_id
+                        u.level, s.id as session_id
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -253,7 +253,7 @@ async fn resolve_session(
                         email_verified: row.email_verified != 0,
                         status: row.status,
                         display_name: row.display_name,
-                        level: 1,
+                        level: row.level,
                         roles,
                     },
                     row.session_id,
@@ -746,6 +746,7 @@ struct UserSessionRow {
     email_verified: i64,
     status: String,
     display_name: Option<String>,
+    level: i64,
     session_id: String,
 }
 
