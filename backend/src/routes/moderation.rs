@@ -43,6 +43,10 @@ pub fn router() -> Router<AppState> {
             "/api/v1/notifications/read-all",
             post(mark_all_notifications_read),
         )
+        .route(
+            "/api/v1/notifications/preferences",
+            get(get_notification_preferences).put(put_notification_preferences),
+        )
         .route("/api/v1/admin/moderation/cases", get(list_moderation_cases))
         .route(
             "/api/v1/admin/moderation/cases",
@@ -160,6 +164,82 @@ async fn mark_all_notifications_read(
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
     Ok(Json(json!({ "updated": updated })))
+}
+
+/// GET /api/v1/notifications/preferences — 类别偏好（M05-NOTIFY-04）
+async fn get_notification_preferences(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_notification_preferences";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let prefs = notifications::get_preferences(pool, &user.id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let items: Vec<Value> = prefs
+        .into_iter()
+        .map(|p| {
+            json!({
+                "category": p.category.as_str(),
+                "email_enabled": p.email_enabled,
+                "in_app_enabled": p.in_app_enabled,
+                "push_enabled": p.push_enabled,
+                "updated_at": p.updated_at,
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "items": items })))
+}
+
+#[derive(serde::Deserialize)]
+struct NotificationPreferenceRequest {
+    category: String,
+    email_enabled: bool,
+    in_app_enabled: bool,
+    push_enabled: bool,
+}
+
+/// PUT /api/v1/notifications/preferences — 更新类别偏好（security 不可全关）
+async fn put_notification_preferences(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Json(req): Json<NotificationPreferenceRequest>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "put_notification_preferences";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let category = crate::notifications::model::NotificationCategory::parse(&req.category)
+        .ok_or_else(|| {
+            AppError::bad_request(
+                "category must be activity, moderation, system, security or digest",
+                request_id,
+                None,
+            )
+        })?;
+    notifications::set_preference(
+        pool,
+        &user.id,
+        category,
+        req.email_enabled,
+        req.in_app_enabled,
+        req.push_enabled,
+        notifications::now(),
+    )
+    .await
+    .map_err(|e| match e {
+        notifications::NotifyError::Invalid(msg) => AppError::bad_request(msg, request_id, None),
+        notifications::NotifyError::Db(msg) => AppError::internal(msg, request_id),
+    })?;
+    Ok(Json(json!({ "category": category.as_str(), "updated": true })))
 }
 
 // ─── 举报端点 ─────────────────────────────────────────────────────────────

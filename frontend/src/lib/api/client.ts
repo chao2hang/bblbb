@@ -13,6 +13,7 @@ import type {
   PageResult,
   Notification,
   NotificationListResult,
+  NotificationPreference,
   Tag,
   ReactionResult,
   PublicProfile,
@@ -21,7 +22,14 @@ import type {
   CommentCreateInput,
   CommentPatchInput,
   DraftCreateInput,
-  DraftPatchInput
+  DraftPatchInput,
+  ReportItem,
+  ReportListResult,
+  OwnAppeal,
+  AppealListResult,
+  ModerationCaseItem,
+  ModerationCaseDetail,
+  ModerationAppealDetail
 } from './types';
 import type { Problem } from '../errors';
 
@@ -34,6 +42,7 @@ export type {
   PageResult,
   Notification,
   NotificationListResult,
+  NotificationPreference,
   Tag,
   ReactionResult,
   PublicProfile,
@@ -42,7 +51,14 @@ export type {
   CommentCreateInput,
   CommentPatchInput,
   DraftCreateInput,
-  DraftPatchInput
+  DraftPatchInput,
+  ReportItem,
+  ReportListResult,
+  OwnAppeal,
+  AppealListResult,
+  ModerationCaseItem,
+  ModerationCaseDetail,
+  ModerationAppealDetail
 } from './types';
 export type { Problem, ProblemFieldError } from '../errors';
 
@@ -356,6 +372,136 @@ export async function markNotificationRead(
   id: string
 ): Promise<void> {
   await request(fetchFn, `/notifications/${id}/read`, { method: 'POST' });
+}
+
+export async function markAllNotificationsRead(
+  fetchFn: typeof fetch
+): Promise<{ updated: number }> {
+  return request(fetchFn, `/notifications/read-all`, { method: 'POST' });
+}
+
+export async function getNotificationPreferences(
+  fetchFn: typeof fetch
+): Promise<{ items: NotificationPreference[] }> {
+  return request(fetchFn, `/notifications/preferences`);
+}
+
+export async function setNotificationPreference(
+  fetchFn: typeof fetch,
+  preference: Pick<NotificationPreference, 'category' | 'email_enabled' | 'in_app_enabled' | 'push_enabled'>
+): Promise<{ category: string; updated: boolean }> {
+  return request(fetchFn, `/notifications/preferences`, {
+    method: 'PUT',
+    body: JSON.stringify(preference)
+  });
+}
+
+// ─── 举报（M05-UI） ─────────────────────────────────────────────────────
+
+export async function createReport(
+  fetchFn: typeof fetch,
+  input: { target_type: string; target_id: string; reason: string; detail?: string | null }
+): Promise<{ id: string; status: string }> {
+  return request(fetchFn, `/reports`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function listOwnReports(
+  fetchFn: typeof fetch
+): Promise<ReportListResult> {
+  return request(fetchFn, `/reports`);
+}
+
+export async function withdrawReport(fetchFn: typeof fetch, id: string): Promise<void> {
+  await request(fetchFn, `/reports/${id}/withdraw`, { method: 'POST' });
+}
+
+// ─── 申诉（M05-UI） ─────────────────────────────────────────────────────
+
+export async function createAppeal(
+  fetchFn: typeof fetch,
+  input: { sanction_id: string; content: string }
+): Promise<OwnAppeal> {
+  return request(fetchFn, `/appeals`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function listOwnAppeals(
+  fetchFn: typeof fetch
+): Promise<AppealListResult> {
+  return request(fetchFn, `/appeals`);
+}
+
+export async function getOwnAppeal(
+  fetchFn: typeof fetch,
+  id: string
+): Promise<OwnAppeal> {
+  return request(fetchFn, `/appeals/${encodeURIComponent(id)}`);
+}
+
+export async function withdrawAppeal(fetchFn: typeof fetch, id: string): Promise<void> {
+  await request(fetchFn, `/appeals/${encodeURIComponent(id)}/withdraw`, { method: 'POST' });
+}
+
+// ─── 管理端案件（M05-UI） ───────────────────────────────────────────────
+
+export async function listModerationCases(
+  fetchFn: typeof fetch
+): Promise<{ items: ModerationCaseItem[] }> {
+  return request(fetchFn, `/admin/moderation/cases`);
+}
+
+export async function getModerationCase(
+  fetchFn: typeof fetch,
+  id: string
+): Promise<ModerationCaseDetail> {
+  return request(fetchFn, `/admin/moderation/cases/${encodeURIComponent(id)}`);
+}
+
+export async function updateModerationCase(
+  fetchFn: typeof fetch,
+  id: string,
+  body: { status: string; resolution?: string | null }
+): Promise<{ id: string; status: string }> {
+  return request(fetchFn, `/admin/moderation/cases/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
+}
+
+export async function assignModerationCase(
+  fetchFn: typeof fetch,
+  id: string,
+  body: { assignee_id: string; note?: string | null }
+): Promise<{ id: string; assigned_to: string }> {
+  return request(fetchFn, `/admin/moderation/cases/${encodeURIComponent(id)}/assign`, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+}
+
+// ─── 管理端申诉（M05-UI） ───────────────────────────────────────────────
+
+export async function listModerationAppeals(
+  fetchFn: typeof fetch
+): Promise<{ items: ModerationAppealDetail[] }> {
+  return request(fetchFn, `/admin/moderation/appeals`);
+}
+
+export async function getModerationAppeal(
+  fetchFn: typeof fetch,
+  id: string
+): Promise<ModerationAppealDetail> {
+  return request(fetchFn, `/admin/moderation/appeals/${encodeURIComponent(id)}`);
+}
+
+export async function decideModerationAppeal(
+  fetchFn: typeof fetch,
+  id: string,
+  body: { decision: string; reason: string; expected_version: number }
+): Promise<{ status: string }> {
+  return request(fetchFn, `/admin/moderation/appeals/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
 }
 
 // ─── Tags ────────────────────────────────────────────────────────────────

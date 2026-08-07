@@ -282,10 +282,86 @@ export interface Notification {
   is_read: boolean;
   created_at: number;
   read_at: number | null;
+  /** M05-NOTIFY-06 读取时权限复查：资源隐藏/删除后只显示安全失效状态。 */
+  unavailable?: boolean;
+  category?: string;
+  template_key?: string | null;
 }
 
 export interface NotificationListResult extends PageResult<Notification> {
   unread_count: number;
+}
+
+/** 类别偏好（GET/PUT /notifications/preferences）。 */
+export interface NotificationPreference {
+  category: 'activity' | 'moderation' | 'system' | 'security' | 'digest';
+  email_enabled: boolean;
+  in_app_enabled: boolean;
+  push_enabled: boolean;
+  updated_at: number;
+}
+
+/** 我的举报投影（GET /reports）。 */
+export interface ReportItem {
+  id: string;
+  target_type: string;
+  target_id: string;
+  reason_code: string;
+  status: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ReportListResult extends PageResult<ReportItem> {}
+
+/** 我的申诉投影（GET /appeals，申诉人侧，无内部 note）。 */
+export interface OwnAppeal {
+  id: string;
+  sanction_id: string;
+  status: string;
+  message: string;
+  submitted_at: number;
+  decided_at: number | null;
+  updated_at: number;
+}
+
+export interface AppealListResult extends PageResult<OwnAppeal> {}
+
+/** 管理端案件队列投影（GET /admin/moderation/cases）。 */
+export interface ModerationCaseItem {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  assigned_to: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ModerationCaseDetail extends ModerationCaseItem {
+  resolved_at: number | null;
+  resolution: string | null;
+}
+
+/** 管理端申诉详情投影（审核员侧，含内部 note）。 */
+export interface ModerationAppealDetail {
+  id: string;
+  sanction_id: string;
+  user_id: string;
+  status: string;
+  message: string;
+  reviewed_by: string | null;
+  decided_at: number | null;
+  submitted_at: number;
+  updated_at: number;
+  decisions: Array<{
+    id: string;
+    reviewer_id: string;
+    decision: string;
+    decision_note: string | null;
+    conflict_of_interest: string | null;
+    created_at: number;
+  }>;
 }
 
 /** 标签投影（GET /tags）；契约未定义独立 Tag schema，保留为领域值对象。 */
