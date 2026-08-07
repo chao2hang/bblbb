@@ -1304,13 +1304,14 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-notifications",
+      "handler": "backend/src/routes/moderation.rs::list_notifications",
       "tests": [
-
+        "backend/tests/notifications/notify.rs::list_cursor_and_read_flows",
+        "backend/tests/notifications/notify.rs::permission_recheck_hides_unavailable_content"
       ],
-      "evidence": null
+      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD"
     },
     {
       "operation_id": "post_notifications_id_read",
@@ -1321,13 +1322,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-notifications",
+      "handler": "backend/src/routes/moderation.rs::mark_notification_read",
       "tests": [
-
+        "backend/tests/notifications/notify.rs::list_cursor_and_read_flows"
       ],
-      "evidence": null
+      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD"
     },
     {
       "operation_id": "get_admin_levels_id_attachment_quota",

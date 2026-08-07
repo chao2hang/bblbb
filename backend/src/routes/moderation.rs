@@ -20,6 +20,7 @@ use crate::{
     moderation::cases::service as cases,
     moderation::cases::service::CasesError,
     moderation::model::{AppealDecisionValue, CasePriority, CaseStatus, ReportReasonCode, ReportTargetType},
+    notifications::service as notifications,
 };
 
 /// 审核路由：举报、案件、申诉、处罚、通知
@@ -37,6 +38,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/v1/notifications/{id}/read",
             post(mark_notification_read),
+        )
+        .route(
+            "/api/v1/notifications/read-all",
+            post(mark_all_notifications_read),
         )
         .route("/api/v1/admin/moderation/cases", get(list_moderation_cases))
         .route(
@@ -80,7 +85,7 @@ fn default_limit() -> i64 {
     20
 }
 
-/// GET /api/v1/notifications — 列出当前用户的通知
+/// GET /api/v1/notifications — 列出当前用户的通知（游标分页 + 权限复查）
 async fn list_notifications(
     State(state): State<AppState>,
     auth: AuthSession,
@@ -93,101 +98,24 @@ async fn list_notifications(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let limit = query.limit.clamp(1, 50);
     let unread_filter = query.unread_only.unwrap_or(false);
-
-    let rows = match pool {
-        Either::Left(p) => {
-            if unread_filter {
-                sqlx::query_as::<_, NotificationRow>(
-                    "SELECT id, type, title, body, link, is_read, created_at, read_at
-                     FROM notifications WHERE user_id = ? AND is_read = 0
-                     ORDER BY created_at DESC LIMIT ?",
-                )
-                .bind(&user.id)
-                .bind(limit)
-                .fetch_all(p)
-                .await
-            } else {
-                sqlx::query_as::<_, NotificationRow>(
-                    "SELECT id, type, title, body, link, is_read, created_at, read_at
-                     FROM notifications WHERE user_id = ?
-                     ORDER BY created_at DESC LIMIT ?",
-                )
-                .bind(&user.id)
-                .bind(limit)
-                .fetch_all(p)
-                .await
-            }
-        }
-        Either::Right(p) => {
-            if unread_filter {
-                sqlx::query_as::<_, NotificationRow>(
-                    "SELECT id, type, title, body, link, is_read, created_at, read_at
-                     FROM notifications WHERE user_id = ? AND is_read = 0
-                     ORDER BY created_at DESC LIMIT ?",
-                )
-                .bind(&user.id)
-                .bind(limit)
-                .fetch_all(p)
-                .await
-            } else {
-                sqlx::query_as::<_, NotificationRow>(
-                    "SELECT id, type, title, body, link, is_read, created_at, read_at
-                     FROM notifications WHERE user_id = ?
-                     ORDER BY created_at DESC LIMIT ?",
-                )
-                .bind(&user.id)
-                .bind(limit)
-                .fetch_all(p)
-                .await
-            }
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    // 获取未读计数
-    let unread_count: i64 = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar(
-                "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0",
-            )
-            .bind(&user.id)
-            .fetch_one(p)
+    let (items, has_more) =
+        notifications::list_notifications(pool, &user.id, query.limit, unread_filter, query.cursor.as_deref())
             .await
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar(
-                "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0",
-            )
-            .bind(&user.id)
-            .fetch_one(p)
-            .await
-        }
-    }
-    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    let items: Vec<Value> = rows
-        .iter()
-        .map(|n| {
-            json!({
-                "id": n.id,
-                "type": n.type_field,
-                "title": n.title,
-                "body": n.body,
-                "link": n.link,
-                "is_read": n.is_read != 0,
-                "created_at": n.created_at,
-                "read_at": n.read_at,
-            })
-        })
-        .collect();
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let unread_count = notifications::unread_count(pool, &user.id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    // M05-NOTIFY-06：读取时权限复查，隐藏/删除资源只显示安全失效状态。
+    let items = notifications::project_list(pool, items)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
     Ok(Json(json!({
         "items": items,
         "unread_count": unread_count,
-        "next_cursor": null,
-        "has_more": false,
+        "next_cursor": items.last().and_then(|n| n.get("id")).and_then(|v| v.as_str()),
+        "has_more": has_more,
     })))
 }
 
@@ -204,39 +132,34 @@ async fn mark_notification_read(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let now = chrono::Utc::now().timestamp();
-
-    let affected = match pool {
-        Either::Left(p) => {
-            sqlx::query("UPDATE notifications SET is_read = 1, read_at = ? WHERE id = ? AND user_id = ? AND is_read = 0")
-                .bind(now)
-                .bind(&id)
-                .bind(&user.id)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?
-                .rows_affected()
-        }
-        Either::Right(p) => {
-            sqlx::query("UPDATE notifications SET is_read = 1, read_at = ? WHERE id = ? AND user_id = ? AND is_read = 0")
-                .bind(now)
-                .bind(&id)
-                .bind(&user.id)
-                .execute(p)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?
-                .rows_affected()
-        }
-    };
-
-    if affected == 0 {
+    let hit = notifications::mark_read(pool, &user.id, &id, notifications::now())
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    if !hit {
         return Err(AppError::not_found(
             "notification not found or already read",
             request_id,
         ));
     }
-
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /api/v1/notifications/read-all — 批量已读（M05-NOTIFY-03）
+async fn mark_all_notifications_read(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "mark_all_notifications_read";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let updated = notifications::mark_all_read(pool, &user.id, notifications::now())
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok(Json(json!({ "updated": updated })))
 }
 
 // ─── 举报端点 ─────────────────────────────────────────────────────────────
@@ -875,19 +798,6 @@ async fn create_sanction(State(_state): State<AppState>) -> (StatusCode, Json<Va
 }
 
 // ─── 数据库行结构 ─────────────────────────────────────────────────────────
-
-#[derive(sqlx::FromRow)]
-struct NotificationRow {
-    id: String,
-    #[sqlx(rename = "type")]
-    type_field: String,
-    title: String,
-    body: Option<String>,
-    link: Option<String>,
-    is_read: i64,
-    created_at: i64,
-    read_at: Option<i64>,
-}
 
 /// 管理端申诉详情行（管理端读取任意申诉）。
 #[derive(sqlx::FromRow)]

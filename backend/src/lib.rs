@@ -12,6 +12,7 @@ pub mod content;
 pub mod db;
 pub mod domain;
 pub mod economy;
+pub mod email;
 pub mod error;
 pub mod events;
 pub mod idempotency;

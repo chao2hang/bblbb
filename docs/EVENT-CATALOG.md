@@ -55,9 +55,9 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 > `backend/src/events.rs`，目录不收录未实现事件（`check-event-catalog.rb`
 > 强制目录与注册表一致）。
 >
-> M05-SCHEMA 落地了治理与通知数据模型（0041-0045）；上报/申诉/通知的
-> 领域事件（`appeal.changed.v1`、`sanction.changed.v1`、`notification.*` 等）在
-> M05-APPEALS/M05-NOTIFY 实现并注册 `events.rs` 后同步登记到本目录。
+> M05-SCHEMA 落地了治理与通知数据模型（0041-0045）；`appeal.changed.v1`
+> 已随 M05-APPEALS 注册（M05-NOTIFY 消费既有领域事件生成站内/邮件通知，
+> 不再单列 `notification.*` 事件）。
 
 ## 3. Webhook
 
