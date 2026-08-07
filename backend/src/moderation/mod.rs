@@ -8,8 +8,10 @@
 //!   moderation_actions/revisions、sanctions、appeals 的数据模型与迁移约束；
 //! - `risk`（M05-RISK）：发布前后风险评估（版本化策略、规则、AI 建议接口、
 //!   pending_review 门禁、指标），由主代理实现（需集成共享发布路径）；
-//! - `cases`/`sanctions`/`appeals`：后续 Wave 由各自 agent 添加 `pub mod`
-//!   声明并落地实现。
+//! - `cases`（M05-CASES）：举报创建/撤回/去重、案件状态机与派单、利益冲突、
+//!   内容动作（hide/restore/delete 等）与审计/Outbox；
+//! - `sanctions`/`appeals`：后续 Wave 由各自 agent 添加 `pub mod` 声明并落地实现。
 
+pub mod cases;
 pub mod model;
 pub mod risk;
