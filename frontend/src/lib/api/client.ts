@@ -54,9 +54,22 @@ import type {
   ShopProduct,
   StorageConfig,
   StorageConfigPatch,
-  StorageTestResult
+  StorageTestResult,
+  // M8/M9：搜索与 AI（自建投影）
+  SearchPageView,
+  SearchResultView,
+  AiCapabilities,
+  AiConsentInput,
+  AiTask,
+  AiTaskAccepted,
+  AiSuggestion,
+  AiSuggestionAccept,
+  AiAdminConfig,
+  AiAdminTaskRow,
+  AiProviderTestResult
 } from './types';
 import type { Problem } from '../errors';
+import { normalizeSearchPage } from '../search';
 import type {
   DownloadResult,
   EntitlementEquip,
@@ -114,7 +127,19 @@ export type {
   ShopProduct,
   StorageConfig,
   StorageConfigPatch,
-  StorageTestResult
+  StorageTestResult,
+  // M8/M9：搜索与 AI（自建投影）
+  SearchPageView,
+  SearchResultView,
+  AiCapabilities,
+  AiConsentInput,
+  AiTask,
+  AiTaskAccepted,
+  AiSuggestion,
+  AiSuggestionAccept,
+  AiAdminConfig,
+  AiAdminTaskRow,
+  AiProviderTestResult
 } from './types';
 export type { Problem, ProblemFieldError } from '../errors';
 export type { DownloadResult, EntitlementEquip, Money, ShopOrderCreate } from './types';
@@ -1099,4 +1124,224 @@ export function productStatusLabel(status: ProductStatus | undefined): string {
     retired: '已下架'
   };
   return status ? (map[status] ?? status) : '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M8/M9：搜索与 AI（M08-UI / M09-UI）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /api/v1/search：公开搜索（M08-UI-01）。
+ *
+ * 归一化契约 SearchPage（{items,page{next_cursor,has_more}}）与后端平面
+ * 返回（{items,query,next_cursor,has_more}，backend/src/routes/search.rs 当前
+ * 实现）；items 兼容契约 SearchResult（title/url/excerpt）与平面 post 行。
+ * 任何受限字段（隐藏正文等）后端绝不返回；归一化只做形状整理，不拼接正文。 */
+export async function searchPublic(
+  fetchFn: typeof fetch,
+  q: string,
+  opts: { limit?: number; after?: string | null } = {}
+): Promise<SearchPageView> {
+  const params = new URLSearchParams({ q });
+  if (opts.limit) params.set('limit', String(opts.limit));
+  if (opts.after) params.set('after', opts.after);
+  const data = await request<unknown>(fetchFn, `/search?${params.toString()}`);
+  return normalizeSearchPage(data, q);
+}
+
+// ─── AI：能力（M09-UI-01） ────────────────────────────────────────────────
+
+/** GET /api/v1/ai/capabilities：能力声明（未启用返回 409 feature_disabled，
+ *  由调用方降级为 disabled 态；失败返回 null 以便 UI 给出关闭/不可用说明）。 */
+export async function getAiCapabilities(fetchFn: typeof fetch): Promise<AiCapabilities | null> {
+  try {
+    return await request<AiCapabilities>(fetchFn, '/ai/capabilities');
+  } catch {
+    return null;
+  }
+}
+
+// ─── AI：同意（M09-UI-02/03） ────────────────────────────────────────────
+
+/** POST /api/v1/ai/consent：授予同意（每次正文外发前展示完整披露并确认）。
+ *  Idempotency-Key 来自 disclosure 快照，重放不重复记录。 */
+export async function grantAiConsent(
+  fetchFn: typeof fetch,
+  input: AiConsentInput
+): Promise<{ ok: boolean }> {
+  return request(fetchFn, '/ai/consent', {
+    method: 'POST',
+    headers: idemHeaders(`ai-consent-${input.provider_id}-${input.purpose}-${input.disclosure_version}`),
+    body: JSON.stringify(input)
+  });
+}
+
+/** DELETE /api/v1/ai/consent：按 purpose 撤回同意（撤回后停止新任务）。 */
+export async function revokeAiConsent(
+  fetchFn: typeof fetch,
+  input: AiConsentInput
+): Promise<{ ok: boolean }> {
+  return request(fetchFn, '/ai/consent', {
+    method: 'DELETE',
+    headers: idemHeaders(`ai-revoke-${input.provider_id}-${input.purpose}-${input.disclosure_version}`),
+    body: JSON.stringify(input)
+  });
+}
+
+// ─── AI：任务（M09-UI-03） ────────────────────────────────────────────────
+
+/** GET /api/v1/ai/tasks/{id}：本人任务查询（轮询用）。 */
+export async function getAiTask(fetchFn: typeof fetch, id: string): Promise<AiTask> {
+  return request(fetchFn, `/ai/tasks/${encodeURIComponent(id)}`);
+}
+
+/** POST /api/v1/ai/tasks/{id}/cancel：取消尚未结束任务。 */
+export async function cancelAiTask(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string
+): Promise<{ ok: boolean }> {
+  return request(fetchFn, `/ai/tasks/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({})
+  });
+}
+
+/** POST /api/v1/ai/drafts/{draft_id}/format：主动格式化（202 任务或 200 同步
+ *  建议，统一 AiTaskAccepted）。 */
+export async function requestDraftFormat(
+  fetchFn: typeof fetch,
+  draftId: string,
+  clientRequestId: string
+): Promise<AiTaskAccepted> {
+  return request(fetchFn, `/ai/drafts/${encodeURIComponent(draftId)}/format`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({})
+  });
+}
+
+// ─── AI：建议（M09-UI-04/05） ────────────────────────────────────────────
+
+/** GET /api/v1/ai/suggestions/{id}：建议详情（moderation 只对审核人员返回；
+ *  内部 Prompt/举报信号由后端隐去）。 */
+export async function getAiSuggestion(fetchFn: typeof fetch, id: string): Promise<AiSuggestion> {
+  return request(fetchFn, `/ai/suggestions/${encodeURIComponent(id)}`);
+}
+
+/** POST /api/v1/ai/suggestions/{id}/accept：字段级采纳（expected_base_version
+ *  + If-Match 防覆盖新编辑；409 version_conflict → 提示重载）。 */
+export async function acceptAiSuggestion(
+  fetchFn: typeof fetch,
+  id: string,
+  body: AiSuggestionAccept
+): Promise<AiSuggestion> {
+  return request(fetchFn, `/ai/suggestions/${encodeURIComponent(id)}/accept`, {
+    method: 'POST',
+    headers: { 'If-Match': String(body.expected_base_version), ...idemHeaders(`ai-accept-${id}`) },
+    body: JSON.stringify(body)
+  });
+}
+
+// ─── AI：管理端（M09-UI-06） ─────────────────────────────────────────────
+
+/** GET /api/v1/admin/ai/config：脱敏配置（Secret 只给布尔）。 */
+export async function getAdminAiConfig(fetchFn: typeof fetch): Promise<AiAdminConfig> {
+  return request(fetchFn, '/admin/ai/config');
+}
+
+/** PATCH /api/v1/admin/ai/config：If-Match 版本守卫 + reason（审计）。 */
+export async function updateAdminAiConfig(
+  fetchFn: typeof fetch,
+  body: { expected_version: number; reason: string; changes: Record<string, unknown> }
+): Promise<AiAdminConfig> {
+  return request(fetchFn, '/admin/ai/config', {
+    method: 'PATCH',
+    headers: { 'If-Match': String(body.expected_version) },
+    body: JSON.stringify(body)
+  });
+}
+
+/** POST /api/v1/admin/ai/providers/test：测试 Provider（固定脱敏探针，不接受
+ *  用户正文）。 */
+export async function testAdminAiProvider(
+  fetchFn: typeof fetch,
+  candidate: Record<string, unknown>,
+  clientRequestId: string
+): Promise<AiProviderTestResult> {
+  return request(fetchFn, '/admin/ai/providers/test', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify(candidate)
+  });
+}
+
+/** GET /api/v1/admin/ai/tasks：全部任务（不扩大内容可见性）。 */
+export async function listAdminAiTasks(fetchFn: typeof fetch): Promise<AiAdminTaskRow[]> {
+  const data = await request<{ items?: AiAdminTaskRow[] } | AiAdminTaskRow[]>(
+    fetchFn,
+    '/admin/ai/tasks'
+  );
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+/** POST /api/v1/admin/ai/tasks/{id}/retry：重试 dead/retry_wait 任务。 */
+export async function retryAdminAiTask(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string
+): Promise<{ ok: boolean }> {
+  return request(fetchFn, `/admin/ai/tasks/${encodeURIComponent(id)}/retry`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({})
+  });
+}
+
+/** POST /api/v1/admin/ai/tasks/{id}/cancel：取消未结束任务。 */
+export async function cancelAdminAiTask(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string
+): Promise<{ ok: boolean }> {
+  return request(fetchFn, `/admin/ai/tasks/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({})
+  });
+}
+
+/** AI 任务状态 → 中文标签。 */
+export function aiTaskStatusLabel(status: AiTask['status'] | undefined): string {
+  const map: Record<AiTask['status'], string> = {
+    queued: '排队中',
+    running: '处理中',
+    retry_wait: '等待重试',
+    succeeded: '已完成',
+    cancelled: '已取消',
+    dead: '失败'
+  };
+  return status ? (map[status] ?? status) : '';
+}
+
+/** AI 用途 → 中文标签。 */
+export function aiPurposeLabel(purpose: string | undefined): string {
+  const map: Record<string, string> = {
+    formatting: '格式化',
+    seo: 'SEO 优化',
+    tagging: '标签建议',
+    moderation: '内容审核'
+  };
+  return purpose ? (map[purpose] ?? purpose) : '';
+}
+
+/** 数据模式 → 中文说明。 */
+export function aiDataModeLabel(mode: string | null | undefined): string {
+  const map: Record<string, string> = {
+    disabled: '不发送任何数据',
+    metadata_only: '仅发送元数据',
+    redacted: '发送脱敏内容',
+    full_with_consent: '征得同意后发送完整内容'
+  };
+  return mode ? (map[mode] ?? mode) : '不发送任何数据';
 }

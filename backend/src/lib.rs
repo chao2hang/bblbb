@@ -2,6 +2,8 @@
 //!
 //! 路由桩模块使用 `#[allow(unused_variables)]` 因为它们是待实现的占位处理器。
 
+pub mod ai;
+pub mod antibot;
 pub mod app;
 pub mod audit;
 pub mod auth;
@@ -16,6 +18,7 @@ pub mod economy;
 pub mod email;
 pub mod error;
 pub mod events;
+pub mod feeds;
 pub mod idempotency;
 pub mod jobs;
 pub mod middleware;

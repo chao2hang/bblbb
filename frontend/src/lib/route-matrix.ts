@@ -54,7 +54,7 @@ export const PROTOTYPE_ROUTE_MATRIX: PrototypeRouteEntry[] = [
   { prototype: '/admin/tags', production: '/admin/tags', status: 'shipped', milestone: 'M3', note: '标签管理（列表 501 + 创建表单可用）' },
   { prototype: '/admin/attachments', production: '/admin', status: 'planned', milestone: 'M13', note: '附件管理随 M13 落地' },
   { prototype: '/admin/download-billing', production: '/admin', status: 'planned', milestone: 'M13', note: '下载计费随 M13 落地' },
-  { prototype: '/admin/ai', production: '/admin', status: 'planned', milestone: 'M13', note: 'AI 管理随 M13 落地' },
+  { prototype: '/admin/ai', production: '/admin/ai', status: 'shipped', milestone: 'M9', note: 'AI 管理（Provider 脱敏状态/预算/任务重试取消/Flag 配置）随 M09-UI 落地' },
   { prototype: '/admin/video', production: '/admin', status: 'planned', milestone: 'M13', note: '视频管理随 M13 落地' },
   { prototype: '/admin/storage', production: '/admin/storage', status: 'shipped', milestone: 'M6', note: '存储管理（local/S3 配置/测试/脱敏状态）随 M06-UI 落地' },
   { prototype: '/admin/notifications', production: '/admin', status: 'planned', milestone: 'M13', note: '通知管理随 M13 落地' },

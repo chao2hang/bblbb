@@ -45,6 +45,7 @@
       <a href="/settings" class="settings-nav-item is-active">基本资料</a>
       <a href="/me" class="settings-nav-item">我的主页</a>
       <a href="/notifications" class="settings-nav-item">通知</a>
+      <a href="/settings/privacy" class="settings-nav-item">隐私与索引</a>
     </nav>
 
     <div class="settings-content">

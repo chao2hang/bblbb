@@ -19,6 +19,7 @@ import type {
   Board as ContractBoard,
   Page as ContractPage,
   PublicUser as ContractPublicUser,
+  SearchResult as ContractSearchResult,
   Money,
 } from './generated/v1';
 
@@ -225,6 +226,10 @@ export interface Draft {
   version: number;
   created_at: number;
   updated_at: number;
+  /** M08-INDEX-03：逐帖退出搜索引擎公开索引（后端返回时使用）。 */
+  search_index_opt_out?: boolean;
+  /** M08-INDEX-03：逐帖退出 AI 摘要生成。 */
+  ai_summary_opt_out?: boolean;
 }
 
 // ── 写请求输入（POST/PATCH body，契约对应 schema）────────────────────────────
@@ -240,6 +245,10 @@ export interface PostCreateInput {
   access_policy: AccessPolicy;
   scheduled_at?: number | null;
   client_request_id: string;
+  /** M08-INDEX-03：作者逐帖退出公开搜索引擎索引（管理员全站/板块策略优先）。 */
+  search_index_opt_out?: boolean;
+  /** M08-INDEX-03：作者逐帖退出 AI 摘要生成（管理员策略优先）。 */
+  ai_summary_opt_out?: boolean;
 }
 
 /** POST /api/v1/posts/{postId}/comments body（契约 CommentCreate）。 */
@@ -264,6 +273,10 @@ export interface DraftCreateInput {
   access_policy: AccessPolicy;
   scheduled_at?: number | null;
   client_request_id: string;
+  /** M08-INDEX-03：逐帖退出搜索引擎公开索引。 */
+  search_index_opt_out?: boolean;
+  /** M08-INDEX-03：逐帖退出 AI 摘要生成。 */
+  ai_summary_opt_out?: boolean;
 }
 
 /** PATCH /api/v1/drafts/{id} body（契约 DraftPatch，部分更新）。 */
@@ -274,6 +287,10 @@ export interface DraftPatchInput {
   visibility_level?: number;
   access_policy?: AccessPolicy;
   scheduled_at?: number | null;
+  /** M08-INDEX-03：逐帖退出搜索引擎公开索引。 */
+  search_index_opt_out?: boolean;
+  /** M08-INDEX-03：逐帖退出 AI 摘要生成。 */
+  ai_summary_opt_out?: boolean;
 }
 
 /** 通用分页投影；契约目标：Page（next_cursor/has_more）+ items。 */
@@ -794,4 +811,266 @@ export interface ActivityTask {
   is_enabled: boolean;
   version: number;
   updated_at: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M8/M9：搜索、索引退出与 AI（自建投影类型）
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 契约（openapi/openapi.yaml）中 M8 搜索结果后端投影可能与 contract SearchPage
+// 形状存在差异（flat items + next_cursor/has_more）；AI 各接口目前以
+// GenericSuccess/GenericRequest 兜底（M08-UI/M09-UI 交付时由并行 backend 域
+// agent 实现具体 schema）。本层按 docs/SEARCH.md、docs/AI.md §5 与
+// CRAWLER-POLICY.md 定义字段形状，字段缺失一律容忍；后端收敛后可按契约塌缩
+// 为 re-export。所有时间戳统一为 Unix 毫秒（与 M01-DB-08 一致）。
+
+// ── 搜索结果（M08） ──────────────────────────────────────────────────────
+
+/** 搜索结果显示投影（契约 SearchResult + 可选安全高亮 + 平面 post 行展示
+ * 字段）。
+ *
+ * `highlight` 只由后端提供（已清洗、受限长度的纯文本片段）；前端仅按纯文本
+ * 插值渲染，绝不据此在客户端拼接/还原隐藏正文（M08-UI-02）。缺省为 null。
+ * board/author/count 等平面字段只在后端返回时展示，绝不包含正文/隐藏内容。 */
+export type SearchResultView = ContractSearchResult & {
+  highlight?: string | null;
+  board_slug?: string | null;
+  board_name?: string | null;
+  author_id?: string | null;
+  author_name?: string | null;
+  reply_count?: number;
+  view_count?: number;
+};
+
+/** 搜索分页投影（契约 SearchPage 兼容平面返回形状）。 */
+export interface SearchPageView {
+  items: SearchResultView[];
+  query: string;
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+// ── AI 能力（M09） ───────────────────────────────────────────────────────
+
+/** AI 能力总开关状态（Feature Flag 门控；未启用默认关闭，见 docs/AI.md）。 */
+export type AiFeatureState = 'enabled' | 'disabled';
+
+/** Provider 脱敏状态（GET /api/v1/ai/capabilities）。
+ *  Secret 只返回 `secret_configured` 布尔；base_url/model 为允许展示的元数据，
+ *  绝不携带密钥/完整 API key。 */
+export interface AiProviderStatus {
+  id: string;
+  name?: string | null;
+  /** 是否已配置 Secret（只返回布尔，不回显任何明文/片段）。 */
+  secret_configured?: boolean;
+  /** 该 Provider 当前是否可用（allowlist/健康/预算裁决）。 */
+  available?: boolean;
+  /** 允许的用途（formatting/seo/tagging/moderation）。 */
+  purposes?: string[];
+  model?: string | null;
+  /** Provider 留存声明（脱敏展示文案）。 */
+  retention?: string | null;
+  /** Provider 训练使用声明（脱敏展示文案）。 */
+  training?: string | null;
+  /** Provider 所在区域（脱敏展示文案）。 */
+  region?: string | null;
+}
+
+/** 用户对某个 purpose 的同意状态（AI.md §5 同意模型）。 */
+export interface AiConsentView {
+  provider_id: string;
+  provider_name?: string | null;
+  /** 同意用途（formatting/seo/tagging/moderation）。 */
+  purpose: string;
+  /** 数据模式（full_with_consent 时才记录同意）。 */
+  data_mode: string;
+  /** 展示给用户的披露文案版本（同意版本）。 */
+  disclosure_version: number;
+  /** 当时展示文案的 hash（服务端保存；前端不回显原文）。 */
+  disclosure_hash?: string | null;
+  granted_at?: number | null;
+  revoked_at?: number | null;
+}
+
+/** GET /api/v1/ai/capabilities 投影（字段缺失容忍；未启用返回 409/501 → 前端
+ *  以 disabled 状态降级）。 */
+export interface AiCapabilities {
+  /** 站点 AI 能力总开关（Feature Flag；默认 false）。 */
+  enabled: boolean;
+  /** 默认数据发送策略：disabled/metadata_only/redacted/full_with_consent。 */
+  data_mode?: string | null;
+  /** 站点开放的用途列表。 */
+  purposes?: string[];
+  providers?: AiProviderStatus[];
+  /** 是否支持同步返回建议（能力声明 synchronous=true）。 */
+  synchronous?: boolean;
+  /** 当前用户各 purpose 的同意状态。 */
+  consents?: AiConsentView[];
+  /** 管理员全站/板块强制关闭（管理员策略优先于作者同意）。 */
+  admin_forbidden?: boolean;
+}
+
+/** POST/DELETE /api/v1/ai/consent body（契约 AiConsentCreate）。 */
+export interface AiConsentInput {
+  provider_id: string;
+  purpose: string;
+  /** 契约约束：仅 full_with_consent 模式记录逐次同意。 */
+  data_mode: 'full_with_consent';
+  disclosure_version: number;
+  disclosure_hash: string;
+}
+
+// ── AI 任务（M09-TASKS / M09-UI-03） ─────────────────────────────────────
+
+export type AiTaskType = 'formatting' | 'seo' | 'tagging' | 'moderation';
+
+export type AiTaskStatus =
+  | 'queued'
+  | 'running'
+  | 'retry_wait'
+  | 'succeeded'
+  | 'cancelled'
+  | 'dead';
+
+/** 任务投影（GET /api/v1/ai/tasks/{id}）；AI.md §5 Task 响应 schema union。 */
+export interface AiTask {
+  id: string;
+  task_type: AiTaskType;
+  status: AiTaskStatus;
+  /** 生成时内容 revision（旧 revision 结果不得覆盖新内容）。 */
+  source_revision?: number | null;
+  policy_version?: number | null;
+  /** 目标（draft_id / post_id；用户只见本人任务）。 */
+  target_id?: string | null;
+  /** 稳定错误码（脱敏；不回显 Provider 响应原文）。 */
+  error_code?: string | null;
+  error_message?: string | null;
+  /** 完成时挂接的建议 id。 */
+  suggestion_id?: string | null;
+  poll_url?: string | null;
+  cancel_url?: string | null;
+  created_at: number;
+  started_at?: number | null;
+  finished_at?: number | null;
+}
+
+/** 生成接口响应（默认 202；synchronous=true 短预算内可 200 并携带 suggestion）。 */
+export interface AiTaskAccepted {
+  task_id: string;
+  status: 'queued';
+  poll_url: string;
+  cancel_url?: string | null;
+  source_revision?: number | null;
+  policy_version?: number | null;
+  suggestion?: AiSuggestion | null;
+}
+
+// ── AI 建议（M09-SUGGESTIONS / M09-UI-04/05） ────────────────────────────
+
+export type AiSuggestionType = 'formatting' | 'seo' | 'tagging' | 'moderation';
+
+export type AiSuggestionStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'expired'
+  | 'superseded';
+
+/** 建议字段（服务端校验后的纯文本；不包含 HTML/脚本）。 */
+export interface AiSuggestionField {
+  /** 字段名（title/content/summary/tags/…）。 */
+  field: string;
+  /** 当前值（服务端投影；缺失表示无当前值）。 */
+  current?: string | null;
+  /** 建议值（安全纯文本，前端按文本插值渲染）。 */
+  proposed: string;
+  /** 变更理由/摘要（安全纯文本）。 */
+  reason?: string | null;
+  /** 是否可单独采纳。 */
+  selectable?: boolean;
+}
+
+/** Suggestion 投影（GET /api/v1/ai/suggestions/{id}）；按 type 独立版本化
+ *  schema。审核 Suggestion（moderation）只对有目标审核权限者可见；作者默认
+ *  只见公开审核结果而不见内部风险信号（AI.md §5）。 */
+export interface AiSuggestion {
+  id: string;
+  type: AiSuggestionType;
+  status: AiSuggestionStatus;
+  /** 生成时的目标 base revision（采纳时 expected_base_version/If-Match）。 */
+  base_version: number;
+  target_id?: string | null;
+  fields: AiSuggestionField[];
+  /** 安全纯文本 diff 预览（无 HTML；formatting/seo 使用）。 */
+  diff?: string | null;
+  created_at: number;
+  policy_version?: number | null;
+  /** moderation 专用：只含公开合规摘要；内部 Prompt/举报信号由后端隐去，
+   *  前端绝不渲染任何内部字段。 */
+  moderation?: {
+    target_type: string;
+    summary?: string | null;
+  } | null;
+}
+
+/** POST /api/v1/ai/suggestions/{id}/accept body（契约 SuggestionAccept）。 */
+export interface AiSuggestionAccept {
+  expected_base_version: number;
+  selected_fields?: string[];
+}
+
+// ── 管理端 AI（M09-UI-06） ───────────────────────────────────────────────
+
+/** 管理端 Provider 配置（GET/PATCH /admin/ai/config）。
+ *  Secret 只写不读：GET 只返回 secret_configured 布尔。 */
+export interface AiAdminProviderConfig {
+  id: string;
+  name?: string | null;
+  api_type?: string | null;
+  base_url?: string | null;
+  model?: string | null;
+  secret_configured?: boolean;
+  available?: boolean;
+  purposes?: string[];
+  retention?: string | null;
+  training?: string | null;
+  region?: string | null;
+  /** 每个 Provider 的策略版本（If-Match 依据之一）。 */
+  version?: number;
+}
+
+/** AI 站点配置脱敏视图（GET /admin/ai/config）。 */
+export interface AiAdminConfig {
+  /** AI 能力总开关（Feature Flag）。 */
+  enabled: boolean;
+  data_mode?: string | null;
+  purposes?: string[];
+  providers?: AiAdminProviderConfig[];
+  budgets?: {
+    per_user_daily_tokens?: number | null;
+    per_user_daily_usd?: number | null;
+    site_daily_tokens?: number | null;
+    site_daily_usd?: number | null;
+  } | null;
+  /** 功能 Flag（formatting/seo/tagging/moderation）。 */
+  flags?: Record<string, boolean>;
+  /** 默认拒绝 AI 训练爬虫策略（robots/响应头，见 CRAWLER-POLICY.md）。 */
+  ai_crawler_policy?: string | null;
+  version: number;
+  updated_at?: number | null;
+}
+
+/** 管理端任务行（GET /admin/ai/tasks）；不能扩大任务内容可见性。 */
+export interface AiAdminTaskRow extends AiTask {
+  user_id?: string | null;
+  provider?: string | null;
+  purpose?: string | null;
+}
+
+/** POST /admin/ai/providers/test 响应：稳定错误码 + 脱敏诊断（不回显凭证）。 */
+export interface AiProviderTestResult {
+  ok: boolean;
+  message: string;
+  code?: string | null;
+  elapsed_ms?: number | null;
 }

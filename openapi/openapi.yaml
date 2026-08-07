@@ -7356,6 +7356,9 @@ components:
           - origin_not_allowed
           - host_not_allowed
           - rate_limited
+          - crawler_denied
+          - challenge_required
+          - temporarily_banned
           - feature_disabled
           - policy_disabled
           - policy_version_changed

@@ -115,7 +115,7 @@ async fn login_cookie(app: &Router, email: &str) -> String {
         .to_string()
 }
 
-/// Bearer-only 写请求（无 Cookie）不被 CSRF 拦截：到达处理器（501 桩）。
+/// Bearer-only 写请求（无 Cookie）不被 CSRF 拦截：到达真实处理器（鉴权层）。
 #[tokio::test]
 async fn bearer_only_write_passes_csrf_without_token() {
     let (pool, dir) = pool_with_migrations().await;
@@ -128,15 +128,17 @@ async fn bearer_only_write_passes_csrf_without_token() {
                 .method("POST")
                 .uri("/api/v1/admin/storage/test")
                 .header(header::AUTHORIZATION, "Bearer eyJhbGciOiJIUzI1NiJ9")
-                .body(Body::empty())
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"reason":"test"}"#))
                 .unwrap(),
         )
         .await
         .unwrap();
-    // 501 = 请求穿透 CSRF 到达未实现处理器；403 = 被 CSRF 错误拦截
+    // 401 = 请求穿透 CSRF 到达真实处理器（Bearer 无效被鉴权拒绝）；
+    // 403 = 被 CSRF 错误拦截。
     assert_eq!(
         resp.status(),
-        StatusCode::NOT_IMPLEMENTED,
+        StatusCode::UNAUTHORIZED,
         "Bearer-only 写请求不得被 CSRF 拦截"
     );
 

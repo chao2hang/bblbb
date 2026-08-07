@@ -120,3 +120,27 @@ path = "tests/shop/core.rs"
 [[test]]
 name = "reactions"
 path = "tests/reactions.rs"
+
+[[test]]
+name = "search_public"
+path = "tests/search/public.rs"
+
+[[test]]
+name = "feeds"
+path = "tests/feeds.rs"
+
+[[test]]
+name = "antibot"
+path = "tests/antibot.rs"
+
+[[test]]
+name = "ai_gateway"
+path = "tests/ai/gateway.rs"
+
+[[test]]
+name = "ai_tasks"
+path = "tests/ai/tasks.rs"
+
+[[test]]
+name = "ai_suggestions"
+path = "tests/ai/suggestions.rs"

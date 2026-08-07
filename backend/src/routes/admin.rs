@@ -6,14 +6,54 @@ use axum::{
     Router,
 };
 use serde_json::{json, Value};
+use sqlx::Row;
 
 use crate::app::AppState;
+use crate::audit::AuditEntry;
 use crate::auth::session::AuthSession;
 use crate::authz::decision::AUTHZ_POLICY_VERSION;
 use crate::authz::enforce::authorize_action;
 use crate::boards::admin::{create_board, update_board, BoardCreateInput, BoardUpdateInput};
 use crate::error::AppError;
 use crate::tags::admin::{create_tag, update_tag};
+
+/// 管理权限门（M03-AUTHZ-05）：admin.manage + 账号状态实时门。
+async fn require_admin(
+    pool: &crate::db::DatabasePool,
+    user_id: &str,
+    request_id: &str,
+) -> Result<(), AppError> {
+    let decision = authorize_action(pool, user_id, "admin.manage", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(crate::authz::enforce::deny_to_error(
+            crate::authz::enforce::denied_reason(&decision)
+                .unwrap_or(crate::authz::decision::DenyReason::DefaultDeny),
+            request_id,
+        ));
+    }
+    Ok(())
+}
+
+/// 高风险管理操作必填 reason。
+#[allow(clippy::result_large_err)] // AppError 为统一错误类型
+fn required_reason(body: &Value, request_id: &str) -> Result<String, AppError> {
+    let reason = body
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if reason.is_empty() {
+        return Err(AppError::bad_request(
+            "reason is required for admin operation",
+            request_id,
+            None,
+        ));
+    }
+    Ok(reason)
+}
 
 /// 管理后台路由
 ///
@@ -70,7 +110,7 @@ pub fn router() -> Router<AppState> {
         // AI 管理
         .route(
             "/api/v1/admin/ai/config",
-            get(get_ai_config).patch(update_ai_config),
+            get(get_admin_ai_config).patch(update_ai_config),
         )
         .route("/api/v1/admin/ai/providers/test", post(test_ai_provider))
         .route("/api/v1/admin/ai/tasks", get(list_ai_tasks))
@@ -500,29 +540,366 @@ async fn get_admin_tag(
 ) -> (StatusCode, Json<Value>) {
     not_implemented("getAdminTag")
 }
-async fn get_ai_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_ai_config")
+/// GET /api/v1/admin/ai/config — Provider 列表（脱敏）+ 默认策略（M09-UI-06）。
+async fn get_admin_ai_config(
+    State(state): State<AppState>,
+    auth: crate::auth::session::AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_ai_config";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let items: Vec<Value> = match pool {
+        sqlx::Either::Left(p) => sqlx::query(
+            "SELECT id, name, adapter_type, base_url, default_model, status, secret_configured, data_mode, timeout_ms, max_input_tokens, max_output_tokens, max_concurrency, version, created_at, updated_at
+             FROM ai_providers ORDER BY name",
+        )
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .iter()
+        .map(ai_provider_config_row)
+        .collect(),
+        sqlx::Either::Right(p) => sqlx::query(
+            "SELECT id, name, adapter_type, base_url, default_model, status, secret_configured, data_mode, timeout_ms, max_input_tokens, max_output_tokens, max_concurrency, version, created_at, updated_at
+             FROM ai_providers ORDER BY name",
+        )
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .iter()
+        .map(ai_provider_config_row_mysql)
+        .collect(),
+    };
+    Ok(Json(json!({ "providers": items })))
 }
-async fn update_ai_config(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("patch_admin_ai_config")
+
+fn ai_provider_config_row(r: &sqlx::sqlite::SqliteRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "name": r.get::<String,_>("name"),
+        "adapter_type": r.get::<String,_>("adapter_type"),
+        "base_url": r.get::<String,_>("base_url"),
+        "default_model": r.get::<String,_>("default_model"),
+        "status": r.get::<String,_>("status"),
+        "secret_configured": r.get::<i64,_>("secret_configured") != 0,
+        "data_mode": r.get::<String,_>("data_mode"),
+        "timeout_ms": r.get::<i64,_>("timeout_ms"),
+        "max_input_tokens": r.get::<i64,_>("max_input_tokens"),
+        "max_output_tokens": r.get::<i64,_>("max_output_tokens"),
+        "max_concurrency": r.get::<i64,_>("max_concurrency"),
+        "version": r.get::<i64,_>("version"),
+        "created_at": r.get::<i64,_>("created_at"),
+        "updated_at": r.get::<i64,_>("updated_at"),
+    })
 }
-async fn test_ai_provider(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_ai_providers_test")
+
+fn ai_provider_config_row_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "name": r.get::<String,_>("name"),
+        "adapter_type": r.get::<String,_>("adapter_type"),
+        "base_url": r.get::<String,_>("base_url"),
+        "default_model": r.get::<String,_>("default_model"),
+        "status": r.get::<String,_>("status"),
+        "secret_configured": r.get::<i64,_>("secret_configured") != 0,
+        "data_mode": r.get::<String,_>("data_mode"),
+        "timeout_ms": r.get::<i64,_>("timeout_ms"),
+        "max_input_tokens": r.get::<i64,_>("max_input_tokens"),
+        "max_output_tokens": r.get::<i64,_>("max_output_tokens"),
+        "max_concurrency": r.get::<i64,_>("max_concurrency"),
+        "version": r.get::<i64,_>("version"),
+        "created_at": r.get::<i64,_>("created_at"),
+        "updated_at": r.get::<i64,_>("updated_at"),
+    })
 }
-async fn list_ai_tasks(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_ai_tasks")
+
+/// PATCH /api/v1/admin/ai/config — 新建/更新 Provider（admin.manage + reason + 审计）。
+async fn update_ai_config(
+    State(state): State<AppState>,
+    auth: crate::auth::session::AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "patch_admin_ai_config";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("name required", request_id, None))?
+        .trim()
+        .to_string();
+    if name.is_empty() || name.len() > 120 {
+        return Err(AppError::bad_request("invalid name", request_id, None));
+    }
+    let base_url = body
+        .get("base_url")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("base_url required", request_id, None))?
+        .to_string();
+    let default_model = body
+        .get("default_model")
+        .and_then(Value::as_str)
+        .unwrap_or("gpt-4o-mini")
+        .to_string();
+    let adapter_type = body
+        .get("adapter_type")
+        .and_then(Value::as_str)
+        .unwrap_or("openai_compatible")
+        .to_string();
+    let data_mode = body
+        .get("data_mode")
+        .and_then(Value::as_str)
+        .unwrap_or("redacted")
+        .to_string();
+    let status = body
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("disabled")
+        .to_string();
+    let now = crate::ai::consent::now();
+    let provider_id = uuid::Uuid::now_v7().to_string();
+    let affected = match pool {
+        sqlx::Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO ai_providers
+                     (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
+                 ON CONFLICT(name) DO UPDATE SET base_url = excluded.base_url, default_model = excluded.default_model,
+                     status = excluded.status, data_mode = excluded.data_mode, updated_at = excluded.updated_at",
+            )
+            .bind(&provider_id)
+            .bind(&name)
+            .bind(&adapter_type)
+            .bind(&base_url)
+            .bind(&default_model)
+            .bind(&status)
+            .bind(&data_mode)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .rows_affected()
+        }
+        sqlx::Either::Right(p) => {
+            sqlx::query(
+                "INSERT INTO ai_providers
+                     (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE base_url = VALUES(base_url), default_model = VALUES(default_model),
+                     status = VALUES(status), data_mode = VALUES(data_mode), updated_at = VALUES(updated_at)",
+            )
+            .bind(&provider_id)
+            .bind(&name)
+            .bind(&adapter_type)
+            .bind(&base_url)
+            .bind(&default_model)
+            .bind(&status)
+            .bind(&data_mode)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .rows_affected()
+        }
+    };
+    AuditEntry::user_action(&user.id, "ai.config.update")
+        .with_target("ai_provider", &name)
+        .with_reason(&reason)
+        .with_policy_version(crate::authz::decision::AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok(Json(
+        json!({ "provider": name, "upserted": affected, "status": status }),
+    ))
 }
+
+/// POST /api/v1/admin/ai/providers/test — 固定脱敏探针（不接收用户正文）。
+async fn test_ai_provider(
+    State(state): State<AppState>,
+    auth: crate::auth::session::AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_ai_providers_test";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let url = body
+        .get("base_url")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("base_url required", request_id, None))?;
+    let policy = crate::ai::gateway::EgressPolicy::default();
+    match policy.validate_endpoint(url) {
+        Ok(_) => Ok(Json(
+            json!({ "ok": true, "backend": "ai_provider", "detail": "egress policy ok" }),
+        )),
+        Err(e) => Ok(Json(
+            json!({ "ok": false, "backend": "ai_provider", "error_class": e.code() }),
+        )),
+    }
+}
+
+/// GET /api/v1/admin/ai/tasks — 管理端任务列表（安全投影，不扩大可见性）。
+async fn list_ai_tasks(
+    State(state): State<AppState>,
+    auth: crate::auth::session::AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_ai_tasks";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let items: Vec<Value> = match pool {
+        sqlx::Either::Left(p) => sqlx::query(
+            "SELECT id, task_type, target_type, target_id, user_id, status, attempt, error_class, created_at
+             FROM ai_tasks ORDER BY created_at DESC LIMIT 100",
+        )
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .iter()
+        .map(ai_task_row)
+        .collect(),
+        sqlx::Either::Right(p) => sqlx::query(
+            "SELECT id, task_type, target_type, target_id, user_id, status, attempt, error_class, created_at
+             FROM ai_tasks ORDER BY created_at DESC LIMIT 100",
+        )
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .iter()
+        .map(ai_task_row_mysql)
+        .collect(),
+    };
+    Ok(Json(json!({ "items": items })))
+}
+
+fn ai_task_row(r: &sqlx::sqlite::SqliteRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "task_type": r.get::<String,_>("task_type"),
+        "target_type": r.get::<String,_>("target_type"),
+        "target_id": r.get::<String,_>("target_id"),
+        "user_id": r.get::<String,_>("user_id"),
+        "status": r.get::<String,_>("status"),
+        "attempt": r.get::<i64,_>("attempt"),
+        "error_class": r.get::<Option<String>,_>("error_class"),
+        "created_at": r.get::<i64,_>("created_at"),
+    })
+}
+
+fn ai_task_row_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "task_type": r.get::<String,_>("task_type"),
+        "target_type": r.get::<String,_>("target_type"),
+        "target_id": r.get::<String,_>("target_id"),
+        "user_id": r.get::<String,_>("user_id"),
+        "status": r.get::<String,_>("status"),
+        "attempt": r.get::<i64,_>("attempt"),
+        "error_class": r.get::<Option<String>,_>("error_class"),
+        "created_at": r.get::<i64,_>("created_at"),
+    })
+}
+
+/// POST /api/v1/admin/ai/tasks/{id}/cancel — 管理端取消任意任务。
 async fn cancel_ai_task_admin(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_ai_tasks_id_cancel")
+    State(state): State<AppState>,
+    auth: crate::auth::session::AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_ai_tasks_id_cancel";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let now = crate::ai::tasks::now();
+    let affected = match pool {
+        sqlx::Either::Left(p) => sqlx::query(
+            "UPDATE ai_tasks SET status = 'cancelled', finished_at = ?, updated_at = ?
+                 WHERE id = ? AND status IN ('queued','running','retry_wait')",
+        )
+        .bind(now)
+        .bind(now)
+        .bind(&id)
+        .execute(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .rows_affected(),
+        sqlx::Either::Right(p) => sqlx::query(
+            "UPDATE ai_tasks SET status = 'cancelled', finished_at = ?, updated_at = ?
+                 WHERE id = ? AND status IN ('queued','running','retry_wait')",
+        )
+        .bind(now)
+        .bind(now)
+        .bind(&id)
+        .execute(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .rows_affected(),
+    };
+    Ok(Json(json!({ "id": id, "cancelled": affected })))
 }
+
+/// POST /api/v1/admin/ai/tasks/{id}/retry — 重置 retry_wait/dead 到 queued。
 async fn retry_ai_task(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_ai_tasks_id_retry")
+    State(state): State<AppState>,
+    auth: crate::auth::session::AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_ai_tasks_id_retry";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let now = crate::ai::tasks::now();
+    let affected = match pool {
+        sqlx::Either::Left(p) => {
+            sqlx::query(
+                "UPDATE ai_tasks SET status = 'queued', attempt = 0, error_class = NULL, error_message_safe = NULL, finished_at = NULL, updated_at = ?
+                 WHERE id = ? AND status IN ('retry_wait','dead')",
+            )
+            .bind(now)
+            .bind(&id)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .rows_affected()
+        }
+        sqlx::Either::Right(p) => {
+            sqlx::query(
+                "UPDATE ai_tasks SET status = 'queued', attempt = 0, error_class = NULL, error_message_safe = NULL, finished_at = NULL, updated_at = ?
+                 WHERE id = ? AND status IN ('retry_wait','dead')",
+            )
+            .bind(now)
+            .bind(&id)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .rows_affected()
+        }
+    };
+    Ok(Json(json!({ "id": id, "retried": affected })))
 }
 async fn list_video_policies(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("get_admin_video_policies")

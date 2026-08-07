@@ -18,6 +18,9 @@
 | `origin_not_allowed` | 400 | Cookie 写请求 Origin（缺则 Referer）不匹配 Host 或 allowed_origins | 从允许来源发起请求 |
 | `host_not_allowed` | 400 | 严格模式（allowed_hosts 已配置）下 Host 不在允许列表 | 使用允许的主机名 |
 | `rate_limited` | 429 | 用户、IP、对象或 Provider 限流 | 按 `Retry-After` 重试 |
+| `crawler_denied` | 403 | AI 训练/抓取爬虫类别默认拒绝（M08-CRAWL-08） | 停止抓取；不影响已授权用户 |
+| `challenge_required` | 403 | 需要一次性挑战 token（响应头 `X-BBLBB-Challenge`） | 重试并携带该 token（M08-CRAWL-06） |
+| `temporarily_banned` | 403 | 行为风控临时封禁（M08-CRAWL-07） | 按 `Retry-After` 稍后重试；可向管理员申诉复核 |
 | `feature_disabled` | 409 | 功能或 Provider 当前关闭 | 等待管理员开启 |
 | `policy_disabled` | 409 | 当前范围策略关闭 | 不重试同一操作 |
 | `policy_version_changed` | 409 | 客户端策略版本过期 | 重新读取策略 |

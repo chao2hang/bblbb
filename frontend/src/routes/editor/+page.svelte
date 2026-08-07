@@ -38,6 +38,7 @@
   } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
   import SafeHtml from '$lib/components/SafeHtml.svelte';
+  import EditorAssistantPanel from '$lib/components/ai/EditorAssistantPanel.svelte';
   import { renderSafeMarkdown, charCount } from '$lib/utils';
 
   const MAX_TITLE_CHARS = 200;
@@ -58,6 +59,9 @@
   let accessPolicy = $state<'public' | 'logged_in' | 'after_reply' | 'level'>('public');
   let visibilityLevel = $state(1);
   let scheduledAt = $state('');
+  // M08-INDEX-03：作者逐帖退出搜索索引 / AI 摘要（管理员全站/板块策略优先）。
+  let searchIndexOptOut = $state(false);
+  let aiSummaryOptOut = $state(false);
 
   let boards = $state<Board[]>([]);
   let tags = $state<Tag[]>([]);
@@ -86,7 +90,7 @@
   const recovery = $derived(problemRecovery(error));
 
   function currentSnapshot(): string {
-    return `${postType}|${title}|${markdown}|${boardId}|${visibilityLevel}|${accessPolicy}|${scheduledAt}`;
+    return `${postType}|${title}|${markdown}|${boardId}|${visibilityLevel}|${accessPolicy}|${scheduledAt}|${searchIndexOptOut}|${aiSummaryOptOut}`;
   }
 
   /** M04-UI-05：可见等级选项只展示到作者当前等级，超等级选项置灰。 */
@@ -140,6 +144,8 @@
       accessPolicy = draft.access_policy;
     }
     scheduledAt = msToDatetimeLocal(draft.scheduled_at);
+    if (typeof draft.search_index_opt_out === 'boolean') searchIndexOptOut = draft.search_index_opt_out;
+    if (typeof draft.ai_summary_opt_out === 'boolean') aiSummaryOptOut = draft.ai_summary_opt_out;
     lastSaved = currentSnapshot();
     dirty = false;
     draftState = 'saved';
@@ -176,6 +182,8 @@
     if (boardId) patch.board_id = boardId;
     patch.visibility_level = visibilityLevel;
     patch.access_policy = accessPolicy;
+    patch.search_index_opt_out = searchIndexOptOut;
+    patch.ai_summary_opt_out = aiSummaryOptOut;
     const sched = scheduledToMs(scheduledAt);
     patch.scheduled_at = sched; // null 清除定时
     return patch;
@@ -194,6 +202,8 @@
           markdown: markdown.trim() || '（空草稿）',
           visibility_level: visibilityLevel,
           access_policy: accessPolicy,
+          search_index_opt_out: searchIndexOptOut,
+          ai_summary_opt_out: aiSummaryOptOut,
           client_request_id: newClientRequestId()
         };
         if (boardId) input.board_id = boardId;
@@ -229,6 +239,27 @@
     }
   }
 
+  // ── AI 辅助（M09-UI-02/03/04/07） ────────────────────────────────────────
+  // 确保草稿存在并返回 id（AI 格式化目标）。调用方先保存当前内容。
+  async function ensureDraftForAi(): Promise<string | null> {
+    if (!user) return null;
+    if (title.trim() || markdown.trim()) {
+      if (dirty && !restoring) await saveDraft();
+      return draftId;
+    }
+    return null;
+  }
+
+  /** 字段级采纳：只更新本地表单（保存仍走草稿/发布流），绝不静默改写。 */
+  function applyAiField(field: string, value: string) {
+    if (field === 'title') {
+      title = value;
+    } else if (field === 'content' || field === 'markdown') {
+      markdown = value;
+    }
+    // summary/tags 当前编辑器无对应字段，忽略（保持只读展示）。
+  }
+
   async function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!user) {
@@ -245,6 +276,8 @@
       board_id: boardId,
       visibility_level: visibilityLevel,
       access_policy: accessPolicy,
+      search_index_opt_out: searchIndexOptOut,
+      ai_summary_opt_out: aiSummaryOptOut,
       scheduled_at: scheduledToMs(scheduledAt),
       client_request_id: newClientRequestId()
     };
@@ -443,6 +476,29 @@
             <input type="datetime-local" class="input-field" id="publish-scheduled" bind:value={scheduledAt} />
             <p class="input-hint">留空立即发布；填写后帖子将定时公开（需晚于当前时间）。</p>
           </div>
+
+          <div class="input-wrapper">
+            <span class="input-label" id="publish-index-label">索引与 AI 摘要</span>
+            <div style="display:flex;flex-direction:column;gap:var(--space-2);" role="group" aria-labelledby="publish-index-label">
+              <label class="input-label" style="display:flex;align-items:center;gap:var(--space-2);">
+                <input type="checkbox" bind:checked={searchIndexOptOut} />
+                从搜索引擎索引中排除
+              </label>
+              <label class="input-label" style="display:flex;align-items:center;gap:var(--space-2);">
+                <input type="checkbox" bind:checked={aiSummaryOptOut} />
+                不生成 AI 摘要
+              </label>
+            </div>
+            <p class="input-hint">逐帖退出（M08-INDEX-03）：只影响本帖子在公开搜索索引与 AI 摘要中的出现；管理员全站/板块策略优先于你的选择。</p>
+          </div>
+
+          <EditorAssistantPanel
+            {draftId}
+            {title}
+            {markdown}
+            onApplyField={applyAiField}
+            onEnsureDraft={ensureDraftForAi}
+          />
 
           <div class="input-wrapper">
             <span class="input-label" id="publish-tags-label">标签</span>

@@ -1,17 +1,21 @@
-//! 索引幂等 Job（M03-SEARCH-STORE-06）。
+//! 索引幂等 Job（M03-SEARCH-STORE-06；M08-INDEX-02/04/05）。
 //!
 //! 单一 job kind `search.index`，payload `{entity_type, entity_id}`：
 //!
-//! - **创建/更新/恢复**：源状态通过可见性裁决（[`decide_post_indexability`]
-//!   等，M03-SEARCH-STORE-05）→ 组装安全纯文本文档（`to_index_plain_text` +
-//!   `vet_index_text`）→ 条件 upsert——仅当 stored.policy_revision ≤
-//!   candidate.policy_revision 才应用，旧 revision 不覆盖新（docs/SEARCH.md §5）；
-//! - **隐藏/删除/退出索引**：源状态被排除（status/visibility/板块/作者/停用）
-//!   或源行不存在 → 从 `search_documents` 删除（FTS 由 0030 触发器同步）。
+//! - **创建/更新/恢复**：源状态通过统一公开可索引性裁决
+//!   （[`decide_public_post_indexability`]，M08-INDEX-02——覆盖 M03 状态/可见性/
+//!   板块/作者 + M04 访问策略 + M05 审核中 + M08 删除/逐帖退出/管理员策略）
+//!   → 组装安全纯文本文档（`to_index_plain_text` + `vet_index_text`）→
+//!   条件 upsert——仅当 stored.policy_revision ≤ candidate.policy_revision
+//!   才应用，旧 revision 不覆盖新（docs/SEARCH.md §5）；
+//! - **隐藏/删除/退出索引**：被排除或源行不存在 → 从 `search_documents`
+//!   删除（**删除不设守卫**——持旧策略快照的写回者无法复活已退出内容；
+//!   FTS 由 0030 触发器同步）。
 //!
 //! 幂等：同一实体重复入队经 `deduplication_key`
 //! （`search:index:{entity_type}:{entity_id}`）合并（待处理 Job 已存在则跳过）；
 //! 执行本身幂等——upsert 可重复、delete 对缺失行无害（rows=0 视为成功）。
+//! `reindex_*` 函数亦被重建流程（[`crate::search::rebuild`]）复用。
 
 /// 索引 Job kind。
 use serde_json::{json, Value};
@@ -23,9 +27,10 @@ use crate::jobs::worker::ClaimedJob;
 use crate::jobs::worker_loop::JobOutcome;
 use crate::outbox::now_millis;
 use crate::search::gate::{
-    decide_board_indexability, decide_post_indexability, decide_tag_indexability,
-    decide_user_indexability, vet_index_text, IndexDecision,
+    decide_board_indexability, decide_public_post_indexability, decide_tag_indexability,
+    decide_user_indexability, vet_index_text, IndexDecision, PostPublicIndexInput,
 };
+use crate::search::policy::{load_board_policy, load_site_policy, AdminIndexPolicy};
 use crate::search::{
     clean_index_text, excerpt_from_clean, policy_revision_for, to_index_plain_text, SearchDocument,
     SearchEntityType, BODY_MAX, EXCERPT_MAX, TITLE_MAX,
@@ -136,10 +141,14 @@ fn permanent(error: &str) -> JobOutcome {
 struct PostSource {
     id: String,
     title: String,
-    content: String,
+    slug: Option<String>,
+    board_id: String,
+    author_id: String,
     status: String,
     visibility: String,
-    author_id: String,
+    deleted_at: Option<i64>,
+    review_status: Option<String>,
+    search_index_opt_out: i64,
     updated_at: i64,
     board_active: i64,
     board_visibility: String,
@@ -147,21 +156,36 @@ struct PostSource {
     author_status: String,
     author_deleted_at: Option<i64>,
     author_updated_at: i64,
+    policy_kind: Option<String>,
+    policy_version: i64,
+    body_markdown: Option<String>,
+    content_excerpt: Option<String>,
+    content_updated_at: i64,
 }
 
-async fn reindex_post(pool: &DatabasePool, post_id: &str) -> Result<(), String> {
+/// 重新索引帖子（M08-INDEX-02/03/05；幂等，重建流程复用）。
+pub(crate) async fn reindex_post(pool: &DatabasePool, post_id: &str) -> Result<(), String> {
     let row: Option<PostSource> = match pool {
         Either::Left(p) => sqlx::query_as::<_, PostSource>(
-            "SELECT p.id, p.title, p.content, p.status, p.visibility, p.author_id, p.updated_at,
+            "SELECT p.id, p.title, p.slug, p.board_id, p.author_id, p.status, p.visibility,
+                    p.deleted_at, p.review_status, p.search_index_opt_out,
+                    p.updated_at,
                     COALESCE(b.is_active, 0) AS board_active,
                     COALESCE(b.visibility, 'hidden') AS board_visibility,
                     COALESCE(b.updated_at, 0) AS board_updated_at,
                     COALESCE(u.status, 'deleted') AS author_status,
                     u.deleted_at AS author_deleted_at,
-                    COALESCE(u.updated_at, 0) AS author_updated_at
+                    COALESCE(u.updated_at, 0) AS author_updated_at,
+                    pol.kind AS policy_kind,
+                    COALESCE(pol.policy_version, 0) AS policy_version,
+                    pc.body_markdown AS body_markdown,
+                    pc.excerpt AS content_excerpt,
+                    COALESCE(pc.updated_at, 0) AS content_updated_at
              FROM posts p
              LEFT JOIN boards b ON b.id = p.board_id
              LEFT JOIN users u ON u.id = p.author_id
+             LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
+             LEFT JOIN post_contents pc ON pc.post_id = p.id
              WHERE p.id = ?",
         )
         .bind(post_id)
@@ -169,16 +193,25 @@ async fn reindex_post(pool: &DatabasePool, post_id: &str) -> Result<(), String> 
         .await
         .map_err(|e| e.to_string())?,
         Either::Right(p) => sqlx::query_as::<_, PostSource>(
-            "SELECT p.id, p.title, p.content, p.status, p.visibility, p.author_id, p.updated_at,
+            "SELECT p.id, p.title, p.slug, p.board_id, p.author_id, p.status, p.visibility,
+                    p.deleted_at, p.review_status, p.search_index_opt_out,
+                    p.updated_at,
                     COALESCE(b.is_active, 0) AS board_active,
                     COALESCE(b.visibility, 'hidden') AS board_visibility,
                     COALESCE(b.updated_at, 0) AS board_updated_at,
                     COALESCE(u.status, 'deleted') AS author_status,
                     u.deleted_at AS author_deleted_at,
-                    COALESCE(u.updated_at, 0) AS author_updated_at
+                    COALESCE(u.updated_at, 0) AS author_updated_at,
+                    pol.kind AS policy_kind,
+                    COALESCE(pol.policy_version, 0) AS policy_version,
+                    pc.body_markdown AS body_markdown,
+                    pc.excerpt AS content_excerpt,
+                    COALESCE(pc.updated_at, 0) AS content_updated_at
              FROM posts p
              LEFT JOIN boards b ON b.id = p.board_id
              LEFT JOIN users u ON u.id = p.author_id
+             LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
+             LEFT JOIN post_contents pc ON pc.post_id = p.id
              WHERE p.id = ?",
         )
         .bind(post_id)
@@ -195,46 +228,73 @@ async fn reindex_post(pool: &DatabasePool, post_id: &str) -> Result<(), String> 
         }
     };
 
-    let decision = decide_post_indexability(
-        &row.status,
-        &row.visibility,
-        row.board_active != 0,
-        &row.board_visibility,
-        &row.author_status,
-        row.author_deleted_at,
-    );
+    // 管理员全站/板块策略（deny 优先；策略行 updated_at 进入 policy revision）。
+    let admin = load_effective_admin_policy(pool, &row.board_id).await?;
+    let decision = decide_public_post_indexability(&PostPublicIndexInput {
+        status: &row.status,
+        visibility: &row.visibility,
+        policy_kind: row.policy_kind.as_deref(),
+        board_active: row.board_active != 0,
+        board_visibility: &row.board_visibility,
+        author_status: &row.author_status,
+        author_deleted_at: row.author_deleted_at,
+        deleted_at: row.deleted_at,
+        review_status: row.review_status.as_deref(),
+        search_index_opt_out: row.search_index_opt_out != 0,
+        admin_search_index: &admin.search_index,
+    });
     match decision {
+        // 排除路径不设守卫：直接删除（旧策略快照无法复活已退出内容）。
         IndexDecision::Excluded(_) => delete_document(pool, post_id).await,
         IndexDecision::Indexable => {
             let tags = load_post_tags(pool, post_id).await?;
             let plain_title = to_index_plain_text(&row.title, TITLE_MAX);
-            let plain_content = to_index_plain_text(&row.content, BODY_MAX);
+            // 公开正文：post_contents.body_markdown（M04 权威来源）；旧行兜底
+            // 骨架遗留 posts.content。
+            let source_text = match row.body_markdown.as_deref() {
+                Some(text) if !text.trim().is_empty() => text.to_string(),
+                _ => row_body_legacy(pool, post_id).await?.unwrap_or_default(),
+            };
+            let plain_content = to_index_plain_text(&source_text, BODY_MAX);
             if plain_title.is_empty() || plain_content.is_empty() {
                 // 无可索引文本：从索引清理而非存储空文档。
                 return delete_document(pool, post_id).await;
             }
             let body = clean_index_text(&format!("{plain_title} {plain_content}"), BODY_MAX);
-            let excerpt = excerpt_from_clean(&plain_content, EXCERPT_MAX);
+            // 公开摘要：优先 post_contents.excerpt（M04-MARKDOWN-06 安全摘要），
+            // 否则从清洗正文推导。
+            let excerpt = match row.content_excerpt.as_deref() {
+                Some(e) if !e.trim().is_empty() => {
+                    excerpt_from_clean(&clean_index_text(e, EXCERPT_MAX + 1), EXCERPT_MAX)
+                }
+                _ => excerpt_from_clean(&plain_content, EXCERPT_MAX),
+            };
             // P0 门（M03-SEARCH-STORE-05）：转换结果必须通过 vet，
             // restricted 特征串/残留 HTML 一律永久拒绝，绝不入索引。
             for field in [&plain_title, &body, &excerpt] {
                 vet_index_text(field).map_err(|e| format!("index text rejected: {e:?}"))?;
             }
-            let source_revision = row.updated_at;
+            let source_revision = row.updated_at.max(row.content_updated_at);
             let policy_revision = policy_revision_for(&[
                 row.updated_at,
                 row.board_updated_at,
                 row.author_updated_at,
                 row.author_deleted_at.unwrap_or(0),
+                row.deleted_at.unwrap_or(0),
+                row.policy_version,
+                admin.updated_at,
             ]);
+            let slug = row
+                .slug
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| row.id.clone());
             let doc = SearchDocument::new(
                 row.id.clone(),
                 SearchEntityType::Post,
                 plain_title,
                 body,
                 Some(excerpt),
-                // M4 增加 post.slug 前以 id 作 URL 段占位。
-                row.id.clone(),
+                slug,
                 Some(row.author_id.clone()),
                 tags,
                 source_revision,
@@ -245,6 +305,33 @@ async fn reindex_post(pool: &DatabasePool, post_id: &str) -> Result<(), String> 
             upsert_document_guarded(pool, &doc).await
         }
     }
+}
+
+/// 读取骨架遗留 posts.content（M4 收口前的兜底；无 post_contents 的旧行）。
+async fn row_body_legacy(pool: &DatabasePool, post_id: &str) -> Result<Option<String>, String> {
+    let body: Option<String> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT content FROM posts WHERE id = ?")
+            .bind(post_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| e.to_string())?,
+        Either::Right(p) => sqlx::query_scalar("SELECT content FROM posts WHERE id = ?")
+            .bind(post_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| e.to_string())?,
+    };
+    Ok(body)
+}
+
+/// 板块相关管理员策略（site ∪ board，deny 优先）——索引 Job 与重建共用。
+async fn load_effective_admin_policy(
+    pool: &DatabasePool,
+    board_id: &str,
+) -> Result<AdminIndexPolicy, String> {
+    let site = load_site_policy(pool).await?;
+    let board = load_board_policy(pool, board_id).await?;
+    Ok(AdminIndexPolicy::effective(&site, &board))
 }
 
 async fn load_post_tags(pool: &DatabasePool, post_id: &str) -> Result<Vec<String>, String> {
@@ -281,7 +368,7 @@ struct UserSource {
     updated_at: i64,
 }
 
-async fn reindex_user(pool: &DatabasePool, user_id: &str) -> Result<(), String> {
+pub(crate) async fn reindex_user(pool: &DatabasePool, user_id: &str) -> Result<(), String> {
     let row: Option<UserSource> = match pool {
         Either::Left(p) => sqlx::query_as::<_, UserSource>(
             "SELECT id, username_normalized, display_name, bio, status, deleted_at, updated_at
@@ -357,7 +444,7 @@ struct BoardSource {
     updated_at: i64,
 }
 
-async fn reindex_board(pool: &DatabasePool, board_id: &str) -> Result<(), String> {
+pub(crate) async fn reindex_board(pool: &DatabasePool, board_id: &str) -> Result<(), String> {
     let row: Option<BoardSource> = match pool {
         Either::Left(p) => sqlx::query_as::<_, BoardSource>(
             "SELECT id, name, slug, description, is_active, visibility, updated_at
@@ -423,7 +510,7 @@ struct TagSource {
     updated_at: i64,
 }
 
-async fn reindex_tag(pool: &DatabasePool, tag_id: &str) -> Result<(), String> {
+pub(crate) async fn reindex_tag(pool: &DatabasePool, tag_id: &str) -> Result<(), String> {
     let row: Option<TagSource> = match pool {
         Either::Left(p) => sqlx::query_as::<_, TagSource>(
             "SELECT id, name, slug, description, is_active, updated_at FROM tags WHERE id = ?",

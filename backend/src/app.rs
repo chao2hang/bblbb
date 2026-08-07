@@ -53,6 +53,8 @@ pub struct AppState {
     pub limiter: Arc<RateLimiter>,
     /// 对象存储服务（M06-ADAPTER；None = 存储域路由返回 503）。
     pub storage: Option<Arc<crate::storage::StorageService>>,
+    /// 反爬/行为检测引擎（M08-CRAWL；进程内状态）。
+    pub antibot: Arc<crate::antibot::AntibotEngine>,
 }
 
 impl AppState {
@@ -100,9 +102,11 @@ pub fn build_router_full(
         flags,
         limiter: Arc::new(RateLimiter::new()),
         storage: storage.map(Arc::new),
+        antibot: Arc::new(crate::antibot::AntibotEngine::new()),
     };
     let guard_state = state.clone();
     let gate_state = state.clone();
+    let antibot_state = state.clone();
 
     // 基础端点（不需要 AppState）
     let base_routes = Router::new()
@@ -169,11 +173,13 @@ pub fn build_router_full(
         .merge(openapi_routes)
         .merge(api_routes)
         // 中间件层（后添加者在外层；运行顺序为从外到内：
-        // problem → request_id → feature_gate → host_origin → trace → body_limit
-        // → timeout → security_headers → router）
+        // problem → request_id → feature_gate → antibot → host_origin → trace
+        // → body_limit → timeout → security_headers → router）
         // problem_instance 必须最外层：内层中间件（如 Host/Origin/Feature Gate）
         // 提前返回的 Problem 响应也能被补齐 instance/request_id。
         // feature_gate 位于 request_id 内层，可读取 request_id 扩展。
+        // antibot 位于 feature_gate 内层（未启用功能的路径不消耗风控预算）、
+        // host_origin 外层（风控先于来源校验）。
         .layer(middleware::from_fn(security_headers))
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
@@ -184,6 +190,10 @@ pub fn build_router_full(
         .layer(middleware::from_fn_with_state(
             guard_state,
             host_origin_guard,
+        ))
+        .layer(middleware::from_fn_with_state(
+            antibot_state,
+            crate::antibot::antibot_guard,
         ))
         .layer(middleware::from_fn_with_state(gate_state, feature_gate))
         .layer(middleware::from_fn(request_id))

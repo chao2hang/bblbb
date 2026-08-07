@@ -69,3 +69,86 @@ BBLBB 区分“允许索引的公开内容”和“受保护的访问控制”�
 - `降速 → 429 → 挑战 → 临时封禁 → 人工复核` 状态机及恢复测试；
 - 管理员全站/板块关闭与作者逐帖退出的优先级测试；
 - 多节点或 CDN 缓存启用时的缓存隔离测试。
+
+## 7. Feed/SEO 投影与缓存（M08-FEEDS）
+
+实现位置：`backend/src/feeds/`（projection/render/robots/cache）+ 
+`backend/src/routes/feeds.rs`。
+
+### 7.1 RSS/Atom/sitemap
+
+- **RSS 2.0**（`GET /api/v1/rss`）：`published_at DESC, id DESC` 稳定排序 +
+  keyset cursor（`base64url("published_at|id")`）；文本/属性统一 XML 转义
+  （`& < > " '`）；每条含 guid/link/pubDate/description/author。
+- **Atom 1.0**（`GET /api/v1/atom`）：feed/entry 的 id/link/updated/published/
+  summary/author 全字段 + 更新时间（RFC 3339）。
+- **sitemap**（`GET /api/v1/sitemap.xml`）：只列入**允许索引**的公开 canonical
+  URL；总量超过单页上限（默认 500，钳制 100..=5000）返回 `<sitemapindex>`
+  分片导航；越界分片返回空 urlset（不枚举总量）。
+- 三个通道加载时**重新执行可见性/退出索引策略**：`status='published'` 且未
+  删除、非审核中、有效访问策略 public、板块启用且 public、作者 active、作者
+  逐帖未退出、管理员全站/板块未 deny。隐藏/回复/等级/付费/审核/删除/封禁/
+  退出内容绝不进入任何 Feed 投影。
+
+### 7.2 robots / X-Robots-Tag / meta noindex
+
+- 动态 `robots.txt`（`GET /robots.txt`）：默认允许公开路径，`/api/`、`/admin/`、
+  `/search`、revisions 一律 Disallow；**AI 训练爬虫（GPTBot/CCBot/
+  Google-Extended/ClaudeBot/PerplexityBot）默认拒绝**。
+- Feed/sitemap 响应携带 `X-Robots-Tag: noindex, nofollow, noarchive`。
+- `meta name="robots"` 决策与 `X-Robots-Tag` 同源（`feeds::robots`），由
+  公开投影的 `index_allowed` 决定；robots 只是爬虫声明层，**不替代服务端
+  鉴权/授权/限流/行为风控**。
+
+### 7.3 OpenGraph/JSON-LD/canonical/摘要/图片
+
+`load_seo_post` 对单帖重跑可见性/退出索引策略（不可见 → 无投影）；`seo_meta_for`
+组装 canonical、`og:*`、`Article`/`DiscussionForumPosting` JSON-LD、摘要
+（安全 excerpt）与封面图片（`/api/v1/attachments/{id}/content` 稳定内容端点，
+只投影 attachment id，不投影签名 URL）。`index_allowed = !作者逐帖退出 && !
+管理员 deny` → 供前端输出 `noindex` meta / `X-Robots-Tag`。
+
+### 7.4 Feed/SEO 缓存隔离
+
+`feeds::cache`：进程内有界缓存（≤128 项，TTL 60s），键 =
+`(endpoint, 查询参数, policy_revision, content_revision, 投影维度)`。策略
+revision（逐帖退出/管理员策略/状态/可见性变更 bump）与内容 revision（编辑
+bump）任一变化都使键失效——**登录后/付费/审核中内容永远不会以陈旧键被缓存
+给匿名用户**；多节点下各节点独立，正确性以 ETag/`Cache-Control`
+（`public, max-age=300`）与数据库实时查询兜底。
+
+## 8. 行为检测与分级响应实现（M08-CRAWL）
+
+实现位置：`backend/src/antibot/`（引擎 + 中间件）+ `backend/tests/antibot.rs`
++ `backend/src/error.rs`（`with_code` 专有错误码）。
+
+### 8.1 处置阶梯
+
+`observe → throttle → 429 → challenge → temp ban → review`：
+
+- **observe/throttle**：进程内固定窗口计数；剩余额度 ≤ `limit × 15%` 时对
+  疑似批量请求增加 `throttle_delay_ms` 延迟——**只加延迟，不改内容与授权**。
+- **429**：`rate_limited` + `Retry-After` + `Ratelimit-*` 头。
+- **challenge**：403 `challenge_required`，响应头 `X-BBLBB-Challenge` 携带
+  HMAC 一次性 token（含 IP/桶/过期/随机 nonce）；重试带该头验证通过后放行，
+  token 一次性且过期失效；验证失败累计达阈值触发临时封禁。无路由/无 JS 依赖，
+  是无障碍替代路径。
+- **temp ban**：403 `temporarily_banned`（不泄漏检测规则）+ `Retry-After`；
+  封禁写审计（`AuditEntry::system_action`，仅 IP/类别/原因，不存完整 UA/路径）
+  并记录告警（隐私最小化：只保留 IP 段），人工复核后可 `unban`。
+
+### 8.2 分桶与代理边界
+
+- 桶：`anonymous / authenticated / login / search / rss / sitemap /
+  public_article / admin`，独立限流，接口之间不互相耗尽预算。
+- 客户端 IP 只信任可信代理链：`X-Forwarded-For` 最右跳必须是配置的可信代理
+  （默认回环），否则整条头视为伪造并回退 `"unknown"`（共享桶天然限流）；
+  `X-Real-IP` 仅在链一致时信任。
+- `/healthz`、`/readyz`、`/api/v1/openapi.json` 豁免风控。
+
+### 8.3 AI 训练爬虫
+
+`GPTBot / CCBot / Google-Extended / ClaudeBot / anthropic-ai / Bytespider /
+PerplexityBot / Amazonbot` 默认拒绝（403 `crawler_denied`）；名单配置化且
+写审计。普通搜索引擎名单允许访问但参与行为风控；robots 与 HTTP 授权同时执行
+——中间件**不改变**内容可见性与对象级授权。

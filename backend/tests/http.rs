@@ -183,7 +183,7 @@ async fn disabled_feature_route_returns_409_feature_disabled() {
     }
 }
 
-/// Flag 启用后，同一路由放行到真实 handler（此时为 stub → 501）。
+/// Flag 启用后，同一路由放行到真实 handler（AI capabilities 为已实现路由）。
 #[tokio::test]
 async fn enabled_feature_route_passes_the_gate() {
     let mut flags = FeatureFlags::all_default();
@@ -207,8 +207,12 @@ async fn enabled_feature_route_passes_the_gate() {
         )
         .await
         .unwrap();
-    // Gate 放行 → 走到 stub handler（501 Not Implemented）
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    // Gate 放行 → 真实 handler（无 DB → providers 空数组，能力声明 200）。
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["enabled"], true, "body: {json}");
+    assert_eq!(json["providers"], serde_json::json!([]), "body: {json}");
 }
 
 /// 上传与核心路径不受 Download Billing / 其他 Flag 门控。

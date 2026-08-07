@@ -1,56 +1,76 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  // M08-UI-01/02：公开搜索 SSR。
+  //
+  // - load 已在服务端取回搜索结果（SearchPageData），无 JS 可读；
+  // - 表单为原生 GET → /search?q=（无 JS 可提交）；
+  // - 结果只渲染后端安全投影字段（SearchResultList，纯文本插值）；
+  // - 429/挑战 → ChallengeGate（键盘/读屏/移动/失败回退）；
+  // - 分页用稳定 cursor 链接（/search?q=&after=）。
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
-  import { search, type PostSummary } from '$lib/api/client';
-  import PostList from '$lib/components/PostList.svelte';
-  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import { SEARCH_LIMIT_DEFAULT, searchUrl } from '$lib/search';
+  import SearchResultList from '$lib/components/SearchResultList.svelte';
+  import ChallengeGate from '$lib/components/ui/ChallengeGate.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import JsonLd from '$lib/components/JsonLd.svelte';
+  import type { SearchPageData } from './+page.server';
 
-  // M03-UI-06 标签筛选：/search?tag={slug} 以标签名作为关键词预填搜索，
-  // 显示可移除的标签筛选 chip；帖子级标签过滤由 M8 搜索收敛。
+  let { data }: { data: SearchPageData } = $props();
+
   const tagSlug = $derived(page.url.searchParams.get('tag') ?? '');
-  // q 是一次性初始值（URL 参数每次导航重建页面），untrack 消除本地引用噪音。
-  let q = $state(untrack(() => page.url.searchParams.get('q') || tagSlug || ''));
-  let results = $state<PostSummary[]>([]);
-  let loading = $state(false);
-  let searched = $state(false);
+  const searched = $derived(data.searched);
+  const results = $derived(data.results);
+  const invalid = $derived(data.invalid);
+  const error = $derived(data.error);
+  const rateLimited = $derived(data.rateLimited);
+  const challenge = $derived(data.challenge);
+  const q = $derived(data.q);
 
-  async function run(query: string) {
-    loading = true;
-    searched = true;
-    try {
-      const result = await search(fetch, query, 20);
-      results = result.items;
-    } catch {
-      results = [];
+  // ── SEO head（M08-UI-05）：canonical + noindex + OG/Twitter + JSON-LD。
+  const origin = $derived(page.url.origin);
+  const canonical = $derived(
+    searched ? `${origin}${searchUrl(q, { limit: data.limit })}` : `${origin}/search`
+  );
+  const pageTitle = $derived(searched ? `搜索「${q}」 — BBLBB` : '搜索 — BBLBB');
+  const pageDesc = $derived(
+    searched ? `搜索「${q}」的公开内容` : '搜索 BBLBB 的公开内容'
+  );
+  const jsonLd = $derived.by(() => ({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'BBLBB',
+    url: origin,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: { '@type': 'EntryPoint', urlTemplate: `${origin}/search?q={search_term_string}` },
+      'query-input': 'required name=search_term_string'
     }
-    loading = false;
-  }
+  }));
+  // JSON-LD 完全由静态模板生成（不含用户输入），经 JsonLd 白名单组件注入。
+  const jsonLdScript = $derived(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</scr${'ipt>'}`);
 
-  function submit(e: SubmitEvent) {
-    e.preventDefault();
-    const form = e.currentTarget as HTMLFormElement;
-    const input = form.querySelector('input') as HTMLInputElement | null;
-    const query = (input?.value || '').trim();
-    goto(query ? `/search?q=${encodeURIComponent(query)}` : '/search');
-    run(query);
-  }
+  const totalLabel = $derived(
+    results.length > 0 ? `找到 ${results.length} 条结果` : null
+  );
 
-  function removeTagFilter() {
-    goto('/search');
-    q = '';
-    run('');
-  }
-
-  onMount(() => {
-    const initial = page.url.searchParams.get('q') || tagSlug || '';
-    if (initial) run(initial);
-  });
+  /** 下一分页链接（稳定 cursor）。 */
+  const nextUrl = $derived(
+    data.hasMore && data.nextCursor ? searchUrl(q, { limit: data.limit, after: data.nextCursor }) : null
+  );
 </script>
 
 <svelte:head>
-  <title>搜索 — BBLBB</title>
+  <title>{pageTitle}</title>
+  <meta name="description" content={pageDesc} />
+  <link rel="canonical" href={canonical} />
+  <!-- 搜索页默认 noindex（FRONTEND.md §8）；不承诺替代服务端边界。 -->
+  <meta name="robots" content="noindex,follow,noarchive" />
+  <meta property="og:site_name" content="BBLBB" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content={pageTitle} />
+  <meta property="og:description" content={pageDesc} />
+  <meta property="og:url" content={canonical} />
+  <meta name="twitter:card" content="summary" />
+  <JsonLd data={jsonLdScript} />
 </svelte:head>
 
 <div class="container page-content">
@@ -60,7 +80,7 @@
     <span class="breadcrumb-current">搜索</span>
   </nav>
 
-  <form class="card" role="search" onsubmit={submit}>
+  <form class="card" role="search" method="get" action="/search">
     <div class="card-body" style="display:flex;gap:var(--space-3);align-items:center;">
       <div style="position:relative;flex:1;min-width:0;">
         <span style="position:absolute;left:var(--space-3);top:50%;transform:translateY(-50%);color:var(--color-text-tertiary);display:inline-flex;">
@@ -68,10 +88,12 @@
         </span>
         <input
           type="search"
+          name="q"
           class="input-field"
           placeholder="搜索帖子…"
           style="padding-left:40px;"
-          bind:value={q}
+          value={q}
+          maxlength={200}
           aria-label="搜索帖子"
         />
       </div>
@@ -84,21 +106,65 @@
       <div class="tag-chip" style="margin-bottom:var(--space-3);" title="按标签筛选">
         <Icon name="tag" size={12} />
         <span>标签：{tagSlug}</span>
-        <button type="button" class="tag-chip-remove" aria-label="移除标签筛选" onclick={removeTagFilter}>
-          <Icon name="x" size={12} />
-        </button>
+        <a class="tag-chip-remove" href="/search" aria-label="移除标签筛选"><Icon name="x" size={12} /></a>
       </div>
     {/if}
-    {#if loading}
-      <div class="empty-state"><div class="empty-state-title">搜索中…</div></div>
-    {:else if searched && results.length === 0}
-      <EmptyState icon="search" title="没有找到相关内容" desc="换个关键词试试" />
-    {:else if results.length > 0}
+
+    {#if !searched}
       <div class="card">
-        <div class="card-body" style="padding:0;">
-          <PostList posts={results} />
+        <div class="card-body">
+          <p class="text-secondary">输入关键词搜索公开帖子、用户、板块与标签。搜索只索引明确允许的公开内容，隐藏/受限正文不会出现在结果中。</p>
+          <p class="input-hint" style="margin:0;">搜索结果默认不被搜索引擎索引（noindex），不会承诺替代服务端访问控制。</p>
         </div>
       </div>
+    {:else if invalid}
+      <div class="card" role="alert">
+        <div class="card-body">
+          <p class="input-hint is-error" style="margin:0;">{invalid}</p>
+          <a class="btn btn-secondary btn-sm" style="margin-top:var(--space-2);" href="/search">重新搜索</a>
+        </div>
+      </div>
+    {:else if rateLimited}
+      <ChallengeGate
+        retryAfterSecs={rateLimited.retryAfterSecs}
+        onRetry={() => window.location.reload()}
+        title="搜索过于频繁"
+        message="请求频率过高，系统已暂时限制搜索。请稍后再试。"
+      />
+    {:else if challenge}
+      <ChallengeGate
+        challengeUrl={challenge.challengeUrl}
+        title="需要完成验证"
+        message="检测到异常访问行为，请完成验证后继续。"
+      />
+    {:else if error}
+      <div class="card" role="alert">
+        <div class="card-body">
+          <p class="input-hint is-error" style="margin:0;">{error}</p>
+          <a class="btn btn-secondary btn-sm" style="margin-top:var(--space-2);" href={searchUrl(q, { limit: data.limit })}>重试搜索</a>
+        </div>
+      </div>
+    {:else}
+      {#if totalLabel}
+        <p class="text-secondary" style="margin:0 0 var(--space-2);" role="status">{totalLabel}</p>
+      {/if}
+      <div class="card">
+        <div class="card-body" style="padding:0;">
+          <SearchResultList
+            results={results}
+            emptyTitle="没有找到相关内容"
+            emptyDesc={q ? `没有与「${q}」匹配的公开内容，换个关键词试试` : '换个关键词试试'}
+          />
+        </div>
+      </div>
+      {#if nextUrl}
+        <nav aria-label="搜索结果分页" style="display:flex;gap:var(--space-2);margin-top:var(--space-3);align-items:center;">
+          <a class="btn btn-secondary btn-sm" href={nextUrl}>下一页</a>
+          {#if data.after}
+            <a class="btn btn-ghost btn-sm" href={searchUrl(q, { limit: data.limit })}>返回第一页</a>
+          {/if}
+        </nav>
+      {/if}
     {/if}
   </div>
 </div>

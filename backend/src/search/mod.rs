@@ -1,4 +1,4 @@
-//! 搜索仓储领域/服务层（M03-SEARCH-STORE）。
+//! 搜索仓储领域/服务层（M03-SEARCH-STORE；M08-INDEX 扩展）。
 //!
 //! - [`SearchDocument`]：搜索文档最小模型（M03-SEARCH-STORE-01）——内部索引
 //!   一行为一个可搜索实体（post/user/board/tag），只允许写入经过可见性裁决的
@@ -9,8 +9,15 @@
 //! - [`source_revision_for`] / [`policy_revision_for`]：source revision 与 policy
 //!   revision 语义（旧 revision 不覆盖新 revision 的单调性来源，docs/SEARCH.md §4/§5）；
 //! - [`fts`]：全文索引维护——重建命令与触发器/Job 更新策略（M03-SEARCH-STORE-02）；
-//! - [`gate`]：索引写入可见性裁决——只接受可见性裁决后的安全文本，
-//!   不存 restricted_html（M03-SEARCH-STORE-05，P0）；
+//! - [`gate`]：索引写入可见性裁决 + **M08-INDEX-02 统一排除规则**
+//!   （[`decide_public_post_indexability`]：状态/访问策略/板块/作者/删除/审核中/
+//!   逐帖退出/管理员策略）；
+//! - [`policy`]：作者逐帖退出与管理员全站/板块索引策略（M08-INDEX-03）；
+//! - [`publication`]：公开索引文档投影（M08-INDEX-01，标题/slug/摘要/标签/作者/
+//!   revision/index policy）；
+//! - [`query`]：公开搜索查询与限制（M08-INDEX-06/07，长度/语法/结果数/分页深度/
+//!   匿名频率/高亮长度 + 返回前实时重检）；
+//! - [`rebuild`]：按当前权限与策略全量重建（M08-INDEX-05）；
 //! - [`text`]：索引安全纯文本转换——剥离 HTML 标签后清洗截断（M03-SEARCH-STORE-06）；
 //! - [`index_job`]：索引幂等 Job——创建/更新/隐藏/删除/恢复/退出索引
 //!   （M03-SEARCH-STORE-06）。
@@ -18,14 +25,36 @@
 pub mod fts;
 pub mod gate;
 pub mod index_job;
+pub mod metrics;
+pub mod policy;
+pub mod publication;
+pub mod query;
+pub mod rebuild;
 pub mod text;
 
 pub use fts::rebuild_fts;
 pub use gate::{
-    decide_board_indexability, decide_post_indexability, decide_tag_indexability,
-    decide_user_indexability, vet_index_text, ExclusionReason, IndexDecision, IndexTextError,
+    decide_board_indexability, decide_post_indexability, decide_public_post_indexability,
+    decide_tag_indexability, decide_user_indexability, vet_index_text, ExclusionReason,
+    IndexDecision, IndexTextError, PostPublicIndexInput,
 };
 pub use index_job::{enqueue_index_job, handle_index_job, INDEX_JOB_KIND};
+pub use metrics::{index_queue_metrics, SearchIndexMetrics, INDEX_SCHEMA_VERSION};
+pub use policy::{
+    load_board_policy, load_site_policy, set_board_policy, set_post_opt_out, set_site_policy,
+    AdminIndexPolicy, POLICY_ALLOW, POLICY_DENY,
+};
+pub use publication::{
+    highlight_snippet, search_result_json, url_for, IndexPolicy, PublicAuthor,
+    PublicIndexProjection, HIGHLIGHT_MAX_LEN,
+};
+pub use query::{
+    build_fts_query, build_mysql_boolean_query, decode_cursor, effective_admin_for_board,
+    effective_ai_summary_denied, encode_cursor, execute_public_search, recheck_doc_visibility,
+    SearchPage, SearchQueryError, SearchRequest, ANON_SEARCH_LIMIT, DEFAULT_LIMIT,
+    LOGGED_IN_SEARCH_LIMIT, MAX_LIMIT, MAX_PAGE_DEPTH, QUERY_MAX_LEN, SEARCH_RATE_WINDOW_MS,
+};
+pub use rebuild::{rebuild_all_index, RebuildSummary};
 pub use text::to_index_plain_text;
 
 /// 索引标题长度上限（字符；与帖子标题 OpenAPI `maxLength: 240` 一致）。

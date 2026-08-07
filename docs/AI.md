@@ -120,3 +120,26 @@ POST  /api/v1/admin/ai/tasks/{id}/cancel
 ## 8. 验收
 
 必须覆盖 Prompt injection、模型输出 XSS/SQL/模板注入、隐藏内容泄漏、Secret 泄漏、SSRF/DNS 重绑定、越权读取、重复任务、旧 revision 覆盖、Provider 超时/重试/熔断、预算超限、用户撤回同意、人工审核不可绕过和无 JavaScript 发帖流程。
+
+## 9. 实现状态（M09）
+
+实现位置：`backend/src/ai/`（gateway/consent/tasks/suggestions）+ 
+`backend/src/routes/ai.rs`、`backend/src/routes/admin.rs`（AI 管理）+ 
+`migrations/*/0052_ai_gateway.sql` + `backend/tests/ai/`。
+
+- **Gateway**：`EgressPolicy` 纯函数裁决（HTTPS/host allowlist/端口/私网
+  阻断/重定向/超时/响应上限）+ `ProviderClient` trait（reqwest 生产实现，
+  mock 测试）；`Redactor` 默认脱敏（Disabled/MetadataOnly 外发为空），邮箱
+  全量剥离；`BudgetCounter` 预算/并发/熔断。
+- **Consent**：`ai_consents` 逐次同意，(user,provider,purpose) 唯一；撤回后
+  禁止新任务，`execute_task` 执行前重确认，撤回的任务置 `dead`。
+- **Tasks**：`ai_tasks` 状态机 `queued → running → retry_wait → running → … →
+  succeeded | cancelled | dead`；幂等入队（唯一键 + 唯一约束容忍）；至少一次
+  消费（原子占位）；错误分类 5xx/429/超时 → retry，4xx → dead。
+- **Suggestions**：`ai_suggestions` schema_version + base_revision 防旧覆盖新；
+  采纳时重新鉴权 + If-Match 幂等；模型输出解析校验拒绝注入形态。
+- **Feature Flag**：`FeatureName::Ai` 默认关闭；未启用时路由返回
+  `feature_disabled`。Provider 仅在 `data_mode=full_with_consent` 时外发正文；
+  Secret 不落库、API/SSR/日志/审计全脱敏。
+- 测试：`backend/tests/ai/{gateway,tasks,suggestions}.rs`（27 例）+ 路由/管理
+  集成覆盖于 `tests/` 既有 HTTP 测试；默认关闭场景不回归既有门禁。

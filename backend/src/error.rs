@@ -205,6 +205,31 @@ impl AppError {
         }
     }
 
+    /// 反爬等场景的专有稳定错误码（M08-CRAWL）。
+    ///
+    /// 不新增 OpenAPI 操作，只扩展 Problem `code`/`title`：
+    /// - `crawler_denied`（403）：AI 训练爬虫默认拒绝；
+    /// - `challenge_required`（403）：需要一次性挑战 token；
+    /// - `temporarily_banned`（403）：临时封禁（不泄漏检测规则）。
+    pub fn with_code(
+        status: StatusCode,
+        code: &'static str,
+        title: &'static str,
+        detail: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            status,
+            code,
+            title,
+            detail: detail.into(),
+            request_id: request_id.into(),
+            errors: None,
+            retry_after_secs: None,
+            rate_limit: None,
+        }
+    }
+
     /// 清理错误详情中的敏感信息
     ///
     /// 集中清除：SQL 语句、栈/回溯、密码、Token、Secret、API Key、

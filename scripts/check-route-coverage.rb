@@ -30,9 +30,13 @@ ROUTE_METHODS = %w[get post put patch delete head options trace].freeze
 
 # Documented endpoints that intentionally live outside the 172-operation
 # contract (docs/API.md §1).
+# `robots.txt` / `sitemap.xml` 是 Web 标准端点（搜索引擎/抓取器直接访问），
+# 不进入 /api/v1 契约；由 M08-FEEDS 路由提供并记录在 docs/CRAWLER-POLICY.md §7。
 DOCUMENTED_NON_CONTRACT = {
   "readyz" => %w[GET],
-  "openapi.json" => %w[GET]
+  "openapi.json" => %w[GET],
+  "robots.txt" => %w[GET],
+  "sitemap.xml" => %w[GET]
 }.freeze
 
 def normalize_path(path)

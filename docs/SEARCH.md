@@ -1,6 +1,6 @@
 # BBLBB — 搜索索引存储契约（M03-SEARCH-STORE）
 
-> 状态：Frozen candidate · 负责领域：后端/搜索 · 版本：v1.0-rc.2
+> 状态：Frozen candidate · 负责领域：后端/搜索 · 版本：v1.0-rc.2（M08-INDEX 扩展见 §9–§15）
 > 事实来源优先级：`REQUIREMENTS.md` → `openapi/openapi.yaml` → `SCHEMA.md`/迁移 → 本文档 → `CRAWLER-POLICY.md`
 
 ## 1. 目标与范围
@@ -93,7 +93,6 @@ Rust 模型：`backend/src/search/mod.rs::SearchDocument`。
   候选集，不是授权裁决。
 
 ## 7. 三数据库全文检索策略（M03-SEARCH-STORE-02/03/04）
-
 | 数据库 | 索引机制 | 分词 | 已知限制 |
 |---|---|---|---|
 | SQLite 3.40+ | FTS5 external content 表 | unicode61 | 无内置中文分词；按 token 匹配 |
@@ -163,3 +162,98 @@ CI mysql-family 矩阵运行，同一 `fixture_flow` 断言查询命中/更新�
 - `docs/REQUIREMENTS.md`：搜索需求锚点与隐藏正文红线
 - `docs/CRAWLER-POLICY.md`：索引投影与 AI 爬虫边界（M08 扩展）
 - `backend/src/search/mod.rs`：文档模型与清洗/截断/revision 实现
+
+---
+
+# M08-INDEX 扩展：公开投影、统一排除、退出与重建
+
+> 本节是 M08-INDEX（P1，v1.0）对 M03-SEARCH-STORE 冻结契约的叠加层。M03 的
+> 存储模型、revision 语义与安全文本约束**不改变**；M08 增加公开投影边界、
+> 统一排除规则、逐帖退出/管理员策略、重建与搜索查询限制。
+
+## 9. 公开索引文档投影（M08-INDEX-01）
+
+`backend/src/search/publication.rs::PublicIndexProjection` 是索引行 → 公开结果
+的唯一投影层（无 DB，纯逻辑）：
+
+| 字段 | 来源 | 说明 |
+|---|---|---|
+| `id` | `doc_id` | 源实体 id |
+| `entity_type` | `entity_type` | `post`/`user`/`board`/`tag` |
+| `title` | `title` | ≤ 240 字符 |
+| `url` | `slug` 按类型组装 | `/posts/{slug}`、`/users/{username}`、`/boards/{slug}`、`/tags/{slug}` |
+| `excerpt` | `excerpt` | 已清洗安全摘要，≤ 200 字符 |
+| `tags` | `tags_json` | 仅 post |
+| `author` | `author_id` → users | 作者公开投影（id/username/display_name），结果层拼接 |
+| `source_revision` / `policy_revision` | 索引行 | 新鲜度/策略水位 |
+| `index_policy` | `IndexPolicy` | `search_index`/`ai_summary` 允许标记 + 来源（author/admin） |
+
+`body`（内部索引正文）绝不进入公开投影/DOM/日志/异常/遥测（M03 §3）。
+序列化按 OpenAPI `SearchResult`（id/type/title/url/excerpt）+ 可选 `highlight`。
+
+## 10. 统一排除规则（M08-INDEX-02）
+
+`gate.rs::decide_public_post_indexability(PostPublicIndexInput)` 是**唯一**公开
+可索引性裁决，检查顺序即排除优先级：
+
+1. `status != 'published'`（draft/hidden/locked/deleted）→ `NotPublished`；
+2. 遗留 `visibility != 'public'` → `NotPublic`；
+3. 有效访问策略（`content_access_policies.kind`，M04 权威来源）非 `public`
+   → `PolicyNotPublic`（即便遗留 `visibility` 列为 public，登录/回复/等级/付费
+   内容同样排除）；
+4. 板块停用/非公开 → `BoardInactive`/`BoardNotPublic`；
+5. 作者非 active 或已删除 → `AuthorUnavailable`；
+6. `deleted_at` 非空 → `Deleted`；
+7. `review_status = 'pending_review'` → `UnderReview`（审核中内容）；
+8. 作者逐帖 `search_index_opt_out` → `AuthorOptedOut`；
+9. 管理员全站/板块策略 `deny` → `AdminIndexDisabled`（优先于作者 allow）。
+
+被排除即触发**从索引移除**（删除路径不设守卫——持旧策略快照的写回者无法
+复活已退出内容）。
+
+## 11. 作者逐帖退出与管理员策略（M08-INDEX-03）
+
+- 迁移 0053：`posts.search_index_opt_out` / `posts.ai_summary_opt_out`
+  （作者逐帖，bump `posts.updated_at`）+ `search_site_index_policy`（单行）/
+  `board_index_policies`（按板块，级联删除）。
+- `policy.rs`：`set_post_opt_out`/`set_site_policy`/`set_board_policy` 在事务内
+  更新行并 bump `updated_at`，随后幂等入队受影响帖子索引 Job
+  （`deduplication_key = search:index:post:{id}`）。
+- **优先级**：管理员 deny > 作者 allow；作者 opt-out > 默认允许。
+  策略行 `updated_at` 进入 post 文档的 `policy_revision` max（M03 §5）。
+
+## 12. 重建（M08-INDEX-05）
+
+`rebuild.rs::rebuild_all_index` 按**当前权限与策略**逐源行重建全部文档并清理
+残留（源行已不存在的文档按类型删除），收尾执行 `rebuild_fts`。重建与增量
+Job 共用同一裁决/写入面；条件 upsert 守卫保证 **旧 revision 不覆盖新**
+（`stored.policy_revision > candidate` 被拒绝）。
+
+## 13. 搜索查询限制（M08-INDEX-06）
+
+`query.rs::SearchRequest::parse`：
+
+- 查询长度 ≤ 200 字符（OpenAPI `q` maxLength）；控制字符拒绝；
+- 语法：token 清洗（只保留 Unicode 字母/数字含 CJK 与 `_`/`-`），FTS5 查询
+  为 `"tok1" AND "tok2"`（引号内字面匹配，引号加倍转义）；
+- 结果数：limit 钳制 1..=50；
+- 分页深度：cursor 内编码页码（`base64url("depth|indexed_at|doc_id")`），
+  超过 10 页拒绝（`search_pagination_depth_exceeded`）；
+- 匿名频率：独立限流桶 30 次/分钟（登录 120 次/分钟），429 携带
+  `Retry-After` 与 `RateLimit-*` 头；
+- 高亮长度：`highlight_snippet` 从**已清洗索引正文**截取 ≤ 160 字符窗口。
+
+## 14. 返回前实时重检（M08-INDEX-07）
+
+`query.rs::recheck_doc_visibility` 对每条候选结果在返回前重新执行实时判断：
+帖子按 `decide_public_post_indexability` + 作者生效处罚（`effective_sanctions`
+封禁）；user/board/tag 按各自裁决。**索引只是候选集，不是授权裁决**——作者
+封禁/帖子隐藏后即使未重索引，搜索结果也立即排除。
+
+## 15. 隐藏正文 canary（M08-INDEX-08）
+
+索引写入面只接收 `post_contents.body_markdown`（公开正文）+ `post_contents.
+excerpt`（安全摘要，M04-MARKDOWN-06），`restricted_markdown/html` 永不进入
+索引输入面；`vet_index_text` 第二道防线拒绝受限特征串与残留 HTML。索引、
+excerpt、highlight、相关内容和错误均不泄漏隐藏正文——以 canary 文本在
+`backend/tests/search/public.rs` 验证。

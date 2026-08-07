@@ -325,6 +325,22 @@ export async function authedDelete(
 }
 
 /**
+ * DELETE 认证写请求（带 body）：如 DELETE /api/v1/ai/consent（M09-UI-03 按
+ * purpose 撤回，请求体为 AiConsentCreate）。其余同 authedDelete。
+ */
+export async function authedDeleteBody<T = unknown>(
+  cookies: Cookies,
+  path: string,
+  body: unknown,
+  requestId: string | null = null,
+  extraHeaders: Record<string, string> = {}
+): Promise<{ ok: true; data: T } | ServerWriteFailure> {
+  const result = await authedWrite('DELETE', cookies, path, body, requestId, extraHeaders);
+  if (result.ok) return { ok: true, data: result.data as T };
+  return result;
+}
+
+/**
  * POST 认证写请求（M02-UX-06，MFA 管理）：转发会话 Cookie + 会话绑定
  * synchronizer token。成功返回 `{ ok: true, data }`（data 为响应 JSON，
  * 如 enrollment challenge / 恢复码）。extraHeaders 用于 Idempotency-Key

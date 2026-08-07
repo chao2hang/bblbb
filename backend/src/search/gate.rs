@@ -1,4 +1,4 @@
-//! 索引写入可见性裁决（M03-SEARCH-STORE-05，P0）。
+//! 索引写入可见性裁决（M03-SEARCH-STORE-05，P0；M08-INDEX-02 统一排除规则）。
 //!
 //! 索引写入只接受经过可见性裁决的安全文本，绝不存 `restricted_html`：
 //!
@@ -7,7 +7,13 @@
 //!    draft/hidden/locked/deleted 帖子、非 public 可见性帖子、停用或非公开板块、
 //!    停用/删除账号、停用/隐藏板块、停用标签一律排除（被排除即从索引移除，
 //!    绝不把受限内容写入索引）；
-//! 2. 安全文本——[`vet_index_text`]：索引正文/摘要必须是无 HTML 标记的清洗纯文本，
+//! 2. **统一排除规则（M08-INDEX-02）**——[`decide_public_post_indexability`]
+//!    在 M03 基础上叠加 M04/M05/M08 的公开投影边界：审核中
+//!    （`review_status='pending_review'`）、已删除（`deleted_at` 非空）、访问策略
+//!    非 public（`content_access_policies.kind`，含 logged_in/after_reply/level/
+//!    paid——即便遗留 `posts.visibility` 列仍为 public）、作者逐帖退出
+//!    （`search_index_opt_out`）、管理员全站/板块关闭索引（deny 优先）一律排除；
+//! 3. 安全文本——[`vet_index_text`]：索引正文/摘要必须是无 HTML 标记的清洗纯文本，
 //!    拒绝 `restricted_html`/`restricted_markdown` 特征串与 `<标签>`，把受限部分
 //!    挡在索引输入面之外（第二道防线；第一道是写路径只接收公开投影字段）。
 //!
@@ -38,6 +44,91 @@ pub enum ExclusionReason {
     AuthorUnavailable,
     /// 标签停用（tags.is_active = 0）。
     TagInactive,
+    /// M08-INDEX-02：帖子已删除（posts.deleted_at 非空；软删除生命周期）。
+    Deleted,
+    /// M08-INDEX-02：审核中（posts.review_status = 'pending_review'）。
+    UnderReview,
+    /// M08-INDEX-02：有效访问策略非 public（content_access_policies.kind 为
+    /// logged_in/after_reply/level/paid——公开索引只收 policy 为 public 的内容）。
+    PolicyNotPublic,
+    /// M08-INDEX-03：作者逐帖退出（posts.search_index_opt_out = 1）。
+    AuthorOptedOut,
+    /// M08-INDEX-03：管理员全站/板块策略关闭索引（deny，优先于作者 allow）。
+    AdminIndexDisabled,
+}
+
+/// 帖子公开可索引性统一裁决输入（M08-INDEX-02/03）。
+///
+/// 覆盖 M03 基座 + M04 访问策略（`policy_kind`）+ M05 审核状态
+/// （`review_status`）+ M08 逐帖退出/管理员策略：
+#[allow(clippy::too_many_arguments)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostPublicIndexInput<'a> {
+    /// post.status（published 之外的 draft/hidden/deleted 等一律排除）。
+    pub status: &'a str,
+    /// 遗留 posts.visibility 列（public 之外排除）。
+    pub visibility: &'a str,
+    /// 有效访问策略 kind（content_access_policies.kind；`None` = 未设策略 =
+    /// public）。非 public（logged_in/after_reply/level/paid）一律排除。
+    pub policy_kind: Option<&'a str>,
+    /// 板块启用。
+    pub board_active: bool,
+    /// 板块可见性（members/restricted/hidden 排除）。
+    pub board_visibility: &'a str,
+    /// 作者账号状态（active 之外排除）。
+    pub author_status: &'a str,
+    /// 作者删除时间（非空排除）。
+    pub author_deleted_at: Option<i64>,
+    /// 帖子删除时间（非空排除，M08-INDEX-02）。
+    pub deleted_at: Option<i64>,
+    /// 审核状态（Some("pending_review") 排除，M08-INDEX-02）。
+    pub review_status: Option<&'a str>,
+    /// 作者逐帖退出搜索索引（M08-INDEX-03）。
+    pub search_index_opt_out: bool,
+    /// 管理员全站/板块策略（'allow' 或 'deny'；deny 强制排除）。
+    pub admin_search_index: &'a str,
+}
+
+/// 帖子公开可索引性统一裁决（M08-INDEX-02/03，P0）。
+///
+/// 检查顺序即排除优先级：状态 → 访问策略 → 板块 → 作者 → 删除 → 审核中 →
+/// 作者逐帖退出 → 管理员策略。任一命中即 `Excluded`（触发从索引移除）；
+/// 全部通过才 `Indexable`。
+pub fn decide_public_post_indexability(input: &PostPublicIndexInput<'_>) -> IndexDecision {
+    if input.status != "published" {
+        return IndexDecision::Excluded(ExclusionReason::NotPublished);
+    }
+    if input.visibility != "public" {
+        return IndexDecision::Excluded(ExclusionReason::NotPublic);
+    }
+    // 有效访问策略（M04 权威来源）非 public → 不入公开索引。
+    if let Some(kind) = input.policy_kind {
+        if kind != "public" {
+            return IndexDecision::Excluded(ExclusionReason::PolicyNotPublic);
+        }
+    }
+    if !input.board_active {
+        return IndexDecision::Excluded(ExclusionReason::BoardInactive);
+    }
+    if input.board_visibility != "public" {
+        return IndexDecision::Excluded(ExclusionReason::BoardNotPublic);
+    }
+    if input.author_status != "active" || input.author_deleted_at.is_some() {
+        return IndexDecision::Excluded(ExclusionReason::AuthorUnavailable);
+    }
+    if input.deleted_at.is_some() {
+        return IndexDecision::Excluded(ExclusionReason::Deleted);
+    }
+    if input.review_status == Some("pending_review") {
+        return IndexDecision::Excluded(ExclusionReason::UnderReview);
+    }
+    if input.search_index_opt_out {
+        return IndexDecision::Excluded(ExclusionReason::AuthorOptedOut);
+    }
+    if input.admin_search_index == "deny" {
+        return IndexDecision::Excluded(ExclusionReason::AdminIndexDisabled);
+    }
+    IndexDecision::Indexable
 }
 
 /// 帖子可见性裁决（M03-SEARCH-STORE-05）：published + public + 板块公开可见
@@ -286,6 +377,131 @@ mod tests {
         assert_eq!(
             vet_index_text("空行\n第二段"),
             Ok("空行\n第二段".to_string())
+        );
+    }
+
+    // ── M08-INDEX-02/03：统一排除规则 ──────────────────────────────────────
+
+    /// 基准可入索引输入：published + public 策略 + 板块公开启用 + 作者 active。
+    fn base_input<'a>() -> PostPublicIndexInput<'a> {
+        PostPublicIndexInput {
+            status: "published",
+            visibility: "public",
+            policy_kind: Some("public"),
+            board_active: true,
+            board_visibility: "public",
+            author_status: "active",
+            author_deleted_at: None,
+            deleted_at: None,
+            review_status: None,
+            search_index_opt_out: false,
+            admin_search_index: "allow",
+        }
+    }
+
+    #[test]
+    fn unified_decision_accepts_only_full_public_path() {
+        let decision = decide_public_post_indexability(&base_input());
+        assert_eq!(decision, IndexDecision::Indexable);
+
+        // 未设置访问策略（None = public 语义）同样可入索引。
+        let mut no_policy = base_input();
+        no_policy.policy_kind = None;
+        assert_eq!(
+            decide_public_post_indexability(&no_policy),
+            IndexDecision::Indexable
+        );
+    }
+
+    #[test]
+    fn unified_decision_excludes_non_public_access_policy() {
+        // 即使遗留 visibility 列为 public，M04 访问策略非 public 也排除。
+        for kind in ["logged_in", "after_reply", "level", "paid"] {
+            let mut input = base_input();
+            input.policy_kind = Some(kind);
+            assert_eq!(
+                decide_public_post_indexability(&input),
+                IndexDecision::Excluded(ExclusionReason::PolicyNotPublic),
+                "访问策略 {kind} 不得入公开索引"
+            );
+        }
+    }
+
+    #[test]
+    fn unified_decision_excludes_review_and_deleted() {
+        let mut under_review = base_input();
+        under_review.review_status = Some("pending_review");
+        assert_eq!(
+            decide_public_post_indexability(&under_review),
+            IndexDecision::Excluded(ExclusionReason::UnderReview)
+        );
+
+        let mut deleted = base_input();
+        deleted.deleted_at = Some(1_700_000_000_000);
+        assert_eq!(
+            decide_public_post_indexability(&deleted),
+            IndexDecision::Excluded(ExclusionReason::Deleted)
+        );
+    }
+
+    #[test]
+    fn unified_decision_excludes_opt_out_and_admin_policy() {
+        let mut author_out = base_input();
+        author_out.search_index_opt_out = true;
+        assert_eq!(
+            decide_public_post_indexability(&author_out),
+            IndexDecision::Excluded(ExclusionReason::AuthorOptedOut)
+        );
+
+        // 管理员 deny（全站或板块）优先于作者 allow：即使作者未退出也排除。
+        let mut admin_deny = base_input();
+        admin_deny.admin_search_index = "deny";
+        assert_eq!(
+            decide_public_post_indexability(&admin_deny),
+            IndexDecision::Excluded(ExclusionReason::AdminIndexDisabled)
+        );
+
+        // 作者 allow 且管理员 allow → 可入索引。
+        let mut allowed = base_input();
+        allowed.search_index_opt_out = false;
+        allowed.admin_search_index = "allow";
+        assert_eq!(
+            decide_public_post_indexability(&allowed),
+            IndexDecision::Indexable
+        );
+    }
+
+    #[test]
+    fn unified_decision_keeps_m03_gates() {
+        for status in ["draft", "hidden", "deleted", "locked"] {
+            let mut input = base_input();
+            input.status = status;
+            assert_eq!(
+                decide_public_post_indexability(&input),
+                IndexDecision::Excluded(ExclusionReason::NotPublished)
+            );
+        }
+        for v in ["logged_in", "after_reply", "level", "paid"] {
+            let mut input = base_input();
+            input.visibility = v;
+            assert_eq!(
+                decide_public_post_indexability(&input),
+                IndexDecision::Excluded(ExclusionReason::NotPublic)
+            );
+        }
+        for v in ["members", "restricted", "hidden"] {
+            let mut input = base_input();
+            input.board_visibility = v;
+            assert_eq!(
+                decide_public_post_indexability(&input),
+                IndexDecision::Excluded(ExclusionReason::BoardNotPublic)
+            );
+        }
+        let mut banned = base_input();
+        banned.author_status = "banned";
+        assert_eq!(
+            decide_public_post_indexability(&banned),
+            IndexDecision::Excluded(ExclusionReason::AuthorUnavailable)
         );
     }
 
