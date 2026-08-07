@@ -646,33 +646,75 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 
 ## 8. 审核与处罚
 
+> 迁移 0041-0044（M05-SCHEMA）。三库约束一致；非法状态/原因码/动作由
+> CHECK 拒绝，只追加语义由模型层强制（`backend/src/moderation/model.rs`）。
+
 ### `reports`
 
-- `id`、`reporter_id`、`target_type`、`target_id`、`reason_code`、`details`。
-- `status`：`open/triaged/investigating/resolved/rejected/reopened/withdrawn`；合法迁移见 `STATE-MACHINES.md`。
-- `assigned_to`、`created_at`、`updated_at`。
+- `id`、`reporter_id`、`target_type`、`target_id`、`reason_code`、`details`、`status`、`assigned_to`、`created_at`、`updated_at`。
+- `target_type`：`post` / `comment` / `user` / `board`（多态目标，无单一外键）。
+- `reason_code`：`spam` / `harassment` / `illegal` / `nsfw` / `misinformation` / `impersonation` / `other`。
+- `status`：`open/triaged/investigating/resolved/rejected/reopened/withdrawn`；合法迁移见 `STATE-MACHINES.md`（`withdrawn` 仅举报端，案件不含）。
+- 去重（M05-SCHEMA-06）：`report_dedup_key` 归一化 `(reporter_id, target_type, target_id, reason_code)`（参考 0040 `grant_target_key` 手法）；`dedup_until` 为锚定去重窗口终点（模型层 `REPORT_DEDUP_WINDOW_MS`，默认 7 天）；`UNIQUE(report_dedup_key, dedup_until)` 保证同一窗口内同键至多一条，下一窗口允许重新举报。
+- 索引：`(reporter_id)`、`(target_type, target_id)`、`(status, dedup_until)`、`(report_dedup_key)`。
 
 ### `moderation_cases`
 
-- `id`、`title`、`status`（`open/triaged/investigating/resolved/rejected/reopened`）、`priority`、`assigned_to`、`created_by`、时间字段。
-- 举报可通过 `case_reports(case_id, report_id)` 关联到同一案件。
+- `id`、`title`、`status`、`priority`、`assigned_to`、`created_by`、`created_at`、`updated_at`、`resolved_at`、`resolution`。
+- `status`：`open/triaged/investigating/resolved/rejected/reopened`（不含 `withdrawn`）。
+- `priority`：`low` / `normal` / `high` / `urgent`。
+
+### `case_reports`
+
+- `(case_id, report_id)` 复合主键，举报可合并进同一案件。
+- `added_by`、`added_at`。
+
+### `case_assignments`
+
+- 指派历史只追加：`case_id`、`assignee_id`、`assigned_by`、`assigned_at`、`released_at`（释放记时间）、`note`。
+
+### `moderation_notes`
+
+- 内部备注（不随对外 API 暴露）：`case_id`、`author_id`、`body`、`created_at`、`updated_at`。
 
 ### `moderation_actions`
 
 - `id`、`case_id`（可空）、`actor_id`、`action`、`target_type`、`target_id`、`reason`、`metadata_json`、`created_at`。
-- 只追加，不覆盖历史。
+- `action` 封闭枚举：`escalate` / `assign` / `resolve` / `reject` / `reopen` / `hide_content` / `restore_content` / `delete_content` / `issue_sanction` / `revoke_sanction` / `merge_cases` / `remove_report`。
+- `target_type`：`post` / `comment` / `user` / `report` / `case` / `sanction`。
+- 只追加不覆盖：行不可变，修正一律写入 `moderation_action_revisions`。
 
-### `user_sanctions`
+### `moderation_action_revisions`
 
-- `id`、`user_id`、`board_id`（可空表示全局）、`kind`（`warning/rate_limit/mute/board_mute/ban`）、`status`（`scheduled/active/expired/revoked`）、`reason`。
-- `board_mute` 必须带 `board_id`；其他 kind 默认拒绝携带板块范围，除非未来协议明确扩展。
-- `starts_at`、`ends_at`（永久时可空）、`created_by`、`revoked_at`、`revoked_by`。
+- 不可变修订快照（只追加）：`(action_id, revision)` 唯一且 `revision` 严格递增（模型层校验）。
+- `snapshot_json` 为修订时动作行完整快照（correction 语义）、`change_reason`、`created_by`、`created_at`。
 
-### `moderation_appeals`
+### `sanctions`
 
-- `id`、`sanction_id`、`user_id`、`message`、`status`、`reviewed_by`、`decision_note`、时间字段。
+- `id`、`user_id`、`board_id`（可空=全局）、`kind`、`status`、`reason`、`starts_at`、`ends_at`、`created_by`、`created_at`、`revoked_at`、`revoked_by`、`revoke_reason`。
+- `kind`：`warning` / `rate_limit` / `mute` / `board_mute` / `ban`。
+- `status`：`scheduled` / `active` / `expired` / `revoked`。
+- `board_mute` 必须带 `board_id`；其他 kind 拒绝携带板块范围（CHECK 强制）。
+- `ends_at` 可空=永久；非空须晚于 `starts_at`（CHECK）。到期边界半开：`now >= ends_at` 即到期（`Sanction::is_active_at`）。
+- `revoked` 必须带 `revoked_at` 与 `revoked_by`（CHECK 强制）。
 
-状态机见 [`MODERATION.md`](MODERATION.md)。
+### `sanction_reversals`
+
+- 撤销记录只追加不可变：每处罚至多一条（`UNIQUE(sanction_id)`）。
+- `reversed_by`、`reason`、`reversed_at` 构成撤销证据链；`sanctions.revoked_*` 为其查询便利镜像。
+
+### `appeals`
+
+- `id`、`sanction_id`、`user_id`、`message`、`status`、`reviewed_by`、`decided_at`、`submitted_at`、`updated_at`。
+- 每处罚至多一条（`UNIQUE(sanction_id)`）：被拒后不可重复申诉，只能等待新处罚。
+- `status`：`submitted` / `reviewing` / `upheld` / `partially_upheld` / `rejected` / `withdrawn`。
+
+### `appeal_decisions`
+
+- 决定记录只追加：`appeal_id`、`reviewer_id`、`decision`（`upheld` / `partially_upheld` / `rejected`）、`decision_note`、`conflict_of_interest`（利益冲突声明字段）、`created_at`。
+- 利益冲突：审查者不得是申诉人本人；声明冲突时必须填写理由（模型层校验）。
+
+状态机见 [`STATE-MACHINES.md`](STATE-MACHINES.md)。
 
 ## 9. 货币、账本与等级
 
@@ -911,7 +953,18 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 - `id`、`user_id`、`type`、`title`、`body`、`link`、`is_read`、`created_at`、`read_at`。
 - `type` 合法值：`system` / `reply` / `mention` / `reaction` / `moderation` / `badge` / `digest`（迁移 0004 CHECK 约束）。
 - `security_kind`（迁移 0017）：安全通知标记（M02-MFA-08）——非空即安全通知，合法值：`new_device` / `password_changed` / `mfa_changed` / `session_revoked` / `recovery_code_used`；`type` 保持 `system`，由 `security_kind` 区分安全类别（M05-NOTIFY 偏好强制“安全通知不可关闭”）。
-- 索引：`(user_id)`、`(user_id, is_read)`。
+- M05-SCHEMA-05 追加列（迁移 0045）：
+  - `template_key`：模板键；
+  - `resource_type` / `resource_id`：多态资源引用（开放字符串，避免枚举阻塞通知引用演进）；
+  - `delivery_dedup_key`：投递去重键——`UNIQUE(user_id, delivery_dedup_key)`，同一 (user, resource) 至多一条（NULL 不去重，三库一致）；
+  - `category`：`activity` / `moderation` / `system` / `security` / `digest`（与遗留 `type` 枚举正交）。
+- 索引：`(user_id)`、`(user_id, is_read)`、`(user_id, delivery_dedup_key)`（唯一）。
+
+### `notification_preferences`
+
+- `(user_id, category)` 复合主键，每用户每类别一条。
+- channel 开关：`email_enabled` / `in_app_enabled` / `push_enabled`（默认 1）。
+- 「安全通知不可被普通偏好全关」：`category = 'security'` 时至少保留一个 channel 开启（CHECK 强制）。
 
 ### `outbox_events`
 
@@ -1099,6 +1152,12 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 - 授权码只能消费一次。
 - Refresh Token 重用会撤销整个 family。
 - 主题和插件设置引用已安装实体。
+- 举报去重：同一 (reporter, target, reason) 在锚定窗口内至多一条（`UNIQUE(report_dedup_key, dedup_until)`）。
+- 审核动作只追加：`moderation_action_revisions` 的 `(action_id, revision)` 唯一且 revision 严格递增。
+- 处罚撤销只追加：每处罚至多一条 `sanction_reversals`（`UNIQUE(sanction_id)`）。
+- 申诉每处罚至多一条（`UNIQUE(sanction_id)`）；审查者不得是申诉人本人。
+- 通知投递去重：同 `(user_id, delivery_dedup_key)` 至多一条（NULL 不去重）。
+- 安全通知不可被普通偏好全关：`notification_preferences` security 类别至少一个 channel 开启。
 - SQLite、MySQL、MariaDB 的迁移结果在逻辑上等价。
 
 ## 18. 迁移策略

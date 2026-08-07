@@ -37,3 +37,12 @@ url = "2.5.8"
 tower = "0.5"
 http-body-util = "0.1"
 tokio = { version = "1", features = ["test-util", "sync"] }
+
+# M05-SCHEMA 测试（嵌套目录不参与自动发现，需显式注册）
+[[test]]
+name = "moderation_schema"
+path = "tests/moderation/schema.rs"
+
+[[test]]
+name = "notifications_schema"
+path = "tests/notifications/schema.rs"

@@ -91,19 +91,45 @@ assignment.expires_at:  NULL（永久） | 时间戳（到期即未生效）
 
 ## 3. 审核与处罚
 
+> 迁移 0041-0044（M05-SCHEMA）。`can_transition_to` 由模型层
+> `backend/src/moderation/model.rs` 强制，DB CHECK 兜底非法字面值。
+
 ### Report / Moderation Case
 
+举报（`reports.status`）与案件（`moderation_cases.status`）共用主链，唯一
+区别：举报多一个 `withdrawn` 终态（举报人撤回；案件不含 withdrawn）。
+
 ```text
-open → triaged → investigating → resolved
-  └────────────→ rejected
-resolved/rejected → reopened
+open ─→ triaged ─→ investigating ─→ resolved
+  │         └────────────→ rejected
+  ├──→ rejected                      resolved/rejected ─→ reopened ─→ 回流主链
+  └──→ withdrawn（仅举报，终态）
 ```
+
+- `open` 可直接进入 `investigating`（跳过 triaged）或直接 `resolved`/`rejected`。
+- `reopened` 回流主链：可进入 `triaged` / `investigating` / `resolved` / `rejected`。
+- 终态：`resolved` / `rejected` / `withdrawn`（`withdrawn` 无任何出口；重新处理走
+  新举报，见去重窗口）。
+
+举报去重窗口：`reports` 按 `(reporter_id, target_type, target_id, reason_code)`
+归一化键 + 锚定窗口 `dedup_until` 判定窗口内重复；`UNIQUE(report_dedup_key,
+dedup_until)` 三库统一强制（见 SCHEMA.md §8）。
 
 ### Appeal
 
 ```text
-submitted → reviewing → upheld | partially_upheld | rejected | withdrawn
+submitted ─→ reviewing ─→ upheld
+                ├──→ partially_upheld
+                ├──→ rejected
+                └──→ withdrawn（终态）
+submitted ─→ withdrawn（终态）
 ```
+
+- `upheld` / `partially_upheld` / `rejected` / `withdrawn` 均为终态。
+- 每处罚至多一条申诉（`UNIQUE(sanction_id)`）：被拒后不可重复申诉，
+  只能等待新处罚开启新申诉。
+- 利益冲突：审查者（`appeal_decisions.reviewer_id`）不得是申诉人本人；
+  声明冲突必须填写理由。
 
 ### Sanction
 
@@ -113,14 +139,23 @@ submitted → reviewing → upheld | partially_upheld | rejected | withdrawn
 warning | rate_limit | mute | board_mute | ban
 ```
 
+`board_mute` 必须带 `board_id`；其他 kind 拒绝携带板块范围（CHECK 强制）。
+
 状态：
 
 ```text
-scheduled → active → expired
-active → revoked
+scheduled ─→ active ─→ expired        （时间自动推进）
+active ─→ revoked                      （撤销，只追加 sanction_reversals）
+scheduled ─→ revoked                   （生效前撤销）
 ```
 
-- `board_mute` 必须带 `board_id`；其他 kind 是否允许 `board_id` 由 OpenAPI 明确，默认拒绝。
+- `scheduled → active`：`now >= starts_at` 时推进；
+  `active → expired`：`ends_at` 非空且 `now >= ends_at`（半开边界，恰等于即到期）。
+- `ends_at` 可空 = 永久（warning/ban 常为永久），永不到期。
+- 撤销只追加：撤销动作写 `sanction_reversals`（每处罚至多一条），
+  `sanctions.revoked_at/revoked_by/revoke_reason` 为当前态镜像；
+  `revoked` 状态必须携带 `revoked_at` 与 `revoked_by`（CHECK 强制）。
+- 生效判定 `Sanction::is_active_at(now)`：status=active 且 `starts_at <= now < ends_at`。
 
 ## 4. 附件与下载授权
 

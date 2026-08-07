@@ -17,6 +17,13 @@
 | Video Embed 元数据 | 引用期间 + 90 天 | 是 | 移除引用后删除或匿名化 | 版权申诉 |
 | IP/UA/安全日志 | 90 天 | 否 | 延迟清理/聚合 | 安全调查 |
 | 管理审计日志 | 2 年 | 仅按权限导出 | 不允许普通注销删除 | 法律/安全 |
+| 举报与案件（reports/moderation_cases/case_reports/case_assignments） | 结案后 1 年 | 否 | 匿名化 reporter/被举报主体，保留去重键证据 | 法律/安全调查 |
+| 内部备注（moderation_notes） | 随案件删除 | 否（不导出） | 随案件删除 | 调查冻结 |
+| 审核动作与修订（moderation_actions/action_revisions） | 只追加保留 7 年 | 否 | 不删除，匿名化 actor | 审计/法律 |
+| 处罚与撤销（sanctions/sanction_reversals） | 失效后 2 年 / 撤销后 90 天 | 本人可见投影 | 不删除，匿名化主体 | 争议/合规 |
+| 申诉与决定（appeals/appeal_decisions） | 决定后 2 年 | 本人可见投影 | 匿名化，保留冲突声明证据 | 审计/争议 |
+| 通知（notifications） | 90 天；安全通知 180 天 | 是 | 删除正文与资源引用，保留去重键至窗口结束 | 安全调查 |
+| 通知偏好（notification_preferences） | 账户存续 | 是 | 随账户删除 | 无 |
 
 ## 1. 优先级
 
