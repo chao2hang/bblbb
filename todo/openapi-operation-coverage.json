@@ -2627,7 +2627,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "post_admin_video_policies_test",
@@ -2646,7 +2646,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "get_admin_video_policies_provider_",
@@ -2665,7 +2665,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "patch_admin_video_policies_provider_",
@@ -2684,7 +2684,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "post_video_embeds",
@@ -2703,7 +2703,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "post_video_embeds_resolve",
@@ -2722,7 +2722,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "delete_video_embeds_id_",
@@ -2741,7 +2741,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "get_video_embeds_id_",
@@ -2760,7 +2760,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "patch_video_embeds_id_",
@@ -2779,7 +2779,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "post_video_embeds_id_refresh",
@@ -2798,7 +2798,7 @@
         "backend/tests/http.rs",
         "frontend/src/lib/video/projection.test.ts"
       ],
-      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=W10"
+      "evidence": "M10-VIDEO 完整实现: cargo test --test video (13 passed), cargo test --lib (485 passed), cargo test --test http (13 passed), npm run check + vitest 500 passed on 2026-08-07; commit=de8d127"
     },
     {
       "operation_id": "get_well_known_openid_configuration",
