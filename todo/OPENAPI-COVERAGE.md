@@ -7,7 +7,7 @@
 
 - 契约操作：**184**
 - 唯一 operationId：**184**
-- 实现状态：`baseline_only` 3；`implemented` 46；`in_progress` 7；`not_started` 128
+- 实现状态：`baseline_only` 3；`implemented` 50；`in_progress` 7；`not_started` 124
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 13；`M6` 19；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -88,13 +88,13 @@
 | `listModerationAppeals` | `GET` | `/api/v1/admin/moderation/appeals` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `getModerationAppeal` | `GET` | `/api/v1/admin/moderation/appeals/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `decideModerationAppeal` | `PATCH` | `/api/v1/admin/moderation/appeals/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
-| `listModerationCases` | `GET` | `/api/v1/admin/moderation/cases` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
-| `getModerationCase` | `GET` | `/api/v1/admin/moderation/cases/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
-| `updateModerationCase` | `PATCH` | `/api/v1/admin/moderation/cases/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
+| `listModerationCases` | `GET` | `/api/v1/admin/moderation/cases` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-moderation` |
+| `getModerationCase` | `GET` | `/api/v1/admin/moderation/cases/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-moderation` |
+| `updateModerationCase` | `PATCH` | `/api/v1/admin/moderation/cases/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-moderation` |
 | `listOwnAppeals` | `GET` | `/api/v1/appeals` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `createAppeal` | `POST` | `/api/v1/appeals` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `getOwnAppeal` | `GET` | `/api/v1/appeals/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
-| `post_reports` | `POST` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
+| `post_reports` | `POST` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `backend-moderation` |
 | `get_notifications` | `GET` | `/api/v1/notifications` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
 | `post_notifications_id_read` | `POST` | `/api/v1/notifications/{id}/read` | Notifications | `M5` / `M05-NOTIFY` | `P1` | `not_started` | `unassigned` |
 | `get_admin_levels_id_attachment_quota` | `GET` | `/api/v1/admin/levels/{id}/attachment-quota` | Admin | `M6` / `M06-QUOTA` | `P0` | `not_started` | `unassigned` |

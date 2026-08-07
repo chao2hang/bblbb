@@ -1185,13 +1185,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::list_moderation_cases",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "M05-CASES-03/05: moderation.review 权限门（TOTP 强制启用）；案件列表投影；开案/状态机/派单由 service + tests 覆盖"
     },
     {
       "operation_id": "getModerationCase",
@@ -1202,13 +1202,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::get_moderation_case",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "M05-CASES-03: moderation.review 权限门；案件详情投影（status/priority/assigned_to/resolved_at/resolution）"
     },
     {
       "operation_id": "updateModerationCase",
@@ -1219,13 +1219,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::update_moderation_case",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "M05-CASES-03/05: 状态迁移走 CaseStatus::can_transition_to（非法 → 409），写审计 + Outbox moderation.case_changed.v1；自处理/利益冲突在开案与派单服务中阻断并审计"
     },
     {
       "operation_id": "listOwnAppeals",
@@ -1287,13 +1287,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "implemented",
+      "owner": "backend-moderation",
+      "handler": "backend/src/routes/moderation.rs::create_report",
       "tests": [
-
+        "backend/tests/moderation/cases.rs"
       ],
-      "evidence": null
+      "evidence": "M05-CASES-01/02: target_type/reason_code 封闭枚举 + 详情限长 2000；目标资源存在校验；report_dedup_key 归一化 + 锚定窗口 UNIQUE 窗口内去重 → 统一 DuplicateReport 响应（不泄漏其他举报人/案件状态）；HTTP 201/409/400 测试"
     },
     {
       "operation_id": "get_notifications",
