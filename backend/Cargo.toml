@@ -72,3 +72,8 @@ path = "tests/moderation/appeals.rs"
 [[test]]
 name = "notifications_notify"
 path = "tests/notifications/notify.rs"
+
+# M07-LEDGER 测试（嵌套目录不参与自动发现，需显式注册）
+[[test]]
+name = "economy_ledger"
+path = "tests/economy/ledger.rs"
