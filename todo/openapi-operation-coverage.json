@@ -12,13 +12,13 @@
       "work_package": "M00-BACKEND",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "baseline_only",
-      "owner": "platform",
+      "implementation_status": "verified",
+      "owner": "platform/backend",
       "handler": "backend/src/routes/health.rs::healthz",
       "tests": [
         "backend/tests/http.rs::healthz_returns_ok_and_request_id"
       ],
-      "evidence": "baseline commit 5e17fa3; cargo fmt, clippy and 4 Rust tests passed on 2026-08-04"
+      "evidence": "baseline commit 5e17fa3; /healthz returns ok+version; M17 gate re-verified on 2026-08-08 (cargo test --all-features 0 fail; launch double-run OK)"
     },
     {
       "operation_id": "getCsrfToken",
@@ -29,7 +29,7 @@
       "work_package": "M02-SESSION",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::get_csrf_token",
       "tests": [
@@ -37,7 +37,7 @@
         "backend/tests/session_csrf_preauth.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-SESSION-07/08: 已认证会话绑定 synchronizer token / 未认证预认证 token；private no-store；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-SESSION-07/08: 已认证会话绑定 synchronizer token / 未认证预认证 token；private no-store；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "login",
@@ -48,7 +48,7 @@
       "work_package": "M02-SESSION",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::login",
       "tests": [
@@ -56,7 +56,7 @@
         "backend/tests/mfa_login.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-SESSION-03/UX-03: 账号/IP 限流、常量时间失败统一 401；启用 TOTP 返回 MFA challenge；Me 投影含 mfa_enabled；三库一致；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-SESSION-03/UX-03: 账号/IP 限流、常量时间失败统一 401；启用 TOTP 返回 MFA challenge；Me 投影含 mfa_enabled；三库一致；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "loginMfa",
@@ -67,14 +67,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::login_mfa",
       "tests": [
         "backend/tests/mfa_login.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-UX-03: 一次性 challenge + TOTP/恢复码二选一完成登录；challenge 5 分钟只存 hash；错误统一 401；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-UX-03: 一次性 challenge + TOTP/恢复码二选一完成登录；challenge 5 分钟只存 hash；错误统一 401；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "mfaDisable",
@@ -85,14 +85,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/mfa.rs::mfa_disable",
       "tests": [
         "backend/tests/mfa_routes.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-UX-06: 单事务撤销 TOTP+失效恢复码+安全通知+审计；要求 step-up；重复 404；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-UX-06: 单事务撤销 TOTP+失效恢复码+安全通知+审计；要求 step-up；重复 404；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "mfaConfirm",
@@ -103,7 +103,7 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/mfa.rs::mfa_confirm",
       "tests": [
@@ -111,7 +111,7 @@
         "backend/tests/mfa_enrollment.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-UX-06: 6 位 code 时间窗口校验后原子启用；错误统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-UX-06: 6 位 code 时间窗口校验后原子启用；错误统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "mfaEnroll",
@@ -122,14 +122,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/mfa.rs::mfa_enroll",
       "tests": [
         "backend/tests/mfa_routes.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-UX-06: enrollment 返回 otpauth URI+base32 secret；重复启用=撤销旧+新建；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-UX-06: enrollment 返回 otpauth URI+base32 secret；重复启用=撤销旧+新建；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "mfaCancel",
@@ -140,14 +140,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/mfa.rs::mfa_cancel",
       "tests": [
         "backend/tests/mfa_routes.rs",
         "backend/tests/mfa_enrollment.rs"
       ],
-      "evidence": "M02-UX-06: 取消未完成 enrollment；无 pending 404；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-UX-06: 取消未完成 enrollment；无 pending 404；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "mfaRecoveryCodes",
@@ -158,7 +158,7 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/mfa.rs::mfa_recovery_codes",
       "tests": [
@@ -166,7 +166,7 @@
         "backend/tests/mfa_recovery.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-UX-06: 新一组恢复码只展示一次、只存 SHA-256 hash；要求 step-up（403 step_up_required）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-UX-06: 新一组恢复码只展示一次、只存 SHA-256 hash；要求 step-up（403 step_up_required）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "requestPasswordReset",
@@ -177,14 +177,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::request_password_reset",
       "tests": [
         "backend/tests/password_reset.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-IDENTITY-10/UX-04: 统一 202 不泄漏 + IP/账号/日限流 429；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-IDENTITY-10/UX-04: 统一 202 不泄漏 + IP/账号/日限流 429；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "confirmPasswordReset",
@@ -195,7 +195,7 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::confirm_password_reset",
       "tests": [
@@ -203,7 +203,7 @@
         "backend/tests/identity_faults.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-IDENTITY-10/UX-04: 单事务消费 token→改密→撤销全部 Session→审计；无效统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-IDENTITY-10/UX-04: 单事务消费 token→改密→撤销全部 Session→审计；无效统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "reAuth",
@@ -214,7 +214,7 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/mfa.rs::re_auth",
       "tests": [
@@ -222,7 +222,7 @@
         "backend/tests/mfa_stepup.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-UX-06/MFA-07: 密码重认证→mark_step_up；错误统一 401；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-UX-06/MFA-07: 密码重认证→mark_step_up；错误统一 401；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "register",
@@ -233,7 +233,7 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::register",
       "tests": [
@@ -242,7 +242,7 @@
         "backend/tests/identity_faults.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-IDENTITY-05/UX-01: 统一 201 防枚举（重复注册与成功一致，不泄漏）；预认证 CSRF（M02-SESSION-08）；三库一致（auth_crossdb）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-IDENTITY-05/UX-01: 统一 201 防枚举（重复注册与成功一致，不泄漏）；预认证 CSRF（M02-SESSION-08）；三库一致（auth_crossdb）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "resendVerification",
@@ -253,14 +253,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::resend_verification",
       "tests": [
         "backend/tests/resend_verification.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-IDENTITY-06/UX-02: 统一 202 + 冷却 60s/日 3 次 429 Retry-After；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-IDENTITY-06/UX-02: 统一 202 + 冷却 60s/日 3 次 429 Retry-After；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "logout",
@@ -271,13 +271,13 @@
       "work_package": "M02-SESSION",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::logout",
       "tests": [
         "backend/tests/session_lifecycle.rs"
       ],
-      "evidence": "M02-SESSION-05: 当前登出，204 + 清 Cookie；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-SESSION-05: 当前登出，204 + 清 Cookie；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "logoutAll",
@@ -288,14 +288,14 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::logout_all",
       "tests": [
         "backend/tests/session_lifecycle.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-SESSION-05/UX-05: 撤销全部设备 204 + 清 Cookie；前端 ?/logoutall；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-SESSION-05/UX-05: 撤销全部设备 204 + 清 Cookie；前端 ?/logoutall；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listSessions",
@@ -306,7 +306,7 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::list_sessions",
       "tests": [
@@ -314,7 +314,7 @@
         "backend/tests/session_crossdb.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-SESSION-05/UX-05: 设备列表按 last_seen_at 排序；三库一致；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-SESSION-05/UX-05: 设备列表按 last_seen_at 排序；三库一致；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "revokeSession",
@@ -325,13 +325,13 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::revoke_session",
       "tests": [
         "backend/tests/session_lifecycle.rs"
       ],
-      "evidence": "M02-SESSION-05/UX-05: 逐设备撤销限本人（他人 404）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-SESSION-05/UX-05: 逐设备撤销限本人（他人 404）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "verifyEmail",
@@ -342,7 +342,7 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-auth",
       "handler": "backend/src/routes/auth.rs::verify_email",
       "tests": [
@@ -350,7 +350,7 @@
         "backend/tests/identity_faults.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M02-IDENTITY-06/UX-02: 一次性 token 原子激活；无效统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md"
+      "evidence": "M02-IDENTITY-06/UX-02: 一次性 token 原子激活；无效统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listAdminBoards",
@@ -378,13 +378,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/admin.rs::create_admin_board",
       "tests": [
         "backend/tests/boards_admin.rs"
       ],
-      "evidence": "（M03-BOARDS-05/09）create_admin_board：authorize_action board.manage 门（AUTHZ-05 默认拒绝，member 403）+ reason 必填 400 + 字段校验（slug/name/description/sort_order/posting_mode）+ 父级校验（深度/循环/存在性）+ slug 唯一（boards_slug_uq 兜底，并发竞态恰好一个 200 一个 409 绝不 500）+ 单事务 INSERT+admin.board_create 审计（reason/actor/request_id，M01-AUDIT-08）；x-permission=board.manage；测试：boards_admin（创建 200+审计/member 403+缺 reason 400/slug 冲突 409+非法 slug 400/并发同 slug 200+409）；跨库/安全专项证据由 M16 补充"
+      "evidence": "（M03-BOARDS-05/09）create_admin_board：authorize_action board.manage 门（AUTHZ-05 默认拒绝，member 403）+ reason 必填 400 + 字段校验（slug/name/description/sort_order/posting_mode）+ 父级校验（深度/循环/存在性）+ slug 唯一（boards_slug_uq 兜底，并发竞态恰好一个 200 一个 409 绝不 500）+ 单事务 INSERT+admin.board_create 审计（reason/actor/request_id，M01-AUDIT-08）；x-permission=board.manage；测试：boards_admin（创建 200+审计/member 403+缺 reason 400/slug 冲突 409+非法 slug 400/并发同 slug 200+409）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getAdminBoard",
@@ -412,13 +412,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/admin.rs::update_admin_board",
       "tests": [
         "backend/tests/boards_admin.rs"
       ],
-      "evidence": "（M03-BOARDS-05/09）update_admin_board：authorize_action board.manage 门 + reason 必填 + If-Match 乐观并发（boards.updated_at 为版本，缺头 400/过期 409 version_conflict/UPDATE rows=0 兜底竞态）+ 部分字段校验+父级循环拒绝（根移到子板块下 400）+ 单事务 UPDATE+admin.board_update 审计（before/after 白名单字段）；x-permission=board.manage；测试：boards_admin（正确 If-Match 200+版本递增+before/after 审计/缺头 400+过期 409/父级循环 400/is_active=false 移出公开列表）；跨库/安全专项证据由 M16 补充"
+      "evidence": "（M03-BOARDS-05/09）update_admin_board：authorize_action board.manage 门 + reason 必填 + If-Match 乐观并发（boards.updated_at 为版本，缺头 400/过期 409 version_conflict/UPDATE rows=0 兜底竞态）+ 部分字段校验+父级循环拒绝（根移到子板块下 400）+ 单事务 UPDATE+admin.board_update 审计（before/after 白名单字段）；x-permission=board.manage；测试：boards_admin（正确 If-Match 200+版本递增+before/after 审计/缺头 400+过期 409/父级循环 400/is_active=false 移出公开列表）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listBoards",
@@ -429,7 +429,7 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/boards.rs::list_boards",
       "tests": [
@@ -437,7 +437,7 @@
         "backend/tests/boards_visibility.rs",
         "backend/tests/boards_no_leak.rs"
       ],
-      "evidence": "（M03-BOARDS-03/04/08）list_boards：cursor 分页（BoardCursor (sort_order,created_at,id) 字典序，base64url no-pad 不透明游标，limit 默认 30 范围 1..=100，next_cursor=最后返回项排序键，has_more 不重不漏）+ 可见性过滤（filter_visible_board_ids，hidden/members/restricted 对匿名隐藏）+ 稳定排序 + Cache-Control（匿名 public max-age=60 / 已认证 private no-store）+ 公开投影仅 id/version(updated_at)/created_at/updated_at/slug/name/description 无计数/面包屑/可见性字段（BOARDS-08）；x-permission=board.read；测试：boards_pagination（匿名列表稳定排序+ResourceMeta+三页不重不漏+非法游标 400）、boards_visibility（列表过滤四类可见性+管理员见全部）、boards_no_leak（公开投影无计数与父级字段）；跨库/安全专项证据由 M16 补充"
+      "evidence": "（M03-BOARDS-03/04/08）list_boards：cursor 分页（BoardCursor (sort_order,created_at,id) 字典序，base64url no-pad 不透明游标，limit 默认 30 范围 1..=100，next_cursor=最后返回项排序键，has_more 不重不漏）+ 可见性过滤（filter_visible_board_ids，hidden/members/restricted 对匿名隐藏）+ 稳定排序 + Cache-Control（匿名 public max-age=60 / 已认证 private no-store）+ 公开投影仅 id/version(updated_at)/created_at/updated_at/slug/name/description 无计数/面包屑/可见性字段（BOARDS-08）；x-permission=board.read；测试：boards_pagination（匿名列表稳定排序+ResourceMeta+三页不重不漏+非法游标 400）、boards_visibility（列表过滤四类可见性+管理员见全部）、boards_no_leak（公开投影无计数与父级字段）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getBoard",
@@ -448,7 +448,7 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/boards.rs::get_board",
       "tests": [
@@ -456,7 +456,7 @@
         "backend/tests/boards_pagination.rs",
         "backend/tests/boards_no_leak.rs"
       ],
-      "evidence": "（M03-BOARDS-03/04/08）get_board：board_read_gate 可见性门（public 匿名可见/members 有效已登录/restricted 板块角色或管理通道/hidden 管理权限一律 404 不泄漏）+ deleted_at/is_active 活跃投影 + Cache-Control 按可见性裁剪 + 匿名=Option；x-permission=board.read；测试：boards_visibility（public 匿名/members 匿名 401+banned 状态门/restricted 角色边界/hidden 匿名 401+成员 404+管理员可见）、boards_pagination（详情缓存策略）、boards_no_leak（hidden 与不存在 slug 完全不可区分含错误体一致性）；跨库/安全专项证据由 M16 补充"
+      "evidence": "（M03-BOARDS-03/04/08）get_board：board_read_gate 可见性门（public 匿名可见/members 有效已登录/restricted 板块角色或管理通道/hidden 管理权限一律 404 不泄漏）+ deleted_at/is_active 活跃投影 + Cache-Control 按可见性裁剪 + 匿名=Option；x-permission=board.read；测试：boards_visibility（public 匿名/members 匿名 401+banned 状态门/restricted 角色边界/hidden 匿名 401+成员 404+管理员可见）、boards_pagination（详情缓存策略）、boards_no_leak（hidden 与不存在 slug 完全不可区分含错误体一致性）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listTags",
@@ -467,13 +467,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/boards.rs::list_tags",
       "tests": [
         "backend/tests/tags_reading.rs"
       ],
-      "evidence": "（M03-BOARDS-06）list_tags：load_active_tags（is_active=1 启用投影，usage_count 降序）+ load_tag_groups（sort_order 稳定排序）→ {items,groups}，禁用标签不进入公开列表（BOARDS-08 不泄漏 usage_count）；x-permission=public（匿名）；测试：tags_reading（0028 默认 1+禁用移出活跃读取 / listTags 只含启用+组排序）；跨库/安全专项证据由 M16 补充"
+      "evidence": "（M03-BOARDS-06）list_tags：load_active_tags（is_active=1 启用投影，usage_count 降序）+ load_tag_groups（sort_order 稳定排序）→ {items,groups}，禁用标签不进入公开列表（BOARDS-08 不泄漏 usage_count）；x-permission=public（匿名）；测试：tags_reading（0028 默认 1+禁用移出活跃读取 / listTags 只含启用+组排序）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listAdminRoles",
@@ -569,13 +569,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/admin.rs::create_admin_tag",
       "tests": [
         "backend/tests/tags_admin.rs"
       ],
-      "evidence": "（M03-BOARDS-07/09）create_admin_tag：authorize_action tag.manage 门 + reason 必填 + name/slug 唯一（tags.name+tags_slug_uq 兜底，并发竞态 409 不 500）+ group_id 存在性（软引用服务层校验）+ 字段格式（TAG_NAME_MAX 64/TAG_SLUG_MAX 64/TAG_DESCRIPTION_MAX 500/TAG_COLOR_MAX 16）+ 单事务 INSERT+admin.tag_create 审计；x-permission=tag.manage；测试：tags_admin（创建 200+审计/member 403+name/slug 冲突 409+非法 group_id 400/改名撞已存在 name 409）；跨库/安全专项证据由 M16 补充"
+      "evidence": "（M03-BOARDS-07/09）create_admin_tag：authorize_action tag.manage 门 + reason 必填 + name/slug 唯一（tags.name+tags_slug_uq 兜底，并发竞态 409 不 500）+ group_id 存在性（软引用服务层校验）+ 字段格式（TAG_NAME_MAX 64/TAG_SLUG_MAX 64/TAG_DESCRIPTION_MAX 500/TAG_COLOR_MAX 16）+ 单事务 INSERT+admin.tag_create 审计；x-permission=tag.manage；测试：tags_admin（创建 200+审计/member 403+name/slug 冲突 409+非法 group_id 400/改名撞已存在 name 409）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getAdminTag",
@@ -603,13 +603,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/admin.rs::update_admin_tag",
       "tests": [
         "backend/tests/tags_admin.rs"
       ],
-      "evidence": "（M03-BOARDS-07）update_admin_tag：authorize_action tag.manage 门 + reason 必填 + If-Match 乐观并发（tags.updated_at 迁移 0029 为版本，缺头 400/过期 409/rows=0 兜底竞态）+ 部分字段校验 + 单事务 UPDATE+admin.tag_update 审计（before/after）；x-permission=tag.manage；测试：tags_admin（正确 If-Match 200+版本递增+before/after 审计+过期 409/改名撞 409/禁用移出公开 listTags）；跨库/安全专项证据由 M16 补充"
+      "evidence": "（M03-BOARDS-07）update_admin_tag：authorize_action tag.manage 门 + reason 必填 + If-Match 乐观并发（tags.updated_at 迁移 0029 为版本，缺头 400/过期 409/rows=0 兜底竞态）+ 部分字段校验 + 单事务 UPDATE+admin.tag_update 审计（before/after）；x-permission=tag.manage；测试：tags_admin（正确 If-Match 200+版本递增+before/after 审计+过期 409/改名撞 409/禁用移出公开 listTags）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listAdminUsers",
@@ -688,7 +688,7 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "security-backend",
       "handler": "backend/src/routes/users.rs::get_me",
       "tests": [
@@ -700,7 +700,7 @@
         "backend/tests/deletion_lifecycle.rs",
         "backend/tests/user_leak_sweep.rs"
       ],
-      "evidence": "M03-PROFILE-01..08 implemented：Me DTO allowlist（id/username/email/email_verified/status/display_name/bio/signature/timezone/theme_name/email_visible_to/profile_visible_to/level/roles/mfa_enabled/version）；load_profile_fields 从 users 读 display_name/version；主题偏好持久化 user_preferences.theme_name；x-permission=authenticated（sessionCookie）；测试：user_dto（allowlist 精确键集）、profile_routes（全字段/If-Match 版本）、account_deletion+deletion_lifecycle（注销生命周期联动）、user_leak_sweep（未认证 /me 401）、auth_crossdb 三库；跨库/安全专项证据由 M16 补充"
+      "evidence": "M03-PROFILE-01..08 implemented：Me DTO allowlist（id/username/email/email_verified/status/display_name/bio/signature/timezone/theme_name/email_visible_to/profile_visible_to/level/roles/mfa_enabled/version）；load_profile_fields 从 users 读 display_name/version；主题偏好持久化 user_preferences.theme_name；x-permission=authenticated（sessionCookie）；测试：user_dto（allowlist 精确键集）、profile_routes（全字段/If-Match 版本）、account_deletion+deletion_lifecycle（注销生命周期联动）、user_leak_sweep（未认证 /me 401）、auth_crossdb 三库；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateMe",
@@ -711,7 +711,7 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "security-backend",
       "handler": "backend/src/routes/users.rs::update_me",
       "tests": [
@@ -719,7 +719,7 @@
         "backend/tests/profile_routes.rs",
         "backend/tests/auth_crossdb.rs"
       ],
-      "evidence": "M03-PROFILE-04 implemented：users.version（迁移 0026）作为 If-Match 来源，update_profile 单事务 UPDATE users SET version=version+1 WHERE id=? AND version=?，rows_affected=0 → 409 version_conflict；缺失/非法 If-Match → 400；校验长度/Unicode 控制字符/危险链接 scheme（仅 http/https）/富文本禁用（角括号）；profile_revisions 每次更新写修订（COALESCE(MAX)+1）；主题/隐私/可见性持久化（user_preferences/user_privacy 懒建行）；x-permission=authenticated；测试：profile_routes 6 项（全字段持久化+version+1/部分更新+懒行/非法值 400+修订编号/主题持久化/If-Match 必需+409/文本规则）+ auth_crossdb 三库；跨库/安全专项证据由 M16 补充"
+      "evidence": "M03-PROFILE-04 implemented：users.version（迁移 0026）作为 If-Match 来源，update_profile 单事务 UPDATE users SET version=version+1 WHERE id=? AND version=?，rows_affected=0 → 409 version_conflict；缺失/非法 If-Match → 400；校验长度/Unicode 控制字符/危险链接 scheme（仅 http/https）/富文本禁用（角括号）；profile_revisions 每次更新写修订（COALESCE(MAX)+1）；主题/隐私/可见性持久化（user_preferences/user_privacy 懒建行）；x-permission=authenticated；测试：profile_routes 6 项（全字段持久化+version+1/部分更新+懒行/非法值 400+修订编号/主题持久化/If-Match 必需+409/文本规则）+ auth_crossdb 三库；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "delete_me_profile_cover",
@@ -730,13 +730,15 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/profile",
+      "handler": "backend/src/routes/users.rs::delete_profile_cover",
       "tests": [
-
+        "backend/tests/profile_cover.rs",
+        "backend/tests/user_dto.rs",
+        "backend/tests/public_profile_leak.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_me_profile_cover",
@@ -747,13 +749,15 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/profile",
+      "handler": "backend/src/routes/users.rs::post_profile_cover",
       "tests": [
-
+        "backend/tests/profile_cover.rs",
+        "backend/tests/user_dto.rs",
+        "backend/tests/public_profile_leak.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_users_user_id_profile_cover",
@@ -764,13 +768,15 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/profile",
+      "handler": "backend/src/routes/users.rs::get_user_profile_cover",
       "tests": [
-
+        "backend/tests/profile_cover.rs",
+        "backend/tests/user_dto.rs",
+        "backend/tests/public_profile_leak.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getPublicUser",
@@ -781,7 +787,7 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "security-backend",
       "handler": "backend/src/routes/users.rs::get_public_user",
       "tests": [
@@ -790,7 +796,7 @@
         "backend/tests/public_profile_leak.rs",
         "backend/tests/user_leak_sweep.rs"
       ],
-      "evidence": "M03-PROFILE-02/05/06/09 implemented：PublicProfile allowlist 九字段（id/username/display_name/bio/level/avatar_attachment_id/cover_attachment_id/signature/created_at），键集严格断言；deleted→404（不泄漏存在性）；banned/pending_delete→200 降级投影（bio/signature/avatar/cover=null，无状态泄漏）；媒体只回附件 UUID（稳定端点 /api/v1/attachments/{id} 由 M6 落地）；x-permission=user.read_public；测试：user_dto（allowlist/作者卡稳定 profile_url）、public_profile_leak（无泄漏+降级+404）、user_leak_sweep（匿名/跨用户/本人三视角无邮箱泄漏）；跨库/安全专项证据由 M16 补充"
+      "evidence": "M03-PROFILE-02/05/06/09 implemented：PublicProfile allowlist 九字段（id/username/display_name/bio/level/avatar_attachment_id/cover_attachment_id/signature/created_at），键集严格断言；deleted→404（不泄漏存在性）；banned/pending_delete→200 降级投影（bio/signature/avatar/cover=null，无状态泄漏）；媒体只回附件 UUID（稳定端点 /api/v1/attachments/{id} 由 M6 落地）；x-permission=user.read_public；测试：user_dto（allowlist/作者卡稳定 profile_url）、public_profile_leak（无泄漏+降级+404）、user_leak_sweep（匿名/跨用户/本人三视角无邮箱泄漏）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "delete_comments_id_",
@@ -801,14 +807,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/comments.rs::delete_comment",
       "tests": [
         "backend/tests/comments_routes.rs",
         "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": "M04-COMMENTS-01..07: 作者删除=软删除（status='deleted'+deleted_at，行保留占位，可选 If-Match，204 private,no-store）；管理员/版主（post.moderate，权限注册表无 comment.moderate）删除他人评论=软删除+delegated_admin_action 审计；软删不递减 posts.reply_count（占位保留楼层）；已删/非 published 统一 404 不泄漏；测试 delete_comment_author_soft_delete/delete_comment_admin_with_audit_and_non_moderator_403/delete_comment_with_stale_if_match_is_conflict"
+      "evidence": "M04-COMMENTS-01..07: 作者删除=软删除（status='deleted'+deleted_at，行保留占位，可选 If-Match，204 private,no-store）；管理员/版主（post.moderate，权限注册表无 comment.moderate）删除他人评论=软删除+delegated_admin_action 审计；软删不递减 posts.reply_count（占位保留楼层）；已删/非 published 统一 404 不泄漏；测试 delete_comment_author_soft_delete/delete_comment_admin_with_audit_and_non_moderator_403/delete_comment_with_stale_if_match_is_conflict；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "patch_comments_id_",
@@ -819,14 +825,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/comments.rs::update_comment",
       "tests": [
         "backend/tests/comments_routes.rs",
         "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": "M04-COMMENTS-01..07: 作者限时编辑（created_at 起 30 分钟 COMMENT_EDIT_WINDOW_MS，超窗 409 conflict）；作者本人+published+未软删否则 404/403；版本守卫 If-Match 头优先/body version（冲突 409 version_conflict）；写入=版本守卫 UPDATE+不可变 comment_revisions 快照（UNIQUE(comment_id,version)，version=old+1，renderer policy_version）；响应更新后 Comment 投影+private,no-store；测试 update_comment_edits_within_window_and_writes_revision/update_comment_via_if_match_header/update_comment_version_conflict_and_non_author/update_comment_window_expired"
+      "evidence": "M04-COMMENTS-01..07: 作者限时编辑（created_at 起 30 分钟 COMMENT_EDIT_WINDOW_MS，超窗 409 conflict）；作者本人+published+未软删否则 404/403；版本守卫 If-Match 头优先/body version（冲突 409 version_conflict）；写入=版本守卫 UPDATE+不可变 comment_revisions 快照（UNIQUE(comment_id,version)，version=old+1，renderer policy_version）；响应更新后 Comment 投影+private,no-store；测试 update_comment_edits_within_window_and_writes_revision/update_comment_via_if_match_header/update_comment_version_conflict_and_non_author/update_comment_window_expired；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listComments",
@@ -837,14 +843,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::list_comments",
       "tests": [
         "backend/tests/comments_routes.rs",
         "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": "M04-COMMENTS-01..07: keyset 分页（floor ASC,id ASC；after=base64url(\"floor:id\") 不透明游标，fetch limit+1 判 has_more；Limit 1..50 默认 20）；软删/隐藏评论占位投影（status 如实、body_html=null 不泄漏正文，占位保留楼层）；匿名可读（OpenAPI security 可选会话）；响应 public,max-age=60+ETag；主题不存在/deleted 404；published 评论 body_html 读取时 render_and_sanitize；测试 list_comments_paginates_by_floor/list_comments_404_when_post_missing_or_hidden_state/list_comments_shows_deleted_placeholder"
+      "evidence": "M04-COMMENTS-01..07: keyset 分页（floor ASC,id ASC；after=base64url(\"floor:id\") 不透明游标，fetch limit+1 判 has_more；Limit 1..50 默认 20）；软删/隐藏评论占位投影（status 如实、body_html=null 不泄漏正文，占位保留楼层）；匿名可读（OpenAPI security 可选会话）；响应 public,max-age=60+ETag；主题不存在/deleted 404；published 评论 body_html 读取时 render_and_sanitize；测试 list_comments_paginates_by_floor/list_comments_404_when_post_missing_or_hidden_state/list_comments_shows_deleted_placeholder；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createComment",
@@ -855,14 +861,14 @@
       "work_package": "M04-COMMENTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::create_comment",
       "tests": [
         "backend/tests/comments_routes.rs",
         "backend/tests/comments_concurrency.rs"
       ],
-      "evidence": "M04-COMMENTS-01..07: 幂等创建（scope comment.create + client_request_id，同 key+摘要重放返回原评论、不同摘要 409，镜像 create_post）；email_verified/comment.create（含账号状态门）→ 内容 domain 校验（1..10000 权威）→ 主题 published|hidden/未删/未锁（closed_at 即回复开关）→ 板块 is_active → parent 同主题+可见（status published 且 deleted_at IS NULL，稳定 400 不泄漏）→ 事务内原子楼层分配（MAX(floor)+1，UNIQUE(post_id,floor) 兜底，SQLite busy 指数退避 M01-JOBS-09）；响应 Comment 投影+private,no-store；测试 create_comment_returns_201_with_full_projection/create_comment_rejects_locked_post/create_comment_rejects_banned_and_unverified/create_comment_on_hidden_post_is_allowed/create_comment_rejects_invisible_parent/create_comment_idempotency_replay_and_conflict/concurrent_creates_allocate_unique_contiguous_floors"
+      "evidence": "M04-COMMENTS-01..07: 幂等创建（scope comment.create + client_request_id，同 key+摘要重放返回原评论、不同摘要 409，镜像 create_post）；email_verified/comment.create（含账号状态门）→ 内容 domain 校验（1..10000 权威）→ 主题 published|hidden/未删/未锁（closed_at 即回复开关）→ 板块 is_active → parent 同主题+可见（status published 且 deleted_at IS NULL，稳定 400 不泄漏）→ 事务内原子楼层分配（MAX(floor)+1，UNIQUE(post_id,floor) 兜底，SQLite busy 指数退避 M01-JOBS-09）；响应 Comment 投影+private,no-store；测试 create_comment_returns_201_with_full_projection/create_comment_rejects_locked_post/create_comment_rejects_banned_and_unverified/create_comment_on_hidden_post_is_allowed/create_comment_rejects_invisible_parent/create_comment_idempotency_replay_and_conflict/concurrent_creates_allocate_unique_contiguous_floors；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listDrafts",
@@ -873,13 +879,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/drafts.rs::list_drafts",
       "tests": [
         "backend/tests/drafts_routes.rs"
       ],
-      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createDraft",
@@ -890,13 +896,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/drafts.rs::create_draft",
       "tests": [
         "backend/tests/drafts_routes.rs"
       ],
-      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "deleteDraft",
@@ -907,13 +913,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/drafts.rs::delete_draft",
       "tests": [
         "backend/tests/drafts_routes.rs"
       ],
-      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getDraft",
@@ -924,13 +930,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/drafts.rs::get_owned_draft",
       "tests": [
         "backend/tests/drafts_routes.rs"
       ],
-      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateDraft",
@@ -941,13 +947,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/drafts.rs::update_draft",
       "tests": [
         "backend/tests/drafts_routes.rs"
       ],
-      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs"
+      "evidence": "M04-POSTS-02/03: 草稿创建（client_request_id 幂等：同 key+摘要重放返回原草稿、不同摘要 409）/读取本人草稿（他人 404 不泄露存在性）/owner 维度 keyset 分页（updated_at DESC + next_cursor）/更新（If-Match 版本冲突 409、部分更新、version 递增）/软删除（deleted_at 置位、行保留、删除后 404）；响应 private no-store；服务端字段校验见 backend/src/content/posts/command.rs；集成测试 backend/tests/drafts_routes.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "previewDraft",
@@ -958,13 +964,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/drafts.rs::preview_draft",
       "tests": [
         "backend/tests/drafts_routes.rs"
       ],
-      "evidence": "M04-POSTS-04: 草稿预览——POST /api/v1/drafts/{id}/preview 只返回当前用户临时安全 HTML（render_content 全管线：CommonMark→allowlist 清洗→公开摘要），不写公开索引/缓存（无任何 DB 写、Cache-Control private,no-store）；集成测试 backend/tests/drafts_routes.rs"
+      "evidence": "M04-POSTS-04: 草稿预览——POST /api/v1/drafts/{id}/preview 只返回当前用户临时安全 HTML（render_content 全管线：CommonMark→allowlist 清洗→公开摘要），不写公开索引/缓存（无任何 DB 写、Cache-Control private,no-store）；集成测试 backend/tests/drafts_routes.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listBoardPosts",
@@ -975,13 +981,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/boards.rs::list_board_posts",
       "tests": [
         "backend/tests/posts_read.rs"
       ],
-      "evidence": "M04-POSTS-07: 板块帖子列表同 cursor 投影 + PostPage shape + Cache-Control；板块不存在/已删除 404"
+      "evidence": "M04-POSTS-07: 板块帖子列表同 cursor 投影 + PostPage shape + Cache-Control；板块不存在/已删除 404；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listPosts",
@@ -992,13 +998,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::list_posts",
       "tests": [
         "backend/tests/posts_read.rs"
       ],
-      "evidence": "M04-POSTS-07: 帖子列表 keyset cursor（created_at DESC、after 游标、has_more/next_cursor）+ board_id/author_id 过滤 + Cache-Control public,max-age=60 + ETag"
+      "evidence": "M04-POSTS-07: 帖子列表 keyset cursor（created_at DESC、after 游标、has_more/next_cursor）+ board_id/author_id 过滤 + Cache-Control public,max-age=60 + ETag；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createPost",
@@ -1009,7 +1015,7 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::create_post",
       "tests": [
@@ -1017,7 +1023,7 @@
         "backend/tests/drafts_routes.rs",
         "backend/tests/posts_tx.rs"
       ],
-      "evidence": "M04-POSTS-06/10: 即时/定时发布 createPost——validate_post_create→幂等门(scope post.create)→publish_new_post(publish_preflight→事务写 posts/post_contents/post_revisions→板块计数→搜索索引)；scheduled_at 未来→draft 态由 content.publish Job 到期再预检发布；重复请求同 key 重放返回原帖；集成测试 posts_publish.rs/posts_tx.rs"
+      "evidence": "M04-POSTS-06/10: 即时/定时发布 createPost——validate_post_create→幂等门(scope post.create)→publish_new_post(publish_preflight→事务写 posts/post_contents/post_revisions→板块计数→搜索索引)；scheduled_at 未来→draft 态由 content.publish Job 到期再预检发布；重复请求同 key 重放返回原帖；集成测试 posts_publish.rs/posts_tx.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getPost",
@@ -1028,7 +1034,7 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::get_post",
       "tests": [
@@ -1036,7 +1042,7 @@
         "backend/tests/visibility_canary.rs",
         "backend/tests/visibility_boundary.rs"
       ],
-      "evidence": "M04-POSTS-07 + M04-VISIBILITY-07/08/09/10/11: 帖子详情投影（post_type/author/status/slug/access_summary/capabilities）经 evaluate+project_post 统一评估——未授权时 body_html/excerpt 等敏感键完全缺失（canary 不出现在 API/SSR/网络/浏览器状态），persona 感知缓存头（public→public,max-age=60+Vary:Cookie+ETag；其余→private,no-store 无 ETag）；等级边界/作者降级编辑 422/封禁无提升/paid grant 撤销重锁；浏览量自增；deleted 404"
+      "evidence": "M04-POSTS-07 + M04-VISIBILITY-07/08/09/10/11: 帖子详情投影（post_type/author/status/slug/access_summary/capabilities）经 evaluate+project_post 统一评估——未授权时 body_html/excerpt 等敏感键完全缺失（canary 不出现在 API/SSR/网络/浏览器状态），persona 感知缓存头（public→public,max-age=60+Vary:Cookie+ETag；其余→private,no-store 无 ETag）；等级边界/作者降级编辑 422/封禁无提升/paid grant 撤销重锁；浏览量自增；deleted 404；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updatePost",
@@ -1047,14 +1053,14 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::update_post",
       "tests": [
         "backend/tests/posts_edit.rs",
         "backend/tests/posts_tx.rs"
       ],
-      "evidence": "M04-POSTS-08/10: 编辑帖子 If-Match 版本冲突 409→不可变修订（version+1，UNIQUE 兜底并发）→post_contents 重渲染；管理员代改需 post.moderate+reason+step-up+审计"
+      "evidence": "M04-POSTS-08/10: 编辑帖子 If-Match 版本冲突 409→不可变修订（version+1，UNIQUE 兜底并发）→post_contents 重渲染；管理员代改需 post.moderate+reason+step-up+审计；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listPostRevisions",
@@ -1065,13 +1071,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::list_post_revisions",
       "tests": [
         "backend/tests/posts_revisions.rs"
       ],
-      "evidence": "M04-POSTS-11: 修订列表/详情——post.read_revision 权限门；作者本人或 post.moderate 可见修订正文，普通成员仅元数据；管理查看写审计 post.revision.read；集成测试 backend/tests/posts_revisions.rs"
+      "evidence": "M04-POSTS-11: 修订列表/详情——post.read_revision 权限门；作者本人或 post.moderate 可见修订正文，普通成员仅元数据；管理查看写审计 post.revision.read；集成测试 backend/tests/posts_revisions.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getPostRevision",
@@ -1082,13 +1088,13 @@
       "work_package": "M04-POSTS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/posts.rs::get_post_revision",
       "tests": [
         "backend/tests/posts_revisions.rs"
       ],
-      "evidence": "M04-POSTS-11: 修订列表/详情——post.read_revision 权限门；作者本人或 post.moderate 可见修订正文，普通成员仅元数据；管理查看写审计 post.revision.read；集成测试 backend/tests/posts_revisions.rs"
+      "evidence": "M04-POSTS-11: 修订列表/详情——post.read_revision 权限门；作者本人或 post.moderate 可见修订正文，普通成员仅元数据；管理查看写审计 post.revision.read；集成测试 backend/tests/posts_revisions.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createAdminModerationCase",
@@ -1099,13 +1105,13 @@
       "work_package": "M05-SANCTIONS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "assignAdminModerationCase",
@@ -1116,13 +1122,13 @@
       "work_package": "M05-SANCTIONS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_admin_moderation_sanctions",
@@ -1150,13 +1156,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::list_moderation_appeals",
       "tests": [
         "backend/tests/moderation/appeals.rs::decide_reject_and_partial_are_append_only"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getModerationAppeal",
@@ -1167,13 +1173,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::get_moderation_appeal",
       "tests": [
         "backend/tests/moderation/appeals.rs::projections_do_not_cross_boundaries"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "decideModerationAppeal",
@@ -1184,13 +1190,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::decide_moderation_appeal",
       "tests": [
         "backend/tests/moderation/appeals.rs::decide_uphold_revokes_sanction_and_restores_ban"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listModerationCases",
@@ -1201,13 +1207,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::list_moderation_cases",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-03/05: moderation.review 权限门（TOTP 强制启用）；案件列表投影；开案/状态机/派单由 service + tests 覆盖；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-CASES-03/05: moderation.review 权限门（TOTP 强制启用）；案件列表投影；开案/状态机/派单由 service + tests 覆盖；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getModerationCase",
@@ -1218,13 +1224,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::get_moderation_case",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-03: moderation.review 权限门；案件详情投影（status/priority/assigned_to/resolved_at/resolution）；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-CASES-03: moderation.review 权限门；案件详情投影（status/priority/assigned_to/resolved_at/resolution）；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateModerationCase",
@@ -1235,13 +1241,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::update_moderation_case",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-03/05: 状态迁移走 CaseStatus::can_transition_to（非法 → 409），写审计 + Outbox moderation.case_changed.v1；自处理/利益冲突在开案与派单服务中阻断并审计；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-CASES-03/05: 状态迁移走 CaseStatus::can_transition_to（非法 → 409），写审计 + Outbox moderation.case_changed.v1；自处理/利益冲突在开案与派单服务中阻断并审计；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listOwnAppeals",
@@ -1252,13 +1258,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::list_own_appeals",
       "tests": [
         "backend/tests/moderation/appeals.rs::create_appeal_validates_rules_and_window"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createAppeal",
@@ -1269,13 +1275,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::create_appeal",
       "tests": [
         "backend/tests/moderation/appeals.rs::create_appeal_validates_rules_and_window"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getOwnAppeal",
@@ -1286,13 +1292,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::get_own_appeal",
       "tests": [
         "backend/tests/moderation/appeals.rs::projections_do_not_cross_boundaries"
       ],
-      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-APPEALS-01..07; backend/src/moderation/appeals/service.rs + routes/moderation.rs; cargo test --test moderation_appeals --all-features 8 pass; cargo clippy -D warnings 0; check-event-catalog 23/23; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "withdrawAppeal",
@@ -1303,13 +1309,13 @@
       "work_package": "M05-APPEALS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/moderation/appeals.rs"
       ],
-      "evidence": "cargo test --test moderation_appeals 8 pass; contract=申诉撤回; commit=f242434; review=withdraw_appeal 断言"
+      "evidence": "cargo test --test moderation_appeals 8 pass; contract=申诉撤回; commit=f242434; review=withdraw_appeal 断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listOwnReports",
@@ -1320,13 +1326,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_reports",
@@ -1337,13 +1343,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-moderation",
       "handler": "backend/src/routes/moderation.rs::create_report",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "M05-CASES-01/02: target_type/reason_code 封闭枚举 + 详情限长 2000；目标资源存在校验；report_dedup_key 归一化 + 锚定窗口 UNIQUE 窗口内去重 → 统一 DuplicateReport 响应（不泄漏其他举报人/案件状态）；HTTP 201/409/400 测试；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-CASES-01/02: target_type/reason_code 封闭枚举 + 详情限长 2000；目标资源存在校验；report_dedup_key 归一化 + 锚定窗口 UNIQUE 窗口内去重 → 统一 DuplicateReport 响应（不泄漏其他举报人/案件状态）；HTTP 201/409/400 测试；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "withdrawReport",
@@ -1354,13 +1360,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/moderation/cases.rs"
       ],
-      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言"
+      "evidence": "cargo test --test moderation_cases 13 pass; contract=举报列表/撤回/案件创建/指派; commit=f242434; review=create_report_validates_and_inserts + HTTP 状态断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_notifications",
@@ -1371,14 +1377,14 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-notifications",
       "handler": "backend/src/routes/moderation.rs::list_notifications",
       "tests": [
         "backend/tests/notifications/notify.rs::list_cursor_and_read_flows",
         "backend/tests/notifications/notify.rs::permission_recheck_hides_unavailable_content"
       ],
-      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getNotificationPreferences",
@@ -1389,13 +1395,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/notifications/notify.rs"
       ],
-      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言"
+      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateNotificationPreferences",
@@ -1406,13 +1412,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/notifications/notify.rs"
       ],
-      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言"
+      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "markAllNotificationsRead",
@@ -1423,13 +1429,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-content",
       "handler": "backend/src/routes/moderation.rs",
       "tests": [
         "backend/tests/notifications/notify.rs"
       ],
-      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言"
+      "evidence": "cargo test --test notify 8 pass; contract=通知偏好读改/全部已读; commit=64ce403; review=notification_preferences 断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_notifications_id_read",
@@ -1440,13 +1446,13 @@
       "work_package": "M05-NOTIFY",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-notifications",
       "handler": "backend/src/routes/moderation.rs::mark_notification_read",
       "tests": [
         "backend/tests/notifications/notify.rs::list_cursor_and_read_flows"
       ],
-      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）"
+      "evidence": "M05-NOTIFY-01..09; backend/src/notifications/{service,templates}.rs + email/service.rs + routes/moderation.rs; cargo test --test notifications_notify --all-features 6 pass; cargo clippy -D warnings 0; commit TBD；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_admin_levels_id_attachment_quota",
@@ -1457,13 +1463,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
         "backend/tests/storage/quota.rs"
       ],
-      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "patch_admin_levels_id_attachment_quota",
@@ -1474,13 +1480,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
         "backend/tests/storage/quota.rs"
       ],
-      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_admin_storage_config",
@@ -1491,13 +1497,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
         "backend/tests/storage/quota.rs"
       ],
-      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "patch_admin_storage_config",
@@ -1508,13 +1514,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
         "backend/tests/storage/quota.rs"
       ],
-      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_admin_storage_test",
@@ -1525,13 +1531,13 @@
       "work_package": "M06-QUOTA",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/admin_storage.rs",
       "tests": [
         "backend/tests/storage/quota.rs"
       ],
-      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针"
+      "evidence": "cargo test --test storage_quota 13 pass; contract=等级附件配额/存储配置(脱敏)/测试连接, reason+recent-auth+审计; commit=3a46751; review=update_level_quota_creates_new_version_never_touches_old_rows + post_admin_storage_test 探针；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createAttachment",
@@ -1542,13 +1548,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/storage.rs",
       "tests": [
         "backend/tests/storage/upload.rs"
       ],
-      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "delete_attachments_id_",
@@ -1559,13 +1565,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/storage.rs",
       "tests": [
         "backend/tests/storage/upload.rs"
       ],
-      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_attachments_id_",
@@ -1576,13 +1582,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/storage.rs",
       "tests": [
         "backend/tests/storage/upload.rs"
       ],
-      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateAttachment",
@@ -1593,13 +1599,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/storage.rs",
       "tests": [
         "backend/tests/storage/upload.rs"
       ],
-      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_attachments_id_complete",
@@ -1610,13 +1616,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/storage.rs",
       "tests": [
         "backend/tests/storage/upload.rs"
       ],
-      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_attachments_id_content",
@@ -1627,13 +1633,13 @@
       "work_package": "M06-UPLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-storage",
       "handler": "backend/src/routes/storage.rs",
       "tests": [
         "backend/tests/storage/upload.rs"
       ],
-      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox"
+      "evidence": "cargo test --test storage_upload 17 pass; contract=两阶段上传/流式 PUT/complete/删除/内容读取/安全扫描; commit=3a46751; review=create_reserves_quota_and_returns_stream_transport + complete_happy_path_readies_attachment_with_hash_audit_outbox；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_attachments_id_download",
@@ -1644,14 +1650,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/download.rs",
       "tests": [
         "backend/tests/download/billing.rs",
         "backend/tests/download/http.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_attachments_id_download_policy",
@@ -1662,14 +1668,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/download.rs",
       "tests": [
         "backend/tests/download/billing.rs",
         "backend/tests/download/http.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_download_authorizations_id_",
@@ -1680,14 +1686,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/download.rs",
       "tests": [
         "backend/tests/download/billing.rs",
         "backend/tests/download/http.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_download_authorizations_id_sign_url",
@@ -1698,14 +1704,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/download.rs",
       "tests": [
         "backend/tests/download/billing.rs",
         "backend/tests/download/http.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_me_download_transactions",
@@ -1716,14 +1722,14 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/download.rs",
       "tests": [
         "backend/tests/download/billing.rs",
         "backend/tests/download/http.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge"
+      "evidence": "cargo test --test download_billing 8 pass; cargo test --test download_http 3 pass; contract=授权+幂等扣款+URL 重签+下载流水; commit=3a46751; review=paid_download_charges_and_is_idempotent + sign_url_after_authorization_does_not_recharge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getAttachmentDownloadPolicyAdmin",
@@ -1734,13 +1740,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/admin_download.rs",
       "tests": [
         "backend/tests/download/billing.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateAttachmentDownloadPolicyAdmin",
@@ -1751,13 +1757,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/admin_download.rs",
       "tests": [
         "backend/tests/download/billing.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getDownloadBillingConfig",
@@ -1768,13 +1774,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/admin_download.rs",
       "tests": [
         "backend/tests/download/billing.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateDownloadBillingConfig",
@@ -1785,13 +1791,13 @@
       "work_package": "M06-DOWNLOAD",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-download",
       "handler": "backend/src/routes/admin_download.rs",
       "tests": [
         "backend/tests/download/billing.rs"
       ],
-      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx"
+      "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_activity_summary",
@@ -1802,13 +1808,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-economy",
       "handler": "backend/src/routes/economy.rs",
       "tests": [
         "backend/tests/economy/activity.rs"
       ],
-      "evidence": "cargo test --test economy_activity 15 pass; contract=活动摘要与签到访问(排除匿名/爬虫/健康检查); commit=3a46751; review=http_summary_and_visit_flow + visit_validation_rejects_crawler_prefetch_static_health"
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动摘要与签到访问(排除匿名/爬虫/健康检查); commit=3a46751; review=http_summary_and_visit_flow + visit_validation_rejects_crawler_prefetch_static_health；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "recordAuthenticatedVisit",
@@ -1819,13 +1825,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-economy",
       "handler": "backend/src/routes/economy.rs",
       "tests": [
         "backend/tests/economy/activity.rs"
       ],
-      "evidence": "cargo test --test economy_activity 15 pass; contract=活动摘要与签到访问(排除匿名/爬虫/健康检查); commit=3a46751; review=http_summary_and_visit_flow + visit_validation_rejects_crawler_prefetch_static_health"
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动摘要与签到访问(排除匿名/爬虫/健康检查); commit=3a46751; review=http_summary_and_visit_flow + visit_validation_rejects_crawler_prefetch_static_health；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getAdminActivityConfig",
@@ -1836,13 +1842,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-economy",
       "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
         "backend/tests/economy/activity.rs"
       ],
-      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateAdminActivityConfig",
@@ -1853,13 +1859,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-economy",
       "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
         "backend/tests/economy/activity.rs"
       ],
-      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listAdminActivityTasks",
@@ -1870,13 +1876,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-economy",
       "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
         "backend/tests/economy/activity.rs"
       ],
-      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createAdminActivityTask",
@@ -1887,13 +1893,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-economy",
       "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
         "backend/tests/economy/activity.rs"
       ],
-      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateAdminActivityTask",
@@ -1904,13 +1910,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-economy",
       "handler": "backend/src/routes/admin_activity.rs",
       "tests": [
         "backend/tests/economy/activity.rs"
       ],
-      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update"
+      "evidence": "cargo test --test economy_activity 15 pass; contract=活动规则/任务配置管理(level.manage + reason + 审计); commit=3a46751; review=admin_config_update_versions_and_audits + admin_task_create_list_update；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_comments_id_reactions",
@@ -1921,13 +1927,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/posts.rs|backend/src/routes/comments.rs",
       "tests": [
         "backend/tests/reactions.rs"
       ],
-      "evidence": "cargo test --test reactions 5 pass; contract=Reaction 切换(添加/撤销), 限流/自赞/通知偏好; commit=3a46751; review=add_remove_and_summarize + self_reaction_is_rejected"
+      "evidence": "cargo test --test reactions 5 pass; contract=Reaction 切换(添加/撤销), 限流/自赞/通知偏好; commit=3a46751; review=add_remove_and_summarize + self_reaction_is_rejected；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "delete_comments_id_reactions_reaction_",
@@ -1938,13 +1944,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/levels",
+      "handler": "backend/src/routes/comments.rs::delete_comment_reaction",
       "tests": [
-
+        "backend/tests/reactions.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_posts_id_reactions",
@@ -1955,13 +1961,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/posts.rs|backend/src/routes/comments.rs",
       "tests": [
         "backend/tests/reactions.rs"
       ],
-      "evidence": "cargo test --test reactions 5 pass; contract=Reaction 切换(添加/撤销), 限流/自赞/通知偏好; commit=3a46751; review=add_remove_and_summarize + self_reaction_is_rejected"
+      "evidence": "cargo test --test reactions 5 pass; contract=Reaction 切换(添加/撤销), 限流/自赞/通知偏好; commit=3a46751; review=add_remove_and_summarize + self_reaction_is_rejected；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "delete_posts_id_reactions_reaction_",
@@ -1972,13 +1978,13 @@
       "work_package": "M07-LEVELS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/levels",
+      "handler": "backend/src/routes/posts.rs::delete_post_reaction",
       "tests": [
-
+        "backend/tests/reactions.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getAdminShopConfig",
@@ -1989,13 +1995,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateAdminShopConfig",
@@ -2006,13 +2012,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listAdminShopOrders",
@@ -2023,13 +2029,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "refundAdminShopOrder",
@@ -2040,13 +2046,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "listAdminShopProducts",
@@ -2057,13 +2063,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "createAdminShopProduct",
@@ -2074,13 +2080,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "updateAdminShopProduct",
@@ -2091,13 +2097,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "disableAdminShopProduct",
@@ -2108,13 +2114,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "publishAdminShopProduct",
@@ -2125,13 +2131,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/admin_shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_me_entitlements",
@@ -2142,13 +2148,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_me_entitlements_id_equip",
@@ -2159,13 +2165,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_me_entitlements_id_unequip",
@@ -2176,13 +2182,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_me_presentation",
@@ -2193,13 +2199,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_shop_orders",
@@ -2210,13 +2216,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_shop_orders_id_",
@@ -2227,13 +2233,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_shop_products",
@@ -2244,13 +2250,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_shop_products_id_",
@@ -2261,13 +2267,13 @@
       "work_package": "M07-SHOP",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "backend-shop",
       "handler": "backend/src/routes/shop.rs",
       "tests": [
         "backend/tests/shop/core.rs"
       ],
-      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge"
+      "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getPublicAtomFeed",
@@ -2278,13 +2284,13 @@
       "work_package": "M08-FEEDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/feeds",
+      "handler": "backend/src/routes/feeds.rs::get_atom_feed",
       "tests": [
-
+        "backend/tests/feeds.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "getPublicRssFeed",
@@ -2295,13 +2301,13 @@
       "work_package": "M08-FEEDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/feeds",
+      "handler": "backend/src/routes/feeds.rs::get_rss_feed",
       "tests": [
-
+        "backend/tests/feeds.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "searchPublicContent",
@@ -2312,13 +2318,13 @@
       "work_package": "M08-INDEX",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/search",
+      "handler": "backend/src/routes/search.rs::search_public_content",
       "tests": [
-
+        "backend/tests/search/public.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_ai_capabilities",
@@ -2329,13 +2335,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::get_ai_capabilities",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "delete_ai_consent",
@@ -2346,13 +2354,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::delete_ai_consent",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_ai_consent",
@@ -2363,13 +2373,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::post_ai_consent",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_ai_drafts_draft_id_format",
@@ -2380,13 +2392,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::format_draft",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_ai_posts_post_id_moderation_suggestion",
@@ -2397,13 +2411,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::moderation_suggestion",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_ai_posts_post_id_seo_suggestion",
@@ -2414,13 +2430,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::seo_suggestion",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_ai_suggestions_id_",
@@ -2431,13 +2449,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::get_ai_suggestion",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_ai_suggestions_id_accept",
@@ -2448,13 +2468,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::accept_ai_suggestion",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_ai_tasks_id_",
@@ -2465,13 +2487,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::get_ai_task",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "post_ai_tasks_id_cancel",
@@ -2482,13 +2506,15 @@
       "work_package": "M09-SUGGESTIONS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/ai",
+      "handler": "backend/src/routes/ai.rs::cancel_ai_task",
       "tests": [
-
+        "backend/tests/ai/suggestions.rs",
+        "backend/tests/ai/tasks.rs",
+        "backend/tests/ai/gateway.rs"
       ],
-      "evidence": null
+      "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
       "operation_id": "get_admin_ai_config",

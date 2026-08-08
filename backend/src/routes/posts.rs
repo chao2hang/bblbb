@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Json, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use serde::Deserialize;
@@ -54,6 +54,10 @@ pub fn router() -> Router<AppState> {
             get(get_post_revision),
         )
         .route("/api/v1/posts/{id}/reactions", post(toggle_reaction))
+        .route(
+            "/api/v1/posts/{id}/reactions/{reaction}",
+            delete(delete_post_reaction),
+        )
 }
 
 #[derive(Deserialize)]
@@ -1401,6 +1405,25 @@ async fn toggle_reaction(
         }
         Err(e) => Err(map_reaction_error(e, request_id)),
     }
+}
+
+/// DELETE /api/v1/posts/{id}/reactions/{reaction} — 移除帖子反应
+/// （OpenAPI `delete_posts_id_reactions_reaction_`，与 comments 对齐）。
+async fn delete_post_reaction(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path((id, reaction)): Path<(String, String)>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "delete_posts_id_reactions_reaction";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, &reaction)
+        .await
+        .map(Json)
+        .map_err(|e| map_reaction_error(e, request_id))
 }
 
 /// 反应错误 → AppError（不泄漏目标细节）。

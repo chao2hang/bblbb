@@ -388,12 +388,21 @@ end
 
 next_task_match = roadmap.match(/下一任务：\[`([^`]+)`\]\(([^)]+)\)/)
 if next_task_match
-  next_task = leaf_tasks.find { |task| task.fetch(:id) == next_task_match[1] }
-  errors << "TODO.md next task #{next_task_match[1]} does not exist" unless next_task
-  errors << "TODO.md next task #{next_task_match[1]} is already completed or blocked" if next_task && %w[x !].include?(next_task.fetch(:state))
-  if next_task
-    expected_link = "#{relative(next_task[:file])}##{next_task[:milestone].downcase}"
-    errors << "TODO.md next-task link must use #{expected_link}" unless next_task_match[2] == expected_link
+  # 终态标记（§10 变更控制）：783/783 全部完成/阻塞后，下一任务指针使用显式
+  # "全部完成" 标记，不再指向某个具体叶子任务（否则该检查必然失败）。
+  if next_task_match[1] == "全部完成"
+    next_task = nil
+    terminal_marker = true
+  else
+    next_task = leaf_tasks.find { |task| task.fetch(:id) == next_task_match[1] }
+  end
+  unless terminal_marker
+    errors << "TODO.md next task #{next_task_match[1]} does not exist" unless next_task
+    errors << "TODO.md next task #{next_task_match[1]} is already completed or blocked" if next_task && %w[x !].include?(next_task.fetch(:state))
+    if next_task
+      expected_link = "#{relative(next_task[:file])}##{next_task[:milestone].downcase}"
+      errors << "TODO.md next-task link must use #{expected_link}" unless next_task_match[2] == expected_link
+    end
   end
 else
   errors << "TODO.md is missing its next-task pointer"

@@ -1,3 +1,41 @@
+## v1.0.0-rc.2 — 2026-08-08（M17 RC 冻结 / 预发布 / 冒烟 / Flag 记录）
+
+### RC 冻结（M17-FREEZE）
+
+- RC 变更清单 `reports/rc/change-list.md`：193 operations 冻结，上一版本 client
+  向后兼容（`check-client-compat.rb` 193/193），无未批准破坏性变更。
+- 差异文档同步 `reports/rc/doc-sync.md`：Requirements/OpenAPI/Schema/Security/Testing
+  与专项文档逐项核对。
+- OpenAPI 覆盖终态 `reports/rc/coverage-final.md`：193/193 全部 `verified`
+  （含 profile-cover 端点补齐与 posts 反应删除端点补齐）。
+- 迁移兼容/升级时长/恢复点 `reports/rc/migration-compat.md`；依赖/SBOM/Secret
+  清点 `reports/rc/inventory.md`。
+- 评审签字：**阻塞**（需产品/后端/前端/安全/测试/运维/运营负责人评审签字）。
+
+### 预发布环境与数据演练（M17-ENV）
+
+- `deploy/staging/` 生产同构编排说明；合成 persona 数据 + canary 日志扫描 CLEAN。
+- 空库安装/升级/重复迁移/错误迁移演练、SQLite/附件/OIDC key 备份恢复
+  （RPO=0，RTO=0.18s，verify.sh 全绿）、优雅停机（HTTP 0.30s / worker 0.04s）。
+- MySQL/MariaDB 恢复演练：**阻塞**（沙箱无真实数据库；脚本就绪）。
+
+### 全角色冒烟（M17-SMOKE）
+
+- 九类 persona 冒烟全绿（Playwright 194 用例 + vitest 567 + 后端 147 binaries），
+  报告 `reports/rc/smoke/personas.md`；人工验收清单 `reports/rc/smoke/checklist.md`。
+
+### 专项 Flag 与启用记录（M17-FLAGS）
+
+- 核心论坛/邮箱验证/审核/积分/本地附件默认配置上线；五项可选能力（AI/Video/
+  Download Billing/OIDC/Marketplace）默认关闭，逐项启用计划与回滚记录
+  `ops/feature-flags/gates.md`（P2 记录审批人/范围/阈值/观察窗口/审计）。
+
+### 法律与上线（M17-LEGAL / M17-LAUNCH）
+
+- 法律/运营/隐私发布确认清单 `docs/legal/README.md`：**阻塞**（需法务/运营签字）。
+- 生产上线：**阻塞**（需真实生产主机执行；步骤与 Runbook 已就绪）。
+
+---
 ## v0.7 — 2026-08-08（M16 测试/安全/故障/经济/性能/发布验收）
 
 ### 测试基础设施与契约（M16-HARNESS）
