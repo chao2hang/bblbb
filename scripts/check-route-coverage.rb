@@ -32,11 +32,30 @@ ROUTE_METHODS = %w[get post put patch delete head options trace].freeze
 # contract (docs/API.md §1).
 # `robots.txt` / `sitemap.xml` 是 Web 标准端点（搜索引擎/抓取器直接访问），
 # 不进入 /api/v1 契约；由 M08-FEEDS 路由提供并记录在 docs/CRAWLER-POLICY.md §7。
+# M12/M13 内部管理/运营端点（Marketplace 审批/对账/紧急停用、Plugin 管理、
+# /metrics、Marketplace 确认页视图）为领域管理接口，不在冻结 193-op 契约内，
+# 记录于 docs/MARKETPLACE.md §12 与 docs/PLUGIN.md。
 DOCUMENTED_NON_CONTRACT = {
   "readyz" => %w[GET],
   "openapi.json" => %w[GET],
   "robots.txt" => %w[GET],
-  "sitemap.xml" => %w[GET]
+  "sitemap.xml" => %w[GET],
+  "metrics" => %w[GET],
+  "marketplace/checkout-intents/{p}" => %w[GET],
+  "admin/marketplace/clients/{p}" => %w[GET PATCH],
+  "admin/marketplace/clients/{p}/emergency-disable" => %w[POST],
+  "admin/marketplace/offers" => %w[GET],
+  "admin/marketplace/reconciliation/run" => %w[POST],
+  "admin/marketplace/refunds/{p}/retry" => %w[POST],
+  "admin/marketplace/webhook-deliveries" => %w[GET],
+  "admin/marketplace/webhook-deliveries/{p}/replay" => %w[POST],
+  "admin/plugins" => %w[GET POST],
+  "admin/plugins/{p}" => %w[GET DELETE],
+  "admin/plugins/{p}/disable" => %w[POST],
+  "admin/plugins/{p}/enable" => %w[POST],
+  "admin/plugins/{p}/metrics" => %w[GET],
+  "admin/plugins/{p}/settings" => %w[PATCH],
+  "admin/plugins/capabilities" => %w[GET]
 }.freeze
 
 def normalize_path(path)

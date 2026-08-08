@@ -343,7 +343,7 @@
 - [x] `M17-FREEZE-03` `[30m]` 生成 172 operation coverage 最终报告，任何 planned/partial/unknown 阻断 RC。 证据：files=files=reports/rc/coverage-final.md；todo/openapi-operation-coverage.json；commands=ruby scripts/check-roadmap.rb(exit 0)；ruby scripts/sync-operation-coverage.rb --check(193/193 verified)；cargo test --all-features(0 fail)；clippy -D warnings(0)；npx playwright test(194 passed)；contract=contract=193/193 operations verified；commit=c109c31；review=review=coverage 终态：verified=193（含补齐端点）
 - [x] `M17-FREEZE-04` `[30m]` 生成迁移兼容、升级时长、不可逆步骤和恢复点说明。 证据：files=files=reports/rc/migration-compat.md；migrations/*/0058_users_cover_meta.sql；commands=ruby scripts/check-roadmap.rb(exit 0)；ruby scripts/sync-operation-coverage.rb --check(193/193 verified)；cargo test --all-features(0 fail)；clippy -D warnings(0)；npx playwright test(194 passed)；contract=contract=迁移 1..58 不可变；三方言等价；commit=c109c31；review=review=升级时长与恢复点实测记录
 - [x] `M17-FREEZE-05` `[30m]` 清点依赖、license、SBOM、Secret scan、构建产物 checksum 和版本标签。 证据：files=files=reports/rc/inventory.md；security/scan-report.md；security/sbom-*.json；commands=ruby scripts/check-roadmap.rb(exit 0)；ruby scripts/sync-operation-coverage.rb --check(193/193 verified)；cargo test --all-features(0 fail)；clippy -D warnings(0)；npx playwright test(194 passed)；contract=contract=SBOM/Secret/checksum/版本标签清点；commit=c109c31；review=review=4 项依赖风险按风险接受并跟踪
-- [!] `M17-FREEZE-06` `[45m]` 召开产品/后端/前端/安全/测试/运维/运营评审，记录批准、异议和负责人。 阻塞：阻塞：原因=需产品/后端/前端/安全/测试/运维/运营负责人评审并记录批准/异议（人类审批）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=评审完成并记录批准/异议
+- [!] `M17-FREEZE-06` `[45m]` 召开产品/后端/前端/安全/测试/运维/运营评审，记录批准、异议和负责人。 阻塞：原因=需产品/后端/前端/安全/测试/运维/运营负责人评审并记录批准/异议（人类审批）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=评审完成并记录批准/异议
 
 ## M17-ENV：预发布环境与数据演练
 
@@ -396,12 +396,12 @@
 **目标文件：** `docs/legal/`、`docs/RETENTION-PRIVACY.md`、`docs/CRAWLER-POLICY.md`、`reports/rc/approvals/`
 **验收：** 实际部署地区、运营主体、条款、隐私、邮件、内容责任和数据处理完成签字。
 
-- [!] `M17-LEGAL-01` `[45m]` 确认实际部署地区、运营主体、域名、数据处理角色和跨境 Provider 区域。 阻塞：阻塞：原因=需确认实际部署地区/运营主体/域名/数据处理角色/跨境 Provider 区域（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=法务/运营负责人完成确认
-- [!] `M17-LEGAL-02` `[45m]` 发布用户条款、隐私政策、Cookie/邮件政策、内容审核和申诉说明。 阻塞：阻塞：原因=需发布用户条款/隐私政策/Cookie/邮件政策/审核与申诉说明（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=条款与政策对外发布
-- [!] `M17-LEGAL-03` `[30m]` 明确 S3、SMTP、AI、视频来源、Marketplace Client 的第三方数据处理与最小审计。 阻塞：阻塞：原因=需明确 S3/SMTP/AI/视频/Marketplace 第三方数据处理与最小审计（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=第三方数据处理说明完成
-- [!] `M17-LEGAL-04` `[30m]` 核对注销匿名化、公开讨论保留、30 天删除和法律保留对外说明。 阻塞：阻塞：原因=需核对注销匿名化/公开保留/30 天删除/法律保留对外说明（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=对外说明核对完成
-- [!] `M17-LEGAL-05` `[30m]` 核对 AI 训练爬虫默认拒绝、作者退出索引/摘要和管理员优先级说明。 阻塞：阻塞：原因=需核对 AI 训练爬虫默认拒绝/作者退出索引/管理员优先级说明（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=说明核对完成
-- [!] `M17-LEGAL-06` `[45m]` 由运营/安全/法律负责人签署发布批准或记录阻塞项，未签署不得上线。 阻塞：阻塞：原因=需运营/安全/法律负责人签署发布批准（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=签署发布批准
+- [!] `M17-LEGAL-01` `[45m]` 确认实际部署地区、运营主体、域名、数据处理角色和跨境 Provider 区域。 阻塞：原因=需确认实际部署地区/运营主体/域名/数据处理角色/跨境 Provider 区域（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=法务/运营负责人完成确认
+- [!] `M17-LEGAL-02` `[45m]` 发布用户条款、隐私政策、Cookie/邮件政策、内容审核和申诉说明。 阻塞：原因=需发布用户条款/隐私政策/Cookie/邮件政策/审核与申诉说明（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=条款与政策对外发布
+- [!] `M17-LEGAL-03` `[30m]` 明确 S3、SMTP、AI、视频来源、Marketplace Client 的第三方数据处理与最小审计。 阻塞：原因=需明确 S3/SMTP/AI/视频/Marketplace 第三方数据处理与最小审计（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=第三方数据处理说明完成
+- [!] `M17-LEGAL-04` `[30m]` 核对注销匿名化、公开讨论保留、30 天删除和法律保留对外说明。 阻塞：原因=需核对注销匿名化/公开保留/30 天删除/法律保留对外说明（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=对外说明核对完成
+- [!] `M17-LEGAL-05` `[30m]` 核对 AI 训练爬虫默认拒绝、作者退出索引/摘要和管理员优先级说明。 阻塞：原因=需核对 AI 训练爬虫默认拒绝/作者退出索引/管理员优先级说明（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=说明核对完成
+- [!] `M17-LEGAL-06` `[45m]` 由运营/安全/法律负责人签署发布批准或记录阻塞项，未签署不得上线。 阻塞：原因=需运营/安全/法律负责人签署发布批准（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=签署发布批准
 
 ## M17-LAUNCH：正式上线与观察窗口
 
@@ -409,14 +409,14 @@
 **目标文件：** `deploy/`、`ops/runbooks/`、`reports/launch/`、`docs/CHANGELOG.md`
 **验收：** 最终迁移、备份点、冒烟、监控和 24 小时/7 天复盘完成。
 
-- [!] `M17-LAUNCH-01` `[30m]` 设置生产域名、DNS、TLS、Caddy、可信代理、systemd、目录和文件权限。 阻塞：阻塞：原因=需在真实生产主机设置域名/DNS/TLS/Caddy/systemd/权限（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产主机完成上线配置
-- [!] `M17-LAUNCH-02` `[30m]` 执行最终备份、恢复点校验、迁移 checksum 和 release checksum 核对。 阻塞：阻塞：原因=需在真实生产设施执行最终备份/恢复点/迁移与 release checksum 核对（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产备份与校验完成
-- [!] `M17-LAUNCH-03` `[30m]` 执行生产匿名浏览、注册、验证、登录、发帖、回复、举报和管理冒烟。 阻塞：阻塞：原因=需在真实生产执行匿名浏览/注册/登录/发帖/回复/举报/管理冒烟（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产冒烟完成
-- [!] `M17-LAUNCH-04` `[30m]` 验证日志脱敏、request ID、监控、告警、磁盘/WAL/队列和备份任务。 阻塞：阻塞：原因=需在真实生产验证日志脱敏/request ID/监控/告警/磁盘/备份任务（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产观测验证完成
-- [!] `M17-LAUNCH-05` `[30m]` 观察窗口内不打开未验收 Flag，异常按 Runbook 处理并保留审计。 阻塞：阻塞：原因=需在真实生产观察窗口内不打开未验收 Flag 并异常处理（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=观察窗口策略执行
-- [!] `M17-LAUNCH-06` `[30m]` 发布后 24 小时复核错误率、p95、队列、S3、账务和安全告警。 阻塞：阻塞：原因=需发布后 24 小时复核错误率/p95/队列/S3/账务/安全告警（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=24h 复盘完成
-- [!] `M17-LAUNCH-07` `[30m]` 发布后 7 天完成用户反馈、事故、性能、反刷和 Flag 复盘。 阻塞：阻塞：原因=需发布后 7 天完成用户反馈/事故/性能/反刷/Flag 复盘（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=7 天复盘完成
-- [!] `M17-LAUNCH-08` `[30m]` 将上线版本、变更、指标、已知问题和后续计划写入 `docs/CHANGELOG.md`。 阻塞：阻塞：原因=需将真实上线版本/变更/指标/已知问题写入 CHANGELOG（真实生产设施；本沙箱已写 v1.0.0-rc.2 预发布条目）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产上线后 CHANGELOG 定稿
+- [!] `M17-LAUNCH-01` `[30m]` 设置生产域名、DNS、TLS、Caddy、可信代理、systemd、目录和文件权限。 阻塞：原因=需在真实生产主机设置域名/DNS/TLS/Caddy/systemd/权限（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产主机完成上线配置
+- [!] `M17-LAUNCH-02` `[30m]` 执行最终备份、恢复点校验、迁移 checksum 和 release checksum 核对。 阻塞：原因=需在真实生产设施执行最终备份/恢复点/迁移与 release checksum 核对（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产备份与校验完成
+- [!] `M17-LAUNCH-03` `[30m]` 执行生产匿名浏览、注册、验证、登录、发帖、回复、举报和管理冒烟。 阻塞：原因=需在真实生产执行匿名浏览/注册/登录/发帖/回复/举报/管理冒烟（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产冒烟完成
+- [!] `M17-LAUNCH-04` `[30m]` 验证日志脱敏、request ID、监控、告警、磁盘/WAL/队列和备份任务。 阻塞：原因=需在真实生产验证日志脱敏/request ID/监控/告警/磁盘/备份任务（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产观测验证完成
+- [!] `M17-LAUNCH-05` `[30m]` 观察窗口内不打开未验收 Flag，异常按 Runbook 处理并保留审计。 阻塞：原因=需在真实生产观察窗口内不打开未验收 Flag 并异常处理（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=观察窗口策略执行
+- [!] `M17-LAUNCH-06` `[30m]` 发布后 24 小时复核错误率、p95、队列、S3、账务和安全告警。 阻塞：原因=需发布后 24 小时复核错误率/p95/队列/S3/账务/安全告警（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=24h 复盘完成
+- [!] `M17-LAUNCH-07` `[30m]` 发布后 7 天完成用户反馈、事故、性能、反刷和 Flag 复盘。 阻塞：原因=需发布后 7 天完成用户反馈/事故/性能/反刷/Flag 复盘（真实生产设施）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=7 天复盘完成
+- [!] `M17-LAUNCH-08` `[30m]` 将上线版本、变更、指标、已知问题和后续计划写入 `docs/CHANGELOG.md`。 阻塞：原因=需将真实上线版本/变更/指标/已知问题写入 CHANGELOG（真实生产设施；本沙箱已写 v1.0.0-rc.2 预发布条目）；负责人=platform/release-manager；复查日期=2026-09-07；解除条件=生产上线后 CHANGELOG 定稿
 
 ---
 
