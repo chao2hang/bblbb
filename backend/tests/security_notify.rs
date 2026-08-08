@@ -350,7 +350,7 @@ async fn cancel_enrollment_sends_notification_only_when_cancelled() {
 async fn revoke_session_by_id_sends_notification() {
     let (pool, dir) = pool_with_migrations().await;
     let (user_id, _) = insert_login_user(&pool, "grace").await;
-    let _token = create_session(&pool, &user_id, Some("Mozilla/5.0 (Macintosh)"))
+    let _token = create_session(&pool, &user_id, Some("Mozilla/5.0 (Macintosh)"), false)
         .await
         .unwrap();
 
@@ -376,7 +376,7 @@ async fn revoke_foreign_session_no_notification() {
     let (pool, dir) = pool_with_migrations().await;
     let (owner, _) = insert_login_user(&pool, "heidi").await;
     let (other, _) = insert_login_user(&pool, "ivan").await;
-    let _other_token = create_session(&pool, &other, None).await.unwrap();
+    let _other_token = create_session(&pool, &other, None, false).await.unwrap();
     let other_sessions = list_sessions(&pool, &other).await.unwrap();
     let other_session_id = other_sessions[0].id.clone();
 
@@ -424,7 +424,7 @@ async fn new_device_notified_only_on_first_seen() {
     assert_eq!(security_notifications(&pool, &user_id).await.len(), 1);
 
     // 模拟该设备完成登录（create_session 写入 UA）后，同设备再次 → 不通知
-    create_session(&pool, &user_id, Some("Device-A"))
+    create_session(&pool, &user_id, Some("Device-A"), false)
         .await
         .unwrap();
     assert!(has_device_seen(&pool, &user_id, "Device-A").await.unwrap());
@@ -456,6 +456,7 @@ async fn login_user_notifies_only_first_device() {
         PASSWORD,
         "127.0.0.1",
         Some("Mozilla/5.0 FirstDevice"),
+        false,
         "req-login-1",
         &LoginLimits::default(),
     )
@@ -470,6 +471,7 @@ async fn login_user_notifies_only_first_device() {
         PASSWORD,
         "127.0.0.1",
         Some("Mozilla/5.0 FirstDevice"),
+        false,
         "req-login-2",
         &LoginLimits::default(),
     )
@@ -489,6 +491,7 @@ async fn login_user_notifies_only_first_device() {
         PASSWORD,
         "127.0.0.1",
         Some("Mozilla/5.0 SecondDevice"),
+        false,
         "req-login-3",
         &LoginLimits::default(),
     )

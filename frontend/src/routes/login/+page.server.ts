@@ -30,13 +30,14 @@ export const actions: Actions = {
     const form = await request.formData();
     const identifier = String(form.get('identifier') ?? '').trim();
     const password = String(form.get('password') ?? '');
+    const remember = form.get('remember') === 'on';
     if (!identifier || !password) {
       return fail(422, { message: '请输入用户名/邮箱和密码' } satisfies LoginActionData);
     }
     try {
       const result = await loginViaServer(
         cookies,
-        { identifier, password },
+        { identifier, password, remember },
         request.headers.get('x-request-id')
       );
       if (result.kind === 'ok') throw redirect(303, nextUrl(url));

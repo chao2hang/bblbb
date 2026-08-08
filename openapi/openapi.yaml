@@ -6810,6 +6810,10 @@ components:
           minLength: 8
           maxLength: 256
           writeOnly: true
+        remember:
+          type: boolean
+          default: false
+          description: 记住我——勾选后签发 30 天会话（默认 7 天）
     LoginMfaChallenge:
       type: object
       additionalProperties: false

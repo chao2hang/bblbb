@@ -54,7 +54,11 @@ impl std::fmt::Display for MfaLoginError {
 impl std::error::Error for MfaLoginError {}
 
 /// 签发一次性 MFA login challenge，返回明文 token（只此一次）。
-pub async fn start_mfa_login(pool: &DatabasePool, user_id: &str) -> Result<String, sqlx::Error> {
+pub async fn start_mfa_login(
+    pool: &DatabasePool,
+    user_id: &str,
+    remember: bool,
+) -> Result<String, sqlx::Error> {
     let token = generate_token();
     let token_hash = hash_token(&token);
     let id = uuid::Uuid::now_v7().to_string();
@@ -63,12 +67,13 @@ pub async fn start_mfa_login(pool: &DatabasePool, user_id: &str) -> Result<Strin
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO mfa_login_challenges (id, user_id, token_hash, created_at, expires_at, consumed_at)
-                 VALUES (?, ?, ?, ?, ?, NULL)",
+                "INSERT INTO mfa_login_challenges (id, user_id, token_hash, remember, created_at, expires_at, consumed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, NULL)",
             )
             .bind(&id)
             .bind(user_id)
             .bind(&token_hash)
+            .bind(remember)
             .bind(now)
             .bind(now + MFA_CHALLENGE_TTL_MS)
             .execute(p)
@@ -76,12 +81,13 @@ pub async fn start_mfa_login(pool: &DatabasePool, user_id: &str) -> Result<Strin
         }
         Either::Right(p) => {
             sqlx::query(
-                "INSERT INTO mfa_login_challenges (id, user_id, token_hash, created_at, expires_at, consumed_at)
-                 VALUES (?, ?, ?, ?, ?, NULL)",
+                "INSERT INTO mfa_login_challenges (id, user_id, token_hash, remember, created_at, expires_at, consumed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, NULL)",
             )
             .bind(&id)
             .bind(user_id)
             .bind(&token_hash)
+            .bind(remember)
             .bind(now)
             .bind(now + MFA_CHALLENGE_TTL_MS)
             .execute(p)
@@ -117,9 +123,9 @@ pub async fn complete_mfa_login(
     let token_hash = hash_token(challenge_token);
 
     // 1) 读 challenge（不消费）：不存在/已消费/过期 → 统一 InvalidChallenge
-    let row: Option<(String,)> = match pool {
+    let row: Option<(String, bool)> = match pool {
         Either::Left(p) => sqlx::query_as(
-            "SELECT user_id FROM mfa_login_challenges
+            "SELECT user_id, remember FROM mfa_login_challenges
              WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
         )
         .bind(&token_hash)
@@ -128,7 +134,7 @@ pub async fn complete_mfa_login(
         .await
         .map_err(|e| MfaLoginError::Database(e.to_string()))?,
         Either::Right(p) => sqlx::query_as(
-            "SELECT user_id FROM mfa_login_challenges
+            "SELECT user_id, remember FROM mfa_login_challenges
              WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
         )
         .bind(&token_hash)
@@ -137,7 +143,7 @@ pub async fn complete_mfa_login(
         .await
         .map_err(|e| MfaLoginError::Database(e.to_string()))?,
     };
-    let Some((user_id,)) = row else {
+    let Some((user_id, remember)) = row else {
         return Err(MfaLoginError::InvalidChallenge);
     };
 
@@ -198,8 +204,9 @@ pub async fn complete_mfa_login(
         .await
         .map_err(|e| MfaLoginError::Database(e.to_string()))?;
 
-    // 会话签发（auth_verified_at=now，M02-MFA-07 step-up 即刻满足）
-    let session_token = create_session(pool, &user_id, None)
+    // 会话签发（auth_verified_at=now，M02-MFA-07 step-up 即刻满足；
+    // remember 取自第一步 challenge，见 start_mfa_login）
+    let session_token = create_session(pool, &user_id, None, remember)
         .await
         .map_err(|e| MfaLoginError::Database(e.to_string()))?;
 

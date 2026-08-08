@@ -135,7 +135,7 @@ async fn start_issues_one_time_token_storing_only_hash() {
     let (pool, dir) = pool_with_migrations().await;
     let (user_id, _) = insert_login_user(&pool, "alice").await;
 
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
     assert!(!challenge.is_empty());
 
     let (consumed, expires) = challenge_state(&pool, &challenge).await;
@@ -178,6 +178,7 @@ async fn password_step_signals_mfa_required_without_session() {
         PASSWORD,
         "127.0.0.1",
         None,
+        false,
         "req-1",
         &LoginLimits::default(),
     )
@@ -195,6 +196,7 @@ async fn password_step_signals_mfa_required_without_session() {
         PASSWORD,
         "127.0.0.1",
         None,
+        false,
         "req-2",
         &LoginLimits::default(),
     )
@@ -216,7 +218,7 @@ async fn complete_with_totp_issues_session_and_consumes_challenge() {
     let (user_id, _) = insert_login_user(&pool, "carol").await;
     let (secret, _) = enabled_totp(&pool, &user_id).await;
 
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
     // complete_mfa_login 内部用系统当前时间；TOTP 窗口 ±1 步，
     // 用当前步 +1 的 code（> last_accepted_step，且仍在窗口内）
     let code = code_at(&secret, (now_secs() / TOTP_PERIOD_SECS) + 1);
@@ -253,7 +255,7 @@ async fn complete_with_recovery_code_issues_session() {
         .await
         .unwrap();
 
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
     let completed = complete_mfa_login(
         &pool,
         &challenge,
@@ -270,7 +272,7 @@ async fn complete_with_recovery_code_issues_session() {
     assert!(consumed);
 
     // 同一恢复码不可再用
-    let challenge2 = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge2 = start_mfa_login(&pool, &user_id, false).await.unwrap();
     let err = complete_mfa_login(&pool, &challenge2, None, Some(&codes[0]), KEY, "req-2")
         .await
         .unwrap_err();
@@ -286,7 +288,7 @@ async fn challenge_replay_rejected() {
     let (pool, dir) = pool_with_migrations().await;
     let (user_id, _) = insert_login_user(&pool, "erin").await;
     enabled_totp(&pool, &user_id).await;
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
 
     // 第一次：正确 TOTP code
     let code1 = code_at(
@@ -311,7 +313,7 @@ async fn expired_challenge_rejected() {
     let (pool, dir) = pool_with_migrations().await;
     let (user_id, _) = insert_login_user(&pool, "frank").await;
     enabled_totp(&pool, &user_id).await;
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
 
     // 把 expires_at 回溯到过去
     let token_hash = bblbb_backend::auth::hash_token(&challenge);
@@ -346,7 +348,7 @@ async fn wrong_code_rejected() {
     let (pool, dir) = pool_with_migrations().await;
     let (user_id, _) = insert_login_user(&pool, "grace").await;
     enabled_totp(&pool, &user_id).await;
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
 
     let err = complete_mfa_login(&pool, &challenge, Some("000000"), None, KEY, "req-1")
         .await
@@ -363,14 +365,14 @@ async fn both_or_neither_code_rejected() {
     let (pool, dir) = pool_with_migrations().await;
     let (user_id, _) = insert_login_user(&pool, "heidi").await;
     enabled_totp(&pool, &user_id).await;
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
 
     let err = complete_mfa_login(&pool, &challenge, None, None, KEY, "req-1")
         .await
         .unwrap_err();
     assert!(matches!(err, MfaLoginError::InvalidCode), "{err:?}");
 
-    let challenge2 = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge2 = start_mfa_login(&pool, &user_id, false).await.unwrap();
     let err = complete_mfa_login(
         &pool,
         &challenge2,
@@ -393,7 +395,7 @@ async fn concurrent_same_challenge_only_one_succeeds() {
     let (pool, dir) = pool_with_migrations().await;
     let (user_id, _) = insert_login_user(&pool, "ivan").await;
     let (secret, _) = enabled_totp(&pool, &user_id).await;
-    let challenge = start_mfa_login(&pool, &user_id).await.unwrap();
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
     let code = code_at(&secret, (now_secs() / TOTP_PERIOD_SECS) + 1);
     let code1 = code.clone();
     let code2 = code.clone();

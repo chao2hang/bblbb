@@ -56,6 +56,9 @@ pub struct LoginRequest {
     /// 用户名或邮箱（不区分大小写）
     pub identifier: String,
     pub password: String,
+    /// 「记住我」：勾选后签发 30 天会话（默认 7 天；M02-UX-03）。
+    #[serde(default)]
+    pub remember: Option<bool>,
 }
 
 /// 第二步 MFA 登录请求（M02-UX-03）：totp_code 与 recovery_code 二选一。
@@ -426,6 +429,7 @@ async fn login(
         &req.password,
         &ip,
         ua,
+        req.remember.unwrap_or(false),
         request_id,
         &LoginLimits::default(),
     )
@@ -435,9 +439,13 @@ async fn login(
             // 启用 TOTP：第一步只签发一次性 challenge（不写会话 Cookie），
             // 前端进入第二步 /auth/login/mfa（M02-UX-03）。
             if outcome.mfa_required {
-                let challenge_token = crate::auth::start_mfa_login(pool, &outcome.user_id)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                let challenge_token = crate::auth::start_mfa_login(
+                    pool,
+                    &outcome.user_id,
+                    req.remember.unwrap_or(false),
+                )
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
                 return Ok((
                     StatusCode::OK,
                     [(header::CACHE_CONTROL, "private, no-store")],

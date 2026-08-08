@@ -66,7 +66,7 @@ describe('login action（密码步）', () => {
       expect(result.location).toBe('/');
     }
     const [cookies, input] = loginMock.mock.calls[0];
-    expect(input).toEqual({ identifier: 'alice', password: 'password9' });
+    expect(input).toEqual({ identifier: 'alice', password: 'password9', remember: false });
     expect(cookies.get).toBeTypeOf('function');
   });
 

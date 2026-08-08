@@ -103,8 +103,14 @@
               autocomplete="current-password"
             />
           </div>
+          <div class="login-options" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin:var(--space-1) 0 var(--space-3);">
+            <label class="input-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-size:var(--text-sm);">
+              <input type="checkbox" name="remember" value="on" checked style="accent-color:var(--color-primary);" />
+              记住我
+            </label>
+            <a href="/password-reset" class="text-link" style="font-size:var(--text-sm);">忘记密码？</a>
+          </div>
           <Button text="登录" variant="primary" size="lg" type="submit" />
-          <p class="auth-hint"><a href="/password-reset">忘记密码？</a></p>
         </form>
       {/if}
     </div>

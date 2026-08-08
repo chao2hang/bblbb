@@ -25,6 +25,10 @@ pub const SESSION_COOKIE_NAME: &str = "__Host-bblbb_session";
 pub const IDLE_TIMEOUT_MS: i64 = 30 * 60 * 1000;
 /// 默认 absolute 超时：7 天（Unix 毫秒，M01-DB-08）
 pub const ABSOLUTE_TIMEOUT_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+/// 「记住我」会话（登录页勾选，M02-UX-03）：空闲 7 天。
+pub const REMEMBER_IDLE_TIMEOUT_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+/// 「记住我」会话绝对超时：30 天。
+pub const REMEMBER_ABSOLUTE_TIMEOUT_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 /// 默认 step-up 窗口：5 分钟（M02-MFA-07；配置 BBLBB__STEP_UP_WINDOW_SECS）
 pub const DEFAULT_STEP_UP_WINDOW_SECS: u64 = 5 * 60;
 
@@ -274,13 +278,24 @@ pub async fn create_session(
     pool: &DatabasePool,
     user_id: &str,
     ua: Option<&str>,
+    remember: bool,
 ) -> Result<String, sqlx::Error> {
     let token = crate::auth::token::generate_token();
     let token_hash = hash_token(&token);
     let session_id = uuid::Uuid::now_v7().to_string();
     let now = crate::outbox::now_millis();
-    let idle_expires = now + IDLE_TIMEOUT_MS;
-    let absolute_expires = now + ABSOLUTE_TIMEOUT_MS;
+    let idle_expires = now
+        + if remember {
+            REMEMBER_IDLE_TIMEOUT_MS
+        } else {
+            IDLE_TIMEOUT_MS
+        };
+    let absolute_expires = now
+        + if remember {
+            REMEMBER_ABSOLUTE_TIMEOUT_MS
+        } else {
+            ABSOLUTE_TIMEOUT_MS
+        };
     let ua_truncated = ua.map(|u| u.trim()).filter(|u| !u.is_empty()).map(|u| {
         let mut chars = u.chars();
         let mut s: String = chars.by_ref().take(200).collect();
@@ -429,7 +444,7 @@ pub async fn rotate_session(
     }
 
     // 签发新 Session（全新 token，旧 token 已失效）
-    create_session(pool, &user_id, None).await
+    create_session(pool, &user_id, None, false).await
 }
 
 /// 设备会话列表项（M02-SESSION-05）。

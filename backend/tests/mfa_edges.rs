@@ -281,7 +281,7 @@ async fn concurrent_different_recovery_codes_both_succeed() {
 async fn rotation_preserves_step_up_clearance_and_old_token_fail_closed() {
     let (pool, dir) = pool_with_migrations().await;
     let user_id = insert_user(&pool, "grace").await;
-    let old_token = create_session(&pool, &user_id, None).await.unwrap();
+    let old_token = create_session(&pool, &user_id, None, false).await.unwrap();
 
     // 完整认证（登录即 auth_verified_at=now）→ 不需要 step-up
     assert!(

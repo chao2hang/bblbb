@@ -446,6 +446,8 @@ export async function authedPut<T = unknown>(
 export interface LoginViaServerInput {
   identifier: string;
   password: string;
+  /** 「记住我」：勾选后签发 30 天会话（默认 7 天）。 */
+  remember?: boolean;
 }
 
 /** POST /api/v1/auth/login 结果（M02-UX-03 两步登录第一步）。 */
@@ -483,7 +485,11 @@ export async function loginViaServer(
   const response = await fetch(`${INTERNAL_API_ORIGIN}/api/v1/auth/login`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(input)
+    body: JSON.stringify({
+      identifier: input.identifier,
+      password: input.password,
+      remember: input.remember === true
+    })
   });
   relaySetCookies(response, cookies);
 

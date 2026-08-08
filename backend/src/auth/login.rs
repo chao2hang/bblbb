@@ -113,6 +113,7 @@ pub async fn login_user(
     password: &str,
     ip: &str,
     ua: Option<&str>,
+    remember: bool,
     request_id: &str,
     limits: &LoginLimits,
 ) -> Result<LoginOutcome, LoginError> {
@@ -216,7 +217,7 @@ pub async fn login_user(
             });
         }
 
-        let session_token = create_session(pool, &user.id, ua_clean)
+        let session_token = create_session(pool, &user.id, ua_clean, remember)
             .await
             .map_err(LoginError::Database)?;
         if is_new_device {

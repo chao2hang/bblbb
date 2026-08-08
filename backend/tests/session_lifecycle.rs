@@ -426,3 +426,78 @@ async fn sessions_endpoints_require_authentication() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+/// 「记住我」（M02-UX-03）：remember=true 的登录签发 30 天绝对 / 7 天空闲
+/// 会话；默认登录保持 7 天绝对 / 30 分钟空闲。
+#[tokio::test]
+async fn remember_me_session_gets_extended_timeouts() {
+    let (pool, dir) = pool_with_migrations().await;
+    let (user_id, email) = insert_user(&pool, "remember").await;
+    let app = build_router(AppConfig::default(), Some(pool.clone()));
+
+    // 默认登录（无 remember）。
+    let _default_cookie = login_cookie(&app, &email, "198.51.100.2").await;
+    let (d_idle, d_abs): (i64, i64) = match &pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT idle_expires_at - created_at, absolute_expires_at - created_at
+             FROM user_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(&user_id)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert!(
+        (d_idle - 30 * 60 * 1000).abs() < 5_000,
+        "默认会话空闲超时应约 30 分钟，实际 {d_idle}"
+    );
+    assert!(
+        (d_abs - 7 * 24 * 3600 * 1000).abs() < 5_000,
+        "默认会话绝对超时应约 7 天，实际 {d_abs}"
+    );
+
+    // remember=true 登录。
+    let (cookie, csrf) = common::fetch_preauth(&app).await;
+    let body = json!({ "identifier": email, "password": PASSWORD, "remember": true });
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/login")
+                .header("content-type", "application/json")
+                .header("x-forwarded-for", "198.51.100.2")
+                .header("cookie", cookie)
+                .header("x-csrf-token", csrf)
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let _set_cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
+
+    let (r_idle, r_abs): (i64, i64) = match &pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT idle_expires_at - created_at, absolute_expires_at - created_at
+             FROM user_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(&user_id)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert!(
+        (r_idle - 7 * 24 * 3600 * 1000).abs() < 5_000,
+        "记住我空闲超时应约 7 天，实际 {r_idle}"
+    );
+    assert!(
+        (r_abs - 30 * 24 * 3600 * 1000).abs() < 5_000,
+        "记住我绝对超时应约 30 天，实际 {r_abs}"
+    );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

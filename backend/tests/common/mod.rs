@@ -57,7 +57,7 @@ pub async fn enroll_totp(pool: &DatabasePool, user_id: &str) -> String {
 /// 无需在测试 AppConfig 配置 MFA 加密密钥。
 #[allow(dead_code)] // 共享测试工具：并非每个引用 common 的测试二进制都使用
 pub async fn direct_session_cookie(pool: &DatabasePool, user_id: &str) -> String {
-    let token = bblbb_backend::auth::session::create_session(pool, user_id, None)
+    let token = bblbb_backend::auth::session::create_session(pool, user_id, None, false)
         .await
         .expect("create_session");
     format!(
