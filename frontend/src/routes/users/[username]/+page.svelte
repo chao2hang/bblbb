@@ -15,6 +15,8 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
+  // M14-SEO-01/02：作者页统一 SEO；banned/pending_delete 降级投影 → noindex。
+  import Seo from '$lib/components/Seo.svelte';
   import type { UserPageData } from './+page.server';
 
   let { data = { user: null } }: { data?: UserPageData | { user: null } } = $props();
@@ -45,9 +47,25 @@
   });
 </script>
 
-<svelte:head>
-  <title>{username} — BBLBB</title>
-</svelte:head>
+<Seo
+  title={`${user?.display_name || user?.username || username} 的主页`}
+  description={user?.bio || `查看 ${user?.username || username} 在 BBLBB 的公开资料`}
+  og={{ type: 'profile' }}
+  noindex={!user}
+  jsonLd={
+    user
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'ProfilePage',
+          mainEntity: {
+            '@type': 'Person',
+            name: user.display_name || user.username,
+            identifier: user.username
+          }
+        }
+      : null
+  }
+/>
 
 <div class="container page-content">
   <nav class="breadcrumb" aria-label="面包屑">

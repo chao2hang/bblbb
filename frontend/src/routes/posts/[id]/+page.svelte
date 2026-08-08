@@ -27,6 +27,8 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import SafeHtml from '$lib/components/SafeHtml.svelte';
+  // M14-SEO-01/02/03：文章/讨论页统一 SEO；未发布/未解锁内容 noindex。
+  import Seo from '$lib/components/Seo.svelte';
   import { formatTime, formatRelative, charCount } from '$lib/utils';
   import type { PostDetailPageData } from './+page.server';
 
@@ -178,6 +180,18 @@
   const commentRecovery = $derived(commentProblem ? problemRecovery(commentProblem) : null);
   const editRecovery = $derived(editProblem ? problemRecovery(editProblem) : null);
 
+  /** M14-SEO-03：只有「已发布 + 公开可解锁」的内容可被索引；审核中/草稿/
+   * 等级/登录/付费未解锁一律 noindex（后端投影决定可看内容，前端只按
+   * 投影状态输出索引策略，隐藏正文永不进入 SSR）。 */
+  const indexable = $derived(
+    Boolean(
+      post &&
+        (post.status ?? 'published') === 'published' &&
+        (post.access_summary?.policy ?? 'public') === 'public' &&
+        post.access_summary?.unlocked !== false
+    )
+  );
+
   /** 访问策略展示文案（与契约 AccessSummary.policy 枚举一致）。 */
   function policyLabel(policy: string): string {
     switch (policy) {
@@ -195,10 +209,26 @@
   }
 </script>
 
-<svelte:head>
-  <title>{post ? post.title : '帖子'} — BBLBB</title>
-  {#if post}<meta name="description" content={post.title} />{/if}
-</svelte:head>
+<Seo
+  title={post ? post.title : '帖子'}
+  description={post ? post.title : '帖子内容'}
+  noindex={!indexable}
+  og={{ type: post?.post_type === 'article' ? 'article' : 'website', siteName: 'BBLBB' }}
+  jsonLd={
+    indexable
+      ? {
+          '@context': 'https://schema.org',
+          '@type': post?.post_type === 'article' ? 'Article' : 'DiscussionForumPosting',
+          headline: post!.title,
+          datePublished: new Date(post!.created_at).toISOString(),
+          author: {
+            '@type': 'Person',
+            name: post!.author?.display_name || post!.author?.username || '匿名'
+          }
+        }
+      : null
+  }
+/>
 
 <div class="container page-content">
   <nav class="breadcrumb" aria-label="面包屑">

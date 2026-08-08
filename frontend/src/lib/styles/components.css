@@ -1322,6 +1322,22 @@ iframe.is-lazy-pending,
   justify-content: flex-end;
 }
 
+.data-table .table-cell-right {
+  text-align: right;
+}
+
+.data-table .table-cell-center {
+  text-align: center;
+}
+
+/* M14-COMPONENTS-05：数据表格触屏 hit area（行内交互 ≥ 40px）。 */
+.data-table td button,
+.data-table td a {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+
 /* ---- Restricted card ---- */
 .restricted-card {
   display: flex;
@@ -1334,6 +1350,34 @@ iframe.is-lazy-pending,
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-lg);
   text-align: center;
+}
+
+/* M14-COMPONENTS-03：账务确认摘要行。 */
+.accounting-confirm-summary {
+  margin: 0 0 var(--space-2);
+}
+
+.accounting-confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-default);
+  font-size: var(--text-sm);
+}
+
+.accounting-confirm-row:last-child {
+  border-bottom: none;
+}
+
+.accounting-confirm-row dt {
+  color: var(--color-text-secondary);
+}
+
+.accounting-confirm-row dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .restricted-icon {

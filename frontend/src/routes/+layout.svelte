@@ -1,6 +1,6 @@
 <script lang="ts">
   import '../app.css';
-  import { onMount } from 'svelte';
+  import { page } from '$app/state';
   import { getMe, logout, type User } from '$lib/api/client';
   import { goto } from '$app/navigation';
   import Navbar from '$lib/components/Navbar.svelte';
@@ -12,9 +12,26 @@
   let loading = $state(true);
   let unread = $state(0);
 
-  onMount(async () => {
-    user = await getMe(fetch);
-    loading = false;
+  // M14-A11Y/ROUTES 修复：会话态在客户端导航后保持同步。
+  //
+  // 原实现用 onMount 拉取 /me —— onMount 只在整页加载时执行一次，登录 action
+  // 经 use:enhance 走 SPA 跳转时 layout 不会重挂载，navbar 会一直停留在未登录态。
+  // 改为按路径变化重取 /me（轻量 GET，无 CSRF），登录/退出后导航即反映真实会话。
+  let lastPath = '';
+  $effect(() => {
+    const path = page.url.pathname;
+    if (path === lastPath) return;
+    lastPath = path;
+    loading = true;
+    getMe(fetch)
+      .then((me) => {
+        user = me;
+        loading = false;
+      })
+      .catch(() => {
+        user = null;
+        loading = false;
+      });
   });
 
   async function handleLogout() {

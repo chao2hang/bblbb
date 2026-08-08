@@ -11,7 +11,8 @@
   import SearchResultList from '$lib/components/SearchResultList.svelte';
   import ChallengeGate from '$lib/components/ui/ChallengeGate.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import JsonLd from '$lib/components/JsonLd.svelte';
+  // M14-SEO-01：搜索页统一 SEO（canonical + noindex + JSON-LD）。
+  import Seo from '$lib/components/Seo.svelte';
   import type { SearchPageData } from './+page.server';
 
   let { data }: { data: SearchPageData } = $props();
@@ -25,7 +26,8 @@
   const challenge = $derived(data.challenge);
   const q = $derived(data.q);
 
-  // ── SEO head（M08-UI-05）：canonical + noindex + OG/Twitter + JSON-LD。
+  // ── SEO head（M08-UI-05 语义经 M14-SEO-01 统一生成器）：canonical +
+  // 默认 noindex（FRONTEND.md §8；不承诺替代服务端边界）+ JSON-LD。
   const origin = $derived(page.url.origin);
   const canonical = $derived(
     searched ? `${origin}${searchUrl(q, { limit: data.limit })}` : `${origin}/search`
@@ -45,8 +47,7 @@
       'query-input': 'required name=search_term_string'
     }
   }));
-  // JSON-LD 完全由静态模板生成（不含用户输入），经 JsonLd 白名单组件注入。
-  const jsonLdScript = $derived(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</scr${'ipt>'}`);
+  // 搜索页始终 noindex（M08-UI-05/FRONTEND.md §8），canonical 指向当前筛选。
 
   const totalLabel = $derived(
     results.length > 0 ? `找到 ${results.length} 条结果` : null
@@ -58,20 +59,14 @@
   );
 </script>
 
-<svelte:head>
-  <title>{pageTitle}</title>
-  <meta name="description" content={pageDesc} />
-  <link rel="canonical" href={canonical} />
-  <!-- 搜索页默认 noindex（FRONTEND.md §8）；不承诺替代服务端边界。 -->
-  <meta name="robots" content="noindex,follow,noarchive" />
-  <meta property="og:site_name" content="BBLBB" />
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content={pageTitle} />
-  <meta property="og:description" content={pageDesc} />
-  <meta property="og:url" content={canonical} />
-  <meta name="twitter:card" content="summary" />
-  <JsonLd data={jsonLdScript} />
-</svelte:head>
+<Seo
+  title={pageTitle}
+  description={pageDesc}
+  canonical={canonical}
+  noindex
+  og={{ type: 'website', siteName: 'BBLBB' }}
+  jsonLd={jsonLd}
+/>
 
 <div class="container page-content">
   <nav class="breadcrumb" aria-label="面包屑">
@@ -92,7 +87,7 @@
           class="input-field"
           placeholder="搜索帖子…"
           style="padding-left:40px;"
-          value={q}
+          value={q || undefined}
           maxlength={200}
           aria-label="搜索帖子"
         />

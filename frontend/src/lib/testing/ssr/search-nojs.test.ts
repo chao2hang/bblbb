@@ -35,14 +35,16 @@ describe('M08-UI-05 搜索页 SSR head', () => {
     const { body, head } = render(SearchPage, { props: { data: baseData({ q: '测试', searched: true }) } });
     expect(head).toContain('<link rel="canonical"');
     expect(head).toContain(`href="http://test.local/search?q=${encodeURIComponent('测试')}"`);
-    expect(head).toContain('name="robots" content="noindex,follow,noarchive"');
+    expect(head).toContain('name="robots" content="noindex, noarchive, nofollow"');
     expect(head).toContain('property="og:type" content="website"');
     expect(head).toContain('property="og:title"');
     expect(head).toContain(`property="og:url" content="http://test.local/search?q=${encodeURIComponent('测试')}"`);
     expect(head).toContain('name="twitter:card" content="summary"');
-    expect(head).toContain('application/ld+json');
-    expect(head).toContain('"@type":"SearchAction"');
-    expect(head).toContain('urlTemplate');
+    // JSON-LD 经 Seo 统一生成器输出：script 位于正文树（schema.org 允许
+    // JSON-LD 出现在 DOM 任意位置；M14-SEO-01 统一 head + JSON-LD 注入）。
+    expect(head + body).toContain('application/ld+json');
+    expect(head + body).toContain('"@type":"SearchAction"');
+    expect(head + body).toContain('urlTemplate');
     // 正文区不含 head 内容（独立输出）。
     expect(body).not.toContain('<link rel="canonical"');
   });

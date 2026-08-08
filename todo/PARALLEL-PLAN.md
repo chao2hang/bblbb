@@ -70,6 +70,10 @@
 | W13 (M12) | 已完成 | 2026-08-07 | ``9c40184`` | W13 收口：M12 Marketplace（SCHEMA/CLIENTS/CHECKOUT/REFUND/UI）43 个叶子任务全部 `[x]`（580/783 完成）；0056_marketplace.sql 三库等价迁移；marketplace 领域层（clients/offers/checkout/refunds/webhooks/reconcile/balance）+ 7 条公开路由 + 管理端 Client/Scope/Offer/Webhook/对账/紧急停用；29 个 marketplace 集成测试（clients 9 / checkout 11 / refund 9）+ 20 个前端 SSR 测试全绿；账本恒等式 Σ=0、BEGIN IMMEDIATE 并发恰一成功、退款 reversal-only、Webhook HMAC/时间窗/dead-letter、增量对账；M11 OIDC 测试保持绿；OpenAPI 12 个 marketplace op verified；check-roadmap exit 0 |
 | W14a (M13) | 已完成 | 2026-08-08 | ``eca6120``（主）+ ``d3f8b26``/``8ebc846``（commit 回填） | W14a 收口：M13 主题/插件/管理后台/UI 34 个叶子任务全部 `[x]`（614/783 完成）；0057_theme.sql 三库等价迁移（themes/theme_revisions/plugins/plugin_call_metrics/plugin_data）；theme 领域层（封闭 Token schema、fallback、revision 一致性、上传隔离态、If-Match 偏好）；plugins 领域层（capability/event/settings 白名单、危险 URL/代码扫描、policy_revision、调用摘要、无在线代码执行）；管理 API（users/roles/boards/tags/sanctions/themes/plugins + 既有 storage/ai/video/oidc/marketplace 复用 require_recent_auth）；前端 17 个 admin 页面 + 主题投影库 + 按权限导航；后端 theme/plugins/admin_routes 集成测试 + profile_routes 主题偏好改造；OpenAPI 主题 8 op + admin 配置 op verified；cargo clippy -D warnings 0、全量测试 0 fail、frontend check 0 err + 541 测试 + build 绿、migration_equivalence 4 passed、check-roadmap exit 0 |
 
+| W13 (M12) | 已完成 | 2026-08-08 | `9c40184` + `e3751e9` | M12 收口：Marketplace 43 任务全部 `[x]`（580/783）；0056 三库迁移；领域层 clients/checkout/refunds/webhooks/reconcile + 路由 + 前端；29 后端集成测试 + 20 SSR vitest；账务恒等式 Σ=0；clippy 0 / cargo test 0 fail / frontend 520 tests / make 门禁绿 |
+| W14a (M13) | 已完成 | 2026-08-08 | `eca6120` + `d3f8b26` + `8ebc846` + `58abc4b` | M13 收口：主题/插件/后台 34 任务全部 `[x]`（614/783）；0057 三库迁移；theme token schema + plugin capability allowlist + admin 扩展；1346 后端用例 + 541 前端用例 |
+| W14b (M14) | 已完成 | 2026-08-08 | 待提交 | M14 收口：全量前端/a11y/SEO 32 任务全部 `[x]`（646/783）；Playwright desktop/mobile 194 用例绿（axe serious/critical=0）；vitest 567；SEO meta/JSON-LD/noindex；M14 后无 prototype mock 生产依赖 |
+
 ## 5. 首批（W0）并行分工
 
 - **A-backend**：修复 `backend/` + `migrations/`：CSRF 中间件（P0）、`cargo fmt` 全库、`clippy -D warnings` 清零、启动迁移治理（显式 migrate）、DSN 日志脱敏、Session cookie `__Host-`（P2）。验收：backend 域全部绿。

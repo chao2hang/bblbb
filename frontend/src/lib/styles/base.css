@@ -79,10 +79,36 @@ a:hover {
   color: var(--color-brand);
   font: inherit;
   vertical-align: baseline;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .text-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* M14-A11Y-06：正文/提示文本内的链接默认加下划线（WCAG 1.4.1 —— 链接
+   不能只靠颜色区分；导航/按钮语境另有边框/背景，不在此列）。 */
+.prose a,
+.input-hint a,
+.auth-footer a,
+.auth-hint a,
+.empty-state-desc a,
+.visitor-panel a,
+.profile-about-item a {
   text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose a:hover,
+.input-hint a:hover,
+.auth-footer a:hover,
+.auth-hint a:hover,
+.empty-state-desc a:hover,
+.visitor-panel a:hover,
+.profile-about-item a:hover {
+  color: var(--color-text-primary);
+  text-decoration-thickness: 2px;
 }
 
 h1,

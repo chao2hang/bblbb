@@ -1,0 +1,17 @@
+{
+  "at": "2026-08-08T03:55:04.366Z",
+  "commit": "58abc4b",
+  "home": {
+    "htmlBytes": 154897,
+    "firstScreenMs": 97,
+    "imgLazy": 0,
+    "imgTotal": 0
+  },
+  "jsBudget": {
+    "jsBytes": 547615,
+    "budgetBytes": 524288,
+    "withinBudget": false
+  },
+  "peakRssMb": 367,
+  "node": "v26.5.1"
+}

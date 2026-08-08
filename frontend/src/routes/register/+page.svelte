@@ -50,13 +50,16 @@
           {/if}
           <div class="input-wrapper">
             <label class="input-label" for="reg-username">用户名</label>
+            <!-- M14-A11Y-08 修复：value 仅在表单响应返回后受控（回填），
+                 初始无 form 时为非受控输入 —— 避免 hydration 重渲染把
+                 用户早期输入重置为空（快速输入/无 JS 退化场景）。 -->
             <input
               type="text"
               class="input-field"
               id="reg-username"
               name="username"
               placeholder="3-20 个字符，字母/数字/_/-"
-              value={form?.values?.username ?? ''}
+              value={form?.fieldErrors ? form.values?.username ?? '' : undefined}
               autocomplete="username"
               aria-invalid={usernameError ? 'true' : undefined}
               aria-describedby={usernameError ? 'reg-username-error' : undefined}
@@ -73,7 +76,7 @@
               id="reg-email"
               name="email"
               placeholder="用于验证和找回密码"
-              value={form?.values?.email ?? ''}
+              value={form?.fieldErrors ? form.values?.email ?? '' : undefined}
               autocomplete="email"
               aria-invalid={emailError ? 'true' : undefined}
               aria-describedby={emailError ? 'reg-email-error' : undefined}

@@ -5,6 +5,8 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { boardVisuals } from '$lib/board-visuals';
   import { formatCount } from '$lib/utils';
+  // M14-SEO-01/02/03：板块页统一 SEO；非公开板块 noindex。
+  import Seo from '$lib/components/Seo.svelte';
   import type { BoardDetailData } from './+page.server';
 
   let { data }: { data: BoardDetailData } = $props();
@@ -27,11 +29,33 @@
     if (board.posting_mode === 'approval') hints.push('发帖需审核后展示');
     return hints.length ? hints : null;
   });
+  /** M14-SEO-02/03：只有公开且激活的板块可索引；members/restricted/
+   * hidden 与非激活板块 noindex（与后端公开投影一致）。 */
+  const indexable = $derived(
+    Boolean(
+      board &&
+        (board.visibility ?? 'public') === 'public' &&
+        board.is_active !== 0
+    )
+  );
 </script>
 
-<svelte:head>
-  <title>{board?.name ?? slug} — BBLBB</title>
-</svelte:head>
+<Seo
+  title={board?.name ?? slug}
+  description={board?.description ?? '板块：' + (board?.name ?? slug)}
+  noindex={!indexable}
+  og={{ type: 'website', siteName: 'BBLBB' }}
+  jsonLd={
+    indexable
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: board!.name,
+          description: board!.description
+        }
+      : null
+  }
+/>
 
 <div class="container">
   <div class="page-content content-grid">

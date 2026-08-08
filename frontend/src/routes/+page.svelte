@@ -12,6 +12,8 @@
   import TagChip from '$lib/components/ui/Tag.svelte';
   import LoadingState from '$lib/components/ui/LoadingState.svelte';
   import OfflineState from '$lib/components/ui/OfflineState.svelte';
+  // M14-SEO-01：统一 SEO 头（title/description/canonical/OG/Twitter/JSON-LD）。
+  import Seo from '$lib/components/Seo.svelte';
 
   let boards = $state<Board[]>(page.data.boards ?? []);
   let tags = $state<Tag[]>(page.data.tags ?? []);
@@ -46,10 +48,17 @@
   onMount(load);
 </script>
 
-<svelte:head>
-  <title>BBLBB — 社区论坛</title>
-  <meta name="description" content="BBLBB 社区论坛首页" />
-</svelte:head>
+<Seo
+  title="社区论坛"
+  description="BBLBB 社区论坛：板块、标签与最新讨论"
+  og={{ type: 'website', siteName: 'BBLBB' }}
+  jsonLd={{
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'BBLBB 社区论坛',
+    description: '自由讨论、友善交流的社区论坛'
+  }}
+/>
 
 <div class="container">
   {#if offline}

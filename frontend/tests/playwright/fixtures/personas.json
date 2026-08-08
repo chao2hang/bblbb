@@ -1,0 +1,63 @@
+{
+  "personas": {
+    "alice": {
+      "username": "alice",
+      "email": "alice@e2e.example",
+      "password": "E2e-test-pass-123!",
+      "session": "R_oYrxv5Zcw97Avoh8rRoX-jpnDN8W5l",
+      "persona": "member",
+      "user_id": "019fdf80-021b-7060-aec8-abbcc8af2270",
+      "hidden_post_id": "019fdf80-074e-7cd2-9562-0123bef2816e"
+    },
+    "bob": {
+      "username": "bob",
+      "email": "bob@e2e.example",
+      "password": "E2e-test-pass-123!",
+      "session": "IkkF-0g_EGy7QJvOs4vM7QSlNDl_u1s8",
+      "persona": "unverified",
+      "user_id": "019fdf80-03ba-7e12-8ca5-383478657421"
+    },
+    "carol": {
+      "username": "carol",
+      "email": "carol@e2e.example",
+      "password": "E2e-test-pass-123!",
+      "session": "mn7P7kBZPeNsUr0tAoc6wo_fhCaW--3X",
+      "persona": "muted",
+      "user_id": "019fdf80-0569-7e11-9ce9-192ab87605b9"
+    },
+    "dave": {
+      "username": "dave",
+      "email": "dave@e2e.example",
+      "password": null,
+      "persona": "banned",
+      "session": "HrrfRJ4-1ZfFpNod16mngFK3zPE2VVYf",
+      "user_id": "5b78a5da-d48c-4fe4-95e1-97e6324a99eb"
+    },
+    "mod": {
+      "username": "mod",
+      "email": "mod@e2e.example",
+      "password": null,
+      "persona": "moderator",
+      "session": "EGnoa8N4_S5e3H5_zVukHlTD-SZtB_z5",
+      "user_id": "894d85d8-5f7d-42d2-8b5c-33cb1b8f5b26"
+    },
+    "admin": {
+      "username": "admin",
+      "email": "admin@e2e.example",
+      "password": null,
+      "persona": "admin",
+      "session": "H_NwVr22MmM40bC0V811yiCGvdsY4nBM",
+      "user_id": "a389e661-00ef-4ab0-86eb-43f1780de7bb"
+    },
+    "cooldown": {
+      "username": "cooldown",
+      "email": "cooldown@e2e.example",
+      "password": null,
+      "persona": "cooldown",
+      "session": "_3CC20JbME-XZsnNaIziwO6bShM_yPEi",
+      "user_id": "b83ab902-6f3f-4966-8707-b657ebc67c32"
+    }
+  },
+  "backend": "http://127.0.0.1:8080",
+  "password": "E2e-test-pass-123!"
+}

@@ -75,7 +75,9 @@
           <p class="auth-hint">验证码有误？请重试；验证码每 30 秒更新。</p>
         </form>
       {:else}
-        <form method="POST" use:enhance novalidate>
+        <!-- M14-A11Y-08 修复：显式 action="?/login" —— 页面无 default action，
+             缺省 POST（无 JS 退化）会 404；指定命名 action 后无 JS 表单可提交。 -->
+        <form method="POST" action="?/login" use:enhance novalidate>
           {#if topMessage}
             <p class="input-hint is-error" role="alert">{topMessage}</p>
           {/if}

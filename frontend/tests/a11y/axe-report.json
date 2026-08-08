@@ -1,0 +1,259 @@
+{
+  "generatedAt": "2026-08-08T03:52:24.449Z",
+  "commit": "58abc4b",
+  "browser": "chromium",
+  "scans": [
+    {
+      "url": "http://localhost:4173/",
+      "label": "home",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/boards",
+      "label": "boards",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/boards/tech",
+      "label": "board-detail",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/tags",
+      "label": "tags",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/search",
+      "label": "search",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/search?q=Rust",
+      "label": "search-with-query",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/users/alice",
+      "label": "user-profile",
+      "violations": [],
+      "passed": 26,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/login",
+      "label": "login",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/register",
+      "label": "register",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/login",
+      "label": "shop",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/notifications",
+      "label": "notifications",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/posts/does-not-exist",
+      "label": "error-404",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 0
+    },
+    {
+      "url": "http://localhost:4173/posts/019fdf80-075c-7350-ba38-96d4688caa7f",
+      "label": "post-detail-member",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/admin",
+      "label": "admin-dashboard",
+      "violations": [],
+      "passed": 24,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/admin/users",
+      "label": "admin-users",
+      "violations": [],
+      "passed": 28,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/me/balance",
+      "label": "me-balance",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/me/wardrobe",
+      "label": "me-wardrobe",
+      "violations": [],
+      "passed": 28,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/",
+      "label": "home-mobile",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/",
+      "label": "home",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/boards",
+      "label": "boards",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/boards/tech",
+      "label": "board-detail",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/tags",
+      "label": "tags",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/search",
+      "label": "search",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/search?q=Rust",
+      "label": "search-with-query",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/users/alice",
+      "label": "user-profile",
+      "violations": [],
+      "passed": 26,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/login",
+      "label": "login",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/register",
+      "label": "register",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/login",
+      "label": "shop",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/notifications",
+      "label": "notifications",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/posts/does-not-exist",
+      "label": "error-404",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/posts/019fdf80-ef66-7471-9675-6abd671ce3a2",
+      "label": "post-detail-member",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/admin",
+      "label": "admin-dashboard",
+      "violations": [],
+      "passed": 24,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/admin/users",
+      "label": "admin-users",
+      "violations": [],
+      "passed": 29,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/me/balance",
+      "label": "me-balance",
+      "violations": [],
+      "passed": 25,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/me/wardrobe",
+      "label": "me-wardrobe",
+      "violations": [],
+      "passed": 28,
+      "incomplete": 1
+    },
+    {
+      "url": "http://localhost:4173/",
+      "label": "home-mobile",
+      "violations": [],
+      "passed": 23,
+      "incomplete": 1
+    }
+  ]
+}

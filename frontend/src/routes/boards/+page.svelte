@@ -5,6 +5,8 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { boardVisuals } from '$lib/board-visuals';
+  // M14-SEO-01：板块总览统一 SEO。
+  import Seo from '$lib/components/Seo.svelte';
   import type { Board } from '$lib/api/types';
   import type { BoardsPageData } from './+page.server';
 
@@ -43,9 +45,16 @@
   );
 </script>
 
-<svelte:head>
-  <title>板块总览 — BBLBB</title>
-</svelte:head>
+<Seo
+  title="板块总览"
+  description="BBLBB 全部公开板块"
+  og={{ type: 'website', siteName: 'BBLBB' }}
+  jsonLd={{
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'BBLBB 板块总览'
+  }}
+/>
 
 <div class="container page-content">
   <nav class="breadcrumb" aria-label="面包屑">

@@ -235,3 +235,33 @@ v1 目标为 WCAG 2.2 AA：
   传入并接入既有列表。
 - **后台商城/活跃（M07-UI-08）**：`/admin/shop`、`/admin/activity` 商品/订单/退款/
   任务配置；`reason` 必填（审计），If-Match 版本冲突 409 提示刷新。
+
+## 13. M14：全量前端、a11y、无 JS 与 SEO（前端交付约定）
+
+> 本节为 M14 交付约定（2026-08 追加，随 M14 收口）。
+
+- **统一 SEO 生成器（M14-SEO-01）**：`frontend/src/lib/seo/meta.ts` 的
+  `buildSeo`/`hiddenSeo` + `Seo.svelte` 输出 title/description/canonical/OG/
+  Twitter/robots/JSON-LD。安全约束：canonical/og:url/og:image 只接受绝对 http(s)
+  URL（`javascript:`/`data:` 丢弃）；title ≤60、description ≤160 截断；JSON-LD
+  经 `escapeJsonLdScript` 转义 `</script`；隐藏内容统一 `noindex`（隐藏/未发布/
+  审核/删除/封禁），配合根 layout 的 `Cache-Control: private, no-store`。
+  索引策略（M14-SEO-02/03）：文章/作者/板块页按后端公开投影决定 index/noindex；
+  搜索页恒 noindex；404/错误页 noindex。
+- **可访问基础组件（M14-COMPONENTS-01..06）**：`frontend/src/lib/components/ui/`
+  新增 `Input`/`Select`/`Dialog`/`Table`/`Pagination`/`DangerConfirm`/
+  `AccountingConfirm`，与既有 Button/Card/Toast/Field/EmptyState/OfflineState 等
+  组成设计系统。约定：原生表单控件优先（键盘/读屏/移动端语义免费获得）；Dialog
+  做焦点陷阱 + Escape + 焦点回收 + aria-modal + body 滚动锁；组件只接收白名单
+  prop（无任意 HTML/CSS/URL 属性穿透，M14-COMPONENTS-06）；表单 label/error/hint
+  经稳定 id + `aria-describedby`/`aria-invalid` 关联。
+- **hydration 输入保护**：受控输入（`value={expr}`）在 hydration 完成前会被重置
+  —— 表单初始态用非受控输入（`value={expr || undefined}`），仅在需要回填时受控
+  （register/search 已应用）；测试侧用 `stableFill` 轮询校验。
+- **会话态同步**：`+layout.svelte` 按路径变化重取 `/me`（onMount 只跑一次，SPA
+  跳转后 navbar 登录态会陈旧）；登录/退出后导航立即反映真实会话。
+- **E2E 与 a11y 验收（M14-A11Y）**：Playwright 双项目（desktop/mobile）由
+  `tests/playwright/fixtures/serve.mjs` 编排真实 Rust 后端 + DB persona 铸种；
+  axe 基线（serious/critical = P0）报告 artifact `tests/a11y/axe-report.json`；
+  无 JS 浏览器跑公开阅读/注册/登录退化；记录 browser/viewport/locale/commit 于
+  `tests/a11y/records.json`。详见 [`TESTING.md`](TESTING.md) §23。

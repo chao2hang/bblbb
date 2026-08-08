@@ -54,7 +54,9 @@
               {#each items as item (item.id)}
                 <tr>
                   <td>
-                    <a href="/users/{item.username}">{item.display_name || item.username}</a>
+                    <!-- M14-A11Y-06：正文表格内链接加 text-link（默认下划线，
+                         不只靠颜色区分，axe link-in-text-block）。 -->
+                    <a class="text-link" href="/users/{item.username}">{item.display_name || item.username}</a>
                     <span class="text-secondary" style="font-size:var(--text-sm);">LV.{item.level}</span>
                   </td>
                   <td><span class="text-secondary" style="font-size:var(--text-sm);">{item.email}</span></td>

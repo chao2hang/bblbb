@@ -3,6 +3,8 @@
   // /search?tag={slug} 标签筛选；空状态与权限无关（标签为公开元数据）。
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  // M14-SEO-01：标签页统一 SEO。
+  import Seo from '$lib/components/Seo.svelte';
   import type { TagsPageData } from './+page.server';
 
   let { data }: { data: TagsPageData } = $props();
@@ -24,9 +26,16 @@
   });
 </script>
 
-<svelte:head>
-  <title>标签 — BBLBB</title>
-</svelte:head>
+<Seo
+  title="标签"
+  description="BBLBB 全部话题标签"
+  og={{ type: 'website', siteName: 'BBLBB' }}
+  jsonLd={{
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'BBLBB 标签'
+  }}
+/>
 
 <div class="container page-content">
   <nav class="breadcrumb" aria-label="面包屑">

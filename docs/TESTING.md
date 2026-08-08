@@ -334,3 +334,35 @@ v1.0 OIDC 专项门槛：
 - key rotation 和 Refresh reuse 测试通过。
 - 与至少两个独立 RP 集成。
 - OIDC 密钥恢复演练通过。
+
+## 23. M14：Playwright、axe 与无 JS 验收（2026-08 追加）
+
+M14 交付 Playwright E2E + axe 可访问性基线：
+
+- **环境编排**：`cd frontend && npm run test:e2e`。`playwright.config.ts` 的
+  webServer 运行 `tests/playwright/fixtures/serve.mjs`：重建 `data/e2e.sqlite`
+  → 真实 Rust 后端 `--migrate` 启动 → `seed-personas.mjs` 铸成 DB persona
+  （anonymous/unverified/cooldown/member/moderator/admin/mute/banned，会话按
+  `user_sessions` 真实 schema 铸造）→ `vite dev --port 4173`（`/api` 代理到后端）。
+- **项目矩阵**：`desktop-chromium`（1280×720）+ `mobile-chromium`（Galaxy S9 触屏
+  语义，viewport 360×740）；`workers=1` 串行（共享后端 persona 数据）。
+- **流程覆盖**：`tests/playwright/flows-{public,member,economy,admin}.spec.ts`
+  覆盖匿名浏览/搜索/注册/登录/验证、发帖/回复/举报/申诉、附件/Cover/下载/积分/
+  商城/衣柜/视频/AI 同意、管理后台高风险设置（reason 必填/409/recent-auth）。
+- **axe 基线（P0）**：`a11y-axe.spec.ts` 扫描公开+认证+管理页面，serious/critical
+  违规 = 测试失败；报告 artifact `tests/a11y/axe-report.json`（含缺陷 target/html，
+  修复证据）。已知修复：认证页脚/正文文本链接默认下划线（WCAG 1.4.1）、移动端
+  「发布」按钮文字 sr-only（link-name）、表单链接加 `.text-link`。
+- **无 JS**：`nojs.spec.ts` 用 `javaScriptEnabled:false` 上下文跑公开阅读、注册
+  （原生表单 action）、登录（303 跳转）与搜索 GET 表单。
+- **键盘/焦点/减少动效**：`keyboard-focus.spec.ts`（skip link/Tab 遍历/读屏名称/
+  `prefers-reduced-motion`）；Dialog 焦点陷阱/Escape/焦点回收由
+  `ui/base-components.test.ts`（vitest）覆盖。
+- **响应式**：`responsive.spec.ts` 覆盖 200% 文本放大、360px 窄屏、触屏 tap、
+  横竖屏、慢网络（CDP 限速）与图片失败降级（alt 可读）。
+- **记录**：`tests/a11y/records.json` 保存浏览器版本/viewport/locale/commit/报告/
+  人工验收；`tests/a11y/seo-perf.json` 记录公开首屏 p95/HTML 大小/JS 预算
+  （构建 immutable JS）/图片 lazy/峰值 RSS（M14-SEO-05）。
+- **已知诚实记录**：真实注册消费后端 IP 注册配额（3 次/小时），注册提交类用例只在
+  desktop 项目执行，重复运行小时内命中 429 时断言接受限流降级；搜索 FTS 由后端
+  维护，API 创建的种子帖子未被索引，帖子定位改用 `/boards/general` 板块列表。

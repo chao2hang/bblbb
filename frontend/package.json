@@ -8,9 +8,13 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "svelte-kit sync && vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:axe": "playwright test a11y-axe.spec.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.62.1",
     "@sveltejs/adapter-node": "^5.2.12",
     "@sveltejs/kit": "^2.37.0",
     "@sveltejs/vite-plugin-svelte": "^6.1.4",

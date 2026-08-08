@@ -10,5 +10,9 @@
     "sourceMap": true,
     "strict": true,
     "moduleResolution": "bundler"
-  }
+  },
+  "exclude": [
+    "tests/playwright",
+    "tests/a11y"
+  ]
 }

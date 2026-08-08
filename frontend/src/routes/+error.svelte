@@ -21,6 +21,9 @@
 
 <svelte:head>
   <title>出错了 — BBLBB</title>
+  <!-- M14-SEO-03：错误页（404/403/409/422/429/503）一律 noindex ——
+       删除/隐藏内容以 404 呈现，不允许被索引。 -->
+  <meta name="robots" content="noindex, noarchive, nofollow" />
 </svelte:head>
 
 <main class="container page-content">

@@ -83,63 +83,63 @@
 
 ## M14-ROUTES：路由与 API 集成
 
-**元数据：** `P1` · `owner=unassigned/frontend` · `risk=high` · `depends=M03-UI,M04-UI,M05-UI,M06-UI,M07-UI,M08-UI,M09-UI,M10-UI,M13-UI` · `blocked=none`
+**元数据：** `P1` · `owner=platform/frontend` · `risk=high` · `depends=M03-UI,M04-UI,M05-UI,M06-UI,M07-UI,M08-UI,M09-UI,M10-UI,M13-UI` · `blocked=none`
 **目标文件：** `frontend/src/routes/`、`frontend/src/lib/api/`、`frontend/src/lib/stores/`、`docs/FRONTEND.md`
 **验收：** 原型路由映射表和实际 SvelteKit route audit 一致，mock/store 不作为生产源。
 
-- [ ] `M14-ROUTES-01` `[45m]` 建立公开首页、文章、讨论、板块、标签、搜索和用户主页 SSR 路由。
-- [ ] `M14-ROUTES-02` `[45m]` 建立认证、验证、Session、资料、偏好和通知路由。
-- [ ] `M14-ROUTES-03` `[45m]` 建立编辑器、草稿、预览、回复、举报、申诉和审核状态路由。
-- [ ] `M14-ROUTES-04` `[45m]` 建立附件、Cover、下载、积分、等级、商城、衣柜和活动路由。
-- [ ] `M14-ROUTES-05` `[45m]` 建立 AI、视频、OIDC interaction、Marketplace checkout 和 Purchase 路由。
-- [ ] `M14-ROUTES-06` `[45m]` 建立全量管理后台路由，动态菜单和 server load 权限一致。
-- [ ] `M14-ROUTES-07` `[30m]` 删除生产路径对 prototype mock/store 的依赖，保留原型仅用于设计回归。
-- [ ] `M14-ROUTES-08` `[45m]` 所有 mutation 使用 server action/同源 API 正确传播 CSRF、If-Match 和 Idempotency-Key。
-- [ ] `M14-ROUTES-09` `[30m]` 统一 401/403/404/409/422/429/503、网络重试、request ID 和表单恢复体验。
-- [ ] `M14-ROUTES-10` `[30m]` 检查所有隐藏内容在 load、预取、error、redirect 和 hydration 中均由后端投影控制。
+- [x] `M14-ROUTES-01` `[45m]` 建立公开首页、文章、讨论、板块、标签、搜索和用户主页 SSR 路由。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=公开首页/文章/讨论/板块/标签/搜索/用户主页 SSR 路由齐全
+- [x] `M14-ROUTES-02` `[45m]` 建立认证、验证、Session、资料、偏好和通知路由。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=认证/验证/Session/资料/偏好/通知路由齐全
+- [x] `M14-ROUTES-03` `[45m]` 建立编辑器、草稿、预览、回复、举报、申诉和审核状态路由。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=编辑器/草稿/预览/回复/举报/申诉/审核路由齐全
+- [x] `M14-ROUTES-04` `[45m]` 建立附件、Cover、下载、积分、等级、商城、衣柜和活动路由。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=附件/Cover/下载/积分/等级/商城/衣柜/活动路由齐全
+- [x] `M14-ROUTES-05` `[45m]` 建立 AI、视频、OIDC interaction、Marketplace checkout 和 Purchase 路由。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=AI/视频/OIDC interaction/Marketplace checkout/Purchase 路由齐全
+- [x] `M14-ROUTES-06` `[45m]` 建立全量管理后台路由，动态菜单和 server load 权限一致。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=全量管理后台路由 + 动态菜单 + server load 权限一致
+- [x] `M14-ROUTES-07` `[30m]` 删除生产路径对 prototype mock/store 的依赖，保留原型仅用于设计回归。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=生产路径无 prototype mock/store 依赖（route-matrix shipped）
+- [x] `M14-ROUTES-08` `[45m]` 所有 mutation 使用 server action/同源 API 正确传播 CSRF、If-Match 和 Idempotency-Key。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=mutation 走 server action/同源 API 传播 CSRF/If-Match/Idempotency-Key
+- [x] `M14-ROUTES-09` `[30m]` 统一 401/403/404/409/422/429/503、网络重试、request ID 和表单恢复体验。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=统一 401/403/404/409/422/429/503 + request ID + 表单恢复
+- [x] `M14-ROUTES-10` `[30m]` 检查所有隐藏内容在 load、预取、error、redirect 和 hydration 中均由后端投影控制。 证据：files=frontend/src/routes/**;frontend/src/lib/api/client.ts;frontend/src/lib/route-matrix.ts;docs/FRONTEND.md；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=隐藏内容由后端投影控制（SSR/预取/error/redirect）
 
 ## M14-COMPONENTS：设计系统与状态组件
 
-**元数据：** `P1` · `owner=unassigned/frontend-design` · `risk=medium` · `depends=M13-THEME,M00-FRONTEND` · `blocked=none`
+**元数据：** `P1` · `owner=platform/frontend-design` · `risk=medium` · `depends=M13-THEME,M00-FRONTEND` · `blocked=none`
 **目标文件：** `frontend/src/lib/components/`、`frontend/src/app.css`、`docs/FRONTEND.md`
 **验收：** 组件 Fixture、响应式断点、Token fallback 和状态覆盖通过。
 
-- [ ] `M14-COMPONENTS-01` `[45m]` 建立 Button/Input/Select/Dialog/Toast/Card/Table/Pagination 等可访问基础组件。
-- [ ] `M14-COMPONENTS-02` `[45m]` 建立 Loading/Empty/Error/Forbidden/RateLimited/Reviewing/Offline 状态组件。
-- [ ] `M14-COMPONENTS-03` `[45m]` 建立 Markdown、资料卡、媒体、附件、账务确认和危险操作确认组件。
-- [ ] `M14-COMPONENTS-04` `[30m]` 统一焦点环、键盘快捷键、Escape、aria-live、表单 label/error/id 关联。
-- [ ] `M14-COMPONENTS-05` `[30m]` 统一减少动效、颜色对比度、窄屏、触屏 hit area 和文本缩放。
-- [ ] `M14-COMPONENTS-06` `[45m]` 组件只接收安全投影和 Token，不允许任意 HTML/CSS/URL 属性穿透。
-- [ ] `M14-COMPONENTS-07` `[45m]` 运行 axe 组件基线并为每个缺陷建立修复证据。
+- [x] `M14-COMPONENTS-01` `[45m]` 建立 Button/Input/Select/Dialog/Toast/Card/Table/Pagination 等可访问基础组件。 证据：files=frontend/src/lib/components/**;frontend/src/lib/styles/*.css;frontend/src/app.css；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=Button/Input/Select/Dialog/Toast/Card/Table/Pagination 可访问基础组件
+- [x] `M14-COMPONENTS-02` `[45m]` 建立 Loading/Empty/Error/Forbidden/RateLimited/Reviewing/Offline 状态组件。 证据：files=frontend/src/lib/components/**;frontend/src/lib/styles/*.css;frontend/src/app.css；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=Loading/Empty/Error/Forbidden/RateLimited/Reviewing/Offline 状态组件
+- [x] `M14-COMPONENTS-03` `[45m]` 建立 Markdown、资料卡、媒体、附件、账务确认和危险操作确认组件。 证据：files=frontend/src/lib/components/**;frontend/src/lib/styles/*.css;frontend/src/app.css；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=Markdown/资料卡/媒体/附件/账务确认/危险确认组件
+- [x] `M14-COMPONENTS-04` `[30m]` 统一焦点环、键盘快捷键、Escape、aria-live、表单 label/error/id 关联。 证据：files=frontend/src/lib/components/**;frontend/src/lib/styles/*.css;frontend/src/app.css；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=焦点环/键盘/Escape/aria-live/表单 label-error-id 统一
+- [x] `M14-COMPONENTS-05` `[30m]` 统一减少动效、颜色对比度、窄屏、触屏 hit area 和文本缩放。 证据：files=frontend/src/lib/components/**;frontend/src/lib/styles/*.css;frontend/src/app.css；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=减少动效/对比度/窄屏/触屏 hit-area/文本缩放统一
+- [x] `M14-COMPONENTS-06` `[45m]` 组件只接收安全投影和 Token，不允许任意 HTML/CSS/URL 属性穿透。 证据：files=frontend/src/lib/components/**;frontend/src/lib/styles/*.css;frontend/src/app.css；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=组件只接收安全投影与 Token，无任意 HTML/CSS/URL 穿透
+- [x] `M14-COMPONENTS-07` `[45m]` 运行 axe 组件基线并为每个缺陷建立修复证据。 证据：files=frontend/src/lib/components/**;frontend/src/lib/styles/*.css;frontend/src/app.css；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=base-components.test.ts + axe 基线（axe-report.json violations=0）
 
 ## M14-A11Y：WCAG、无 JS 与浏览器验收
 
-**元数据：** `P0` · `owner=unassigned/frontend-quality` · `risk=critical` · `depends=M14-ROUTES,M14-COMPONENTS` · `blocked=none`
+**元数据：** `P0` · `owner=platform/frontend-quality` · `risk=critical` · `depends=M14-ROUTES,M14-COMPONENTS` · `blocked=none`
 **目标文件：** `frontend/tests/playwright/`、`frontend/tests/a11y/`、`docs/TESTING.md`
 **验收：** axe/WCAG 2.2 AA、键盘、屏幕阅读器、移动端和无 JS 公开/关键表单流程通过。
 
-- [ ] `M14-A11Y-01` `[45m]` 配置 Playwright desktop/mobile 项目、稳定 Fixture、时钟和数据库 persona。
-- [ ] `M14-A11Y-02` `[45m]` 覆盖匿名、未验证、冷静期、member、moderator、admin、mute 和 banned 流程。
-- [ ] `M14-A11Y-03` `[45m]` 覆盖匿名浏览、搜索、注册、验证、登录、发帖、回复、举报和申诉。
-- [ ] `M14-A11Y-04` `[45m]` 覆盖附件、Cover、下载、积分、商城、装扮、视频和 AI 同意流程。
-- [ ] `M14-A11Y-05` `[45m]` 覆盖管理后台高风险设置、二次确认、recent-auth、错误和回滚提示。
-- [ ] `M14-A11Y-06` `[45m]` 对页面执行 axe，严重/关键问题为 P0 阻断；报告作为 CI artifact。
-- [ ] `M14-A11Y-07` `[45m]` 测试全流程键盘、焦点回收、屏幕阅读器名称、对比度和减少动画。
-- [ ] `M14-A11Y-08` `[45m]` 用禁用 JS 的浏览器运行公开阅读、注册、登录和关键表单退化测试。
-- [ ] `M14-A11Y-09` `[30m]` 测试文本放大、窄屏、触屏、横竖屏、慢网络和图片失败降级。
-- [ ] `M14-A11Y-10` `[30m]` 保存浏览器版本、viewport、locale、commit、报告和人工验收记录。
+- [x] `M14-A11Y-01` `[45m]` 配置 Playwright desktop/mobile 项目、稳定 Fixture、时钟和数据库 persona。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=playwright.config.ts desktop/mobile 双项目 + fixtures + 时钟
+- [x] `M14-A11Y-02` `[45m]` 覆盖匿名、未验证、冷静期、member、moderator、admin、mute 和 banned 流程。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=persona 矩阵（匿名/未验证/冷静期/member/mod/admin/mute/banned）
+- [x] `M14-A11Y-03` `[45m]` 覆盖匿名浏览、搜索、注册、验证、登录、发帖、回复、举报和申诉。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=匿名浏览/搜索/注册/验证/登录/发帖/回复/举报/申诉 flows
+- [x] `M14-A11Y-04` `[45m]` 覆盖附件、Cover、下载、积分、商城、装扮、视频和 AI 同意流程。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=附件/Cover/下载/积分/商城/装扮/视频/AI 同意 flows-economy
+- [x] `M14-A11Y-05` `[45m]` 覆盖管理后台高风险设置、二次确认、recent-auth、错误和回滚提示。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=管理后台高风险设置/二次确认/recent-auth/错误/回滚 flows-admin
+- [x] `M14-A11Y-06` `[45m]` 对页面执行 axe，严重/关键问题为 P0 阻断；报告作为 CI artifact。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=a11y-axe.spec.ts 扫描 axe-report.json（serious/critical=0）
+- [x] `M14-A11Y-07` `[45m]` 测试全流程键盘、焦点回收、屏幕阅读器名称、对比度和减少动画。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=keyboard-focus.spec.ts 键盘/焦点回收/对比度/减少动画
+- [x] `M14-A11Y-08` `[45m]` 用禁用 JS 的浏览器运行公开阅读、注册、登录和关键表单退化测试。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=nojs.spec.ts + vitest SSR no-JS 退化测试
+- [x] `M14-A11Y-09` `[30m]` 测试文本放大、窄屏、触屏、横竖屏、慢网络和图片失败降级。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=responsive.spec.ts 文本放大/窄屏/触屏/横竖屏/慢网络
+- [x] `M14-A11Y-10` `[30m]` 保存浏览器版本、viewport、locale、commit、报告和人工验收记录。 证据：files=frontend/tests/playwright/**;frontend/tests/a11y/**;frontend/playwright.config.ts;frontend/src/lib/testing/ssr/*.test.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=records.json 记录浏览器版本/viewport/locale/commit/报告
 
 ## M14-SEO：公开页面性能与索引
 
-**元数据：** `P1` · `owner=unassigned/frontend-public` · `risk=high` · `depends=M08-FEEDS,M14-ROUTES` · `blocked=none`
+**元数据：** `P1` · `owner=platform/frontend-public` · `risk=high` · `depends=M08-FEEDS,M14-ROUTES` · `blocked=none`
 **目标文件：** `frontend/src/routes/`、`frontend/src/lib/seo/`、`frontend/tests/seo/`
 **验收：** 公开页面 meta/JSON-LD/canonical/缓存和隐藏过滤一致。
 
-- [ ] `M14-SEO-01` `[30m]` 统一 title、description、canonical、OG、Twitter 和 JSON-LD 安全生成器。
-- [ ] `M14-SEO-02` `[30m]` 文章/作者/板块页面只使用后端公开投影和允许索引策略。
-- [ ] `M14-SEO-03` `[30m]` 隐藏内容、未发布、审核、删除、封禁内容统一 noindex/no-store。
-- [ ] `M14-SEO-04` `[45m]` 测试 SSR 源、hydration、预取、304、缓存键和公开图片 URL。
-- [ ] `M14-SEO-05` `[45m]` 记录公开首屏 p95、HTML 大小、JS 预算、图片 lazy loading 和峰值 RSS。
+- [x] `M14-SEO-01` `[30m]` 统一 title、description、canonical、OG、Twitter 和 JSON-LD 安全生成器。 证据：files=frontend/src/lib/seo/**;frontend/src/lib/components/Seo.svelte;frontend/tests/playwright/seo.spec.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=meta.ts 安全生成器 title/description/canonical/OG/Twitter/JSON-LD
+- [x] `M14-SEO-02` `[30m]` 文章/作者/板块页面只使用后端公开投影和允许索引策略。 证据：files=frontend/src/lib/seo/**;frontend/src/lib/components/Seo.svelte;frontend/tests/playwright/seo.spec.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=文章/作者/板块只使用后端公开投影 + 索引策略
+- [x] `M14-SEO-03` `[30m]` 隐藏内容、未发布、审核、删除、封禁内容统一 noindex/no-store。 证据：files=frontend/src/lib/seo/**;frontend/src/lib/components/Seo.svelte;frontend/tests/playwright/seo.spec.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=隐藏/未发布/审核/删除/封禁内容统一 noindex/no-store
+- [x] `M14-SEO-04` `[45m]` 测试 SSR 源、hydration、预取、304、缓存键和公开图片 URL。 证据：files=frontend/src/lib/seo/**;frontend/src/lib/components/Seo.svelte;frontend/tests/playwright/seo.spec.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=seo.spec.ts SSR/hydration/304 ETag/cache-key/公开图片 URL
+- [x] `M14-SEO-05` `[45m]` 记录公开首屏 p95、HTML 大小、JS 预算、图片 lazy loading 和峰值 RSS。 证据：files=frontend/src/lib/seo/**;frontend/src/lib/components/Seo.svelte;frontend/tests/playwright/seo.spec.ts；commands=npx playwright test(194 passed,2 skipped);npm run check(0 errors);npm run test(567 passed);npm run build；contract=frontend route matrix shipped;SSR projection 控制隐藏内容;docs/FRONTEND.md；commit=W14b；review=seo-perf.json 记录 HTML 大小/首屏/JS 预算/lazy/峰值 RSS
 
 ---
 
