@@ -27,6 +27,7 @@ pub mod moderation;
 pub mod notifications;
 pub mod oidc;
 pub mod outbox;
+pub mod plugins;
 pub mod ratelimit;
 pub mod reactions;
 pub mod routes;
@@ -34,6 +35,7 @@ pub mod search;
 pub mod shop;
 pub mod storage;
 pub mod tags;
+pub mod theme;
 pub mod users;
 pub mod video;
 

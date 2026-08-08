@@ -1034,31 +1034,45 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 
 ## 15. 主题与插件元数据
 
+实现版本为不可变迁移 `0057_theme.sql`（SQLite/MySQL/MariaDB 三库等价，
+M13-THEME / M13-PLUGIN）。
+
 ### `themes`
 
-- `id`、`name`（唯一）、`version`、`kind`（`data/precompiled`）、`manifest_json`。
-- `is_installed`、`is_enabled`、`installed_at`、`updated_at`。
-- 全站默认主题存于 `site_settings`，不是用多个 `is_active` 布尔值竞争。
+数据型主题（closed token schema；不保存 CSS/JS/HTML/SVG/远程资源）：
 
-### `theme_settings`
+- `name`（PK，小写 ascii/数字/连字符，<=64）、`display_name`、`kind`（v1 仅 `data`）、
+  `schema_version`（=1）、`version`（semver）、`supports`（兼容 range）。
+- `status`：`active` / `disabled`（上传后隔离态）/ `corrupt`（DB 篡改或 token
+  校验失败自动标记并回退默认）。
+- `is_default`（站点默认）、`revision`（单调递增；SSR/浏览器/缓存/用户偏好共享）、
+  `tokens_json`（封闭 Token）、`asset_meta_json`（仅相对路径）、
+  `created_by`/`created_at`/`updated_at`。
 
-- 复合主键：`(theme_id, key)`。
-- `value_json`、`updated_by`、`updated_at`。
+### `theme_revisions`
+
+- `(theme_name, revision)` 唯一；每次 Token 变更追加一条（`changed_by`/`reason`）。
 
 ### `plugins`
 
-- `id`、`name`（唯一）、`version`、`kind`（v1 仅 `config/precompiled_ui`）。
-- `manifest_json`、`is_installed`、`is_enabled`、`installed_at`、`updated_at`。
+v1 配置型插件（无在线代码执行路径）：
 
-### `plugin_settings`
+- `id`（内部）、`plugin_id`（唯一，小写 ascii/数字/连字符）、`name`、`version`、
+  `schema_version`（=1）、`supports`、`kind`（v1 仅 `config`）。
+- `status`：`disabled`（安装隔离态）/ `enabled` / `error`。
+- `capabilities_json` / `subscriptions_json`（白名单子集）、
+  `settings_schema_json`（最小 JSON Schema，封闭）、`settings_json`、
+  `policy_revision`（乐观锁）、`created_by`/`created_at`/`updated_at`。
 
-- 复合主键：`(plugin_id, key)`。
-- `value_json`、`updated_by`、`updated_at`。
+### `plugin_call_metrics`
+
+- 插件调用摘要：`result` ∈ `ok/error/timeout/repeat/stale/skipped`、
+  `event_type`、`error_class`、`policy_revision`、`latency_ms`、`occurred_at`。
+- 记录路径非阻塞（fire-and-forget），绝不阻塞核心论坛事务。
 
 ### `plugin_data`
 
-- `id`、`plugin_id`、`namespace`、`owner_type`、`owner_id`、`key`、`value_json`、时间字段。
-- 唯一约束：`(plugin_id, namespace, owner_type, owner_id, key)`。
+- 插件自身命名空间：`(plugin_id, key)` 复合主键；值 8KB、每插件 64 keys 配额。
 - v1 不向插件开放核心表 `extra` 字段，避免表结构和权限边界失控。
 
 ## 16. OIDC Provider

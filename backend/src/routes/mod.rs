@@ -15,6 +15,7 @@ pub mod ready;
 pub mod admin;
 pub mod admin_activity;
 pub mod admin_download;
+pub mod admin_plugins;
 pub mod admin_shop;
 pub mod admin_storage;
 pub mod ai;

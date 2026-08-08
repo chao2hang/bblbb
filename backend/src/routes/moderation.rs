@@ -875,8 +875,93 @@ async fn decide_moderation_appeal(
     Ok(Json(result))
 }
 
-async fn create_sanction(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_moderation_sanctions")
+/// POST /api/v1/admin/moderation/sanctions — 创建处罚（M13-ADMIN-03：
+/// 服务端重新校验版主范围；reason 必填；走线上 sanctions 服务）。
+#[derive(Deserialize)]
+struct CreateSanctionRequest {
+    target_user_id: String,
+    board_id: Option<String>,
+    kind: String,
+    reason: String,
+    starts_at: Option<i64>,
+    ends_at: Option<i64>,
+}
+
+async fn create_sanction(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Json(req): Json<CreateSanctionRequest>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "post_admin_moderation_sanctions";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    // 版主范围在 API 再校验（moderation.sanction；板块范围按 board_id）。
+    require_moderation_perm(pool, &user.id, "moderation.sanction", request_id).await?;
+
+    let kind = crate::moderation::model::SanctionKind::parse(&req.kind).ok_or_else(|| {
+        AppError::bad_request(
+            "kind must be one of warning|rate_limit|mute|board_mute|ban",
+            request_id,
+            None,
+        )
+    })?;
+    let now = crate::moderation::sanctions::service::now();
+    let input = crate::moderation::sanctions::service::CreateSanctionInput {
+        target_user_id: req.target_user_id,
+        board_id: req.board_id,
+        kind,
+        reason: req.reason,
+        starts_at: req.starts_at.unwrap_or(now),
+        ends_at: req.ends_at,
+    };
+    let sanction =
+        crate::moderation::sanctions::service::create_sanction(pool, &user.id, input, now)
+            .await
+            .map_err(|e| map_sanctions_error(e, request_id))?;
+    Ok(Json(sanction_to_json(&sanction)))
+}
+
+fn sanction_to_json(s: &crate::moderation::model::Sanction) -> Value {
+    json!({
+        "id": s.id,
+        "user_id": s.user_id,
+        "board_id": s.board_id,
+        "kind": s.kind.as_str(),
+        "status": s.status.as_str(),
+        "reason": s.reason,
+        "starts_at": s.starts_at,
+        "ends_at": s.ends_at,
+        "created_by": s.created_by,
+        "created_at": s.created_at,
+        "revoked_at": s.revoked_at,
+        "revoked_by": s.revoked_by,
+    })
+}
+
+fn map_sanctions_error(
+    e: crate::moderation::sanctions::service::SanctionsError,
+    request_id: &str,
+) -> AppError {
+    match e {
+        crate::moderation::sanctions::service::SanctionsError::NotFound(m) => {
+            AppError::not_found(m, request_id)
+        }
+        crate::moderation::sanctions::service::SanctionsError::Forbidden(m) => {
+            AppError::forbidden(m, request_id)
+        }
+        crate::moderation::sanctions::service::SanctionsError::Escalation(m) => {
+            AppError::forbidden(m, request_id)
+        }
+        crate::moderation::sanctions::service::SanctionsError::Invalid(m) => {
+            AppError::bad_request(m, request_id, None)
+        }
+        crate::moderation::sanctions::service::SanctionsError::Db(m) => {
+            AppError::internal(m, request_id)
+        }
+    }
 }
 
 // ─── 数据库行结构 ─────────────────────────────────────────────────────────
@@ -910,17 +995,4 @@ impl AppealAdminRow {
             updated_at: self.updated_at,
         }
     }
-}
-
-fn not_implemented(operation: &str) -> (StatusCode, Json<Value>) {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "type": "about:blank",
-            "title": "Not Implemented",
-            "status": 501,
-            "code": "not_implemented",
-            "detail": format!("Operation '{}' is not yet implemented", operation),
-        })),
-    )
 }

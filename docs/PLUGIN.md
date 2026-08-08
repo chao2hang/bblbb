@@ -1,7 +1,28 @@
 # BBLBB — 插件与扩展规范
 
-> 版本：v0.4
+> 版本：v0.4（M13 已实现：v1 配置型插件 + 管理 API + capability 白名单）
 > v1 插件是受控配置扩展，不执行上传代码。点赞、收藏、@通知可使用同一事件接口实现，但审计、授权、审核和积分账本始终是核心模块。
+
+## 0. 实现状态（M13-PLUGIN）
+
+- **已实现**：`plugins`/`plugin_call_metrics`/`plugin_data` 三库迁移
+  （0057_theme.sql）；领域层 `backend/src/plugins/mod.rs`（manifest 解析、
+  capability/event/settings-schema 白名单、危险 URL/代码内容扫描、
+  policy_revision 乐观锁、调用摘要、plugin_data 配额）；管理路由
+  `/api/v1/admin/plugins*`（列表/能力白名单/安装/设置/启停/卸载/指标，
+  admin.manage + reason + recent-auth + 审计）。
+- **v1 无在线代码执行路径**：`kind` 仅接受 `config`；代码型/WASM 插件是
+  v2 研究项（§10），任何 `kind=code/wasm` 的包在安装阶段即被拒绝。
+- **capability 白名单**（`KNOWN_CAPABILITIES`，9 项）**不含**权限/审核/账本
+  裁决能力；插件永远不能改变裁决结果。
+- **受控 Provider Adapter**：Direct/HLS/Xigua 随应用编译
+  （`backend/src/video/provider.rs` ProviderRegistry），管理员只可启停/配置
+  策略，不能注册新 adapter。
+- **安全降级**：插件故障/超时/重复调用/旧版本结果以 `plugin_call_metrics`
+  记录（ok/error/timeout/repeat/stale/skipped），fire-and-forget，**绝不
+  阻塞核心论坛**；禁用插件不再消费新事件。
+- **调用摘要审计**：`record_call` 非阻塞写入；指标脱敏（无 settings 正文/
+  Secret）。
 
 ## 1. 扩展层级
 

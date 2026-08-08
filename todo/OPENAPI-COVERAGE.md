@@ -7,7 +7,7 @@
 
 - 契约操作：**193**
 - 唯一 operationId：**193**
-- 实现状态：`baseline_only` 3；`implemented` 112；`in_progress` 7；`not_started` 35；`verified` 36
+- 实现状态：`baseline_only` 1；`implemented` 111；`not_started` 18；`verified` 63
 - 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 21；`M6` 20；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
 
 ## 状态规则
@@ -42,25 +42,25 @@
 | `listSessions` | `GET` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
 | `revokeSession` | `DELETE` | `/api/v1/auth/sessions/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
 | `verifyEmail` | `POST` | `/api/v1/auth/verify-email` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
-| `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `in_progress` | `backend-content` |
+| `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
-| `getAdminBoard` | `GET` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `in_progress` | `backend-content` |
+| `getAdminBoard` | `GET` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `updateAdminBoard` | `PATCH` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
 | `listBoards` | `GET` | `/api/v1/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
 | `getBoard` | `GET` | `/api/v1/boards/{slug}` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
 | `listTags` | `GET` | `/api/v1/tags` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
-| `listAdminRoles` | `GET` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
-| `createAdminRole` | `POST` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
-| `getAdminRole` | `GET` | `/api/v1/admin/roles/{id}` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
-| `updateAdminRole` | `PATCH` | `/api/v1/admin/roles/{id}` | Roles | `M3` / `M03-AUTHZ` | `P0` | `in_progress` | `security-backend` |
-| `listAdminTags` | `GET` | `/api/v1/admin/tags` | Tags | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
+| `listAdminRoles` | `GET` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `verified` | `platform/admin-platform` |
+| `createAdminRole` | `POST` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `verified` | `platform/admin-platform` |
+| `getAdminRole` | `GET` | `/api/v1/admin/roles/{id}` | Roles | `M3` / `M03-AUTHZ` | `P0` | `verified` | `platform/admin-platform` |
+| `updateAdminRole` | `PATCH` | `/api/v1/admin/roles/{id}` | Roles | `M3` / `M03-AUTHZ` | `P0` | `verified` | `platform/admin-platform` |
+| `listAdminTags` | `GET` | `/api/v1/admin/tags` | Tags | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `createAdminTag` | `POST` | `/api/v1/admin/tags` | Tags | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
-| `getAdminTag` | `GET` | `/api/v1/admin/tags/{id}` | Tags | `M3` / `M03-BOARDS` | `P1` | `in_progress` | `backend-content` |
+| `getAdminTag` | `GET` | `/api/v1/admin/tags/{id}` | Tags | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `updateAdminTag` | `PATCH` | `/api/v1/admin/tags/{id}` | Tags | `M3` / `M03-BOARDS` | `P1` | `implemented` | `backend-content` |
-| `listAdminUsers` | `GET` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `createAdminUser` | `POST` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `getAdminUser` | `GET` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
-| `updateAdminUser` | `PATCH` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
+| `listAdminUsers` | `GET` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `verified` | `platform/admin-platform` |
+| `createAdminUser` | `POST` | `/api/v1/admin/users` | Users | `M3` / `M03-PROFILE` | `P1` | `verified` | `platform/admin-platform` |
+| `getAdminUser` | `GET` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `verified` | `platform/admin-platform` |
+| `updateAdminUser` | `PATCH` | `/api/v1/admin/users/{id}` | Users | `M3` / `M03-PROFILE` | `P1` | `verified` | `platform/admin-platform` |
 | `getMe` | `GET` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `security-backend` |
 | `updateMe` | `PATCH` | `/api/v1/me` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `security-backend` |
 | `delete_me_profile_cover` | `DELETE` | `/api/v1/me/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `not_started` | `unassigned` |
@@ -86,7 +86,7 @@
 | `getPostRevision` | `GET` | `/api/v1/posts/{id}/revisions/{revisionId}` | Revisions | `M4` / `M04-POSTS` | `P1` | `implemented` | `backend-content` |
 | `createAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `implemented` | `backend-content` |
 | `assignAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases/{id}/assign` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `implemented` | `backend-content` |
-| `post_admin_moderation_sanctions` | `POST` | `/api/v1/admin/moderation/sanctions` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `not_started` | `unassigned` |
+| `post_admin_moderation_sanctions` | `POST` | `/api/v1/admin/moderation/sanctions` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `verified` | `platform/admin-platform` |
 | `listModerationAppeals` | `GET` | `/api/v1/admin/moderation/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `getModerationAppeal` | `GET` | `/api/v1/admin/moderation/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
 | `decideModerationAppeal` | `PATCH` | `/api/v1/admin/moderation/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `implemented` | `backend-moderation` |
@@ -166,12 +166,12 @@
 | `post_ai_suggestions_id_accept` | `POST` | `/api/v1/ai/suggestions/{id}/accept` | AI | `M9` / `M09-SUGGESTIONS` | `P1` | `not_started` | `unassigned` |
 | `get_ai_tasks_id_` | `GET` | `/api/v1/ai/tasks/{id}` | AI | `M9` / `M09-SUGGESTIONS` | `P1` | `not_started` | `unassigned` |
 | `post_ai_tasks_id_cancel` | `POST` | `/api/v1/ai/tasks/{id}/cancel` | AI | `M9` / `M09-SUGGESTIONS` | `P1` | `not_started` | `unassigned` |
-| `get_admin_ai_config` | `GET` | `/api/v1/admin/ai/config` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
-| `patch_admin_ai_config` | `PATCH` | `/api/v1/admin/ai/config` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
-| `post_admin_ai_providers_test` | `POST` | `/api/v1/admin/ai/providers/test` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
-| `get_admin_ai_tasks` | `GET` | `/api/v1/admin/ai/tasks` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
-| `post_admin_ai_tasks_id_cancel` | `POST` | `/api/v1/admin/ai/tasks/{id}/cancel` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
-| `post_admin_ai_tasks_id_retry` | `POST` | `/api/v1/admin/ai/tasks/{id}/retry` | Admin | `M9` / `M09-GATEWAY` | `P0` | `not_started` | `unassigned` |
+| `get_admin_ai_config` | `GET` | `/api/v1/admin/ai/config` | Admin | `M9` / `M09-GATEWAY` | `P0` | `verified` | `platform/admin-platform` |
+| `patch_admin_ai_config` | `PATCH` | `/api/v1/admin/ai/config` | Admin | `M9` / `M09-GATEWAY` | `P0` | `verified` | `platform/admin-platform` |
+| `post_admin_ai_providers_test` | `POST` | `/api/v1/admin/ai/providers/test` | Admin | `M9` / `M09-GATEWAY` | `P0` | `verified` | `platform/admin-platform` |
+| `get_admin_ai_tasks` | `GET` | `/api/v1/admin/ai/tasks` | Admin | `M9` / `M09-GATEWAY` | `P0` | `verified` | `platform/admin-platform` |
+| `post_admin_ai_tasks_id_cancel` | `POST` | `/api/v1/admin/ai/tasks/{id}/cancel` | Admin | `M9` / `M09-GATEWAY` | `P0` | `verified` | `platform/admin-platform` |
+| `post_admin_ai_tasks_id_retry` | `POST` | `/api/v1/admin/ai/tasks/{id}/retry` | Admin | `M9` / `M09-GATEWAY` | `P0` | `verified` | `platform/admin-platform` |
 | `get_admin_video_policies` | `GET` | `/api/v1/admin/video/policies` | Admin | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
 | `post_admin_video_policies_test` | `POST` | `/api/v1/admin/video/policies/test` | Admin | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
 | `get_admin_video_policies_provider_` | `GET` | `/api/v1/admin/video/policies/{provider}` | Admin | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
@@ -208,11 +208,11 @@
 | `get_marketplace_purchases` | `GET` | `/api/v1/marketplace/purchases` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
 | `get_marketplace_purchases_id_` | `GET` | `/api/v1/marketplace/purchases/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
 | `post_marketplace_purchases_id_refund` | `POST` | `/api/v1/marketplace/purchases/{id}/refund` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
-| `get_admin_themes` | `GET` | `/api/v1/admin/themes` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
-| `post_admin_themes_data_packages` | `POST` | `/api/v1/admin/themes/data-packages` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
-| `put_admin_themes_default` | `PUT` | `/api/v1/admin/themes/default` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
-| `delete_admin_themes_name_` | `DELETE` | `/api/v1/admin/themes/{name}` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
-| `patch_admin_themes_name_settings` | `PATCH` | `/api/v1/admin/themes/{name}/settings` | Admin | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
-| `get_me_preferences_theme` | `GET` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `baseline_only` | `backend-auth` |
-| `put_me_preferences_theme` | `PUT` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `baseline_only` | `backend-auth` |
-| `get_themes_active` | `GET` | `/api/v1/themes/active` | Themes | `M13` / `M13-THEME` | `P1` | `not_started` | `unassigned` |
+| `get_admin_themes` | `GET` | `/api/v1/admin/themes` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `post_admin_themes_data_packages` | `POST` | `/api/v1/admin/themes/data-packages` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `put_admin_themes_default` | `PUT` | `/api/v1/admin/themes/default` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `delete_admin_themes_name_` | `DELETE` | `/api/v1/admin/themes/{name}` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `patch_admin_themes_name_settings` | `PATCH` | `/api/v1/admin/themes/{name}/settings` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `get_me_preferences_theme` | `GET` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `put_me_preferences_theme` | `PUT` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `get_themes_active` | `GET` | `/api/v1/themes/active` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |

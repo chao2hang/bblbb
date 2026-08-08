@@ -1,10 +1,18 @@
 # BBLBB — 稳定错误码注册表
 
-> 基线：v0.4。错误响应统一使用 `application/problem+json`。`code` 是客户端和测试依赖的稳定机器码；`detail` 可本地化且不得泄漏内部信息。
+> 基线：v0.4（M13 扩展：theme/plugin 错误码）。错误响应统一使用 `application/problem+json`。`code` 是客户端和测试依赖的稳定机器码；`detail` 可本地化且不得泄漏内部信息。
 
 | code | HTTP | 适用场景 | 客户端动作 |
 |---|---:|---|---|
 | `invalid_request` | 400 | JSON、参数或枚举无效 | 修正请求，不重试 |
+| `theme_invalid` | 400 | 主题数据包/Token 违反封闭 schema（CSS/HTML/JS/SVG/远程资源/未知 key/非法值）或 kind 非 data | 修正数据包后重试 |
+| `theme_incompatible` | 400 | 主题 `supports` range 与核心不兼容，或 schema_version 不支持 | 使用兼容版本 |
+| `theme_not_found` | 404 | 主题不存在或不可选（偏好/管理操作） | 选择已安装主题 |
+| `theme_conflict` | 409 | 主题已存在/内置或当前默认不可删除/修订乐观锁冲突 | 刷新后重试 |
+| `plugin_invalid` | 400 | 插件 manifest/settings 违反封闭规则（未知 capability、危险 URL、代码内容、未知事件、schema 未知键）或 kind 非 config | 修正配置包 |
+| `plugin_incompatible` | 400 | 插件 `supports` range 或 schema_version 不支持 | 使用兼容版本 |
+| `plugin_not_found` | 404 | 插件不存在 | 检查插件 ID |
+| `plugin_conflict` | 409 | 插件已安装/未停用不可卸载/policy_revision 乐观锁冲突 | 刷新后重试 |
 | `visibility_level_exceeds_author` | 422 | 帖子/文章最低可见等级高于作者当前等级 | 降低最低可见等级后重试 |
 | `invalid_url` | 400 | 视频或 Provider URL 无效 | 修正地址 |
 | `idempotency_conflict` | 409 | 同一幂等键对应不同请求 | 使用新业务请求 ID |

@@ -185,6 +185,38 @@ async fn patch_me_updates_all_profile_fields_persistently() {
     let version = me_version(&app, &session).await;
     assert_eq!(version, 1, "新用户版本必须为 1");
 
+    // M13-THEME：先安装并激活一个数据主题，PATCH /me 才能选择它。
+    let package = json!({
+        "schema_version": 1,
+        "name": "midnight",
+        "display_name": "Midnight",
+        "version": "1.0.0",
+        "supports": ">=1.0 <2.0",
+        "kind": "data",
+        "tokens": {
+            "color.background": "#0f172a",
+            "color.surface": "#1e293b",
+            "color.text": "#e2e8f0",
+            "color.muted": "#94a3b8",
+            "color.accent": "#38bdf8",
+            "color.border": "#334155",
+            "font.body": "system-ui",
+            "font.mono": "ui-monospace",
+            "radius.control": "0.5rem",
+            "radius.card": "0.75rem",
+            "space.density": "comfortable",
+            "shadow.card": "md",
+            "motion.duration": "150ms",
+            "motion.reduced": true,
+        },
+    });
+    bblbb_backend::theme::upload_theme_package(&pool, &package, "test-admin")
+        .await
+        .expect("theme upload");
+    bblbb_backend::theme::set_default_theme(&pool, "midnight", "test-admin", "activate")
+        .await
+        .expect("activate theme");
+
     let (status, me) = request(
         &app,
         "PATCH",
@@ -197,7 +229,7 @@ async fn patch_me_updates_all_profile_fields_persistently() {
             "bio": "我的简介",
             "signature": "个性签名",
             "timezone": "Asia/Shanghai",
-            "theme": "dark",
+            "theme": "midnight",
             "email_visible_to": "registered",
             "profile_visible_to": "nobody"
         })),
@@ -208,7 +240,7 @@ async fn patch_me_updates_all_profile_fields_persistently() {
     assert_eq!(me["bio"], "我的简介");
     assert_eq!(me["signature"], "个性签名");
     assert_eq!(me["timezone"], "Asia/Shanghai");
-    assert_eq!(me["theme_name"], "dark");
+    assert_eq!(me["theme_name"], "midnight");
     assert_eq!(me["email_visible_to"], "registered");
     assert_eq!(me["profile_visible_to"], "nobody");
     assert_eq!(me["version"], 2, "资料更新后版本必须 +1");
@@ -216,7 +248,7 @@ async fn patch_me_updates_all_profile_fields_persistently() {
     // GET /me 反映持久化
     let (_, me2) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
     assert_eq!(me2["bio"], "我的简介");
-    assert_eq!(me2["theme_name"], "dark");
+    assert_eq!(me2["theme_name"], "midnight");
     assert_eq!(me2["profile_visible_to"], "nobody");
 
     // 三表持久化
@@ -239,7 +271,7 @@ async fn patch_me_updates_all_profile_fields_persistently() {
             .await
             .unwrap();
             assert_eq!(timezone, "Asia/Shanghai");
-            assert_eq!(theme_name.as_deref(), Some("dark"));
+            assert_eq!(theme_name.as_deref(), Some("midnight"));
 
             let (email_visible_to, profile_visible_to): (String, String) = sqlx::query_as(
                 "SELECT email_visible_to, profile_visible_to FROM user_privacy WHERE user_id = ?",
@@ -291,6 +323,38 @@ async fn patch_me_is_partial_update() {
         me["id"].as_str().unwrap().to_string()
     };
 
+    // M13-THEME：安装并激活数据主题，供 PATCH /me 选择。
+    let package = json!({
+        "schema_version": 1,
+        "name": "midnight",
+        "display_name": "Midnight",
+        "version": "1.0.0",
+        "supports": ">=1.0 <2.0",
+        "kind": "data",
+        "tokens": {
+            "color.background": "#0f172a",
+            "color.surface": "#1e293b",
+            "color.text": "#e2e8f0",
+            "color.muted": "#94a3b8",
+            "color.accent": "#38bdf8",
+            "color.border": "#334155",
+            "font.body": "system-ui",
+            "font.mono": "ui-monospace",
+            "radius.control": "0.5rem",
+            "radius.card": "0.75rem",
+            "space.density": "comfortable",
+            "shadow.card": "md",
+            "motion.duration": "150ms",
+            "motion.reduced": true,
+        },
+    });
+    bblbb_backend::theme::upload_theme_package(&pool, &package, "test-admin")
+        .await
+        .expect("theme upload");
+    bblbb_backend::theme::set_default_theme(&pool, "midnight", "test-admin", "activate")
+        .await
+        .expect("activate theme");
+
     let (status, _) = request(
         &app,
         "PATCH",
@@ -298,7 +362,7 @@ async fn patch_me_is_partial_update() {
         &session,
         &csrf,
         Some(&me_version(&app, &session).await.to_string()),
-        Some(json!({ "signature": "only-signature", "theme": "light" })),
+        Some(json!({ "signature": "only-signature", "theme": "midnight" })),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -306,7 +370,7 @@ async fn patch_me_is_partial_update() {
     // 未出现的字段保持默认/原值；出现的字段已更新
     let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
     assert_eq!(me["signature"], "only-signature");
-    assert_eq!(me["theme_name"], "light");
+    assert_eq!(me["theme_name"], "midnight");
     assert_eq!(me["timezone"], "UTC", "缺失时区必须保持原值");
     assert_eq!(me["email_visible_to"], "nobody", "缺失隐私必须保持原值");
     assert_eq!(me["display_name"], Value::Null, "未设置昵称保持 NULL");
@@ -436,14 +500,47 @@ async fn patch_me_rejects_invalid_values() {
     cleanup(&dir);
 }
 
-/// 主题端点：PUT 持久化，GET 读取。
+/// 主题端点（M13-THEME-07）：PUT 需 If-Match（当前 revision），持久化；
+/// GET 返回 theme+revision；不存在的主题/缺失 If-Match/过期版本均拒绝。
 #[tokio::test]
 async fn theme_preference_persists_across_requests() {
     let (pool, dir) = sqlite_pool_with_migrations().await;
     let app = app_with_key(pool.clone());
+
+    // 预置一个数据型主题（走线上 upload_theme_package 领域服务）。
+    let package = json!({
+        "schema_version": 1,
+        "name": "midnight",
+        "display_name": "Midnight",
+        "version": "1.0.0",
+        "supports": ">=1.0 <2.0",
+        "kind": "data",
+        "tokens": {
+            "color.background": "#0f172a",
+            "color.surface": "#1e293b",
+            "color.text": "#e2e8f0",
+            "color.muted": "#94a3b8",
+            "color.accent": "#38bdf8",
+            "color.border": "#334155",
+            "font.body": "system-ui",
+            "font.mono": "ui-monospace",
+            "radius.control": "0.5rem",
+            "radius.card": "0.75rem",
+            "space.density": "comfortable",
+            "shadow.card": "md",
+            "motion.duration": "150ms",
+            "motion.reduced": true,
+        },
+    });
+    let installed = bblbb_backend::theme::upload_theme_package(&pool, &package, "test-admin")
+        .await
+        .expect("theme upload");
+    assert_eq!(installed.name, "midnight");
+    assert_eq!(installed.status, "disabled", "上传后隔离态 disabled");
+
     let (session, csrf) = register_and_login(&app, "theme").await;
 
-    // 默认 default
+    // 默认 default + revision 1
     let (status, body) = request(
         &app,
         "GET",
@@ -456,22 +553,67 @@ async fn theme_preference_persists_across_requests() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["theme"], "default");
+    assert_eq!(body["revision"], 1);
 
-    // PUT dark → 持久化
-    let (status, body) = request(
+    // 缺失 If-Match → 400
+    let (status, _) = request(
         &app,
         "PUT",
         "/api/v1/me/preferences/theme",
         &session,
         &csrf,
         None,
-        Some(json!({ "theme": "dark" })),
+        Some(json!({ "theme": "midnight" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "缺失 If-Match 必须 400");
+
+    // 过期版本（revision 99）→ 409 version_conflict
+    let (status, body) = request(
+        &app,
+        "PUT",
+        "/api/v1/me/preferences/theme",
+        &session,
+        &csrf,
+        Some("99"),
+        Some(json!({ "theme": "midnight" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["code"], "version_conflict");
+
+    // 未激活主题（disabled 隔离态）→ 400（服务端再次校验 active）
+    let (status, _) = request(
+        &app,
+        "PUT",
+        "/api/v1/me/preferences/theme",
+        &session,
+        &csrf,
+        Some("1"),
+        Some(json!({ "theme": "midnight" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "disabled 主题不可选");
+
+    // 先激活主题（set_default_theme 激活）再保存偏好
+    bblbb_backend::theme::set_default_theme(&pool, "midnight", "test-admin", "activate")
+        .await
+        .expect("activate theme");
+    let (status, body) = request(
+        &app,
+        "PUT",
+        "/api/v1/me/preferences/theme",
+        &session,
+        &csrf,
+        Some("1"),
+        Some(json!({ "theme": "midnight" })),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["theme"], "dark");
+    assert_eq!(body["theme"], "midnight");
+    assert_eq!(body["revision"], 1);
 
-    // GET 反映
+    // GET 反映偏好 + revision
     let (_, body) = request(
         &app,
         "GET",
@@ -482,20 +624,23 @@ async fn theme_preference_persists_across_requests() {
         None,
     )
     .await;
-    assert_eq!(body["theme"], "dark", "GET 必须读取持久化主题");
+    assert_eq!(body["theme"], "midnight", "GET 必须读取持久化主题");
+    assert_eq!(body["revision"], 1);
 
-    // 非法主题 → 400
+    // 非法主题名 → 400（不在已安装列表）
     let (status, _) = request(
         &app,
         "PUT",
         "/api/v1/me/preferences/theme",
         &session,
         &csrf,
-        None,
+        Some("1"),
         Some(json!({ "theme": "neon" })),
     )
     .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    // 未安装主题 → 404 theme_not_found（服务端校验：只接受 default 或已安装
+    // 且 active 的数据主题名）。
+    assert_eq!(status, StatusCode::NOT_FOUND, "未安装主题必须拒绝: {body}");
 
     close_pool(&pool).await;
     cleanup(&dir);

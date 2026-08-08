@@ -1,7 +1,24 @@
 # BBLBB — 主题系统规范
 
-> 版本：v0.4
+> 版本：v0.4（M13 已实现：v1 数据型主题 + 管理 API + 封闭 Token schema）
 > 主题只改变展示，不改变身份、权限、审核、积分或内容可见性。主题分为可安全运行时加载的“数据型主题”和构建时编译的“可信代码型主题”。
+
+## 0. 实现状态（M13-THEME）
+
+- **已实现**：`themes`/`theme_revisions` 三库迁移（0057_theme.sql）；领域层
+  `backend/src/theme/mod.rs`（封闭 Token schema 校验、fallback、revision）；
+  路由 `GET /api/v1/themes/active`、`GET/PUT /api/v1/me/preferences/theme`
+  （If-Match revision + `private, no-store`）、`/api/v1/admin/themes*`
+  （上传/默认/设置/删除，admin.manage + reason + recent-auth + 审计）。
+- **封闭 Token schema**：14 个已知 key（颜色/字体/圆角/密度/阴影/动效）；
+  值级校验拒绝 CSS、HTML、JS、SVG、远程资源与任意 style 字符串；未知 key
+  拒绝；资产路径只允许相对路径（无 `..`/绝对路径/URL）。
+- **Fallback**：主题不存在/不兼容/停用/损坏 → 回退内置 `default`（revision=1）
+  并记录非敏感告警；损坏主题自动标记 `corrupt`。
+- **revision 一致性**：`themes.revision` 单调递增，SSR/浏览器/缓存/用户偏好
+  共享同一 revision；主题变更即失效旧 ETag/偏好 If-Match。
+- **上传隔离态**：数据包上传 → disabled；管理员显式“设为默认”激活。
+- **代码型主题**：不提供在线上传/执行路径（v1 只接受 kind=data）。
 
 ## 1. 两类主题
 

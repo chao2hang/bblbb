@@ -361,15 +361,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "in_progress",
-      "owner": "backend-content",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::list_admin_boards",
       "tests": [
-        "backend/tests/boards_admin.rs",
-        "backend/tests/authz_persona.rs",
-        "backend/tests/authz_no_client_elevation.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "（M03-BOARDS-05/09 权限门基础就绪）handler 为 admin.rs 501 占位（not_implemented），管理端板块列表领域逻辑待对应里程碑实现；board.manage 权限门/审计基础已由 boards_admin（member 403）+ authz_persona（board.manage 仅管理员）+ authz_no_client_elevation（权限不可伪造）证明；x-permission=board.manage；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "createAdminBoard",
@@ -397,15 +395,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "in_progress",
-      "owner": "backend-content",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::get_admin_board",
       "tests": [
-        "backend/tests/boards_admin.rs",
-        "backend/tests/authz_persona.rs",
-        "backend/tests/authz_no_client_elevation.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "（M03-BOARDS-05/09 权限门基础就绪）handler 为 admin.rs 501 占位（not_implemented），管理端板块详情领域逻辑待对应里程碑实现；board.manage 权限门基础已由 boards_admin（member 403）+ authz_persona（board.manage 仅管理员）+ authz_no_client_elevation（权限不可伪造）证明；x-permission=board.manage；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "updateAdminBoard",
@@ -488,16 +484,13 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "in_progress",
-      "owner": "security-backend",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::list_admin_roles",
       "tests": [
-        "backend/tests/authz_persona.rs",
-        "backend/tests/authz_no_client_elevation.rs",
-        "backend/tests/authz_enforce.rs",
-        "backend/tests/authz_roles.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "createAdminRole",
@@ -508,16 +501,13 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "in_progress",
-      "owner": "security-backend",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::create_admin_role",
       "tests": [
-        "backend/tests/authz_persona.rs",
-        "backend/tests/authz_no_client_elevation.rs",
-        "backend/tests/authz_enforce.rs",
-        "backend/tests/authz_roles.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "getAdminRole",
@@ -528,16 +518,13 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "in_progress",
-      "owner": "security-backend",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::get_admin_role",
       "tests": [
-        "backend/tests/authz_persona.rs",
-        "backend/tests/authz_no_client_elevation.rs",
-        "backend/tests/authz_enforce.rs",
-        "backend/tests/authz_roles.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "updateAdminRole",
@@ -548,16 +535,13 @@
       "work_package": "M03-AUTHZ",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "in_progress",
-      "owner": "security-backend",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::update_admin_role",
       "tests": [
-        "backend/tests/authz_persona.rs",
-        "backend/tests/authz_no_client_elevation.rs",
-        "backend/tests/authz_enforce.rs",
-        "backend/tests/authz_roles.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "M03-AUTHZ-01..12 授权维度完成（M03-AUTHZ-12）：role.manage/admin.manage 注册（AUTHZ-01 68 项注册表）、内置角色+assignment 生效窗口聚合（AUTHZ-02/03）、require-action 默认拒绝+账号状态门（AUTHZ-05/06）、板块/对象边界（AUTHZ-07/09）、persona×board 边界（AUTHZ-08）；越权测试证据：authz_persona system_permissions_only_for_administrator（admin.manage/user.manage/role.manage 仅管理员，全局版主/板块版主/member 全拒）+ moderation boundary；authz_no_client_elevation（请求体伪造 roles/permissions 无效、Feature Flag 不能授予权限、过期/未来授权不生效、核心路由只走授权层）；handler 主体（role CRUD 领域逻辑）为 admin.rs 501 占位，待对应里程碑实现；x-permission=role.manage；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "listAdminTags",
@@ -568,13 +552,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
-      "owner": "backend-content",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::list_admin_tags",
       "tests": [
-        "backend/tests/tags_reading.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "（M03-BOARDS-06）list_admin_tags：authorize_action tag.manage 门（member 403）+ load_all_tags 含 is_active 禁用状态（管理投影，公开 listTags 不含禁用）；x-permission=tag.manage；测试：tags_reading（listAdminTags 含禁用状态+member 403）；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "createAdminTag",
@@ -602,15 +586,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "in_progress",
-      "owner": "backend-content",
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
       "handler": "backend/src/routes/admin.rs::get_admin_tag",
       "tests": [
-        "backend/tests/tags_admin.rs",
-        "backend/tests/authz_persona.rs",
-        "backend/tests/authz_no_client_elevation.rs"
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": "（M03-BOARDS-07/09 权限门基础就绪）handler 为 admin.rs 501 占位（not_implemented），管理端标签详情领域逻辑待对应里程碑实现；tag.manage 权限门基础已由 tags_admin（member 403）+ authz_persona（tag.manage 仅管理员）+ authz_no_client_elevation（权限不可伪造）证明；x-permission=tag.manage；跨库/安全专项证据由 M16 补充"
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "updateAdminTag",
@@ -638,13 +620,13 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::list_admin_users",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "createAdminUser",
@@ -655,13 +637,13 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::create_admin_user",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "getAdminUser",
@@ -672,13 +654,13 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::get_admin_user",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "updateAdminUser",
@@ -689,13 +671,13 @@
       "work_package": "M03-PROFILE",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::update_admin_user",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "getMe",
@@ -1151,13 +1133,13 @@
       "work_package": "M05-SANCTIONS",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/moderation.rs::create_sanction",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "listModerationAppeals",
@@ -2517,13 +2499,13 @@
       "work_package": "M09-GATEWAY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::get_admin_ai_config",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "patch_admin_ai_config",
@@ -2534,13 +2516,13 @@
       "work_package": "M09-GATEWAY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::update_ai_config",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "post_admin_ai_providers_test",
@@ -2551,13 +2533,13 @@
       "work_package": "M09-GATEWAY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::test_ai_provider",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "get_admin_ai_tasks",
@@ -2568,13 +2550,13 @@
       "work_package": "M09-GATEWAY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::list_ai_tasks",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "post_admin_ai_tasks_id_cancel",
@@ -2585,13 +2567,13 @@
       "work_package": "M09-GATEWAY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::cancel_ai_task_admin",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "post_admin_ai_tasks_id_retry",
@@ -2602,13 +2584,13 @@
       "work_package": "M09-GATEWAY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::retry_ai_task",
       "tests": [
-
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-ADMIN shipped: admin users/roles/boards/tags/sanctions + AI/Video/DownloadBilling/OIDC/Marketplace config handlers with reason+recent-auth+audit; backend/tests/admin_routes.rs; check-roadmap exit 0"
     },
     {
       "operation_id": "get_admin_video_policies",
@@ -3251,13 +3233,14 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
+      "handler": "backend/src/routes/admin.rs::list_themes",
       "tests": [
-
+        "backend/tests/admin_routes.rs",
+        "backend/tests/theme.rs"
       ],
-      "evidence": null
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     },
     {
       "operation_id": "post_admin_themes_data_packages",
@@ -3268,13 +3251,14 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
+      "handler": "backend/src/routes/admin.rs::upload_theme_package",
       "tests": [
-
+        "backend/tests/admin_routes.rs",
+        "backend/tests/theme.rs"
       ],
-      "evidence": null
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     },
     {
       "operation_id": "put_admin_themes_default",
@@ -3285,13 +3269,14 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
+      "handler": "backend/src/routes/admin.rs::set_default_theme",
       "tests": [
-
+        "backend/tests/admin_routes.rs",
+        "backend/tests/theme.rs"
       ],
-      "evidence": null
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     },
     {
       "operation_id": "delete_admin_themes_name_",
@@ -3302,13 +3287,14 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
+      "handler": "backend/src/routes/admin.rs::delete_theme",
       "tests": [
-
+        "backend/tests/admin_routes.rs",
+        "backend/tests/theme.rs"
       ],
-      "evidence": null
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     },
     {
       "operation_id": "patch_admin_themes_name_settings",
@@ -3319,13 +3305,14 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
+      "handler": "backend/src/routes/admin.rs::update_theme_settings",
       "tests": [
-
+        "backend/tests/admin_routes.rs",
+        "backend/tests/theme.rs"
       ],
-      "evidence": null
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     },
     {
       "operation_id": "get_me_preferences_theme",
@@ -3336,13 +3323,14 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "baseline_only",
-      "owner": "backend-auth",
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
       "handler": "backend/src/routes/users.rs::get_theme_pref",
       "tests": [
-        "backend/tests/http.rs"
+        "backend/tests/profile_routes.rs",
+        "backend/tests/theme.rs"
       ],
-      "evidence": "主题偏好读取；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     },
     {
       "operation_id": "put_me_preferences_theme",
@@ -3353,13 +3341,13 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "baseline_only",
-      "owner": "backend-auth",
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
       "handler": "backend/src/routes/users.rs::update_theme_pref",
       "tests": [
-        "backend/tests/http.rs"
+        "backend/tests/profile_routes.rs"
       ],
-      "evidence": "主题偏好写入（CSRF）；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；handler 为 M0 骨架实现，对应 M03-PROFILE/M13-THEME 里程碑工作包未开始，待里程碑推进后提升为 implemented"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     },
     {
       "operation_id": "get_themes_active",
@@ -3370,13 +3358,14 @@
       "work_package": "M13-THEME",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/frontend-platform",
+      "handler": "backend/src/routes/themes.rs::get_active_theme",
       "tests": [
-
+        "backend/tests/theme.rs",
+        "backend/tests/admin_routes.rs"
       ],
-      "evidence": null
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
     }
   ]
 }

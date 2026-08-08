@@ -106,8 +106,10 @@ impl ProfileUpdate {
             }
         }
         if let Some(v) = &self.theme_name {
-            if !matches!(v.as_str(), "default" | "dark" | "light") {
-                return Err("theme 必须是 default/dark/light 之一".to_string());
+            // M13-THEME：主题名是数据型安全 Token（小写 ascii/数字/连字符）；
+            // 是否已安装/激活由路由层结合主题仓储校验。
+            if !crate::theme::validate_theme_name(v) {
+                return Err("theme 名称非法（小写 ascii/数字/连字符）".to_string());
             }
         }
         for (name, v) in [

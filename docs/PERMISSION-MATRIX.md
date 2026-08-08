@@ -144,9 +144,14 @@
 | `openid` | 1 | get_oauth_userinfo | OIDC |
 | `openid.logout` | 2 | get_oauth_logout、post_oauth_logout | OIDC |
 | `oauth_client.manage` | 4 | listAdminOAuthClients、createAdminOAuthClient、getAdminOAuthClient、updateAdminOAuthClient | §1 身份和标记（管理员） |
-| `admin.manage` | 25 | get_admin_storage_config、patch_admin_storage_config、post_admin_storage_test、get_admin_ai_config、get_admin_video_policies、get_admin_themes 等 | 管理员通用（存储/AI/视频/主题/市场配置，§8 高风险要求） |
+| `admin.manage` | 25 | get_admin_storage_config、patch_admin_storage_config、post_admin_storage_test、get_admin_ai_config、get_admin_video_policies、get_admin_themes 等 | 管理员通用（存储/AI/视频/主题/插件/市场配置，§8 高风险要求） |
 
 > 说明：OpenAPI 管理端 operation 的 `x-permission` 粒度比本文动作表的业务权限更粗（`admin.manage` 覆盖多个动作小节）。业务语义仍以动作表为准；`admin.manage` 是它的管理员入口聚合值，未来细化到 `storage.manage`/`ai.manage`/`video.manage` 等粒度时需同步更新本注册表与 OpenAPI。
+>
+> M13 主题/插件管理端点（`/api/v1/admin/themes*`、`/api/v1/admin/plugins*`）使用
+> `admin.manage` + reason + recent-auth（step-up）+ 审计，与 AI/Video/Marketplace
+> 管理端点同一门禁；插件 capability 白名单（`backend/src/plugins/mod.rs::KNOWN_CAPABILITIES`）
+> **不含**任何权限/审核/账本裁决能力——插件永远不能改变裁决结果。
 
 ## 9. 权限注册表（Rust 事实来源，M03-AUTHZ-01）
 

@@ -27,6 +27,10 @@
 
   const path = $derived(page.url.pathname);
 
+  // M13-ADMIN-01：按真实 Session 投影生成管理入口（菜单隐藏不是安全边界，
+  // /admin 页面仍由服务端 user.manage 等权限门强制）。
+  const canAdmin = $derived(Array.isArray(user?.roles) && user.roles.includes('administrator'));
+
   function isActive(href: string): boolean {
     if (href === '/') return path === '/';
     return path === href || path.startsWith(href + '/');
@@ -119,6 +123,9 @@
               <div class="dropdown-sep"></div>
               <a href="/me" class="dropdown-item" onclick={closeMenus}><Icon name="user" size={16} /><span>我的主页</span></a>
               <a href="/settings" class="dropdown-item" onclick={closeMenus}><Icon name="settings" size={16} /><span>账号设置</span></a>
+              {#if canAdmin}
+                <a href="/admin" class="dropdown-item" onclick={closeMenus}><Icon name="shield-check" size={16} /><span>管理后台</span></a>
+              {/if}
               <div class="dropdown-sep"></div>
               <button type="button" class="dropdown-item is-danger" onclick={() => { closeMenus(); onlogout?.(); }}>
                 <Icon name="log-out" size={16} /><span>退出登录</span>

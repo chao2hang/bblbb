@@ -35,6 +35,58 @@ pub struct AppError {
     rate_limit: Option<(u32, u32, i64)>,
 }
 
+/// 集中清理错误详情中的敏感信息（供领域层复用，如 theme/plugins 的告警与
+/// Problem detail）。独立于 `AppError::sanitize_detail`，纯字符串变换。
+pub fn sanitize(detail: &str) -> String {
+    let patterns = [
+        // 认证/授权凭据
+        ("password=", "[redacted]"),
+        ("password :", "[redacted]"),
+        ("\"password\":", "[redacted]"),
+        ("token=", "[redacted]"),
+        ("\"token\":", "[redacted]"),
+        ("access_token=", "[redacted]"),
+        ("refresh_token=", "[redacted]"),
+        ("secret=", "[redacted]"),
+        ("\"secret\":", "[redacted]"),
+        ("client_secret", "[redacted]"),
+        ("api_key", "[redacted]"),
+        ("apikey", "[redacted]"),
+        ("Authorization: Bearer ", "[redacted] "),
+        // 签名 URL 参数（AWS SigV4 / Google 签名 URL）
+        ("X-Amz-Signature", "[signed-url]"),
+        ("X-Amz-Credential", "[signed-url]"),
+        ("X-Amz-Security-Token", "[signed-url]"),
+        ("X-Goog-Signature", "[signed-url]"),
+        ("X-Goog-Credential", "[signed-url]"),
+        ("signature=", "[redacted]"),
+        // 私钥块
+        ("BEGIN RSA PRIVATE KEY", "[private-key]"),
+        ("BEGIN EC PRIVATE KEY", "[private-key]"),
+        ("BEGIN OPENSSH PRIVATE KEY", "[private-key]"),
+        ("BEGIN PRIVATE KEY", "[private-key]"),
+        // SQL 语句片段
+        ("SELECT ", "[sql] "),
+        ("INSERT ", "[sql] "),
+        ("UPDATE ", "[sql] "),
+        ("DELETE ", "[sql] "),
+        ("WHERE ", "[sql] "),
+        ("FROM ", "[sql] "),
+        ("JOIN ", "[sql] "),
+        ("GROUP BY ", "[sql] "),
+        ("ORDER BY ", "[sql] "),
+        // 栈/回溯特征
+        ("\n    at ", " [stack]"),
+        ("stack backtrace:", " [stack]"),
+        ("backtrace:", " [stack]"),
+    ];
+    let mut result = detail.to_string();
+    for (pattern, replacement) in &patterns {
+        result = result.replace(pattern, replacement);
+    }
+    result
+}
+
 impl AppError {
     pub fn internal(detail: impl Into<String>, request_id: impl Into<String>) -> Self {
         Self {
@@ -235,54 +287,7 @@ impl AppError {
     /// 集中清除：SQL 语句、栈/回溯、密码、Token、Secret、API Key、
     /// 签名 URL（AWS/Google）与私钥块。
     fn sanitize_detail(&self) -> String {
-        let detail = &self.detail;
-        let patterns = [
-            // 认证/授权凭据
-            ("password=", "[redacted]"),
-            ("password :", "[redacted]"),
-            ("\"password\":", "[redacted]"),
-            ("token=", "[redacted]"),
-            ("\"token\":", "[redacted]"),
-            ("access_token=", "[redacted]"),
-            ("refresh_token=", "[redacted]"),
-            ("secret=", "[redacted]"),
-            ("\"secret\":", "[redacted]"),
-            ("client_secret", "[redacted]"),
-            ("api_key", "[redacted]"),
-            ("apikey", "[redacted]"),
-            ("Authorization: Bearer ", "[redacted] "),
-            // 签名 URL 参数（AWS SigV4 / Google 签名 URL）
-            ("X-Amz-Signature", "[signed-url]"),
-            ("X-Amz-Credential", "[signed-url]"),
-            ("X-Amz-Security-Token", "[signed-url]"),
-            ("X-Goog-Signature", "[signed-url]"),
-            ("X-Goog-Credential", "[signed-url]"),
-            ("signature=", "[redacted]"),
-            // 私钥块
-            ("BEGIN RSA PRIVATE KEY", "[private-key]"),
-            ("BEGIN EC PRIVATE KEY", "[private-key]"),
-            ("BEGIN OPENSSH PRIVATE KEY", "[private-key]"),
-            ("BEGIN PRIVATE KEY", "[private-key]"),
-            // SQL 语句片段
-            ("SELECT ", "[sql] "),
-            ("INSERT ", "[sql] "),
-            ("UPDATE ", "[sql] "),
-            ("DELETE ", "[sql] "),
-            ("WHERE ", "[sql] "),
-            ("FROM ", "[sql] "),
-            ("JOIN ", "[sql] "),
-            ("GROUP BY ", "[sql] "),
-            ("ORDER BY ", "[sql] "),
-            // 栈/回溯特征
-            ("\n    at ", " [stack]"),
-            ("stack backtrace:", " [stack]"),
-            ("backtrace:", " [stack]"),
-        ];
-        let mut result = detail.to_string();
-        for (pattern, replacement) in &patterns {
-            result = result.replace(pattern, replacement);
-        }
-        result
+        sanitize(&self.detail)
     }
 }
 

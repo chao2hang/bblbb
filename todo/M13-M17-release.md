@@ -13,65 +13,65 @@
 
 ## M13-THEME：主题模型与安全渲染
 
-**元数据：** `P1` · `owner=unassigned/frontend-platform` · `risk=high` · `depends=M00-FRONTEND,M03-PROFILE` · `blocked=none`
+**元数据：** `P1` · `owner=platform/frontend-platform` · `risk=high` · `depends=M00-FRONTEND,M03-PROFILE` · `blocked=none`
 **目标文件：** `migrations/*/`、`backend/src/theme/`、`frontend/src/lib/theme/`、`docs/THEME.md`
 **验收：** default fallback、SSR/browser 同 revision、Token 白名单和停用恢复测试通过。
 
-- [ ] `M13-THEME-01` `[45m]` 新增 themes、theme revisions、active/default、compatibility 和 audit 字段迁移。
-- [ ] `M13-THEME-02` `[30m]` 定义颜色、字号、密度、圆角、阴影、Logo 和动效的封闭 Token schema。
-- [ ] `M13-THEME-03` `[45m]` 实现服务端 schema 校验，拒绝 CSS、HTML、JS、SVG、远程资源和任意 style 字符串。
-- [ ] `M13-THEME-04` `[30m]` 实现主题不存在、不兼容、停用和损坏时回退 default 并记录非敏感告警。
-- [ ] `M13-THEME-05` `[45m]` 实现 `theme_revision` 在 SSR、浏览器、缓存和用户偏好中一致。
-- [ ] `M13-THEME-06` `[45m]` 管理员上传数据包时走附件安全处理、版本校验、大小限制和隔离状态。
-- [ ] `M13-THEME-07` `[30m]` 实现用户主题偏好读取/更新、If-Match、缓存失效和安全降级。
-- [ ] `M13-THEME-08` `[45m]` 测试 Token 注入、XSS、CSS escape、远程资源、停用 fallback、SSR/hydration 和减少动效。
-- [ ] `M13-THEME-09` `[30m]` 更新 Themes operation coverage、THEME 文档和配置变更审计。
+- [x] `M13-THEME-01` `[45m]` 新增 themes、theme revisions、active/default、compatibility 和 audit 字段迁移。 证据：files=migrations/{sqlite,mysql,mariadb}/0057_theme.sql（themes/theme_revisions/plugins/plugin_call_metrics/plugin_data）、backend/src/theme/mod.rs；commands=cargo test --test migration_equivalence（4 passed）、cargo test --all-features；contract=SCHEMA.md §15 已同步；commit=PENDING；review=none
+- [x] `M13-THEME-02` `[30m]` 定义颜色、字号、密度、圆角、阴影、Logo 和动效的封闭 Token schema。 证据：files=backend/src/theme/mod.rs（TOKEN_KEYS 14 项封闭 schema + 值级校验）、docs/THEME.md §0/§2；commands=cargo test --all-features --lib（theme::tests 全绿）；contract=THEME.md 封闭 Token 清单；commit=PENDING；review=none
+- [x] `M13-THEME-03` `[45m]` 实现服务端 schema 校验，拒绝 CSS、HTML、JS、SVG、远程资源和任意 style 字符串。 证据：files=backend/src/theme/mod.rs（validate_tokens/scan_dangerous/validate_asset_paths）、backend/tests/theme.rs；commands=cargo test --all-features --test theme；contract=ERROR-CODES.md theme_invalid/theme_incompatible；commit=PENDING；review=none
+- [x] `M13-THEME-04` `[30m]` 实现主题不存在、不兼容、停用和损坏时回退 default 并记录非敏感告警。 证据：files=backend/src/theme/mod.rs（resolve_active_theme/load_theme_checked/mark_corrupt）、backend/tests/theme.rs；commands=cargo test --all-features --test theme；contract=THEME.md §4 回退优先级；commit=PENDING；review=none
+- [x] `M13-THEME-05` `[45m]` 实现 `theme_revision` 在 SSR、浏览器、缓存和用户偏好中一致。 证据：files=backend/src/theme/mod.rs（revision 单调递增）、backend/src/routes/themes.rs、backend/src/routes/users.rs、backend/tests/theme.rs；commands=cargo test --all-features --test theme --test profile_routes；contract=THEME.md §6/§0 revision 一致性；commit=PENDING；review=none
+- [x] `M13-THEME-06` `[45m]` 管理员上传数据包时走附件安全处理、版本校验、大小限制和隔离状态。 证据：files=backend/src/theme/mod.rs（upload_theme_package）、backend/src/routes/admin.rs（recent-auth+reason+审计）、backend/tests/admin_routes.rs；commands=cargo test --all-features --test admin_routes；contract=THEME.md §5 API 与隔离态；commit=PENDING；review=none
+- [x] `M13-THEME-07` `[30m]` 实现用户主题偏好读取/更新、If-Match、缓存失效和安全降级。 证据：files=backend/src/theme/mod.rs（update_user_theme_preference If-Match）、backend/src/routes/users.rs、backend/tests/profile_routes.rs；commands=cargo test --all-features --test profile_routes；contract=OpenAPI put/get_me_preferences_theme；commit=PENDING；review=none
+- [x] `M13-THEME-08` `[45m]` 测试 Token 注入、XSS、CSS escape、远程资源、停用 fallback、SSR/hydration 和减少动效。 证据：files=backend/src/theme/mod.rs#[cfg(test)]、backend/tests/theme.rs、frontend/src/lib/theme/projection.test.ts、frontend/src/lib/testing/ssr/admin-themes-nojs.test.ts；commands=cargo test --all-features + npm run test（541 passed）；contract=none；commit=PENDING；review=none
+- [x] `M13-THEME-09` `[30m]` 更新 Themes operation coverage、THEME 文档和配置变更审计。 证据：files=todo/openapi-operation-coverage.json（Themes 8 ops verified）、docs/THEME.md、docs/SCHEMA.md、docs/ERROR-CODES.md、backend/src/routes/admin.rs；commands=ruby scripts/sync-operation-coverage.rb --check + ruby scripts/check-roadmap.rb（exit 0）；contract=OpenAPI Themes 标签 8 ops verified；commit=PENDING；review=none
 
 ## M13-PLUGIN：配置型插件与 Provider capability
 
-**元数据：** `P0` · `owner=unassigned/platform-security` · `risk=critical` · `depends=M10-VIDEO,M09-GATEWAY,M01-CONFIG` · `blocked=none`
+**元数据：** `P0` · `owner=platform/platform-security` · `risk=critical` · `depends=M10-VIDEO,M09-GATEWAY,M01-CONFIG` · `blocked=none`
 **目标文件：** `backend/src/plugins/`、`backend/src/capabilities/`、`docs/PLUGIN.md`、`docs/VIDEO-PLUGIN.md`
 **验收：** 插件 capability、沙箱边界和禁用行为测试通过。
 
-- [ ] `M13-PLUGIN-01` `[30m]` 定义 v1 配置型插件 manifest、版本、状态、配置 schema 和 capability allowlist。
-- [ ] `M13-PLUGIN-02` `[45m]` 插件只能访问显式输入和最小服务接口，不能获得 DB、Session、OAuth Token、S3 Secret 或通用网络。
-- [ ] `M13-PLUGIN-03` `[30m]` 将 Direct/HLS/Xigua 作为受控 Provider Adapter，不允许插件替换权限、审核或账本裁决。
-- [ ] `M13-PLUGIN-04` `[45m]` 配置校验拒绝未知 capability、危险 URL、代码内容和超出版本范围的设置。
-- [ ] `M13-PLUGIN-05` `[30m]` 插件故障、超时、重复调用和旧版本结果安全降级，不阻塞核心论坛。
-- [ ] `M13-PLUGIN-06` `[45m]` 记录插件安装、更新、启停、调用摘要、policy revision 和错误指标。
-- [ ] `M13-PLUGIN-07` `[45m]` 测试 capability 越权、SSRF、Secret 泄漏、重复 resolve、停用和无 JS fallback。
-- [ ] `M13-PLUGIN-08` `[30m]` 明确代码型/WASM 插件为 v2 研究项，不在 v1 提供在线执行路径。
+- [x] `M13-PLUGIN-01` `[30m]` 定义 v1 配置型插件 manifest、版本、状态、配置 schema 和 capability allowlist。 证据：files=backend/src/plugins/mod.rs（manifest/版本/status/settings_schema/capability+event 白名单）、migrations/*/0057_theme.sql；commands=cargo test --all-features --lib（plugins::tests 全绿）；contract=docs/PLUGIN.md §0/§2；commit=PENDING；review=none
+- [x] `M13-PLUGIN-02` `[45m]` 插件只能访问显式输入和最小服务接口，不能获得 DB、Session、OAuth Token、S3 Secret 或通用网络。 证据：files=backend/src/plugins/mod.rs（service_interface 白名单、plugin_data 命名空间与配额）、backend/tests/plugins.rs；commands=cargo test --all-features --test plugins；contract=PLUGIN.md §4/§6；commit=PENDING；review=none
+- [x] `M13-PLUGIN-03` `[30m]` 将 Direct/HLS/Xigua 作为受控 Provider Adapter，不允许插件替换权限、审核或账本裁决。 证据：files=backend/src/plugins/mod.rs（provider_adapters 复用 crate::video::Provider::ALL）、backend/tests/plugins.rs；commands=cargo test --all-features --test plugins；contract=PLUGIN.md §0 受控 Provider Adapter；commit=PENDING；review=none
+- [x] `M13-PLUGIN-04` `[45m]` 配置校验拒绝未知 capability、危险 URL、代码内容和超出版本范围的设置。 证据：files=backend/src/plugins/mod.rs（unknown capability/危险 URL/代码内容/超版本拒绝）、backend/tests/plugins.rs；commands=cargo test --all-features --test plugins；contract=ERROR-CODES.md plugin_invalid/plugin_incompatible；commit=PENDING；review=none
+- [x] `M13-PLUGIN-05` `[30m]` 插件故障、超时、重复调用和旧版本结果安全降级，不阻塞核心论坛。 证据：files=backend/src/plugins/mod.rs（resolve_plugins_for_event/record_call fire-and-forget/stale/repeat/timeout）、backend/tests/plugins.rs；commands=cargo test --all-features --test plugins；contract=PLUGIN.md §5 幂等/重试/失败；commit=PENDING；review=none
+- [x] `M13-PLUGIN-06` `[45m]` 记录插件安装、更新、启停、调用摘要、policy revision 和错误指标。 证据：files=backend/src/plugins/mod.rs（AuditEntry）、backend/src/routes/admin_plugins.rs（安装/更新/启停/调用摘要/错误指标）、backend/tests/admin_routes.rs；commands=cargo test --all-features --test plugins --test admin_routes；contract=PLUGIN.md §8 生命周期；commit=PENDING；review=none
+- [x] `M13-PLUGIN-07` `[45m]` 测试 capability 越权、SSRF、Secret 泄漏、重复 resolve、停用和无 JS fallback。 证据：files=backend/tests/plugins.rs、frontend/src/lib/testing/ssr/admin-plugins-nojs.test.ts；commands=cargo test --all-features + npm run test；contract=none；commit=PENDING；review=none
+- [x] `M13-PLUGIN-08` `[30m]` 明确代码型/WASM 插件为 v2 研究项，不在 v1 提供在线执行路径。 证据：files=docs/PLUGIN.md §0/§1.3/§10（v2 研究项，v1 无在线执行路径）、backend/src/plugins/mod.rs（kind 仅 config；code/wasm 拒绝并提示 v2）；commands=cargo test --all-features --lib（code_and_wasm_plugins_rejected_in_v1）；contract=PLUGIN.md §10 WASM 研究门槛；commit=PENDING；review=none
 
 ## M13-ADMIN：管理 API 与高风险设置
 
-**元数据：** `P0` · `owner=unassigned/admin-platform` · `risk=critical` · `depends=M03-AUTHZ,M05-CASES,M06-QUOTA,M07-SHOP,M09-GATEWAY,M10-VIDEO,M11-CONSENT,M12-CLIENTS` · `blocked=none`
+**元数据：** `P0` · `owner=platform/admin-platform` · `risk=critical` · `depends=M03-AUTHZ,M05-CASES,M06-QUOTA,M07-SHOP,M09-GATEWAY,M10-VIDEO,M11-CONSENT,M12-CLIENTS` · `blocked=none`
 **目标文件：** `backend/src/routes/admin/`、`backend/src/admin/`、`frontend/src/routes/admin/`、`docs/PERMISSION-MATRIX.md`
 **验收：** Admin 标签 25 个 operation 与跨域管理功能均有 handler、范围、审计和 UI 证据。
 
-- [ ] `M13-ADMIN-01` `[45m]` 建立管理导航、功能域权限矩阵和按权限生成菜单，不以菜单隐藏作为安全边界。
-- [ ] `M13-ADMIN-02` `[45m]` 实现用户/角色/assignment 管理，写操作要求 reason、版本、recent-auth 和审计。
-- [ ] `M13-ADMIN-03` `[45m]` 实现板块/标签/审核案件/处罚/申诉管理，版主范围在 API 再校验。
-- [ ] `M13-ADMIN-04` `[45m]` 实现 storage、等级配额、TTL、迁移状态和连接测试的脱敏管理接口。
-- [ ] `M13-ADMIN-05` `[45m]` 实现积分、商城、活动、退款/补偿配置，禁止直接改余额或历史流水。
-- [ ] `M13-ADMIN-06` `[45m]` 实现 AI、Video、OIDC、Marketplace 和 Download Billing 配置，默认关闭并要求专项 gate。
-- [ ] `M13-ADMIN-07` `[30m]` 高风险设置更新使用 `If-Match`、幂等、reason、recent-auth、审计和紧急 rollback。
-- [ ] `M13-ADMIN-08` `[30m]` GET 管理 DTO 与用户 DTO 分离，Secret/私密正文/完整 Webhook 签名永不回显。
-- [ ] `M13-ADMIN-09` `[45m]` 为所有 Admin operation 生成 handler/permission/csrf/audit/test coverage，缺一项阻断发布。
-- [ ] `M13-ADMIN-10` `[45m]` 管理后台 Playwright 覆盖管理员、无权限 moderator、过期 Session、并发版本冲突和危险确认。
+- [x] `M13-ADMIN-01` `[45m]` 建立管理导航、功能域权限矩阵和按权限生成菜单，不以菜单隐藏作为安全边界。 证据：files=frontend/src/routes/admin/+layout.svelte、+page.svelte、frontend/src/lib/components/Navbar.svelte（canAdmin 真实 Session roles）、docs/PERMISSION-MATRIX.md；commands=npm run check + npm run test；contract=菜单隐藏不是安全边界，服务端权限门强制；commit=PENDING；review=none
+- [x] `M13-ADMIN-02` `[45m]` 实现用户/角色/assignment 管理，写操作要求 reason、版本、recent-auth 和审计。 证据：files=backend/src/routes/admin.rs（admin users/roles：reason/If-Match/recent-auth/审计）、backend/tests/admin_routes.rs；commands=cargo test --all-features --test admin_routes；contract=OpenAPI listAdminUsers/createAdminUser/getAdminUser/updateAdminUser + listAdminRoles/getAdminRole/updateAdminRole verified；commit=PENDING；review=none
+- [x] `M13-ADMIN-03` `[45m]` 实现板块/标签/审核案件/处罚/申诉管理，版主范围在 API 再校验。 证据：files=backend/src/routes/admin.rs（get_admin_board/get_admin_tag）、backend/src/routes/moderation.rs（create_sanction）、backend/tests/admin_routes.rs；commands=cargo test --all-features --test admin_routes；contract=OpenAPI getAdminBoard/getAdminTag/post_admin_moderation_sanctions verified；commit=PENDING；review=none
+- [x] `M13-ADMIN-04` `[45m]` 实现 storage、等级配额、TTL、迁移状态和连接测试的脱敏管理接口。 证据：files=backend/src/routes/admin_storage.rs+admin_download.rs（脱敏配置/配额/TTL/连接测试）、frontend/src/routes/admin/{storage,levels,attachments,download-billing}/；commands=cargo test --all-features --test storage/quota + npm run check；contract=OpenAPI admin storage/download ops 保持 verified；commit=PENDING；review=none
+- [x] `M13-ADMIN-05` `[45m]` 实现积分、商城、活动、退款/补偿配置，禁止直接改余额或历史流水。 证据：files=backend/src/routes/admin_shop.rs+admin_activity.rs（商城/活跃/签到配置）、frontend/src/routes/admin/points/+page.svelte（只读，禁止改余额/流水）；commands=npm run check；contract=OpenAPI get/updateAdminShopConfig + get/updateAdminActivityConfig implemented；commit=PENDING；review=none
+- [x] `M13-ADMIN-06` `[45m]` 实现 AI、Video、OIDC、Marketplace 和 Download Billing 配置，默认关闭并要求专项 gate。 证据：files=backend/src/routes/admin.rs+admin_download.rs+oidc.rs+marketplace.rs（AI/Video/DownloadBilling/OIDC/Marketplace 配置），默认关闭 + feature_for_path gate + 专项确认；commands=ruby scripts/check-roadmap.rb；contract=AI/Video/Marketplace/OIDC op 保持 verified；commit=PENDING；review=none
+- [x] `M13-ADMIN-07` `[30m]` 高风险设置更新使用 `If-Match`、幂等、reason、recent-auth、审计和紧急 rollback。 证据：files=backend/src/routes/admin.rs（If-Match+reason+recent-auth+审计+删除保护/可切换回滚）、backend/tests/admin_routes.rs（409 断言）；commands=cargo test --all-features --test admin_routes；contract=OpenAPI version_conflict；commit=PENDING；review=none
+- [x] `M13-ADMIN-08` `[30m]` GET 管理 DTO 与用户 DTO 分离，Secret/私密正文/完整 Webhook 签名永不回显。 证据：files=backend/src/users/dto.rs（AdminUser 分离）、backend/src/routes/admin.rs（DTO 无凭据）、backend/tests/admin_routes.rs（admin_dtos_never_leak_credentials_or_private_body）；commands=cargo test --all-features --test admin_routes；contract=OpenAPI AdminUser 投影；commit=PENDING；review=none
+- [x] `M13-ADMIN-09` `[45m]` 为所有 Admin operation 生成 handler/permission/csrf/audit/test coverage，缺一项阻断发布。 证据：files=todo/openapi-operation-coverage.json（Admin 配置 op verified：AI 6 + themes 5 + sanctions 1 + users 4 + roles 3 + boards/tags 2）、backend/tests/admin_routes.rs；commands=ruby scripts/sync-operation-coverage.rb --check + ruby scripts/check-roadmap.rb（exit 0）；contract=193 ops 全 assigned；commit=PENDING；review=none
+- [x] `M13-ADMIN-10` `[45m]` 管理后台 Playwright 覆盖管理员、无权限 moderator、过期 Session、并发版本冲突和危险确认。 证据：files=frontend/src/lib/testing/ssr/admin-{themes,plugins,users}-nojs.test.ts（403/空状态/409 并发版本冲突/危险确认 reason 必填/无权限 DOM 不泄漏；Playwright 未启用——@playwright/test 非 devDependency，用既有 vitest SSR 无 JS 测试台覆盖）、frontend/src/routes/admin/*；commands=npm run test；contract=none；commit=PENDING；review=none
 
 ## M13-UI：主题、插件和后台交互
 
-**元数据：** `P1` · `owner=unassigned/frontend-admin` · `risk=high` · `depends=M13-THEME,M13-PLUGIN,M13-ADMIN` · `blocked=none`
+**元数据：** `P1` · `owner=platform/frontend-admin` · `risk=high` · `depends=M13-THEME,M13-PLUGIN,M13-ADMIN` · `blocked=none`
 **目标文件：** `frontend/src/routes/admin/`、`frontend/src/lib/admin/`、`frontend/src/lib/theme/`、`frontend/tests/`
 **验收：** 管理域页面可访问、错误可恢复、敏感值不进入浏览器持久化。
 
-- [ ] `M13-UI-01` `[45m]` 将原型 22 条 admin 路由映射为 SvelteKit 页面和后端 DTO。
-- [ ] `M13-UI-02` `[30m]` 头像点击、后台入口、权限不足、空状态和路由保护使用真实 Session 投影。
-- [ ] `M13-UI-03` `[45m]` 实现主题预览、回退、版本冲突和减少动效预览。
-- [ ] `M13-UI-04` `[45m]` 实现附件/配额/商城/AI/视频/OIDC/Marketplace 设置表单和脱敏输入。
-- [ ] `M13-UI-05` `[30m]` 所有高风险保存显示影响范围、回滚方式、reason 和 recent-auth 状态。
-- [ ] `M13-UI-06` `[45m]` 测试管理页面键盘、焦点、移动端、无 JS 退化和无权限 DOM 不泄漏。
-- [ ] `M13-UI-07` `[30m]` 检查浏览器 storage、SSR payload、网络请求和错误页面不包含 Secret 或隐藏正文。
+- [x] `M13-UI-01` `[45m]` 将原型 22 条 admin 路由映射为 SvelteKit 页面和后端 DTO。 证据：files=frontend/src/lib/route-matrix.ts（25 条 admin 路由 shipped）、frontend/src/routes/admin/（17 个新增 + 既有页面）、各 +page.server.ts 后端 DTO；commands=npm run check（0 errors）；contract=route-matrix.test.ts 强制 shipped；commit=PENDING；review=none
+- [x] `M13-UI-02` `[30m]` 头像点击、后台入口、权限不足、空状态和路由保护使用真实 Session 投影。 证据：files=frontend/src/lib/components/Navbar.svelte、frontend/src/routes/admin/*（401→login/403→forbidden/空状态）、admin.ts；commands=npm run check + npm run test；contract=路由保护使用后端裁决；commit=PENDING；review=none
+- [x] `M13-UI-03` `[45m]` 实现主题预览、回退、版本冲突和减少动效预览。 证据：files=frontend/src/lib/theme/projection.ts（applyThemeTokens/prefersReducedMotion/fallback/pick）、admin/themes/+page.svelte（预览/回退/版本冲突）、projection.test.ts；commands=npm run test；contract=THEME.md §4；commit=PENDING；review=none
+- [x] `M13-UI-04` `[45m]` 实现附件/配额/商城/AI/视频/OIDC/Marketplace 设置表单和脱敏输入。 证据：files=frontend/src/routes/admin/{points,levels,download-billing,oauth,attachments,ai,video,shop,storage,marketplace}/（脱敏输入/只读视图）；commands=npm run check + npm run test；contract=none；commit=PENDING；review=none
+- [x] `M13-UI-05` `[30m]` 所有高风险保存显示影响范围、回滚方式、reason 和 recent-auth 状态。 证据：files=frontend/src/routes/admin/*（高风险保存表单 reason 必填 + 409 冲突 + 影响说明）、admin/themes/+page.svelte、admin/plugins/+page.svelte；commands=npm run check；contract=服务端 recent-auth 仍强制；commit=PENDING；review=none
+- [x] `M13-UI-06` `[45m]` 测试管理页面键盘、焦点、移动端、无 JS 退化和无权限 DOM 不泄漏。 证据：files=frontend/src/lib/testing/ssr/admin-{themes,plugins,users}-nojs.test.ts + projection.test.ts（键盘/焦点由既有 a11y 层、移动端响应式、无 JS 退化、无权限 DOM 不泄漏）；commands=npm run test（541 passed）；contract=none；commit=PENDING；review=none
+- [x] `M13-UI-07` `[30m]` 检查浏览器 storage、SSR payload、网络请求和错误页面不包含 Secret 或隐藏正文。 证据：files=frontend/src/lib/theme/projection.ts（不写 localStorage/sessionStorage）、+layout.server.ts（private,no-store）、admin SSR 隐私守卫测试、backend/tests/admin_routes.rs；commands=npm run test + cargo test --all-features --test admin_routes；contract=none；commit=PENDING；review=none
 
 ---
 

@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     http::HeaderMap,
-    response::Json,
+    response::{IntoResponse, Json},
     routing::get,
     Router,
 };
@@ -119,6 +119,17 @@ async fn update_me(
     update
         .validate()
         .map_err(|msg| AppError::bad_request(msg, request_id, None))?;
+    // M13-THEME-07：PATCH /me 的 theme 也必须是 default 或已安装且激活的
+    // 数据主题（服务端再次校验；未知/停用/损坏 → 400）。
+    if let Some(theme_name) = update.theme_name.as_deref() {
+        if theme_name != crate::theme::DEFAULT_THEME_NAME {
+            crate::theme::load_theme_checked(pool, theme_name)
+                .await
+                .map_err(|_| {
+                    AppError::bad_request("theme not installed or not active", request_id, None)
+                })?;
+        }
+    }
     update_profile(pool, &user.id, update, if_match)
         .await
         .map_err(|e| match e {
@@ -212,8 +223,10 @@ async fn get_public_user(
     }
 }
 
-/// GET /api/v1/me/preferences/theme — 获取主题偏好（user_preferences.theme_name，
-/// 缺失返回 default）
+/// GET /api/v1/me/preferences/theme — 获取主题偏好（M13-THEME-07）。///
+/// 返回用户偏好主题名 + 该主题 `revision`（与 SSR/浏览器/缓存共享，
+/// M13-THEME-05）；偏好指向不存在/停用/损坏主题时回退 default 并返回
+/// `effective` 字段（前端据此提示回退，无需缓存过期）。
 async fn get_theme_pref(
     State(state): State<AppState>,
     auth: AuthSession,
@@ -224,36 +237,30 @@ async fn get_theme_pref(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    let theme = match pool {
-        Either::Left(p) => sqlx::query_scalar::<_, Option<String>>(
-            "SELECT theme_name FROM user_preferences WHERE user_id = ?",
-        )
-        .bind(&user.id)
-        .fetch_optional(p)
+    let view = crate::theme::user_theme_preference(pool, &user.id)
         .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        .flatten(),
-        Either::Right(p) => sqlx::query_scalar::<_, Option<String>>(
-            "SELECT theme_name FROM user_preferences WHERE user_id = ?",
-        )
-        .bind(&user.id)
-        .fetch_optional(p)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        .flatten(),
-    };
-    Ok(Json(
-        json!({ "theme": theme.unwrap_or_else(|| "default".to_string()) }),
-    ))
+        .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
+    Ok(Json(json!({
+        "theme": view.theme,
+        "revision": view.revision,
+        "effective": view.effective,
+    })))
 }
 
-/// PUT /api/v1/me/preferences/theme — 更新主题偏好（持久化
-/// user_preferences.theme_name，行首访惰性创建）
+/// PUT /api/v1/me/preferences/theme — 更新主题偏好（M13-THEME-07）。
+///
+/// 安全约束：
+/// - `If-Match` 必须等于当前生效主题 revision（乐观锁；冲突 → 409
+///   `version_conflict`，前端刷新后再保存）；
+/// - 只允许 default 或已安装且 active 的数据主题名（服务端再次校验；
+///   不在列表内的名称 400）；
+/// - 响应带 `Cache-Control: private, no-store`（个人化，不进共享缓存）。
 async fn update_theme_pref(
     State(state): State<AppState>,
     auth: AuthSession,
+    headers: axum::http::HeaderMap,
     Json(body): Json<Value>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<impl axum::response::IntoResponse, AppError> {
     let request_id = "update_theme_pref";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -265,58 +272,34 @@ async fn update_theme_pref(
         .get("theme")
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::bad_request("theme is required", request_id, None))?;
-
-    if !matches!(theme, "default" | "dark" | "light") {
+    if !crate::theme::validate_theme_name(theme) {
         return Err(AppError::bad_request(
-            "theme must be one of: default, dark, light",
+            "invalid theme name (lowercase ascii/digits/hyphens, <=64)",
             request_id,
             None,
         ));
     }
+    let expected_revision: i64 = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::bad_request("If-Match header is required", request_id, None))?
+        .trim()
+        .parse()
+        .map_err(|_| AppError::bad_request("If-Match must be an integer", request_id, None))?;
 
-    let now = chrono::Utc::now().timestamp();
-    match pool {
-        Either::Left(p) => {
-            sqlx::query(
-                "INSERT OR IGNORE INTO user_preferences (user_id, timezone, locale, updated_at)
-                 VALUES (?, 'UTC', 'zh-CN', ?)",
-            )
-            .bind(&user.id)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "UPDATE user_preferences SET theme_name = ?, updated_at = ? WHERE user_id = ?",
-            )
-            .bind(theme)
-            .bind(now)
-            .bind(&user.id)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-        Either::Right(p) => {
-            sqlx::query(
-                "INSERT IGNORE INTO user_preferences (user_id, timezone, locale, updated_at)
-                 VALUES (?, 'UTC', 'zh-CN', ?)",
-            )
-            .bind(&user.id)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            sqlx::query(
-                "UPDATE user_preferences SET theme_name = ?, updated_at = ? WHERE user_id = ?",
-            )
-            .bind(theme)
-            .bind(now)
-            .bind(&user.id)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        }
-    }
+    let view = crate::theme::update_user_theme_preference(pool, &user.id, theme, expected_revision)
+        .await
+        .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
 
-    Ok(Json(json!({ "theme": theme })))
+    let mut response = axum::Json(json!({
+        "theme": view.theme,
+        "revision": view.revision,
+        "effective": view.effective,
+    }))
+    .into_response();
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
 }

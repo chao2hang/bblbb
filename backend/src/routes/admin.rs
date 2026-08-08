@@ -7,7 +7,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use serde_json::{json, Value};
-use sqlx::Row;
+use sqlx::{Either, Row};
 
 use crate::app::AppState;
 use crate::audit::AuditEntry;
@@ -63,7 +63,7 @@ fn required_reason(body: &Value, request_id: &str) -> Result<String, AppError> {
 ///
 /// M6/M7 域路由委托给按域分区的子模块（admin_storage / admin_download /
 /// admin_activity / admin_shop），由对应域 agent 填充，避免单文件并发冲突。
-use super::{admin_activity, admin_download, admin_shop, admin_storage};
+use super::{admin_activity, admin_download, admin_plugins, admin_shop, admin_storage};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -192,43 +192,968 @@ pub fn router() -> Router<AppState> {
             "/api/v1/admin/themes/{name}/settings",
             patch(update_theme_settings),
         )
+        // 配置型插件（M13-PLUGIN；不在冻结 193 契约中，随 PLUGIN.md 发布）
+        .merge(admin_plugins::router())
 }
 
-async fn list_admin_users(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminUsers")
+/// 领域权限门（M13-ADMIN-02）：`user.manage` / `role.manage` 等细分权限。
+async fn require_permission(
+    pool: &crate::db::DatabasePool,
+    user_id: &str,
+    permission: &str,
+    request_id: &str,
+) -> Result<(), AppError> {
+    let decision = authorize_action(pool, user_id, permission, None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(crate::authz::enforce::deny_to_error(
+            crate::authz::enforce::denied_reason(&decision)
+                .unwrap_or(crate::authz::decision::DenyReason::DefaultDeny),
+            request_id,
+        ));
+    }
+    Ok(())
 }
-async fn create_admin_user(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("createAdminUser")
+
+/// 管理用户行投影（GET /api/v1/admin/users 契约；与 users/dto.rs 的
+/// `AdminUser` 一致——不含密码哈希/恢复码/会话等凭据）。
+async fn admin_user_json(pool: &crate::db::DatabasePool, row: &sqlx::sqlite::SqliteRow) -> Value {
+    let user_id: String = row.get("id");
+    let roles = admin_roles_for_user(pool, &user_id)
+        .await
+        .unwrap_or_default();
+    json!({
+        "id": row.get::<String,_>("id"),
+        "username": row.get::<String,_>("username_normalized"),
+        "email": row.get::<String,_>("email_normalized"),
+        "email_verified": row.get::<i64,_>("email_verified") != 0,
+        "status": row.get::<String,_>("status"),
+        "display_name": row.get::<Option<String>,_>("display_name"),
+        "level": row.get::<i64,_>("level"),
+        "roles": roles,
+        "created_at": row.get::<i64,_>("created_at"),
+        "updated_at": row.get::<i64,_>("updated_at"),
+        "last_login_at": row.get::<Option<i64>,_>("last_login_at"),
+        "delete_requested_at": row.get::<Option<i64>,_>("delete_requested_at"),
+        "deleted_at": row.get::<Option<i64>,_>("deleted_at"),
+        "version": row.get::<i64,_>("version"),
+    })
 }
+
+async fn admin_user_json_mysql(
+    pool: &crate::db::DatabasePool,
+    row: &sqlx::mysql::MySqlRow,
+) -> Value {
+    let user_id: String = row.get("id");
+    let roles = admin_roles_for_user(pool, &user_id)
+        .await
+        .unwrap_or_default();
+    json!({
+        "id": row.get::<String,_>("id"),
+        "username": row.get::<String,_>("username_normalized"),
+        "email": row.get::<String,_>("email_normalized"),
+        "email_verified": row.get::<i64,_>("email_verified") != 0,
+        "status": row.get::<String,_>("status"),
+        "display_name": row.get::<Option<String>,_>("display_name"),
+        "level": row.get::<i64,_>("level"),
+        "roles": roles,
+        "created_at": row.get::<i64,_>("created_at"),
+        "updated_at": row.get::<i64,_>("updated_at"),
+        "last_login_at": row.get::<Option<i64>,_>("last_login_at"),
+        "delete_requested_at": row.get::<Option<i64>,_>("delete_requested_at"),
+        "deleted_at": row.get::<Option<i64>,_>("deleted_at"),
+        "version": row.get::<i64,_>("version"),
+    })
+}
+
+/// 用户生效全局角色名（管理视图；M13-ADMIN-02）。
+async fn admin_roles_for_user(
+    pool: &crate::db::DatabasePool,
+    user_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let rows: Vec<(String,)> = match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ? ORDER BY r.name",
+        )
+        .bind(user_id)
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), "listAdminUsersRoles"))?,
+        Either::Right(p) => sqlx::query_as(
+            "SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ? ORDER BY r.name",
+        )
+        .bind(user_id)
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), "listAdminUsersRoles"))?,
+    };
+    Ok(rows.into_iter().map(|(name,)| name).collect())
+}
+
+/// GET /api/v1/admin/users — 分页用户列表（user.manage；管理 DTO 不含凭据）。
+async fn list_admin_users(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "listAdminUsers";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "user.manage", request_id).await?;
+    let after = params.get("after").and_then(|v| v.parse::<i64>().ok());
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(30)
+        .clamp(1, 200);
+    let mut items = Vec::new();
+    let mut next_cursor: Option<i64> = None;
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query(
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                 FROM users WHERE deleted_at IS NULL AND (? IS NULL OR created_at < ?)
+                 ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(after)
+            .bind(after)
+            .bind(limit + 1)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            for (i, row) in rows.iter().enumerate() {
+                if i as i64 >= limit {
+                    next_cursor = Some(row.get("created_at"));
+                    break;
+                }
+                items.push(admin_user_json(pool, row).await);
+            }
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query(
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                 FROM users WHERE deleted_at IS NULL AND (? IS NULL OR created_at < ?)
+                 ORDER BY created_at DESC LIMIT ?",
+            )
+            .bind(after)
+            .bind(after)
+            .bind(limit + 1)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            for (i, row) in rows.iter().enumerate() {
+                if i as i64 >= limit {
+                    next_cursor = Some(row.get("created_at"));
+                    break;
+                }
+                items.push(admin_user_json_mysql(pool, row).await);
+            }
+        }
+    }
+    Ok(Json(json!({ "items": items, "next_cursor": next_cursor })))
+}
+
+/// POST /api/v1/admin/users — 管理员创建用户（pending 状态；随机初始密码仅
+/// 用于占位，用户须走密码重置；reason + recent-auth + 审计）。
+async fn create_admin_user(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "createAdminUser";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "user.manage", request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+
+    let username = body
+        .get("username")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("username required", request_id, None))?
+        .trim()
+        .to_string();
+    let email = body
+        .get("email")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("email required", request_id, None))?
+        .trim()
+        .to_string();
+    let display_name = body
+        .get("display_name")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if username.is_empty() || email.is_empty() || !email.contains('@') || username.len() > 64 {
+        return Err(AppError::bad_request(
+            "invalid username/email",
+            request_id,
+            None,
+        ));
+    }
+    // 随机占位密码（不可知；用户走密码重置激活）。
+    let placeholder = uuid::Uuid::now_v7().to_string();
+    let password_hash = crate::auth::hash_password(&placeholder)
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let now = crate::outbox::now_millis();
+    let user_id = uuid::Uuid::now_v7().to_string();
+    let affected = match pool {
+        Either::Left(p) => {
+
+            sqlx::query(
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, email_verified, display_name, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 'pending', 0, ?, ?, ?)",
+            )
+            .bind(&user_id)
+            .bind(&username)
+            .bind(&email)
+            .bind(&password_hash)
+            .bind(&display_name)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| {
+        if e.to_string().contains("UNIQUE") || e.to_string().contains("Duplicate") {
+            AppError::bad_request(
+                "username or email already exists",
+                request_id,
+                None,
+            )
+        } else {
+            AppError::internal(e.to_string(), request_id)
+        }
+    })?
+    .rows_affected()
+        }
+        Either::Right(p) => {
+
+            sqlx::query(
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, email_verified, display_name, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 'pending', 0, ?, ?, ?)",
+            )
+            .bind(&user_id)
+            .bind(&username)
+            .bind(&email)
+            .bind(&password_hash)
+            .bind(&display_name)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| {
+        if e.to_string().contains("UNIQUE") || e.to_string().contains("Duplicate") {
+            AppError::bad_request(
+                "username or email already exists",
+                request_id,
+                None,
+            )
+        } else {
+            AppError::internal(e.to_string(), request_id)
+        }
+    })?
+    .rows_affected()
+        }
+    };
+    if affected == 0 {
+        return Err(AppError::bad_request(
+            "username or email already exists",
+            request_id,
+            None,
+        ));
+    }
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let _ = crate::audit::AuditEntry::user_action(&user.id, "admin.user.create")
+        .with_target("user", &user_id)
+        .with_reason(&reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "id": user_id, "username": username, "status": "pending" })),
+    ))
+}
+
+/// GET /api/v1/admin/users/{id} — 单个用户管理视图（user.manage）。
 async fn get_admin_user(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("getAdminUser")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "getAdminUser";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "user.manage", request_id).await?;
+    let view = match pool {
+        Either::Left(p) => {
+            let row = sqlx::query(
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                 FROM users WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            match row {
+                Some(row) => Some(admin_user_json(pool, &row).await),
+                None => None,
+            }
+        }
+        Either::Right(p) => {
+            let row = sqlx::query(
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                 FROM users WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            match row {
+                Some(row) => Some(admin_user_json_mysql(pool, &row).await),
+                None => None,
+            }
+        }
+    };
+    match view {
+        Some(v) => Ok(Json(v)),
+        None => Err(AppError::not_found("user not found", request_id)),
+    }
 }
+
+/// PATCH /api/v1/admin/users/{id} — 更新用户（状态/角色 assignment；
+/// If-Match version + reason + recent-auth + 审计；**禁止**改余额/流水）。
 async fn update_admin_user(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminUser")
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "updateAdminUser";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "user.manage", request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let expected_version: i64 = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::bad_request("If-Match header is required", request_id, None))?
+        .trim()
+        .parse()
+        .map_err(|_| AppError::bad_request("If-Match must be an integer", request_id, None))?;
+
+    // 校验目标存在 + 版本
+    let current_version: Option<i64> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT version FROM users WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT version FROM users WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    let Some(current_version) = current_version else {
+        return Err(AppError::not_found("user not found", request_id));
+    };
+    if current_version != expected_version {
+        return Err(AppError::version_conflict(
+            "user version conflict",
+            request_id,
+        ));
+    }
+
+    let status = body
+        .get("status")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(status) = &status {
+        if !matches!(
+            status.as_str(),
+            "pending" | "active" | "restricted" | "banned"
+        ) {
+            return Err(AppError::bad_request("invalid status", request_id, None));
+        }
+    }
+    let display_name = body
+        .get("display_name")
+        .map(|v| v.as_str().map(str::to_string));
+    let now = crate::outbox::now_millis();
+    let new_version = expected_version + 1;
+    let affected = match pool {
+        Either::Left(p) => sqlx::query(
+            "UPDATE users SET version = ?, updated_at = ?,
+                    status = COALESCE(?, status),
+                    display_name = COALESCE(?, display_name)
+                 WHERE id = ? AND version = ?",
+        )
+        .bind(new_version)
+        .bind(now)
+        .bind(&status)
+        .bind(&display_name)
+        .bind(&id)
+        .bind(expected_version)
+        .execute(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .rows_affected(),
+        Either::Right(p) => sqlx::query(
+            "UPDATE users SET version = ?, updated_at = ?,
+                    status = COALESCE(?, status),
+                    display_name = COALESCE(?, display_name)
+                 WHERE id = ? AND version = ?",
+        )
+        .bind(new_version)
+        .bind(now)
+        .bind(&status)
+        .bind(&display_name)
+        .bind(&id)
+        .bind(expected_version)
+        .execute(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .rows_affected(),
+    };
+    if affected == 0 {
+        return Err(AppError::version_conflict(
+            "user version conflict",
+            request_id,
+        ));
+    }
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let _ = crate::audit::AuditEntry::user_action(&user.id, "admin.user.update")
+        .with_target("user", &id)
+        .with_reason(&reason)
+        .with_metadata(json!({ "status": status, "version": new_version }))
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    get_admin_user(State(state), auth, Path(id)).await
 }
-async fn list_admin_roles(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminRoles")
+
+// ────────────────────────── 角色管理（M13-ADMIN-02）───────────────────────
+
+fn role_json(r: &sqlx::sqlite::SqliteRow, permissions: Vec<String>) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "name": r.get::<String,_>("name"),
+        "display_name": r.get::<String,_>("display_name"),
+        "description": r.get::<Option<String>,_>("description"),
+        "is_system": r.get::<i64,_>("is_system") != 0,
+        "permissions": permissions,
+        "created_at": r.get::<i64,_>("created_at"),
+        "updated_at": r.get::<i64,_>("updated_at"),
+    })
 }
-async fn create_admin_role(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("createAdminRole")
+
+fn role_json_mysql(r: &sqlx::mysql::MySqlRow, permissions: Vec<String>) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "name": r.get::<String,_>("name"),
+        "display_name": r.get::<String,_>("display_name"),
+        "description": r.get::<Option<String>,_>("description"),
+        "is_system": r.get::<i64,_>("is_system") != 0,
+        "permissions": permissions,
+        "created_at": r.get::<i64,_>("created_at"),
+        "updated_at": r.get::<i64,_>("updated_at"),
+    })
 }
+
+async fn role_permissions(
+    pool: &crate::db::DatabasePool,
+    role_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let rows: Vec<(String,)> = match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT p.name FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = ? ORDER BY p.name",
+        )
+        .bind(role_id)
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), "listAdminRoles"))?,
+        Either::Right(p) => sqlx::query_as(
+            "SELECT p.name FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = ? ORDER BY p.name",
+        )
+        .bind(role_id)
+        .fetch_all(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), "listAdminRoles"))?,
+    };
+    Ok(rows.into_iter().map(|(name,)| name).collect())
+}
+
+/// GET /api/v1/admin/roles — 角色列表（role.manage）。
+async fn list_admin_roles(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "listAdminRoles";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "role.manage", request_id).await?;
+    let mut items = Vec::new();
+    match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query(
+                "SELECT id, name, display_name, description, is_system, created_at, updated_at FROM roles ORDER BY is_system DESC, name",
+            )
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            for row in &rows {
+                let role_id: String = row.get("id");
+                let permissions = role_permissions(pool, &role_id).await?;
+                items.push(role_json(row, permissions));
+            }
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query(
+                "SELECT id, name, display_name, description, is_system, created_at, updated_at FROM roles ORDER BY is_system DESC, name",
+            )
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            for row in &rows {
+                let role_id: String = row.get("id");
+                let permissions = role_permissions(pool, &role_id).await?;
+                items.push(role_json_mysql(row, permissions));
+            }
+        }
+    }
+    Ok(Json(json!({ "items": items })))
+}
+
+/// POST /api/v1/admin/roles — 创建自定义角色（reason + recent-auth + 审计；
+/// 权限必须来自注册表；system 角色不可由 API 创建）。
+async fn create_admin_role(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "createAdminRole";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "role.manage", request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("name required", request_id, None))?
+        .trim()
+        .to_string();
+    let display_name = body
+        .get("display_name")
+        .and_then(Value::as_str)
+        .unwrap_or(&name)
+        .to_string();
+    let description = body
+        .get("description")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let permissions: Vec<String> = string_array(body.get("permissions")).unwrap_or_default();
+    if name.is_empty()
+        || name.len() > 64
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    {
+        return Err(AppError::bad_request(
+            "invalid role name (lowercase ascii/digits/underscore)",
+            request_id,
+            None,
+        ));
+    }
+    if permissions.is_empty() {
+        return Err(AppError::bad_request(
+            "at least one permission required",
+            request_id,
+            None,
+        ));
+    }
+    // 权限名必须全部存在于注册表（拒绝未知/伪造权限名）。
+    let registry: Vec<String> = crate::authz::PERMISSION_REGISTRY
+        .iter()
+        .map(|p| p.name.to_string())
+        .collect();
+    for p in &permissions {
+        if !registry.contains(p) {
+            return Err(AppError::bad_request(
+                format!("unknown permission '{p}'"),
+                request_id,
+                None,
+            ));
+        }
+    }
+    let now = crate::outbox::now_millis();
+    let role_id = uuid::Uuid::now_v7().to_string();
+    let created = match pool {
+        Either::Left(p) => {
+
+            sqlx::query(
+                "INSERT INTO roles (id, name, display_name, description, is_system, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 0, ?, ?)",
+            )
+            .bind(&role_id)
+            .bind(&name)
+            .bind(&display_name)
+            .bind(&description)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| {
+        if e.to_string().contains("UNIQUE") || e.to_string().contains("Duplicate") {
+            AppError::bad_request(
+                "role name already exists",
+                request_id,
+                None,
+            )
+        } else {
+            AppError::internal(e.to_string(), request_id)
+        }
+    })
+            .map(|r| r.rows_affected())?
+        }
+        Either::Right(p) => {
+
+            sqlx::query(
+                "INSERT INTO roles (id, name, display_name, description, is_system, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, 0, ?, ?)",
+            )
+            .bind(&role_id)
+            .bind(&name)
+            .bind(&display_name)
+            .bind(&description)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| {
+        if e.to_string().contains("UNIQUE") || e.to_string().contains("Duplicate") {
+            AppError::bad_request(
+                "role name already exists",
+                request_id,
+                None,
+            )
+        } else {
+            AppError::internal(e.to_string(), request_id)
+        }
+    })
+            .map(|r| r.rows_affected())?
+        }
+    };
+    if created == 0 {
+        return Err(AppError::bad_request(
+            "role name already exists",
+            request_id,
+            None,
+        ));
+    }
+    // 写入 role_permissions
+    for perm_name in &permissions {
+        let perm_id: Option<String> = match pool {
+            Either::Left(p) => sqlx::query_scalar("SELECT id FROM permissions WHERE name = ?")
+                .bind(perm_name)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            Either::Right(p) => sqlx::query_scalar("SELECT id FROM permissions WHERE name = ?")
+                .bind(perm_name)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        };
+        if let Some(perm_id) = perm_id {
+            let _ = match pool {
+                Either::Left(p) => sqlx::query(
+                    "INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                )
+                .bind(&role_id)
+                .bind(&perm_id)
+                .execute(p)
+                .await
+                .map(|_| ()),
+                Either::Right(p) => sqlx::query(
+                    "INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                )
+                .bind(&role_id)
+                .bind(&perm_id)
+                .execute(p)
+                .await
+                .map(|_| ()),
+            };
+        }
+    }
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let _ = crate::audit::AuditEntry::user_action(&user.id, "admin.role.create")
+        .with_target("role", &role_id)
+        .with_reason(&reason)
+        .with_metadata(json!({ "name": name, "permissions": permissions }))
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "id": role_id, "name": name })),
+    ))
+}
+
+/// GET /api/v1/admin/roles/{id} — 单角色（role.manage）。
 async fn get_admin_role(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("getAdminRole")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "getAdminRole";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "role.manage", request_id).await?;
+    let view = match pool {
+        Either::Left(p) => {
+            let row = sqlx::query(
+                "SELECT id, name, display_name, description, is_system, created_at, updated_at FROM roles WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            match row {
+                Some(r) => {
+                    let role_id: String = r.get("id");
+                    let permissions = role_permissions(pool, &role_id).await?;
+                    Some(role_json(&r, permissions))
+                }
+                None => None,
+            }
+        }
+        Either::Right(p) => {
+            let row = sqlx::query(
+                "SELECT id, name, display_name, description, is_system, created_at, updated_at FROM roles WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            match row {
+                Some(r) => {
+                    let role_id: String = r.get("id");
+                    let permissions = role_permissions(pool, &role_id).await?;
+                    Some(role_json_mysql(&r, permissions))
+                }
+                None => None,
+            }
+        }
+    };
+    let Some(view) = view else {
+        return Err(AppError::not_found("role not found", request_id));
+    };
+    Ok(Json(view))
 }
+
+/// PATCH /api/v1/admin/roles/{id} — 更新角色（If-Match updated_at + reason +
+/// recent-auth + 审计；system 角色仅可改 display_name/description）。
 async fn update_admin_role(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("updateAdminRole")
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "updateAdminRole";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "role.manage", request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let expected_version: i64 = headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::bad_request("If-Match header is required", request_id, None))?
+        .trim()
+        .parse()
+        .map_err(|_| AppError::bad_request("If-Match must be an integer", request_id, None))?;
+
+    let row = match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "SELECT id, name, display_name, description, is_system, created_at, updated_at FROM roles WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .map(|r| (r.get::<i64, _>("is_system"), r.get::<i64, _>("updated_at")))
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "SELECT id, name, display_name, description, is_system, created_at, updated_at FROM roles WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .map(|r| (r.get::<i64, _>("is_system"), r.get::<i64, _>("updated_at")))
+        }
+    };
+    let Some((is_system, updated_at)) = row else {
+        return Err(AppError::not_found("role not found", request_id));
+    };
+    if updated_at != expected_version {
+        return Err(AppError::version_conflict(
+            "role version conflict",
+            request_id,
+        ));
+    }
+    let display_name = body
+        .get("display_name")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let description = body
+        .get("description")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let permissions: Option<Vec<String>> = string_array(body.get("permissions"));
+    let now = crate::outbox::now_millis();
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "UPDATE roles SET display_name = COALESCE(?, display_name), description = COALESCE(?, description), updated_at = ? WHERE id = ? AND updated_at = ?",
+            )
+            .bind(&display_name)
+            .bind(&description)
+            .bind(now)
+            .bind(&id)
+            .bind(expected_version)
+            .execute(p)
+            .await
+            .map(|_| ())
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "UPDATE roles SET display_name = COALESCE(?, display_name), description = COALESCE(?, description), updated_at = ? WHERE id = ? AND updated_at = ?",
+            )
+            .bind(&display_name)
+            .bind(&description)
+            .bind(now)
+            .bind(&id)
+            .bind(expected_version)
+            .execute(p)
+            .await
+            .map(|_| ())
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
+    };
+    // 权限更新（非 system 角色）：先清后插，权限名必须来自注册表。
+    if let Some(permissions) = permissions {
+        if is_system != 0 {
+            return Err(AppError::bad_request(
+                "system role permissions cannot be changed",
+                request_id,
+                None,
+            ));
+        }
+        let registry: Vec<String> = crate::authz::PERMISSION_REGISTRY
+            .iter()
+            .map(|p| p.name.to_string())
+            .collect();
+        for p in &permissions {
+            if !registry.contains(p) {
+                return Err(AppError::bad_request(
+                    format!("unknown permission '{p}'"),
+                    request_id,
+                    None,
+                ));
+            }
+        }
+        let _ = match pool {
+            Either::Left(p) => sqlx::query("DELETE FROM role_permissions WHERE role_id = ?")
+                .bind(&id)
+                .execute(p)
+                .await
+                .map(|_| ()),
+            Either::Right(p) => sqlx::query("DELETE FROM role_permissions WHERE role_id = ?")
+                .bind(&id)
+                .execute(p)
+                .await
+                .map(|_| ()),
+        };
+        for perm_name in &permissions {
+            let perm_id: Option<String> = match pool {
+                Either::Left(p) => sqlx::query_scalar("SELECT id FROM permissions WHERE name = ?")
+                    .bind(perm_name)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+                Either::Right(p) => sqlx::query_scalar("SELECT id FROM permissions WHERE name = ?")
+                    .bind(perm_name)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            };
+            if let Some(perm_id) = perm_id {
+                let _ = match pool {
+                    Either::Left(p) => sqlx::query(
+                        "INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                    )
+                    .bind(&id)
+                    .bind(&perm_id)
+                    .execute(p)
+                    .await
+                    .map(|_| ()),
+                    Either::Right(p) => sqlx::query(
+                        "INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                    )
+                    .bind(&id)
+                    .bind(&perm_id)
+                    .execute(p)
+                    .await
+                    .map(|_| ()),
+                };
+            }
+        }
+    }
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let _ = crate::audit::AuditEntry::user_action(&user.id, "admin.role.update")
+        .with_target("role", &id)
+        .with_reason(&reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    get_admin_role(State(state), auth, Path(id)).await
 }
 async fn list_admin_boards(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
     not_implemented("listAdminBoards")
@@ -385,11 +1310,81 @@ async fn update_admin_board(
     let updated = update_board(pool, &user.id, &id, input, if_match, &reason, request_id).await?;
     Ok(Json(updated))
 }
+/// GET /api/v1/admin/boards/{id} — 单板块（board.manage；M13-ADMIN-03）。
 async fn get_admin_board(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("getAdminBoard")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "getAdminBoard";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "board.manage", request_id).await?;
+    let row = match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
+                 FROM boards WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .map(|r| board_admin_row_json(&r))
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
+                 FROM boards WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .map(|r| board_admin_row_json_mysql(&r))
+        }
+    };
+    let Some(view) = row else {
+        return Err(AppError::not_found("board not found", request_id));
+    };
+    Ok(Json(view))
+}
+
+fn board_admin_row_json(r: &sqlx::sqlite::SqliteRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "slug": r.get::<String,_>("slug"),
+        "name": r.get::<String,_>("name"),
+        "description": r.get::<Option<String>,_>("description"),
+        "sort_order": r.get::<i64,_>("sort_order"),
+        "parent_id": r.get::<Option<String>,_>("parent_id"),
+        "visibility": r.get::<String,_>("visibility"),
+        "posting_mode": r.get::<String,_>("posting_mode"),
+        "is_active": r.get::<i64,_>("is_active") != 0,
+        "version": r.get::<i64,_>("updated_at"),
+        "created_at": r.get::<i64,_>("created_at"),
+        "updated_at": r.get::<i64,_>("updated_at"),
+    })
+}
+
+fn board_admin_row_json_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "slug": r.get::<String,_>("slug"),
+        "name": r.get::<String,_>("name"),
+        "description": r.get::<Option<String>,_>("description"),
+        "sort_order": r.get::<i64,_>("sort_order"),
+        "parent_id": r.get::<Option<String>,_>("parent_id"),
+        "visibility": r.get::<String,_>("visibility"),
+        "posting_mode": r.get::<String,_>("posting_mode"),
+        "is_active": r.get::<i64,_>("is_active") != 0,
+        "version": r.get::<i64,_>("updated_at"),
+        "created_at": r.get::<i64,_>("created_at"),
+        "updated_at": r.get::<i64,_>("updated_at"),
+    })
 }
 /// GET /api/v1/admin/tags — 全部标签（含禁用状态，M03-BOARDS-06）
 async fn list_admin_tags(
@@ -562,11 +1557,75 @@ async fn update_admin_tag(
     let updated = update_tag(pool, &user.id, &id, input, if_match, &reason, request_id).await?;
     Ok(Json(updated))
 }
+/// GET /api/v1/admin/tags/{id} — 单标签（tag.manage；M13-ADMIN-03）。
 async fn get_admin_tag(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("getAdminTag")
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "getAdminTag";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "tag.manage", request_id).await?;
+    let row = match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "SELECT id, slug, name, description, color, group_id, usage_count, is_active, created_at, updated_at
+                 FROM tags WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .map(|r| tag_admin_row_json(&r))
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "SELECT id, slug, name, description, color, group_id, usage_count, is_active, created_at, updated_at
+                 FROM tags WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .map(|r| tag_admin_row_json_mysql(&r))
+        }
+    };
+    let Some(view) = row else {
+        return Err(AppError::not_found("tag not found", request_id));
+    };
+    Ok(Json(view))
+}
+
+fn tag_admin_row_json(r: &sqlx::sqlite::SqliteRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "slug": r.get::<String,_>("slug"),
+        "name": r.get::<String,_>("name"),
+        "description": r.get::<String,_>("description"),
+        "color": r.get::<Option<String>,_>("color"),
+        "group_id": r.get::<Option<String>,_>("group_id"),
+        "usage_count": r.get::<i64,_>("usage_count"),
+        "is_active": r.get::<i64,_>("is_active") != 0,
+        "version": r.get::<i64,_>("updated_at"),
+    })
+}
+
+fn tag_admin_row_json_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
+    json!({
+        "id": r.get::<String,_>("id"),
+        "slug": r.get::<String,_>("slug"),
+        "name": r.get::<String,_>("name"),
+        "description": r.get::<String,_>("description"),
+        "color": r.get::<Option<String>,_>("color"),
+        "group_id": r.get::<Option<String>,_>("group_id"),
+        "usage_count": r.get::<i64,_>("usage_count"),
+        "is_active": r.get::<i64,_>("is_active") != 0,
+        "version": r.get::<i64,_>("updated_at"),
+    })
 }
 /// GET /api/v1/admin/ai/config — Provider 列表（脱敏）+ 默认策略（M09-UI-06）。
 async fn get_admin_ai_config(
@@ -1107,7 +2166,8 @@ fn video_policy_error_to_app(e: VideoError, request_id: &str) -> AppError {
 
 /// 高风险管理操作前置：会话必须处于近期认证窗口（M02-MFA-07 step-up，
 /// M11-CONSENT-05 recent-auth）。会话缺失/过期/超出窗口 → 拒绝（fail closed）。
-async fn require_recent_auth(
+/// `pub(crate)` 供 admin_plugins/admin 各域路由复用。
+pub(crate) async fn require_recent_auth(
     state: &AppState,
     jar: &CookieJar,
     request_id: &str,
@@ -1830,26 +2890,193 @@ async fn retry_requested_refund(
         .await;
     Ok(Json(view))
 }
-async fn list_themes(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("get_admin_themes")
+// ────────────────────────── 主题管理（M13-THEME）──────────────────────────
+
+/// GET /api/v1/admin/themes — 全部主题（含禁用/隔离态；admin.manage）。
+async fn list_themes(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_themes";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let themes = crate::theme::list_themes(pool)
+        .await
+        .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
+    Ok(Json(json!({
+        "themes": themes.iter().map(|t| t.json()).collect::<Vec<_>>(),
+        "default": crate::theme::DEFAULT_THEME_NAME,
+        "schema_version": crate::theme::THEME_SCHEMA_VERSION,
+    })))
 }
-async fn upload_theme_package(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("post_admin_themes_data_packages")
+
+/// POST /api/v1/admin/themes/data-packages — 上传数据型主题（admin.manage +
+/// reason + recent-auth + 审计；M13-THEME-06 走附件安全处理语义：大小限制、
+/// 解压/内容扫描、版本校验、隔离状态 disabled）。
+async fn upload_theme_package(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "post_admin_themes_data_packages";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+
+    let raw = serde_json::to_vec(&body)
+        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+    if raw.len() > crate::theme::MAX_PACKAGE_BYTES {
+        return Err(AppError::bad_request(
+            "theme package exceeds size limit",
+            request_id,
+            None,
+        ));
+    }
+    let installed = crate::theme::upload_theme_package(pool, &body, &user.id)
+        .await
+        .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let _ = AuditEntry::user_action(&user.id, "theme.upload")
+        .with_target("theme", &installed.name)
+        .with_reason(&reason)
+        .with_metadata(json!({ "status": "disabled", "revision": 1 }))
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "theme": installed.json() })),
+    ))
 }
-async fn set_default_theme(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("put_admin_themes_default")
+
+/// PUT /api/v1/admin/themes/default — 设置站点默认主题（激活；reason + 审计）。
+async fn set_default_theme(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "put_admin_themes_default";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    let name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("name required", request_id, None))?
+        .trim()
+        .to_string();
+    let updated = crate::theme::set_default_theme(pool, &name, &user.id, &reason)
+        .await
+        .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let _ = AuditEntry::user_action(&user.id, "theme.default.update")
+        .with_target("theme", &name)
+        .with_reason(&reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok(Json(json!({ "theme": updated.json() })))
 }
+
+/// DELETE /api/v1/admin/themes/{name} — 删除主题（内置 default 与当前站点
+/// 默认不可删除；reason + 审计）。
 async fn delete_theme(
-    State(_state): State<AppState>,
-    Path(_name): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("delete_admin_themes_name_")
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    Path(name): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "delete_admin_themes_name_";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin(pool, &user.id, request_id).await?;
+    let token = require_recent_auth(&state, &jar, request_id).await?;
+    let reason = required_reason(&body, request_id)?;
+    crate::theme::delete_theme(pool, &name, &user.id, &reason)
+        .await
+        .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
+    let _ = crate::auth::session::mark_step_up(pool, &token).await;
+    let _ = AuditEntry::user_action(&user.id, "theme.delete")
+        .with_target("theme", &name)
+        .with_reason(&reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+    Ok(Json(json!({ "deleted": name })))
 }
+
+/// PATCH /api/v1/admin/themes/{name}/settings — 更新 Token 设置（closed schema
+/// 校验 + 新修订 + If-Match revision + reason + recent-auth + 审计；
+/// 变更立即提升 theme_revision，SSR/浏览器/缓存/偏好同步）。
 async fn update_theme_settings(
-    State(_state): State<AppState>,
-    Path(_name): Path<String>,
-) -> (StatusCode, Json<Value>) {
-    not_implemented("patch_admin_themes_name_settings")
+    State(state): State<AppState>,
+    jar: CookieJar,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    #[allow(clippy::result_large_err)] // AppError 为统一错误类型
+    {
+        let request_id = "patch_admin_themes_name_settings";
+        let user = auth.require_auth(request_id)?;
+        let pool = state
+            .db
+            .as_deref()
+            .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+        require_admin(pool, &user.id, request_id).await?;
+        let token = require_recent_auth(&state, &jar, request_id).await?;
+        let reason = required_reason(&body, request_id)?;
+        let expected = headers
+            .get("if-match")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| {
+                v.trim().parse::<i64>().map_err(|_| {
+                    AppError::bad_request(
+                        "If-Match must be the current revision integer",
+                        request_id,
+                        None,
+                    )
+                })
+            })
+            .transpose()?;
+        let tokens = body
+            .get("tokens")
+            .ok_or_else(|| AppError::bad_request("tokens required", request_id, None))?;
+        let updated =
+            crate::theme::update_theme_settings(pool, &name, tokens, &user.id, &reason, expected)
+                .await
+                .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
+        let _ = crate::auth::session::mark_step_up(pool, &token).await;
+        let _ = AuditEntry::user_action(&user.id, "theme.settings.update")
+            .with_target("theme", &name)
+            .with_reason(&reason)
+            .with_metadata(json!({ "revision": updated.revision }))
+            .with_policy_version(AUTHZ_POLICY_VERSION)
+            .record(pool)
+            .await;
+        Ok(Json(json!({ "theme": updated.json() })))
+    }
 }
 
 fn not_implemented(operation: &str) -> (StatusCode, Json<Value>) {

@@ -50,6 +50,12 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 | `config.policy_changed.v1` | Policy 换版 | 缓存失效、重检 | 配置 diff 的脱敏摘要 |
 | `auth.security_notification.v1` | 安全通知（新设备/密码/MFA 变化/Session 撤销/恢复码使用） | 邮件、站内通知 | 仅 kind/user_id，无设备/IP 原文 |
 
+> M13-PLUGIN：v1 配置型插件订阅上述 `*.v1` 事件（白名单子集，见
+> `backend/src/plugins/mod.rs::KNOWN_EVENTS`）；插件动作是 after-event 异步
+> worker，绝不阻塞核心事务。插件调用摘要写入 `plugin_call_metrics`
+> （`result` ∈ ok/error/timeout/repeat/stale/skipped），不是新的领域事件。
+> 主题变更不产生事件：`themes.revision` 单调递增即缓存/SSR 失效信号。
+
 > M3 板块/角色/标签的领域事件（`board.*`、`role.*` 等）尚未实现：事件只在
 > 对应域的 Operation 落地（M03-BOARDS/M03-AUTHZ）时登记并注册到
 > `backend/src/events.rs`，目录不收录未实现事件（`check-event-catalog.rb`

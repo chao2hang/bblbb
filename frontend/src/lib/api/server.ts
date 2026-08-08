@@ -360,7 +360,7 @@ export async function authedPost<T = unknown>(
 
 /** 认证写请求通用实现：会话 Cookie + 会话绑定 CSRF + Set-Cookie 复制。 */
 async function authedWrite(
-  method: 'POST' | 'DELETE' | 'PATCH',
+  method: 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   cookies: Cookies,
   path: string,
   body: unknown,
@@ -423,6 +423,22 @@ export async function authedPatch<T = unknown>(
   requestId: string | null = null
 ): Promise<{ ok: true; data: T } | ServerWriteFailure> {
   const result = await authedWrite('PATCH', cookies, path, body, requestId, extraHeaders);
+  if (result.ok) return { ok: true, data: result.data as T };
+  return result;
+}
+
+/**
+ * PUT 认证写请求（M13-THEME-06 set-default 等）：会话 Cookie + 会话绑定
+ * synchronizer token；其余同 authedPatch。
+ */
+export async function authedPut<T = unknown>(
+  cookies: Cookies,
+  path: string,
+  body: unknown,
+  requestId: string | null = null,
+  extraHeaders: Record<string, string> = {}
+): Promise<{ ok: true; data: T } | ServerWriteFailure> {
+  const result = await authedWrite('PUT', cookies, path, body, requestId, extraHeaders);
   if (result.ok) return { ok: true, data: result.data as T };
   return result;
 }

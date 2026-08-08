@@ -151,7 +151,7 @@ async fn setup_user(app: &Router, pool: &DatabasePool, tag: &str) -> (String, St
                 .header("cookie", &cookie)
                 .header("if-match", &version.to_string())
                 .body(Body::from(
-                    json!({ "signature": "s", "theme": "dark", "email_visible_to": "registered" })
+                    json!({ "signature": "s", "theme": "default", "email_visible_to": "registered" })
                         .to_string(),
                 ))
                 .unwrap(),
