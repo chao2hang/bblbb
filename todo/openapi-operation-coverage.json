@@ -3240,7 +3240,7 @@
         "backend/tests/admin_routes.rs",
         "backend/tests/theme.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     },
     {
       "operation_id": "post_admin_themes_data_packages",
@@ -3258,7 +3258,7 @@
         "backend/tests/admin_routes.rs",
         "backend/tests/theme.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     },
     {
       "operation_id": "put_admin_themes_default",
@@ -3276,7 +3276,7 @@
         "backend/tests/admin_routes.rs",
         "backend/tests/theme.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     },
     {
       "operation_id": "delete_admin_themes_name_",
@@ -3294,7 +3294,7 @@
         "backend/tests/admin_routes.rs",
         "backend/tests/theme.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     },
     {
       "operation_id": "patch_admin_themes_name_settings",
@@ -3312,7 +3312,7 @@
         "backend/tests/admin_routes.rs",
         "backend/tests/theme.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     },
     {
       "operation_id": "get_me_preferences_theme",
@@ -3330,7 +3330,7 @@
         "backend/tests/profile_routes.rs",
         "backend/tests/theme.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     },
     {
       "operation_id": "put_me_preferences_theme",
@@ -3347,7 +3347,7 @@
       "tests": [
         "backend/tests/profile_routes.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     },
     {
       "operation_id": "get_themes_active",
@@ -3365,7 +3365,7 @@
         "backend/tests/theme.rs",
         "backend/tests/admin_routes.rs"
       ],
-      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0"
+      "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
     }
   ]
 }
