@@ -14,7 +14,7 @@
 
 | 版本 | commit | bundle | sha256 | 迁移 drill | 备份恢复 drill | 冒烟 | 部署/回滚记录 |
 |---|---|---|---|---|---|---|---|
-| v1.0.0-rc.2 | 待填（M15 收口后回填） | `dist/<version>.tar.gz` | 待填 | `deploy/scripts/drill-migration-upgrade.sh`（apply_ms=68, lock_events=0，见 M15-UPGRADE-02 证据） | `ops/backup/drill-sqlite.sh`（RPO=0, RTO=0.18s，见 M15-BACKUP-06 证据） | `ops/smoke/smoke.sh`（PASS=14，见 M15-UPGRADE-07 证据） | 待填 |
+| v1.0.0-rc.2 | 468883e | `dist/<version>.tar.gz` | 待填 | `deploy/scripts/drill-migration-upgrade.sh`（apply_ms=68, lock_events=0，见 M15-UPGRADE-02 证据） | `ops/backup/drill-sqlite.sh`（RPO=0, RTO=0.18s，见 M15-BACKUP-06 证据） | `ops/smoke/smoke.sh`（PASS=14，见 M15-UPGRADE-07 证据） | 待填 |
 
 > 回填规则：发布执行后在 `docs/CHANGELOG.md` 与本文登记 commit/checksum/部署
 > 时间与回滚记录；任何发布必须先在副本库通过 `drill-migration-upgrade.sh`。
