@@ -72,7 +72,7 @@
 
 | W13 (M12) | 已完成 | 2026-08-08 | `9c40184` + `e3751e9` | M12 收口：Marketplace 43 任务全部 `[x]`（580/783）；0056 三库迁移；领域层 clients/checkout/refunds/webhooks/reconcile + 路由 + 前端；29 后端集成测试 + 20 SSR vitest；账务恒等式 Σ=0；clippy 0 / cargo test 0 fail / frontend 520 tests / make 门禁绿 |
 | W14a (M13) | 已完成 | 2026-08-08 | `eca6120` + `d3f8b26` + `8ebc846` + `58abc4b` | M13 收口：主题/插件/后台 34 任务全部 `[x]`（614/783）；0057 三库迁移；theme token schema + plugin capability allowlist + admin 扩展；1346 后端用例 + 541 前端用例 |
-| W14b (M14) | 已完成 | 2026-08-08 | 待提交 | M14 收口：全量前端/a11y/SEO 32 任务全部 `[x]`（646/783）；Playwright desktop/mobile 194 用例绿（axe serious/critical=0）；vitest 567；SEO meta/JSON-LD/noindex；M14 后无 prototype mock 生产依赖 |
+| W14b (M14) | 已完成 | 2026-08-08 | `607f2af` | M14 收口：全量前端/a11y/SEO 32 任务全部 `[x]`（646/783）；Playwright desktop/mobile 194 用例绿（axe serious/critical=0）；vitest 567；SEO meta/JSON-LD/noindex；M14 后无 prototype mock 生产依赖 |
 
 ## 5. 首批（W0）并行分工
 
