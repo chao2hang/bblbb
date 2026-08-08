@@ -122,6 +122,8 @@ where
             Err(err) if is_busy_error(&err) => {
                 attempt += 1;
                 counter.increment();
+                // M15-OBSERVE-04：SQLite busy 观测指标
+                crate::observability::metrics::registry().counter_inc("bblbb_sqlite_busy_total", 1);
                 if attempt >= policy.max_attempts {
                     tracing::warn!(attempt, "sqlite busy, giving up after max_attempts");
                     return Err(err);

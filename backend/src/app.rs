@@ -25,8 +25,8 @@ use crate::{
     ratelimit::RateLimiter,
     routes::{
         admin, ai, auth, boards, comments, download, drafts, economy, feeds, health::healthz,
-        marketplace, mfa, moderation, oidc, openapi::openapi, posts, reactions, ready, search,
-        shop, storage, themes, users, video,
+        marketplace, metrics::metrics, mfa, moderation, oidc, openapi::openapi, posts, reactions,
+        ready, search, shop, storage, themes, users, video,
     },
 };
 
@@ -112,6 +112,8 @@ pub fn build_router_full(
     let base_routes = Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(ready::readyz))
+        // M15-OBSERVE-04/05：受控指标端点（仅 loopback；Caddy 不代理）
+        .route("/metrics", get(metrics))
         .with_state(state.clone());
 
     // OpenAPI 端点
@@ -150,23 +152,43 @@ pub fn build_router_full(
         .with_state(state);
 
     // Trace span 携带真实 request_id（由 request_id 中间件最先注入扩展，
-    // 此处直接读取），与响应头 x-request-id 保持一致
-    let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &HttpRequest<Body>| {
-        let request_id = request
-            .extensions()
-            .get::<RequestId>()
-            .map(|rid| rid.0.as_str())
-            .unwrap_or("unknown");
-        tracing::info_span!(
-            "http_request",
-            method = %request.method(),
-            uri = %request.uri(),
-            version = ?request.version(),
-            request_id = %request_id,
-            status = tracing::field::Empty,
-            latency = tracing::field::Empty,
-        )
-    });
+    // 此处直接读取），与响应头 x-request-id 保持一致；route 字段供
+    // M15-OBSERVE-01 结构化日志与 M15-OBSERVE-07 慢请求分析使用。
+    let trace_layer = TraceLayer::new_for_http()
+        .make_span_with(|request: &HttpRequest<Body>| {
+            let request_id = request
+                .extensions()
+                .get::<RequestId>()
+                .map(|rid| rid.0.as_str())
+                .unwrap_or("unknown");
+            tracing::info_span!(
+                "http_request",
+                method = %request.method(),
+                uri = %request.uri(),
+                route = %request.uri().path(),
+                version = ?request.version(),
+                request_id = %request_id,
+                status = tracing::field::Empty,
+                latency = tracing::field::Empty,
+            )
+        })
+        // M15-OBSERVE-04：HTTP 请求数/5xx/429 计数器与耗时直方图。
+        .on_response(
+            |response: &axum::http::Response<axum::body::Body>,
+             latency: std::time::Duration,
+             _span: &tracing::Span| {
+                let registry = crate::observability::metrics::registry();
+                let status = response.status();
+                registry.counter_inc("bblbb_http_requests_total", 1);
+                if status == StatusCode::TOO_MANY_REQUESTS {
+                    registry.counter_inc("bblbb_http_429_total", 1);
+                }
+                if status.is_server_error() {
+                    registry.counter_inc("bblbb_http_errors_total", 1);
+                }
+                registry.observe_latency_ms(latency.as_millis() as u64);
+            },
+        );
 
     Router::new()
         .merge(base_routes)

@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
+use bblbb_backend::observability::{self, LogFormat};
 use bblbb_backend::{build_router_with_storage, storage::StorageService, AppConfig};
-use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -32,9 +32,9 @@ async fn main() -> ExitCode {
     // 开关：环境变量 BBLBB__AUTO_MIGRATE=true 或 CLI 参数 --migrate。
     let auto_migrate = config.auto_migrate || std::env::args().any(|arg| arg == "--migrate");
 
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::new(&config.log_filter))
-        .init();
+    // M15-OBSERVE-01：结构化日志。`BBLBB__LOG_FORMAT=json` 时输出每行一个
+    // JSON 事件（timestamp/service/level/request_id/route + 脱敏字段）。
+    observability::init(&config.log_filter, LogFormat::parse(&config.log_format));
 
     // 初始化数据库连接池
     let db_pool = match bblbb_backend::db::pool::create_pool_with_options(
@@ -79,6 +79,9 @@ async fn main() -> ExitCode {
             Some(pool)
         }
         Err(error) => {
+            // M15-OBSERVE-04：数据库连接失败指标（metric 白名单见 observability/metrics.rs）
+            bblbb_backend::observability::metrics::registry()
+                .counter_inc("bblbb_db_connect_failures_total", 1);
             tracing::warn!(
                 url = %bblbb_backend::db::pool::redact_dsn(&config.database_url),
                 %error,
@@ -97,6 +100,13 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
         tracing::info!("builtin roles and permissions seeded");
+    }
+
+    // M15-PACKAGE-04 / M15-UPGRADE-06：`--worker` 模式。
+    // 独立 worker 进程：停止领取 → 收尾运行中任务（受 drain_timeout 约束）→
+    // 退出；租约到期由其他 worker 安全重领（backend/src/jobs/worker_loop.rs）。
+    if std::env::args().any(|arg| arg == "--worker") {
+        return run_worker_mode(config, db_pool).await;
     }
 
     let listener = match tokio::net::TcpListener::bind(config.bind_address).await {
@@ -139,9 +149,12 @@ async fn main() -> ExitCode {
         }
     };
 
+    // `into_make_service_with_connect_info`：为 /metrics 提供真实对端地址以
+    // 实施 loopback 访问限制（M15-PACKAGE-07 / M15-OBSERVE-04）。
     if let Err(error) = axum::serve(
         listener,
-        build_router_with_storage(config, db_pool, storage),
+        build_router_with_storage(config, db_pool, storage)
+            .into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown)
     .await
@@ -151,5 +164,65 @@ async fn main() -> ExitCode {
     }
 
     tracing::info!("server shutdown complete");
+    ExitCode::SUCCESS
+}
+
+/// `--worker` 模式（M15-PACKAGE-04 / M15-UPGRADE-06）。
+///
+/// 与 HTTP 服务进程分离的 worker 进程：对每个队列运行
+/// [`bblbb_backend::jobs::worker_loop::run_worker`]，收到 SIGTERM/SIGINT 后
+/// 停止领取新任务、在 `drain_timeout` 内完成在途任务、退出。租约到期任务由
+/// 其他 worker 安全重领（不丢任务）。任务分发见
+/// [`bblbb_backend::jobs::dispatch`]。
+async fn run_worker_mode(
+    _config: AppConfig,
+    db_pool: Option<bblbb_backend::db::pool::DatabasePool>,
+) -> ExitCode {
+    use bblbb_backend::jobs::dispatch::WORKER_QUEUES;
+    use bblbb_backend::jobs::worker::ClaimedJob;
+    use bblbb_backend::jobs::worker_loop::{run_worker, WorkerConfig};
+
+    let Some(pool) = db_pool else {
+        tracing::error!("worker mode requires a configured and reachable database");
+        return ExitCode::FAILURE;
+    };
+
+    if let Err(error) = bblbb_backend::authz::roles::seed_builtin_roles(&pool).await {
+        tracing::error!(error = %error, "failed to seed builtin roles and permissions");
+        return ExitCode::FAILURE;
+    }
+
+    let shutdown = bblbb_backend::jobs::worker_loop::worker_shutdown_signal().await;
+    let mut handles = Vec::new();
+
+    for queue in WORKER_QUEUES {
+        let worker_pool = pool.clone();
+        let closure_pool = pool.clone();
+        let worker_shutdown = shutdown.clone();
+        let queue = queue.to_string();
+        handles.push(tokio::spawn(async move {
+            let worker_config = WorkerConfig {
+                worker_id: format!("worker-{queue}-{}", std::process::id()),
+                queue,
+                ..WorkerConfig::default()
+            };
+            run_worker(
+                &worker_pool,
+                worker_config,
+                worker_shutdown,
+                move |job: ClaimedJob| {
+                    let job_pool = closure_pool.clone();
+                    async move { bblbb_backend::jobs::dispatch::dispatch_job(&job_pool, job).await }
+                },
+            )
+            .await;
+        }));
+    }
+
+    for handle in handles {
+        let _ = handle.await;
+    }
+
+    tracing::info!("all worker queues drained, worker shutdown complete");
     ExitCode::SUCCESS
 }

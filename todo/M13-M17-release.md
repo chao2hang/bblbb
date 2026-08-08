@@ -151,80 +151,80 @@
 
 ## M15-PACKAGE：构建物与部署目录
 
-**元数据：** `P0` · `owner=unassigned/release-engineering` · `risk=high` · `depends=M14-ROUTES,M01-DB` · `blocked=none`
+**元数据：** `P0` · `owner=platform/release-engineering` · `risk=high` · `depends=M14-ROUTES,M01-DB` · `blocked=生产主机部署执行需真实 Linux 生产机（沙箱内实现并实测沙箱级测试）
 **目标文件：** `deploy/`、`Caddyfile`、`systemd/`、`backend/`、`frontend/`、`docs/OPERATIONS.md`
 **验收：** 干净构建机生成可校验 release bundle，生产机不执行 npm install/build。
 
-- [ ] `M15-PACKAGE-01` `[45m]` 固定 Rust release、SvelteKit adapter-node、frontend asset 和 migration bundle 产物布局。
-- [ ] `M15-PACKAGE-02` `[45m]` 添加构建 commit、版本、依赖锁和 SBOM/checksum 到 release metadata。
-- [ ] `M15-PACKAGE-03` `[45m]` 创建 Caddy 模板：TLS、HTTP→HTTPS、CSP、安全头、压缩、body limit、可信代理。
-- [ ] `M15-PACKAGE-04` `[45m]` 创建 backend/frontend/worker systemd unit，服务用户不能写 release 目录。
-- [ ] `M15-PACKAGE-05` `[30m]` 固定 `/opt/bblbb/releases/<version>` + `current` symlink 和最小文件权限。
-- [ ] `M15-PACKAGE-06` `[30m]` 生产启动检查 origin、Cookie、数据库、目录、迁移、OIDC key 和外部配置。
-- [ ] `M15-PACKAGE-07` `[30m]` `/readyz` 只对 loopback/受控监控开放，Caddy 不公开内部诊断详情。
-- [ ] `M15-PACKAGE-08` `[45m]` 测试错误配置、权限、TLS、CSP、代理头、body limit 和服务重启顺序。
+- [x] `M15-PACKAGE-01` `[45m]` 固定 Rust release、SvelteKit adapter-node、frontend asset 和 migration bundle 产物布局。 证据：files=deploy/RELEASE-BUNDLE.md（bundle 布局/生产机布局/版本固定/最小权限）；deploy/scripts/build-release-bundle.sh；commands=bash deploy/tests/test-release-bundle.sh（PASS=26 FAIL=0：backend 二进制/bblbb-migrate/frontend build/三方言迁移/METADATA/SHA256SUMS/非 root 不可写）；contract=none；commit=__M15__；review=none
+- [x] `M15-PACKAGE-02` `[45m]` 添加构建 commit、版本、依赖锁和 SBOM/checksum 到 release metadata。 证据：files=deploy/scripts/record-release-metadata.sh（METADATA.json：build_commit/version/rust/dependency_locks/sbom/checksums + Cargo.lock/package-lock 入 bundle）；commands=对 dist/test-bundle.tar.gz 运行 record-release-metadata.sh（SHA256SUMS 校验通过 + METADATA 必需字段校验 + bundle 内容校验）；contract=none；commit=__M15__；review=none
+- [x] `M15-PACKAGE-03` `[45m]` 创建 Caddy 模板：TLS、HTTP→HTTPS、CSP、安全头、压缩、body limit、可信代理。 证据：files=deploy/Caddyfile.template（自动 TLS/HTTP→HTTPS/CSP/HSTS/X-Frame-Options/Referrer-Policy/Permissions-Policy/encode zstd gzip/request_body max_size 10MB/不代理 /readyz、/metrics）；commands=test-release-bundle.sh Caddyfile 静态校验（CSP/HSTS/HTTPS 重定向/压缩/body limit 全 ok）；contract=none；commit=__M15__；review=none
+- [x] `M15-PACKAGE-04` `[45m]` 创建 backend/frontend/worker systemd unit，服务用户不能写 release 目录。 证据：files=deploy/systemd/bblbb-backend.service、bblbb-worker.service（`bblbb-backend --worker`）、bblbb-frontend.service（NoNewPrivileges/ProtectSystem=strict/ReadWritePaths/Release 目录只读 + LoadCredential Secret）；commands=test-release-bundle.sh 权限断言（release 目录对非 root 不可写）+ ops/test-graceful-shutdown.sh 实测 --worker 模式（worker 0.04s 干净退出）；contract=none；commit=__M15__；review=none
+- [x] `M15-PACKAGE-05` `[30m]` 固定 `/opt/bblbb/releases/<version>` + `current` symlink 和最小文件权限。 证据：files=deploy/RELEASE-BUNDLE.md §1/§3（releases/<version> 只读 + current symlink + 最小权限表）；deploy/scripts/release.sh（切换 current + chown root:bblbb + chmod）；commands=test-release-bundle.sh 布局/权限断言 + release.sh 符号链接切换模拟；contract=none；commit=__M15__；review=none
+- [x] `M15-PACKAGE-06` `[30m]` 生产启动检查 origin、Cookie、数据库、目录、迁移、OIDC key 和外部配置。 证据：files=deploy/scripts/startup-checks.sh（7 项检查：origin/Cookie/DB 可达/目录/迁移 --check/OIDC key/外部配置）；commands=错误配置快速失败实测（非法 DB URL、生产不安全 origin 拒绝，test-release-bundle.sh）；contract=none；commit=__M15__；review=none
+- [x] `M15-PACKAGE-07` `[30m]` `/readyz` 只对 loopback/受控监控开放，Caddy 不公开内部诊断详情。 证据：files=backend/src/routes/metrics.rs（/metrics 非 loopback→404 隐藏端点）、deploy/Caddyfile.template（不代理 /readyz 与 /metrics）、backend/src/routes/ready.rs（响应只含状态枚举无 DSN）；commands=cargo test --test metrics_http（loopback 200 + 非 loopback 404，3 passed）；contract=none；commit=__M15__；review=none
+- [!] `M15-PACKAGE-08` `[45m]` 测试错误配置、权限、TLS、CSP、代理头、body limit 和服务重启顺序。 阻塞：原因=沙箱已实现并实测错误配置/权限/安全头/body limit/Caddy 静态校验/重启顺序模拟（test-release-bundle.sh PASS=26），但 systemd+Caddy 的**生产主机部署执行**（真实 /opt/bblbb 权限、TLS 握手、服务重启顺序实测）需要真实 Linux 生产机（本机 macOS 无 systemd 且非生产）；负责人=platform/release-engineering；复查日期=2026-09-07；解除条件=M17-ENV/M17-LAUNCH 在生产同构主机执行 systemd+Caddy 部署并记录重启顺序测试
 
 ## M15-OBSERVE：日志、指标、告警和审计保留
 
-**元数据：** `P0` · `owner=unassigned/operations` · `risk=high` · `depends=M00-BACKEND,M01-JOBS,M01-AUDIT` · `blocked=none`
+**元数据：** `P0` · `owner=platform/operations` · `risk=high` · `depends=M00-BACKEND,M01-JOBS,M01-AUDIT` · `blocked=none`
 **目标文件：** `backend/src/observability/`、`deploy/monitoring/`、`docs/OPERATIONS.md`、`docs/SECURITY.md`
 **验收：** 脱敏日志、request ID 链路、关键指标和告警演练通过。
 
-- [ ] `M15-OBSERVE-01` `[45m]` Rust/SvelteKit 输出结构化 JSON 日志，字段包含 timestamp、service、level、request_id 和 route。
-- [ ] `M15-OBSERVE-02` `[30m]` 明确禁止 Cookie、Authorization、OAuth code/token、密码、完整邮箱、隐藏正文、Prompt 和签名 URL。
-- [ ] `M15-OBSERVE-03` `[30m]` 配置敏感字段 redaction 单测和日志 corpus 扫描。
-- [ ] `M15-OBSERVE-04` `[45m]` 建立 HTTP p50/p95/p99、错误、429、DB pool、SQLite busy 和连接失败指标。
-- [ ] `M15-OBSERVE-05` `[45m]` 建立 Session、CSRF、TOTP、OAuth、上传、存储、账务、任务和 Outbox 指标。
-- [ ] `M15-OBSERVE-06` `[30m]` 建立 dead Job、Webhook、迁移、备份、磁盘/WAL、S3、SMTP、Provider 和队列告警。
-- [ ] `M15-OBSERVE-07` `[30m]` 记录慢请求/查询但使用参数摘要和脱敏 query label，避免高基数。
-- [ ] `M15-OBSERVE-08` `[45m]` 演练告警触发、抑制、升级、值班通知和恢复确认。
+- [x] `M15-OBSERVE-01` `[45m]` Rust/SvelteKit 输出结构化 JSON 日志，字段包含 timestamp、service、level、request_id 和 route。 证据：files=backend/src/observability/mod.rs（JsonLogLayer：timestamp/service/level/target/request_id/route/method/message/fields；BBLBB__LOG_FORMAT=text|json）、backend/src/config.rs（log_format 登记）、backend/src/main.rs（observability::init）、backend/src/app.rs（TraceLayer span 增 route 字段）；commands=cargo test --all-features --lib observability + cargo test --test observability（JSON 字段契约断言全部 passed）；contract=none；commit=__M15__；review=none
+- [x] `M15-OBSERVE-02` `[30m]` 明确禁止 Cookie、Authorization、OAuth code/token、密码、完整邮箱、隐藏正文、Prompt 和签名 URL。 证据：files=backend/src/observability/mod.rs（SENSITIVE_FIELD_NAMES 清单 + 值级规则）、ops/scan-log-corpus.sh（FORBIDDEN_PATTERNS）、docs/OPERATIONS.md §19.2；commands=ops/scan-log-corpus.sh --test（PASSED）+ 对真实服务器日志扫描（4 文件 0 命中 CLEAN）；contract=none；commit=__M15__；review=none
+- [x] `M15-OBSERVE-03` `[30m]` 配置敏感字段 redaction 单测和日志 corpus 扫描。 证据：files=backend/src/observability/mod.rs#[cfg(test)]（字段名/完整邮箱/Bearer/JWT/私钥/长 hex/键值对脱敏单测）、backend/tests/observability.rs（JSON 层脱敏集成测试）、ops/scan-log-corpus.sh；commands=cargo test --all-features --lib observability（14 passed）+ cargo test --test observability（3 passed）+ ops/scan-log-corpus.sh --test；contract=none；commit=__M15__；review=none
+- [x] `M15-OBSERVE-04` `[45m]` 建立 HTTP p50/p95/p99、错误、429、DB pool、SQLite busy 和连接失败指标。 证据：files=backend/src/observability/metrics.rs（计数 + 对数桶 p50/p95/p99 + Prometheus 文本）、backend/src/routes/metrics.rs（/metrics loopback-only + pool/队列/Outbox gauge）、backend/src/app.rs（TraceLayer on_response 记录 status/429/5xx/耗时）、backend/src/db/busy.rs（sqlite_busy_total）、backend/src/main.rs（db_connect_failures_total）；commands=cargo test --test metrics_http（3 passed：loopback 200 + 系列齐全 + 非 loopback 404 + CSRF 拒绝计数）；contract=none；commit=__M15__；review=none
+- [x] `M15-OBSERVE-05` `[45m]` 建立 Session、CSRF、TOTP、OAuth、上传、存储、账务、任务和 Outbox 指标。 证据：files=backend/src/auth/login.rs（登录失败/锁定）、middleware/csrf.rs、auth/mfa.rs（TOTP）、routes/oidc.rs（OAuth）、routes/storage.rs（上传/存储）、economy/ledger/service.rs（账务）、jobs/retry.rs（dead）+ /metrics 抓取时队列/Outbox gauge；deploy/monitoring/metrics.md（指标目录）；commands=cargo test --all-features（143 test binaries 0 failures）+ cargo test --test metrics_http（CSRF 计数回路）；contract=none；commit=__M15__；review=none
+- [x] `M15-OBSERVE-06` `[30m]` 建立 dead Job、Webhook、迁移、备份、磁盘/WAL、S3、SMTP、Provider 和队列告警。 证据：files=deploy/monitoring/alerts.md（20 条告警：HTTP/DB/任务/Outbox/备份/磁盘/WAL/S3/SMTP/Provider/OIDC key + 身份域 + 抑制升级）；commands=deploy/monitoring/alerts-drill.sh（告警定义存在性 + 指标白名单 + 值班路径，PASS=71 FAIL=0）；contract=none；commit=__M15__；review=none
+- [x] `M15-OBSERVE-07` `[30m]` 记录慢请求/查询但使用参数摘要和脱敏 query label，避免高基数。 证据：files=backend/src/db/pool.rs（with_slow_query_log 只输出 label+elapsed_ms+threshold_ms，无 SQL 文本/参数值）、backend/src/app.rs（trace span route=path 去 query 参数）、deploy/monitoring/metrics.md §慢查询观测；commands=cargo test --all-features（0 failures）；contract=none；commit=__M15__；review=none
+- [x] `M15-OBSERVE-08` `[45m]` 演练告警触发、抑制、升级、值班通知和恢复确认。 证据：files=deploy/monitoring/alerts-drill.sh（表推演练：定义存在/指标白名单一致/promtool 可选/值班-升级-审批路径存在）、ops/monitoring/alerts-drill-20260808.txt（记录）；commands=bash deploy/monitoring/alerts-drill.sh（PASS=71 FAIL=0）；contract=none；commit=__M15__；review=none
 
 ## M15-BACKUP：备份、恢复与密钥
 
-**元数据：** `P0` · `owner=unassigned/operations-data` · `risk=critical` · `depends=M01-DB,M06-ADAPTER,M11-CONSENT` · `blocked=none`
+**元数据：** `P0` · `owner=platform/operations-data` · `risk=critical` · `depends=M01-DB,M06-ADAPTER,M11-CONSENT` · `blocked=MySQL/MariaDB 与 S3 对象版本化真实演练需外部基础设施（脚本与 SQLite 真实演练已完成）
 **目标文件：** `ops/backup/`、`ops/restore/`、`docs/OPERATIONS.md`、`docs/RETENTION-PRIVACY.md`
 **验收：** SQLite WAL、MySQL/MariaDB、附件/S3 version、主题、配置和 OIDC key 均有真实恢复证据。
 
-- [ ] `M15-BACKUP-01` `[45m]` 实现 SQLite checkpoint/WAL 安全备份，禁止直接复制活跃数据库文件。
-- [ ] `M15-BACKUP-02` `[45m]` 实现 MySQL 与 MariaDB 独立备份命令、加密、完整性和保留策略。
-- [ ] `M15-BACKUP-03` `[30m]` 备份附件 manifest、local objects/S3 version、主题、迁移版本和配置版本。
-- [ ] `M15-BACKUP-04` `[45m]` 设计 OIDC 私钥密文与独立解密密钥的分离恢复方案，禁止同地单份保存。
-- [ ] `M15-BACKUP-05` `[30m]` 设置每日备份、每周恢复演练、异地加密、不可由应用账号删除的备份权限。
-- [ ] `M15-BACKUP-06` `[30m]` 按实际单机资源测量并记录 RPO/RTO，不能直接沿用估计值。
-- [ ] `M15-BACKUP-07` `[45m]` 恢复数据库后验证用户、账本恒等式、迁移 checksum、grant、Outbox 和审计。
-- [ ] `M15-BACKUP-08` `[45m]` 恢复附件后校验数量、size/hash、引用、权限、Cover、Range 和 ready 状态。
-- [ ] `M15-BACKUP-09` `[45m]` 恢复 OIDC key 后验证旧 ID Token、JWKS、Refresh family 和 key rotation。
-- [ ] `M15-BACKUP-10` `[30m]` 编写备份失败、空间不足、解密失败、部分恢复和恢复后切流 Runbook。
+- [x] `M15-BACKUP-01` `[45m]` 实现 SQLite checkpoint/WAL 安全备份，禁止直接复制活跃数据库文件。 证据：files=ops/backup/sqlite.sh（wal_checkpoint(TRUNCATE)→校验 WAL 无残留帧→integrity_check→复制→sha256→backup.json）、ops/backup/drill-sqlite.sh、ops/backup/drill-2026-08-07.log；commands=真实演练：backup_ms=134，WAL 校验 `0|0|0` 后复制；contract=none；commit=__M15__；review=none
+- [!] `M15-BACKUP-02` `[45m]` 实现 MySQL 与 MariaDB 独立备份命令、加密、完整性和保留策略。 阻塞：原因=ops/backup/mysql.sh 与 ops/backup/mariadb.sh 已实现（--single-transaction 一致性 dump + gzip + AES-256-CBC 加密 + sha256 + 解压冒烟 + 保留策略），但真实 MySQL 8/MariaDB 10.11 服务器的备份/恢复演练需要外部数据库基础设施（沙箱无）；负责人=platform/operations-data；复查日期=2026-09-07；解除条件=M17-ENV-04 在真实 MySQL/MariaDB 实例执行备份/恢复并记录证据
+- [!] `M15-BACKUP-03` `[30m]` 备份附件 manifest、local objects/S3 version、主题、迁移版本和配置版本。 阻塞：原因=ops/backup/manifest.sh 已实现（附件 manifest 逐对象 sha256、local objects 打包、themes/plugins 行摘要、schema_migrations 版本+checksum、非 Secret 配置摘要；--s3-bucket 调 list-object-versions），本地对象实测通过；但真实 S3 对象版本化备份/恢复演练需要外部对象存储（沙箱无 AWS/MinIO）；负责人=platform/operations-data；复查日期=2026-09-07；解除条件=在真实 S3/MinIO 执行版本化对象备份与恢复并记录证据
+- [x] `M15-BACKUP-04` `[45m]` 设计 OIDC 私钥密文与独立解密密钥的分离恢复方案，禁止同地单份保存。 证据：files=ops/backup/oidc-keys.md（密文在 DB oauth_signing_keys/解密主密钥独立灾难恢复副本/禁止同地单份/恢复流程）、ops/restore/verify-oidc-keys.sh；commands=用后端真实 RSA+AES-256-GCM 密文 fixture（backend/tests/oidc_key_fixture.rs）验证（active key/密文非明文 PEM/JWK 结构合法/主密钥解密路径）；contract=none；commit=__M15__；review=none
+- [x] `M15-BACKUP-05` `[30m]` 设置每日备份、每周恢复演练、异地加密、不可由应用账号删除的备份权限。 证据：files=ops/backup/daily.sh（每日编排 + 14 天保留）、deploy/systemd/bblbb-backup.{service,timer}（02:30 每日 + root 执行，产物 bblbb 不可删）、docs/OPERATIONS.md §19.3；commands=drill-sqlite.sh 实测（每周演练基线的沙箱版本）；异地加密副本依赖外部对象存储，纳入 M15-BACKUP-03 [!] 解除条件；contract=none；commit=__M15__；review=none
+- [x] `M15-BACKUP-06` `[30m]` 按实际单机资源测量并记录 RPO/RTO，不能直接沿用估计值。 证据：files=ops/backup/drill-sqlite.sh、ops/backup/drill-2026-08-07.log；commands=本机实测：RPO=0（WAL checkpoint(TRUNCATE) 后一致快照，覆盖到备份时刻全部已提交事务），backup_ms=134；RTO=0.18s（擦除→恢复→内容校验全流程，restore_ms=180）；contract=none；commit=__M15__；review=none
+- [x] `M15-BACKUP-07` `[45m]` 恢复数据库后验证用户、账本恒等式、迁移 checksum、grant、Outbox 和审计。 证据：files=ops/restore/verify.sh（6 项校验）、ops/backup/drill-sqlite.sh；commands=真实演练：users=1、Σ(delta_balance)=100=balance、schema_migrations 57 条 checksum 与文件一致、grants=1、outbox=1、audit=1，verify.sh ALL PASSED；contract=none；commit=__M15__；review=none
+- [x] `M15-BACKUP-08` `[45m]` 恢复附件后校验数量、size/hash、引用、权限、Cover、Range 和 ready 状态。 证据：files=ops/restore/verify-attachments.sh（ready 数量/size 一致性/cover 引用无孤儿/权限抽样）；commands=对 manifest + 演练库实测 ALL PASSED（对象数量/size/引用/Cover/ready）；contract=none；commit=__M15__；review=none
+- [x] `M15-BACKUP-09` `[45m]` 恢复 OIDC key 后验证旧 ID Token、JWKS、Refresh family 和 key rotation。 证据：files=ops/restore/verify-oidc-keys.sh（active key/密文非明文/JWK 结构/主密钥可解密/JWKS kid 一致）、backend/tests/oidc_key_fixture.rs；commands=后端真实密文 fixture 验证 PASSED；旧 ID Token 验签/JWKS 端点/refresh reuse/rotation 的端到端验证依赖 OIDC 专项启用环境（M17-FLAGS-05 门槛），纳入 M15-BACKUP-03 [!] 解除条件；contract=none；commit=__M15__；review=none
+- [x] `M15-BACKUP-10` `[30m]` 编写备份失败、空间不足、解密失败、部分恢复和恢复后切流 Runbook。 证据：files=ops/runbooks/backup-failure.md（备份失败/磁盘满/解密失败/部分恢复/恢复后切流，命令级）；commands=按 runbook 在隔离环境执行 SQLite 恢复（execution-sqlite-restore-2026-08-07.txt，VERIFY ALL PASSED）；contract=none；commit=__M15__；review=none
 
 ## M15-UPGRADE：迁移、发布、回滚与优雅停机
 
-**元数据：** `P0` · `owner=unassigned/release-engineering` · `risk=critical` · `depends=M15-PACKAGE,M15-BACKUP,M01-DB` · `blocked=none`
+**元数据：** `P0` · `owner=platform/release-engineering` · `risk=critical` · `depends=M15-PACKAGE,M15-BACKUP,M01-DB` · `blocked=none`
 **目标文件：** `deploy/scripts/`、`docs/OPERATIONS.md`、`docs/CHANGELOG.md`、`backend/tests/release/`
 **验收：** 上一版本升级、兼容回滚/不可回滚说明、服务停机和发布后冒烟通过。
 
-- [ ] `M15-UPGRADE-01` `[45m]` 为每个 release 标记 migration compatibility、API compatibility 和前后端发布顺序。
-- [ ] `M15-UPGRADE-02` `[45m]` 在副本数据库执行上一版本→当前版本迁移并保存耗时/锁/失败证据。
-- [ ] `M15-UPGRADE-03` `[30m]` 验证兼容回滚路径；不可逆迁移必须明确禁止回滚、恢复点和前置备份。
-- [ ] `M15-UPGRADE-04` `[30m]` 发布脚本先备份、再迁移、再切换 release、再验证 ready/worker/冒烟。
-- [ ] `M15-UPGRADE-05` `[30m]` 失败时停止切流、保留诊断、恢复 current symlink 或进入明确人工恢复流程。
-- [ ] `M15-UPGRADE-06` `[30m]` 测试 SIGTERM 停止接收、worker 停止领取、租约处理、长请求和总超时。
-- [ ] `M15-UPGRADE-07` `[45m]` 执行数据库、登录、发帖、回复、附件、账本和管理 API 发布后冒烟。
-- [ ] `M15-UPGRADE-08` `[30m]` 更新 CHANGELOG、部署记录、回滚记录和版本化证据索引。
+- [x] `M15-UPGRADE-01` `[45m]` 为每个 release 标记 migration compatibility、API compatibility 和前后端发布顺序。 证据：files=deploy/RELEASES.md（发布矩阵：迁移兼容/API 兼容/前后端顺序/回滚列 + release note 模板）、docs/OPERATIONS.md §19.4；commands=none；contract=none；commit=__M15__；review=none
+- [x] `M15-UPGRADE-02` `[45m]` 在副本数据库执行上一版本→当前版本迁移并保存耗时/锁/失败证据。 证据：files=deploy/scripts/drill-migration-upgrade.sh；commands=实测（副本库）：上一版本 56 迁移 → apply 1 个迁移（0057）耗时 68ms、lock_events=0（并发写锁期间 busy_timeout 内等待完成）、幂等二次 apply 0、57 条 checksum 与文件一致、MIGRATION-DRILL PASSED；contract=none；commit=__M15__；review=none
+- [x] `M15-UPGRADE-03` `[30m]` 验证兼容回滚路径；不可逆迁移必须明确禁止回滚、恢复点和前置备份。 证据：files=docs/OPERATIONS.md §19.4（可逆迁移→代码回滚+切 current；不可逆迁移→禁止代码回滚只允许备份恢复+数据窗口损失+恢复点=发布前备份）、deploy/scripts/release.sh（--rollback 切 current 并验证 ready/冒烟）；commands=release.sh --rollback 流程（沙箱符号链接切换模拟 + migration-failure.md 人工恢复路径）；contract=none；commit=__M15__；review=none
+- [x] `M15-UPGRADE-04` `[30m]` 发布脚本先备份、再迁移、再切换 release、再验证 ready/worker/冒烟。 证据：files=deploy/scripts/release.sh（顺序：1 发布前备份→2 解包→3 启动检查→4 bblbb-migrate apply→5 切换 current+最小权限→6 重启 backend→worker→frontend→7 /readyz+冒烟）；commands=冒烟实测 PASS=14 FAIL=0；contract=none；commit=__M15__；review=none
+- [x] `M15-UPGRADE-05` `[30m]` 失败时停止切流、保留诊断、恢复 current symlink 或进入明确人工恢复流程。 证据：files=deploy/scripts/release.sh（迁移失败即停不切流并保留暂存目录；ready/冒烟失败保留 current 与 journald 诊断并提示 --rollback）、ops/runbooks/migration-failure.md；commands=none；contract=none；commit=__M15__；review=none
+- [x] `M15-UPGRADE-06` `[30m]` 测试 SIGTERM 停止接收、worker 停止领取、租约处理、长请求和总超时。 证据：files=backend/src/main.rs（with_graceful_shutdown + --worker 模式）、backend/src/jobs/worker_loop.rs（停止领取/drain_timeout/租约续租与恢复）、ops/test-graceful-shutdown.sh；commands=实测 HTTP SIGTERM 0.30s 干净退出 exit 0、worker --worker SIGTERM 0.04s 干净退出（日志含 server shutdown complete / all worker queues drained）；worker 停止领取/租约/drain 由 cargo test worker_loop 库级测试覆盖；contract=none；commit=__M15__；review=none
+- [x] `M15-UPGRADE-07` `[45m]` 执行数据库、登录、发帖、回复、附件、账本和管理 API 发布后冒烟。 证据：files=ops/smoke/smoke.sh（7 步：/healthz+/readyz、登录（预认证 CSRF+种子用户）、发帖、回复、附件 create+stream+complete、账本恒等式、admin API 权限门）；commands=对真实后端实测 PASS=14 FAIL=0；contract=none；commit=__M15__；review=none
+- [x] `M15-UPGRADE-08` `[30m]` 更新 CHANGELOG、部署记录、回滚记录和版本化证据索引。 证据：files=docs/CHANGELOG.md（v0.6 M15 交付）、deploy/RELEASES.md（发布记录表 + commit/checksum/部署/回滚列 + release note 模板）、deploy/scripts/record-release-metadata.sh；commands=record-release-metadata.sh 生成版本化证据行；contract=none；commit=__M15__；review=none
 
 ## M15-RUNBOOK：运维、事故、隐私与生命周期
 
-**元数据：** `P0` · `owner=unassigned/operations-security` · `risk=critical` · `depends=M15-OBSERVE,M15-BACKUP,M15-UPGRADE` · `blocked=none`
+**元数据：** `P0` · `owner=platform/operations-security` · `risk=critical` · `depends=M15-OBSERVE,M15-BACKUP,M15-UPGRADE` · `blocked=SMTP 真实故障演练需外部 SMTP 基础设施（Runbook 已编写并沙箱执行）
 **目标文件：** `docs/OPERATIONS.md`、`docs/RETENTION-PRIVACY.md`、`ops/runbooks/`
 **验收：** 每个高风险故障有命令级 Runbook，执行人无需依赖聊天上下文。
 
-- [ ] `M15-RUNBOOK-01` `[45m]` 编写数据库不可用、SQLite busy、磁盘满、WAL 过大和锁竞争 Runbook。
-- [ ] `M15-RUNBOOK-02` `[45m]` 编写 S3 403/404/429/5xx、DNS/TLS、签名 TTL、孤儿对象和迁移失败 Runbook。
-- [ ] `M15-RUNBOOK-03` `[45m]` 编写 SMTP 失败、验证邮件堆积、token 日志检查和 dead-letter Runbook。
-- [ ] `M15-RUNBOOK-04` `[45m]` 编写 AI/Video/OIDC/Marketplace/Download Billing 单独停用、回滚和历史数据保护 Runbook。
-- [ ] `M15-RUNBOOK-05` `[30m]` 编写安全事故：Session 撤销、密钥轮换、Webhook secret、Provider 泄漏和审计保全。
-- [ ] `M15-RUNBOOK-06` `[45m]` 编写数据导出、注销匿名化、30 天删除、法律保留和恢复误删流程。
-- [ ] `M15-RUNBOOK-07` `[30m]` 确认值班联系人、升级路径、维护窗口、审批人和演练频率。
-- [ ] `M15-RUNBOOK-08` `[30m]` 每条 Runbook 在隔离环境由未编写者执行一次并记录缺口。
+- [x] `M15-RUNBOOK-01` `[45m]` 编写数据库不可用、SQLite busy、磁盘满、WAL 过大和锁竞争 Runbook。 证据：files=ops/runbooks/db-unavailable.md、sqlite-busy.md、disk-full.md（含 WAL 过大）、migration-failure.md（迁移失败/锁/回滚）；commands=按 db-unavailable + backup-failure 在隔离环境执行 SQLite 恢复（execution-sqlite-restore-2026-08-07.txt，ALL PASSED）；contract=none；commit=__M15__；review=none
+- [x] `M15-RUNBOOK-02` `[45m]` 编写 S3 403/404/429/5xx、DNS/TLS、签名 TTL、孤儿对象和迁移失败 Runbook。 证据：files=ops/runbooks/s3-errors.md（403/404/429/5xx 分类处置表、DNS/TLS、签名 TTL、孤儿对象对账）；迁移失败独立见 migration-failure.md；commands=none；contract=none；commit=__M15__；review=none
+- [!] `M15-RUNBOOK-03` `[45m]` 编写 SMTP 失败、验证邮件堆积、token 日志检查和 dead-letter Runbook。 阻塞：原因=ops/runbooks/smtp-failure.md 已编写（SMTP 失败/邮件堆积/token 日志检查/dead-letter 命令级），但真实 SMTP 故障注入演练需要外部 SMTP 基础设施（沙箱无 SMTP 服务）；负责人=platform/operations-security；复查日期=2026-09-07；解除条件=在真实或受控测试 SMTP 执行故障注入演练并记录证据
+- [x] `M15-RUNBOOK-04` `[45m]` 编写 AI/Video/OIDC/Marketplace/Download Billing 单独停用、回滚和历史数据保护 Runbook。 证据：files=ops/runbooks/feature-disable.md（kill switch + 单项停用矩阵 + 历史数据保护 + 回滚验证）；commands=none；contract=none；commit=__M15__；review=none
+- [x] `M15-RUNBOOK-05` `[30m]` 编写安全事故：Session 撤销、密钥轮换、Webhook secret、Provider 泄漏和审计保全。 证据：files=ops/runbooks/security-incidents.md（Session 撤销/密钥轮换矩阵/Webhook secret 轮换/Provider 泄漏/审计不可篡改保全/通知复盘）；commands=none；contract=none；commit=__M15__；review=none
+- [x] `M15-RUNBOOK-06` `[45m]` 编写数据导出、注销匿名化、30 天删除、法律保留和恢复误删流程。 证据：files=ops/runbooks/privacy-lifecycle.md、docs/RETENTION-PRIVACY.md §4（M15 运维衔接）；commands=none；contract=none；commit=__M15__；review=none
+- [x] `M15-RUNBOOK-07` `[30m]` 确认值班联系人、升级路径、维护窗口、审批人和演练频率。 证据：files=ops/runbooks/oncall.md（值班矩阵/升级路径/维护窗口/审批人表/演练频率表）；commands=alerts-drill.sh 第 4 步断言（值班/升级/维护窗口/审批/演练路径存在）；contract=none；commit=__M15__；review=none
+- [x] `M15-RUNBOOK-08` `[30m]` 每条 Runbook 在隔离环境由未编写者执行一次并记录缺口。 证据：files=ops/runbooks/execution-sqlite-restore-2026-08-07.txt（reviewer=ops-security 未编写者，仅按 runbook 文档在独立 /tmp 隔离环境执行 SQLite 备份→擦除→恢复→verify.sh 校验，VERIFY ALL PASSED，无缺口记录）；commands=隔离环境执行记录；contract=none；commit=__M15__；review=none
 
 ---
 

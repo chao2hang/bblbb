@@ -339,6 +339,8 @@ fn hostname_of(authority: &str) -> &str {
 
 /// 400 Problem JSON 响应（来源不匹配）。
 fn source_rejected(request_id: &str) -> Response {
+    // M15-OBSERVE-05：CSRF/来源校验拒绝指标
+    crate::observability::metrics::registry().counter_inc("bblbb_csrf_rejections_total", 1);
     let problem = Problem {
         type_uri: "about:blank",
         title: "Bad Request",
@@ -411,6 +413,8 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
 
 /// 403 Problem JSON 响应
 fn csrf_rejected(request_id: &str) -> Response {
+    // M15-OBSERVE-05：CSRF 校验拒绝指标
+    crate::observability::metrics::registry().counter_inc("bblbb_csrf_rejections_total", 1);
     let problem = Problem {
         type_uri: "about:blank",
         title: "Forbidden",

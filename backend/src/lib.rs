@@ -25,6 +25,7 @@ pub mod marketplace;
 pub mod middleware;
 pub mod moderation;
 pub mod notifications;
+pub mod observability;
 pub mod oidc;
 pub mod outbox;
 pub mod plugins;

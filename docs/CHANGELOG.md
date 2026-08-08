@@ -1,5 +1,52 @@
 # BBLBB — 文档变更记录
 
+## v0.6 — 2026-08-08（M15 生产运维交付）
+
+### 生产部署
+
+- Release bundle 布局与最小权限（`deploy/RELEASE-BUNDLE.md`）、构建脚本
+  `deploy/scripts/build-release-bundle.sh`（backend release 二进制 + frontend
+  build + 三方言迁移 + 依赖锁 + METADATA/SBOM/SHA256SUMS）。
+- Caddy 模板（`deploy/Caddyfile.template`）：TLS、HTTP→HTTPS、CSP、安全头、
+  压缩、body limit（10MB 双层）、`/readyz` 与 `/metrics` 不公开代理。
+- systemd units（`deploy/systemd/`）：backend/frontend/worker + 每日备份
+  timer；服务用户 `bblbb` 对 release 目录只读（不可写）。
+- 启动检查 `deploy/scripts/startup-checks.sh`（origin/Cookie/DB/目录/迁移/
+  OIDC key/外部配置）；发布/回滚编排 `deploy/scripts/release.sh`。
+
+### 观测
+
+- `BBLBB__LOG_FORMAT` 配置（text/json）：JSON 日志字段
+  timestamp/service/level/request_id/route/method；敏感字段名与值级脱敏
+  （Cookie/Authorization/OAuth token/密码/完整邮箱/隐藏正文/Prompt/签名 URL）；
+  `ops/scan-log-corpus.sh` 日志语料扫描自检与实测 CLEAN。
+- `/metrics` Prometheus 端点（loopback-only）：HTTP p50/p95/p99、错误、
+  429、DB pool、SQLite busy、连接失败 + Session/CSRF/TOTP/OAuth/上传/存储/
+  账务/任务/Outbox 领域指标（`deploy/monitoring/metrics.md`）。
+- 告警定义（`deploy/monitoring/alerts.md`）+ 表推演练
+  （`deploy/monitoring/alerts-drill.sh`，PASS=71）。
+
+### 备份与恢复
+
+- `ops/backup/`：sqlite.sh（WAL checkpoint + 安全复制）、manifest.sh、
+  daily.sh、mysql.sh/mariadb.sh（真实演练为外部阻塞 [!]）。
+- `ops/restore/`：sqlite.sh、verify.sh（用户/账本恒等式/迁移 checksum/grant/
+  outbox/audit）、verify-attachments.sh、verify-oidc-keys.sh。
+- OIDC 密钥分离存储设计（`ops/backup/oidc-keys.md`）。
+- 真实演练 `ops/backup/drill-sqlite.sh`：RPO=0（WAL checkpoint 一致快照）、
+  RTO=0.18s（擦除→完整恢复+内容校验，实测）。
+
+### 升级与 Runbook
+
+- `--worker` 模式（`bblbb-backend --worker`）与任务分发
+  `backend/src/jobs/dispatch.rs`；SIGTERM 优雅停机实测
+  `ops/test-graceful-shutdown.sh`（HTTP 0.30s、worker 0.04s 干净退出）。
+- 迁移升级演练 `deploy/scripts/drill-migration-upgrade.sh`
+  （apply_ms=68、lock_events=0、幂等二次 apply 0）。
+- 发布后冒烟 `ops/smoke/smoke.sh`（db/登录/发帖/回复/附件/账本/管理 API，
+  PASS=14）。
+- 命令级 Runbook 全套（`ops/runbooks/`）+ 值班矩阵 + 非作者执行记录。
+
 ## v0.5 — 2026-08-04
 
 ### 需求问答确认

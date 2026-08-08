@@ -1,0 +1,56 @@
+# bblbb-backend.service — BBLBB 后端 HTTP 服务（M15-PACKAGE-04）
+#
+# 服务用户 bblbb 不可写 release 目录（/opt/bblbb/releases/** 只读）：
+# 只可写 /var/lib/bblbb 与 /run（systemd credentials / 运行时文件）。
+# 生产必须提供:
+#   - /etc/bblbb/backend.env（root:bblbb 0640，非 Secret 配置）
+#   - systemd credentials（/run/credentials/bblbb-backend/*）承载 Secret
+[Unit]
+Description=BBLBB backend HTTP server
+Documentation=https://github.com/bblbb/bblbb/blob/main/docs/OPERATIONS.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bblbb
+Group=bblbb
+# current 指向 /opt/bblbb/releases/<version>；发布脚本负责原子切换后重启
+WorkingDirectory=/opt/bblbb/current
+ExecStart=/opt/bblbb/current/backend/bblbb-backend
+EnvironmentFile=/etc/bblbb/backend.env
+# Secret 只经 systemd credentials 注入，不写入 EnvironmentFile
+LoadCredential=bbllbb-master-key:/etc/bblbb/secrets/master-key
+LoadCredential=oidc-key-encryption:/etc/bblbb/secrets/oidc-key-encryption
+LoadCredential=mfa-encryption:/etc/bblbb/secrets/mfa-encryption
+LoadCredential=marketplace-webhook-encryption:/etc/bblbb/secrets/marketplace-webhook-encryption
+LoadCredential=smtp-pass:/etc/bblbb/secrets/smtp-pass
+LoadCredential=s3-access-key:/etc/bblbb/secrets/s3-access-key
+LoadCredential=s3-secret-key:/etc/bblbb/secrets/s3-secret-key
+
+# ── 加固 ────────────────────────────────────────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bblbb /run/bblbb
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+MemoryDenyWriteExecute=true
+# Secret 目录只读
+BindReadOnlyPaths=/etc/bblbb
+
+# ── 优雅停机（M15-UPGRADE-06）──────────────────────────────
+TimeoutStopSec=30
+KillSignal=SIGTERM
+# 重启策略：崩溃自动拉起；反复崩溃进入 failed 由监控告警
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

@@ -27,6 +27,7 @@ pub mod drafts;
 pub mod economy;
 pub mod feeds;
 pub mod marketplace;
+pub mod metrics;
 pub mod mfa;
 pub mod moderation;
 pub mod oidc;

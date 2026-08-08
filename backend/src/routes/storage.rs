@@ -272,7 +272,12 @@ async fn upload_attachment(
             .await
         {
             Ok(updated) => updated,
-            Err(e) => return Ok(storage_error_response(e, request_id)),
+            Err(e) => {
+                // M15-OBSERVE-05：上传失败指标
+                crate::observability::metrics::registry()
+                    .counter_inc("bblbb_uploads_failed_total", 1);
+                return Ok(storage_error_response(e, request_id));
+            }
         };
 
     Ok(attachment_json_response(updated, request_id))
@@ -361,6 +366,9 @@ async fn complete_attachment(
                     Ok(attachment_json_response(attachment, request_id))
                 }
                 Ok(upload::CompleteOutcome::Quarantined) => {
+                    // M15-OBSERVE-05：上传被内容安全检查隔离视为失败
+                    crate::observability::metrics::registry()
+                        .counter_inc("bblbb_uploads_failed_total", 1);
                     let _ = complete(pool, &record_id, &id)
                         .await
                         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -372,7 +380,12 @@ async fn complete_attachment(
                         })?;
                     Ok(attachment_json_response(attachment, request_id))
                 }
-                Err(e) => Ok(storage_error_response(e, request_id)),
+                Err(e) => {
+                    // M15-OBSERVE-05：上传失败指标
+                    crate::observability::metrics::registry()
+                        .counter_inc("bblbb_uploads_failed_total", 1);
+                    Ok(storage_error_response(e, request_id))
+                }
             }
         }
         IdempotencyOutcome::Replay { response_reference } => {
@@ -788,6 +801,8 @@ fn deny_to_app_error(decision: crate::authz::decision::Decision, request_id: &st
 /// StorageError → 稳定 Problem 响应（storage_verification_failed / quota_exceeded /
 /// storage_state_error 等，ERROR-CODES.md / OpenAPI ProblemResponse）。
 fn storage_error_response(e: StorageError, request_id: &str) -> Response {
+    // M15-OBSERVE-05：存储适配器/处理错误指标
+    crate::observability::metrics::registry().counter_inc("bblbb_storage_errors_total", 1);
     let (status, code, title) = match &e {
         StorageError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found", "Not Found"),
         StorageError::Quota(_) => (StatusCode::CONFLICT, "quota_exceeded", "Quota Exceeded"),

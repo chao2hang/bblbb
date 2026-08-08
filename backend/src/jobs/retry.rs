@@ -102,6 +102,10 @@ pub async fn fail_job(
 
     // 决策：永久错误或已达最大次数 → dead；否则按退避重试。
     let dead = class == RetryClass::Permanent || row.attempts >= row.max_attempts;
+    if dead {
+        // M15-OBSERVE-06：dead-letter 累计指标
+        crate::observability::metrics::registry().counter_inc("bblbb_jobs_dead_total", 1);
+    }
     let outcome = if dead {
         FailOutcome::Dead
     } else {

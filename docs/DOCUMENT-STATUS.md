@@ -31,6 +31,11 @@
 | `THEME.md` | Implementation | 主题/前端/安全 | 数据型主题封闭 Token schema、fallback、revision 一致性与管理 API（M13-THEME 已实现，0057_theme.sql） |
 | `PLUGIN.md` | Implementation | 插件/安全 | v1 配置型插件 capability 白名单、无在线代码执行路径、调用摘要审计（M13-PLUGIN 已实现） |
 | `PROTOTYPE-IA.md` / `PROTOTYPE-UI.md` | Reference | 产品/前端 | 原型路由、流程和视觉规范，不替代 API |
+| `deploy/RELEASE-BUNDLE.md` | Implementation | 运维/发布 | release bundle 布局、版本固定、最小权限（M15-PACKAGE，2026-08-08 交付） |
+| `deploy/monitoring/metrics.md` / `alerts.md` | Implementation | 运维 | 指标目录与告警定义（M15-OBSERVE，2026-08-08 交付） |
+| `deploy/RELEASES.md` | Release gate | 发布 | 每版本迁移/API 兼容矩阵 + 版本化证据索引（M15-UPGRADE） |
+| `ops/backup/oidc-keys.md` | Implementation | 运维-数据 | OIDC 密钥分离存储与恢复设计（M15-BACKUP-04） |
+| `ops/runbooks/*` | Release gate | 运维-安全 | 命令级故障/安全/隐私 Runbook 与值班矩阵（M15-RUNBOOK） |
 
 ## 2. v0.5 v1.0 发布矩阵
 

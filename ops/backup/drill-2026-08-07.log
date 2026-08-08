@@ -1,0 +1,50 @@
+================================================================
+BBLBB SQLite 备份/恢复演练   2026-08-08T04:41:19Z
+工作目录: /tmp/bblbb-drill-run
+================================================================
+==> 1) 建库 + 迁移（source）
+    已应用迁移: 57
+    最新迁移 checksum: 57=7c4555bf9f47
+==> 2) 写入业务数据（用户/账本/grant/outbox/audit）
+    用户: 1；账本: exp balance=100；grant: 1；outbox: 1；audit: 1
+==> 3) 备份（计时）
+==> 备份: /tmp/bblbb-drill-run/source/bblbb.sqlite → /tmp/bblbb-drill-run/backups/sqlite/drill
+==> 1/5 WAL checkpoint(TRUNCATE)
+0|0|0
+==> 2/5 校验 WAL 状态
+==> 3/5 integrity_check
+==> 4/5 复制主库 + 计算 sha256
+==> 5/5 元数据
+==> 完成: /tmp/bblbb-drill-run/backups/sqlite/drill/bblbb.sqlite
+    sha256: 9e44c959b82c1b9d120a8b6b2cc48d7a5e51eecc5de562173f08915d17d5eb49
+    备份耗时: 134 ms
+==> 4) 校验备份
+    备份完整性: ok
+==> 5) 擦除源库（模拟故障）
+    源库已删除（含 WAL/-shm）
+==> 6) 恢复（计时）
+==> 1/6 备份校验和
+    sha256 OK: 9e44c959b82c1b9d120a8b6b2cc48d7a5e51eecc5de562173f08915d17d5eb49
+==> 2/6 备份完整性
+==> 3/6 目标库检查
+==> 4/6 原子写入
+==> 5/6 恢复后完整性
+==> 6/6 完成
+    恢复完成: /tmp/bblbb-drill-run/target/bblbb.sqlite
+    恢复耗时: 180 ms
+==> 7) 内容校验
+    users=1 (期望 1)
+    Σ(delta_balance)=100 balance=100 (期望 100/100)
+    grants=1 (期望 1)
+    outbox=1 (期望 1)
+    audit=1 (期望 1)
+    migrations=57 (期望 57)
+    verify.sh=yes
+==> 8) 断言
+==> 9) RPO/RTO 测量
+    RPO=0（WAL checkpoint(TRUNCATE) 后的一致性快照，备份覆盖到备份时刻全部已提交事务）
+    RPO（备份耗时窗口）=134ms
+    RTO（擦除→完整恢复+内容校验）=0.18s
+================================================================
+DRILL: PASSED
+RPO=0, RTO=0.18s, backup_ms=134, restore_ms=180

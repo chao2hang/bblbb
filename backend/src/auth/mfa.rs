@@ -521,10 +521,13 @@ pub async fn verify_totp_login(
     let secret =
         decrypt_secret(encryption_key, &row.encrypted_secret).ok_or(MfaError::Encryption)?;
     let Some(step) = verify_totp(&secret, code, now_secs, window) else {
+        // M15-OBSERVE-05：TOTP 验证失败指标（错误/重放/过期统一计数）
+        crate::observability::metrics::registry().counter_inc("bblbb_totp_failures_total", 1);
         return Err(MfaError::InvalidCode);
     };
     if step <= row.last_accepted_step as u64 {
         // 已接受过该 step（重放）
+        crate::observability::metrics::registry().counter_inc("bblbb_totp_failures_total", 1);
         return Err(MfaError::InvalidCode);
     }
 

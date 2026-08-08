@@ -366,3 +366,21 @@ M14 交付 Playwright E2E + axe 可访问性基线：
 - **已知诚实记录**：真实注册消费后端 IP 注册配额（3 次/小时），注册提交类用例只在
   desktop 项目执行，重复运行小时内命中 429 时断言接受限流降级；搜索 FTS 由后端
   维护，API 创建的种子帖子未被索引，帖子定位改用 `/boards/general` 板块列表。
+
+## 24. M15：生产运维演练（2026-08 追加）
+
+| 演练 | 命令 | 结果/频率 |
+|---|---|---|
+| 备份/恢复（SQLite） | `ops/backup/drill-sqlite.sh` | 实测 RPO=0、RTO=0.18s；每周（oncall.md §5） |
+| 迁移升级（上一版本→当前） | `deploy/scripts/drill-migration-upgrade.sh` | apply_ms=68、lock_events=0；每次发布 |
+| 优雅停机（HTTP/worker） | `ops/test-graceful-shutdown.sh` | HTTP 0.30s / worker 0.04s 干净退出；每次发布 |
+| 发布后冒烟 | `ops/smoke/smoke.sh` | db/登录/发帖/回复/附件/账本/管理 API；每次发布 |
+| 告警表推 | `deploy/monitoring/alerts-drill.sh` | PASS=71；每月 |
+| 日志脱敏扫描 | `ops/scan-log-corpus.sh --test` + 实测 | CLEAN；每次发布/日志变更 |
+| 恢复内容校验 | `ops/restore/verify.sh` + `verify-attachments.sh` + `verify-oidc-keys.sh` | 每次恢复 |
+| release bundle / Caddy / 权限 | `deploy/tests/test-release-bundle.sh` | PASS=26；每次构建 |
+| 非作者执行 Runbook | `ops/runbooks/execution-sqlite-restore-2026-08-07.txt` | PASSED；每次 Runbook 变更 |
+
+MySQL/MariaDB 实机备份恢复、S3 版本化演练、SMTP 故障演练、生产主机部署
+执行为外部基础设施阻塞项（M15-BACKUP-02/03、M15-RUNBOOK-03、M15-PACKAGE-08
+`[!]`），脚本与文档已就绪。

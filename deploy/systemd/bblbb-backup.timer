@@ -1,0 +1,16 @@
+# bblbb-backup.timer — 每日备份定时器（M15-BACKUP-05）
+#
+# 每天 02:30 执行；错过后 1 小时内补跑（AccuracySec）。备份结果进入
+# journald，配合「备份失败/超时未成功」告警（deploy/monitoring/alerts.md）。
+[Unit]
+Description=BBLBB daily backup timer
+Requires=bblbb-backup.service
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=1h
+
+[Install]
+WantedBy=timers.target

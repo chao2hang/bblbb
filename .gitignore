@@ -45,8 +45,12 @@ node_modules/
 
 # Logs and temporary files
 *.log
+!/ops/**/drill-*.log
 /tmp/
 .cache/
+
+# Release bundle 构建产物
+/dist/
 
 # Test artifacts
 /playwright-report/

@@ -1,0 +1,48 @@
+# bblbb-frontend.service — BBLBB 前端 SSR 进程（M15-PACKAGE-04）
+#
+# SvelteKit adapter-node 生产服务。监听 loopback 127.0.0.1:3000，
+# 由 Caddy 反向代理；/api 与 /healthz 由 Caddy 直接转给 backend，
+# 前端进程只处理页面 SSR 与静态资源。
+#
+# 前端不接触任何 Secret：/etc/bblbb/frontend.env 只含非敏感运行参数。
+[Unit]
+Description=BBLBB SvelteKit frontend SSR server
+Documentation=https://github.com/bblbb/bblbb/blob/main/docs/OPERATIONS.md
+After=network-online.target bblbb-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bblbb
+Group=bblbb
+WorkingDirectory=/opt/bblbb/current/frontend
+EnvironmentFile=/etc/bblbb/frontend.env
+# adapter-node 默认读取 PORT/HOST；生产强制 loopback
+Environment=PORT=3000
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/env node /opt/bblbb/current/frontend/build/index.js
+
+# ── 加固 ────────────────────────────────────────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bblbb
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+# 前端不需要读 Secret 目录（只读挂载排除）
+BindReadOnlyPaths=/etc/bblbb
+
+# ── 优雅停机 ───────────────────────────────────────────────
+TimeoutStopSec=15
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

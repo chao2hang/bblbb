@@ -246,6 +246,11 @@ pub async fn login_user(
     } else {
         None
     };
+    // M15-OBSERVE-05：登录失败 / 锁定指标
+    crate::observability::metrics::registry().counter_inc("bblbb_session_login_failures_total", 1);
+    if new_locked.is_some() {
+        crate::observability::metrics::registry().counter_inc("bblbb_session_lockouts_total", 1);
+    }
     update_failure_count(pool, &user.id, new_count, new_locked, now)
         .await
         .map_err(LoginError::Database)?;

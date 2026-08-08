@@ -294,6 +294,24 @@ pub async fn apply_operation(
     cmd: LedgerCommand,
     now: i64,
 ) -> Result<OperationResult, LedgerError> {
+    let outcome = apply_operation_impl(pool, cmd, now).await;
+    if outcome.is_err() {
+        // M15-OBSERVE-05：账本服务错误指标（含负余额/并发/幂等冲突）
+        crate::observability::metrics::registry().counter_inc("bblbb_ledger_errors_total", 1);
+    }
+    outcome
+}
+
+/// `apply_operation` 实现体（计数器包装见上）。
+///
+/// `explicit_auto_deref`：sqlx `Executor` 只实现于 `&mut Connection`，
+/// `&mut PoolConnection` 不满足，`&mut *conn` 是必要显式解引用（clippy 误报）。
+#[allow(clippy::explicit_auto_deref)]
+async fn apply_operation_impl(
+    pool: &DatabasePool,
+    cmd: LedgerCommand,
+    now: i64,
+) -> Result<OperationResult, LedgerError> {
     validate_command(&cmd)?;
     let hash = cmd.request_hash();
 

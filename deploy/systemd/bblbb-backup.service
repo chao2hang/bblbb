@@ -1,0 +1,21 @@
+# bblbb-backup.service — 每日备份（M15-BACKUP-05）
+#
+# root 执行（备份产物应用账号 bblbb 不可删除）；不定义 User=
+[Unit]
+Description=BBLBB daily backup (sqlite + manifest + attachments)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/bblbb/current/ops/backup/daily.sh \
+  --db /var/lib/bblbb/database/bblbb.db \
+  --storage /var/lib/bblbb/uploads \
+  --backup-dir /var/lib/bblbb/backups \
+  --keep-days 14
+# 备份目录产物权限：应用账号不可删
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

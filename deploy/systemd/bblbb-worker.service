@@ -1,0 +1,52 @@
+# bblbb-worker.service — BBLBB 后台任务 worker（M15-PACKAGE-04）
+#
+# 与 backend HTTP 进程分离的 worker（`bblbb-backend --worker`）：
+#   - 领取 default/mail 队列任务（search.index / markdown.rerender /
+#     content.publish / account_deletion / email.deliver）；
+#   - SIGTERM 停止领取 → drain_timeout 内收尾在途任务 → 退出（M15-UPGRADE-06）；
+#   - 租约到期任务由其他 worker/重启安全重领（不丢任务）。
+[Unit]
+Description=BBLBB background job worker
+Documentation=https://github.com/bblbb/bblbb/blob/main/docs/OPERATIONS.md
+After=network-online.target bblbb-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bblbb
+Group=bblbb
+WorkingDirectory=/opt/bblbb/current
+ExecStart=/opt/bblbb/current/backend/bblbb-backend --worker
+EnvironmentFile=/etc/bblbb/backend.env
+LoadCredential=bbllbb-master-key:/etc/bblbb/secrets/master-key
+LoadCredential=oidc-key-encryption:/etc/bblbb/secrets/oidc-key-encryption
+LoadCredential=mfa-encryption:/etc/bblbb/secrets/mfa-encryption
+LoadCredential=marketplace-webhook-encryption:/etc/bblbb/secrets/marketplace-webhook-encryption
+LoadCredential=smtp-pass:/etc/bblbb/secrets/smtp-pass
+LoadCredential=s3-access-key:/etc/bblbb/secrets/s3-access-key
+LoadCredential=s3-secret-key:/etc/bblbb/secrets/s3-secret-key
+
+# ── 加固（与 backend 一致；worker 不需要监听端口）──────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bblbb /run/bblbb
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+MemoryDenyWriteExecute=true
+BindReadOnlyPaths=/etc/bblbb
+
+# ── 优雅停机 ───────────────────────────────────────────────
+TimeoutStopSec=30
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

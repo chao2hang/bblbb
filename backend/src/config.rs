@@ -47,6 +47,13 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         reload: "restart",
     },
     ConfigEntry {
+        env_var: "BBLBB__LOG_FORMAT",
+        field: "log_format",
+        default: "text",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
         env_var: "BBLBB__OPENAPI_PATH",
         field: "openapi_path",
         default: "../openapi/openapi.yaml",
@@ -265,6 +272,9 @@ pub struct AppConfig {
     pub bind_address: SocketAddr,
     #[serde(default = "default_log_filter")]
     pub log_filter: String,
+    /// 日志输出格式（`text` / `json`；M15-OBSERVE-01，生产建议 `json`）。
+    #[serde(default = "default_log_format")]
+    pub log_format: String,
     #[serde(default = "default_openapi_path")]
     pub openapi_path: PathBuf,
     #[serde(default = "default_database_url")]
@@ -509,6 +519,7 @@ impl Default for AppConfig {
         Self {
             bind_address: default_bind_address(),
             log_filter: default_log_filter(),
+            log_format: default_log_format(),
             openapi_path: default_openapi_path(),
             database_url: default_database_url(),
             migrations_dir: default_migrations_dir(),
@@ -554,6 +565,10 @@ fn default_env() -> String {
 
 fn default_log_filter() -> String {
     "bblbb_backend=info,tower_http=info".to_owned()
+}
+
+fn default_log_format() -> String {
+    "text".to_owned()
 }
 
 fn default_openapi_path() -> PathBuf {
@@ -823,6 +838,7 @@ mod tests {
             "env",
             "feature_kill_switch",
             "log_filter",
+            "log_format",
             "mfa_encryption_key",
             "migrations_dir",
             "new_user_cooldown_secs",

@@ -35,6 +35,7 @@
 |---|---|---|---|---|
 | `BBLBB__BIND_ADDRESS` | `bind_address` | `127.0.0.1:8080` | all | 重启 |
 | `BBLBB__LOG_FILTER` | `log_filter` | `bblbb_backend=info,tower_http=info` | all | 重启 |
+| `BBLBB__LOG_FORMAT` | `log_format` | `text` | all | 重启 |
 | `BBLBB__OPENAPI_PATH` | `openapi_path` | `../openapi/openapi.yaml` | all | 重启 |
 | `BBLBB__DATABASE_URL` | `database_url` | `sqlite://../data/bblbb.sqlite` | all | 重启 |
 | `BBLBB__MIGRATIONS_DIR` | `migrations_dir` | `../migrations/sqlite` | all | 重启 |

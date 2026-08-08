@@ -373,3 +373,93 @@ bblbb verify-migration ...
   只增不改，无删除路径。
 - 通知站点安全负责人；按需配置额外告警。
 - 复盘记录（事故/变更记录），改进预检与窗口控制。
+
+---
+
+# 19. M15 生产运维交付（v1.0 追加）
+
+本节汇总 M15（生产部署、观测、备份、升级、Runbook）交付物与操作入口。
+
+## 19.1 进程模型
+
+```text
+caddy                 # 反向代理/TLS（deploy/Caddyfile.template）
+bblbb-backend         # HTTP API（systemd: bblbb-backend.service）
+bblbb-backend --worker# 任务 worker（systemd: bblbb-worker.service）
+node build/index.js   # 前端 SSR（systemd: bblbb-frontend.service）
+bblbb-backup.timer    # 每日备份（root 执行）
+```
+
+发布产物布局与最小权限见 `deploy/RELEASE-BUNDLE.md`；systemd 加固见
+`deploy/systemd/*.service`；发布编排见 `deploy/scripts/release.sh`。
+
+## 19.2 观测（M15-OBSERVE）
+
+- 日志：`BBLBB__LOG_FORMAT=json` 输出每行一个 JSON 事件
+  （timestamp/service/level/request_id/route/method + 脱敏 fields）。
+  禁止出现在日志：Cookie、Authorization、OAuth code/token、密码、完整邮箱、
+  隐藏正文、Prompt、签名 URL（脱敏层 `backend/src/observability/` +
+  日志语料扫描 `ops/scan-log-corpus.sh`）。
+- 指标：`GET /metrics`（Prometheus 文本；仅 loopback/受控监控可访问，Caddy
+  不代理）。指标目录 `deploy/monitoring/metrics.md`；告警定义
+  `deploy/monitoring/alerts.md`；告警表推演练 `deploy/monitoring/alerts-drill.sh`。
+- 慢请求/慢查询：只记录 label + elapsed + route（无 SQL 文本/参数值）。
+
+## 19.3 备份与恢复（M15-BACKUP）
+
+```sh
+ops/backup/sqlite.sh <db> <backup-dir>            # WAL checkpoint + 安全复制
+ops/backup/manifest.sh --db <db> --storage <dir>  # 迁移/主题/配置/附件清单
+ops/backup/daily.sh                               # 每日备份编排
+ops/backup/mysql.sh / ops/backup/mariadb.sh       # MySQL/MariaDB（真实演练 [!]）
+ops/restore/sqlite.sh <backup> <target> --verify  # 恢复 + 内容校验
+ops/restore/verify.sh --db <db>                   # 用户/账本恒等式/迁移 checksum/
+                                                  # grant/outbox/audit
+ops/restore/verify-attachments.sh                 # 附件数量/size/hash/引用/Cover
+ops/restore/verify-oidc-keys.sh                   # OIDC 密文/JWK/解密/JWKS
+ops/backup/drill-sqlite.sh                        # 可重复真实演练（RPO/RTO 实测）
+```
+
+OIDC 密钥分离存储设计：`ops/backup/oidc-keys.md`（密文在 DB、解密主密钥独立
+副本、禁止同地单份保存）。
+
+## 19.4 发布 / 升级 / 回滚（M15-UPGRADE）
+
+```sh
+deploy/scripts/build-release-bundle.sh --version <v>   # 构建不可变 bundle
+deploy/scripts/record-release-metadata.sh --bundle ...  # SBOM/checksum/commit
+deploy/tests/test-release-bundle.sh --bundle ...        # 布局/权限/Caddy/错误配置
+deploy/scripts/startup-checks.sh                        # 启动检查
+deploy/scripts/release.sh --bundle ...                  # 备份→迁移→切换→验证
+deploy/scripts/release.sh --rollback                    # 回滚（current 切换）
+deploy/scripts/drill-migration-upgrade.sh               # 上一版本→当前迁移演练
+ops/test-graceful-shutdown.sh                           # SIGTERM 优雅停机实测
+ops/smoke/smoke.sh                                      # 发布后冒烟
+```
+
+回滚规则（M15-UPGRADE-03）：
+
+- **可逆迁移**（纯增量/加列/建表，不丢数据）：代码回滚 + 切回上一 current；
+- **不可逆迁移**（删除列/改语义/数据重写）：**禁止代码回滚**；只允许
+  `ops/restore/sqlite.sh` 备份恢复，并接受数据窗口损失；恢复点 = 发布前备份
+  （`/var/lib/bblbb/backups/sqlite/pre-release/`）；
+- 发布前必须备份（release.sh 第 1 步强制）；恢复后必须 `verify.sh` +
+  冒烟。
+
+## 19.5 值班与 Runbook（M15-RUNBOOK）
+
+命令级 Runbook 在 `ops/runbooks/`：
+
+| 主题 | 文件 |
+|---|---|
+| DB 不可用 / SQLite busy / 磁盘满 / WAL 过大 / 迁移失败 | `db-unavailable.md`、`sqlite-busy.md`、`disk-full.md`、`migration-failure.md` |
+| S3 403/404/429/5xx、DNS/TLS、签名 TTL、孤儿对象 | `s3-errors.md` |
+| SMTP 失败、邮件堆积、token 日志、dead-letter | `smtp-failure.md` |
+| 备份失败/磁盘满/解密失败/部分恢复/切流 | `backup-failure.md` |
+| 可选能力停用/回滚/历史保护 | `feature-disable.md` |
+| 安全事故（Session/密钥/Webhook/Provider/审计） | `security-incidents.md` |
+| 隐私生命周期（导出/注销/30 天/法律保留/误删） | `privacy-lifecycle.md` |
+| 值班矩阵/升级/维护窗口/审批/演练 | `oncall.md` |
+
+所有 Runbook 由非编写者在隔离环境执行过一次并记录缺口
+（`ops/runbooks/execution-sqlite-restore-2026-08-07.txt`）。

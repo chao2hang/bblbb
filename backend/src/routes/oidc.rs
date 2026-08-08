@@ -62,6 +62,8 @@ fn oauth_error(status: StatusCode, error: &str, description: &str) -> Response {
 
 /// 从 OidcError 映射为标准 OAuth 错误响应。
 fn oauth_error_response(err: &OidcError) -> Response {
+    // M15-OBSERVE-05：OIDC Token/授权码错误指标
+    crate::observability::metrics::registry().counter_inc("bblbb_oidc_token_errors_total", 1);
     match err {
         OidcError::InvalidRequest(d) => oauth_error(StatusCode::BAD_REQUEST, "invalid_request", d),
         OidcError::InvalidClient(d) => oauth_error(StatusCode::UNAUTHORIZED, "invalid_client", d),

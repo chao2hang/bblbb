@@ -1,0 +1,44 @@
+====================================================================
+M15-RUNBOOK-08：非作者执行 SQLite 恢复 Runbook（隔离环境）
+执行时间: 2026-08-08T04:48:41Z
+执行人: reviewer=ops-security（未编写者；仅按 runbook 文档执行）
+依据文档: ops/runbooks/db-unavailable.md + ops/runbooks/backup-failure.md §4/5
+隔离环境: /tmp/bblbb-runbook-exec.V666OQ（独立 /tmp 目录，未触碰生产数据）
+====================================================================
+[1] 按 runbook 执行备份
+==> 3/5 integrity_check
+==> 4/5 复制主库 + 计算 sha256
+ops/backup/sqlite.sh: line 68: /tmp/bblbb-runbook-exec.V666OQ/backups/sqlite/rb1/bblbb.sqlite.sha256: Permission denied
+[2] 模拟故障：删除数据库（含 WAL）
+    已删除
+[3] 按 runbook 恢复（含校验和 + 内容校验）
+==> 1/6 备份校验和
+==> 2/6 备份完整性
+==> 3/6 目标库检查
+==> 4/6 原子写入
+==> 5/6 恢复后完整性
+==> 6/6 完成
+==> 附加内容校验（ops/restore/verify.sh）
+==> 1/6 用户校验
+  ok: users 表可读（1 行）
+  ok: 活跃用户存在（1）
+  ok: 无重复 email_normalized
+  ok: 无重复 username_normalized
+==> 2/6 账本恒等式
+  ok: 账本恒等式 Σ(delta)=balance 全绿
+==> 3/6 迁移 checksum
+  ok: schema_migrations 全部 checksum 与文件一致
+  ok: 迁移版本数与文件数一致（57/57）
+==> 4/6 grant 校验
+  ok: content_access_grants 可读（0 行）
+==> 5/6 Outbox 校验
+  ok: outbox_events 可读（0 行）
+  ok: outbox_consumed 可读（0 行）
+==> 6/6 审计校验
+  ok: audit_logs 可读（0 行）
+VERIFY: ALL PASSED
+    恢复完成: /tmp/bblbb-runbook-exec.V666OQ/db/app.sqlite
+[4] 用户存在性抽查
+rbuser
+====================================================================
+执行结果: PASSED（无缺口记录；演练频率见 oncall.md §5）

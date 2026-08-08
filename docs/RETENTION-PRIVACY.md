@@ -39,3 +39,13 @@
 ## 3. 第三方数据
 
 AI Provider、视频来源、S3、SMTP 的外部请求必须按来源策略记录最小审计。完整 URL、Cookie、授权 Header、Prompt、响应正文和签名 URL 不进入普通日志。用户在 AI 完整内容外发前必须看到 Provider、用途、留存、训练和区域信息。
+
+## 4. M15 运维衔接
+
+- 命令级隐私生命周期流程见 `ops/runbooks/privacy-lifecycle.md`
+  （数据导出、注销匿名化、30 天删除、法律保留、恢复误删）。
+- 备份保留策略：`ops/backup/daily.sh` 默认保留 14 天；备份/恢复不影响
+  legal_hold（`users.legal_hold_at` 在备份恢复后保留，30 天 hard delete
+  对 legal hold 用户跳过）。
+- 备份内容（`ops/backup/manifest.sh`）不含 Secret 值；OIDC 主密钥与数据库
+  备份分离存储（`ops/backup/oidc-keys.md`）。
