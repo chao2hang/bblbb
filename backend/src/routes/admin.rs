@@ -1155,8 +1155,51 @@ async fn update_admin_role(
         .await;
     get_admin_role(State(state), auth, Path(id)).await
 }
-async fn list_admin_boards(State(_state): State<AppState>) -> (StatusCode, Json<Value>) {
-    not_implemented("listAdminBoards")
+/// GET /api/v1/admin/boards — 全部板块（board.manage；M03-BOARDS-05 管理投影）。
+async fn list_admin_boards(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "listAdminBoards";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let decision = authorize_action(pool, &user.id, "board.manage", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden(
+            "board.manage permission required",
+            request_id,
+        ));
+    }
+
+    let items: Vec<Value> = match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query(
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
+                 FROM boards ORDER BY sort_order ASC, name ASC",
+            )
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            rows.iter().map(board_admin_row_json).collect()
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query(
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
+                 FROM boards ORDER BY sort_order ASC, name ASC",
+            )
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            rows.iter().map(board_admin_row_json_mysql).collect()
+        }
+    };
+    Ok(Json(json!({ "items": items })))
 }
 /// POST /api/v1/admin/boards — 创建板块（权限门 + 校验 + 审计，M03-BOARDS-05）
 async fn create_admin_board(
@@ -3077,17 +3120,4 @@ async fn update_theme_settings(
             .await;
         Ok(Json(json!({ "theme": updated.json() })))
     }
-}
-
-fn not_implemented(operation: &str) -> (StatusCode, Json<Value>) {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "type": "about:blank",
-            "title": "Not Implemented",
-            "status": 501,
-            "code": "not_implemented",
-            "detail": format!("Operation '{}' is not yet implemented", operation),
-        })),
-    )
 }
