@@ -58,7 +58,14 @@ pub fn router() -> Router<AppState> {
 fn ai_error_to_app(e: crate::ai::consent::ConsentError, request_id: &str) -> AppError {
     use crate::ai::consent::ConsentError as CE;
     match e {
-        CE::NotFound(m) => AppError::not_found(m, request_id),
+        // M16-HARNESS-04：缺少 AI 数据发送独立同意 → 403 `ai_consent_required`。
+        CE::NotFound(m) => AppError::with_code(
+            axum::http::StatusCode::FORBIDDEN,
+            "ai_consent_required",
+            "Forbidden",
+            m,
+            request_id,
+        ),
         CE::Invalid(m) => AppError::bad_request(m, request_id, None),
         CE::AlreadyGranted => AppError::conflict("consent already granted", request_id),
         CE::Db(m) => AppError::internal(m, request_id),
@@ -70,8 +77,24 @@ fn task_error_to_app(e: crate::ai::tasks::TaskError, request_id: &str) -> AppErr
     match e {
         TE::NotFound(m) => AppError::not_found(m, request_id),
         TE::Invalid(m) => AppError::bad_request(m, request_id, None),
-        TE::Stale { reason } => AppError::conflict(reason, request_id),
+        // M16-HARNESS-04：执行前重确认失败（revision/consent 变化）→ `ai_suggestion_stale`。
+        TE::Stale { reason } => AppError::with_code(
+            axum::http::StatusCode::CONFLICT,
+            "ai_suggestion_stale",
+            "Conflict",
+            reason,
+            request_id,
+        ),
         TE::Cancelled => AppError::conflict("task cancelled", request_id),
+        // M16-HARNESS-04：预算熔断 → 409 `ai_budget_exceeded`；其余 Provider
+        // 网关错误保持 `bad_request` + 脱敏 detail（既有行为）。
+        TE::Provider(crate::ai::gateway::GatewayError::BudgetExceeded(m)) => AppError::with_code(
+            axum::http::StatusCode::CONFLICT,
+            "ai_budget_exceeded",
+            "Conflict",
+            m,
+            request_id,
+        ),
         TE::Provider(g) => AppError::bad_request(g.code(), request_id, None),
         TE::Consent(ce) => ai_error_to_app(ce, request_id),
         TE::Db(m) => AppError::internal(m, request_id),
@@ -86,7 +109,14 @@ fn suggestion_error_to_app(
     match e {
         SE::NotFound(m) => AppError::not_found(m, request_id),
         SE::Invalid(m) => AppError::bad_request(m, request_id, None),
-        SE::VersionConflict { .. } => AppError::conflict("suggestion version conflict", request_id),
+        // M16-HARNESS-04：目标 revision 已变化 → 409 `ai_suggestion_stale`。
+        SE::VersionConflict { .. } => AppError::with_code(
+            axum::http::StatusCode::CONFLICT,
+            "ai_suggestion_stale",
+            "Conflict",
+            "target revision changed; regenerate the suggestion",
+            request_id,
+        ),
         SE::Forbidden(m) => AppError::forbidden(m, request_id),
         SE::AlreadyAccepted => AppError::conflict("suggestion already accepted", request_id),
         SE::Db(m) => AppError::internal(m, request_id),

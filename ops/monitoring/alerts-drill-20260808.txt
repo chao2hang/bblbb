@@ -1,0 +1,81 @@
+================================================================
+BBLBB 告警表推演练  2026-08-08T07:50:35Z
+================================================================
+==> 1/4 告警定义存在性与级别
+  ok: 告警定义 bblbb_http_5xx_high
+  ok: 告警定义 bblbb_http_429_surge
+  ok: 告警定义 bblbb_http_latency_p95
+  ok: 告警定义 bblbb_db_pool_exhausted
+  ok: 告警定义 bblbb_db_connect_failures
+  ok: 告警定义 bblbb_sqlite_busy
+  ok: 告警定义 bblbb_jobs_dead
+  ok: 告警定义 bblbb_jobs_oldest_pending
+  ok: 告警定义 bblbb_outbox_backlog
+  ok: 告警定义 bblbb_outbox_failed
+  ok: 告警定义 bblbb_queue_accumulating
+  ok: 告警定义 bblbb_backup_failed
+  ok: 告警定义 bblbb_backup_verify_failed
+  ok: 告警定义 bblbb_disk_free
+  ok: 告警定义 bblbb_wal_growth
+  ok: 告警定义 bblbb_s3_errors
+  ok: 告警定义 bblbb_s3_permanent
+  ok: 告警定义 bblbb_smtp_failed
+  ok: 告警定义 bblbb_provider_5xx
+  ok: 告警定义 bblbb_oidc_key_expiring
+==> 2/4 指标名与 METRIC_HELP 白名单一致
+  ok: 指标登记 bblbb_csrf_rejections_total
+  ok: 指标登记 bblbb_db_connect_failures_total
+  ok: 指标登记 bblbb_db_pool_idle
+  ok: 指标登记 bblbb_db_pool_max
+  ok: 指标登记 bblbb_db_pool_size
+  ok: 指标登记 bblbb_http_429_total
+  ok: 指标登记 bblbb_http_errors_total
+  ok: 指标登记 bblbb_http_request_duration_seconds
+  ok: 指标登记 bblbb_http_requests_total
+  ok: 指标登记 bblbb_jobs_dead
+  ok: 指标登记 bblbb_jobs_dead_total
+  ok: 指标登记 bblbb_jobs_queued
+  ok: 指标登记 bblbb_jobs_running
+  ok: 指标登记 bblbb_ledger_errors_total
+  ok: 指标登记 bblbb_oidc_token_errors_total
+  ok: 指标登记 bblbb_outbox_failed
+  ok: 指标登记 bblbb_outbox_pending
+  ok: 指标登记 bblbb_session_lockouts_total
+  ok: 指标登记 bblbb_session_login_failures_total
+  ok: 指标登记 bblbb_sqlite_busy_total
+  ok: 指标登记 bblbb_storage_errors_total
+  ok: 指标登记 bblbb_totp_failures_total
+  ok: 指标登记 bblbb_uploads_failed_total
+  ok: 告警覆盖 bblbb_csrf_rejections_total
+  ok: 告警覆盖 bblbb_db_connect_failures_total
+  ok: 告警覆盖 bblbb_db_pool_idle
+  ok: 告警覆盖 bblbb_db_pool_max
+  ok: 告警覆盖 bblbb_db_pool_size
+  ok: 告警覆盖 bblbb_http_429_total
+  ok: 告警覆盖 bblbb_http_errors_total
+  ok: 告警覆盖 bblbb_http_request_duration_seconds
+  ok: 告警覆盖 bblbb_http_requests_total
+  ok: 告警覆盖 bblbb_jobs_dead
+  ok: 告警覆盖 bblbb_jobs_dead_total
+  ok: 告警覆盖 bblbb_jobs_queued
+  ok: 告警覆盖 bblbb_jobs_running
+  ok: 告警覆盖 bblbb_ledger_errors_total
+  ok: 告警覆盖 bblbb_oidc_token_errors_total
+  ok: 告警覆盖 bblbb_outbox_failed
+  ok: 告警覆盖 bblbb_outbox_pending
+  ok: 告警覆盖 bblbb_session_lockouts_total
+  ok: 告警覆盖 bblbb_session_login_failures_total
+  ok: 告警覆盖 bblbb_sqlite_busy_total
+  ok: 告警覆盖 bblbb_storage_errors_total
+  ok: 告警覆盖 bblbb_totp_failures_total
+  ok: 告警覆盖 bblbb_uploads_failed_total
+==> 3/4 Prometheus rule YAML 可加载（可选）
+  （未提供 rules.yml，使用 alerts.md 表格定义）
+==> 4/4 值班/升级/审批路径
+  ok: oncall.md 包含 值班联系人
+  ok: oncall.md 包含 升级路径
+  ok: oncall.md 包含 维护窗口
+  ok: oncall.md 包含 审批人
+  ok: oncall.md 包含 演练频率
+------------------------------------------------------------
+ALERTS-DRILL: PASS=71 FAIL=0

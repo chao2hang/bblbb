@@ -91,6 +91,27 @@ impl std::fmt::Display for ShopError {
 
 impl std::error::Error for ShopError {}
 
+impl ShopError {
+    /// 稳定错误码（docs/ERROR-CODES.md；M16-HARNESS-04 路由层按此输出 Problem code）。
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Db(_) => "internal_error",
+            Self::NotFound(_) => "not_found",
+            Self::Invalid(_) => "invalid_request",
+            Self::InsufficientBalance => "insufficient_funds",
+            Self::OutOfStock => "shop_stock_exhausted",
+            Self::BelowLevel { .. } => "invalid_request",
+            Self::NotInSaleWindow => "product_unavailable",
+            Self::PurchaseLimitExceeded => "shop_purchase_limit_exceeded",
+            Self::IdempotencyConflict => "idempotency_conflict",
+            Self::EntitlementNotOwned => "entitlement_not_usable",
+            Self::SlotConflict => "presentation_slot_conflict",
+            Self::NotRefundable => "refund_not_allowed",
+            Self::Forbidden(_) => "forbidden",
+        }
+    }
+}
+
 /// 商品行（shop_products）。
 #[derive(Debug, Clone)]
 pub struct ProductRow {
@@ -1856,32 +1877,28 @@ async fn enqueue_in_tx_flat_mysql(
 }
 
 /// 将 ShopError 映射为 AppError（路由层用）。
+///
+/// M16-HARNESS-04：按 `ShopError::code()` 输出稳定 Problem code（与
+/// docs/ERROR-CODES.md / OpenAPI Problem.code enum 一致）。
 pub fn shop_error_to_app(e: ShopError, request_id: &str) -> AppError {
-    match e {
-        ShopError::NotFound(m) => AppError::not_found(m, request_id),
-        ShopError::Invalid(m) => AppError::bad_request(m, request_id, None),
-        ShopError::InsufficientBalance => {
-            AppError::bad_request("insufficient balance", request_id, None)
+    use axum::http::StatusCode;
+    let (status, title) = match &e {
+        ShopError::Db(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error"),
+        ShopError::NotFound(_) => (StatusCode::NOT_FOUND, "Not Found"),
+        ShopError::Invalid(_) | ShopError::BelowLevel { .. } => {
+            (StatusCode::BAD_REQUEST, "Bad Request")
         }
-        ShopError::OutOfStock => AppError::conflict("out of stock", request_id),
-        ShopError::BelowLevel { required } => {
-            AppError::bad_request(format!("level {required} required"), request_id, None)
-        }
-        ShopError::NotInSaleWindow => {
-            AppError::bad_request("product not in sale window", request_id, None)
-        }
-        ShopError::PurchaseLimitExceeded => {
-            AppError::bad_request("purchase limit exceeded", request_id, None)
-        }
-        ShopError::IdempotencyConflict => {
-            AppError::conflict("idempotency key conflict", request_id)
-        }
-        ShopError::EntitlementNotOwned => AppError::not_found("entitlement not found", request_id),
-        ShopError::SlotConflict => AppError::conflict("equipment slot conflict", request_id),
-        ShopError::NotRefundable => {
-            AppError::bad_request("order is not refundable", request_id, None)
-        }
-        ShopError::Forbidden(m) => AppError::forbidden(m, request_id),
-        ShopError::Db(m) => AppError::internal(m, request_id),
-    }
+        ShopError::InsufficientBalance
+        | ShopError::OutOfStock
+        | ShopError::NotInSaleWindow
+        | ShopError::PurchaseLimitExceeded
+        | ShopError::IdempotencyConflict
+        | ShopError::EntitlementNotOwned
+        | ShopError::SlotConflict
+        | ShopError::NotRefundable => (StatusCode::CONFLICT, "Conflict"),
+        ShopError::Forbidden(_) => (StatusCode::FORBIDDEN, "Forbidden"),
+    };
+    let code = e.code();
+    let detail = e.to_string();
+    AppError::with_code(status, code, title, detail, request_id)
 }

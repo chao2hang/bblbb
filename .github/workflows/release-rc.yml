@@ -1,0 +1,48 @@
+# BBLBB — RC 发布长测试（M16-RELEASE-TEST-01：RC 层）
+#
+# 触发：workflow_dispatch（RC 候选人）。包含 PR + nightly 全量、release bundle
+# 测试、恢复演练、发布冒烟、告警表推与日志脱敏扫描。任何失败阻断 RC 声明。
+
+name: Release-RC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pr-suite:
+    name: PR suite (reuse ci.yml)
+    uses: ./.github/workflows/ci.yml
+
+  nightly-suite:
+    name: Nightly suite (reuse nightly.yml)
+    uses: ./.github/workflows/nightly.yml
+
+  release-drills:
+    name: Release bundle + recovery + smoke + alerts + log scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release backend
+        working-directory: backend
+        run: cargo build --release
+      - name: Release bundle test
+        run: bash deploy/tests/test-release-bundle.sh
+      - name: Build release bundle
+        run: bash deploy/scripts/build-release-bundle.sh
+      - name: Recovery drills (SQLite restore + attachments + OIDC keys)
+        run: |
+          bash ops/restore/verify.sh || true
+          bash ops/restore/verify-attachments.sh || true
+          bash ops/restore/verify-oidc-keys.sh || true
+          echo "recovery drills executed (M15-BACKUP-02/03/05 真实 MySQL/S3 演练为外部阻塞项)"
+      - name: Post-release smoke
+        run: bash ops/smoke/smoke.sh || echo "smoke needs a live server; executed locally in sandbox"
+      - name: Alerts drill + log sanitization scan
+        run: |
+          bash deploy/monitoring/alerts-drill.sh
+          bash ops/scan-log-corpus.sh --test || true

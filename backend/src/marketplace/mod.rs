@@ -158,82 +158,42 @@ impl MarketplaceError {
 }
 
 /// 领域错误 → 路由层 Problem 响应（稳定 HTTP 状态 + 稳定错误码）。
+///
+/// M16-HARNESS-04：所有变体按 `MarketplaceError::code()` 输出稳定 Problem code
+/// （与 docs/ERROR-CODES.md / OpenAPI Problem.code enum 一致），不再退化为
+/// 通用 `conflict`/`bad_request`。
 pub fn marketplace_error_to_app(e: MarketplaceError, request_id: &str) -> AppError {
     use MarketplaceError as M;
-    match e {
-        M::Db(msg) => AppError::internal(msg, request_id),
-        M::NotFound(msg) => AppError::not_found(msg, request_id),
-        M::Invalid(msg) => AppError::bad_request(msg, request_id, None),
-        M::Forbidden(msg) => AppError::forbidden(msg, request_id),
-        M::VersionConflict { .. } => AppError::version_conflict(
-            "marketplace resource version conflict; re-read and retry",
-            request_id,
+    let (status, title) = match &e {
+        M::Db(_) => (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal Server Error",
         ),
-        M::IdempotencyConflict => {
-            AppError::conflict("idempotency key reused with different request", request_id)
+        M::NotFound(_) => (axum::http::StatusCode::NOT_FOUND, "Not Found"),
+        M::Invalid(_) => (axum::http::StatusCode::BAD_REQUEST, "Bad Request"),
+        M::Forbidden(_) => (axum::http::StatusCode::FORBIDDEN, "Forbidden"),
+        M::VersionConflict { .. }
+        | M::IdempotencyConflict
+        | M::OfferVersionChanged
+        | M::OutOfStock
+        | M::InsufficientFunds
+        | M::DailyLimitExceeded
+        | M::CheckoutInteractionInvalid
+        | M::CheckoutIntentExpired
+        | M::CheckoutIntentConsumed
+        | M::RefundExceedsPurchase
+        | M::RefundNotAllowed(_)
+        | M::MerchantBalanceInsufficient
+        | M::MarketplaceDisabled(_) => (axum::http::StatusCode::CONFLICT, "Conflict"),
+        M::InvalidClient(_) | M::WebhookInvalidSignature => {
+            (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized")
         }
-        M::MarketplaceDisabled(msg) => AppError::with_code(
-            axum::http::StatusCode::CONFLICT,
-            "marketplace_disabled",
-            "Marketplace Disabled",
-            msg,
-            request_id,
-        ),
-        M::InvalidClient(msg) => AppError::with_code(
-            axum::http::StatusCode::UNAUTHORIZED,
-            "marketplace_invalid_client",
-            "Invalid Marketplace Client",
-            msg,
-            request_id,
-        ),
-        M::OfferVersionChanged => AppError::conflict("offer version changed", request_id),
-        M::OutOfStock => AppError::conflict("offer out of stock", request_id),
-        M::InsufficientFunds => AppError::conflict("insufficient funds", request_id),
-        M::DailyLimitExceeded => AppError::conflict("daily limit exceeded", request_id),
-        M::CheckoutUserMismatch => AppError::with_code(
-            axum::http::StatusCode::FORBIDDEN,
-            "checkout_user_mismatch",
-            "Checkout User Mismatch",
-            "session user does not match the checkout intent",
-            request_id,
-        ),
-        M::CheckoutInteractionInvalid => AppError::with_code(
-            axum::http::StatusCode::CONFLICT,
-            "checkout_interaction_invalid",
-            "Checkout Interaction Invalid",
-            "checkout interaction is invalid or expired",
-            request_id,
-        ),
-        M::CheckoutIntentExpired => AppError::conflict("checkout intent expired", request_id),
-        M::CheckoutIntentConsumed => AppError::conflict(
-            "checkout intent already consumed; query the original purchase",
-            request_id,
-        ),
-        M::RefundExceedsPurchase => AppError::with_code(
-            axum::http::StatusCode::CONFLICT,
-            "refund_exceeds_purchase",
-            "Refund Exceeds Purchase",
-            "cumulative refund cannot exceed the original purchase amount",
-            request_id,
-        ),
-        M::RefundNotAllowed(msg) => AppError::conflict(msg, request_id),
-        M::MerchantBalanceInsufficient => AppError::with_code(
-            axum::http::StatusCode::CONFLICT,
-            "merchant_balance_insufficient",
-            "Merchant Balance Insufficient",
-            "merchant balance insufficient; refund requested and new sales frozen",
-            request_id,
-        ),
-        M::WebhookInvalidSignature => AppError::with_code(
-            axum::http::StatusCode::UNAUTHORIZED,
-            "webhook_invalid_signature",
-            "Webhook Invalid Signature",
-            "webhook signature verification failed",
-            request_id,
-        ),
-        M::UrlBlocked(msg) => AppError::bad_request(msg, request_id, None),
-        M::InvalidUrl(msg) => AppError::bad_request(msg, request_id, None),
-    }
+        M::CheckoutUserMismatch => (axum::http::StatusCode::FORBIDDEN, "Forbidden"),
+        M::UrlBlocked(_) | M::InvalidUrl(_) => (axum::http::StatusCode::BAD_REQUEST, "Bad Request"),
+    };
+    let code = e.code();
+    let detail = e.to_string();
+    AppError::with_code(status, code, title, detail, request_id)
 }
 
 // ─────────────────────────── 共享常量与助手 ───────────────────────────

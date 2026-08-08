@@ -189,7 +189,7 @@ PolicyPatch { expected_version, reason, changes }
 
 - `changes` 字段由每个策略的 OpenAPI schema 白名单限定；未知键 400。
 - Secret 只在专用 rotate/write-only 字段提交，GET 永不回显。
-- 成功更新返回新 `version` 和脱敏 diff；冲突返回 `policy_version_changed`。
+- 成功更新返回新 `version` 和脱敏 diff；冲突返回 `version_conflict`。
 
 ## 8. 契约完成定义
 

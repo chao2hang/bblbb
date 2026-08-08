@@ -5,10 +5,10 @@
     "browserVersion": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.34 Safari/537.36",
     "viewport": "1280x720",
     "locale": "zh-CN",
-    "commit": "58abc4b",
+    "commit": "e4faf25",
     "report": "tests/a11y/axe-report.json",
     "humanAcceptance": "pending",
-    "at": "2026-08-08T03:53:10.170Z"
+    "at": "2026-08-08T07:51:39.043Z"
   },
   {
     "project": "desktop",
@@ -16,10 +16,10 @@
     "browserVersion": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.34 Safari/537.36",
     "viewport": "1280x720",
     "locale": "zh-CN",
-    "commit": "58abc4b",
+    "commit": "e4faf25",
     "report": "tests/a11y/playwright-results.json",
     "humanAcceptance": "pending",
-    "at": "2026-08-08T03:53:27.298Z"
+    "at": "2026-08-08T07:51:54.981Z"
   },
   {
     "project": "mobile-chromium",
@@ -27,10 +27,10 @@
     "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
     "viewport": "360x740",
     "locale": "zh-CN",
-    "commit": "58abc4b",
+    "commit": "e4faf25",
     "report": "tests/a11y/axe-report.json",
     "humanAcceptance": "pending",
-    "at": "2026-08-08T03:54:34.756Z"
+    "at": "2026-08-08T07:52:59.645Z"
   },
   {
     "project": "desktop",
@@ -38,9 +38,9 @@
     "browserVersion": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
     "viewport": "1280x720",
     "locale": "zh-CN",
-    "commit": "58abc4b",
+    "commit": "e4faf25",
     "report": "tests/a11y/playwright-results.json",
     "humanAcceptance": "pending",
-    "at": "2026-08-08T03:54:50.028Z"
+    "at": "2026-08-08T07:53:14.273Z"
   }
 ]

@@ -56,6 +56,20 @@ impl std::fmt::Display for DownloadError {
 
 impl std::error::Error for DownloadError {}
 
+impl DownloadError {
+    /// 稳定错误码（docs/ERROR-CODES.md；M16-HARNESS-04 路由层按此输出 Problem code）。
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Db(_) => "internal_error",
+            Self::NotFound(_) => "not_found",
+            Self::Invalid(_) => "invalid_request",
+            Self::Forbidden(_) => "forbidden",
+            Self::IdempotencyConflict => "idempotency_conflict",
+            Self::Unavailable(_) => "download_url_unavailable",
+        }
+    }
+}
+
 /// 下载计费策略行（download_billing_policies）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DownloadPolicy {

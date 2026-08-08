@@ -463,3 +463,26 @@ ops/smoke/smoke.sh                                      # 发布后冒烟
 
 所有 Runbook 由非编写者在隔离环境执行过一次并记录缺口
 （`ops/runbooks/execution-sqlite-restore-2026-08-07.txt`）。
+
+## 19.6 性能与安全扫描（M16 追加）
+
+- 压测机器规格与实测基线：`reports/perf/machine.md`、`reports/perf/baseline.md`。
+- 合成数据生成：`bash bench/gen-synthetic.sh data/perf-bench.sqlite all`
+  （100k 用户 / 1M 帖子 / 200k 评论，DB 1137MB）。
+- 真实请求 p95 测量：`bash bench/measure.sh`（release 构建 + SSR 反代拓扑，
+  同 Caddy 生产拓扑）。阈值版本化：`bench/thresholds.md`；基线变化由
+  platform/performance 批准。
+- 依赖/Secret/许可证/SBOM 扫描：`bash ops/security/scan.sh --report`
+  （输出 `security/scan-report.md` + `security/sbom-*.json`）；cargo audit
+  漏洞处置按 scan-report 附录 A 跟踪。
+- 性能告警：慢查询超 500ms 登记（当前唯一项为无过滤帖子列表 1207ms，
+  优化项见 `bench/thresholds.md`）。
+
+## 19.7 冒烟与发布后验证（M16 追加）
+
+- 发布后冒烟 `ops/smoke/smoke.sh`：PASS=14（db/登录/发帖/回复/附件/账本/管理权限门）。
+- 恢复后 API smoke：`ops/restore/verify.sh` + `ops/smoke/smoke.sh`。
+- macOS 注意事项：`/tmp` 是符号链接，本地存储适配器的符号链接防护会拒绝
+  `/tmp` 下的存储根；开发/冒烟环境请把 `BBLBB__STORAGE_DIR` 指向非符号链接路径
+  （如仓库内 `data/`）。生产 Linux 无此行为。
+- 上一版本 client 兼容检查：`ruby scripts/check-client-compat.rb`（RC 前必跑）。

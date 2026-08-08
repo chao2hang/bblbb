@@ -270,3 +270,19 @@ Content-Security-Policy: default-src 'self'; ...
 - SQLite/MySQL/MariaDB 下积分并发和幂等。
 
 完整矩阵见 [`TESTING.md`](TESTING.md)。
+
+## 21. M16 安全验收落地（2026-08-08 追加）
+
+- **OWASP ASVS v4.0.3 基线映射**：`security/ASVS-BASELINE.md`（V1–V14 控制 →
+  状态 → 证据 → 排除项；负责人 platform/application-security）。状态变更必须
+  同步本文件与映射表。
+- **隐藏内容防泄漏扫漏**：`security/leak-sweep.md` 聚合 API/SSR/DOM/hydration/
+  搜索/RSS/SEO/通知/日志/AI/缓存/附件 16 渠道证据，结论 PASS。
+- **稳定错误码四方一致**：`docs/ERROR-CODES.md` ↔ OpenAPI `Problem.code` ↔
+  backend 实现 ↔ frontend 映射，由 `scripts/check-code-fixtures.rb` 强制；
+  领域错误转换（marketplace/shop/download/activity/ai）必须输出稳定码。
+- **依赖/Secret/许可证/SBOM**：`bash ops/security/scan.sh --report` 生成
+  `security/scan-report.md`；cargo audit 发现的上游固定/无修复项按风险接受并
+  由 CI nightly 持续监控。
+- **供应链注意**：锁文件提交；SBOM 从 Cargo.lock + package-lock.json 生成
+  （CycloneDX 1.5）；许可证元数据在 CI 安装 cargo-license 后生成。

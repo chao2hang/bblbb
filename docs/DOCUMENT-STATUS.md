@@ -36,6 +36,15 @@
 | `deploy/RELEASES.md` | Release gate | 发布 | 每版本迁移/API 兼容矩阵 + 版本化证据索引（M15-UPGRADE） |
 | `ops/backup/oidc-keys.md` | Implementation | 运维-数据 | OIDC 密钥分离存储与恢复设计（M15-BACKUP-04） |
 | `ops/runbooks/*` | Release gate | 运维-安全 | 命令级故障/安全/隐私 Runbook 与值班矩阵（M15-RUNBOOK） |
+| `security/ASVS-BASELINE.md` | Release gate | 安全 | OWASP ASVS v4.0.3 基线映射：控制→状态→证据→排除项（M16-SECURITY-01，2026-08-08） |
+| `security/leak-sweep.md` | Release gate | 安全 | 隐藏内容防泄漏 16 渠道扫漏（M16-SECURITY-06，PASS） |
+| `security/scan-report.md` | Release gate | 安全 | 依赖/Secret/许可证/SBOM 扫描记录与漏洞处置（M16-SECURITY-10） |
+| `docs/FIXTURES.md` | Release gate | 测试 | Fixture 约定：Clock/随机 ID/邮件/S3/AI/Video fake/请求 Fixture（M16-HARNESS-01） |
+| `docs/CI-LAYERS.md` | Release gate | 测试/发布 | CI 四层（PR/nightly/RC/prod-smoke）触发/超时/最小复现命令（M16-HARNESS-09） |
+| `reports/rc/*` | Release gate | 发布 | 状态机矩阵/聚合报告/失败模板/人工清单/P0-P1（M16-RELEASE-TEST） |
+| `reports/perf/machine.md` + `baseline.md` | Release gate | 性能 | 压测机器规格与实测 p95/RSS/DB 基线（M16-PERF） |
+| `bench/gen-synthetic.sh` + `measure.sh` + `thresholds.md` | Release gate | 性能 | 合成数据生成 / 真实请求测量 / 阈值版本化（M16-PERF-02/03/08） |
+| `compat/frozen-client/` | Release gate | 契约 | 上一版本 OpenAPI 冻结 + `check-client-compat.rb` 向后兼容（M16-HARNESS-07） |
 
 ## 2. v0.5 v1.0 发布矩阵
 

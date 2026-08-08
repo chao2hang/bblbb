@@ -11,7 +11,7 @@ set -euo pipefail
 WORK_DIR="${1:-}"
 LOG_FILE=""
 MIGRATIONS_DIR="$(cd "$(dirname "$0")/../../migrations/sqlite" && pwd)"
-MIGRATE_BIN="$(cd "$(dirname "$0")/../../backend/target/debug" && pwd)/migrate"
+MIGRATE_BIN="$(cd "$(dirname "$0")/../../backend/target/debug" && pwd)/bblbb-migrate"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

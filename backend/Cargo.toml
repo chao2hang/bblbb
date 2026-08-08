@@ -167,3 +167,22 @@ path = "tests/marketplace/checkout.rs"
 [[test]]
 name = "marketplace_refund"
 path = "tests/marketplace/refund.rs"
+
+# M16-RELEASE-TEST-04：迁移二进制统一命名为 bblbb-migrate
+# （deploy 脚本 / release.sh / startup-checks / runbook 均引用 bblbb-migrate）。
+[[bin]]
+name = "bblbb-migrate"
+path = "src/bin/migrate.rs"
+
+# M16 验收测试（M16-HARNESS-06 / M16-STORAGE-FAULTS-07 / M16-ECONOMY-07）
+[[test]]
+name = "harness_contract"
+path = "tests/harness_contract.rs"
+
+[[test]]
+name = "faults"
+path = "tests/faults.rs"
+
+[[test]]
+name = "economy_step_injection"
+path = "tests/economy/step_injection.rs"

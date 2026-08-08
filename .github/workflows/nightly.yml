@@ -1,0 +1,77 @@
+# BBLBB — Nightly 长测试（M16-HARNESS-09：PR 快速检查与发布长测试分离）
+#
+# 触发：每日 UTC 02:00（cron 按仓库默认分支）+ workflow_dispatch 手动。
+# 内容：PR 全量 + Playwright desktop/mobile + axe + 契约矩阵 + 故障注入回归。
+# 失败不阻断合并，但当日必须有人认领（按 docs/CI-LAYERS.md 最小复现命令）。
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pr-suite:
+    name: PR suite (reuse ci.yml)
+    uses: ./.github/workflows/ci.yml
+
+  playwright:
+    name: Playwright desktop + mobile + axe
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install dependencies and browsers
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run E2E + axe (desktop + mobile, real backend + personas)
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Report axe results
+        run: |
+          test -f frontend/tests/a11y/axe-report.json
+          ruby -rjson -e 'r=JSON.parse(File.read("frontend/tests/a11y/axe-report.json")); c=r.is_a?(Array) ? r : r["results"]; puts "axe artifacts present: #{c ? c.length : "n/a"} scans"'
+
+  contract-matrices:
+    name: Contract matrices (error codes / state machine / client compat)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run contract matrix scripts
+        run: |
+          ruby scripts/check-error-codes.rb
+          ruby scripts/check-code-fixtures.rb
+          ruby scripts/check-state-machine-matrix.rb
+          ruby scripts/check-client-compat.rb
+          ruby scripts/check-openapi.rb
+
+  fault-injection:
+    name: Storage faults + economy step-injection regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run M16 fault/step-injection tests
+        working-directory: backend
+        run: |
+          cargo test --test storage_adapter --all-features
+          cargo test --test faults --all-features
+          cargo test --test economy_step_injection --all-features

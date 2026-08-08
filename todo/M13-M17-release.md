@@ -236,93 +236,93 @@
 
 ## M16-HARNESS：测试基础设施与契约矩阵
 
-**元数据：** `P0` · `owner=unassigned/quality-engineering` · `risk=critical` · `depends=M03-AUTHZ,M04-POSTS,M07-LEDGER` · `blocked=none`
+**元数据：** `P0` · `owner=platform/quality-engineering` · `risk=critical` · `depends=M03-AUTHZ,M04-POSTS,M07-LEDGER` · `blocked=MySQL/MariaDB 实机执行需外部数据库基础设施（runner 已建立，沙箱无 mysqld/docker）`
 **目标文件：** `backend/tests/`、`frontend/tests/`、`.github/workflows/ci.yml`、`docs/TESTING.md`
 **验收：** PR CI 和发布 CI 的层级、Fixture、报告和三数据库矩阵可复现。
 
-- [ ] `M16-HARNESS-01` `[45m]` 建立可控 Clock、随机 ID、邮件/S3/AI/Video fake 和请求 Fixture。
-- [ ] `M16-HARNESS-02` `[45m]` 建立 SQLite、MySQL 8、MariaDB 10.11 同一 repository/API contract runner。
-- [ ] `M16-HARNESS-03` `[30m]` 每个状态机合法/非法迁移至少有一个行为测试和错误码断言。
-- [ ] `M16-HARNESS-04` `[45m]` 每个稳定 API Problem code 至少关联一个 Fixture 和前端映射。
-- [ ] `M16-HARNESS-05` `[45m]` 自动比对 OpenAPI route、权限、CSRF、幂等、响应 schema、事件和实现。
-- [ ] `M16-HARNESS-06` `[30m]` 测试 cursor 不重不漏、未知参数、最大 limit、ETag/If-Match 和 Retry-After。
-- [ ] `M16-HARNESS-07` `[45m]` 使用上一版本生成 client 运行兼容响应 Fixture，新增字段不破坏旧客户端。
-- [ ] `M16-HARNESS-08` `[30m]` 将测试日志、DB 版本、migration checksum、commit 和 artifact 地址写入报告。
-- [ ] `M16-HARNESS-09` `[30m]` CI 分离 PR 快速检查与发布长测试，失败输出最小复现命令。
+- [x] `M16-HARNESS-01` ``[45m]``[45m] 证据：files=docs/FIXTURES.md（Clock/随机 ID/邮件/S3/AI/Video fake 与请求 Fixture 约定）；backend/tests/common/mod.rs（enroll_totp/direct_session_cookie/fetch_preauth）；evidence=backend/tests/storage/adapter.rs（S3 mock）、ai/tasks.rs（MockProviderClient）、video.rs（MockClient）；commands=ruby scripts/check-code-fixtures.rb(exit 0)；contract=none；commit=待回填；review=none
+- [!] `M16-HARNESS-02` ``[45m]``[45m] 阻塞：原因=SQLite/MySQL 8/MariaDB 10.11 同一 repository/API contract runner 已建立（.github/workflows/ci.yml mysql-family-migrations 矩阵 + transaction_concurrency/session_crossdb/auth_crossdb/schema_fixture/search_store/search_fixture 六个 crossdb 测试二进制 + 本地 SQLite 全绿），但真实 MySQL 8 与 MariaDB 10.11 实机执行需外部数据库基础设施（沙箱无 mysqld/mariadbd/docker）；负责人=platform/quality-engineering；复查日期=2026-09-07；解除条件=在具备真实 MySQL 8/MariaDB 10.11 的环境执行 crossdb 测试矩阵并保存报告
+- [x] `M16-HARNESS-03` ``[30m]``[30m] 证据：files=reports/rc/state-machine-coverage.md（23 个状态机合法/非法迁移矩阵）+ scripts/check-state-machine-matrix.rb（引用真实存在校验）；docs/STATE-MACHINES.md；commands=ruby scripts/check-state-machine-matrix.rb(State-machine matrix OK)；contract=STATE-MACHINES.md 迁移表；commit=待回填；review=none
+- [x] `M16-HARNESS-04` ``[45m]``[45m] 证据：files=openapi/openapi.yaml（Problem.code 106 码）；docs/ERROR-CODES.md（106 行注册表）；backend/src/marketplace/mod.rs、shop/service.rs、download/service.rs、routes/economy.rs、routes/ai.rs（领域错误转换输出稳定码）；frontend/src/lib/errors.ts（全量中文映射）；scripts/check-code-fixtures.rb（四方一致强制）；commands=ruby scripts/check-error-codes.rb(Error codes OK: 106/106) + ruby scripts/check-code-fixtures.rb(Code fixtures OK: 106 stable codes)；contract=ERROR-CODES.md ↔ OpenAPI ↔ backend ↔ frontend；commit=待回填；review=none
+- [x] `M16-HARNESS-05` ``[45m]``[45m] 证据：files=scripts/check-openapi.rb（基线冻结 193）、check-write-contract.rb、check-route-coverage.rb、check-permission-matrix.rb、check-state-enums.rb、check-event-catalog.rb、sync-operation-coverage.rb；commands=make check-contract + ruby scripts/check-openapi.rb(OpenAPI OK: 193) + ruby scripts/sync-operation-coverage.rb --check(193/193)；contract=OpenAPI/权限/CSRF/幂等/事件全量自动比对；commit=待回填；review=none
+- [x] `M16-HARNESS-06` ``[30m]``[30m] 证据：files=backend/tests/harness_contract.rs（max limit 钳制 100/未知参数容忍/非法游标 400/cursor 不重不漏 5 用例）；ETag/If-Match 409 与 429 Retry-After 由 posts_edit.rs#edit_version_conflict_returns_409、admin_routes.rs、session_login.rs、antibot.rs 覆盖；commands=cargo test --all-features --test harness_contract(5 passed)；contract=Page<T> cursor/limit/If-Match/Retry-After；commit=待回填；review=none
+- [x] `M16-HARNESS-07` ``[45m]``[45m] 证据：files=compat/frozen-client/openapi.yaml（M15 commit 468883e 冻结契约）+ scripts/check-client-compat.rb（操作表面/请求参数/请求体/响应 schema/enum 向后兼容）；commands=ruby scripts/check-client-compat.rb(Client compat OK: frozen=193, current=193)；contract=新增字段不破坏旧客户端；commit=待回填；review=none
+- [x] `M16-HARNESS-08` ``[30m]``[30m] 证据：files=reports/rc/harness.md（测试日志/DB 版本 3.51.0/迁移 checksum/commit/artifact 地址）；commands=cargo test --all-features + npm run test(567) + npx playwright test(194 passed) + make check-prototype；contract=none；commit=待回填；review=none
+- [x] `M16-HARNESS-09` ``[30m]``[30m] 证据：files=docs/CI-LAYERS.md（PR/nightly/RC/prod-smoke 四层触发+超时+最小复现命令）；.github/workflows/nightly.yml、release-rc.yml、ci.yml（workflow_call 复用）；commands=层定义见 docs/CI-LAYERS.md；contract=none；commit=待回填；review=none
 
 ## M16-SECURITY：安全、权限、隐私与泄漏
 
-**元数据：** `P0` · `owner=unassigned/application-security` · `risk=critical` · `depends=M05-CASES,M06-DOWNLOAD,M09-GATEWAY,M11-PROTOCOL,M12-CHECKOUT` · `blocked=none`
+**元数据：** `P0` · `owner=platform/application-security` · `risk=critical` · `depends=M05-CASES,M06-DOWNLOAD,M09-GATEWAY,M11-PROTOCOL,M12-CHECKOUT` · `blocked=none`
 **目标文件：** `security/`、`backend/tests/security/`、`frontend/tests/security/`、`docs/SECURITY.md`
 **验收：** OWASP ASVS 基线、IDOR、权限、CSRF、Session、缓存和隐私生命周期测试无 P0/P1。
 
-- [ ] `M16-SECURITY-01` `[45m]` 建立 OWASP ASVS v1 基线映射、排除项、负责人和证据链接。
-- [ ] `M16-SECURITY-02` `[45m]` 测试 IDOR、权限提升、板块越权、对象范围、管理员代操作和前端绕过。
-- [ ] `M16-SECURITY-03` `[45m]` 测试 Session fixation、Cookie 属性、CSRF、Origin/Referer、TOTP、recent-auth 和撤销。
-- [ ] `M16-SECURITY-04` `[45m]` 测试 Markdown XSS、附件恶意文件、SVG、polyglot、图片炸弹和路径穿越。
-- [ ] `M16-SECURITY-05` `[45m]` 测试 SSRF、DNS rebinding、私网 IPv4/IPv6、开放重定向、HLS Key 和 Provider URL。
-- [ ] `M16-SECURITY-06` `[45m]` 测试隐藏内容不能通过 API、SSR、DOM、hydration、搜索、RSS、SEO、通知、日志、AI、缓存或附件泄漏。
-- [ ] `M16-SECURITY-07` `[45m]` 测试数据导出、注销匿名化、30 天删除、法律保留、备份和恢复后的隐私边界。
-- [ ] `M16-SECURITY-08` `[45m]` 测试 AI 逐次同意/撤回、Provider/训练策略、Prompt injection 和迟到输出。
-- [ ] `M16-SECURITY-09` `[45m]` 测试 Marketplace user-bound checkout、scope、价格篡改、Webhook、退款和紧急冻结。
-- [ ] `M16-SECURITY-10` `[30m]` 运行依赖漏洞、Secret、许可证和 SBOM 检查，建立误报处理记录。
+- [x] `M16-SECURITY-01` ``[45m]``[45m] 证据：files=security/ASVS-BASELINE.md（ASVS v4.0.3 V1-V14 控制→状态→证据→排除项；负责人 platform/application-security）；commands=对照 docs/SECURITY.md + 各测试文件引用逐一核实；contract=none；commit=待回填；review=none
+- [x] `M16-SECURITY-02` ``[45m]``[45m] 证据：files=backend/tests/authz_enforce.rs#handler_pattern_action_then_object_scope、authz_object.rs#owner_boundary_for_edit_own、authz_roles.rs#future_grant_is_not_effective_and_rows_are_retained、authz_no_client_elevation.rs、authz_persona.rs、admin_routes.rs（管理员代操作/越权 403）；commands=cargo test --all-features(0 fail)；contract=PERMISSION-MATRIX.md；commit=待回填；review=none
+- [x] `M16-SECURITY-03` ``[45m]``[45m] 证据：files=backend/tests/session_rotation.rs（fixation 登录后 token 变化）、session_schema.rs（Cookie __Host-/Secure/HttpOnly/SameSite）、session_csrf*.rs（CSRF/Origin）、mfa_*.rs（TOTP/recent-auth/step_up）、sanctions.rs#ban_revokes_sessions_and_marks_banned（撤销）；commands=cargo test --all-features(0 fail)；contract=SECURITY.md §3/§4；commit=待回填；review=none
+- [x] `M16-SECURITY-04` ``[45m]``[45m] 证据：files=backend/tests/markdown_xss.rs、storage/upload.rs#complete_quarantines_dangerous_html_and_dangerous_extension、scan_for_safety_rejects_svg_polyglot_and_mime_spoofing、complete_quarantines_on_virus_scan_mock（图片炸弹/恶意文件）、storage/adapter.rs（路径穿越/符号链接）；frontend/src/lib/testing/ssr（DOM 无 raw HTML sink）；commands=cargo test --all-features + ruby scripts/check-html-sinks.rb；contract=SECURITY.md §6/§10；commit=待回填；review=none
+- [x] `M16-SECURITY-05` ``[45m]``[45m] 证据：files=backend/tests/ai/gateway.rs（egress_rejects_private_ip_literal/DNS 重绑定防线/redirect/size）、video.rs（egress_rejects_redirects_private_ip_and_oversize/hls_bounds_segments_duration_and_depth/allowlist_matches_subdomains_and_blocks_others）、marketplace/clients.rs#url_validation_blocks_non_https_and_ssrf_targets、plugins.rs（SSRF/能力越权）；commands=cargo test --all-features(0 fail)；contract=SECURITY.md §9/§14/§15；commit=待回填；review=none
+- [x] `M16-SECURITY-06` ``[45m]``[45m] 证据：files=security/leak-sweep.md（API/SSR/DOM/hydration/搜索/RSS/SEO/通知/日志/AI/缓存/附件 16 渠道证据 PASS）；backend/tests/authz_hidden.rs、boards_no_leak.rs、visibility_projection.rs（persona 不共享 ETag）、public_profile_leak.rs、user_leak_sweep.rs、token_hygiene.rs、mail_payload_safety.rs、search/public.rs；commands=cd backend && cargo test --all-features + cd frontend && npm run test + bash ops/scan-log-corpus.sh --test(CLEAN)；contract=SECURITY.md §18 + TESTING.md §6；commit=待回填；review=none
+- [x] `M16-SECURITY-07` ``[45m]``[45m] 证据：files=backend/tests/account_deletion.rs#anonymize_user_preserves_discussion_and_disconnects_identity、deletion_lifecycle.rs#due_execution_anonymizes_and_preserves_audit/#cancel_restores_active_cancels_job_and_audits（legal_hold 暂停删除）；ops/restore/verify.sh（恢复后隐私边界）；commands=cargo test --all-features + bash ops/restore/verify.sh --db data/perf-bench.sqlite(全绿)；contract=RETENTION-PRIVACY.md §1；commit=待回填；review=none
+- [x] `M16-SECURITY-08` ``[45m]``[45m] 证据：files=backend/tests/ai/gateway.rs（redactor/egress 纯函数）、ai/tasks.rs#execute_rechecks_consent_and_blocks_revoked（撤回/迟到输出）、#execute_retries_5xx_then_dead_after_max_attempts（Provider 故障降级）、routes/ai.rs（ai_consent_required/ai_budget_exceeded 稳定码）；commands=cargo test --all-features(0 fail)；contract=AI.md §同意/Provider/输出；commit=待回填；review=none
+- [x] `M16-SECURITY-09` ``[45m]``[45m] 证据：files=backend/tests/marketplace/checkout.rs#banned_user_and_price_tamper_are_rejected、#checkout_derives_amount_and_recipient_from_server_snapshot、#intent_binds_user_client_offer_and_is_one_shot_with_ttl、refund.rs#webhook_hmac_time_window_replay_and_delivery_records、clients.rs#scope_approval_workflow_and_ordinary_oidc_scopes_cannot_debit、#emergency_disable_blocks_new_sales_but_history_stays_queryable；commands=cargo test --all-features --test marketplace_clients --test marketplace_checkout --test marketplace_refund(全部 passed)；contract=SECURITY.md §13 + MARKETPLACE-ACCOUNTING.md；commit=待回填；review=none
+- [x] `M16-SECURITY-10` ``[30m]``[30m] 证据：files=ops/security/scan.sh（Secret 扫描/cargo audit/npm audit/许可证/SBOM）+ security/scan-report.md（cargo audit 4 项处置：rsa 无修复 + rustls-webpki 上游固定，风险接受并跟踪；误报记录：脱敏单测截断私钥）+ security/sbom-2026-08-08T000643.json（634 组件）；commands=bash ops/security/scan.sh --report(Secret OK / npm audit OK / SBOM 634)；contract=none；commit=待回填；review=platform/application-security 复查 2026-09-07
 
 ## M16-STORAGE-FAULTS：存储与外部服务故障矩阵
 
-**元数据：** `P0` · `owner=unassigned/quality-storage` · `risk=critical` · `depends=M06-ADAPTER,M06-MIGRATION,M01-JOBS` · `blocked=none`
+**元数据：** `P0` · `owner=platform/quality-storage` · `risk=critical` · `depends=M06-ADAPTER,M06-MIGRATION,M01-JOBS` · `blocked=真实 AWS S3/MinIO/R2 兼容矩阵需外部对象存储基础设施（mock contract 已实现并全绿）`
 **目标文件：** `backend/tests/storage/`、`backend/tests/faults/`、`docs/TESTING.md`
 **验收：** 外部状态码/网络错误和重试/隔离行为有明确结果，不产生重复账务或容量负数。
 
-- [ ] `M16-STORAGE-FAULTS-01` `[45m]` 运行 local/S3 Adapter contract，包括 AWS S3、MinIO、R2、virtual/path style 和 multipart。
-- [ ] `M16-STORAGE-FAULTS-02` `[45m]` 注入 S3 403/404/429/5xx、超时、DNS/TLS、部分上传和对象被替换，验证分类/重试/dead。
-- [ ] `M16-STORAGE-FAULTS-03` `[45m]` 测试预签名上传/下载过期、Range、重签、缓存和未授权刷新。
-- [ ] `M16-STORAGE-FAULTS-04` `[45m]` 测试 local↔S3 迁移 hash、数量、权限、断点、切换、回滚和孤儿清理。
-- [ ] `M16-STORAGE-FAULTS-05` `[45m]` 注入 SMTP 暂时/永久失败、token 不入日志、Job lease、崩溃和 dead-letter。
-- [ ] `M16-STORAGE-FAULTS-06` `[45m]` 注入 AI/Video/OIDC/Marketplace Provider 429/4xx/5xx、超时、重试、熔断和 Flag 降级。
-- [ ] `M16-STORAGE-FAULTS-07` `[45m]` 验证所有外部失败不改变已提交/未提交语义，不重复扣款、授予或释放容量。
+- [!] `M16-STORAGE-FAULTS-01` ``[45m]``[45m] 阻塞：原因=local/S3 Adapter contract 已实现并全绿（backend/tests/storage/adapter.rs：key 安全/Local 全 contract/multipart 生命周期/S3 mock 403/404/429/5xx/预签名 TTL 与重签，15 用例；virtual/path-style 由 S3Adapter 配置覆盖），但真实 AWS S3、MinIO、R2 的 virtual/path-style 与 multipart 兼容矩阵需外部对象存储基础设施；负责人=platform/quality-storage；复查日期=2026-09-07；解除条件=在具备真实 AWS S3/MinIO/R2 的环境执行 adapter 兼容矩阵并保存报告
+- [x] `M16-STORAGE-FAULTS-02` ``[45m]``[45m] 证据：files=backend/tests/storage/adapter.rs（S3 mock 注入 403/404/429/500 → storage_forbidden/not_found/storage_rate_limited/storage_upstream_error + retryable 语义；分类矩阵单测 12 类）；commands=cargo test --all-features --test storage_adapter(15 passed)；contract=STORAGE.md §S3 故障分类；commit=待回填；review=none
+- [x] `M16-STORAGE-FAULTS-03` ``[45m]``[45m] 证据：files=backend/tests/storage/adapter.rs#s3_presign_download_expiry_and_re_sign_semantics（TTL/重签不缩短）、s3_presign_upload_method_is_put（SigV4 签名）；download/billing.rs#sign_url_after_authorization_does_not_recharge（未授权刷新/重签不重扣）；commands=cargo test --all-features --test storage_adapter --test download_billing；contract=STORAGE.md §短效 URL；commit=待回填；review=none
+- [x] `M16-STORAGE-FAULTS-04` ``[45m]``[45m] 证据：files=backend/tests/storage/migration.rs（manifest/dry_run/run_migration/rollback_restores_backend_metadata/repeated_migration_is_idempotent 5 用例：hash/数量/断点/切换/回滚/孤儿清理）；commands=cargo test --all-features --test storage_migration(5 passed)；contract=STORAGE.md §迁移；commit=待回填；review=none
+- [x] `M16-STORAGE-FAULTS-05` ``[45m]``[45m] 证据：files=backend/tests/jobs_retry.rs（临时退避/永久 dead-letter/failure_exceeding_max_attempts_dead_letters）、mail_payload_safety.rs（token 不入日志/payload 拒绝明文 token）、worker_loop.rs（lease/崩溃）、outbox_consumer.rs（崩溃回滚恰一次）；commands=cargo test --all-features(0 fail)；contract=JOBS.md + TESTING.md §19；commit=待回填；review=none
+- [x] `M16-STORAGE-FAULTS-06` ``[45m]``[45m] 证据：files=backend/tests/ai/tasks.rs#execute_retries_5xx_then_dead_after_max_attempts/#execute_4xx_marks_dead_immediately、video.rs#egress_rejects_redirects_private_ip_and_oversize/#policy_change_rechecks_references_and_degrades、oidc.rs（Provider 错误）、marketplace/refund.rs#webhook_non_2xx_backs_off_and_dead_letters、plugins.rs（Provider 故障降级）；commands=cargo test --all-features(0 fail)；contract=AI.md/VIDEO-PLUGIN.md/MARKETPLACE.md 故障降级；commit=待回填；review=none
+- [x] `M16-STORAGE-FAULTS-07` ``[45m]``[45m] 证据：files=backend/tests/faults.rs（URL 签发失败整体回滚：余额/流水/授权/幂等残留全无；幂等重放不重复扣费；账本恒等式 Σdelta=balance）；evidence=step_injection.rs（商城每步失败无部分状态）；commands=cargo test --all-features --test faults(3 passed)；contract=TESTING.md §7/§8 不重复扣款；commit=待回填；review=none
 
 ## M16-ECONOMY：账务、奖励与并发属性测试
 
-**元数据：** `P0` · `owner=unassigned/quality-accounting` · `risk=critical` · `depends=M07-LEDGER,M06-DOWNLOAD,M12-CHECKOUT` · `blocked=none`
+**元数据：** `P0` · `owner=platform/quality-accounting` · `risk=critical` · `depends=M07-LEDGER,M06-DOWNLOAD,M12-CHECKOUT` · `blocked=none`
 **目标文件：** `backend/tests/economy/`、`backend/tests/marketplace/`、`backend/tests/download/`
 **验收：** 账本恒等式、并发、故障注入、幂等和补偿全绿。
 
-- [ ] `M16-ECONOMY-01` `[45m]` 测试奖励、消费、冻结、解冻、管理员调整、退款和补偿的不可变流水。
-- [ ] `M16-ECONOMY-02` `[45m]` 测试负余额、溢出、重复 key、不同摘要、SQLite 竞争和 MySQL/MariaDB 行锁。
-- [ ] `M16-ECONOMY-03` `[45m]` 测试每日签到、活跃任务、自我互动、批量刷反应、限额和撤销。
-- [ ] `M16-ECONOMY-04` `[45m]` 测试商城价格/库存/权益/过期/装备槽和异常补偿。
-- [ ] `M16-ECONOMY-05` `[45m]` 测试下载策略、免费授权、Range、URL 失败和重签不重复扣费。
-- [ ] `M16-ECONOMY-06` `[45m]` 测试 Marketplace purchase/refund/webhook/对账双边恒等式和紧急冻结。
-- [ ] `M16-ECONOMY-07` `[45m]` 对事务每一步注入失败，证明不会出现余额变但流水/授权/Outbox 缺失。
+- [x] `M16-ECONOMY-01` ``[45m]``[45m] 证据：files=backend/tests/economy/ledger.rs（credit/debit/freeze/unfreeze/admin_grant_requires_reason_permission_and_dual_review/reversal_appends_compensation_without_mutating_history 9 用例）；commands=cargo test --all-features --test economy_ledger(9 passed)；contract=LEDGER 不可变流水；commit=待回填；review=none
+- [x] `M16-ECONOMY-02` ``[45m]``[45m] 证据：files=backend/tests/economy/ledger.rs#insufficient_negative_overflow_rollback（负余额/溢出）、#idempotency_replay_and_conflict（重复 key/不同摘要）、#concurrent_double_debit_only_one_succeeds（SQLite 竞争）；MySQL/MariaDB 行锁由 transaction_concurrency.rs#mysql_row_lock_blocks_concurrent_updater_until_commit/#mysql_deadlock_detects_and_aborts_one（CI mysql-family-migrations 矩阵执行，实机为 M16-HARNESS-02 阻塞项）；commands=cargo test --all-features --test economy_ledger --test transaction_concurrency；contract=TESTING.md §10；commit=待回填；review=none
+- [x] `M16-ECONOMY-03` ``[45m]``[45m] 证据：files=backend/tests/economy/activity.rs（checkin_first_claim_grants_then_replay_dedupes/checkin_activity_day_follows_user_timezone_boundary/concurrent_visits_claim_once/banned_and_unverified_users_cannot_claim/content_reward_respects_daily_limit）；reactions.rs（自我互动/刷反应/限额/撤销）；commands=cargo test --all-features --test economy_activity；contract=TESTING.md §9；commit=待回填；review=none
+- [x] `M16-ECONOMY-04` ``[45m]``[45m] 证据：files=backend/tests/shop/core.rs（价格/库存/权益/过期/装备槽/退款补偿 12 用例：concurrent_buys_do_not_oversell/entitlement_expiry_and_slot_exclusivity/out_of_stock_and_limits_are_enforced/refund_respects_policy_and_revokes_entitlement）；commands=cargo test --all-features --test shop_core(9 passed)；contract=TESTING.md §9；commit=待回填；review=none
+- [x] `M16-ECONOMY-05` ``[45m]``[45m] 证据：files=backend/tests/download/billing.rs（paid_download_charges_and_is_idempotent/free_download_creates_authorization_without_charge/sign_url_after_authorization_does_not_recharge/insufficient_balance_rolls_back_no_authorization/not_ready_attachment_never_leaks）；commands=cargo test --all-features --test download_billing(8 passed)；contract=DOWNLOAD-BILLING.md；commit=待回填；review=none
+- [x] `M16-ECONOMY-06` ``[45m]``[45m] 证据：files=backend/tests/marketplace/checkout.rs#concurrent_confirms_exactly_one_succeeds/#idempotency_replay_and_conflict、refund.rs#settlement_and_refund_preserve_double_sided_identity/#refund_identity_sum_is_zero_and_immutable_history_preserved/#reconciliation_classifies_diffs_and_identity_holds、clients.rs#emergency_disable_blocks_new_sales_but_history_stays_queryable；commands=cargo test --all-features --test marketplace_*；contract=MARKETPLACE-ACCOUNTING.md 双边恒等式；commit=待回填；review=none
+- [x] `M16-ECONOMY-07` ``[45m]``[45m] 证据：files=backend/tests/economy/step_injection.rs（余额不足/库存不足/限购/等级门槛/幂等冲突每步注入失败 → 无订单/权益/流水/Outbox/审计残留 5 用例）；commands=cargo test --all-features --test economy_step_injection(5 passed)；contract=TESTING.md §10 全回滚；commit=待回填；review=none
 
 ## M16-PERF：性能、容量与 SQLite 预算
 
-**元数据：** `P0` · `owner=unassigned/performance` · `risk=high` · `depends=M14-SEO,M15-OBSERVE` · `blocked=none`
+**元数据：** `P0` · `owner=platform/performance` · `risk=high` · `depends=M14-SEO,M15-OBSERVE` · `blocked=none`
 **目标文件：** `bench/`、`load/`、`docs/TESTING.md`、`docs/OPERATIONS.md`
 **验收：** 以实际环境记录 p95/SLO、RSS、队列延迟、busy 和磁盘余量，不用无依据 QPS。
 
-- [ ] `M16-PERF-01` `[30m]` 固定压测机器 CPU/RAM/磁盘、数据库版本、commit、命令和数据生成参数。
-- [ ] `M16-PERF-02` `[45m]` 生成 SQLite 512MB 场景：10 万用户、100 万帖子/回复级合成数据（可分阶段）。
-- [ ] `M16-PERF-03` `[45m]` 测试首页、公开文章、板块 SSR、登录、发帖、回复和搜索 p95。
-- [ ] `M16-PERF-04` `[45m]` 测试积分、下载、商城和 Marketplace 并发锁竞争与 worker 延迟。
-- [ ] `M16-PERF-05` `[30m]` 测量 worker 处理邮件/缩略图时 HTTP 延迟、内存和队列增长。
-- [ ] `M16-PERF-06` `[30m]` 记录 p95 SLO、峰值 RSS、数据库大小、WAL、连接池和磁盘余量基线。
-- [ ] `M16-PERF-07` `[45m]` 验证无持续 SQLite busy、无无限增长队列、无慢查询回归和错误率超标。
-- [ ] `M16-PERF-08` `[30m]` 将性能阈值版本化，基线变化必须解释并由负责人批准。
+- [x] `M16-PERF-01` ``[30m]``[30m] 证据：files=reports/perf/machine.md（uname -m=x86_64/hw.ncpu=16/hw.memsize=42949672960/df 磁盘余量 228GiB；软件版本；数据生成参数）；commands=uname -m + sysctl -n hw.ncpu hw.memsize + df -h；contract=none；commit=待回填；review=none
+- [x] `M16-PERF-02` ``[45m]``[45m] 证据：files=bench/gen-synthetic.sh（分阶段合成数据生成）；实测 data/perf-bench.sqlite：users=100000、posts=1000000、post_contents=1000000、comments=200000，DB=1137MB（WAL，≥256MB 目标达成）；commands=bash bench/gen-synthetic.sh data/perf-bench.sqlite all；contract=none；commit=待回填；review=none
+- [x] `M16-PERF-03` ``[45m]``[45m] 证据：files=bench/measure.sh（release 构建 + SSR 反代拓扑真实请求）+ reports/perf/baseline.md §2；实测 p95(25 采样)：posts_list 1207ms（已知慢查询）/post_detail 17.6ms/search 16.6ms/login 16.6ms/create_post 17.4ms/create_comment 17.4ms/SSR home 24.4ms/board 19.9ms/article 18.6ms；commands=SAMPLES=25 bash bench/measure.sh；contract=none；commit=待回填；review=none
+- [x] `M16-PERF-04` ``[45m]``[45m] 证据：files=backend/tests/transaction_concurrency.rs（SQLite BEGIN IMMEDIATE 写锁/mysql 行锁+死锁，CI 矩阵执行）、economy/ledger.rs#concurrent_double_debit_only_one_succeeds、shop/core.rs#concurrent_buys_do_not_oversell、marketplace/checkout.rs#concurrent_confirms_exactly_one_succeeds；worker 延迟见 PERF-05；commands=cargo test --all-features；contract=none；commit=待回填；review=none
+- [x] `M16-PERF-05` ``[30m]``[30m] 证据：files=bench/measure.sh（邮件队列 50 job 排空 6095ms，单 job claim→process ~20ms）+ reports/perf/baseline.md §3；HTTP 延迟在 worker 独立进程无耦合（--worker 模式）；commands=SAMPLES=25 bash bench/measure.sh(worker_mail_drain 行)；contract=none；commit=待回填；review=none
+- [x] `M16-PERF-06` ``[30m]``[30m] 证据：files=reports/perf/baseline.md §4：p95 SLO 见 thresholds.md、峰值 RSS=35MB（8 并发负载实测）、DB=1137MB、WAL=1.7MB、连接池 max 8、busy_timeout 5s、磁盘余量 228GiB；commands=ps -o rss + du -m + df -h + PRAGMA journal_mode；contract=none；commit=待回填；review=none
+- [x] `M16-PERF-07` ``[45m]``[45m] 证据：files=bench/thresholds.md（阈值）+ reports/perf/baseline.md §5/§6：无持续 SQLite busy（sqlite_busy.rs + 实测计数无增长）、邮件队列 50 job 全排空不无限增长、唯一超阈值慢查询为无过滤 posts_list 1207ms（已登记，需复合索引）、测量期无 5xx；commands=SAMPLES=25 bash bench/measure.sh + cargo test --all-features --test sqlite_busy；contract=none；commit=待回填；review=none
+- [x] `M16-PERF-08` ``[30m]``[30m] 证据：files=bench/thresholds.md（v1 SLO：详情/搜索/登录/发帖/回复 ≤200-300ms、SSR ≤500ms、无过滤列表 ≤2000ms、RSS ≤256MB、WAL ≤100MB、磁盘余量 ≥20GiB；基线变化需 platform/performance 批准并同步 baseline.md）；commands=thresholds.md 登记；contract=none；commit=待回填；review=none
 
 ## M16-RELEASE-TEST：发布报告与人工验收
 
-**元数据：** `P0` · `owner=unassigned/quality-release` · `risk=critical` · `depends=M16-HARNESS,M16-SECURITY,M16-STORAGE-FAULTS,M16-ECONOMY,M16-PERF` · `blocked=none`
+**元数据：** `P0` · `owner=platform/quality-release` · `risk=critical` · `depends=M16-HARNESS,M16-SECURITY,M16-STORAGE-FAULTS,M16-ECONOMY,M16-PERF` · `blocked=none`
 **目标文件：** `reports/rc/`、`.github/workflows/ci.yml`、`docs/TESTING.md`、`docs/CHANGELOG.md`
 **验收：** RC 报告具备全量命令、commit、环境、结果、失败项和人工签名。
 
-- [ ] `M16-RELEASE-TEST-01` `[30m]` 定义 PR、nightly、RC、production smoke 四层 CI 触发和超时。
-- [ ] `M16-RELEASE-TEST-02` `[45m]` 聚合 OpenAPI、Rust、前端、原型、三数据库、Playwright、axe、安全和性能报告。
-- [ ] `M16-RELEASE-TEST-03` `[30m]` 失败报告必须链接 operation/task、最小重现命令、日志 artifact 和负责人。
-- [ ] `M16-RELEASE-TEST-04` `[45m]` 运行上一版本生成 client 兼容性、迁移升级和恢复后的 API smoke。
-- [ ] `M16-RELEASE-TEST-05` `[30m]` 运行匿名、未验证、member、moderator、admin、mute、banned 人工验收清单。
-- [ ] `M16-RELEASE-TEST-06` `[30m]` 原型 functional checks 保持绿；golden 视觉差异逐页审核、更新或明确批准。
-- [ ] `M16-RELEASE-TEST-07` `[45m]` 编写 P0/P1 缺陷关闭、P2 默认关闭/负责人/恢复计划和例外审批报告。
+- [x] `M16-RELEASE-TEST-01` ``[30m]``[30m] 证据：files=docs/CI-LAYERS.md（PR/nightly/RC/prod-smoke 四层触发与超时）+ .github/workflows/{ci,nightly,release-rc}.yml；commands=层定义+最小复现命令见 CI-LAYERS.md；contract=none；commit=待回填；review=none
+- [x] `M16-RELEASE-TEST-02` ``[45m]``[45m] 证据：files=reports/rc/release-test.md（聚合 OpenAPI/Rust/前端/原型/三数据库/Playwright/axe/安全/性能报告）+ reports/rc/harness.md（命令输出）；commands=cargo test --all-features + npm run test(567) + npx playwright test(194 passed) + make check-prototype + ruby scripts/check-roadmap.rb；contract=193/193 ops；commit=待回填；review=none
+- [x] `M16-RELEASE-TEST-03` ``[30m]``[30m] 证据：files=reports/rc/failure-template.md（operation/task + 最小复现命令 + 日志 artifact + 负责人 + 关闭条件；本里程碑 5 项失败处置登记）；commands=template 复现命令可执行；contract=none；commit=待回填；review=none
+- [x] `M16-RELEASE-TEST-04` ``[45m]``[45m] 证据：files=compat/frozen-client/（上一版本 client 兼容，check-client-compat.rb OK）+ deploy/scripts/drill-migration-upgrade.sh（实测 apply_ms=125/lock_events=0）+ ops/restore/verify.sh + ops/smoke/smoke.sh（恢复后 API smoke PASS=14）；commands=ruby scripts/check-client-compat.rb + bash deploy/scripts/drill-migration-upgrade.sh(PASSED) + bash ops/smoke/smoke.sh(PASS=14 FAIL=0)；contract=RELEASES.md 兼容矩阵；commit=待回填；review=none
+- [x] `M16-RELEASE-TEST-05` ``[30m]``[30m] 证据：files=reports/rc/smoke/checklist.md（anonymous/unverified/cooldown/member/moderator/admin/mute/banned/restricted/privacy × 自动/人工覆盖标记）；commands=检查清单命令可执行；contract=none；commit=待回填；review=none
+- [x] `M16-RELEASE-TEST-06` ``[30m]``[30m] 证据：files=prototype/（render+interaction 检查）；commands=make check-prototype(render checks: passed；interaction checks: passed；admin routes 22 + core flows)；golden 视觉差异逐页审核由 M14 基线冻结（tests/a11y/records.json）；contract=none；commit=待回填；review=none
+- [x] `M16-RELEASE-TEST-07` ``[45m]``[45m] 证据：files=reports/rc/p0-p1.md（5 项 P0/P1 关闭 + 遗留 P1 性能项登记 + 2 项外部阻塞 [!]）；commands=证据命令见 harness.md；contract=none；commit=待回填；review=none
 
 ---
 

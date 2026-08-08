@@ -384,3 +384,98 @@ M14 交付 Playwright E2E + axe 可访问性基线：
 MySQL/MariaDB 实机备份恢复、S3 版本化演练、SMTP 故障演练、生产主机部署
 执行为外部基础设施阻塞项（M15-BACKUP-02/03、M15-RUNBOOK-03、M15-PACKAGE-08
 `[!]`），脚本与文档已就绪。
+
+## 25. M16：测试基础设施、安全、故障、经济与性能验收（2026-08 追加）
+
+### 25.1 测试基础设施与契约矩阵（M16-HARNESS）
+
+- **Fixture 约定**：可控 Clock/随机 ID/邮件/S3/AI/Video fake 与请求 Fixture 的
+  单一事实来源见 [`FIXTURES.md`](FIXTURES.md)（`backend/tests/common/mod.rs`
+  提供 `enroll_totp`/`direct_session_cookie`/`fetch_preauth`）。
+- **契约矩阵**：
+  - 稳定错误码四方一致（docs ↔ OpenAPI ↔ backend ↔ frontend）：
+    `ruby scripts/check-code-fixtures.rb`（106 码全 Fixture + 前端映射）。
+  - 状态机合法/非法迁移矩阵：`reports/rc/state-machine-coverage.md` +
+    `ruby scripts/check-state-machine-matrix.rb`。
+  - 上一版本生成 client 向后兼容：`compat/frozen-client/`（M15 冻结契约）+
+    `ruby scripts/check-client-compat.rb`（新增字段不破坏旧客户端）。
+  - OpenAPI/权限/CSRF/幂等/事件自动比对：`make check-contract` + `check-openapi.rb`。
+- **契约边缘测试**：`backend/tests/harness_contract.rs`（最大 limit 钳制、未知参数、
+  非法游标 400、cursor 不重不漏）；ETag/If-Match 409 与 429 Retry-After 由既有
+  posts_edit/admin_routes/session_login/antibot 测试覆盖。
+- **CI 分层**：PR / nightly / RC / production smoke 四层（`docs/CI-LAYERS.md`，
+  `.github/workflows/{ci,nightly,release-rc}.yml`）；失败输出最小复现命令。
+
+### 25.2 安全与泄漏（M16-SECURITY）
+
+- OWASP ASVS v4.0.3 基线映射：`security/ASVS-BASELINE.md`（含排除项与负责人）。
+- 隐藏内容防泄漏扫漏：`security/leak-sweep.md`（API/SSR/DOM/hydration/搜索/RSS/
+  SEO/通知/日志/AI/缓存/附件全渠道，PASS）。
+- IDOR/权限提升/越权/管理员代操作/前端绕过：`authz_*.rs`（enforce/object/roles/
+  persona/no_client_elevation/registry）直接调用 API 断言。
+- Session fixation/Cookie 属性/CSRF/Origin/TOTP/recent-auth/撤销：
+  `session_*.rs` + `mfa_*.rs`。
+- Markdown XSS/附件恶意/SVG/polyglot/图片炸弹/路径穿越：`markdown_xss.rs` +
+  `storage/upload.rs`（`scan_for_safety_rejects_svg_polyglot_and_mime_spoofing`）。
+- SSRF/DNS 重绑定/私网/开放重定向/HLS Key/Provider URL：`ai/gateway.rs` +
+  `video.rs`（`egress_rejects_redirects_private_ip_and_oversize`、
+  `hls_bounds_segments_duration_and_depth`）。
+- 隐私生命周期（导出/注销匿名化/30 天删除/法律保留/备份恢复）：`account_deletion.rs`
+  + `deletion_lifecycle.rs` + `ops/restore/*`。
+- AI 同意/Provider/训练策略/Prompt injection/迟到输出：`ai/tasks.rs` +
+  `ai/gateway.rs`（`execute_rechecks_consent_and_blocks_revoked`）。
+- Marketplace user-bound checkout/scope/价格篡改/Webhook/退款/紧急冻结：
+  `marketplace/*.rs`（`banned_user_and_price_tamper_are_rejected`、
+  `webhook_hmac_time_window_replay_and_delivery_records`、
+  `emergency_disable_blocks_new_sales_but_history_stays_queryable`）。
+- 依赖/Secret/许可证/SBOM 扫描：`bash ops/security/scan.sh --report`
+  （Secret OK、cargo audit 4 项处置见 `security/scan-report.md`、SBOM 634 组件）。
+
+### 25.3 存储与外部服务故障（M16-STORAGE-FAULTS）
+
+- Local/S3 adapter contract：`backend/tests/storage/adapter.rs`（15 用例：
+  key 安全、Local 全 contract、multipart 生命周期、S3 mock 403/404/429/5xx 分类、
+  预签名 URL/重签）。真实 AWS S3/MinIO/R2 矩阵为外部阻塞项（M16-STORAGE-FAULTS-01 `[!]`）。
+- 外部失败不变量：`backend/tests/faults.rs`（URL 签发失败整体回滚：无余额变化/无流水/
+  无授权/无幂等残留；幂等重放不重复扣费；账本恒等式 Σdelta=balance）。
+- 预签名过期/Range/重签/未授权刷新：`download/billing.rs` + `storage/adapter.rs`。
+- local↔S3 迁移 hash/数量/断点/切换/回滚/孤儿清理：`storage/migration.rs`（5 用例）。
+- SMTP 临时/永久失败、token 不入日志、lease/崩溃/dead-letter：
+  `jobs_retry.rs` + `mail_payload_safety.rs` + `worker_loop.rs` + `jobs_worker.rs`。
+- Provider 429/4xx/5xx/超时/重试/熔断/Flag 降级：`ai/tasks.rs` + `video.rs` +
+  `marketplace/refund.rs`（webhook 非 2xx 退避 dead-letter）。
+
+### 25.4 经济与并发（M16-ECONOMY）
+
+- 账本不可变流水/奖励/消费/冻结/解冻/管理调整/退款/补偿：
+  `economy/ledger.rs`（`reversal_appends_compensation_without_mutating_history` 等 9 用例）。
+- 负余额/溢出/重复 key/不同摘要/SQLite 竞争/MySQL 行锁：
+  `economy/ledger.rs`（`insufficient_negative_overflow_rollback`、
+  `idempotency_replay_and_conflict`、`concurrent_double_debit_only_one_succeeds`）；
+  MySQL/MariaDB 行锁由 `transaction_concurrency.rs`（CI `mysql-family-migrations` 矩阵执行）。
+- 签到/活跃/自我互动/刷反应/限额/撤销：`economy/activity.rs`。
+- 商城价格/库存/权益/过期/装备槽/补偿：`shop/core.rs`。
+- 下载策略/免费授权/Range/URL 失败/重签不重复扣费：`download/billing.rs`。
+- Marketplace purchase/refund/webhook/对账双边恒等式 + 紧急冻结：`marketplace/*.rs`。
+- 步骤注入全回滚：`economy/step_injection.rs`（余额不足/库存不足/限购/等级门槛/
+  幂等冲突每步注入 → 无订单/权益/流水/Outbox/审计残留）。
+
+### 25.5 性能基线（M16-PERF）
+
+- 机器规格：`reports/perf/machine.md`（x86_64/16 核/40GiB）。
+- 合成数据：`bash bench/gen-synthetic.sh` → 100k 用户 / 1M 帖子 / 200k 评论 /
+  1M post_contents，DB 1137MB（≥256MB 目标）。
+- 实测 p95（release + 真实请求，`bash bench/measure.sh`）：API 列表 1207ms
+  （已知慢查询，登记优化）/ 详情 17.6ms / 搜索 16.6ms / 登录 16.6ms / 发帖 17.4ms /
+  回复 17.4ms；SSR 首页 24.4ms / 板块 19.9ms / 文章 18.6ms；worker 单 job ~20ms。
+- 容量：峰值 RSS 35MB、DB 1137MB、WAL 1.7MB、池 max 8、busy_timeout 5s。
+- 阈值版本化：`bench/thresholds.md`；基线变化需 platform/performance 批准。
+
+### 25.6 发布验收（M16-RELEASE-TEST）
+
+- 聚合报告：`reports/rc/harness.md` + `release-test.md`；失败模板 `failure-template.md`；
+  Persona 人工清单 `reports/rc/smoke/checklist.md`；P0/P1 `reports/rc/p0-p1.md`。
+- 演练实测：迁移升级 apply_ms=125/lock_events=0 · 备份恢复 RPO=0/RTO=0.18s ·
+  冒烟 PASS=14 · 优雅停机 PASS=8 · release bundle PASS=26 · alerts PASS=71 ·
+  Playwright 194 passed（axe serious/critical=0）。
+- macOS `/tmp` 为符号链接：存储根必须使用非符号链接路径（本地适配器防护正确）。

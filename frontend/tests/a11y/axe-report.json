@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-08-08T03:52:24.449Z",
-  "commit": "58abc4b",
+  "generatedAt": "2026-08-08T07:50:54.022Z",
+  "commit": "e4faf25",
   "browser": "chromium",
   "scans": [
     {
@@ -88,7 +88,7 @@
       "incomplete": 0
     },
     {
-      "url": "http://localhost:4173/posts/019fdf80-075c-7350-ba38-96d4688caa7f",
+      "url": "http://localhost:4173/posts/019fe05a-64a2-7c03-a8ca-79dc843e096b",
       "label": "post-detail-member",
       "violations": [],
       "passed": 25,
@@ -214,7 +214,7 @@
       "incomplete": 1
     },
     {
-      "url": "http://localhost:4173/posts/019fdf80-ef66-7471-9675-6abd671ce3a2",
+      "url": "http://localhost:4173/posts/019fe05b-4438-7e80-b83a-cfc3ac5aa178",
       "label": "post-detail-member",
       "violations": [],
       "passed": 25,

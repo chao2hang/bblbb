@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  # M16-HARNESS-09：nightly / RC 复用本 PR 层（CI-LAYERS.md 四层模型）。
+  workflow_call:
 
 permissions:
   contents: read
@@ -41,6 +43,10 @@ jobs:
         run: |
           ruby scripts/check-openapi.rb
           ruby scripts/check-error-codes.rb
+          ruby scripts/check-code-fixtures.rb
+          ruby scripts/check-state-machine-matrix.rb
+          ruby scripts/check-client-compat.rb
+          ruby scripts/check-secrets.rb
           ruby scripts/check-write-contract.rb
           ruby scripts/check-route-coverage.rb
           ruby scripts/check-permission-matrix.rb

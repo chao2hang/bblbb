@@ -42,19 +42,24 @@ struct DownloadBody {
     idempotency_key: Option<String>,
 }
 
+/// 领域错误 → 稳定 Problem 响应。
+///
+/// M16-HARNESS-04：按 `DownloadError::code()` 输出稳定 Problem code；
+/// URL 签发失败为 503 `download_url_unavailable`（不重复扣费，
+/// docs/DOWNLOAD-BILLING.md 第 4 节）。
 fn download_error_to_app(e: DownloadError, request_id: &str) -> AppError {
-    match e {
-        DownloadError::NotFound(m) => AppError::not_found(m, request_id),
-        DownloadError::Invalid(m) => AppError::bad_request(m, request_id, None),
-        DownloadError::Forbidden(m) => AppError::forbidden(m, request_id),
-        DownloadError::IdempotencyConflict => {
-            AppError::conflict("idempotency conflict", request_id)
-        }
-        DownloadError::Unavailable(m) => {
-            AppError::bad_request(format!("download_url_unavailable: {m}"), request_id, None)
-        }
-        DownloadError::Db(m) => AppError::internal(m, request_id),
-    }
+    use axum::http::StatusCode;
+    let (status, title) = match &e {
+        DownloadError::Db(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error"),
+        DownloadError::NotFound(_) => (StatusCode::NOT_FOUND, "Not Found"),
+        DownloadError::Invalid(_) => (StatusCode::BAD_REQUEST, "Bad Request"),
+        DownloadError::Forbidden(_) => (StatusCode::FORBIDDEN, "Forbidden"),
+        DownloadError::IdempotencyConflict => (StatusCode::CONFLICT, "Conflict"),
+        DownloadError::Unavailable(_) => (StatusCode::SERVICE_UNAVAILABLE, "Service Unavailable"),
+    };
+    let code = e.code();
+    let detail = e.to_string();
+    AppError::with_code(status, code, title, detail, request_id)
 }
 
 async fn post_download(

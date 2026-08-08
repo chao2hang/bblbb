@@ -1,3 +1,54 @@
+## v0.7 — 2026-08-08（M16 测试/安全/故障/经济/性能/发布验收）
+
+### 测试基础设施与契约（M16-HARNESS）
+
+- 稳定错误码四方一致（docs ↔ OpenAPI ↔ backend ↔ frontend）：openapi
+  `Problem.code` 同步为 106 码；backend 领域错误转换（marketplace/shop/download/
+  activity/ai）输出稳定码而非通用 `conflict/bad_request`；`scripts/check-code-fixtures.rb`
+  强制每个稳定码有 Fixture + 前端映射。
+- 状态机合法/非法迁移矩阵 `reports/rc/state-machine-coverage.md` +
+  `scripts/check-state-machine-matrix.rb`。
+- 上一版本生成 client 向后兼容：`compat/frozen-client/`（M15 契约冻结）+
+  `scripts/check-client-compat.rb`（操作表面/请求参数/请求体/响应 schema/enum 全兼容）。
+- 契约边缘测试 `backend/tests/harness_contract.rs`（最大 limit 钳制/未知参数/非法
+  游标 400/cursor 不重不漏）。
+- Fixture 约定文档 `docs/FIXTURES.md`；CI 四层 `docs/CI-LAYERS.md` +
+  `.github/workflows/{nightly,release-rc}.yml`（PR/nightly/RC/prod-smoke）。
+- `check-openapi.rb` 基线冻结 193；`bblbb-migrate` 二进制命名统一（Cargo.toml `[[bin]]`）。
+
+### 安全（M16-SECURITY）
+
+- OWASP ASVS v4.0.3 基线映射 `security/ASVS-BASELINE.md`（含排除项/负责人/证据）。
+- 隐藏内容防泄漏扫漏 `security/leak-sweep.md`（16 渠道，PASS）。
+- 依赖/Secret/许可证/SBOM 扫描 `ops/security/scan.sh`（Secret OK；cargo audit
+  4 项上游固定/无修复按风险接受并跟踪；SBOM 634 组件）。
+
+### 存储故障与外部失败（M16-STORAGE-FAULTS）
+
+- `backend/tests/storage/adapter.rs`：Local/S3 adapter contract + S3 mock 故障注入
+  （403/404/429/5xx→稳定分类与 retryable）+ multipart 生命周期 + 预签名 URL/重签。
+- `backend/tests/faults.rs`：外部失败不变量（URL 签发失败整体回滚、幂等不重复
+  扣费、账本恒等式）。
+
+### 经济（M16-ECONOMY）
+
+- `backend/tests/economy/step_injection.rs`：每一步注入失败 → 无订单/权益/流水/
+  Outbox/审计残留（余额不足/库存/限购/等级门槛/幂等冲突 5 用例）。
+
+### 性能（M16-PERF）
+
+- `bench/gen-synthetic.sh` 合成数据：100k 用户 / 1M 帖子 / 200k 评论，
+  DB 1137MB；`bench/measure.sh` release 真实请求 p95 基线
+  `reports/perf/baseline.md`（详情/搜索/登录/发帖/回复 16–18ms、SSR 19–24ms、
+  无过滤列表 1207ms 已知慢查询、RSS 35MB）；阈值版本化 `bench/thresholds.md`。
+
+### 发布验收（M16-RELEASE-TEST）
+
+- `reports/rc/`：harness.md / release-test.md / failure-template.md /
+  smoke/checklist.md / p0-p1.md / state-machine-coverage.md。
+- 演练实测：迁移升级 apply_ms=125 · 备份恢复 RPO=0/RTO=0.18s · 冒烟 PASS=14 ·
+  优雅停机 PASS=8 · release bundle PASS=26 · alerts PASS=71 · Playwright 194 passed。
+
 # BBLBB — 文档变更记录
 
 ## v0.6 — 2026-08-08（M15 生产运维交付）

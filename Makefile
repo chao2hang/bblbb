@@ -114,9 +114,12 @@ check-openapi: ## OpenAPI YAML 解析 + operationId 唯一性检查
 		ruby $(PROJECT_ROOT)/scripts/sync-operation-coverage.rb --check; \
 	fi
 
-check-contract: ## 契约治理脚本（错误码/写契约/路由覆盖/权限矩阵/状态枚举/事件目录/TS 类型）
+check-contract: ## 契约治理脚本（错误码/写契约/路由覆盖/权限矩阵/状态枚举/事件目录/TS 类型/状态机矩阵/client 兼容）
 	@printf "$(GREEN)>>> [check-contract] 契约治理脚本$(RESET)\n"
 	@ruby $(PROJECT_ROOT)/scripts/check-error-codes.rb
+	@ruby $(PROJECT_ROOT)/scripts/check-code-fixtures.rb
+	@ruby $(PROJECT_ROOT)/scripts/check-state-machine-matrix.rb
+	@ruby $(PROJECT_ROOT)/scripts/check-client-compat.rb
 	@ruby $(PROJECT_ROOT)/scripts/check-write-contract.rb
 	@ruby $(PROJECT_ROOT)/scripts/check-route-coverage.rb
 	@ruby $(PROJECT_ROOT)/scripts/check-permission-matrix.rb
@@ -132,13 +135,9 @@ check-docs: ## Markdown 链接检查
 		printf "$(YELLOW)    lychee 未安装，跳过链接检查$(RESET)\n"; \
 	fi
 
-check-secrets: ## Secret 扫描（检查是否有泄露的密钥/Token）
+check-secrets: ## Secret 扫描（检查是否有泄露的密钥/Token；剥离 #[cfg(test)] Fixture，与 ops/security/scan.sh 同规则）
 	@printf "$(GREEN)>>> [check-secrets] Secret 扫描$(RESET)\n"
-	@! grep -rn --include='*.rs' --include='*.ts' --include='*.js' --include='*.json' --include='*.yaml' --include='*.yml' \
-		-E '(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|-----BEGIN (RSA |EC )?PRIVATE KEY-----)' \
-		$(BACKEND_DIR)/src $(FRONTEND_DIR)/src $(PROJECT_ROOT)/openapi 2>/dev/null \
-		|| { printf "$(RED)ERROR: 检测到疑似 Secret！$(RESET)\n"; exit 1; }
-	@printf "    未检测到已知 Secret 模式\n"
+	@ruby $(PROJECT_ROOT)/scripts/check-secrets.rb
 
 check-roadmap: ## 路线图校验
 	@printf "$(GREEN)>>> [check-roadmap] 路线图一致性校验$(RESET)\n"

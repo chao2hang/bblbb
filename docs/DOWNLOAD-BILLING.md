@@ -100,7 +100,7 @@ SQLite 使用 `BEGIN IMMEDIATE`，并验证账户版本更新 `rows_affected == 
 → 重新鉴权后签发短期 S3 URL
 ```
 
-签发 URL 不在数据库事务中执行。签发失败时下载授权和扣费仍是已提交事实：响应返回 HTTP 503、Problem code `download_url_unavailable`，并在安全扩展字段返回 `authorization_id`、`authorization_expires_at`、`charged` 和 `reused_authorization`，但绝不返回不完整 URL。客户端用原幂等键重试 `POST /download` 或查询授权后调用 `POST /api/v1/download-authorizations/{id}/sign-url`；两条路径都只重新鉴权和签名，不得再次扣款。尚在异步准备时返回 202 `download_authorization_pending`。不采用“拿到 URL 才算扣费成功”的第二套状态机。
+签发 URL 不在数据库事务中执行。签发失败时下载授权和扣费仍是已提交事实：响应返回 HTTP 503、Problem code `download_url_unavailable`，并在安全扩展字段返回 `authorization_id`、`authorization_expires_at`、`charged` 和 `reused_authorization`，但绝不返回不完整 URL。客户端用原幂等键重试 `POST /download` 或查询授权后调用 `POST /api/v1/download-authorizations/{id}/sign-url`；两条路径都只重新鉴权和签名，不得再次扣款。v1 下载为同步完成，不存在异步 202 状态（`download_authorization_pending` 已从稳定码注册表移除）。不采用“拿到 URL 才算扣费成功”的第二套状态机。
 
 ## 5. 防滥用与隐私
 

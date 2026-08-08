@@ -201,10 +201,21 @@ fn map_activity_error(e: ActivityError, request_id: &'static str) -> AppError {
         ActivityError::Db(msg) | ActivityError::Ledger(msg) => AppError::internal(msg, request_id),
         ActivityError::NotFound(msg) => AppError::not_found(msg, request_id),
         ActivityError::Invalid(msg) => AppError::bad_request(msg, request_id, None),
-        ActivityError::AlreadyClaimed => AppError::conflict("already claimed", request_id),
-        ActivityError::NotEligible(msg) => {
-            AppError::conflict(format!("activity not eligible: {msg}"), request_id)
-        }
+        // M16-HARNESS-04：稳定 Problem code（docs/ERROR-CODES.md）。
+        ActivityError::AlreadyClaimed => AppError::with_code(
+            axum::http::StatusCode::CONFLICT,
+            "activity_already_claimed",
+            "Conflict",
+            "today's activity is already claimed",
+            request_id,
+        ),
+        ActivityError::NotEligible(msg) => AppError::with_code(
+            axum::http::StatusCode::CONFLICT,
+            "activity_not_eligible",
+            "Conflict",
+            msg,
+            request_id,
+        ),
     }
 }
 
