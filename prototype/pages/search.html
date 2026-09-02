@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 搜索">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>搜索 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-search" id="page-search">
+<div class="app-page-head"><div class="app-page-head__copy"><span class="app-kicker">DISCOVER / SEARCH</span><h1 tabindex="-1">搜索</h1><p>搜索帖子、用户或标签</p></div></div><form class="app-toolbar" data-search-form=""><label class="app-search" style="flex:1"><svg class="ic ic-14" aria-hidden="true"><use href="#i-search"></use></svg><input data-search-input="" value="" placeholder="搜索帖子、用户或标签…"></label><button class="btn primary">搜索</button></form><section class="app-card"><div data-search-results="" class="app-post-list"><a class="app-post-row" href="#topic:101" data-search-row=""><span class="avatar cyan profile-hover-trigger" data-profile-name="Chaos" tabindex="0" role="button" aria-label="查看 Chaos 的用户信息" style="width:38px;height:38px;flex-basis:38px;font-size:14px">C</span><span class="app-post-row__main"><h3>Rust 小机器上的 SQLite 并发实践</h3><p>在资源受限的小型服务器上跑 SQLite，需要从连接池、checkpoint、WAL 三处同时入手。</p></span><span class="app-post-row__right">3.2k</span></a><a class="app-post-row" href="#topic:102" data-search-row=""><span class="avatar cyan profile-hover-trigger" data-profile-name="Yuwen" tabindex="0" role="button" aria-label="查看 Yuwen 的用户信息" style="width:38px;height:38px;flex-basis:38px;font-size:14px">Y</span><span class="app-post-row__main"><h3>自建 OIDC Provider 的最小集</h3><p>从 discovery、JWKS、userinfo、revocation 开始，整理自托管场景下的最小方案。</p></span><span class="app-post-row__right">1.8k</span></a><a class="app-post-row" href="#topic:103" data-search-row=""><span class="avatar cyan profile-hover-trigger" data-profile-name="Mark" tabindex="0" role="button" aria-label="查看 Mark 的用户信息" style="width:38px;height:38px;flex-basis:38px;font-size:14px">M</span><span class="app-post-row__main"><h3>Markdown 渲染沙箱与 CSP 实战</h3><p>论坛型站点的 XSS 风险集中在 Markdown 渲染管线与外链图片。</p></span><span class="app-post-row__right">2.4k</span></a><a class="app-post-row" href="#topic:104" data-search-row=""><span class="avatar cyan profile-hover-trigger" data-profile-name="Alice" tabindex="0" role="button" aria-label="查看 Alice 的用户信息" style="width:38px;height:38px;flex-basis:38px;font-size:14px">A</span><span class="app-post-row__main"><h3>SQLite 在 512MB 小机器上的取舍</h3><p>WAL、连接池和 checkpoint 在生产环境中的取舍与验证。</p></span><span class="app-post-row__right">1.5k</span></a><a class="app-post-row" href="#topic:201" data-search-row=""><span class="avatar cyan profile-hover-trigger" data-profile-name="Chaos" tabindex="0" role="button" aria-label="查看 Chaos 的用户信息" style="width:38px;height:38px;flex-basis:38px;font-size:14px">C</span><span class="app-post-row__main"><h3>使用 SvelteKit 构建博客与轻量论坛是否合理？</h3><p>这个月用 SvelteKit 写完 BBLBB 的核心页面，包括 SSR、SEO、CSRF、表单与 OIDC 接入。整体体验比想象中好，但踩了几个坑。</p></span><span class="app-post-row__right">2.1k</span></a></div><div data-search-empty="" hidden=""><div class="app-empty"><svg class="ic ic-16" aria-hidden="true"><use href="#i-search"></use></svg><b>没有找到相关内容</b><span>试试更短或更常见的关键词</span><button type="button" class="btn ghost" data-search-reset="">清除搜索</button></div></div></section>
+</section>
+</main>
+</body>
+</html>

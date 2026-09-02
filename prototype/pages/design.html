@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 原型界面标准文档">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>原型界面标准文档 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-design" id="page-design">
+  <header class="design-doc-head" aria-labelledby="design-doc-title">
+<div class="design-doc-head__copy">
+      <span class="design-kicker"><svg class="ic ic-14"><use href="#i-book-open"></use></svg> BBLBB PROTOTYPE STANDARD</span>
+      <h1 id="design-doc-title" tabindex="-1">原型界面标准文档</h1>
+      <p>面向产品、设计与前端的统一实现基线。先按本页约束搭建页面结构，再从 Token 取样式，避免每个页面各自发明规则。</p>
+<div class="design-doc-meta" aria-label="文档信息">
+        <span><b>v1.0</b> 当前基线</span><span><b>亮 / 暗</b> 双主题</span><span><b>桌面 / 移动</b> 响应式</span><span><b>开发前必读</b> 规范级</span>
+</div>
+</div>
+<div class="design-doc-head__actions">
+      <button class="btn primary" type="button" onclick="copyDesignChecklist(this)"><svg class="ic ic-14"><use href="#i-copy"></use></svg>复制开发清单</button>
+      <a class="btn ghost" href="../docs/PROTOTYPE-UI.md" target="_blank" rel="noreferrer">查看规范来源</a>
+      <a class="design-back" href="#home">返回首页</a>
+</div>
+</header>
+
+<nav class="design-doc-nav" aria-label="规范章节">
+    <button type="button" class="is-active" data-design-target="design-principles" onclick="designJump('design-principles')">统一原则</button>
+    <button type="button" data-design-target="design-foundation" onclick="designJump('design-foundation')">色彩</button>
+    <button type="button" data-design-target="design-typography" onclick="designJump('design-typography')">字体</button>
+    <button type="button" data-design-target="design-spacing" onclick="designJump('design-spacing')">间距</button>
+    <button type="button" data-design-target="design-radius" onclick="designJump('design-radius')">圆角</button>
+    <button type="button" data-design-target="design-button" onclick="designJump('design-button')">按钮组件</button>
+    <button type="button" data-design-target="design-status" onclick="designJump('design-status')">标签状态</button>
+    <button type="button" data-design-target="design-layout" onclick="designJump('design-layout')">布局与响应式</button>
+    <button type="button" data-design-target="design-states" onclick="designJump('design-states')">状态与无障碍</button>
+    <button type="button" data-design-target="design-checklist" onclick="designJump('design-checklist')">开发检查清单</button>
+</nav>
+
+<section class="design-principles" id="design-principles" aria-labelledby="design-principles-title">
+<div class="design-principles__head"><span class="design-kicker">START HERE</span><h2 id="design-principles-title">四条统一原则</h2><p>任何新页面、新组件和视觉修复，都先用这四条做判断。</p></div>
+<div class="design-principles__grid">
+      <article><span>01</span><div><b>Token 优先</b><p>颜色、间距、字号、圆角、层级只从语义 Token 取值，禁止散落硬编码。</p></div></article>
+      <article><span>02</span><div><b>结构先于装饰</b><p>页面先满足信息层级、可达性和响应式，再添加视觉强化，不用装饰掩盖结构问题。</p></div></article>
+      <article><span>03</span><div><b>状态必须完整</b><p>每个交互至少考虑 normal、hover、focus、disabled；异步操作补充 loading 与 error。</p></div></article>
+      <article><span>04</span><div><b>移动端同等可用</b><p>小屏不是桌面缩小版：操作热区、信息优先级和表格收缩都要有明确方案。</p></div></article>
+</div>
+</section>
+
+<div class="ds-section" id="design-foundation">
+    <h2>基础 Tokens · 色彩</h2>
+    <p class="desc">组件一律通过 <code>var(--color-*)</code> 取色，禁止硬编码十六进制值；暗色主题由 <code>html[data-theme="dark"]</code> 自动映射。</p>
+<div class="swatches">
+<div class="swatch" data-token="color-brand"><i class="swatch-color swatch-brand"></i><div><code>--color-brand</code><span>亮色 #0088CC · 暗色 #48B0DD</span></div></div>
+<div class="swatch" data-token="color-bg-page"><i class="swatch-color swatch-page"></i><div><code>--color-bg-page</code><span>亮色 #F5F5F5 · 暗色 #1E1E1E</span></div></div>
+<div class="swatch" data-token="color-bg-card"><i class="swatch-color swatch-card"></i><div><code>--color-bg-card</code><span>亮色 #FFFFFF · 暗色 #262626</span></div></div>
+<div class="swatch" data-token="color-bg-subtle"><i class="swatch-color swatch-subtle"></i><div><code>--color-bg-subtle</code><span>亮色 #F0F0F0 · 暗色 #303030</span></div></div>
+<div class="swatch" data-token="color-text-primary"><i class="swatch-color swatch-text"></i><div><code>--color-text-primary</code><span>亮色 #222222 · 暗色 #E8E8E8</span></div></div>
+<div class="swatch" data-token="color-text-secondary"><i class="swatch-color swatch-secondary"></i><div><code>--color-text-secondary</code><span>亮色 #646464 · 暗色 #A5A5A5</span></div></div>
+<div class="swatch" data-token="color-border"><i class="swatch-color swatch-border"></i><div><code>--color-border</code><span>亮色 #E9E9E9 · 暗色 #3A3A3A</span></div></div>
+<div class="swatch" data-token="color-success"><i class="swatch-color swatch-success"></i><div><code>--color-success</code><span>亮色 #009900 · 暗色 #4CB74C</span></div></div>
+<div class="swatch" data-token="color-warning"><i class="swatch-color swatch-warning"></i><div><code>--color-warning</code><span>亮色 #E9A100 · 暗色 #E9A100</span></div></div>
+<div class="swatch" data-token="color-danger"><i class="swatch-color swatch-danger"></i><div><code>--color-danger</code><span>亮色 #E45735 · 暗色 #EF7A5C</span></div></div>
+<div class="swatch" data-token="color-code-bg"><i class="swatch-color swatch-code"></i><div><code>--color-code-bg</code><span>亮色 #F1F1F1 · 暗色 #2D2D2D</span></div></div>
+<div class="swatch" data-token="color-focus-ring"><i class="swatch-color swatch-focus"></i><div><code>--color-focus-ring</code><span>主题品牌色 35% / 45% 透明度</span></div></div>
+<div class="swatch" data-token="color-surface"><i class="swatch-color swatch-surface"></i><div><code>--color-surface</code><span>卡片 / 导航表面，跟随 --color-bg-card</span></div></div>
+</div>
+</div>
+
+<div class="ds-section" id="design-typography">
+    <h2>排版 · 字体阶梯</h2>
+    <p class="desc">六个字号 Token 自上而下递增，正文一律 <code>--text-base</code>。</p>
+<div class="type-row"><code>--text-xs</code><span class="type-xs">Badge、Tag、辅助标注 · 12px / 18px</span></div>
+<div class="type-row"><code>--text-sm</code><span class="type-sm">列表元信息、摘要 · 13px / 20px</span></div>
+<div class="type-row"><code>--text-base</code><span class="type-base">界面正文、表单、按钮 · 14px / 22px</span></div>
+<div class="type-row"><code>--text-md</code><span class="type-md">列表主标题、文章正文 · 16px / 26px</span></div>
+<div class="type-row"><code>--text-lg</code><span class="type-lg">详情 H2、卡片组标题 · 18px / 28px</span></div>
+<div class="type-row"><code>--text-xl</code><span class="type-xl">页面标题 · 20px / 30px</span></div>
+<div class="type-row"><code>--text-2xl</code><span class="type-2xl">文章详情主标题 · 24px / 34px</span></div>
+<div class="type-row"><code>--text-3xl</code><span class="type-3xl">用户昵称 / 仪表盘大数字 · 28px / 38px</span></div>
+    <p class="ds-note">字重只用 400 / 500 / 600：正文 / 列表标题与按钮 / 页面标题与强调；代码与 ID 使用 <code>var(--font-family-mono)</code>。</p>
+</div>
+
+<div class="ds-section" id="design-spacing">
+    <h2>排版 · 间距阶梯</h2>
+    <p class="desc">以 4px 为基础单位，页面间距只从下列 Token 取值；不要在组件中创造新的间距。</p>
+<div class="space-demo"><code>--space-1</code><i class="space-bar space-1"></i><span>4px · 图标与文字</span></div>
+<div class="space-demo"><code>--space-2</code><i class="space-bar space-2"></i><span>8px · 控件内间距</span></div>
+<div class="space-demo"><code>--space-3</code><i class="space-bar space-3"></i><span>12px · 列表行内</span></div>
+<div class="space-demo"><code>--space-4</code><i class="space-bar space-4"></i><span>16px · 卡片内边距</span></div>
+<div class="space-demo"><code>--space-6</code><i class="space-bar space-6"></i><span>24px · 区块间距</span></div>
+<div class="space-demo"><code>--space-8</code><i class="space-bar space-8"></i><span>32px · 页面大区块</span></div>
+</div>
+
+<div class="ds-section" id="design-radius" data-token-group="radius">
+    <h2>基础 Tokens · 圆角</h2>
+    <p class="desc">控件与容器统一从 Token 取圆角，不直接写像素。chaos 主题下控件为 5px、容器为 6px，药丸形态固定使用 <code>--radius-full</code>。</p>
+<div class="radius-demo">
+<div class="rad-box" style="border-radius:var(--radius-sm)">--radius-sm</div>
+<div class="rad-box" style="border-radius:var(--radius-md)">--radius-md</div>
+<div class="rad-box" style="border-radius:var(--radius-lg)">--radius-lg</div>
+<div class="rad-box" style="border-radius:var(--radius-xl)">--radius-xl</div>
+<div class="rad-box" style="height:28px;border-radius:var(--radius-full);background:rgba(0,136,204,.12);display:flex;align-items:center;justify-content:center">--radius-full</div>
+</div>
+    <p class="ds-note">chaos 主题覆盖后：控件统一 5px（--radius-sm）、容器 6px（--radius-md）；<code>--radius-full</code> 仅限按钮／徽标等药丸形态。所有圆角必须引用 Token，禁止硬编码（依据 docs/DESIGN-TOKENS.md 硬规则）。</p>
+</div>
+
+<div class="ds-section" id="design-button" data-component="button-form">
+    <h2>组件规范 · 按钮与表单</h2>
+    <p class="desc">按钮为四种语义 × 三种尺寸；表单控件统一高 36px、圆角 <code>--radius-sm</code>，必须提供 focus / disabled / error 反馈。</p>
+<div class="btn-row">
+      <button class="btn primary sm">主要操作</button>
+      <button class="btn secondary sm">次要操作</button>
+      <button class="btn ghost sm">幽灵按钮</button>
+      <button class="btn danger sm">危险操作</button>
+</div>
+<div class="btn-row">
+      <button class="btn primary md">主要操作</button>
+      <button class="btn secondary md">次要操作</button>
+      <button class="btn ghost md">幽灵按钮</button>
+      <button class="btn danger md">危险操作</button>
+      <button class="btn primary md disabled" disabled="">已禁用</button>
+      <button class="btn secondary md disabled" disabled="">已禁用</button>
+</div>
+<div class="btn-row">
+      <button class="btn primary lg">主要操作</button>
+      <button class="btn secondary lg">次要操作</button>
+      <button class="btn ghost lg">幽灵按钮</button>
+      <button class="btn danger lg">危险操作</button>
+</div>
+<div class="demo-label">表单控件 · normal / focus / disabled / error</div>
+<div class="form-demo">
+      <label><span>输入框</span><input class="design-input" placeholder="请输入内容"></label>
+      <label><span>错误态</span><input class="design-input is-error" value="格式不正确" aria-invalid="true"><small>请检查输入格式</small></label>
+      <label><span>禁用态</span><input class="design-input" value="不可编辑" disabled=""></label>
+</div>
+</div>
+
+<div class="ds-section" id="design-status" data-component="tag-status">
+    <h2>组件规范 · Tag 与 StatusBadge</h2>
+    <p class="desc"><code>.tag-pill</code> 用于话题标签（可点选），<code>.sbadge</code> 用于对象状态；两者语义不同，不要混用。</p>
+<div class="demo-label">Tag · 可选中</div>
+<div class="demo-row">
+      <button class="tag-pill" onclick="pickTagDemo(this)">sveltekit</button>
+      <button class="tag-pill" onclick="pickTagDemo(this)">rust</button>
+      <button class="tag-pill" onclick="pickTagDemo(this)">docker</button>
+</div>
+<div class="demo-label">StatusBadge · 固定语义</div>
+<div class="demo-row">
+      <span class="sbadge sb-pinned">置顶</span><span class="sbadge sb-hot">精华</span><span class="sbadge sb-hot">待审核</span>
+      <span class="sbadge sb-success">已处理</span><span class="sbadge sb-danger">封禁</span><span class="sbadge sb-gray">草稿</span>
+</div>
+</div>
+
+<div class="ds-section" id="design-layout">
+    <h2>布局与响应式</h2>
+    <p class="desc">页面骨架先按容器、主内容与侧栏拆分，再为移动端定义收缩策略；不要只靠缩放解决小屏问题。</p>
+<div class="design-rule-grid">
+<div class="design-rule"><b>桌面 ≥1024px</b><span>容器最大 1200px，左右内边距 24px；主内容 ≤840px，侧栏 280–320px，间距 24px。</span></div>
+<div class="design-rule"><b>平板 768–1023px</b><span>主内容优先，侧栏下移或折叠；表格可横向滚动，保持字段可读。</span></div>
+<div class="design-rule"><b>手机 ≤767px</b><span>单列布局，左右内边距 16px；底部导航固定，操作热区最小 44×44px。</span></div>
+<div class="design-rule"><b>详情正文</b><span>阅读列最大 740px；面包屑、标题、正文、回复按垂直阅读顺序排列。</span></div>
+</div>
+    <pre class="design-code"><code>&lt;main class="page-container"&gt;
+  &lt;header class="page-head"&gt;标题 + 关键操作&lt;/header&gt;
+  &lt;div class="content-grid"&gt;主内容 + 侧栏&lt;/div&gt;
+&lt;/main&gt;</code></pre>
+</div>
+
+<div class="ds-section" id="design-states" data-component="state-a11y">
+    <h2>状态与无障碍</h2>
+    <p class="desc">状态不是装饰：组件必须可感知、可操作、可恢复；错误信息要说明原因与下一步。</p>
+<div class="design-table-wrap">
+      <table class="design-table"><thead><tr><th>对象</th><th>必须覆盖</th><th>实现口径</th></tr></thead><tbody>
+        <tr><td>交互控件</td><td>normal · hover · active · focus · disabled</td><td>焦点环使用 <code>--color-focus-ring</code>；禁用态降低透明度且不可点击。</td></tr>
+        <tr><td>异步操作</td><td>loading · success · error</td><td>保留控件宽度，使用 spinner；完成或失败给出 Toast/表单提示。</td></tr>
+        <tr><td>键盘操作</td><td>Tab · Enter/Space · Esc</td><td>焦点顺序与视觉顺序一致；弹层打开时焦点进入并在关闭后还原。</td></tr>
+        <tr><td>命中区域</td><td>桌面 ≥32×32 · 移动 ≥44×44</td><td>视觉图标可小于热区；图标按钮必须有 aria-label。</td></tr>
+        <tr><td>文字与图标</td><td>对比度 · 替代文本</td><td>正文对比度 ≥4.5:1；装饰图标 aria-hidden，功能图标配文字或标签。</td></tr>
+</tbody></table>
+</div>
+</div>
+
+<div class="ds-section" id="design-checklist">
+    <h2>开发检查清单</h2>
+    <p class="desc">提交前逐项确认；点击“复制开发清单”可带走同一份文字版。</p>
+<div class="design-checklist">
+      <label class="design-check"><input type="checkbox">页面有清晰的标题、层级与主要操作</label>
+      <label class="design-check"><input type="checkbox">颜色、字号、间距、圆角、阴影均引用 Token</label>
+      <label class="design-check"><input type="checkbox">交互覆盖 hover、focus、disabled、loading、error</label>
+      <label class="design-check"><input type="checkbox">桌面、平板、手机均无横向溢出</label>
+      <label class="design-check"><input type="checkbox">按钮与图标具备键盘操作和 aria-label</label>
+      <label class="design-check"><input type="checkbox">空、错、无权限、加载状态均有可恢复提示</label>
+      <label class="design-check"><input type="checkbox">亮色与暗色主题均已检查对比度和可读性</label>
+      <label class="design-check"><input type="checkbox">已对照 docs/PROTOTYPE-UI.md 与 docs/DESIGN-TOKENS.md</label>
+</div>
+    <p class="ds-note">事实来源：<code>docs/PROTOTYPE-UI.md</code>（视觉与组件规格）和 <code>docs/DESIGN-TOKENS.md</code>（Token、圆角硬规则）。主题实现统一使用 <code>html[data-theme="dark"]</code>；若页面实现与文档冲突，先修正文档或提交设计决策，不要在单个页面留下例外。</p>
+</div>
+
+</section>
+</main>
+</body>
+</html>

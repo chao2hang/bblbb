@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · API 密钥">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>API 密钥 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-apikeys" id="page-apikeys">
+<div class="app-page-head"><div class="app-page-head__copy"><span class="app-kicker">ACCOUNT / DEVELOPER</span><h1 tabindex="-1">API 密钥</h1><p>按最小 scope 管理个人 API 访问凭证</p></div><div class="app-page-head__actions"><button type="button" class="btn primary" data-create-key="">创建密钥</button></div></div><div class="app-notice">密钥只在创建时显示一次；撤销会立即使旧密钥失效。</div><section class="app-card"><header class="app-card__head"><h2>密钥列表</h2></header><div class="app-card__body"><div class="app-device"><div class="app-device__body"><b>build-bot</b><span>key_***8f2a · posts:read · 最近使用今天</span></div><button type="button" class="btn danger" data-revoke-key="">撤销</button></div><div class="app-device"><div class="app-device__body"><b>local-cli</b><span>key_***3c1d · posts:read, drafts:write · 1 周前</span></div><button type="button" class="btn danger" data-revoke-key="">撤销</button></div></div></section>
+</section>
+</main>
+</body>
+</html>

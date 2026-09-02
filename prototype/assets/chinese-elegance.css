@@ -1,0 +1,2139 @@
+/* ============================================================
+   BBLBB v2 中国风黑白灰设计系统 - chinese-elegance.css
+   成熟 · 克制 · 高密度 · 去 AI 味
+   ============================================================ */
+
+/* ========== 色彩 Token ========== */
+:root {
+  /* 黑白灰主色系（浅色：暖米纸底色，降低纯白眩光，贴合宣纸质感） */
+  --color-bg-page: #F5F3EE;
+  --color-bg-card: #FBFAF7;
+  --color-bg-subtle: #EFEDE6;
+  --color-bg-hover: #E9E6DE;
+  
+  --color-text-primary: #1F1D1A;
+  --color-text-secondary: #6B6B6B;
+  --color-text-tertiary: #9E9E9E;
+  
+  --color-border: #E4E1D7;
+  --color-border-strong: #D2CDBF;
+  --color-border-dark: #BDB7A6;
+  
+  /* 品牌色：青石蓝（极克制使用） */
+  --color-brand: #5A6C7D;
+  --color-brand-hover: #4A5C6D;
+  --color-brand-pressed: #3A4C5D;
+  --color-brand-soft: #E8EAED;
+  
+  /* 功能色：去彩色，用灰度 + 文字表达 */
+  --color-warning: #8B4513;      /* 赭石棕 */
+  --color-warning-soft: #F5F0E8;
+  --color-danger: #2C2C2C;       /* 深灰替代红色 */
+  --color-danger-soft: #F0F0F0;
+  --color-success: #4A5C4D;      /* 墨绿 */
+  --color-success-soft: #E8F0E8;
+  
+  --color-code-bg: #EFEDE6;
+  --color-focus-ring: rgba(90, 108, 125, 0.4);
+  
+  /* 字体 */
+  --font-family-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --font-family-base: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", sans-serif;
+  --font-family-mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+  
+  /* 圆角：直角为主 */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-full: 2px;  /* 不用圆形 */
+  
+  /* 边框 */
+  --border-thin: 0.5px solid var(--color-border);
+  --border-default: 1px solid var(--color-border);
+  --border-strong: 1px solid var(--color-border-strong);
+  
+  /* 阴影：极简 */
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-dropdown: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-modal: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-none: none;
+}
+
+html[data-theme="dark"] {
+  --color-bg-page: #0D0D0D;
+  --color-bg-card: #1A1A1A;
+  --color-bg-subtle: #252525;
+  --color-bg-hover: #2C2C2C;
+  
+  --color-text-primary: #EBEBEB;
+  --color-text-secondary: #A3A3A3;
+  --color-text-tertiary: #6B6B6B;
+  
+  --color-border: #2C2C2C;
+  --color-border-strong: #3A3A3A;
+  --color-border-dark: #4A4A4A;
+  
+  --color-brand: #7A8C9D;
+  --color-brand-hover: #8A9CAD;
+  --color-brand-pressed: #6A7C8D;
+  --color-brand-soft: #252A2E;
+  
+  --color-warning: #A0682A;
+  --color-warning-soft: #2A2520;
+  --color-danger: #D0D0D0;
+  --color-danger-soft: #252525;
+  --color-success: #6A7C6D;
+  --color-success-soft: #202520;
+  
+  --color-code-bg: #1F1F1F;
+  --color-focus-ring: rgba(122, 140, 157, 0.5);
+  
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-dropdown: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ========== 全局重置 ========== */
+body {
+  background: var(--color-bg-page) !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-base) !important;
+}
+
+/* ========== 品牌 Logo ========== */
+.wordmark {
+  font-style: italic !important;
+  font-weight: 800 !important;
+  letter-spacing: -1.6px !important;
+  color: var(--color-text-primary) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  transition: none !important;
+}
+.wordmark:hover {
+  color: var(--color-text-primary) !important;
+}
+
+/* ========== 头像：方形灰底 ========== */
+.avatar,
+.avatar-sm,
+.avatar.sm,
+.avatar.md,
+.avatar.lg,
+.avatar.xl,
+.avatar.xxl {
+  border-radius: 2px !important;
+  background: var(--color-border-strong) !important;
+  color: var(--color-brand) !important;
+  font-weight: 600 !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: none !important;
+}
+
+/* ========== 标题：全部宋体 ========== */
+h1, h2, h3, h4, h5, h6,
+.thread h2,
+.thread-detail h1,
+.article-title,
+.page-title,
+.profile-card h2,
+.login-card h1,
+.app-page-head h1,
+.side-title,
+.dd-head,
+.section-title {
+  font-family: var(--font-family-serif) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--color-text-primary) !important;
+}
+
+.thread h2 {
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+}
+
+.article-title,
+.thread-detail h1 {
+  font-size: 22px !important;
+  line-height: 1.5 !important;
+}
+
+/* ========== 按钮系统 ========== */
+.btn,
+.btn--primary,
+.btn--secondary,
+.btn--ghost,
+.publish,
+button[type="submit"] {
+  font-family: var(--font-family-base) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  border-radius: 2px !important;
+  padding: 8px 20px !important;
+  transition: all 0.15s !important;
+  box-shadow: none !important;
+  text-transform: none !important;
+}
+
+/* 主按钮 */
+.btn.primary,
+.btn--primary,
+.publish,
+button[type="submit"]:not(.secondary):not(.ghost) {
+  background: var(--color-brand) !important;
+  color: #FFFFFF !important;
+  border: none !important;
+}
+.btn.primary:hover,
+.btn--primary:hover,
+.publish:hover {
+  background: var(--color-brand-hover) !important;
+}
+
+/* 次要按钮 */
+.btn.secondary,
+.btn--secondary,
+.btn:not(.primary):not(.ghost) {
+  background: transparent !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border-strong) !important;
+}
+.btn.secondary:hover,
+.btn--secondary:hover {
+  background: var(--color-bg-subtle) !important;
+}
+
+/* 文本按钮 */
+.btn.ghost,
+.btn--ghost {
+  background: transparent !important;
+  color: var(--color-brand) !important;
+  border: none !important;
+}
+.btn.ghost:hover {
+  color: var(--color-brand-hover) !important;
+  background: var(--color-brand-soft) !important;
+}
+
+/* ========== Tag / 徽章：矩形空心 ========== */
+.tag,
+.badge,
+.chip,
+.status-badge,
+.pf-badge,
+.thread-footer span:first-child {
+  border-radius: 2px !important;
+  padding: 2px 8px !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.05em !important;
+  border: 1px solid currentColor !important;
+  background: transparent !important;
+}
+
+.thread-meta i,
+.featured-badge,
+.tag.featured {
+  color: var(--color-warning) !important;
+  border-color: var(--color-warning) !important;
+  background: var(--color-warning-soft) !important;
+}
+
+.tag.pinned {
+  color: var(--color-brand) !important;
+  border-color: var(--color-brand) !important;
+  background: var(--color-brand-soft) !important;
+}
+
+/* ========== 帖子列表：表格式 ========== */
+.thread-list {
+  background: var(--color-bg-card) !important;
+  border: var(--border-default) !important;
+  border-radius: 0 !important;
+}
+
+.thread {
+  border-bottom: var(--border-thin) !important;
+  padding: 14px 16px !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  transition: background 0.12s !important;
+}
+.thread:hover {
+  background: var(--color-bg-hover) !important;
+}
+.thread:last-child {
+  border-bottom: none !important;
+}
+
+.thread h2 {
+  margin-bottom: 6px !important;
+}
+
+.thread-meta {
+  font-size: 13px !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.thread-footer {
+  font-size: 13px !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+/* ========== 卡片/面板 ========== */
+.category-card,
+.recommend,
+.stats-card,
+.qr,
+.app-card,
+.panel,
+.login-card,
+.profile-card {
+  background: var(--color-bg-card) !important;
+  border: var(--border-default) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-card__head,
+.panel__head {
+  border-bottom: var(--border-default) !important;
+}
+
+/* ========== 输入框 ========== */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+textarea,
+.input {
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border-strong) !important;
+  border-radius: 2px !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-base) !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+}
+input:focus,
+textarea:focus {
+  outline: none !important;
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 3px var(--color-focus-ring) !important;
+}
+
+/* 顶栏搜索：边框统一由 .search 容器承担，输入框不再自行描边（避免双框） */
+.search input {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 8px !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-base) !important;
+  font-size: 14px !important;
+}
+.search input:focus { box-shadow: none !important; }
+
+/* ========== 下拉菜单 ========== */
+.dropdown,
+.menu,
+.popover {
+  background: var(--color-bg-card) !important;
+  border: var(--border-default) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--shadow-dropdown) !important;
+}
+
+.dd-item,
+.menu-item {
+  border-radius: 0 !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+}
+.dd-item:hover,
+.menu-item:hover {
+  background: var(--color-bg-hover) !important;
+}
+
+/* ========== 导航栏 ========== */
+.desktop-header {
+  background: var(--color-bg-card) !important;
+  border-bottom: var(--border-thin) !important;
+  box-shadow: none !important;
+}
+
+.desktop-nav > a {
+  color: var(--color-text-secondary) !important;
+  border-bottom: 2px solid transparent !important;
+  font-size: 14px !important;
+}
+.desktop-nav > a.active {
+  color: var(--color-brand) !important;
+  border-bottom-color: var(--color-brand) !important;
+}
+.desktop-nav > a:hover {
+  color: var(--color-brand-hover) !important;
+}
+
+/* ========== 侧边栏 ========== */
+.category-card,
+.right-rail section {
+  background: var(--color-bg-card) !important;
+  border: var(--border-default) !important;
+}
+
+.side-title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  margin-bottom: 12px !important;
+}
+
+.recommend-item {
+  padding: 10px 0 !important;
+  border-bottom: var(--border-thin) !important;
+  font-size: 14px !important;
+}
+.recommend-item:last-child {
+  border-bottom: none !important;
+}
+
+.rank {
+  font-family: var(--font-family-serif) !important;
+  color: var(--color-brand) !important;
+  font-weight: 600 !important;
+}
+
+/* ========== 页尾装饰 ========== */
+.end {
+  color: var(--color-text-tertiary) !important;
+  font-size: 13px !important;
+  letter-spacing: 0.1em !important;
+  text-align: center !important;
+  padding: 32px 0 !important;
+}
+.end::before,
+.end::after {
+  content: "■" !important;
+  color: var(--color-border-dark) !important;
+  font-size: 8px !important;
+  vertical-align: middle !important;
+}
+.end::before {
+  margin-right: 12px !important;
+}
+.end::after {
+  margin-left: 12px !important;
+}
+
+/* ========== 精华帖：书名号 ========== */
+.thread.featured h2::before {
+  content: "「" !important;
+  color: var(--color-warning) !important;
+  font-family: var(--font-family-serif) !important;
+  margin-right: 4px !important;
+}
+.thread.featured h2::after {
+  content: "」" !important;
+  color: var(--color-warning) !important;
+  margin-left: 4px !important;
+}
+
+/* ========== 代码块 ========== */
+code,
+pre,
+.code-block {
+  background: var(--color-code-bg) !important;
+  border: var(--border-default) !important;
+  border-radius: 2px !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 13px !important;
+}
+
+/* ========== 引用块 ========== */
+blockquote,
+.quote,
+.prose blockquote {
+  border-left: 3px solid var(--color-brand) !important;
+  background: var(--color-bg-subtle) !important;
+  padding: 12px 16px !important;
+  border-radius: 0 !important;
+  margin: 16px 0 !important;
+}
+
+/* ========== 表格 ========== */
+table,
+.tbl,
+.data-table {
+  border: var(--border-default) !important;
+  border-radius: 0 !important;
+}
+thead th,
+.tbl thead th {
+  background: var(--color-bg-subtle) !important;
+  border-bottom: var(--border-strong) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.04em !important;
+}
+td,
+.tbl td {
+  border-bottom: var(--border-thin) !important;
+}
+
+/* ========== 焦点环 ========== */
+:focus-visible {
+  outline: 2px solid var(--color-brand) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px var(--color-focus-ring) !important;
+}
+
+/* ========== 移动端适配 ========== */
+@media (max-width: 768px) {
+  .mobile-hero {
+    background: var(--color-brand) !important;
+  }
+  
+  .mobile-logo {
+    font-family: var(--font-family-serif) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.12em !important;
+  }
+  
+  .mobile-theme,
+  .mobile-doc-link {
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 2px !important;
+  }
+  
+  .bottom-nav {
+    background: var(--color-bg-card) !important;
+    border-top: var(--border-default) !important;
+    box-shadow: var(--shadow-subtle) !important;
+  }
+  
+  .bottom-nav button {
+    background: var(--color-brand) !important;
+    border-radius: 2px !important;
+    box-shadow: var(--shadow-dropdown) !important;
+  }
+  
+  .thread h2 {
+    font-size: 15px !important;
+  }
+}
+
+/* ========== 暗色模式特殊调整 ========== */
+
+
+html[data-theme="dark"] .btn.primary,
+html[data-theme="dark"] .publish {
+  background: var(--color-brand) !important;
+}
+
+html[data-theme="dark"] .avatar {
+  border-color: var(--color-border-strong) !important;
+}
+
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] textarea:focus {
+  border-color: var(--color-brand) !important;
+}
+
+
+/* ============================================================
+   BBLBB dynamic page system / visual QA pass
+   Only layout, interaction affordances and responsive behavior.
+   ============================================================ */
+
+/* Dynamic route canvas */
+.app-page {
+  width: min(1180px, calc(100% - 48px)) !important;
+  max-width: 1180px !important;
+  margin: 0 auto !important;
+  padding: 8px 0 72px !important;
+}
+.app-page-head {
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 24px !important;
+  margin: 8px 0 20px !important;
+  padding: 8px 0 0 !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+.app-page-head__copy { min-width: 0 !important; }
+.app-kicker {
+  color: var(--color-brand) !important;
+  font: 600 11px/18px var(--font-family-mono) !important;
+  letter-spacing: .12em !important;
+  text-transform: uppercase !important;
+}
+.app-page-head h1 {
+  margin: 7px 0 6px !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-serif) !important;
+  font-size: clamp(22px, 3vw, 28px) !important;
+  font-weight: 500 !important;
+  letter-spacing: .02em !important;
+  line-height: 1.35 !important;
+}
+.app-page-head p { margin: 0 0 14px !important; color: var(--color-text-secondary) !important; font-size: 13px !important; }
+.app-page-head__actions { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; }
+
+/* Cards and content groups */
+.app-grid, .topic-layout, .app-form-layout, .app-settings-layout, .app-admin-shell, .app-message-layout {
+  gap: 16px !important;
+}
+.app-card, .topic-head-card, .topic-body-card, .topic-comments, .app-profile {
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+.app-card__head { min-height: 52px !important; padding: 14px 17px !important; }
+.app-card__head h2 { font-family: var(--font-family-serif) !important; font-weight: 500 !important; letter-spacing: .02em !important; }
+.app-card__body { padding: 17px !important; }
+.app-card__foot { padding: 12px 17px !important; border-top: 1px solid var(--color-border) !important; }
+
+/* Lists: one consistent scan rhythm */
+.app-post-list { display: flex !important; flex-direction: column !important; }
+.app-post-row {
+  min-height: 64px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 12px 17px !important;
+  border-top: 1px solid var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  text-decoration: none !important;
+}
+.app-post-row:first-child { border-top: 0 !important; }
+.app-post-row:hover { background: var(--color-bg-hover, var(--color-bg-subtle)) !important; }
+.app-post-row__main { flex: 1 !important; min-width: 0 !important; }
+.app-post-row__main h3 { margin: 0 !important; overflow: hidden !important; color: var(--color-text-primary) !important; font-family: var(--font-family-serif) !important; font-size: 15px !important; font-weight: 500 !important; line-height: 1.5 !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.app-post-row__main p { margin: 4px 0 0 !important; overflow: hidden !important; color: var(--color-text-secondary) !important; font-size: 12px !important; line-height: 1.5 !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.app-post-row__right { color: var(--color-text-tertiary) !important; font-size: 12px !important; white-space: nowrap !important; }
+
+/* Filters, forms and controls */
+.app-toolbar { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; margin: 0 0 14px !important; }
+.app-search { display: flex !important; align-items: center !important; gap: 8px !important; min-width: 220px !important; height: 38px !important; padding: 0 11px !important; border: 1px solid var(--color-border-strong) !important; border-radius: 2px !important; background: var(--color-bg-card) !important; color: var(--color-text-secondary) !important; }
+.app-search:focus-within { border-color: var(--color-brand) !important; box-shadow: 0 0 0 3px var(--color-focus-ring) !important; }
+.app-search input { min-width: 0 !important; width: 100% !important; height: 100% !important; border: 0 !important; outline: 0 !important; background: transparent !important; color: var(--color-text-primary) !important; }
+.app-field, .app-select, .app-textarea { border-radius: 2px !important; border-color: var(--color-border-strong) !important; background: var(--color-bg-card) !important; color: var(--color-text-primary) !important; }
+.app-filter-tabs { display: flex !important; align-items: stretch !important; gap: 0 !important; overflow-x: auto !important; border-bottom: 1px solid var(--color-border) !important; }
+.app-filter-tabs button { min-height: 42px !important; padding: 0 14px !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; background: transparent !important; color: var(--color-text-secondary) !important; white-space: nowrap !important; }
+.app-filter-tabs button:hover, .app-filter-tabs button.is-active { border-bottom-color: var(--color-brand) !important; color: var(--color-brand) !important; background: var(--color-bg-subtle) !important; }
+.btn { min-height: 36px !important; border-radius: 2px !important; box-shadow: none !important; }
+.btn.sm { min-height: 32px !important; }
+.btn-icon { min-width: 36px !important; min-height: 36px !important; }
+
+/* Status and empty/error states */
+.app-empty, .app-state-card { border: 1px dashed var(--color-border-strong) !important; border-radius: 2px !important; background: var(--color-bg-subtle) !important; }
+.app-empty { min-height: 180px !important; }
+.app-error, .app-field-error { color: var(--color-danger) !important; }
+.app-notice, .app-promo { border-radius: 2px !important; }
+
+/* Topic detail hierarchy */
+.topic-head-card { padding: 20px !important; }
+.topic-head-card h1 { max-width: 840px !important; margin: 10px 0 14px !important; font-family: var(--font-family-serif) !important; font-size: clamp(22px, 3vw, 30px) !important; font-weight: 500 !important; line-height: 1.45 !important; }
+.topic-body-card { padding: 24px !important; }
+.topic-prose { max-width: 740px !important; color: var(--color-text-primary) !important; font-size: 16px !important; line-height: 1.85 !important; }
+.topic-prose h2 { margin: 30px 0 10px !important; font-family: var(--font-family-serif) !important; font-size: 20px !important; font-weight: 500 !important; }
+.topic-comment { padding: 16px 0 !important; border-top: 1px solid var(--color-border) !important; }
+.topic-comment__actions { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; margin-top: 9px !important; }
+.topic-editor { border-top: 1px solid var(--color-border) !important; padding: 16px !important; }
+.topic-editor textarea { min-height: 120px !important; width: 100% !important; resize: vertical !important; }
+.topic-restricted { border: 1px dashed var(--color-border-strong) !important; border-radius: 2px !important; background: var(--color-bg-subtle) !important; }
+
+/* Admin efficiency */
+.app-admin-side { position: sticky !important; top: 76px !important; border-radius: 2px !important; box-shadow: none !important; }
+.app-admin-side a { min-height: 36px !important; border-radius: 0 !important; }
+.app-admin-side a.is-active { border-left: 2px solid var(--color-brand) !important; }
+.app-table-wrap { overflow-x: auto !important; border: 1px solid var(--color-border) !important; }
+.app-table { min-width: 680px !important; }
+.app-table th { height: 40px !important; background: var(--color-bg-subtle) !important; }
+.app-table td { min-height: 44px !important; }
+
+/* Bottom nav and safe areas */
+.bottom-nav { height: calc(64px + env(safe-area-inset-bottom)) !important; padding-bottom: env(safe-area-inset-bottom) !important; }
+.bottom-nav button { width: 50px !important; height: 50px !important; min-height: 50px !important; border-radius: 50% !important; padding: 0 !important; }
+.app-shell { padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
+
+/* Do not let the Chinese theme destroy functional round controls */
+.avatar, .avatar-sm, .switch, .seg-knob, .bottom-nav button, .badge, .nav-dot, .dot { border-radius: 50% !important; }
+
+/* Responsive breakpoints */
+@media (max-width: 1199px) {
+  .desktop-header { gap: 16px !important; }
+  .desktop-header .search { width: clamp(220px, 32vw, 420px) !important; }
+  .desktop-nav { gap: 12px !important; }
+  .app-page { width: min(100% - 32px, 1120px) !important; }
+}
+@media (max-width: 999px) {
+  #page-home, #page-discover { grid-template-columns: minmax(0, 1fr) !important; }
+  #page-home > .category-card, #page-discover > .side-hot { display: none !important; }
+  #page-home > .right-rail, #page-discover > .right-rail { display: none !important; }
+  .app-grid, .topic-layout, .app-form-layout, .app-settings-layout { grid-template-columns: minmax(0, 1fr) !important; }
+  .topic-side { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .app-admin-shell { grid-template-columns: 190px minmax(0, 1fr) !important; }
+}
+@media (max-width: 767px) {
+  .desktop-header { display: none !important; }
+  .app-page { width: 100% !important; padding: 0 0 calc(28px + env(safe-area-inset-bottom)) !important; }
+  .app-page-head { display: block !important; margin: 0 0 12px !important; padding: 14px 16px !important; background: var(--color-bg-card) !important; }
+  .app-page-head__actions { margin-top: 12px !important; }
+  .app-page-head__actions .btn { flex: 1 1 auto !important; }
+  .app-card { border-left: 0 !important; border-right: 0 !important; }
+  .app-card__body { padding: 14px !important; }
+  .app-post-row { min-height: 72px !important; padding: 12px 14px !important; }
+  .app-post-row__right { display: none !important; }
+  .app-post-row__main h3 { white-space: normal !important; }
+  .app-post-row__main p { white-space: normal !important; }
+  .app-toolbar { padding: 0 14px !important; }
+  .app-search { min-width: 0 !important; flex: 1 1 100% !important; }
+  /* 板块页工具栏：搜索框与“清除”按钮同行，避免按钮孤行 */
+  #page-board .app-toolbar .app-search { flex: 1 1 160px !important; }
+  .topic-head-card, .topic-body-card { margin-left: 0 !important; margin-right: 0 !important; padding: 16px !important; border-left: 0 !important; border-right: 0 !important; }
+  .topic-prose { font-size: 15px !important; line-height: 1.8 !important; }
+  .topic-side { display: block !important; }
+  .app-message-layout { grid-template-columns: 1fr !important; }
+  .app-conversations { max-height: 220px !important; }
+  .app-admin-shell { display: block !important; }
+  .app-admin-side { position: static !important; display: flex !important; flex-direction: row !important; overflow-x: auto !important; margin: 0 -14px 12px !important; padding: 8px 14px !important; white-space: nowrap !important; }
+  .app-admin-side__brand, .app-admin-side__label, .app-admin-side__foot { display: none !important; }
+  .app-admin-side__group { display: flex !important; flex-direction: row !important; flex: 0 0 auto !important; }
+  .app-admin-side a { flex: 0 0 auto !important; min-height: 40px !important; padding: 0 10px !important; }
+  .app-table-wrap { margin: 0 -14px !important; border-left: 0 !important; border-right: 0 !important; }
+  .app-modal-backdrop { padding: 10px !important; }
+  .app-modal { width: 100% !important; max-height: calc(100vh - 20px) !important; border-radius: 2px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}
+
+
+/* ============================================================
+   Visual QA pass 2: mobile utility, store and content hierarchy
+   ============================================================ */
+
+/* Keep product preview monochrome; status is carried by text/border. */
+.shop-hero,
+.shop-hero::before,
+.shop-hero::after,
+.shop-showcase,
+.shop-showcase__avatar,
+.product__media,
+.product__media::before,
+.product__media::after,
+.product__media-glow,
+.product--aurora .product__media,
+.product--night .product__media,
+.product--sunset .product__media,
+.product--mint .product__media,
+.product--violet .product__media,
+.closet-preview,
+.closet-preview--aurora,
+.closet-preview--mint {
+  background: var(--color-bg-subtle) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+.shop-hero { color: var(--color-text-primary) !important; border-color: var(--color-border-strong) !important; }
+.shop-hero h1, .shop-hero p, .shop-hero__note, .shop-kicker { color: var(--color-text-primary) !important; text-shadow: none !important; }
+.shop-hero__note i { background: var(--color-brand) !important; box-shadow: none !important; }
+.shop-hero .btn.primary { background: var(--color-brand) !important; border-color: var(--color-brand) !important; color: var(--on-brand) !important; }
+.shop-hero__secondary { color: var(--color-text-primary) !important; border-color: var(--color-border-strong) !important; }
+.shop-showcase { border-color: var(--color-border-strong) !important; }
+.shop-showcase__label, .shop-showcase small, .shop-showcase strong, .shop-showcase__avatar span { color: var(--color-text-primary) !important; }
+.shop-showcase__avatar { border: 1px solid var(--color-border-strong) !important; color: var(--color-brand) !important; }
+.shop-showcase__avatar::before { border-color: var(--color-brand) !important; border-right-color: transparent !important; }
+.shop-showcase__avatar i, .shop-spark, .shop-showcase__bars i { background: var(--color-brand) !important; color: var(--color-brand) !important; box-shadow: none !important; text-shadow: none !important; }
+.product__media-icon { background: var(--color-bg-card) !important; border-color: var(--color-border-strong) !important; color: var(--color-brand) !important; box-shadow: none !important; }
+.product__badge, .product__badge--new, .product__badge--soft { background: var(--color-bg-card) !important; border: 1px solid var(--color-border-strong) !important; color: var(--color-text-secondary) !important; }
+.product__wish { background: var(--color-bg-card) !important; border: 1px solid var(--color-border) !important; color: var(--color-text-secondary) !important; }
+.closet-preview { color: var(--color-brand) !important; border-color: var(--color-border-strong) !important; }
+.balance-card--coin .balance-card__icon, .balance-card--contribution .balance-card__icon { background: var(--color-bg-subtle) !important; color: var(--color-brand) !important; }
+
+/* Static mobile home: utility actions remain available. */
+.mobile-search-link { display: none; }
+@media (max-width: 767px) {
+  .mobile-hero { padding-top: 48px !important; }
+  .mobile-search-link { position: absolute; top: 14px; right: 58px; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.32); border-radius: 50%; color: #fff; background: rgba(255,255,255,.10); text-decoration: none; }
+  .mobile-theme { right: 14px !important; }
+  .mobile-categories { position: sticky !important; top: 0 !important; z-index: 15 !important; }
+  .mobile-categories .list { min-width: 44px !important; min-height: 44px !important; }
+  .feed-toolbar { display: flex !important; position: sticky !important; top: 53px !important; z-index: 14 !important; height: auto !important; min-height: 48px !important; padding: 6px 14px !important; border-top: 0 !important; border-bottom: 1px solid var(--color-border) !important; border-radius: 0 !important; background: var(--color-bg-card) !important; }
+  .feed-toolbar .filters { width: 100% !important; gap: 0 !important; overflow-x: auto !important; }
+  .feed-toolbar .filters > button { min-height: 36px !important; padding: 0 11px !important; }
+  .feed-toolbar .publish { flex: 0 0 auto !important; min-height: 36px !important; padding: 0 13px !important; }
+  .thread { padding: 16px 14px !important; }
+  .thread h2 { font-size: 16px !important; line-height: 1.55 !important; }
+  .thread p { font-size: 13px !important; line-height: 1.7 !important; }
+  .app-shell { padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+  .bottom-nav { height: calc(64px + env(safe-area-inset-bottom)) !important; }
+}
+
+/* Admin mobile nav: show a compact current-module strip rather than the entire tree. */
+@media (max-width: 767px) {
+  .app-admin-side { max-height: 58px !important; overflow-x: auto !important; overflow-y: hidden !important; align-items: center !important; gap: 4px !important; }
+  .app-admin-side__group { margin-right: 0 !important; }
+  .app-admin-side a { min-height: 40px !important; }
+}
+
+/* Tabs, toggles and status controls retain a usable hit target. */
+.app-filter-tabs button, .notif-tabs button, .app-settings-nav button { min-height: 44px !important; }
+.switch, .seg { min-width: 44px !important; min-height: 36px !important; }
+.thread-footer button, .thread-footer a { min-height: 32px !important; }
+
+/* Never communicate dangerous state through color alone. */
+.btn.danger, .btn--danger, [data-revoke-device], [data-revoke-oauth], [data-market-refund] { font-weight: 600 !important; }
+/* 仅无边框文本态的危险按钮保留下划线（带边框按钮的盒状结构本身已是形态提示，下划线会读成坏掉的链接） */
+.btn.ghost.btn.danger, .btn.ghost.btn--danger, .btn.ghost[data-revoke-device], .btn.ghost[data-revoke-oauth], .btn.ghost[data-market-refund] { text-decoration: underline !important; text-underline-offset: 3px !important; }
+
+/* Search results and settings need a readable mobile surface. */
+@media (max-width: 767px) {
+  #page-search, #page-notifications, #page-settings, #page-market, #page-billing { padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+  #page-search .search-panel, #page-notifications .notif-panel { margin-top: 0 !important; }
+  #page-search .search-page__query { padding: 12px 14px !important; }
+  #page-search .search-panel > .filters { overflow-x: auto !important; }
+  #page-search .search-row { min-height: 64px !important; padding: 10px 14px !important; }
+  .notif-head, .notif-summary { padding-left: 14px !important; padding-right: 14px !important; }
+  .notif-tabs { overflow-x: auto !important; }
+  .notif-tabs button { flex: 0 0 auto !important; min-height: 44px !important; }
+  .notif-item { min-height: 70px !important; padding: 12px 14px !important; }
+}
+
+
+/* ============================================================
+   Visual QA pass 3: unify app route surfaces and keep the store restrained
+   ============================================================ */
+
+/* Dynamic app pages use the same paper canvas as the static pages. */
+.app-page,
+#mock-workflow-root {
+  color: var(--color-text-primary) !important;
+}
+.app-page .app-page-head,
+#mock-workflow-root .mock-head {
+  border-bottom: 1px solid var(--color-border) !important;
+}
+.app-page .app-card,
+.app-page .app-profile,
+.app-page .app-form-card,
+.app-page .app-state-card,
+#mock-workflow-root .mock-card {
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+
+/* The shop is an economy surface, not a game splash screen. */
+#page-shop .app-article-card__cover,
+#page-shop .product__media,
+#page-shop .product__media::before,
+#page-shop .product__media::after,
+#page-shop .product__media-glow,
+#page-shop .shop-hero,
+#page-shop .shop-hero::before,
+#page-shop .shop-hero::after,
+#page-shop .shop-showcase,
+#page-shop .shop-showcase__avatar {
+  background: var(--color-bg-subtle) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+#page-shop .shop-hero { min-height: 190px !important; padding: 26px 30px !important; color: var(--color-text-primary) !important; }
+#page-shop .shop-hero h1, #page-shop .shop-hero p, #page-shop .shop-kicker, #page-shop .shop-hero__note { color: var(--color-text-primary) !important; }
+#page-shop .shop-hero__visual { opacity: .55 !important; }
+#page-shop .product__media { border-bottom: 1px solid var(--color-border) !important; }
+#page-shop .product__media-icon { background: var(--color-bg-card) !important; border: 1px solid var(--color-border-strong) !important; color: var(--color-brand) !important; box-shadow: none !important; }
+#page-shop .product__badge { background: var(--color-bg-card) !important; border: 1px solid var(--color-border-strong) !important; color: var(--color-text-secondary) !important; }
+#page-shop .product__wish { background: var(--color-bg-card) !important; color: var(--color-text-secondary) !important; }
+#page-shop .shop-showcase { border-color: var(--color-border-strong) !important; }
+#page-shop .shop-showcase strong, #page-shop .shop-showcase small, #page-shop .shop-showcase__label { color: var(--color-text-primary) !important; }
+
+/* At the mobile boundary the classic static home keeps discovery controls visible. */
+@media (max-width: 767px) {
+  #page-home .feed-toolbar { display: flex !important; }
+  #page-home .feed-toolbar .publish { order: 2 !important; }
+  #page-home .feed-toolbar .filters { order: 1 !important; }
+  #page-home .feed-toolbar .filters > button { flex: 0 0 auto !important; }
+  #page-home .home-type-menu { z-index: 30 !important; }
+  #page-home .mobile-hero { margin: 0 !important; }
+}
+
+/* Messages: no squeezed off-canvas second column on narrow screens. */
+@media (max-width: 767px) {
+  /* style.css defines #page-messages as a 320px+1fr grid for the static layout;
+     the dynamic renderer mounts a single-column flow, so collapse the grid. */
+  #page-messages.app-page { display: block !important; overflow: hidden !important; }
+  #page-messages .app-message-layout { display: block !important; width: 100% !important; }
+  #page-messages .app-conversations { width: 100% !important; max-height: 192px !important; margin-bottom: 10px !important; }
+  #page-messages .app-chat { width: 100% !important; min-height: 430px !important; }
+  #page-messages .app-chat__foot { position: sticky !important; bottom: 0 !important; background: var(--color-bg-card) !important; }
+}
+
+/* Administration: a compact horizontal module rail is easier to scan on phones. */
+@media (max-width: 767px) {
+  #page-admin .app-admin-side { width: auto !important; max-width: none !important; margin-left: -10px !important; margin-right: -10px !important; }
+  #page-admin .app-admin-main { width: 100% !important; }
+  #page-admin .app-page-head h1 { font-size: 22px !important; }
+}
+
+
+/* ============================================================
+   Visual QA pass 4: topic detail must fill the page column
+   prototype-app.css pins .app-topic to max-width:980px while the
+   page head spans the full column, leaving dead space on wide screens.
+   ============================================================ */
+.app-topic { max-width: none !important; }
+.app-topic .topic-layout { grid-template-columns: minmax(0, minmax(420px, 1fr)) 300px !important; }
+.topic-prose, .topic-head-card h1 { max-width: 820px !important; }
+
+
+/* Notification badge: keep the unread count clear of the bell glyph. */
+.desktop-header .icon-btn {
+  overflow: visible !important;
+  padding: 0 !important;
+}
+.desktop-header .icon-btn > #bell-badge {
+  position: absolute !important;
+  top: -6px !important;
+  right: -7px !important;
+  z-index: 2 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 17px !important;
+  width: auto !important;
+  height: 17px !important;
+  box-sizing: border-box !important;
+  padding: 0 4px !important;
+  border: 2px solid var(--color-bg-card) !important;
+  border-radius: 999px !important;
+  background: var(--color-danger) !important;
+  color: #fff !important;
+  font: 700 10px/1 var(--font-family-base) !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%) !important;
+}
+
+
+/* Final bell counter placement: a compact corner pip, never over the glyph. */
+.desktop-header .drop-wrap:has(> .icon-btn[aria-label="通知"]) {
+  padding-right: 7px !important;
+}
+.desktop-header .icon-btn[aria-label="通知"] > #bell-badge {
+  top: -7px !important;
+  right: -1px !important;
+  min-width: 15px !important;
+  width: 15px !important;
+  height: 15px !important;
+  padding: 0 !important;
+  border-width: 2px !important;
+  font-size: 9px !important;
+}
+
+
+/* Profile route final polish ------------------------------------------------
+   Keep the dynamic profile readable: identity headings use the sans UI face,
+   while the compact avatar tones remain visible instead of collapsing to gray. */
+#page-user .app-page-head h1,
+#page-user .app-profile h2,
+#page-user .app-post-row__main h3 {
+  font-family: var(--font-family-base) !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.02em !important;
+}
+
+#page-user .app-profile {
+  grid-template-columns: 88px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  min-height: 128px !important;
+  padding: 20px !important;
+  gap: 18px !important;
+}
+
+#page-user .app-profile > .avatar,
+#page-user .app-post-row > .avatar {
+  flex: 0 0 auto !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 50% !important;
+  border: 1px solid color-mix(in srgb, var(--color-brand) 28%, var(--color-border-strong)) !important;
+  background: color-mix(in srgb, var(--color-brand) 72%, var(--color-bg-subtle)) !important;
+  color: var(--color-text-on-brand, #fff) !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+}
+
+#page-user .app-profile > .avatar {
+  width: 72px !important;
+  height: 72px !important;
+  font-size: 24px !important;
+}
+
+#page-user .app-post-row > .avatar {
+  width: 32px !important;
+  height: 32px !important;
+  font-size: 13px !important;
+}
+
+#page-user .app-profile > div {
+  min-width: 0 !important;
+}
+
+#page-user .app-profile p,
+#page-user .app-profile__meta,
+#page-user .app-post-row__main p {
+  font-family: var(--font-family-base) !important;
+}
+
+#page-user .app-profile__meta {
+  gap: 12px !important;
+}
+
+#page-user .app-profile > .btn {
+  grid-column: auto !important;
+  justify-self: end !important;
+}
+
+#page-user .app-post-row {
+  align-items: center !important;
+}
+
+#page-user .app-post-row__main h3 {
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+
+@media (max-width: 1000px) {
+  #page-user .app-profile {
+    grid-template-columns: 72px minmax(0, 1fr) !important;
+  }
+
+  #page-user .app-profile > .btn {
+    grid-column: 1 / -1 !important;
+    justify-self: start !important;
+  }
+}
+
+@media (max-width: 767px) {
+  #page-user .app-profile {
+    grid-template-columns: 56px minmax(0, 1fr) !important;
+    min-height: 0 !important;
+    padding: 14px !important;
+    gap: 12px !important;
+  }
+
+  #page-user .app-profile > .avatar {
+    width: 56px !important;
+    height: 56px !important;
+    font-size: 20px !important;
+  }
+
+  #page-user .app-profile__meta {
+    gap: 6px 12px !important;
+  }
+}
+
+
+/* Shared avatar contract --------------------------------------------------
+   Restore semantic tones globally; the previous monochrome override made
+   every participant indistinguishable and left fallback initials misaligned. */
+.avatar,
+.avatar-sm,
+.avatar.sm,
+.avatar.md,
+.avatar.lg,
+.avatar.xl,
+.avatar.xxl {
+  display: grid !important;
+  place-items: center !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  border-radius: 50% !important;
+}
+
+.avatar.cyan,
+.avatar-sm.cyan {
+  background: #54aac0 !important;
+  color: #fff !important;
+}
+
+.avatar.purple,
+.avatar-sm.purple {
+  background: #9b8bcd !important;
+  color: #fff !important;
+}
+
+.avatar.orange,
+.avatar-sm.orange {
+  background: #e99a5f !important;
+  color: #fff !important;
+}
+
+.avatar.green,
+.avatar-sm.green {
+  background: #57a86f !important;
+  color: #fff !important;
+}
+
+.avatar.gray,
+.avatar-sm.gray {
+  background: #8794ad !important;
+  color: #fff !important;
+}
+
+.avatar.blue,
+.avatar-sm.blue {
+  background: #4d7ff0 !important;
+  color: #fff !important;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+
+/* Tone specificity guard: route-level monochrome rules must not flatten
+   semantic cyan/purple/etc. avatars back to the same slate surface. */
+#page-user .avatar.cyan,
+#page-user .avatar-sm.cyan {
+  background: #54aac0 !important;
+  color: #fff !important;
+}
+#page-user .avatar.purple,
+#page-user .avatar-sm.purple {
+  background: #9b8bcd !important;
+  color: #fff !important;
+}
+#page-user .avatar.orange,
+#page-user .avatar-sm.orange {
+  background: #e99a5f !important;
+  color: #fff !important;
+}
+#page-user .avatar.green,
+#page-user .avatar-sm.green {
+  background: #57a86f !important;
+  color: #fff !important;
+}
+#page-user .avatar.gray,
+#page-user .avatar-sm.gray {
+  background: #8794ad !important;
+  color: #fff !important;
+}
+#page-user .avatar.blue,
+#page-user .avatar-sm.blue {
+  background: #4d7ff0 !important;
+  color: #fff !important;
+}
+
+
+/* Topic detail: replace the generic prototype page hero with a compact forum context bar. */
+.topic-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+  margin: 2px 0 14px;
+  padding: 0 2px;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.topic-context a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+.topic-context a:hover {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.topic-context > span[aria-hidden="true"] {
+  color: var(--color-border-strong);
+}
+.topic-context__current {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .topic-context {
+    min-height: 36px;
+    margin: 0 14px 10px;
+    padding: 8px 0;
+  }
+}
+
+
+/* Topic detail reading mode: keep the article column pure, move metadata and actions to the rail. */
+.topic-reading-card {
+  padding-bottom: 28px !important;
+}
+.topic-reading-card > .topic-prose {
+  max-width: 820px !important;
+  margin-top: 24px !important;
+  padding-top: 24px !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+.topic-reading-card > .topic-meta:first-child {
+  margin-bottom: 0 !important;
+}
+.topic-side-meta {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+}
+.topic-side-meta .profile-hover-trigger {
+  flex: 0 0 auto !important;
+}
+.topic-side-meta .app-tag {
+  padding: 4px 8px !important;
+}
+.topic-actions--side {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin-top: 16px !important;
+  padding-top: 14px !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+.topic-actions--side .btn {
+  justify-content: center !important;
+  min-width: 0 !important;
+}
+.topic-side .topic-actions--side .topic-share-notice {
+  grid-column: 1 / -1 !important;
+}
+@media (max-width: 767px) {
+  .topic-reading-card {
+    padding: 16px !important;
+  }
+  .topic-reading-card > .topic-prose {
+    margin-top: 20px !important;
+    padding-top: 20px !important;
+  }
+  .topic-actions--side {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .topic-actions--side .btn {
+    padding-inline: 7px !important;
+    font-size: 12px !important;
+  }
+}
+
+
+/* Forum reading contract: route headers are compact context bars, not hero panels. */
+.app-page-head--compact {
+  align-items: center !important;
+  min-height: 42px !important;
+  margin: 0 0 14px !important;
+  padding: 0 2px 10px !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+.app-page-head--compact .app-page-head__copy {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 32px !important;
+}
+.app-page-head--compact h1 {
+  margin: 0 !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-base) !important;
+  font-size: 20px !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.3 !important;
+}
+.app-page-head--compact .app-page-head__actions {
+  margin: 0 !important;
+  align-items: center !important;
+}
+.app-page-head--compact .app-page-head__actions .btn {
+  min-height: 32px !important;
+}
+@media (max-width: 767px) {
+  .app-page-head--compact {
+    min-height: 42px !important;
+    margin: 0 14px 10px !important;
+    padding: 0 0 9px !important;
+    background: transparent !important;
+  }
+  .app-page-head--compact h1 {
+    font-size: 18px !important;
+  }
+  .app-page-head--compact .app-page-head__actions {
+    margin-top: 0 !important;
+  }
+}
+
+
+/* Static forum surfaces: keep page labels light and inline instead of hero blocks. */
+.mobile-page-title {
+  display: block !important;
+  min-height: 42px !important;
+  margin: 0 0 12px !important;
+  padding: 0 2px 10px !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  background: transparent !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-base) !important;
+  font-size: 20px !important;
+  font-weight: 650 !important;
+  line-height: 32px !important;
+}
+#page-home .mobile-page-title {
+  display: none !important;
+}
+@media (max-width: 767px) {
+  .mobile-page-title {
+    min-height: 40px !important;
+    margin: 0 14px 10px !important;
+    padding: 0 0 8px !important;
+    font-size: 18px !important;
+  }
+}
+
+/* The shop hero is useful as a visual, but too promotional for a forum shell. */
+#page-shop .shop-hero {
+  min-height: 0 !important;
+  margin: 0 0 14px !important;
+  padding: 18px 20px !important;
+  border-radius: 2px !important;
+}
+#page-shop .shop-hero__visual,
+#page-shop .shop-hero::before,
+#page-shop .shop-hero::after {
+  display: none !important;
+}
+#page-shop .shop-hero h1 {
+  margin: 0 0 5px !important;
+  font-size: 22px !important;
+}
+#page-shop .shop-hero p {
+  max-width: 62ch !important;
+  font-size: 12px !important;
+}
+#page-shop .shop-hero__actions {
+  margin-top: 12px !important;
+}
+#page-shop .shop-hero__note {
+  margin-top: 10px !important;
+}
+
+
+/* Compact header actions stay inline on narrow screens; only the main content wraps. */
+@media (max-width: 767px) {
+  .app-page-head--compact {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+  .app-page-head--compact .app-page-head__copy {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .app-page-head--compact .app-page-head__actions {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    max-width: 58% !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+  .app-page-head--compact .app-page-head__actions .btn {
+    flex: 0 0 auto !important;
+  }
+}
+
+/* ============================================================
+   Publish & Composer Layout Optimization (Chinese Elegance Style)
+   ============================================================ */
+
+#page-publish.app-page {
+  max-width: 1180px !important;
+  margin: 0 auto !important;
+}
+
+#page-publish .topic-context {
+  margin-bottom: 14px !important;
+}
+
+#page-publish .app-form-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 300px !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+#page-publish .app-form-card {
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Composer Card Header */
+.composer-card-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 14px 20px !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  background: var(--color-bg-subtle) !important;
+}
+
+.composer-title-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+
+.composer-eyebrow {
+  font-family: var(--font-family-mono, monospace) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+  color: var(--color-brand) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+}
+
+.composer-type-switch {
+  display: inline-flex !important;
+  padding: 2px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-card) !important;
+  gap: 2px !important;
+}
+
+.composer-type-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 2px !important;
+  background: transparent !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 120ms ease !important;
+}
+
+.composer-type-btn .ic {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.composer-type-btn:hover {
+  color: var(--color-text-primary) !important;
+  background: var(--color-bg-hover, var(--color-bg-subtle)) !important;
+}
+
+.composer-type-btn.is-active {
+  background: var(--color-brand) !important;
+  color: var(--on-brand, #ffffff) !important;
+  font-weight: 600 !important;
+}
+
+.composer-head-meta {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.composer-drafts-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-card) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+  text-decoration: none !important;
+  transition: all 120ms ease !important;
+}
+
+.composer-drafts-btn .ic {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+.composer-drafts-btn:hover {
+  border-color: var(--color-brand) !important;
+  color: var(--color-brand) !important;
+  background: var(--color-brand-soft) !important;
+}
+
+.save-dot {
+  display: inline-block !important;
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: var(--color-success, #4ade80) !important;
+  margin-right: 6px !important;
+  vertical-align: middle !important;
+}
+
+/* Form Fields */
+#page-publish .app-form-grid {
+  padding: 20px !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 16px !important;
+}
+
+#page-publish .app-form-field {
+  margin-bottom: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#page-publish .app-form-field--full {
+  grid-column: 1 / -1 !important;
+}
+
+.app-field-label-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 6px !important;
+}
+
+#page-publish .app-field-label {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--color-text-primary) !important;
+  margin-bottom: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.app-required {
+  color: var(--color-danger, #ef5a5a) !important;
+}
+
+.app-char-counter,
+.app-field-tip {
+  font-size: 11px !important;
+  color: var(--color-text-tertiary) !important;
+  font-family: var(--font-family-mono, monospace) !important;
+}
+
+/* Inputs, Selects & Textareas */
+#page-publish .app-field,
+#page-publish .app-select,
+#page-publish .app-textarea {
+  width: 100% !important;
+  border: 1px solid var(--color-border-strong, var(--color-border)) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-page) !important;
+  color: var(--color-text-primary) !important;
+  font-size: 13px !important;
+  box-sizing: border-box !important;
+  transition: border-color 140ms ease, box-shadow 140ms ease !important;
+}
+
+#page-publish .app-field {
+  height: 38px !important;
+  padding: 0 12px !important;
+}
+
+#page-publish .app-title-input {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+}
+
+#page-publish .app-field:focus,
+#page-publish .app-select:focus,
+#page-publish .app-textarea:focus {
+  border-color: var(--color-brand) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px var(--color-brand-soft) !important;
+}
+
+#page-publish .app-field.is-error,
+#page-publish .app-select.is-error,
+#page-publish .app-textarea.is-error {
+  border-color: var(--color-danger) !important;
+  box-shadow: 0 0 0 2px var(--color-danger-soft) !important;
+}
+
+.app-select-wrapper {
+  position: relative !important;
+}
+
+#page-publish .app-select {
+  height: 38px !important;
+  padding: 0 32px 0 12px !important;
+  appearance: none !important;
+  cursor: pointer !important;
+}
+
+.app-select-wrapper::after {
+  content: "▾" !important;
+  position: absolute !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: var(--color-text-tertiary) !important;
+  pointer-events: none !important;
+  font-size: 11px !important;
+}
+
+/* Editor Header & Tabs */
+.app-editor-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 6px !important;
+}
+
+#page-publish .app-editor-tabs {
+  display: inline-flex !important;
+  gap: 2px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  padding: 2px !important;
+  background: var(--color-bg-subtle) !important;
+  margin-bottom: 0 !important;
+}
+
+#page-publish .app-editor-tabs button {
+  height: 26px !important;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 2px !important;
+  background: transparent !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  transition: all 120ms ease !important;
+}
+
+#page-publish .app-editor-tabs button:hover {
+  color: var(--color-text-primary) !important;
+}
+
+#page-publish .app-editor-tabs button.is-active {
+  background: var(--color-bg-card) !important;
+  color: var(--color-brand) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Editor Toolbar */
+.app-editor-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  padding: 6px 10px !important;
+  border: 1px solid var(--color-border-strong, var(--color-border)) !important;
+  border-bottom: 0 !important;
+  border-radius: 2px 2px 0 0 !important;
+  background: var(--color-bg-subtle) !important;
+}
+
+.editor-tool-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+.editor-tool-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 28px !important;
+  height: 26px !important;
+  padding: 0 6px !important;
+  border: 1px solid transparent !important;
+  border-radius: 2px !important;
+  background: transparent !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  transition: all 100ms ease !important;
+}
+
+.editor-tool-btn .ic {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+.editor-tool-btn:hover {
+  background: var(--color-bg-card) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-brand) !important;
+}
+
+.editor-toolbar-hint {
+  font-size: 11px !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+.app-editor-split-container {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  border: 1px solid var(--color-border-strong, var(--color-border)) !important;
+  border-radius: 0 0 2px 2px !important;
+  background: var(--color-bg-page) !important;
+  overflow: hidden !important;
+}
+
+.app-editor-split-container.is-split {
+  grid-template-columns: 1fr 1fr !important;
+}
+
+#page-publish .app-editor-textarea {
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 14px 16px !important;
+  line-height: 1.7 !important;
+  min-height: 220px !important;
+  font-family: var(--font-family-mono, monospace) !important;
+  font-size: 13px !important;
+  resize: vertical !important;
+}
+
+#page-publish .app-editor-preview {
+  padding: 14px 18px !important;
+  background: var(--color-bg-card) !important;
+  border-left: 1px solid var(--color-border) !important;
+  min-height: 220px !important;
+  overflow-y: auto !important;
+  font-size: 14px !important;
+  line-height: 1.75 !important;
+}
+
+.app-editor-split-container:not(.is-split) #page-publish .app-editor-preview {
+  border-left: 0 !important;
+}
+
+.app-editor-footer {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 6px 4px 0 !important;
+  font-size: 11px !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+/* Upload Card */
+.app-upload-card {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  padding: 12px 14px !important;
+  border: 1px dashed var(--color-border-strong, var(--color-border)) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-subtle) !important;
+  min-height: 84px !important;
+}
+
+.app-upload-top {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.app-upload-icon {
+  width: 32px !important;
+  height: 32px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-brand) !important;
+  flex-shrink: 0 !important;
+}
+
+.app-upload-icon .ic {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.app-upload-limit {
+  font-size: 12px !important;
+  color: var(--color-text-primary) !important;
+}
+
+.app-upload-usage {
+  font-size: 11px !important;
+  color: var(--color-text-tertiary) !important;
+  display: block !important;
+}
+
+.app-upload-action-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-top: 8px !important;
+}
+
+.app-upload-trigger {
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.app-upload-filename {
+  font-size: 12px !important;
+  color: var(--color-text-secondary) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  flex: 1 !important;
+}
+
+#publish-file {
+  position: absolute !important;
+  opacity: 0 !important;
+  width: 0.1px !important;
+  height: 0.1px !important;
+  overflow: hidden !important;
+  z-index: -1 !important;
+}
+
+/* Visibility Options */
+.app-visibility-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 10px !important;
+  margin-top: 4px !important;
+}
+
+.app-visibility-card {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  padding: 12px 14px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-card) !important;
+  cursor: pointer !important;
+  transition: all 120ms ease !important;
+}
+
+.app-visibility-card:hover {
+  border-color: var(--color-border-strong) !important;
+  background: var(--color-bg-hover, var(--color-bg-subtle)) !important;
+}
+
+.app-visibility-card.is-active {
+  border-color: var(--color-brand) !important;
+  background: var(--color-brand-soft) !important;
+}
+
+.app-visibility-card input[type="radio"] {
+  margin-top: 3px !important;
+  accent-color: var(--color-brand) !important;
+}
+
+.vis-card-content {
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.vis-card-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--color-text-primary) !important;
+}
+
+.vis-card-title .ic {
+  width: 14px !important;
+  height: 14px !important;
+  color: var(--color-brand) !important;
+}
+
+.vis-card-content p {
+  margin: 3px 0 0 !important;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.app-paid-panel {
+  margin-top: 10px !important;
+  padding: 12px 14px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-subtle) !important;
+}
+
+.app-price-config {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.app-price-input-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  max-width: 180px !important;
+}
+
+.app-price-unit {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--color-brand) !important;
+}
+
+/* Schedule Options */
+.app-schedule-options {
+  display: flex !important;
+  gap: 10px !important;
+  margin-top: 4px !important;
+}
+
+.app-schedule-choice {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  height: 36px !important;
+  padding: 0 16px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-card) !important;
+  font-size: 13px !important;
+  color: var(--color-text-secondary) !important;
+  cursor: pointer !important;
+  transition: all 120ms ease !important;
+}
+
+.app-schedule-choice:hover {
+  background: var(--color-bg-subtle) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.app-schedule-choice.is-active {
+  border-color: var(--color-brand) !important;
+  background: var(--color-brand-soft) !important;
+  color: var(--color-brand) !important;
+  font-weight: 600 !important;
+}
+
+.app-schedule-choice input[type="radio"] {
+  accent-color: var(--color-brand) !important;
+}
+
+.app-schedule-panel {
+  margin-top: 10px !important;
+  padding: 12px 14px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  background: var(--color-bg-subtle) !important;
+}
+
+.app-schedule-input {
+  max-width: 260px !important;
+}
+
+/* Form Actions Footer */
+#page-publish .app-form-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 16px 20px !important;
+  border-top: 1px solid var(--color-border) !important;
+  background: var(--color-bg-subtle) !important;
+  margin-top: 0 !important;
+}
+
+.form-actions-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.form-actions-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+/* Sidebar Specific Polish */
+.publish-guide-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.publish-guide-list li {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+.guide-bullet {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: var(--color-brand) !important;
+  margin-top: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.publish-guide-list b {
+  color: var(--color-text-primary) !important;
+  display: block !important;
+  margin-bottom: 2px !important;
+  font-size: 12px !important;
+}
+
+.publish-guide-list p {
+  margin: 0 !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 11px !important;
+}
+
+.rights-quota-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 8px !important;
+  margin-bottom: 14px !important;
+}
+
+.rights-quota-item {
+  padding: 8px 6px !important;
+  background: var(--color-bg-subtle) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 2px !important;
+  text-align: center !important;
+}
+
+.rights-quota-item span {
+  display: block !important;
+  font-size: 10px !important;
+  color: var(--color-text-tertiary) !important;
+  margin-bottom: 3px !important;
+}
+
+.rights-quota-item b {
+  font-size: 13px !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-family-mono, monospace) !important;
+}
+
+.quota-progress-box {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.quota-progress-label {
+  display: flex !important;
+  justify-content: space-between !important;
+  font-size: 11px !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.quota-progress-bar {
+  height: 6px !important;
+  border-radius: 999px !important;
+  background: var(--color-border) !important;
+  overflow: hidden !important;
+}
+
+.quota-progress-val {
+  height: 100% !important;
+  background: var(--color-brand) !important;
+  border-radius: 999px !important;
+  transition: width 300ms ease !important;
+}
+
+.btn-block {
+  width: 100% !important;
+  display: block !important;
+  text-align: center !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1000px) {
+  #page-publish .app-form-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 767px) {
+  #page-publish .app-form-grid {
+    grid-template-columns: 1fr !important;
+    padding: 16px 14px !important;
+    gap: 14px !important;
+  }
+  .app-visibility-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .composer-card-head {
+    padding: 12px 14px !important;
+  }
+  #page-publish .app-form-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px !important;
+  }
+  .form-actions-right {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 6px !important;
+  }
+  .app-editor-split-container.is-split {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ========== hidden 属性兜底：覆盖前面 !important 的 display 重置，保证所有基于 hidden 的筛选/隐藏交互生效 ========== */
+[hidden] { display: none !important; }
+.app-post-row[hidden],
+.app-board-card[hidden],
+.app-article-card[hidden],
+.app-user-card[hidden],
+.app-conversation[hidden] { display: none !important; }
+/* 铃铛未读角标：主题规则用 !important 强制显示，这里以更高特异性覆盖 hidden 状态 */
+.desktop-header .icon-btn > #bell-badge[hidden] { display: none !important; }
+
+/* 页头（kicker / 标题 / 简介 / 操作行）恢复显示：
+ * 此前“取消所有页面的 app-page-head”的规则会把管理后台每个子页顶部的操作按钮
+ * （如 BI 看板的“刷新数据 / 导出 CSV”）一并隐藏，且与 verify.mjs 的 h1 断言冲突。
+ * 如需精简前台页头，请改为仅针对前台路由的局部规则，不要全局 display:none。 */
