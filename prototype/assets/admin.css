@@ -498,3 +498,86 @@
 .breadcrumb a:hover { color: var(--ink); text-decoration: underline; }
 .breadcrumb__sep { color: var(--line-strong); }
 .breadcrumb__current { color: var(--ink); font-weight: 600; }
+
+/* ---------------------------------------------------------------------------
+   19. Admin Batch Action Bar & Enhanced Feedback
+   --------------------------------------------------------------------------- */
+.admin-batch-bar {
+	position: fixed;
+	bottom: var(--space-6);
+	left: 50%;
+	transform: translateX(-50%) translateY(120%);
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-2) var(--space-4);
+	background: var(--surface);
+	color: var(--ink);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius-full, 9999px);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+	transition: transform var(--motion-base, 0.22s) cubic-bezier(0.16, 1, 0.3, 1), opacity var(--motion-fast, 0.15s) ease;
+	opacity: 0;
+	pointer-events: none;
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+.admin-batch-bar--visible {
+	transform: translateX(-50%) translateY(0);
+	opacity: 1;
+	pointer-events: auto;
+}
+.admin-batch-bar__count {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--brand, var(--ink));
+	padding-right: var(--space-2);
+	border-right: 1px solid var(--line);
+	white-space: nowrap;
+}
+.admin-batch-bar__actions {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+.admin-batch-bar .btn {
+	padding: var(--space-1) var(--space-3);
+	font-size: 0.82rem;
+	height: 30px;
+	border-radius: var(--radius-full, 9999px);
+}
+.admin-batch-bar .btn-close {
+	background: none;
+	border: none;
+	color: var(--ink-muted);
+	cursor: pointer;
+	padding: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	transition: color var(--motion-fast);
+}
+.admin-batch-bar .btn-close:hover {
+	color: var(--ink);
+	background: var(--surface-subtle);
+}
+
+/* Row selection state in admin tables */
+.table tr.is-selected td {
+	background-color: color-mix(in srgb, var(--brand, #3b82f6) 8%, var(--surface)) !important;
+}
+.table th.th-select,
+.table td.td-select {
+	width: 40px;
+	text-align: center;
+	padding-left: var(--space-2);
+	padding-right: var(--space-2);
+}
+.table input[type="checkbox"] {
+	cursor: pointer;
+	width: 16px;
+	height: 16px;
+	accent-color: var(--brand, #3b82f6);
+}
