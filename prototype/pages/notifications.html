@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 通知中心">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>通知中心 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-notifications" id="page-notifications">
+<div class="app-route-head"><div class="app-route-head__copy"><span class="app-kicker">INBOX / NOTIFICATIONS</span><h1 tabindex="-1">通知中心</h1><p>最近 30 天的互动、关注和系统提醒</p></div><div class="app-route-head__actions"><button type="button" class="btn ghost" data-read-all="">全部已读</button></div></div><section class="app-card"><div class="app-filter-tabs" role="tablist" aria-label="通知类型筛选"><button class="is-active" role="tab" aria-selected="true" data-notif-filter="all">全部</button><button role="tab" aria-selected="false" data-notif-filter="unread">未读</button><button role="tab" aria-selected="false" data-notif-filter="reply">回复</button><button role="tab" aria-selected="false" data-notif-filter="like">点赞</button><button role="tab" aria-selected="false" data-notif-filter="system">系统</button></div><div class="app-post-list" data-notif-list=""><a class="app-post-row notif-unread" data-notif-type="回复" data-notif-id="reply-1" href="#topic:201"><span class="n-icon n-reply"><svg class="ic ic-14" aria-hidden="true"><use href="#i-message-square"></use></svg></span><span class="app-post-row__main"><h3>Lin 回复了你的帖子</h3><p>使用 SvelteKit 构建博客与轻量论坛是否合理？ · 刚刚</p></span><span class="n-dot"></span></a><a class="app-post-row notif-unread" data-notif-type="点赞" data-notif-id="like-1" href="#topic:101"><span class="n-icon n-like"><svg class="ic ic-14" aria-hidden="true"><use href="#i-heart"></use></svg></span><span class="app-post-row__main"><h3>Mark 赞了你的评论</h3><p>Rust 小机器上的 SQLite 并发实践 · 刚刚</p></span><span class="n-dot"></span></a><a class="app-post-row " data-notif-type="系统" data-notif-id="achievement-1" href="#achievements"><span class="n-icon n-sys"><svg class="ic ic-14" aria-hidden="true"><use href="#i-bell"></use></svg></span><span class="app-post-row__main"><h3>你解锁了成就「连续签到 7 天」</h3><p>系统通知 · 刚刚</p></span></a><a class="app-post-row " data-notif-type="关注" data-notif-id="follow-1" href="#user:Nina"><span class="n-icon n-sys"><svg class="ic ic-14" aria-hidden="true"><use href="#i-bell"></use></svg></span><span class="app-post-row__main"><h3>Nina 关注了你</h3><p>互动提醒 · 刚刚</p></span></a></div><div data-notif-empty="" hidden=""><div class="app-empty"><svg class="ic ic-16" aria-hidden="true"><use href="#i-bell"></use></svg><b>没有符合条件的通知</b><span>切换分类或稍后再来看看。</span></div></div><footer class="app-card__foot"><span>通知状态会自动保存在本设备</span><a class="app-link" href="#settings:notifications">管理通知偏好</a></footer></section>
+</section>
+</main>
+</body>
+</html>

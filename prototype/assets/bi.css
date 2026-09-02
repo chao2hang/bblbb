@@ -1,0 +1,388 @@
+/* ============================================================================
+ * BI Dashboard styles
+ * — chart components: bar / line / donut / sparkline / funnel
+ * — layout: bi-grid / bi-card / bi-section / bi-controls / bi-drill
+ * ============================================================================ */
+
+/* Layout */
+.bi-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-4);
+	align-items: center;
+	justify-content: space-between;
+	padding: var(--space-3) var(--space-4);
+	background: var(--surface-subtle);
+	border: 1px solid var(--line-soft);
+	border-radius: var(--radius-md);
+	margin-bottom: var(--space-5);
+}
+.bi-controls__range,
+.bi-controls__filter {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+.bi-controls__label {
+	font-size: 0.78rem;
+	color: var(--ink-muted);
+	font-weight: 500;
+}
+.bi-controls .tabs--sm .tabs__btn {
+	padding: var(--space-1) var(--space-3);
+	min-height: 28px;
+	font-size: 0.78rem;
+}
+
+.bi-section {
+	margin-bottom: var(--space-6);
+}
+.bi-section__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: var(--space-3);
+}
+.bi-section__title {
+	font-size: 1rem;
+	font-weight: 600;
+	margin: 0;
+	color: var(--ink);
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+.bi-section__title [data-icon] { color: var(--info); }
+
+.bi-grid {
+	display: grid;
+	gap: var(--space-4);
+}
+.bi-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.bi-grid--2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 1100px) { .bi-grid--3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px) { .bi-grid--3, .bi-grid--2 { grid-template-columns: 1fr; } }
+
+.bi-card {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius-md);
+	overflow: hidden;
+}
+.bi-card__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	padding: var(--space-3) var(--space-4);
+	border-bottom: 1px solid var(--line-soft);
+	background: var(--surface-subtle);
+}
+.bi-card__head h3 {
+	font-size: 0.85rem;
+	font-weight: 600;
+	margin: 0;
+	color: var(--ink);
+}
+.bi-card__head .muted { font-size: 0.72rem; color: var(--ink-muted); }
+.bi-card__body {
+	padding: var(--space-4);
+	min-height: 200px;
+	position: relative;
+}
+
+/* Drill-down panel */
+.bi-drill {
+	margin-top: var(--space-3);
+	padding: var(--space-3);
+	background: var(--surface-subtle);
+	border: 1px solid var(--line-soft);
+	border-radius: var(--radius-md);
+	overflow-x: auto;
+}
+.bi-drill[hidden] { display: none; }
+
+/* ============================================================================
+ * Chart: Bar chart (vertical columns)
+ * ============================================================================ */
+.bi-bar {
+	display: flex;
+	align-items: flex-end;
+	gap: 3px;
+	height: 160px;
+	padding: var(--space-2) 0;
+	position: relative;
+}
+.bi-bar__col {
+	flex: 1;
+	min-width: 4px;
+	background: var(--info);
+	border-radius: 2px 2px 0 0;
+	position: relative;
+	transition: opacity .12s, transform .12s;
+	transform-origin: bottom center;
+	cursor: pointer;
+}
+.bi-bar__col:hover { opacity: .8; transform: scaleY(1.02); }
+.bi-bar__col--alt { background: var(--ok); }
+.bi-bar__col--warn { background: var(--warn); }
+.bi-bar__col--danger { background: var(--bad); }
+.bi-bar__col--muted { background: var(--line-strong); }
+.bi-bar__col[data-value]:hover::after {
+	content: attr(data-value);
+	position: absolute;
+	bottom: 100%;
+	left: 50%;
+	transform: translateX(-50%);
+	background: var(--ink);
+	color: var(--surface);
+	font-size: 0.7rem;
+	padding: 2px 6px;
+	border-radius: 3px;
+	white-space: nowrap;
+	margin-bottom: 4px;
+	z-index: 1;
+}
+.bi-bar__axis {
+	display: flex;
+	justify-content: space-between;
+	font-size: 0.68rem;
+	color: var(--ink-faint);
+	margin-top: var(--space-1);
+}
+
+/* ============================================================================
+ * Chart: Horizontal bar (for rankings)
+ * ============================================================================ */
+.bi-hbar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+.bi-hbar__row {
+	display: grid;
+	grid-template-columns: 80px 1fr 48px;
+	gap: var(--space-2);
+	align-items: center;
+	font-size: 0.78rem;
+}
+.bi-hbar__label {
+	color: var(--ink-muted);
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.bi-hbar__track {
+	height: 14px;
+	background: var(--surface-subtle);
+	border-radius: 7px;
+	overflow: hidden;
+}
+.bi-hbar__fill {
+	height: 100%;
+	background: var(--info);
+	border-radius: 7px;
+	transition: width .3s ease-out;
+}
+.bi-hbar__fill--alt { background: var(--ok); }
+.bi-hbar__fill--warn { background: var(--warn); }
+.bi-hbar__fill--danger { background: var(--bad); }
+.bi-hbar__fill--muted { background: var(--line-strong); }
+.bi-hbar__value {
+	font-weight: 600;
+	color: var(--ink);
+	text-align: right;
+}
+
+/* ============================================================================
+ * Chart: Line / area chart (SVG)
+ * ============================================================================ */
+.bi-line {
+	width: 100%;
+	height: 160px;
+}
+.bi-line__grid {
+	stroke: var(--line-soft);
+	stroke-width: 1;
+	stroke-dasharray: 2 3;
+}
+.bi-line__area {
+	fill: var(--info-soft);
+	opacity: 0.5;
+}
+.bi-line__path {
+	fill: none;
+	stroke: var(--info);
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.bi-line__path--alt { stroke: var(--ok); }
+.bi-line__dot {
+	fill: var(--info);
+	stroke: var(--surface);
+	stroke-width: 2;
+	cursor: pointer;
+}
+.bi-line__dot:hover { r: 4; }
+.bi-line__axis {
+	fill: var(--ink-faint);
+	font-size: 10px;
+}
+
+/* ============================================================================
+ * Chart: Donut / pie (SVG)
+ * ============================================================================ */
+.bi-donut {
+	display: flex;
+	align-items: center;
+	gap: var(--space-4);
+}
+.bi-donut__svg {
+	flex-shrink: 0;
+}
+.bi-donut__center {
+	fill: var(--ink);
+	font-size: 16px;
+	font-weight: 700;
+	text-anchor: middle;
+	dominant-baseline: central;
+}
+.bi-donut__sub {
+	fill: var(--ink-muted);
+	font-size: 9px;
+	text-anchor: middle;
+	dominant-baseline: central;
+}
+.bi-donut__legend {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	font-size: 0.75rem;
+	flex: 1;
+	min-width: 0;
+}
+.bi-donut__legend-item {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+.bi-donut__legend-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+.bi-donut__legend-label {
+	flex: 1;
+	color: var(--ink-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.bi-donut__legend-value {
+	font-weight: 600;
+	color: var(--ink);
+}
+
+/* ============================================================================
+ * Chart: Sparkline (mini line in table)
+ * ============================================================================ */
+.bi-spark {
+	width: 80px;
+	height: 20px;
+	display: inline-block;
+	vertical-align: middle;
+}
+.bi-spark__path {
+	fill: none;
+	stroke: var(--info);
+	stroke-width: 1.5;
+}
+.bi-spark__path--down { stroke: var(--bad); }
+.bi-spark__area { fill: var(--info-soft); opacity: 0.4; }
+
+/* ============================================================================
+ * Chart: Funnel
+ * ============================================================================ */
+.bi-funnel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+.bi-funnel__stage {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: var(--space-2);
+	align-items: center;
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-sm);
+	font-size: 0.78rem;
+	color: var(--surface);
+	font-weight: 600;
+	position: relative;
+}
+.bi-funnel__stage-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bi-funnel__stage-value { font-size: 0.85rem; }
+.bi-funnel__stage-pct {
+	font-size: 0.68rem;
+	font-weight: 400;
+	opacity: 0.85;
+	margin-left: var(--space-2);
+}
+
+/* ============================================================================
+ * Tag cloud
+ * ============================================================================ */
+.bi-tagcloud {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	align-items: center;
+}
+.bi-tagcloud a {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 12px;
+	background: var(--surface-subtle);
+	color: var(--ink-muted);
+	text-decoration: none;
+	border: 1px solid var(--line-soft);
+	transition: all .12s;
+}
+.bi-tagcloud a:hover {
+	background: var(--info-soft);
+	color: var(--info);
+	border-color: var(--info);
+}
+
+/* ============================================================================
+ * KPI cards (reuse stat-grid but with delta)
+ * ============================================================================ */
+.bi-kpi {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius-md);
+	padding: var(--space-4);
+}
+.bi-kpi__label {
+	font-size: 0.75rem;
+	color: var(--ink-muted);
+	margin-bottom: var(--space-1);
+}
+.bi-kpi__value {
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--ink);
+	line-height: 1.1;
+}
+.bi-kpi__delta {
+	font-size: 0.72rem;
+	margin-top: var(--space-1);
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.bi-kpi__delta--up { color: var(--ok); }
+.bi-kpi__delta--down { color: var(--bad); }
+.bi-kpi__delta--flat { color: var(--ink-muted); }

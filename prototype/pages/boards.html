@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 板块">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>板块 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-boards" id="page-boards">
+<div class="app-route-head"><div class="app-route-head__copy"><span class="app-kicker">COMMUNITY / BOARDS</span><h1 tabindex="-1">板块</h1><p>按兴趣进入社区的不同讨论空间</p></div></div><div class="app-toolbar" style="margin-bottom:12px"><button type="button" class="btn primary" data-go-publish="topic">发布讨论</button></div><div class="app-board-grid"><a class="app-board-card" href="#board:tech-essay"><span class="app-board-card__icon"><svg class="ic ic-14" aria-hidden="true"><use href="#i-workflow"></use></svg></span><h3>技术随笔</h3><p>深入记录工程实践、性能优化与架构取舍。</p><div class="app-board-card__meta"><span>86 个主题</span><span>14 今日</span></div></a><a class="app-board-card" href="#board:rust"><span class="app-board-card__icon"><svg class="ic ic-14" aria-hidden="true"><use href="#i-workflow"></use></svg></span><h3>Rust</h3><p>Rust 工程、异步运行时与生态实践。</p><div class="app-board-card__meta"><span>64 个主题</span><span>9 今日</span></div></a><a class="app-board-card" href="#board:web-dev"><span class="app-board-card__icon"><svg class="ic ic-14" aria-hidden="true"><use href="#i-workflow"></use></svg></span><h3>Web 开发</h3><p>SvelteKit、前端体验与全栈交付。</p><div class="app-board-card__meta"><span>52 个主题</span><span>8 今日</span></div></a><a class="app-board-card" href="#board:opensource"><span class="app-board-card__icon"><svg class="ic ic-14" aria-hidden="true"><use href="#i-workflow"></use></svg></span><h3>开源项目</h3><p>项目协作、维护与社区治理。</p><div class="app-board-card__meta"><span>38 个主题</span><span>5 今日</span></div></a><a class="app-board-card" href="#board:chat"><span class="app-board-card__icon"><svg class="ic ic-14" aria-hidden="true"><use href="#i-workflow"></use></svg></span><h3>闲聊</h3><p>技术之外，聊聊正在发生的事。</p><div class="app-board-card__meta"><span>27 个主题</span><span>4 今日</span></div></a><a class="app-board-card" href="#board:meta"><span class="app-board-card__icon"><svg class="ic ic-14" aria-hidden="true"><use href="#i-workflow"></use></svg></span><h3>站务</h3><p>社区公告、反馈与使用指南。</p><div class="app-board-card__meta"><span>18 个主题</span><span>2 今日</span></div></a></div>
+</section>
+</main>
+</body>
+</html>

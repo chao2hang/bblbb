@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 等级管理">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>等级管理 · BBLBB 社区</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<section class="page app-page app-route-admin" id="page-admin">
+<div class="app-admin-shell">
+<aside class="app-admin-side"><div class="app-admin-side__brand">BBLBB Admin</div><div class="app-admin-side__group"><span class="app-admin-side__label">概览</span><a href="#admin">仪表盘</a></div><div class="app-admin-side__group"><span class="app-admin-side__label">内容</span><a href="#admin-posts">帖子与文章</a><a href="#admin-boards">板块管理</a><a href="#admin-tags">标签管理</a><a href="#admin-attachments">附件管理</a></div><div class="app-admin-side__group"><span class="app-admin-side__label">用户与权限</span><a href="#admin-users">用户管理</a><a href="#admin-roles">角色与权限</a><a href="#admin-reports">举报与审核</a></div><div class="app-admin-side__group"><span class="app-admin-side__label">激励与交易</span><a href="#admin-achievements">成就管理</a><a href="#admin-points">积分与货币</a><a class="is-active" href="#admin-levels">等级管理</a><a href="#admin-marketplace">市场与交易</a><a href="#admin-download-billing">下载计费</a></div><div class="app-admin-side__group"><span class="app-admin-side__label">扩展与集成</span><a href="#admin-themes">主题管理</a><a href="#admin-plugins">插件管理</a><a href="#admin-oauth">OAuth 客户端</a><a href="#admin-ai">大模型设置</a><a href="#admin-video">视频插件</a></div><div class="app-admin-side__group"><span class="app-admin-side__label">系统</span><a href="#admin-storage">文件存储</a><a href="#admin-notifications">通知与邮件</a><a href="#admin-audit">审计日志</a><a href="#admin-settings">系统设置</a><a href="#admin-bi">BI 看板</a></div><div class="app-admin-side__foot">管理员演示态 · 所有变更均需真实 API、权限和审计确认</div></aside>
+<div class="app-admin-main">
+<h1 class="sr-only" tabindex="-1">等级管理</h1>
+<section class="app-card">
+<header class="app-card__head"><div><h2>等级列表</h2><p class="app-muted">按社区活跃行为评估等级，并查看每个等级下的全部用户。</p></div><span class="sbadge sb-brand">用户数实时联查</span></header>
+<div class="app-card__body">
+<div class="app-toolbar level-list-toolbar"><span class="app-muted">共 5 个等级 · 满足活跃条件后自动进入对应等级</span><span class="app-spacer"></span><span class="app-muted" data-level-total>共 10 名用户</span></div>
+<div class="app-table-wrap"><table class="app-table app-level-table"><thead><tr><th>等级</th><th>活跃度门槛</th><th>对应用户</th><th>核心权益</th><th>状态</th><th>操作</th></tr></thead><tbody>
+<tr data-level-row="Lv0"><td><button type="button" class="app-link app-level-name" data-level-settings="Lv0">Lv.0</button></td><td>回帖 0 · 发帖 0 · 送赞 0 · 获赞 0 · 登录 0 天</td><td><a class="app-link app-level-user-count" href="#admin-users:Lv0">0 名</a></td><td>2 MB 附件</td><td><span class="sbadge sb-success">启用</span></td><td><button type="button" class="btn ghost sm" data-level-settings="Lv0">详细设置</button></td></tr>
+<tr data-level-row="Lv1"><td><button type="button" class="app-link app-level-name" data-level-settings="Lv1">Lv.1</button></td><td>回帖 3 · 发帖 1 · 送赞 1 · 获赞 1 · 登录 3 天</td><td><a class="app-link app-level-user-count" href="#admin-users:Lv1">1 名</a></td><td>5 MB 附件</td><td><span class="sbadge sb-success">启用</span></td><td><button type="button" class="btn ghost sm" data-level-settings="Lv1">详细设置</button></td></tr>
+<tr data-level-row="Lv2"><td><button type="button" class="app-link app-level-name" data-level-settings="Lv2">Lv.2</button></td><td>回帖 10 · 发帖 3 · 送赞 5 · 获赞 3 · 登录 7 天</td><td><a class="app-link app-level-user-count" href="#admin-users:Lv2">3 名</a></td><td>10 MB 附件 · 可 @ 官方账号</td><td><span class="sbadge sb-success">启用</span></td><td><button type="button" class="btn ghost sm" data-level-settings="Lv2">详细设置</button></td></tr>
+<tr data-level-row="Lv3"><td><button type="button" class="app-link app-level-name" data-level-settings="Lv3">Lv.3</button></td><td>回帖 30 · 发帖 8 · 送赞 15 · 获赞 10 · 登录 30 天</td><td><a class="app-link app-level-user-count" href="#admin-users:Lv3">4 名</a></td><td>20 MB 附件 · 版主申请</td><td><span class="sbadge sb-success">启用</span></td><td><button type="button" class="btn ghost sm" data-level-settings="Lv3">详细设置</button></td></tr>
+<tr data-level-row="Lv4"><td><button type="button" class="app-link app-level-name" data-level-settings="Lv4">Lv.4</button></td><td>回帖 80 · 发帖 20 · 送赞 40 · 获赞 30 · 登录 90 天</td><td><a class="app-link app-level-user-count" href="#admin-users:Lv4">2 名</a></td><td>50 MB 附件</td><td><span class="sbadge sb-success">启用</span></td><td><button type="button" class="btn ghost sm" data-level-settings="Lv4">详细设置</button></td></tr>
+</tbody></table></div>
+</div>
+<footer class="app-card__foot"><span>用户数按系统用户的当前等级聚合，点击数量可联查用户管理。</span></footer>
+</section>
+</div></div>
+</section>
+</main>
+</body>
+</html>
