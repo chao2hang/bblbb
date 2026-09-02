@@ -2,7 +2,7 @@
 /* BBLBB 单入口 Hash SPA 验收器
  * 普通模式验证路由、守卫、核心交互、响应式和错误；--shots-only 额外保存逐路由截图。
  */
-import { chromium } from '/data/projects/bblbb/frontend/node_modules/playwright/index.mjs';
+import { chromium } from '../frontend/node_modules/playwright/index.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,7 +46,7 @@ async function ensureRoot(page) {
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 10000 });
   }
 }
-async function settle(page) { await sleep(page, 80); }
+async function settle(page) { await sleep(page, 120); await page.locator('.page:not([hidden]) h1').first().textContent({ timeout: 900 }).catch(() => ''); }
 async function go(page, hash) {
   await ensureRoot(page);
   const same = await page.evaluate((target) => location.hash === target, hash);
@@ -58,8 +58,7 @@ async function go(page, hash) {
   await settle(page);
 }
 async function visibleH1(page) {
-  const locator = page.locator('h1:visible').first();
-  return await locator.count() ? text(await locator.textContent()) : '';
+  return text(await page.locator('.page:not([hidden]) h1').first().textContent({ timeout: 3000 }).catch(() => ''));
 }
 function expectedPageId(hash) {
   const base = hash.slice(1).split(':')[0];
@@ -67,7 +66,7 @@ function expectedPageId(hash) {
   return 'page-' + base;
 }
 async function visiblePage(page) {
-  return await page.locator('.page:visible').first().getAttribute('id').catch(() => null);
+  return await page.locator('.page:not([hidden])').first().getAttribute('id').catch(() => null);
 }
 async function fillFirst(page, selectors, value) {
   for (const selector of selectors) {

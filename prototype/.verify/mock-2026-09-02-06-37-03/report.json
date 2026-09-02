@@ -1,0 +1,100 @@
+{
+  "base": "http://127.0.0.1:8765/prototype",
+  "results": [
+    {
+      "name": "login persisted",
+      "pass": true
+    },
+    {
+      "name": "draft saved",
+      "pass": true
+    },
+    {
+      "name": "publish confirmation modal",
+      "pass": true
+    },
+    {
+      "name": "publish persisted and opens detail",
+      "pass": true
+    },
+    {
+      "name": "paid unlock persisted",
+      "pass": true
+    },
+    {
+      "name": "reply unlock persisted",
+      "pass": true
+    },
+    {
+      "name": "notifications read persisted",
+      "pass": true
+    },
+    {
+      "name": "message failure persisted",
+      "pass": true
+    },
+    {
+      "name": "mfa state persisted",
+      "pass": true
+    },
+    {
+      "name": "admin bulk report closure",
+      "pass": true
+    },
+    {
+      "name": "admin points adjustment",
+      "pass": true
+    },
+    {
+      "name": "ai task transition persisted",
+      "pass": true
+    },
+    {
+      "name": "post list batch controls",
+      "pass": true
+    },
+    {
+      "name": "post batch bar count",
+      "pass": true
+    },
+    {
+      "name": "admin filter empty state",
+      "pass": true
+    },
+    {
+      "name": "user list batch controls",
+      "pass": true
+    },
+    {
+      "name": "user detail drawer",
+      "pass": true
+    },
+    {
+      "name": "article audit diff route",
+      "pass": true
+    },
+    {
+      "name": "BI renderer ready",
+      "pass": false
+    },
+    {
+      "name": "BI yearly tab available",
+      "pass": false
+    },
+    {
+      "name": "BI yearly period",
+      "pass": false
+    },
+    {
+      "name": "mobile admin menu control exists",
+      "pass": true
+    },
+    {
+      "name": "mobile admin menu opens",
+      "pass": true
+    }
+  ],
+  "errors": [
+    "pageerror: Cannot read properties of null (reading 'addEventListener')"
+  ]
+}

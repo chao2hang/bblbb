@@ -1,0 +1,2311 @@
+{
+  "base": "http://127.0.0.1:8765",
+  "routes": [
+    "#home",
+    "#discover",
+    "#articles",
+    "#boards",
+    "#board:rust",
+    "#board:web-dev",
+    "#tags",
+    "#tag:Rust",
+    "#topic:101",
+    "#topic:201",
+    "#topic:202",
+    "#thread:welcome",
+    "#publish",
+    "#publish:article",
+    "#publish:topic",
+    "#user:Chaos",
+    "#user:Nina",
+    "#favorites",
+    "#settings:profile",
+    "#settings:security",
+    "#settings:devices",
+    "#settings:notifications",
+    "#settings:oauth",
+    "#settings:privacy",
+    "#register",
+    "#forgot-password",
+    "#search",
+    "#notifications",
+    "#shop",
+    "#achievements",
+    "#billing",
+    "#appeals",
+    "#mfa",
+    "#messages",
+    "#market",
+    "#checkout",
+    "#purchases",
+    "#apikeys",
+    "#admin",
+    "#admin-reports",
+    "#admin-report:R-1024",
+    "#admin-points",
+    "#admin-levels",
+    "#admin-achievements",
+    "#admin-themes",
+    "#admin-plugins",
+    "#admin-oauth",
+    "#admin-storage",
+    "#admin-download-billing",
+    "#admin-ai",
+    "#admin-video",
+    "#admin-marketplace",
+    "#admin-bi",
+    "#admin-users",
+    "#admin-roles",
+    "#admin-boards",
+    "#admin-posts",
+    "#admin-tags",
+    "#admin-attachments",
+    "#admin-notifications",
+    "#admin-audit",
+    "#admin-settings",
+    "#403",
+    "#404",
+    "#429",
+    "#error"
+  ],
+  "results": [
+    {
+      "name": "route #home",
+      "pass": false,
+      "hash": "#home",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-home"
+    },
+    {
+      "name": "route #discover",
+      "pass": false,
+      "hash": "#discover",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-discover"
+    },
+    {
+      "name": "route #articles",
+      "pass": false,
+      "hash": "#articles",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-articles"
+    },
+    {
+      "name": "route #boards",
+      "pass": false,
+      "hash": "#boards",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-boards"
+    },
+    {
+      "name": "route #board:rust",
+      "pass": false,
+      "hash": "#board:rust",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-board"
+    },
+    {
+      "name": "route #board:web-dev",
+      "pass": false,
+      "hash": "#board:web-dev",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-board"
+    },
+    {
+      "name": "route #tags",
+      "pass": false,
+      "hash": "#tags",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-tags"
+    },
+    {
+      "name": "route #tag:Rust",
+      "pass": false,
+      "hash": "#tag:Rust",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-tag"
+    },
+    {
+      "name": "route #topic:101",
+      "pass": false,
+      "hash": "#topic:101",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-topic"
+    },
+    {
+      "name": "route #topic:201",
+      "pass": false,
+      "hash": "#topic:201",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-topic"
+    },
+    {
+      "name": "route #topic:202",
+      "pass": false,
+      "hash": "#topic:202",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-topic"
+    },
+    {
+      "name": "route #thread:welcome",
+      "pass": false,
+      "hash": "#thread:welcome",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-topic"
+    },
+    {
+      "name": "route #publish",
+      "pass": false,
+      "hash": "#publish",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #publish:article",
+      "pass": false,
+      "hash": "#publish:article",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #publish:topic",
+      "pass": false,
+      "hash": "#publish:topic",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #user:Chaos",
+      "pass": false,
+      "hash": "#user:Chaos",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-user"
+    },
+    {
+      "name": "route #user:Nina",
+      "pass": false,
+      "hash": "#user:Nina",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-user"
+    },
+    {
+      "name": "route #favorites",
+      "pass": false,
+      "hash": "#favorites",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #settings:profile",
+      "pass": false,
+      "hash": "#settings:profile",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #settings:security",
+      "pass": false,
+      "hash": "#settings:security",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #settings:devices",
+      "pass": false,
+      "hash": "#settings:devices",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #settings:notifications",
+      "pass": false,
+      "hash": "#settings:notifications",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #settings:oauth",
+      "pass": false,
+      "hash": "#settings:oauth",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #settings:privacy",
+      "pass": false,
+      "hash": "#settings:privacy",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #register",
+      "pass": false,
+      "hash": "#register",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-register"
+    },
+    {
+      "name": "route #forgot-password",
+      "pass": false,
+      "hash": "#forgot-password",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-forgot-password"
+    },
+    {
+      "name": "route #search",
+      "pass": false,
+      "hash": "#search",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-search"
+    },
+    {
+      "name": "route #notifications",
+      "pass": false,
+      "hash": "#notifications",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #shop",
+      "pass": false,
+      "hash": "#shop",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #achievements",
+      "pass": false,
+      "hash": "#achievements",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #billing",
+      "pass": false,
+      "hash": "#billing",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #appeals",
+      "pass": false,
+      "hash": "#appeals",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #mfa",
+      "pass": false,
+      "hash": "#mfa",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #messages",
+      "pass": false,
+      "hash": "#messages",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #market",
+      "pass": false,
+      "hash": "#market",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-market"
+    },
+    {
+      "name": "route #checkout",
+      "pass": false,
+      "hash": "#checkout",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #purchases",
+      "pass": false,
+      "hash": "#purchases",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #apikeys",
+      "pass": false,
+      "hash": "#apikeys",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin",
+      "pass": false,
+      "hash": "#admin",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-reports",
+      "pass": false,
+      "hash": "#admin-reports",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-report:R-1024",
+      "pass": false,
+      "hash": "#admin-report:R-1024",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-points",
+      "pass": false,
+      "hash": "#admin-points",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-levels",
+      "pass": false,
+      "hash": "#admin-levels",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-achievements",
+      "pass": false,
+      "hash": "#admin-achievements",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-themes",
+      "pass": false,
+      "hash": "#admin-themes",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-plugins",
+      "pass": false,
+      "hash": "#admin-plugins",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-oauth",
+      "pass": false,
+      "hash": "#admin-oauth",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-storage",
+      "pass": false,
+      "hash": "#admin-storage",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-download-billing",
+      "pass": false,
+      "hash": "#admin-download-billing",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-ai",
+      "pass": false,
+      "hash": "#admin-ai",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-video",
+      "pass": false,
+      "hash": "#admin-video",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-marketplace",
+      "pass": false,
+      "hash": "#admin-marketplace",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-bi",
+      "pass": false,
+      "hash": "#admin-bi",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-users",
+      "pass": false,
+      "hash": "#admin-users",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-roles",
+      "pass": false,
+      "hash": "#admin-roles",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-boards",
+      "pass": false,
+      "hash": "#admin-boards",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-posts",
+      "pass": false,
+      "hash": "#admin-posts",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-tags",
+      "pass": false,
+      "hash": "#admin-tags",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-attachments",
+      "pass": false,
+      "hash": "#admin-attachments",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-notifications",
+      "pass": false,
+      "hash": "#admin-notifications",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-audit",
+      "pass": false,
+      "hash": "#admin-audit",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #admin-settings",
+      "pass": false,
+      "hash": "#admin-settings",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-login"
+    },
+    {
+      "name": "route #403",
+      "pass": false,
+      "hash": "#403",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-403"
+    },
+    {
+      "name": "route #404",
+      "pass": false,
+      "hash": "#404",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-404"
+    },
+    {
+      "name": "route #429",
+      "pass": false,
+      "hash": "#429",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-429"
+    },
+    {
+      "name": "route #error",
+      "pass": false,
+      "hash": "#error",
+      "page": null,
+      "h1": "Directory listing for /",
+      "expected": "page-error"
+    },
+    {
+      "name": "core href format",
+      "pass": false,
+      "bad": [
+        {
+          "href": ".git/",
+          "label": ".git/"
+        },
+        {
+          "href": ".github/",
+          "label": ".github/"
+        },
+        {
+          "href": ".gitignore",
+          "label": ".gitignore"
+        },
+        {
+          "href": ".nvmrc",
+          "label": ".nvmrc"
+        },
+        {
+          "href": "backend/",
+          "label": "backend/"
+        },
+        {
+          "href": "bench/",
+          "label": "bench/"
+        },
+        {
+          "href": "compat/",
+          "label": "compat/"
+        },
+        {
+          "href": "deploy/",
+          "label": "deploy/"
+        },
+        {
+          "href": "dev/",
+          "label": "dev/"
+        },
+        {
+          "href": "docs/",
+          "label": "docs/"
+        }
+      ]
+    },
+    {
+      "name": "core hash hrefs known",
+      "pass": true,
+      "unknown": []
+    },
+    {
+      "name": "no horizontal overflow at 1440",
+      "pass": true,
+      "scrollWidth": 1440,
+      "clientWidth": 1440
+    },
+    {
+      "name": "visible buttons accessible",
+      "pass": true,
+      "unnamed": []
+    },
+    {
+      "name": "auth guard #publish",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#publish"
+    },
+    {
+      "name": "returnTo #publish",
+      "pass": false,
+      "expected": "#publish",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #publish:article",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#publish:article"
+    },
+    {
+      "name": "returnTo #publish:article",
+      "pass": false,
+      "expected": "#publish:article",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #publish:topic",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#publish:topic"
+    },
+    {
+      "name": "returnTo #publish:topic",
+      "pass": false,
+      "expected": "#publish:topic",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #favorites",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#favorites"
+    },
+    {
+      "name": "returnTo #favorites",
+      "pass": false,
+      "expected": "#favorites",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #settings:profile",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#settings:profile"
+    },
+    {
+      "name": "returnTo #settings:profile",
+      "pass": false,
+      "expected": "#settings:profile",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #settings:security",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#settings:security"
+    },
+    {
+      "name": "returnTo #settings:security",
+      "pass": false,
+      "expected": "#settings:security",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #settings:devices",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#settings:devices"
+    },
+    {
+      "name": "returnTo #settings:devices",
+      "pass": false,
+      "expected": "#settings:devices",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #settings:notifications",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#settings:notifications"
+    },
+    {
+      "name": "returnTo #settings:notifications",
+      "pass": false,
+      "expected": "#settings:notifications",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #settings:oauth",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#settings:oauth"
+    },
+    {
+      "name": "returnTo #settings:oauth",
+      "pass": false,
+      "expected": "#settings:oauth",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #settings:privacy",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#settings:privacy"
+    },
+    {
+      "name": "returnTo #settings:privacy",
+      "pass": false,
+      "expected": "#settings:privacy",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #notifications",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#notifications"
+    },
+    {
+      "name": "returnTo #notifications",
+      "pass": false,
+      "expected": "#notifications",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #shop",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#shop"
+    },
+    {
+      "name": "returnTo #shop",
+      "pass": false,
+      "expected": "#shop",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #achievements",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#achievements"
+    },
+    {
+      "name": "returnTo #achievements",
+      "pass": false,
+      "expected": "#achievements",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #billing",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#billing"
+    },
+    {
+      "name": "returnTo #billing",
+      "pass": false,
+      "expected": "#billing",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #appeals",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#appeals"
+    },
+    {
+      "name": "returnTo #appeals",
+      "pass": false,
+      "expected": "#appeals",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #mfa",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#mfa"
+    },
+    {
+      "name": "returnTo #mfa",
+      "pass": false,
+      "expected": "#mfa",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #messages",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#messages"
+    },
+    {
+      "name": "returnTo #messages",
+      "pass": false,
+      "expected": "#messages",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #checkout",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#checkout"
+    },
+    {
+      "name": "returnTo #checkout",
+      "pass": false,
+      "expected": "#checkout",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #purchases",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#purchases"
+    },
+    {
+      "name": "returnTo #purchases",
+      "pass": false,
+      "expected": "#purchases",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #apikeys",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#apikeys"
+    },
+    {
+      "name": "returnTo #apikeys",
+      "pass": false,
+      "expected": "#apikeys",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin"
+    },
+    {
+      "name": "returnTo #admin",
+      "pass": false,
+      "expected": "#admin",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-reports",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-reports"
+    },
+    {
+      "name": "returnTo #admin-reports",
+      "pass": false,
+      "expected": "#admin-reports",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-report:R-1024",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-report:R-1024"
+    },
+    {
+      "name": "returnTo #admin-report:R-1024",
+      "pass": false,
+      "expected": "#admin-report:R-1024",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-points",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-points"
+    },
+    {
+      "name": "returnTo #admin-points",
+      "pass": false,
+      "expected": "#admin-points",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-levels",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-levels"
+    },
+    {
+      "name": "returnTo #admin-levels",
+      "pass": false,
+      "expected": "#admin-levels",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-achievements",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-achievements"
+    },
+    {
+      "name": "returnTo #admin-achievements",
+      "pass": false,
+      "expected": "#admin-achievements",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-themes",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-themes"
+    },
+    {
+      "name": "returnTo #admin-themes",
+      "pass": false,
+      "expected": "#admin-themes",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-plugins",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-plugins"
+    },
+    {
+      "name": "returnTo #admin-plugins",
+      "pass": false,
+      "expected": "#admin-plugins",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-oauth",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-oauth"
+    },
+    {
+      "name": "returnTo #admin-oauth",
+      "pass": false,
+      "expected": "#admin-oauth",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-storage",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-storage"
+    },
+    {
+      "name": "returnTo #admin-storage",
+      "pass": false,
+      "expected": "#admin-storage",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-download-billing",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-download-billing"
+    },
+    {
+      "name": "returnTo #admin-download-billing",
+      "pass": false,
+      "expected": "#admin-download-billing",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-ai",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-ai"
+    },
+    {
+      "name": "returnTo #admin-ai",
+      "pass": false,
+      "expected": "#admin-ai",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-video",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-video"
+    },
+    {
+      "name": "returnTo #admin-video",
+      "pass": false,
+      "expected": "#admin-video",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-marketplace",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-marketplace"
+    },
+    {
+      "name": "returnTo #admin-marketplace",
+      "pass": false,
+      "expected": "#admin-marketplace",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-bi",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-bi"
+    },
+    {
+      "name": "returnTo #admin-bi",
+      "pass": false,
+      "expected": "#admin-bi",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-users",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-users"
+    },
+    {
+      "name": "returnTo #admin-users",
+      "pass": false,
+      "expected": "#admin-users",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-roles",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-roles"
+    },
+    {
+      "name": "returnTo #admin-roles",
+      "pass": false,
+      "expected": "#admin-roles",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-boards",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-boards"
+    },
+    {
+      "name": "returnTo #admin-boards",
+      "pass": false,
+      "expected": "#admin-boards",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-posts",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-posts"
+    },
+    {
+      "name": "returnTo #admin-posts",
+      "pass": false,
+      "expected": "#admin-posts",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-tags",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-tags"
+    },
+    {
+      "name": "returnTo #admin-tags",
+      "pass": false,
+      "expected": "#admin-tags",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-attachments",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-attachments"
+    },
+    {
+      "name": "returnTo #admin-attachments",
+      "pass": false,
+      "expected": "#admin-attachments",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-notifications",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-notifications"
+    },
+    {
+      "name": "returnTo #admin-notifications",
+      "pass": false,
+      "expected": "#admin-notifications",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-audit",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-audit"
+    },
+    {
+      "name": "returnTo #admin-audit",
+      "pass": false,
+      "expected": "#admin-audit",
+      "actual": ""
+    },
+    {
+      "name": "auth guard #admin-settings",
+      "pass": false,
+      "expected": "#login",
+      "actual": "#admin-settings"
+    },
+    {
+      "name": "returnTo #admin-settings",
+      "pass": false,
+      "expected": "#admin-settings",
+      "actual": ""
+    },
+    {
+      "name": "login journey",
+      "pass": false,
+      "url": "http://127.0.0.1:8765/#login"
+    },
+    {
+      "name": "login returns to protected route",
+      "pass": true,
+      "before": "",
+      "url": "http://127.0.0.1:8765/#settings:devices"
+    },
+    {
+      "name": "register page",
+      "pass": false
+    },
+    {
+      "name": "forgot password page",
+      "pass": false
+    },
+    {
+      "name": "publish empty validation",
+      "pass": false
+    },
+    {
+      "name": "board filter empty state",
+      "pass": false
+    },
+    {
+      "name": "restricted content stays out of DOM",
+      "pass": false
+    },
+    {
+      "name": "payment affordance",
+      "pass": false
+    },
+    {
+      "name": "reports page",
+      "pass": false
+    },
+    {
+      "name": "report detail page",
+      "pass": false
+    },
+    {
+      "name": "non-admin reaches 403",
+      "pass": false
+    },
+    {
+      "name": "state page #403",
+      "pass": true
+    },
+    {
+      "name": "state page #404",
+      "pass": true
+    },
+    {
+      "name": "state page #429",
+      "pass": true
+    },
+    {
+      "name": "state page #error",
+      "pass": true
+    },
+    {
+      "name": "unknown hash falls to 404",
+      "pass": false
+    },
+    {
+      "name": "responsive light 1440 #home",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #discover",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #articles",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #boards",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #board:rust",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #topic:201",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #topic:202",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #publish:article",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #settings:devices",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #messages",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #notifications",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #shop",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #market",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #checkout",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #purchases",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #admin-users",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #register",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440 #404",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1440",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "responsive light 1024 #home",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #discover",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #articles",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #boards",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #board:rust",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #topic:201",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #topic:202",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #publish:article",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #settings:devices",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #messages",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #notifications",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #shop",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #market",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #checkout",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #purchases",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #admin-users",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #register",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024 #404",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 1024",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "responsive light 768 #home",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #discover",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #articles",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #boards",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #board:rust",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #topic:201",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #topic:202",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #publish:article",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #settings:devices",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #messages",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #notifications",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #shop",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #market",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #checkout",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #purchases",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #admin-users",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #register",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768 #404",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 768",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "responsive light 390 #home",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #discover",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #articles",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #boards",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #board:rust",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #topic:201",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #topic:202",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #publish:article",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #settings:devices",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #messages",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #notifications",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #shop",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #market",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #checkout",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #purchases",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #admin-users",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #register",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390 #404",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive light 390",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "responsive dark 1440 #home",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #discover",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #articles",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #boards",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #board:rust",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #topic:201",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #topic:202",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #publish:article",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #settings:devices",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #messages",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #notifications",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #shop",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #market",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #checkout",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #purchases",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #admin-users",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #register",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440 #404",
+      "pass": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1440",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "responsive dark 1024 #home",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #discover",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #articles",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #boards",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #board:rust",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #topic:201",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #topic:202",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #publish:article",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #settings:devices",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #messages",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #notifications",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #shop",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #market",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #checkout",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #purchases",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #admin-users",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #register",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024 #404",
+      "pass": false,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 1024",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "responsive dark 768 #home",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #discover",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #articles",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #boards",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #board:rust",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #topic:201",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #topic:202",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #publish:article",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #settings:devices",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #messages",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #notifications",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #shop",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #market",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #checkout",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #purchases",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #admin-users",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #register",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768 #404",
+      "pass": false,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 768",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "name": "responsive dark 390 #home",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #discover",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #articles",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #boards",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #board:rust",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #topic:201",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #topic:202",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #publish:article",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #settings:devices",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #messages",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #notifications",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #shop",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #market",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #checkout",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #purchases",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #admin-users",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #register",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390 #404",
+      "pass": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "visiblePages": 0
+    },
+    {
+      "name": "responsive dark 390",
+      "pass": true,
+      "errors": []
+    }
+  ],
+  "errors": {
+    "console": [],
+    "pageerror": [],
+    "requestfailed": []
+  }
+}

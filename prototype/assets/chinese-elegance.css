@@ -141,7 +141,7 @@ h1, h2, h3, h4, h5, h6,
 .page-title,
 .profile-card h2,
 .login-card h1,
-.app-page-head h1,
+.app-route-head h1,
 .side-title,
 .dd-head,
 .section-title {
@@ -555,9 +555,9 @@ html[data-theme="dark"] textarea:focus {
   width: min(1180px, calc(100% - 48px)) !important;
   max-width: 1180px !important;
   margin: 0 auto !important;
-  padding: 8px 0 72px !important;
+  padding: 20px 0 88px !important;
 }
-.app-page-head {
+.app-route-head {
   display: flex !important;
   align-items: flex-end !important;
   justify-content: space-between !important;
@@ -566,14 +566,14 @@ html[data-theme="dark"] textarea:focus {
   padding: 8px 0 0 !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
-.app-page-head__copy { min-width: 0 !important; }
+.app-route-head__copy { min-width: 0 !important; }
 .app-kicker {
   color: var(--color-brand) !important;
   font: 600 11px/18px var(--font-family-mono) !important;
   letter-spacing: .12em !important;
   text-transform: uppercase !important;
 }
-.app-page-head h1 {
+.app-route-head h1 {
   margin: 7px 0 6px !important;
   color: var(--color-text-primary) !important;
   font-family: var(--font-family-serif) !important;
@@ -582,8 +582,8 @@ html[data-theme="dark"] textarea:focus {
   letter-spacing: .02em !important;
   line-height: 1.35 !important;
 }
-.app-page-head p { margin: 0 0 14px !important; color: var(--color-text-secondary) !important; font-size: 13px !important; }
-.app-page-head__actions { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; }
+.app-route-head p { margin: 0 0 14px !important; color: var(--color-text-secondary) !important; font-size: 13px !important; }
+.app-route-head__actions { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; }
 
 /* Cards and content groups */
 .app-grid, .topic-layout, .app-form-layout, .app-settings-layout, .app-admin-shell, .app-message-layout {
@@ -631,6 +631,9 @@ html[data-theme="dark"] textarea:focus {
 .btn { min-height: 36px !important; border-radius: 2px !important; box-shadow: none !important; }
 .btn.sm { min-height: 32px !important; }
 .btn-icon { min-width: 36px !important; min-height: 36px !important; }
+.adm-file-menu__toggle { min-width: 30px !important; min-height: 28px !important; background: transparent !important; color: var(--muted) !important; }
+.adm-file-menu__toggle:hover, .adm-file-menu__toggle[aria-expanded="true"] { background: var(--color-bg-subtle) !important; color: var(--title) !important; }
+@media(max-width:767px) { .adm-file-menu__toggle { min-width: 44px !important; min-height: 44px !important; } }
 
 /* Status and empty/error states */
 .app-empty, .app-state-card { border: 1px dashed var(--color-border-strong) !important; border-radius: 2px !important; background: var(--color-bg-subtle) !important; }
@@ -665,7 +668,7 @@ html[data-theme="dark"] textarea:focus {
 .app-shell { padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
 
 /* Do not let the Chinese theme destroy functional round controls */
-.avatar, .avatar-sm, .switch, .seg-knob, .bottom-nav button, .badge, .nav-dot, .dot { border-radius: 50% !important; }
+.avatar, .avatar-sm, .seg-knob, .bottom-nav button, .badge, .nav-dot, .dot { border-radius: 50% !important; }
 
 /* Responsive breakpoints */
 @media (max-width: 1199px) {
@@ -683,11 +686,22 @@ html[data-theme="dark"] textarea:focus {
   .app-admin-shell { grid-template-columns: 190px minmax(0, 1fr) !important; }
 }
 @media (max-width: 767px) {
+  #page-admin .app-admin-shell { position: relative !important; }
+  #page-admin .app-admin-menu { display: flex !important; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin: 0 0 8px; border: 1px solid var(--color-border) !important; border-radius: 2px; background: var(--color-bg-card) !important; color: var(--color-text-primary) !important; font-size: 12px; cursor: pointer; }
+  #page-admin .app-admin-side { display: none !important; position: absolute !important; z-index: 20; top: 52px; left: 0; right: 0; max-height: min(70vh, 520px) !important; overflow-y: auto !important; overflow-x: hidden !important; margin: 0 !important; padding: 10px !important; white-space: normal !important; background: var(--color-bg-card) !important; box-shadow: 0 12px 28px color-mix(in srgb, var(--color-bg-page) 28%, transparent); }
+  #page-admin .app-admin-shell.admin-menu-open .app-admin-side { display: block !important; }
+  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
+  #page-admin .app-admin-side__label { display: block !important; }
+  #page-admin .app-admin-side a { display: flex !important; }
+  #page-admin .app-admin-side__brand, #page-admin .app-admin-side__foot { display: block !important; }
+  #page-admin .app-admin-side__foot { margin-top: 8px; }
+  #page-admin .app-admin-main { position: relative !important; }
+  #page-admin .admin-batch-bar { z-index: 10060 !important; }
   .desktop-header { display: none !important; }
-  .app-page { width: 100% !important; padding: 0 0 calc(28px + env(safe-area-inset-bottom)) !important; }
-  .app-page-head { display: block !important; margin: 0 0 12px !important; padding: 14px 16px !important; background: var(--color-bg-card) !important; }
-  .app-page-head__actions { margin-top: 12px !important; }
-  .app-page-head__actions .btn { flex: 1 1 auto !important; }
+  .app-page { width: 100% !important; padding: 20px 0 calc(48px + env(safe-area-inset-bottom)) !important; }
+  .app-route-head { display: block !important; margin: 0 0 12px !important; padding: 14px 16px !important; background: var(--color-bg-card) !important; }
+  .app-route-head__actions { margin-top: 12px !important; }
+  .app-route-head__actions .btn { flex: 1 1 auto !important; }
   .app-card { border-left: 0 !important; border-right: 0 !important; }
   .app-card__body { padding: 14px !important; }
   .app-post-row { min-height: 72px !important; padding: 12px 14px !important; }
@@ -711,6 +725,112 @@ html[data-theme="dark"] textarea:focus {
   .app-table-wrap { margin: 0 -14px !important; border-left: 0 !important; border-right: 0 !important; }
   .app-modal-backdrop { padding: 10px !important; }
   .app-modal { width: 100% !important; max-height: calc(100vh - 20px) !important; border-radius: 2px !important; }
+}
+
+/* 浮层沿用页面底色，避免通用蓝灰遮罩破坏黑白灰主题的层次。 */
+.app-modal-backdrop {
+  background: color-mix(in srgb, var(--color-bg-page) 72%, transparent) !important;
+}
+
+/* Final mobile admin menu override: the sidebar becomes an actual drawer. */
+@media (max-width: 767px) {
+  #page-admin .app-admin-shell { position: relative !important; }
+  #page-admin .app-admin-menu { display: flex !important; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin: 0 0 8px; border: 1px solid var(--color-border) !important; background: var(--color-bg-card) !important; color: var(--color-text-primary) !important; cursor: pointer; }
+  #page-admin .app-admin-side { display: none !important; position: absolute !important; z-index: 20; top: 52px; left: 0; right: 0; max-height: min(70vh, 520px) !important; overflow-y: auto !important; overflow-x: hidden !important; margin: 0 !important; padding: 10px !important; white-space: normal !important; background: var(--color-bg-card) !important; box-shadow: 0 12px 28px color-mix(in srgb, var(--color-bg-page) 28%, transparent); }
+  #page-admin .app-admin-shell.admin-menu-open .app-admin-side { display: block !important; }
+  #page-admin .app-admin-side__brand, #page-admin .app-admin-side__label, #page-admin .app-admin-side__foot { display: block !important; }
+  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
+  #page-admin .app-admin-side a { display: flex !important; }
+}
+@media (min-width: 768px) { #page-admin .app-admin-menu { display: none !important; } }
+
+/* Mobile messages follow a WeChat-style two-state flow: inbox first, then a
+ * full-height conversation after choosing a person. Desktop stays split-view. */
+#page-messages .app-chat__back {
+  display: none;
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  place-items: center;
+}
+#page-messages .app-chat__back:hover { background: var(--color-bg-subtle); color: var(--title); }
+#page-messages .app-chat__back-icon { transform: rotate(90deg); }
+
+@media (max-width: 767px) {
+  #page-messages > .route-action-row { display: none !important; }
+  #page-messages.app-page {
+    min-height: calc(100dvh - 84px) !important;
+    margin: 0 !important;
+    padding: 0 0 0 !important;
+  }
+  #page-messages .app-message-layout {
+    display: block !important;
+    width: 100% !important;
+    min-height: calc(100dvh - 84px);
+  }
+  #page-messages .app-conversations {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: calc(100dvh - 84px);
+    max-height: none !important;
+    margin: 0 !important;
+    border-right: 0 !important;
+    border-left: 0 !important;
+    border-radius: 0 !important;
+  }
+  #page-messages .app-conversations .app-card__body { height: auto !important; padding: 0 !important; overflow: visible !important; }
+  #page-messages .app-conversation {
+    min-height: 78px !important;
+    padding: 13px 16px !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    border-radius: 0 !important;
+  }
+  #page-messages .app-chat { display: none !important; }
+  #page-messages.is-mobile-chat-open .app-conversations { display: none !important; }
+  #page-messages.is-mobile-chat-open .app-chat {
+    display: flex !important;
+    width: 100% !important;
+    height: calc(100dvh - 84px) !important;
+    min-height: calc(100dvh - 84px) !important;
+    margin: 0 !important;
+    border-right: 0 !important;
+    border-left: 0 !important;
+    border-radius: 0 !important;
+  }
+  #page-messages.is-mobile-chat-open .app-chat__back { display: inline-grid !important; }
+  #page-messages .app-chat__head { min-height: 60px !important; padding: 9px 12px !important; }
+  #page-messages .chat-identity { flex: 1; }
+  #page-messages .app-chat__body { min-height: 0 !important; max-height: none !important; padding: 18px 14px 24px !important; }
+  #page-messages .app-chat__foot {
+    position: static !important;
+    flex: 0 0 auto;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+  #page-messages .app-chat__foot .app-field { min-width: 0 !important; }
+  #page-messages .app-chat__foot > .btn { flex: 0 0 76px; }
+}
+
+/* Admin sidebar accordion: keep the same vertical interaction on narrow
+ * screens instead of reverting to the legacy horizontal tab strip. */
+.app-admin-side__items { min-width: 0; }
+@media (max-width: 767px) {
+  #page-admin .app-admin-side { white-space: normal !important; }
+  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
+  #page-admin .app-admin-side__label { display: flex !important; min-height: 40px !important; padding: 0 8px !important; }
+  #page-admin .app-admin-side__items { display: flex !important; flex-direction: column !important; max-height: 0; }
+  #page-admin .app-admin-side__group.is-expanded > .app-admin-side__items { max-height: 520px; }
+  #page-admin .app-admin-side__items a { display: flex !important; }
+}
+@media (min-width: 768px) {
+  #page-admin .app-admin-menu { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
@@ -779,6 +899,23 @@ html[data-theme="dark"] textarea:focus {
   .bottom-nav { height: calc(64px + env(safe-area-inset-bottom)) !important; }
 }
 
+/* Discover has no mobile header above its filter row.  The shared sticky
+ * offset was leaving the row 53px down and covering the first post while
+ * scrolling. Keep the filter row anchored to the actual viewport edge and
+ * avoid stacking the page and shell bottom padding. */
+@media (max-width: 767px) {
+  #page-discover {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  #page-discover .feed-toolbar {
+    top: 0 !important;
+  }
+  #page-discover .end {
+    padding: 24px 0 20px !important;
+  }
+}
+
 /* Admin mobile nav: show a compact current-module strip rather than the entire tree. */
 @media (max-width: 767px) {
   .app-admin-side { max-height: 58px !important; overflow-x: auto !important; overflow-y: hidden !important; align-items: center !important; gap: 4px !important; }
@@ -788,13 +925,228 @@ html[data-theme="dark"] textarea:focus {
 
 /* Tabs, toggles and status controls retain a usable hit target. */
 .app-filter-tabs button, .notif-tabs button, .app-settings-nav button { min-height: 44px !important; }
-.switch, .seg { min-width: 44px !important; min-height: 36px !important; }
+.switch {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+}
+.switch::before {
+  content: "";
+  position: absolute;
+  inset: 5.5px 0;
+  height: 25px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: background var(--duration-base);
+}
+.switch.on::before { background: var(--color-brand); }
+.switch:focus,
+.switch:active {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.switch:focus { outline: none !important; }
+.switch:focus-visible {
+  outline: 2px solid var(--color-brand) !important;
+  outline-offset: 3px !important;
+  box-shadow: none !important;
+}
+.switch i {
+  top: 8px !important;
+  left: 3px !important;
+  width: 19px !important;
+  height: 19px !important;
+  border-radius: 50% !important;
+  z-index: 1;
+}
+.switch.on i { left: 22px !important; }
+.seg { min-width: 44px !important; min-height: 36px !important; }
 .thread-footer button, .thread-footer a { min-height: 32px !important; }
 
 /* Never communicate dangerous state through color alone. */
 .btn.danger, .btn--danger, [data-revoke-device], [data-revoke-oauth], [data-market-refund] { font-weight: 600 !important; }
 /* 仅无边框文本态的危险按钮保留下划线（带边框按钮的盒状结构本身已是形态提示，下划线会读成坏掉的链接） */
 .btn.ghost.btn.danger, .btn.ghost.btn--danger, .btn.ghost[data-revoke-device], .btn.ghost[data-revoke-oauth], .btn.ghost[data-market-refund] { text-decoration: underline !important; text-underline-offset: 3px !important; }
+
+/* Profile route rebuild ----------------------------------------------------
+   The route is also rendered inside the hash SPA. Keep inactive templates
+   out of normal flow, then give the profile page one coherent desktop/mobile
+   composition instead of letting the generic app grid rules fight it. */
+.app-page[hidden] { display: none !important; }
+#page-messages.app-page[hidden] { display: none !important; }
+
+#page-me.app-page {
+  width: min(1120px, calc(100% - 48px)) !important;
+  max-width: 1120px !important;
+}
+#page-me .app-profile {
+  display: grid !important;
+  grid-template-columns: 84px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 22px !important;
+  min-height: 156px !important;
+  margin: 0 0 16px !important;
+  padding: 24px !important;
+}
+#page-me .app-profile > .avatar {
+  width: 72px !important;
+  height: 72px !important;
+  flex-basis: 72px !important;
+  font-size: 24px !important;
+}
+#page-me .app-profile > div { min-width: 0 !important; }
+#page-me .app-profile h2 {
+  margin: 0 !important;
+  color: var(--color-text-primary) !important;
+  font-size: 26px !important;
+  line-height: 1.25 !important;
+  letter-spacing: -.025em !important;
+}
+#page-me .app-profile p {
+  margin: 8px 0 12px !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 14px !important;
+}
+#page-me .app-profile__meta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px 20px !important;
+  color: var(--color-text-tertiary) !important;
+  font-size: 12px !important;
+}
+#page-me .app-profile__meta b { color: var(--color-text-primary) !important; }
+#page-me .app-profile > .btn { justify-self: end !important; white-space: nowrap !important; }
+#page-me .app-account-cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin: 0 0 16px !important;
+}
+#page-me .app-account-card {
+  min-height: 112px !important;
+  padding: 15px 16px !important;
+}
+#page-me .app-account-card strong { font-size: 22px !important; }
+#page-me > .app-toolbar { margin: 0 0 16px !important; padding: 0 !important; }
+#page-me > .app-toolbar .btn { min-width: 118px; }
+#page-me > .app-card { overflow: hidden !important; }
+
+@media (max-width: 767px) {
+  #page-me.app-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 0 calc(84px + env(safe-area-inset-bottom)) !important;
+  }
+  #page-me .app-profile {
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 14px !important;
+    min-height: 0 !important;
+    margin: 0 0 12px !important;
+    padding: 22px 20px 18px !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+  }
+  #page-me .app-profile > .avatar {
+    width: 44px !important;
+    height: 44px !important;
+    flex-basis: 44px !important;
+    font-size: 18px !important;
+  }
+  #page-me .app-profile h2 { font-size: 21px !important; }
+  #page-me .app-profile p {
+    margin: 7px 0 10px !important;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+  }
+  #page-me .app-profile__meta {
+    gap: 4px 13px !important;
+    font-size: 11px !important;
+  }
+  #page-me .app-profile__meta span:last-child {
+    flex-basis: 100% !important;
+    margin-top: 5px !important;
+  }
+  #page-me .app-profile > .btn {
+    grid-column: 1 / -1 !important;
+    justify-self: start !important;
+    margin-top: 2px !important;
+  }
+  #page-me .app-account-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin: 0 12px 12px !important;
+  }
+  #page-me .app-account-card {
+    min-width: 0 !important;
+    min-height: 112px !important;
+    padding: 12px 11px !important;
+  }
+  #page-me .app-account-card small,
+  #page-me .app-account-card span { font-size: 10px !important; }
+  #page-me .app-account-card strong {
+    margin-top: 7px !important;
+    font-size: 20px !important;
+  }
+  #page-me > .app-toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin: 0 20px 12px !important;
+  }
+  #page-me > .app-toolbar .btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 0 6px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+  #page-me > .app-card {
+    margin: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+  }
+  #page-me .app-filter-tabs { scrollbar-width: none !important; }
+  #page-me .app-filter-tabs::-webkit-scrollbar { display: none !important; }
+  #page-me .app-filter-tabs button {
+    flex: 0 0 auto !important;
+    min-width: 68px !important;
+    padding: 0 12px !important;
+    font-size: 12px !important;
+  }
+  #page-me .app-post-row {
+    align-items: flex-start !important;
+    min-height: 92px !important;
+    padding: 15px 20px !important;
+  }
+  #page-me .app-post-row > .avatar {
+    width: 40px !important;
+    height: 40px !important;
+    flex-basis: 40px !important;
+    font-size: 16px !important;
+  }
+  #page-me .app-post-row__main h3 {
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+  #page-me .app-post-row__main p {
+    display: -webkit-box !important;
+    margin-top: 4px !important;
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+    white-space: normal !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+  }
+}
 
 /* Search results and settings need a readable mobile surface. */
 @media (max-width: 767px) {
@@ -819,7 +1171,7 @@ html[data-theme="dark"] textarea:focus {
 #mock-workflow-root {
   color: var(--color-text-primary) !important;
 }
-.app-page .app-page-head,
+.app-page .app-route-head,
 #mock-workflow-root .mock-head {
   border-bottom: 1px solid var(--color-border) !important;
 }
@@ -863,9 +1215,103 @@ html[data-theme="dark"] textarea:focus {
   #page-home .feed-toolbar { display: flex !important; }
   #page-home .feed-toolbar .publish { order: 2 !important; }
   #page-home .feed-toolbar .filters { order: 1 !important; }
-  #page-home .feed-toolbar .filters > button { flex: 0 0 auto !important; }
+#page-home .feed-toolbar .filters > button { flex: 0 0 auto !important; }
   #page-home .home-type-menu { z-index: 30 !important; }
   #page-home .mobile-hero { margin: 0 !important; }
+}
+
+/* Home mobile header: keep utility actions, identity, and stats in clear bands. */
+@media (max-width: 767px) {
+  #page-home .mobile-hero {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: calc(14px + env(safe-area-inset-top)) 16px 0 !important;
+    background: var(--color-brand) !important;
+    overflow: hidden !important;
+  }
+  #page-home .mobile-doc-link {
+    top: calc(14px + env(safe-area-inset-top)) !important;
+    left: 16px !important;
+    min-width: 0 !important;
+    width: auto !important;
+    height: 40px !important;
+    padding: 0 11px !important;
+    border-radius: 4px !important;
+    background: rgba(255,255,255,.12) !important;
+    border-color: rgba(255,255,255,.36) !important;
+    font-size: 12px !important;
+  }
+  #page-home .mobile-search-link {
+    top: calc(14px + env(safe-area-inset-top)) !important;
+    right: 16px !important;
+    width: 40px !important;
+    height: 40px !important;
+    background: rgba(255,255,255,.12) !important;
+    border-color: rgba(255,255,255,.36) !important;
+  }
+  #page-home .mobile-logo {
+    margin: 42px 0 8px !important;
+    font-size: 32px !important;
+    line-height: 1 !important;
+    letter-spacing: .12em !important;
+  }
+  #page-home .hero-stats {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: center !important;
+    height: 58px !important;
+    margin: 0 -16px !important;
+    padding: 0 8px !important;
+    border-top: 1px solid rgba(255,255,255,.22) !important;
+  }
+  #page-home .hero-stats button {
+    justify-content: center !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    color: rgba(255,255,255,.82) !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+  }
+  #page-home .hero-stats button + button {
+    border-left: 1px solid rgba(255,255,255,.20) !important;
+  }
+  #page-home .hero-stats b { color: #fff !important; font-weight: 700 !important; }
+  #page-home .mobile-categories {
+    height: 52px !important;
+    padding: 0 12px !important;
+    gap: 0 !important;
+    justify-content: space-between !important;
+    background: var(--color-bg-card) !important;
+  }
+  #page-home .mobile-categories button {
+    min-height: 52px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+  }
+  #page-home .mobile-categories .list { margin-left: 0 !important; min-width: 44px !important; padding: 0 !important; }
+  #page-home .feed-toolbar {
+    min-height: 52px !important;
+    padding: 6px 12px !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+  }
+  #page-home .feed-toolbar .filters {
+    min-width: 0 !important;
+    gap: 0 !important;
+    scrollbar-width: none !important;
+  }
+  #page-home .feed-toolbar .filters::-webkit-scrollbar { display: none !important; }
+  #page-home .feed-toolbar .filters > button {
+    min-height: 38px !important;
+    padding: 0 9px !important;
+    font-size: 12px !important;
+  }
+  #page-home .feed-toolbar .publish {
+    min-height: 38px !important;
+    padding: 0 13px !important;
+    border-radius: 4px !important;
+    font-size: 13px !important;
+  }
 }
 
 /* Messages: no squeezed off-canvas second column on narrow screens. */
@@ -883,7 +1329,7 @@ html[data-theme="dark"] textarea:focus {
 @media (max-width: 767px) {
   #page-admin .app-admin-side { width: auto !important; max-width: none !important; margin-left: -10px !important; margin-right: -10px !important; }
   #page-admin .app-admin-main { width: 100% !important; }
-  #page-admin .app-page-head h1 { font-size: 22px !important; }
+  #page-admin .app-route-head h1 { font-size: 22px !important; }
 }
 
 
@@ -945,7 +1391,7 @@ html[data-theme="dark"] textarea:focus {
 /* Profile route final polish ------------------------------------------------
    Keep the dynamic profile readable: identity headings use the sans UI face,
    while the compact avatar tones remain visible instead of collapsing to gray. */
-#page-user .app-page-head h1,
+#page-user .app-route-head h1,
 #page-user .app-profile h2,
 #page-user .app-post-row__main h3 {
   font-family: var(--font-family-base) !important;
@@ -1241,19 +1687,19 @@ html[data-theme="dark"] textarea:focus {
 
 
 /* Forum reading contract: route headers are compact context bars, not hero panels. */
-.app-page-head--compact {
+.app-route-head--compact {
   align-items: center !important;
   min-height: 42px !important;
   margin: 0 0 14px !important;
   padding: 0 2px 10px !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
-.app-page-head--compact .app-page-head__copy {
+.app-route-head--compact .app-route-head__copy {
   display: flex !important;
   align-items: center !important;
   min-height: 32px !important;
 }
-.app-page-head--compact h1 {
+.app-route-head--compact h1 {
   margin: 0 !important;
   color: var(--color-text-primary) !important;
   font-family: var(--font-family-base) !important;
@@ -1262,24 +1708,24 @@ html[data-theme="dark"] textarea:focus {
   letter-spacing: -0.02em !important;
   line-height: 1.3 !important;
 }
-.app-page-head--compact .app-page-head__actions {
+.app-route-head--compact .app-route-head__actions {
   margin: 0 !important;
   align-items: center !important;
 }
-.app-page-head--compact .app-page-head__actions .btn {
+.app-route-head--compact .app-route-head__actions .btn {
   min-height: 32px !important;
 }
 @media (max-width: 767px) {
-  .app-page-head--compact {
+  .app-route-head--compact {
     min-height: 42px !important;
     margin: 0 14px 10px !important;
     padding: 0 0 9px !important;
     background: transparent !important;
   }
-  .app-page-head--compact h1 {
+  .app-route-head--compact h1 {
     font-size: 18px !important;
   }
-  .app-page-head--compact .app-page-head__actions {
+  .app-route-head--compact .app-route-head__actions {
     margin-top: 0 !important;
   }
 }
@@ -1341,24 +1787,24 @@ html[data-theme="dark"] textarea:focus {
 
 /* Compact header actions stay inline on narrow screens; only the main content wraps. */
 @media (max-width: 767px) {
-  .app-page-head--compact {
+  .app-route-head--compact {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
     gap: 10px !important;
   }
-  .app-page-head--compact .app-page-head__copy {
+  .app-route-head--compact .app-route-head__copy {
     flex: 1 1 auto !important;
     min-width: 0 !important;
   }
-  .app-page-head--compact .app-page-head__actions {
+  .app-route-head--compact .app-route-head__actions {
     display: flex !important;
     flex: 0 0 auto !important;
     max-width: 58% !important;
     overflow-x: auto !important;
     white-space: nowrap !important;
   }
-  .app-page-head--compact .app-page-head__actions .btn {
+  .app-route-head--compact .app-route-head__actions .btn {
     flex: 0 0 auto !important;
   }
 }
@@ -1375,6 +1821,7 @@ html[data-theme="dark"] textarea:focus {
 #page-publish .topic-context {
   margin-bottom: 14px !important;
 }
+
 
 #page-publish .app-form-layout {
   display: grid !important;
@@ -1398,7 +1845,8 @@ html[data-theme="dark"] textarea:focus {
   align-items: center !important;
   justify-content: space-between !important;
   gap: 16px !important;
-  padding: 14px 20px !important;
+  padding: 16px 20px !important;
+  border-left: 2px solid var(--color-brand) !important;
   border-bottom: 1px solid var(--color-border) !important;
   background: var(--color-bg-subtle) !important;
 }
@@ -1504,10 +1952,10 @@ html[data-theme="dark"] textarea:focus {
 
 /* Form Fields */
 #page-publish .app-form-grid {
-  padding: 20px !important;
+  padding: 24px 20px !important;
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
-  gap: 16px !important;
+  gap: 18px !important;
 }
 
 #page-publish .app-form-field {
@@ -1563,12 +2011,13 @@ html[data-theme="dark"] textarea:focus {
 }
 
 #page-publish .app-field {
-  height: 38px !important;
+  height: 40px !important;
   padding: 0 12px !important;
 }
 
 #page-publish .app-title-input {
-  font-size: 15px !important;
+  height: 44px !important;
+  font-size: 16px !important;
   font-weight: 500 !important;
 }
 
@@ -1719,7 +2168,7 @@ html[data-theme="dark"] textarea:focus {
   border-radius: 0 !important;
   padding: 14px 16px !important;
   line-height: 1.7 !important;
-  min-height: 220px !important;
+  min-height: 260px !important;
   font-family: var(--font-family-mono, monospace) !important;
   font-size: 13px !important;
   resize: vertical !important;
@@ -2098,14 +2547,14 @@ html[data-theme="dark"] textarea:focus {
 @media (max-width: 767px) {
   #page-publish .app-form-grid {
     grid-template-columns: 1fr !important;
-    padding: 16px 14px !important;
+    padding: 18px 14px !important;
     gap: 14px !important;
   }
   .app-visibility-grid {
     grid-template-columns: 1fr !important;
   }
   .composer-card-head {
-    padding: 12px 14px !important;
+    padding: 14px !important;
   }
   #page-publish .app-form-actions {
     flex-direction: column !important;
@@ -2134,6 +2583,242 @@ html[data-theme="dark"] textarea:focus {
 .desktop-header .icon-btn > #bell-badge[hidden] { display: none !important; }
 
 /* 页头（kicker / 标题 / 简介 / 操作行）恢复显示：
- * 此前“取消所有页面的 app-page-head”的规则会把管理后台每个子页顶部的操作按钮
+ * 此前“取消所有页面的 app-route-head”的规则会把管理后台每个子页顶部的操作按钮
  * （如 BI 看板的“刷新数据 / 导出 CSV”）一并隐藏，且与 verify.mjs 的 h1 断言冲突。
  * 如需精简前台页头，请改为仅针对前台路由的局部规则，不要全局 display:none。 */
+
+/* Route titles are now announced by a visually-hidden h1. The old title block
+ * must stay hidden even for standalone page previews that do not load the SPA
+ * cleanup code. Dynamic mounts relocate its actions before removing the block. */
+.app-route-head { display: none !important; }
+
+/* Final mobile admin menu contract (kept last so it wins over legacy polish rules). */
+@media (max-width: 767px) {
+  #page-admin .app-admin-shell { position: relative !important; }
+  #page-admin .app-admin-menu { display: flex !important; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin: 0 0 8px; border: 1px solid var(--color-border) !important; background: var(--color-bg-card) !important; color: var(--color-text-primary) !important; cursor: pointer; }
+  #page-admin .app-admin-side { display: none !important; position: absolute !important; z-index: 20; top: 52px; left: 0; right: 0; max-height: min(70vh, 520px) !important; overflow-y: auto !important; overflow-x: hidden !important; margin: 0 !important; padding: 10px !important; white-space: normal !important; background: var(--color-bg-card) !important; box-shadow: 0 12px 28px color-mix(in srgb, var(--color-bg-page) 28%, transparent); }
+  #page-admin .app-admin-shell.admin-menu-open .app-admin-side { display: block !important; }
+  #page-admin .app-admin-side__brand, #page-admin .app-admin-side__label, #page-admin .app-admin-side__foot { display: block !important; }
+  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
+  #page-admin .app-admin-side a { display: flex !important; }
+}
+@media (min-width: 768px) { #page-admin .app-admin-menu { display: none !important; } }
+
+/* Final chat viewport contract: the message history is the only scrolling
+ * surface; chat identity and composer remain fixed in the frame. */
+#page-messages .app-chat { min-height: 0; overflow: hidden; }
+#page-messages .app-chat__head,
+#page-messages .app-chat__foot { flex: 0 0 auto; }
+#page-messages .app-chat__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 767px) {
+  body:has(#page-messages.is-mobile-chat-open) { overflow: hidden; }
+  #page-messages.app-page {
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom));
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  #page-messages .app-message-layout { min-height: 0 !important; }
+  #page-messages.is-mobile-chat-open .app-chat {
+    height: calc(100dvh - 84px - env(safe-area-inset-bottom)) !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - 84px - env(safe-area-inset-bottom));
+    overflow: hidden !important;
+  }
+  #page-messages.is-mobile-chat-open .app-chat__body {
+    flex: 1 1 auto;
+    height: auto;
+    max-height: none !important;
+    overflow-y: auto !important;
+  }
+  #page-messages.is-mobile-chat-open .app-chat__foot {
+    position: relative !important;
+    bottom: auto !important;
+    z-index: 2;
+    background: var(--color-bg-card);
+    padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* Mobile profile hierarchy ------------------------------------------------
+   Keep the me route scannable: identity first, account data second, account
+   actions third, and content last. */
+@media (max-width: 767px) {
+  #page-me.app-page {
+    padding-top: 12px !important;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+  }
+
+  #page-me .app-profile {
+    grid-template-columns: 52px minmax(0, 1fr) auto !important;
+    align-items: start !important;
+    gap: 0 12px !important;
+    margin: 0 12px 12px !important;
+    padding: 18px 16px 16px !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 2px !important;
+  }
+  #page-me .app-profile > .avatar {
+    grid-column: 1;
+    grid-row: 1;
+    width: 52px !important;
+    height: 52px !important;
+    flex-basis: 52px !important;
+    margin-top: 1px;
+    font-size: 19px !important;
+  }
+  #page-me .app-profile > div {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0 !important;
+  }
+  #page-me .app-profile h2 {
+    font-family: var(--font-family-base) !important;
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0 !important;
+  }
+  #page-me .app-profile p {
+    margin: 6px 0 10px !important;
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+  }
+  #page-me .app-profile__meta {
+    display: grid !important;
+    grid-template-columns: repeat(3, max-content) !important;
+    gap: 4px 12px !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+  }
+  #page-me .app-profile__meta span:last-child {
+    grid-column: 1 / -1 !important;
+    margin-top: 3px !important;
+  }
+  #page-me .app-profile > .btn {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    min-height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  #page-me .app-account-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    margin: 0 12px 12px !important;
+  }
+  #page-me .app-account-card {
+    display: flex !important;
+    min-height: 98px !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    padding: 12px 11px !important;
+  }
+  #page-me .app-account-card small,
+  #page-me .app-account-card span { font-size: 10px !important; line-height: 1.4 !important; }
+  #page-me .app-account-card strong {
+    margin: 5px 0 3px !important;
+    font-size: 21px !important;
+    line-height: 1.1 !important;
+  }
+  #page-me .app-account-card:first-child { border-top: 2px solid var(--color-brand) !important; }
+
+  #page-me > .app-toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin: 0 12px 12px !important;
+    padding: 0 !important;
+  }
+  #page-me > .app-toolbar .btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    justify-content: center !important;
+    padding: 0 8px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  #page-me > .app-card {
+    margin: 0 12px !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 2px !important;
+    overflow: hidden !important;
+  }
+  #page-me > .app-card::before {
+    content: "我的内容";
+    display: block;
+    padding: 14px 16px 11px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: 15px;
+    font-weight: 700;
+  }
+  #page-me .app-filter-tabs {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    scroll-snap-type: x proximity;
+  }
+  #page-me .app-filter-tabs::-webkit-scrollbar { display: none !important; }
+  #page-me .app-filter-tabs button {
+    flex: 0 0 60px !important;
+    min-width: 60px !important;
+    min-height: 42px !important;
+    padding: 0 6px !important;
+    font-size: 11px !important;
+    scroll-snap-align: start;
+  }
+  #page-me .app-post-row {
+    min-height: 0 !important;
+    align-items: start !important;
+    gap: 0 !important;
+    padding: 15px 16px !important;
+  }
+  #page-me .app-post-row > .avatar { display: none !important; }
+  #page-me .app-post-row__main h3 {
+    font-family: var(--font-family-base) !important;
+    font-size: 15px !important;
+    font-weight: 650 !important;
+    line-height: 1.45 !important;
+    letter-spacing: 0 !important;
+  }
+  #page-me .app-post-row__main p {
+    margin-top: 5px !important;
+    font-size: 11px !important;
+    line-height: 1.5 !important;
+  }
+  #page-me .app-post-row__right { margin-left: 12px; font-size: 10px !important; }
+
+  #page-me [data-user-list] > .app-toolbar {
+    margin: 0 !important;
+    padding: 10px 16px !important;
+    border-bottom: 1px solid var(--color-border);
+  }
+  #page-me [data-user-list] > .app-toolbar .btn {
+    min-height: 36px !important;
+    padding: 0 11px !important;
+    font-size: 11px !important;
+  }
+  #page-me .app-post-row:has(> .btn) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    align-items: center !important;
+    column-gap: 8px !important;
+  }
+  #page-me .app-post-row:has(> .btn) .app-post-row__main { min-width: 0 !important; }
+  #page-me .app-post-row:has(> .btn) > .btn {
+    min-height: 36px !important;
+    padding: 0 7px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+}
