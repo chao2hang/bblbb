@@ -57,11 +57,11 @@
 ## 4. 待执行落地项（按序执行，完成后将 `[ ]` 改为 `[x]` 并在行尾注明 commit）
 
 - [x] `Makefile`：`check-backend` 本地目标改为 `cargo clippy --workspace -- -D warnings` + `cargo check`（去掉 `--all-targets --all-features`）
-  证据：files=Makefile；commands=make -n check-backend（确认输出无 --all-targets/--all-features）；commit=<commit-1>；review=none
+  证据：files=Makefile；commands=make -n check-backend（确认输出无 --all-targets/--all-features）；commit=152e05e；review=none
 - [x] `Makefile`：`build-frontend` / `check-frontend` / `check-prototype` / `install` 的 `npm ci` 改为 `[ -d node_modules ] || npm ci`
-  证据：files=Makefile；commands=make -n build-frontend install（确认输出为条件化安装）；commit=<commit-1>；review=none
+  证据：files=Makefile；commands=make -n build-frontend install（确认输出为条件化安装）；commit=152e05e；review=none
 - [x] 本机与 CI 接入 sccache（CI 增加 sccache setup 与缓存步骤；cargo registry/git 缓存）
-  证据：files=Makefile（SCCACHE_BIN/CARGO 变量，装 sccache 后自动生效）+.github/workflows/ci.yml（rust + mysql-family job）+nightly.yml（fault-injection）+release-rc.yml（release-drills）；commands=ruby YAML 校验 3 个 workflow 通过；commit=<commit-1>；review=none
+  证据：files=Makefile（SCCACHE_BIN/CARGO 变量，装 sccache 后自动生效）+.github/workflows/ci.yml（rust + mysql-family job）+nightly.yml（fault-injection）+release-rc.yml（release-drills）；commands=ruby YAML 校验 3 个 workflow 通过；commit=152e05e；review=none
 - [ ] （可选，需评估）AWS SDK 依赖拆为独立 cargo feature，默认 check 不编译
   评估（2026-09-02）：暂不执行。S3 与核心 `StorageConfig`、`storage::adapter`（~350 行直接引用 aws_sdk_s3）及 5+ 个测试文件深度耦合；拆 feature 需 cfg 门控核心配置类型、改 release-rc 构建参数（`--features aws`）与 deploy bundle 脚本，改动面大且 sccache/缓存落地后 aws-sdk 增量编译本就不常触发。待缓存生效后若 CI 构建时间仍不达标再重估。
 
