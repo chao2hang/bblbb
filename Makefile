@@ -15,6 +15,14 @@ PROTOTYPE_DIR := $(CURDIR)/prototype
 OPENAPI_FILE := $(CURDIR)/openapi/openapi.yaml
 MIGRATIONS_DIR := $(CURDIR)/migrations
 
+# AGENTS.md §3.1/§3.4：装了 sccache 就透明启用（未安装则与裸 cargo 行为一致）
+SCCACHE_BIN := $(shell command -v sccache 2>/dev/null)
+ifneq ($(SCCACHE_BIN),)
+CARGO := sccache cargo
+else
+CARGO := cargo
+endif
+
 # 颜色（通过 printf 输出，兼容 macOS/Linux）
 BOLD := \033[1m
 GREEN := \033[32m
@@ -48,18 +56,18 @@ dev: ## 启动前端开发服务器（后端需单独运行）
 
 dev-backend: ## 启动后端开发服务器
 	@printf "$(YELLOW)>>> 启动后端开发服务器...$(RESET)\n"
-	@cd $(BACKEND_DIR) && cargo run
+	@cd $(BACKEND_DIR) && $(CARGO) run
 
 ##@ 检查
 check: check-backend check-migrations check-frontend check-prototype check-openapi check-contract check-roadmap check-docs check-secrets ## 运行全部检查
 
-check-backend: ## 后端 fmt + clippy + 编译检查 + 领域层依赖边界 + 事务 IO 边界
+check-backend: ## 后端 fmt + clippy + 编译检查（本地最小编译面，--all-targets --all-features 仅限 CI）+ 领域层依赖边界 + 事务 IO 边界
 	@printf "$(GREEN)>>> [check-backend] Rust fmt + clippy + check$(RESET)\n"
 	@cd $(BACKEND_DIR) && cargo fmt --all -- --check
 	@$(MAKE) check-domain
 	@$(MAKE) check-tx-io
-	@cd $(BACKEND_DIR) && cargo clippy --workspace --all-targets --all-features -- -D warnings
-	@cd $(BACKEND_DIR) && cargo check --all-features
+	@cd $(BACKEND_DIR) && $(CARGO) clippy --workspace -- -D warnings
+	@cd $(BACKEND_DIR) && $(CARGO) check
 
 check-domain: ## 领域层依赖边界扫描（禁止 axum/sqlx/SMTP/S3/环境变量）
 	@printf "$(GREEN)>>> [check-domain] 领域层依赖边界$(RESET)\n"
@@ -75,18 +83,18 @@ check-tx-io: ## 写事务 IO 边界扫描（禁止事务内 SMTP/S3/AI/视频/�
 
 check-migrations: ## 三数据库迁移结构等价断言（M01-DB-09）
 	@printf "$(GREEN)>>> [check-migrations] 迁移结构等价断言$(RESET)\n"
-	@cd $(BACKEND_DIR) && cargo test --test migration_equivalence --quiet 2>&1 | tail -n 8
+	@cd $(BACKEND_DIR) && $(CARGO) test --test migration_equivalence --quiet 2>&1 | tail -n 8
 
 check-frontend: ## 前端 Svelte check + TypeScript 类型检查 + HTML sink 静态检查
 	@printf "$(GREEN)>>> [check-frontend] SvelteKit check$(RESET)\n"
-	@cd $(FRONTEND_DIR) && npm ci --silent
+	@cd $(FRONTEND_DIR) && ([ -d node_modules ] || npm ci --silent)
 	@cd $(FRONTEND_DIR) && npm run check
 	@printf "$(GREEN)>>> [check-html-sinks] 前端 HTML sink 静态检查（M04-MARKDOWN-08）$(RESET)\n"
 	@ruby $(PROJECT_ROOT)/scripts/check-html-sinks.rb
 
 check-prototype: ## 原型 render + interaction 检查
 	@printf "$(GREEN)>>> [check-prototype] 原型渲染 + 交互检查$(RESET)\n"
-	@cd $(PROTOTYPE_DIR) && npm ci --silent
+	@cd $(PROTOTYPE_DIR) && ([ -d node_modules ] || npm ci --silent)
 	@cd $(PROTOTYPE_DIR) && npm run check:all
 
 check-openapi: ## OpenAPI YAML 解析 + operationId 唯一性检查
@@ -152,7 +160,7 @@ test: test-backend test-frontend test-prototype ## 运行全部测试
 
 test-backend: ## 后端测试
 	@printf "$(GREEN)>>> [test-backend] cargo test --all-features$(RESET)\n"
-	@cd $(BACKEND_DIR) && cargo test --all-features
+	@cd $(BACKEND_DIR) && $(CARGO) test --all-features
 
 test-frontend: ## 前端测试
 	@printf "$(GREEN)>>> [test-frontend] 前端单测$(RESET)\n"
@@ -165,13 +173,13 @@ test-prototype: ## 原型检查
 ##@ 构建
 build: build-backend build-frontend ## 构建后端和前端
 
-build-backend: ## 后端 release 构建
-	@printf "$(GREEN)>>> [build-backend] cargo build --release$(RESET)\n"
-	@cd $(BACKEND_DIR) && cargo build --release
+build-backend: ## 后端 release 构建（仅出包/发布用；本地迭代请走 dev-backend）
+	@printf "$(GREEN)>>> [build-backend] $(CARGO) build --release$(RESET)\n"
+	@cd $(BACKEND_DIR) && $(CARGO) build --release
 
 build-frontend: ## 前端构建
 	@printf "$(GREEN)>>> [build-frontend] SvelteKit adapter-node build$(RESET)\n"
-	@cd $(FRONTEND_DIR) && npm ci --silent
+	@cd $(FRONTEND_DIR) && ([ -d node_modules ] || npm ci --silent)
 	@cd $(FRONTEND_DIR) && npm run build
 
 ##@ 数据库迁移
@@ -209,6 +217,6 @@ clean: ## 清理构建产物
 ##@ 安装
 install: ## 安装依赖
 	@printf "$(GREEN)>>> 安装前端依赖...$(RESET)\n"
-	@cd $(FRONTEND_DIR) && npm ci
-	@cd $(PROTOTYPE_DIR) && npm ci
+	@cd $(FRONTEND_DIR) && ([ -d node_modules ] || npm ci)
+	@cd $(PROTOTYPE_DIR) && ([ -d node_modules ] || npm ci)
 	@printf "$(GREEN)>>> Rust 依赖将由 cargo 自动拉取$(RESET)\n"
