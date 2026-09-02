@@ -1,4 +1,4 @@
-import { chromium } from '/data/projects/bblbb/frontend/node_modules/playwright/index.mjs';
+import { chromium } from '../frontend/node_modules/playwright/index.mjs';
 const browser = await chromium.launch({ headless: true });
 const results = [];
 for (const viewport of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'mobile', width: 390, height: 844 }]) {

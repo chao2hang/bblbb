@@ -20,7 +20,7 @@ for (const [viewport, width, height] of [['desktop', 1440, 900], ['mobile', 390,
     const metric = await page.evaluate(() => {
       const visible = document.querySelector('.page:not([hidden])');
       const visibleH1 = [...document.querySelectorAll('h1')].some((node) => node.getClientRects().length > 0);
-      const headers = visible ? visible.querySelectorAll('.app-page-head').length : 0;
+      const headers = visible ? visible.querySelectorAll('.app-route-head').length : 0;
       const overflow = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
       const badRects = [...(visible?.querySelectorAll('button,a,input,select,textarea') || [])]
         .filter((el) => el.getClientRects().length)

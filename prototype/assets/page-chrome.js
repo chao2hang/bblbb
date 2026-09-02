@@ -26,8 +26,34 @@
     if (shell) {
       shell.insertAdjacentHTML('afterbegin', HEADER);
       shell.insertAdjacentHTML('beforeend', BOTTOM_NAV);
+      var contentNav = shell.querySelector('.desktop-nav button[onclick*="#articles"]');
+      if (contentNav) Array.prototype.forEach.call(contentNav.childNodes, function (node) { if (node.nodeType === 3 && node.textContent.trim()) node.textContent = '内容'; });
     }
     if (!body.querySelector('#toast')) body.insertAdjacentHTML('beforeend', TOAST);
+    var publishPage = body.querySelector('#page-publish');
+    if (publishPage) {
+      var publishType = publishPage.querySelector('.composer-type-switch'); if (publishType) publishType.remove();
+      var publishTitle = publishPage.querySelector('h1'); if (publishTitle) publishTitle.textContent = '发布内容';
+      var publishCrumb = publishPage.querySelector('.topic-context__current'); if (publishCrumb) publishCrumb.textContent = '发布内容';
+      var publishEyebrow = publishPage.querySelector('.composer-eyebrow'); if (publishEyebrow) publishEyebrow.textContent = 'CREATE / CONTENT';
+      var summaryLabel = publishPage.querySelector('label[for="publish-summary"]'); if (summaryLabel) summaryLabel.textContent = '摘要';
+    }
+    var contentPage = body.querySelector('#page-articles');
+    if (contentPage) {
+      var contentTitle = contentPage.querySelector('h1'); if (contentTitle) contentTitle.textContent = '内容';
+      var contentLede = contentPage.querySelector('.app-route-head p'); if (contentLede) contentLede.textContent = '浏览社区中的全部内容';
+      Array.prototype.forEach.call(contentPage.querySelectorAll('[data-go-publish]'), function (button) { button.textContent = '发布内容'; });
+      Array.prototype.forEach.call(contentPage.querySelectorAll('.sbadge'), function (badge) { if (badge.textContent.trim() === '文章') badge.textContent = '内容'; });
+    }
+    var topicPage = body.querySelector('#page-topic');
+    if (topicPage) {
+      var topicCrumb = topicPage.querySelector('.topic-context__current'); if (topicCrumb) topicCrumb.textContent = '内容详情';
+      var topicBadge = topicPage.querySelector('.topic-meta .sbadge'); if (topicBadge) topicBadge.textContent = '内容';
+    }
+    var boardPublish = body.querySelector('#page-board [data-go-publish]'); if (boardPublish) boardPublish.textContent = '发布内容';
+    var tagLede = body.querySelector('#page-tag .app-route-head p'); if (tagLede) tagLede.textContent = '聚合所有包含该标签的内容';
+    var userTabs = body.querySelector('#page-me [data-user-tab="posts"]'); if (userTabs) userTabs.textContent = '内容';
+    var userTopics = body.querySelector('#page-me [data-user-tab="topics"]'); if (userTopics) userTopics.remove();
     /* 顶栏/导航的内联 onclick 依赖引擎全局函数；独立页面先给空实现（SPA 中引擎随后覆盖） */
     ['toggleDrop', 'closeDrops', 'go', 'markAllRead', 'switchTab', 'openPublish', 'logout', 'toggleTheme', 'startLoading'].forEach(function (name) {
       if (typeof window[name] !== 'function') window[name] = function () {};
