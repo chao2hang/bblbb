@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 下载账单">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>下载账单 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-billing" id="page-billing">
+<div class="app-route-head"><div class="app-route-head__copy"><span class="app-kicker">ACCOUNT / DOWNLOADS</span><h1 tabindex="-1">下载账单</h1><p>下载授权、扣点记录、签名 URL 和复用策略</p></div></div><div class="app-stat-grid"><div class="app-stat"><b>328</b><span>B币余额</span></div><div class="app-stat"><b>24</b><span>本月下载</span></div><div class="app-stat"><b>3</b><span>有效授权</span></div><div class="app-stat"><b>50</b><span>今日剩余</span></div></div><section class="app-card"><header class="app-card__head"><h2>下载策略</h2></header><div class="app-card__body"><div class="app-notice">当前等级 Lv.3：部分公开附件免费；受限附件需要授权，签名 URL 过期不会删除源文件。</div><div class="app-table-wrap"><table class="app-table"><tbody><tr><th>时间</th><th>附件</th><th>策略</th><th>结果</th><th>操作</th></tr><tr><td>今天 10:21</td><td>architecture.pdf</td><td>免费等级</td><td><span class="sbadge sb-success">已完成</span></td><td><button type="button" class="btn ghost" data-download-demo="">再次下载</button></td></tr><tr><td>昨天 18:10</td><td>report.zip</td><td>扣除 10 积分</td><td><span class="sbadge sb-success">已授权</span></td><td><button type="button" class="btn ghost" data-auth-demo="">查看授权</button></td></tr></tbody></table></div></div></section><section class="app-card"><header class="app-card__head"><h2>安全提示</h2></header><div class="app-card__body"><p class="app-muted">前端永远不会接触对象存储 Secret；正式实现由后端返回一次性签名 URL，并记录下载交易。</p></div></section>
+</section>
+</main>
+</body>
+</html>

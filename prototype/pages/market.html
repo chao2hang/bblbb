@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 应用市场">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>应用市场 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-market" id="page-market">
+<div class="app-route-head"><div class="app-route-head__copy"><span class="app-kicker">MARKETPLACE / DISCOVER</span><h1 tabindex="-1">应用市场</h1><p>安全接入、Client 授权、限额与交易状态</p></div></div><div class="app-notice">市场交易不会直接改余额；成功仅表示原子事务已经提交。Webhook、对账和退款由后端负责。</div><section class="app-card"><header class="app-card__head"><h2>精选应用</h2></header><div class="app-card__body"><div class="app-article-grid"><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-success">已审核</span><h3>BBLBB CLI 工具</h3><p>同步收藏、草稿和通知，使用 PKCE 与最小 scope。</p><div class="app-article-card__meta"><b>openid · profile</b><span class="app-spacer"></span><button type="button" class="btn primary" data-market-offer="">查看详情</button></div></article><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-hot">待审批</span><h3>团队知识库同步</h3><p>将公开主题导出到团队知识库，支持每日限额。</p><div class="app-article-card__meta"><b>openid · email</b><span class="app-spacer"></span><button type="button" class="btn ghost" data-market-offer="">申请接入</button></div></article></div></div></section><section class="app-card"><header class="app-card__head"><h2>我的市场交易</h2></header><div class="app-card__body"><div class="app-table-wrap"><table class="app-table"><tbody><tr><th>时间</th><th>应用</th><th>状态</th><th>Webhook</th><th>操作</th></tr><tr><td>今天</td><td>BBLBB CLI 工具</td><td><span class="sbadge sb-success">已完成</span></td><td>已投递</td><td><button type="button" class="btn ghost" data-market-purchase="">查看购买</button></td></tr><tr><td>昨天</td><td>团队知识库同步</td><td><span class="sbadge sb-hot">处理中</span></td><td>重试 1/3</td><td><button type="button" class="btn ghost" data-market-purchase="">查看状态</button></td></tr></tbody></table></div></div></section>
+</section>
+</main>
+</body>
+</html>

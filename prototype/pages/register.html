@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 创建账号">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>创建账号 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-register" id="page-register">
+<section class="login-shell"><div class="login-card"><p class="login-eyebrow">JOIN BBLBB</p><h1 tabindex="-1">创建账号</h1><form data-register=""><label class="login-field"><span>用户名</span><input data-reg-user="" aria-label="用户名" placeholder="alice"><small data-reg-user-error=""></small></label><label class="login-field"><span>邮箱</span><input data-reg-email="" aria-label="邮箱" type="email" placeholder="alice@example.com"><small data-reg-email-error=""></small></label><label class="login-field"><span>密码</span><input data-reg-password="" aria-label="密码" type="password" placeholder="至少 10 位"><small data-reg-password-error=""></small></label><label class="app-check"><input type="checkbox" data-reg-terms="">我已阅读并同意<a href="#topic:rules" class="app-link">社区规则</a></label><button class="btn primary login-submit" data-reg-submit="" disabled="">创建账号</button></form><p class="login-signup"><a href="#login">已有账号？登录</a></p></div></section>
+</section>
+</main>
+</body>
+</html>

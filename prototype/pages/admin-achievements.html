@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 成就管理"><meta name="theme-color" content="#0D0D0D"><title>成就管理 · BBLBB 社区</title>
+<link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/prototype-app.css"><link rel="stylesheet" href="../assets/prototype-workflows.css"><link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<section class="page app-page app-route-admin" id="page-admin">
+<div class="app-admin-shell">
+  <aside class="app-admin-side"><div class="app-admin-side__brand">BBLBB Admin</div><div class="app-admin-side__group"><span class="app-admin-side__label">激励与交易</span><a class="is-active" href="#admin-achievements">♜ 成就管理</a><a href="#admin-points">◉ 积分与货币</a><a href="#admin-levels">♙ 等级管理</a></div><div class="app-admin-side__group"><span class="app-admin-side__label">内容</span><a href="#admin-posts">帖子与文章</a><a href="#admin-boards">板块管理</a><a href="#admin-tags">标签管理</a></div><div class="app-admin-side__group"><span class="app-admin-side__label">系统</span><a href="#admin-settings">系统设置</a><a href="#admin-audit">审计日志</a></div><div class="app-admin-side__foot">管理员演示态 · 所有变更均需真实 API、权限和审计确认</div></aside>
+  <div class="app-admin-main">
+    <div class="app-route-head app-route-head--compact"><div class="app-route-head__copy"><span class="app-kicker">REWARDS / ACHIEVEMENTS</span><h1>成就管理</h1><p>配置解锁条件、奖励和前台展示规则</p></div></div>
+    <div data-achievement-app></div>
+  </div>
+</div>
+</section>
+</main>
+</body>
+</html>

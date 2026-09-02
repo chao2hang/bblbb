@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 首页">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>首页 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-home" id="page-home">
+<h1 class="sr-only" tabindex="-1">首页</h1><div class="mobile-hero">
+        <button class="mobile-theme" onclick="toggleTheme()" aria-label="切换主题"><svg class="ic icon-sun"><use href="#i-sun"></use></svg><svg class="ic icon-moon"><use href="#i-moon"></use></svg></button>
+        <a class="mobile-doc-link" href="#design" aria-label="打开原型界面标准文档"><svg class="ic ic-14"><use href="#i-book-open"></use></svg><span>规范</span></a>
+        <a class="mobile-search-link" href="#search" aria-label="搜索帖子、用户或标签"><svg class="ic ic-16"><use href="#i-search"></use></svg></a>
+<div class="mobile-logo">BBLBB</div>
+<div class="hero-stats"><button>成员 <b>128</b></button><button>内容 <b>56</b></button><button onclick="toast('分享链接已复制')"><svg class="ic"><use href="#i-share"></use></svg> 分享</button></div>
+</div>
+
+      <aside class="category-card"><a class="selected" href="#home"><b>全部</b><em>56</em></a><a href="#board:tech-essay">技术交流<em>24</em></a><a href="#board:web-dev">产品反馈<em>16</em></a><a href="#board:meta">站务公告<em>8</em></a><a href="#board:chat">闲聊<em>8</em></a></aside>
+
+<section class="feed">
+<div class="mobile-categories"><button class="active">全部</button><button>默认分类</button><button class="list" onclick="document.body.classList.toggle('show-categories')" aria-label="全部分类"><svg class="ic"><use href="#i-menu"></use></svg></button></div>
+<div class="feed-toolbar"><div class="filters"><button class="active" onclick="pickFilter(event)">所有</button><button onclick="pickFilter(event)">精华</button><button onclick="pickFilter(event)">已关注</button><button onclick="cycleSort(this)">最新<svg class="ic ic-14"><use href="#i-chevron-down"></use></svg></button></div><button class="publish" onclick="openPublish()">发布内容</button></div>
+<div class="thread-list" id="thread-list">
+          <article class="thread featured" data-post-key="welcome" data-cat="notice" data-time="3" data-hot="18" data-tags="社区" data-post-type="article"><div class="avatar purple profile-hover-trigger" data-profile-name="Lin" tabindex="0" role="button" aria-label="查看 Lin 的用户信息">L</div><div><div class="thread-meta"><b>Lin</b><span>· 12 分钟前</span><i>精华</i></div><a class="thread-detail-link" href="#topic:welcome" data-post-detail="welcome" aria-label="查看帖子：欢迎来到 BBLBB 社区"><h2>欢迎来到 BBLBB 社区</h2><p>这是一个以技术交流、产品共创和高质量讨论为核心的社区。分享你的想法，认识志同道合的朋友。</p></a><div class="thread-footer"><span>技术交流</span><button class="act-like" onclick="like(this,18)"><svg class="ic ic-15"><use href="#i-heart"></use></svg>18</button><a class="thread-comment-link" href="#topic:welcome" aria-label="查看帖子回复：欢迎来到 BBLBB 社区"><svg class="ic ic-15"><use href="#i-comment"></use></svg>6</a></div></div></article>
+          <article class="thread" data-post-key="product-update" data-cat="product" data-time="2" data-hot="9" data-tags="产品" data-post-type="topic"><div class="avatar orange profile-hover-trigger" data-profile-name="Mark" tabindex="0" role="button" aria-label="查看 Mark 的用户信息">M</div><div><div class="thread-meta"><b>Mark</b><span>· 1 小时前</span></div><a class="thread-detail-link" href="#topic:product-update" data-post-detail="product-update" aria-label="查看帖子：本周产品更新：主题与通知中心"><h2>本周产品更新：主题与通知中心</h2><p>我们刚完成主题切换和通知中心的第一版，欢迎体验后留下你的建议。</p></a><div class="thread-footer"><span>产品反馈</span><button class="act-like" onclick="like(this,9)"><svg class="ic ic-15"><use href="#i-heart"></use></svg>9</button><a class="thread-comment-link" href="#topic:product-update" aria-label="查看帖子回复：本周产品更新：主题与通知中心"><svg class="ic ic-15"><use href="#i-comment"></use></svg>3</a></div></div></article>
+          <article class="thread" data-post-key="performance" data-cat="tech" data-time="1" data-hot="27" data-tags="sveltekit,性能优化" data-post-type="topic"><div class="avatar cyan profile-hover-trigger" data-profile-name="Nina" tabindex="0" role="button" aria-label="查看 Nina 的用户信息">N</div><div><div class="thread-meta"><b>Nina</b><span>· 昨天</span></div><a class="thread-detail-link" href="#topic:performance" data-post-detail="performance" aria-label="查看帖子：分享一个简洁的 SvelteKit 页面性能优化方案"><h2>分享一个简洁的 SvelteKit 页面性能优化方案</h2><p>从路由级代码分割、图片策略到数据预加载，整理了日常项目中最有效的几个优化点。</p></a><div class="thread-footer"><span>技术交流</span><button class="act-like" onclick="like(this,27)"><svg class="ic ic-15"><use href="#i-heart"></use></svg>27</button><a class="thread-comment-link" href="#topic:performance" aria-label="查看帖子回复：分享一个简洁的 SvelteKit 页面性能优化方案"><svg class="ic ic-15"><use href="#i-comment"></use></svg>12</a></div></div></article>
+</div><button class="btn ghost sm" id="load-more" onclick="loadMore()" style="margin:4px auto 0;display:flex">加载更多</button>
+<div class="end" id="home-end" hidden="">— 已经到底了 —</div>
+</section>
+
+      <aside class="right-rail"><section class="recommend"><h2>推荐内容</h2><div class="recommend-item"><span class="rank">01</span><div><a href="#topic:rules"><b>社区发布规范</b></a><small>3.2k 浏览 · 36 回复</small></div></div><div class="recommend-item"><span class="rank">02</span><div><b>新成员报到帖</b><small>1.8k 浏览 · 21 回复</small></div></div><div class="recommend-item"><span class="rank">03</span><div><b>开源项目协作指南</b><small>988 浏览 · 15 回复</small></div></div><button class="refresh" onclick="shuffleDiscover()"><svg class="ic ic-14"><use href="#i-refresh"></use></svg>换一批</button></section><section class="qr"><div class="fake-qr"></div><div><b>扫一扫访问移动端</b><span>BBLBB Community</span></div></section><footer>© 2026<br>Powered By BBLBB Community</footer></aside>
+
+</section>
+</main>
+</body>
+</html>

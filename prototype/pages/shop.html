@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="BBLBB 社区原型 · 商城与积分">
+<meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>商城与积分 · BBLBB 社区</title>
+  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/prototype-app.css">
+<link rel="stylesheet" href="../assets/prototype-workflows.css">
+<link rel="stylesheet" href="../assets/chinese-elegance.css">
+</head>
+<body data-standalone="1">
+<!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
+<script src="../assets/page-chrome.js"></script>
+<main class="layout" id="main" tabindex="-1">
+<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
+<section class="page app-page app-route-shop" id="page-shop">
+<div class="app-route-head"><div class="app-route-head__copy"><span class="app-kicker">STYLE LAB / SHOP</span><h1 tabindex="-1">商城与积分</h1><p>装扮身份、购买权益与余额流水</p></div><div class="app-route-head__actions"><button type="button" class="btn ghost" data-go-billing="">查看账单</button></div></div><div class="app-account-cards"><div class="app-account-card"><small>经验</small><strong>2680</strong><span>成长等级 · Lv.3</span></div><div class="app-account-card"><small>B币余额</small><strong data-shop-balance="">328</strong><span>可用于购买装扮与解锁</span></div><div class="app-account-card"><small>贡献</small><strong>146</strong><span>距离下一称号还有 15</span></div></div><div class="app-notice" style="margin-top:14px">商城扣款仅为原型演示；正式环境必须由原子订单、幂等键、Outbox 和不可变账本保证一致性。</div><div class="app-article-grid" style="margin-top:14px"><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">头像框</span><h3>头像框·星河</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>30 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="30" data-buy-name="头像框·星河">购买</button></div></article><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">昵称特效</span><h3>昵称特效·流光</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>45 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="45" data-buy-name="昵称特效·流光">购买</button></div></article><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">主题皮肤</span><h3>主题皮肤·暗夜蓝</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>60 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="60" data-buy-name="主题皮肤·暗夜蓝">购买</button></div></article><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">实用道具</span><h3>置顶券</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>20 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="20" data-buy-name="置顶券">购买</button></div></article></div>
+</section>
+</main>
+</body>
+</html>
