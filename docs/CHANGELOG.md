@@ -1,3 +1,36 @@
+## v1.0.0-rc.4 — 2026-09-05（插件编写指南与文档↔代码一致性测试）
+
+> 基线 commit `d234486`（feat/prototype-pages）。rc.3 之后的增量：纯文档 +
+> 测试交付，无新增迁移（仍为 `1..63`）、无契约变化（223 operations 不变）、
+> 无运行时行为变化。
+
+### M13-PLUGIN 文档面：插件编写指南
+
+- 新增 `docs/PLUGIN-AUTHORING.md`（434 行）：v1 配置型插件编写指南——
+  manifest 字段权威参考（必填/约束/错误码对照、`supports` 语法、9 项
+  capability 与 10 项订阅事件白名单及事件源现状、危险内容模式清单）、
+  settings_schema 封闭子集与校验时机表、3 个完整可安装范例（互动感谢 /
+  积分奖励 / 多订阅枚举）、管理 API 全流程 curl（CSRF / If-Match /
+  reason / step-up）、调用摘要六标签与错误码表。
+- §0.3 如实标注实现状态：管理面（安装/设置/启停/卸载/审计）已上线，
+  事件→动作执行面待接线；范例全部基于已发射事件
+  （`reaction.created.v1` / `points.operation_completed.v1`），不使用
+  尚无事件源的白名单事件。
+- `backend/src/plugins/mod.rs` 新增 `authoring_guide_examples_stay_installable`
+  测试：机械提取指南全部 JSON 范例过真实校验器（manifest →
+  `parse_plugin_package`，settings → 封闭 schema + 危险内容扫描），
+  文档范例漂移即 CI 失败。
+- 索引登记：README 文档表、`docs/DOCUMENT-STATUS.md` 状态表、
+  `PLUGIN.md` 顶部指引。
+
+### 验证
+
+- `cargo test --lib plugins::` → 8 passed（含新一致性测试）
+- `cargo clippy --lib` → 0 警告
+- `make check-secrets` / `make check-docs`（lychee 未安装按规则跳过）→ 通过
+
+---
+
 ## v1.0.0-rc.3 — 2026-09-05（M17-GAPFIX 社交/经济/管理域 + M18 原型功能对齐）
 
 > 基线 commit `6e0e0a1`（feat/prototype-pages）。rc.2 之后新增 30 个契约
