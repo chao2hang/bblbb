@@ -1,0 +1,33 @@
+FROM rust:1-bookworm AS backend-build
+WORKDIR /src
+COPY backend/Cargo.toml backend/Cargo.lock ./backend/
+COPY backend ./backend
+RUN cargo build --release --locked --manifest-path backend/Cargo.toml
+
+FROM node:22-bookworm-slim AS frontend-build
+WORKDIR /src/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY frontend ./
+RUN npm run build
+
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 curl && rm -rf /var/lib/apt/lists/*
+RUN useradd --system --uid 10001 --create-home --home-dir /app bblbb
+WORKDIR /app
+COPY --from=backend-build /src/backend/target/release/bblbb-backend /app/bin/bblbb-backend
+COPY --from=backend-build /src/backend/target/release/bblbb-migrate /app/bin/bblbb-migrate
+COPY --from=frontend-build /src/frontend/build /app/frontend/build
+COPY --from=frontend-build /src/frontend/package.json /src/frontend/package-lock.json /app/frontend/
+COPY migrations /app/migrations
+COPY openapi /app/openapi
+COPY Docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod 0755 /app/entrypoint.sh /app/bin/* && chown -R bblbb:bblbb /app
+USER bblbb
+ENV BBLBB__BIND_ADDRESS=0.0.0.0:8080
+ENV BBLBB__MIGRATIONS_DIR=/app/migrations/mariadb
+ENV BBLBB__OPENAPI_PATH=/app/openapi/openapi.yaml
+ENV BBLBB__STORAGE_DIR=/app/uploads
+EXPOSE 8080 3000
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["frontend"]
