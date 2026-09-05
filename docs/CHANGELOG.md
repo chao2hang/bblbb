@@ -1,3 +1,52 @@
+## v1.0.0-rc.3 — 2026-09-05（M17-GAPFIX 社交/经济/管理域 + M18 原型功能对齐）
+
+> 基线 commit `6e0e0a1`（feat/prototype-pages）。rc.2 之后新增 30 个契约
+> operation（193 → 223），全部为兼容新增；旧客户端向后兼容
+> （`check-client-compat.rb` frozen=193 / current=223 全绿）。迁移 `1..63`，
+> 其中 0060-0063 为纯增量（建表 / 加列 / 插入种子），可逆。
+
+### M17-GAPFIX 社交、经济与管理域
+
+- 社交域：关注（用户/板块）、帖子收藏、双向私信（参与者门 + 已读状态）、
+  成就目录 / 本人视图 / 徽章装备（3 槽上限）、个人 API 密钥（SHA-256 存储、
+  明文仅创建时返回一次、scopes 白名单）；迁移 `0060_social`。
+- 管理域（documented non-contract，`OPERATIONS.md §19.8`）：站点统计 / BI
+  指标 / 审计读取 / 系统设置（If-Match）/ 帖子管理动作 / 通知广播与召回 /
+  角色分配 / 成就管理 / 积分流水与调整 / 等级规则 / 附件管理 / 下载交易 /
+  标签合并；迁移 `0061_admin_ext`。
+- 经济与个人域：本人积分流水 / 处罚记录 / OAuth 授权管理（撤销）、修改密码
+  （吊销其他 Session）、付费内容解锁（同事务扣款 + grant + 通知）、
+  `GET /api/v1/stats` 公开站点统计；迁移 `0062_economy_ext`、
+  `0063_admin_settings_public_source`。
+- 契约与覆盖：OpenAPI 172 paths / **223 operations 全实现**；覆盖登记
+  `not_started` 清零（194 verified + 29 implemented，
+  `todo/OPENAPI-COVERAGE.md`）。
+
+### M18 原型功能对齐
+
+- 前端补齐全站页面：发现 / 私信 / 收藏 / 成就 / API 密钥 / MFA / 标签聚合 /
+  市场与结账 / 账单 / 管理后台（BI、成就、审计、广播、角色等 29 页），
+  共 69 个页面路由；`reports/mobile-compare/REPORT.md`（原型 58 路由全覆盖，
+  两侧 0 横向溢出，14 批次视觉比对）。
+- 板块 `sort=featured|unanswered` 与作者/标题筛选、首页 `sort=following` 与
+  帖子卡点赞数、`GET /api/v1/tags/{slug}/posts` 标签聚合。
+- 修复 icons allowlist 缺失的 `rotate-cw` / `shopping-cart`（静默渲染空白）。
+
+### 小程序端（首次入库）
+
+- 微信小程序客户端 `miniprogram/`：认证（含 MFA）、板块/帖子/评论/搜索、
+  发帖/编辑/收藏/点赞、签到、成就、商城与装扮、设备会话管理；复用会话
+  Cookie + CSRF 机制。
+
+### 文档与部署
+
+- `API.md §21` 社交/经济/个人域端点规范；`PERMISSION-MATRIX.md` 社交与个人域
+  动作表（附录使用数 183 → 223 operation）；`ARCHITECTURE.md §3.5` OAuth
+  登录与市场交易的前后端分工边界；`OPERATIONS.md §20` 从零部署 Runbook；
+  README 状态刷新（223 ops / 102 工作包 / 819 叶子任务）。
+
+---
+
 ## v1.0.0-rc.2 — 2026-08-08（M17 RC 冻结 / 预发布 / 冒烟 / Flag 记录）
 
 ### RC 冻结（M17-FREEZE）
