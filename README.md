@@ -73,6 +73,7 @@ Caddy
 | [`PROTOTYPE-IA.md`](docs/PROTOTYPE-IA.md) | 原型信息架构、路由与页面流程 |
 | [`PROTOTYPE-UI.md`](docs/PROTOTYPE-UI.md) | 设计 Token 与组件系统规格 |
 | [`PLUGIN.md`](docs/PLUGIN.md) | 配置型插件与未来 WASM 边界 |
+| [`PLUGIN-AUTHORING.md`](docs/PLUGIN-AUTHORING.md) | 插件编写指南与可安装范例 |
 | [`JOBS.md`](docs/JOBS.md) | 后台任务、Outbox 与重试 |
 | [`STORAGE.md`](docs/STORAGE.md) | 本地/S3 附件和媒体处理 |
 | [`OPERATIONS.md`](docs/OPERATIONS.md) | 部署、升级、备份与恢复 |

@@ -1459,4 +1459,50 @@ mod tests {
             &["ok", "error", "timeout", "repeat", "stale", "skipped"]
         );
     }
+
+    #[test]
+    fn authoring_guide_examples_stay_installable() {
+        // docs/PLUGIN-AUTHORING.md 的范例与校验器机械同步：指南中每个
+        // manifest 范例必须通过 parse_plugin_package，每个 settings 范例
+        // 必须通过封闭 schema 校验（含危险内容扫描）。范例漂移时本测试
+        // 失败，防止文档与实现脱节。
+        let guide = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../docs/PLUGIN-AUTHORING.md"),
+        )
+        .expect("docs/PLUGIN-AUTHORING.md must exist next to backend/");
+        let mut manifests = 0usize;
+        let mut settings_examples = 0usize;
+        let mut last_schema: Option<Value> = None;
+        for block in guide.split("```json").skip(1) {
+            let body = block.split("```").next().unwrap_or("");
+            let value: Value = serde_json::from_str(body)
+                .unwrap_or_else(|e| panic!("guide ```json block is not valid JSON: {e}"));
+            if value.get("schema_version").is_some() {
+                // manifest 范例：完整安装校验。
+                let parsed = parse_plugin_package(&value)
+                    .unwrap_or_else(|e| panic!("guide manifest example rejected: {e}"));
+                last_schema = Some(parsed.settings_schema);
+                manifests += 1;
+            } else if value.get("on").is_some() {
+                // §7.1 的 rules/ 声明式规则是规划中的格式，不参与 v1 校验。
+                continue;
+            } else if let Some(schema) = last_schema.as_ref() {
+                // settings 范例：按紧邻其前的 manifest schema 校验。
+                validate_settings_against_schema(&value, schema)
+                    .unwrap_or_else(|e| panic!("guide settings example rejected: {e}"));
+                settings_examples += 1;
+            } else {
+                panic!("guide ```json block is neither manifest, rules nor settings: {body}");
+            }
+        }
+        assert!(
+            manifests >= 4,
+            "authoring guide must keep at least 4 manifest examples (found {manifests})"
+        );
+        assert!(
+            settings_examples >= 3,
+            "authoring guide must keep at least 3 settings examples (found {settings_examples})"
+        );
+    }
 }

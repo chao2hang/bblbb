@@ -30,6 +30,7 @@
 | `SEARCH.md` | Frozen candidate | 后端/搜索 | 搜索索引存储契约：文档模型、source/policy revision、跨库 FTS 策略 |
 | `THEME.md` | Implementation | 主题/前端/安全 | 数据型主题封闭 Token schema、fallback、revision 一致性与管理 API（M13-THEME 已实现，0057_theme.sql） |
 | `PLUGIN.md` | Implementation | 插件/安全 | v1 配置型插件 capability 白名单、无在线代码执行路径、调用摘要审计（M13-PLUGIN 已实现） |
+| `PLUGIN-AUTHORING.md` | Implementation guide | 插件 | 插件编写教程：manifest/settings schema 子集、可安装范例与 API 全流程（管理面；执行面待接线） |
 | `PROTOTYPE-IA.md` / `PROTOTYPE-UI.md` | Reference | 产品/前端 | 原型路由、流程和视觉规范，不替代 API |
 | `deploy/RELEASE-BUNDLE.md` | Implementation | 运维/发布 | release bundle 布局、版本固定、最小权限（M15-PACKAGE，2026-08-08 交付） |
 | `deploy/monitoring/metrics.md` / `alerts.md` | Implementation | 运维 | 指标目录与告警定义（M15-OBSERVE，2026-08-08 交付） |
