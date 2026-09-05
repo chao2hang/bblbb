@@ -35,13 +35,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/me" class="breadcrumb-link">我的</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">Marketplace 购买记录</span>
-  </nav>
 
   {#if error}
     <p class="input-hint is-error" role="alert">{error}</p>

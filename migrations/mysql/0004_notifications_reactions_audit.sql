@@ -1,9 +1,14 @@
 -- BBLBB notifications and reactions migration (MySQL)
 
 -- 通知表
+-- FK 列与 users.id/posts.id/comments.id 对齐（CHAR(36) ascii），
+-- 混用 VARCHAR(36) utf8mb4 会导致 MySQL 错误 3780（FK 类型/字符集不兼容）。
+-- 注：不得使用 *_bin 排序规则（ascii_bin/utf8mb4_bin）——MySQL/MariaDB 会在
+-- 协议层给 bin 排序规则的列打 BINARY 标志，sqlx 0.8 将其判为 BINARY/VARBINARY
+-- 导致 String 解码失败；统一改用 ascii_general_ci（应用层已小写规范化）
 CREATE TABLE notifications (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     type VARCHAR(20) NOT NULL DEFAULT 'system',
     title VARCHAR(200) NOT NULL,
     body TEXT,
@@ -20,8 +25,8 @@ CREATE INDEX notifications_user_unread_idx ON notifications (user_id, is_read);
 
 -- 帖子反应表
 CREATE TABLE post_reactions (
-    post_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     reaction VARCHAR(20) NOT NULL DEFAULT 'like',
     created_at BIGINT NOT NULL,
     PRIMARY KEY (post_id, user_id, reaction),
@@ -34,8 +39,8 @@ CREATE INDEX post_reactions_user_idx ON post_reactions (user_id);
 
 -- 评论反应表
 CREATE TABLE comment_reactions (
-    comment_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    comment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     reaction VARCHAR(20) NOT NULL DEFAULT 'like',
     created_at BIGINT NOT NULL,
     PRIMARY KEY (comment_id, user_id, reaction),

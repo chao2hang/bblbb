@@ -9,7 +9,7 @@
 --    board-scoped assignments live in M03-SCHEMA-04 board_role_assignments).
 
 CREATE TABLE roles (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
     name VARCHAR(64) NOT NULL UNIQUE,
     display_name VARCHAR(100) NOT NULL,
     description VARCHAR(500) NULL,
@@ -19,7 +19,7 @@ CREATE TABLE roles (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE permissions (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description VARCHAR(500) NULL,
     risk_level VARCHAR(16) NOT NULL DEFAULT 'normal',
@@ -29,17 +29,17 @@ CREATE TABLE permissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE role_permissions (
-    role_id VARCHAR(36) NOT NULL,
-    permission_id VARCHAR(36) NOT NULL,
+    role_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    permission_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     PRIMARY KEY (role_id, permission_id),
     FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE,
     FOREIGN KEY (permission_id) REFERENCES permissions (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE user_roles (
-    user_id VARCHAR(36) NOT NULL,
-    role_id VARCHAR(36) NOT NULL,
-    granted_by VARCHAR(36) NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    role_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    granted_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     granted_at BIGINT NOT NULL,
     expires_at BIGINT NULL,
     PRIMARY KEY (user_id, role_id),

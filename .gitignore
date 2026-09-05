@@ -59,3 +59,19 @@ node_modules/
 # Watcher state
 /scripts/.todo-snapshot.md5
 /scripts/todo-watch.log
+
+# 原型本地运行产物（serve.mjs / check-prototype 复跑再生）
+/prototype/.serve.pid
+/prototype/.verify/
+
+# mobile-compare 原始截图（REPORT.md / report.json 入库；截图由
+# frontend/tests/visual/mobile-compare.mjs 复跑再生）
+/reports/mobile-compare/proto/
+/reports/mobile-compare/app/
+/reports/mobile-compare/admin-app/
+/reports/mobile-compare/admin-proto/
+/reports/mobile-compare/verify/
+
+# 视觉抓取脚本的输出截图（admin-shots.mjs 覆盖式写出，可复跑再生）
+/frontend/tests/visual/shots/
+/frontend/tests/visual/shots-dark/

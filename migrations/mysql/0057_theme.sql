@@ -8,6 +8,9 @@
 -- plugin_call_metrics：插件调用摘要（ok/error/timeout/repeat/stale/skipped +
 --   policy_revision），异步记录，不阻塞核心论坛。
 -- plugin_data：插件自身命名空间数据（配额由服务层校验）。
+-- 注意：TEXT 列的字面量默认值在 MySQL 8 不合法，须用括号表达式
+-- `DEFAULT ('{}')`（MySQL 8.0.13+/MariaDB 10.2.1+ 支持，语义与 SQLite 一致）；
+-- `key` 为保留字，DDL 与查询中反引号转义（SQLite 同样接受反引号）。
 
 CREATE TABLE themes (
     name VARCHAR(64) PRIMARY KEY NOT NULL,
@@ -56,7 +59,7 @@ CREATE TABLE plugins (
     capabilities_json TEXT NOT NULL,
     subscriptions_json TEXT NOT NULL,
     settings_schema_json TEXT NOT NULL,
-    settings_json TEXT NOT NULL DEFAULT '{}',
+    settings_json TEXT NOT NULL DEFAULT ('{}'),
     policy_revision BIGINT NOT NULL DEFAULT 1,
     created_by VARCHAR(36) NOT NULL,
     created_at BIGINT NOT NULL,
@@ -85,9 +88,9 @@ CREATE INDEX plugin_call_metrics_plugin_idx ON plugin_call_metrics (plugin_id, o
 
 CREATE TABLE plugin_data (
     plugin_id VARCHAR(64) NOT NULL,
-    key VARCHAR(128) NOT NULL,
+    `key` VARCHAR(128) NOT NULL,
     value_json TEXT NOT NULL,
     updated_at BIGINT NOT NULL,
-    PRIMARY KEY (plugin_id, key),
+    PRIMARY KEY (plugin_id, `key`),
     CONSTRAINT plugin_data_plugin_fk FOREIGN KEY (plugin_id) REFERENCES plugins (plugin_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

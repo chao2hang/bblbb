@@ -16,6 +16,7 @@
 //!   分别对两个数据库运行，见 .github/workflows/ci.yml）。
 
 use std::path::{Path, PathBuf};
+mod common;
 
 use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
@@ -530,23 +531,24 @@ async fn sqlite_schema_fixture() {
     cleanup(&dir);
 }
 
+/// MySQL 8 / MariaDB 10.11：CI mysql-family 矩阵 --ignored 运行。
+///
+/// 原本拆成 mysql_/mariadb_ 两个测试硬编码各自目录，但两者共用同一个
+/// BBLBB_TEST_MYSQL_URL 数据库且并行运行，固定种子名（fix_user 等）必然
+/// 撞唯一键；且迁移目录本应按实际引擎选择（见
+/// `common::mysql_family_migrations_dir`）。合并为单一测试：每个 matrix
+/// 条目（MySQL/MariaDB）各自跑一遍。
 #[tokio::test]
 #[ignore = "需要 BBLBB_TEST_MYSQL_URL（CI mysql-family 任务，--ignored 运行）"]
-async fn mysql_schema_fixture() {
+async fn mysql_family_schema_fixture() {
     let url = std::env::var("BBLBB_TEST_MYSQL_URL").expect("BBLBB_TEST_MYSQL_URL 未设置");
     let pool = create_pool(&url).await.unwrap();
-    let files = read_migration_files(&migrations_dir("mysql")).unwrap();
-    run_migrations(&pool, &files).await.unwrap();
-    schema_fixture_flow(&pool).await;
-    close_pool(&pool).await;
-}
-
-#[tokio::test]
-#[ignore = "需要 BBLBB_TEST_MYSQL_URL（CI mysql-family 任务，--ignored 运行）"]
-async fn mariadb_schema_fixture() {
-    let url = std::env::var("BBLBB_TEST_MYSQL_URL").expect("BBLBB_TEST_MYSQL_URL 未设置");
-    let pool = create_pool(&url).await.unwrap();
-    let files = read_migration_files(&migrations_dir("mariadb")).unwrap();
+    // 目录按实际引擎探测（MySQL→mysql，MariaDB→mariadb）：两套迁移的
+    // 排序规则语法不同（0900_as_cs 仅 MySQL 8 支持）
+    let files = read_migration_files(&migrations_dir(
+        common::mysql_family_migrations_dir(&pool).await,
+    ))
+    .unwrap();
     run_migrations(&pool, &files).await.unwrap();
     schema_fixture_flow(&pool).await;
     close_pool(&pool).await;

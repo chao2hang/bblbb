@@ -12,6 +12,7 @@
 //! `schema_fixture` 三库 Fixture（`BBLBB_TEST_MYSQL_URL` + `--ignored`）覆盖。
 
 use std::path::{Path, PathBuf};
+mod common;
 
 use bblbb_backend::db::migrate::{read_migration_files, run_migrations};
 use bblbb_backend::db::pool::create_pool;
@@ -294,7 +295,12 @@ async fn rebuild_command_is_idempotent_and_consistent() {
 async fn mysql_fulltext_index_matches_and_token_limits() {
     let url = std::env::var("BBLBB_TEST_MYSQL_URL").expect("BBLBB_TEST_MYSQL_URL 未设置");
     let pool = create_pool(&url).await.unwrap();
-    let files = read_migration_files(&migrations_dir("mysql")).unwrap();
+    // 目录按实际引擎探测（MySQL→mysql，MariaDB→mariadb）：两套迁移的
+    // 排序规则语法不同（0900_as_cs 仅 MySQL 8 支持）
+    let files = read_migration_files(&migrations_dir(
+        common::mysql_family_migrations_dir(&pool).await,
+    ))
+    .unwrap();
     run_migrations(&pool, &files).await.unwrap();
     let now = now_millis();
 

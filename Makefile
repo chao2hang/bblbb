@@ -45,6 +45,7 @@ help: ## 显示此帮助信息
 	@printf "  make build          # 构建后端和前端\n"
 	@printf "  make migrate        # 应用 SQLite 迁移\n"
 	@printf "  make dev            # 启动前端开发服务器\n"
+	@printf "  make dev-prototype  # 启动原型静态端口（8765）\n"
 	@printf "  make clean          # 清理构建产物\n"
 	@printf "  make install        # 安装前端/原型依赖\n"
 	@printf "\n"
@@ -57,6 +58,10 @@ dev: ## 启动前端开发服务器（后端需单独运行）
 dev-backend: ## 启动后端开发服务器
 	@printf "$(YELLOW)>>> 启动后端开发服务器...$(RESET)\n"
 	@cd $(BACKEND_DIR) && $(CARGO) run
+
+dev-prototype: ## 启动原型静态端口（默认 127.0.0.1:8765；PROTOTYPE_PORT / PROTOTYPE_HOST 可覆盖）
+	@printf "$(YELLOW)>>> 启动原型静态端口...$(RESET)\n"
+	@cd $(PROTOTYPE_DIR) && PROTOTYPE_PORT=$${PROTOTYPE_PORT:-8765} PROTOTYPE_HOST=$${PROTOTYPE_HOST:-127.0.0.1} node serve.mjs
 
 ##@ 检查
 check: check-backend check-migrations check-frontend check-prototype check-openapi check-contract check-roadmap check-docs check-secrets ## 运行全部检查
@@ -92,10 +97,15 @@ check-frontend: ## 前端 Svelte check + TypeScript 类型检查 + HTML sink 静
 	@printf "$(GREEN)>>> [check-html-sinks] 前端 HTML sink 静态检查（M04-MARKDOWN-08）$(RESET)\n"
 	@ruby $(PROJECT_ROOT)/scripts/check-html-sinks.rb
 
-check-prototype: ## 原型 render + interaction 检查
+check-prototype: ## 原型 hash SPA 验收（serve.mjs 起服务 + verify.mjs Playwright 全量检查）
 	@printf "$(GREEN)>>> [check-prototype] 原型渲染 + 交互检查$(RESET)\n"
-	@cd $(PROTOTYPE_DIR) && ([ -d node_modules ] || npm ci --silent)
-	@cd $(PROTOTYPE_DIR) && npm run check:all
+	@cd $(PROTOTYPE_DIR) && (node serve.mjs >/dev/null 2>&1 & echo $$! > .serve.pid); \
+	  trap 'kill $$(cat $(PROTOTYPE_DIR)/.serve.pid) 2>/dev/null' EXIT; \
+	  ok=0; for i in 1 2 3 4 5 6 7 8 9 10; do \
+	    curl -sf --max-time 2 http://127.0.0.1:8765/index.html >/dev/null && ok=1 && break; sleep 0.5; \
+	  done; \
+	  test $$ok = 1 || { echo "原型服务器启动失败（端口 8765）"; exit 1; }; \
+	  cd $(PROTOTYPE_DIR) && node verify.mjs
 
 check-openapi: ## OpenAPI YAML 解析 + operationId 唯一性检查
 	@printf "$(GREEN)>>> [check-openapi] OpenAPI 契约校验$(RESET)\n"

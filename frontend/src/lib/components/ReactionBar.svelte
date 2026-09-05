@@ -136,24 +136,32 @@
   .reaction-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border: 1px solid var(--color-border, #d0d7de);
-    border-radius: 999px;
-    background: var(--color-surface, #fff);
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--color-text-secondary);
     cursor: pointer;
-    font-size: var(--text-sm, 14px);
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  .reaction-btn:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
   }
   .reaction-btn.is-active {
-    border-color: var(--color-primary, #0969da);
-    background: color-mix(in srgb, var(--color-primary, #0969da) 10%, #fff);
+    border-color: var(--color-brand);
+    color: var(--color-brand);
+    background: var(--color-brand-soft);
   }
   .reaction-count {
     font-variant-numeric: tabular-nums;
-    color: var(--color-text-secondary, #57606a);
+    color: inherit;
   }
   .reaction-btn:focus-visible {
-    outline: 2px solid var(--color-primary, #0969da);
-    outline-offset: 1px;
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
   }
 </style>

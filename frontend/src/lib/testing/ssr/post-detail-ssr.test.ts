@@ -29,6 +29,9 @@ const publicPost: PostDetailPageData = {
     updated_at: 0,
     body_html: '<p>这是公开正文，仅来自后端 body_html。</p>'
   },
+  // GAP-FIX 内容消费增强：侧栏卡片字段（fixture 缺省 = 服务端降级态）。
+  author: null,
+  board: null,
   authed: false,
   error: null
 };
@@ -49,6 +52,8 @@ const restrictedData: PostDetailPageData = {
     // 对抗性：即使数据对象混入隐藏正文，页面也不得渲染（unlocked=false）。
     body_html: '<p>RESTRICTED-BODY-CANARY 隐藏正文</p>'
   },
+  author: null,
+  board: null,
   authed: false,
   error: null
 };
@@ -69,6 +74,8 @@ const lockedData: PostDetailPageData = {
     closed_at: 1700000000000,
     body_html: '<p>正文可读但已锁帖。</p>'
   },
+  author: null,
+  board: null,
   authed: true,
   error: null
 };
@@ -133,6 +140,8 @@ describe('M04-UI-07 可见性可访问占位：hidden/after_reply/level/paid 不
           // 对抗性：即使投影层漏放正文，页面也不得渲染（双重防线）。
           body_html: `<p>UI-07-${c.policy.toUpperCase()}-CANARY-隐藏正文</p>`
         },
+        author: null,
+        board: null,
         authed: false,
         error: null
       };

@@ -112,10 +112,24 @@ impl RateLimiter {
 
 /// 从请求头提取客户端 IP（M02-IDENTITY-06）。
 ///
-/// 只信任反向代理（Caddy）注入的 `x-real-ip` / `x-forwarded-for` 首跳；
-/// 均缺失时回退为 `"unknown"`（所有未知来源共享同一桶，天然限流）。
-/// 生产按 docs/SECURITY.md §16：代理注入必须来自 loopback/可信代理。
+/// 信任规则（防伪造，SECURITY.md §16）：
+/// - `x-forwarded-for` **末跳**（最右侧条目）优先：该值由最近的反向代理
+///   （Caddy）追加/覆盖，客户端无法伪造——首跳是客户端可自报的值，不可信；
+/// - 无 XFF 时回退 `x-real-ip`（仅当部署层代理显式覆盖该头时可信，见
+///   `deploy/Caddyfile.template` 的 `header_up X-Real-IP {remote_host}`）；
+/// - 均缺失时回退为 `"unknown"`（所有未知来源共享同一桶，天然限流）。
 pub fn client_ip(headers: &HeaderMap) -> String {
+    if let Some(fwd) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        // 末跳 = 最近一跳代理观测到的来源 IP；伪造者只能把自己插到更左侧
+        if let Some(last) = fwd
+            .split(',')
+            .next_back()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return last.to_owned();
+        }
+    }
     if let Some(real) = headers
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
@@ -123,16 +137,6 @@ pub fn client_ip(headers: &HeaderMap) -> String {
         .filter(|s| !s.is_empty())
     {
         return real.to_owned();
-    }
-    if let Some(fwd) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        if let Some(first) = fwd
-            .split(',')
-            .next()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-        {
-            return first.to_owned();
-        }
     }
     "unknown".to_owned()
 }
@@ -203,28 +207,42 @@ mod tests {
     }
 
     #[test]
-    fn client_ip_trusts_real_ip_then_forwarded_for() {
+    fn client_ip_prefers_forwarded_for_last_hop() {
         let mut headers = HeaderMap::new();
         assert_eq!(client_ip(&headers), "unknown");
 
+        // 无 XFF 时回退 x-real-ip
         headers.insert("x-real-ip", HeaderValue::from_static("203.0.113.9"));
         assert_eq!(client_ip(&headers), "203.0.113.9");
 
+        // XFF 存在 → 末跳优先（代理追加值），客户端伪造的首跳被忽略
         headers.insert(
             "x-forwarded-for",
             HeaderValue::from_static("198.51.100.7, 10.0.0.1"),
         );
-        // x-real-ip 优先
-        assert_eq!(client_ip(&headers), "203.0.113.9");
+        assert_eq!(client_ip(&headers), "10.0.0.1");
     }
 
     #[test]
-    fn client_ip_falls_back_to_forwarded_for_first_hop() {
+    fn client_ip_ignores_client_forged_first_hop() {
+        // 伪造者在 XFF 首位自报任意 IP：末跳（真实来源）必须胜出
         let mut headers = HeaderMap::new();
         headers.insert(
             "x-forwarded-for",
-            HeaderValue::from_static("198.51.100.7, 10.0.0.1, 10.0.0.2"),
+            HeaderValue::from_static("1.2.3.4, 198.51.100.7, 10.0.0.2"),
         );
+        assert_eq!(client_ip(&headers), "10.0.0.2");
+    }
+
+    #[test]
+    fn client_ip_single_hop_forwarded_for() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", HeaderValue::from_static("198.51.100.7"));
         assert_eq!(client_ip(&headers), "198.51.100.7");
+
+        // 空白/逗号条目回退 unknown
+        let mut empty = HeaderMap::new();
+        empty.insert("x-forwarded-for", HeaderValue::from_static("  , "));
+        assert_eq!(client_ip(&empty), "unknown");
     }
 }

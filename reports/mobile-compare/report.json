@@ -1,0 +1,5684 @@
+{
+  "generatedAt": "2026-09-04T04:35:30.308Z",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "pages": [
+    {
+      "slug": "home",
+      "note": "首页信息流",
+      "proto": {
+        "url": "#home",
+        "error": null,
+        "title": "首页 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "a:#design «打开原型界面标准文档»",
+          "a:#search «搜索帖子、用户或标签»",
+          "button «成员 128»",
+          "button «内容 56»",
+          "button «分享»",
+          "button «全部»",
+          "button «默认分类»",
+          "button «全部分类»",
+          "button «所有»",
+          "button «精华»",
+          "button «已关注»",
+          "button «最新»",
+          "button «发布内容»",
+          "div «查看 Lin 的用户信息»",
+          "a:#topic:welcome «查看帖子：欢迎来到 BBLBB 社区»",
+          "button «18»",
+          "a:#topic:welcome «查看帖子回复：欢迎来到 BBLBB 社区»",
+          "div «查看 Mark 的用户信息»",
+          "a:#topic:product-update «查看帖子：本周产品更新：主题与通知中心»",
+          "button «9»",
+          "a:#topic:product-update «查看帖子回复：本周产品更新：主题与通知中心»",
+          "div «查看 Nina 的用户信息»",
+          "a:#topic:performance «查看帖子：分享一个简洁的 SvelteKit 页面性能优化方案»",
+          "button «27»",
+          "a:#topic:performance «查看帖子回复：分享一个简洁的 SvelteKit 页面性能优化方案»",
+          "button «加载更多»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/",
+        "error": null,
+        "title": "社区论坛 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «打开社区规范»",
+          "a:/search «搜索帖子、用户或标签»",
+          "button «成员 6»",
+          "button «内容 1»",
+          "button «分享»",
+          "button «全部»",
+          "button «默认分类»",
+          "button «全部分类»",
+          "a:/ «所有»",
+          "a:/?sort=featured «精华»",
+          "a:/?sort=popular «热门»",
+          "a:/editor «发布内容»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «E2E 讨论：你最喜欢的 Rust 特性？»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «查看回复»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "discover",
+      "note": "发现/推荐",
+      "proto": {
+        "url": "#discover",
+        "error": null,
+        "title": "发现 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «热门»",
+          "button «最新»",
+          "button «精华»",
+          "button «发布»",
+          "div «查看 Lin 的用户信息»",
+          "a:#thread:build-tools «查看帖子：2026 前端构建工具选型回顾»",
+          "button «64»",
+          "a:#thread «查看帖子回复：2026 前端构建工具选型回顾»",
+          "div «查看 Ken 的用户信息»",
+          "a:#thread:rust-cli «查看帖子：用 Rust 重写内部 CLI 后，CI 时间缩短了 60%»",
+          "button «41»",
+          "a:#thread «查看帖子回复：用 Rust 重写内部 CLI 后，CI 时间缩短了 60»",
+          "div «查看 Sara 的用户信息»",
+          "a:#thread:design-system «查看帖子：小团队如何落地一套轻量设计系统»",
+          "button «33»",
+          "a:#thread «查看帖子回复：小团队如何落地一套轻量设计系统»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/discover",
+        "error": null,
+        "title": "发现 · BBLBB 社区 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «热门»",
+          "button «最新»",
+          "button «精华»",
+          "a:/editor «发布»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «E2E 讨论：你最喜欢的 Rust 特性？»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «查看回复»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "articles",
+      "note": "内容列表",
+      "proto": {
+        "url": "#articles",
+        "error": null,
+        "title": "内容 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "input «搜索文章标题或摘要»",
+          "select «筛选文章板块»",
+          "button «重置»",
+          "button «发布内容»",
+          "a:#topic:101 «内容Rust 小机器上的 SQLite 并发实践在资源受限的小型服务器上»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#topic:102 «内容自建 OIDC Provider 的最小集从 discovery、J»",
+          "span «查看 Yuwen 的用户信息»",
+          "a:#topic:103 «内容Markdown 渲染沙箱与 CSP 实战论坛型站点的 XSS 风险»",
+          "span «查看 Mark 的用户信息»",
+          "a:#topic:104 «内容SQLite 在 512MB 小机器上的取舍WAL、连接池和 che»",
+          "span «查看 Alice 的用户信息»",
+          "a:#topic:201 «内容使用 SvelteKit 构建博客与轻量论坛是否合理？这个月用 Sv»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#topic:202 «内容OAuth Provider 应该自研到什么程度？社区小到一定规模就»",
+          "span «查看 Alice 的用户信息»",
+          "a:#topic:rules «内容社区发布规范（v1.0）1. 内容对版：技术内容请发到对应板块，跨板»",
+          "span «查看 Yuwen 的用户信息»",
+          "a:#topic:welcome «内容欢迎来到 BBLBB 社区这是一个以技术交流、产品共创和高质量讨论为»",
+          "span «查看 Lin 的用户信息»",
+          "a:#topic:product-update «内容本周产品更新：主题与通知中心我们刚完成主题切换和通知中心的第一版，欢»",
+          "span «查看 Mark 的用户信息»",
+          "a:#topic:performance «内容分享一个简洁的 SvelteKit 页面性能优化方案从路由级代码分割»",
+          "span «查看 Nina 的用户信息»",
+          "a:#topic:build-tools «内容2026 前端构建工具选型回顾从 Vite、Rolldown 到 R»",
+          "span «查看 Lin 的用户信息»",
+          "a:#topic:rust-cli «内容用 Rust 重写内部 CLI 后，CI 时间缩短了 60%记录一次»",
+          "span «查看 Ken 的用户信息»",
+          "a:#topic:rust-async «内容Rust 异步运行时选型：tokio、smol 还是 async-s»",
+          "span «查看 Nina 的用户信息»",
+          "a:#topic:rust-ffi «内容Rust FFI 与 Python 服务共存的边界怎么划？迁移到一半»",
+          "span «查看 Ken 的用户信息»",
+          "a:#topic:design-system «内容小团队如何落地一套轻量设计系统从色板、间距到组件文档，一个两人小推的»",
+          "span «查看 Sara 的用户信息»",
+          "a:#topic:load-wasm «内容Wasm 边缘计算实践：把过滤器跑进 CDN用 Wasm 把内容过滤»",
+          "span «查看 Ken 的用户信息»",
+          "a:#topic:load-notif «内容通知偏好设置的可用性走查把通知选项按打扰强度重新分组。SSara ·»",
+          "span «查看 Sara 的用户信息»",
+          "a:#topic:load-design «内容你删除过自己最满意的设计吗？有些方案当时觉得完美，半年后回头看全是问»",
+          "span «查看 Zoe 的用户信息»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/articles",
+        "error": null,
+        "title": "内容 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/editor «发布内容»",
+          "input «搜索内容标题»",
+          "select «筛选内容板块»",
+          "button «搜索»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «E2E 讨论：你最喜欢的 Rust 特性？ a alice 1 阅读»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "boards",
+      "note": "板块列表",
+      "proto": {
+        "url": "#boards",
+        "error": null,
+        "title": "板块 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «发布讨论»",
+          "a:#board:tech-essay «技术随笔深入记录工程实践、性能优化与架构取舍。86 个主题14 今日»",
+          "a:#board:rust «RustRust 工程、异步运行时与生态实践。64 个主题9 今日»",
+          "a:#board:web-dev «Web 开发SvelteKit、前端体验与全栈交付。52 个主题8 今日»",
+          "a:#board:opensource «开源项目项目协作、维护与社区治理。38 个主题5 今日»",
+          "a:#board:chat «闲聊技术之外，聊聊正在发生的事。27 个主题4 今日»",
+          "a:#board:meta «站务社区公告、反馈与使用指南。18 个主题2 今日»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/boards",
+        "error": null,
+        "title": "板块 · BBLBB 社区 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/editor «发布讨论»",
+          "a:/boards/general «综合讨论 自由讨论各类话题 1 个主题»",
+          "a:/boards/tech «技术分享 技术文章、教程与讨论 1 个主题»",
+          "a:/boards/creative «创意工坊 原创内容与创作交流 0 个主题»",
+          "a:/boards/help «求助问答 提问与解答 0 个主题»",
+          "a:/boards/news «资讯动态 行业新闻与动态 0 个主题»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "board",
+      "note": "板块详情",
+      "proto": {
+        "url": "#board:general",
+        "error": null,
+        "title": "板块 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «最新»",
+          "button «热门»",
+          "button «精华»",
+          "button «未回复»",
+          "button «关注板块»",
+          "button «发布内容»",
+          "input «筛选板块帖子»",
+          "button «清除»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#topic:101 «Rust 小机器上的 SQLite 并发实践在资源受限的小型服务器上跑 »",
+          "span «查看 Nina 的用户信息»",
+          "a:#topic:performance «分享一个简洁的 SvelteKit 页面性能优化方案从路由级代码分割、图»",
+          "span «查看 Alice 的用户信息»",
+          "a:#topic:104 «SQLite 在 512MB 小机器上的取舍WAL、连接池和 check»",
+          "span «查看 Lin 的用户信息»",
+          "a:#topic:build-tools «2026 前端构建工具选型回顾从 Vite、Rolldown 到 Rsp»",
+          "span «查看 Ken 的用户信息»",
+          "a:#topic:load-wasm «Wasm 边缘计算实践：把过滤器跑进 CDN用 Wasm 把内容过滤逻辑»",
+          "a:#user:Nina «Nina»",
+          "a:#tag:Rust «# Rust»",
+          "a:#tag:SvelteKit «# SvelteKit»",
+          "a:#tag:性能优化 «# 性能优化»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/boards/general",
+        "error": null,
+        "title": "综合讨论 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/boards/general?sort=latest «最新»",
+          "a:/boards/general?sort=hot «热门»",
+          "button «关注板块»",
+          "a:/editor «发布讨论»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «E2E 讨论：你最喜欢的 Rust 特性？»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "tags",
+      "note": "标签列表",
+      "proto": {
+        "url": "#tags",
+        "error": null,
+        "title": "标签 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "a:#tag:Rust «248 # Rust»",
+          "a:#tag:SvelteKit «182 # SvelteKit»",
+          "a:#tag:SQLite «146 # SQLite»",
+          "a:#tag:OAuth «121 # OAuth»",
+          "a:#tag:%E8%87%AA%E6%89%98%E7%AE%A1 «94 # 自托管»",
+          "a:#tag:%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96 «86 # 性能优化»",
+          "a:#tag:Markdown «63 # Markdown»",
+          "a:#tag:%E5%AE%89%E5%85%A8 «51 # 安全»",
+          "a:#tag:%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7 «44 # 可观测性»",
+          "a:#tag:Docker «38 # Docker»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/tags",
+        "error": null,
+        "title": "标签 · BBLBB 社区 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "tag",
+      "note": "标签详情",
+      "proto": {
+        "url": "#tag:rust",
+        "error": null,
+        "title": "标签 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "a:#topic:101 «CRust 小机器上的 SQLite 并发实践在资源受限的小型服务器上跑»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/tags/rust",
+        "error": null,
+        "title": "标签：rust — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/editor «去发布»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "topic",
+      "note": "帖子详情",
+      "proto": {
+        "url": "#topic:rust-cli",
+        "error": null,
+        "title": "用 Rust 重写内部 CLI 后，CI 时间缩短了 60% · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "code",
+              "overPx": 52,
+              "text": "const result = await api"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "a:#home «首页»",
+          "a:#board:rust «Rust»",
+          "button «复制»",
+          "button «最新»",
+          "button «最早»",
+          "button «只看作者»",
+          "span «查看 Yuwen 的用户信息»",
+          "button «赞 Yuwen 的回复»",
+          "button «回复 Yuwen»",
+          "button «引用 Yuwen 的回复»",
+          "button «举报 Yuwen 的回复»",
+          "span «查看 Mark 的用户信息»",
+          "button «赞 Mark 的回复»",
+          "button «回复 Mark»",
+          "button «引用 Mark 的回复»",
+          "button «举报 Mark 的回复»",
+          "span «查看 Nina 的用户信息»",
+          "button «赞 Nina 的回复»",
+          "button «回复 Nina»",
+          "button «引用 Nina 的回复»",
+          "button «举报 Nina 的回复»",
+          "textarea «回复内容»",
+          "button «保存草稿»",
+          "button «发表回复»",
+          "span «查看 Ken 的用户信息»",
+          "a:#user:Ken «Ken»",
+          "button «收藏»",
+          "button «赞 14»",
+          "button «分享»",
+          "button «举报»",
+          "a:#board:rust «Rust»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c",
+        "error": null,
+        "title": "E2E 讨论：你最喜欢的 Rust 特性？ — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «首页»",
+          "a:/boards/general «综合讨论»",
+          "a:/users/alice «查看 alice 的个人资料»",
+          "textarea «写下你的回复…»",
+          "button «回复»",
+          "a:/users/alice «查看 alice 的个人资料»",
+          "button «收藏»",
+          "button «点赞»",
+          "button «分享»",
+          "a:/moderation/report?post=01a06aa9-0e62-7033-bf5e-476e83fbb20c «举报»",
+          "a:/boards/general «综合讨论»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "search",
+      "note": "搜索结果",
+      "proto": {
+        "url": "#search:Rust",
+        "error": null,
+        "title": "搜索 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "input «搜索帖子、用户或标签…»",
+          "button «搜索»",
+          "a:#topic:101 «CRust 小机器上的 SQLite 并发实践在资源受限的小型服务器上跑»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/search?q=Rust",
+        "error": null,
+        "title": "搜索「Rust」 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "input «搜索帖子»",
+          "button «搜索»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "login",
+      "note": "登录",
+      "proto": {
+        "url": "#login",
+        "error": null,
+        "title": "登录 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "input «账号»",
+          "input «密码»",
+          "button «登录»",
+          "a:#register «立即注册»",
+          "a:#forgot-password «忘记密码？»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/login",
+        "error": null,
+        "title": "登录 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "input «用户名或邮箱»",
+          "input «输入密码»",
+          "input «remember»",
+          "a:/password-reset «忘记密码？»",
+          "button «登录»",
+          "a:/register «立即注册»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "register",
+      "note": "注册",
+      "proto": {
+        "url": "#register",
+        "error": null,
+        "title": "注册 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "input «用户名»",
+          "input «邮箱»",
+          "input «密码»",
+          "input",
+          "a:#topic:rules «社区规则»",
+          "button «创建账号»",
+          "a:#login «已有账号？登录»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/register",
+        "error": null,
+        "title": "注册 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "input «3-20 个字符，字母/数字/_/-»",
+          "input «用于验证和找回密码»",
+          "input «8-128 位，须含字母和数字»",
+          "input «再次输入密码»",
+          "button «注册»",
+          "a:/login «立即登录»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "forgot-password",
+      "note": "重置密码",
+      "proto": {
+        "url": "#forgot-password",
+        "error": null,
+        "title": "重置密码 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "input «邮箱»",
+          "button «发送重置邮件»",
+          "a:#login «想起密码了？返回登录»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/password-reset",
+        "error": null,
+        "title": "忘记密码 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "input «注册时使用的邮箱»",
+          "button «发送重置链接»",
+          "a:/login «返回登录»",
+          "a:/register «注册新账号»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "user",
+      "note": "用户主页",
+      "proto": {
+        "url": "#user:Chaos",
+        "error": null,
+        "title": "用户主页 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "span «查看 Chaos 的用户信息»",
+          "button «编辑资料»",
+          "a:#settings:security «账号安全»",
+          "a:#settings:devices «登录设备»",
+          "a:#settings:notifications «通知设置»",
+          "a:#settings:oauth «OAuth 授权»",
+          "button «内容»",
+          "button «草稿»",
+          "button «回复»",
+          "button «动态»",
+          "button «收藏»",
+          "button «积分明细»",
+          "a:#topic:101 «CRust 小机器上的 SQLite 并发实践在资源受限的小型服务器上跑»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#topic:102 «C自建 OIDC Provider 的最小集从 discovery、JW»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#topic:103 «CMarkdown 渲染沙箱与 CSP 实战论坛型站点的 XSS 风险集»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#topic:201 «C使用 SvelteKit 构建博客与轻量论坛是否合理？Web 开发 ·»",
+          "span «查看 Chaos 的用户信息»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/users/alice",
+        "error": null,
+        "title": "alice 的主页 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «+ 关注»",
+          "a:/users/alice?tab=posts «内容»",
+          "a:/users/alice?tab=replies «回复»",
+          "a:/users/alice?tab=favorites «收藏»",
+          "a:/users/alice?tab=activity «动态»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «E2E 讨论：你最喜欢的 Rust 特性？»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "notfound",
+      "note": "404 页",
+      "proto": {
+        "url": "#404",
+        "error": null,
+        "title": "404 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «返回首页»",
+          "button «重试»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/this-route-does-not-exist-404",
+        "error": null,
+        "title": "出错了 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «刷新页面»",
+          "a:/ «返回首页»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "me",
+      "note": "我的",
+      "proto": {
+        "url": "#me",
+        "error": null,
+        "title": "我的 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "span «查看 Chaos 的用户信息»",
+          "button «编辑资料»",
+          "a:#settings:security «账号安全»",
+          "a:#settings:devices «登录设备»",
+          "a:#settings:notifications «通知设置»",
+          "a:#settings:oauth «OAuth 授权»",
+          "button «内容»",
+          "button «草稿»",
+          "button «回复»",
+          "button «动态»",
+          "button «收藏»",
+          "button «积分明细»",
+          "a:#topic:101 «CRust 小机器上的 SQLite 并发实践在资源受限的小型服务器上跑»",
+          "a:#topic:102 «C自建 OIDC Provider 的最小集从 discovery、JW»",
+          "a:#topic:103 «CMarkdown 渲染沙箱与 CSP 实战论坛型站点的 XSS 风险集»",
+          "a:#topic:201 «C使用 SvelteKit 构建博客与轻量论坛是否合理？Web 开发 ·»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/me",
+        "error": null,
+        "title": "我的 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/settings «编辑资料»",
+          "a:/me/balance «签到 / 积分明细»",
+          "a:/editor «发布新帖»",
+          "a:/settings «编辑资料»",
+          "a:/settings «账号设置»",
+          "a:/favorites «我的收藏»",
+          "a:/me/balance «积分明细»",
+          "a:/messages «私信»",
+          "a:/apikeys «API 密钥»",
+          "a:/me/billing «下载账单»",
+          "a:/users/admin?tab=posts «我的帖子»",
+          "button «撤销»",
+          "button «退出全部设备»",
+          "button «生成新恢复码»",
+          "button «停用两步验证»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "publish",
+      "note": "发布/编辑",
+      "proto": {
+        "url": "#publish:article",
+        "error": null,
+        "title": "发布内容 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "a:#home «首页»",
+          "a:#me «我的»",
+          "a:#me «草稿箱»",
+          "input «一句话说清楚你想表达什么…»",
+          "select «请选择板块技术随笔RustWeb 开发开源项目闲聊站务»",
+          "input «内容标签»",
+          "button «编辑»",
+          "button «预览»",
+          "button «分屏»",
+          "button «B»",
+          "button «I»",
+          "button «H»",
+          "button «“ ”»",
+          "button «</>»",
+          "button",
+          "button",
+          "button «⊞»",
+          "textarea «## 为什么值得讨论 支持 Markdown、代码块和安全的链接。»",
+          "textarea «内容摘要»",
+          "input «选择附件»",
+          "input «visibility»",
+          "input «visibility»",
+          "input «visibility»",
+          "input «visibility»",
+          "input «schedule»",
+          "input «schedule»",
+          "button «保存草稿»",
+          "button «提交审核»",
+          "button «立即发布»",
+          "button «模拟接口失败»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/editor",
+        "error": null,
+        "title": "发布内容 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «首页»",
+          "a:/me «我的»",
+          "input «一句话说清你想表达什么…»",
+          "textarea «一两句话概括内容，将展示在列表与搜索结果中…»",
+          "button «加粗»",
+          "button «斜体»",
+          "button «标题»",
+          "button «引用»",
+          "button «行内代码»",
+          "button «链接»",
+          "button «无序列表»",
+          "textarea «使用 Markdown 编写内容…（Ctrl+B 加粗 / Ctrl+I»",
+          "button «预览»",
+          "select «综合讨论技术分享创意工坊求助问答资讯动态»",
+          "select «公开登录可见回复解锁等级可见付费可见»",
+          "input",
+          "input",
+          "input",
+          "input «https://example.com/video.mp4 或西瓜视频页»",
+          "button «解析预览»",
+          "input «逗号分隔，如：前端, Svelte, 教程»",
+          "input",
+          "button «立即发布»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "drafts",
+      "note": "草稿箱",
+      "proto": {
+        "url": "#drafts",
+        "error": null,
+        "title": "我的 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "span «查看 Chaos 的用户信息»",
+          "button «编辑资料»",
+          "a:#settings:security «账号安全»",
+          "a:#settings:devices «登录设备»",
+          "a:#settings:notifications «通知设置»",
+          "a:#settings:oauth «OAuth 授权»",
+          "button «内容»",
+          "button «草稿»",
+          "button «回复»",
+          "button «动态»",
+          "button «收藏»",
+          "button «积分明细»",
+          "a:#topic:101 «CRust 小机器上的 SQLite 并发实践在资源受限的小型服务器上跑»",
+          "a:#topic:102 «C自建 OIDC Provider 的最小集从 discovery、JW»",
+          "a:#topic:103 «CMarkdown 渲染沙箱与 CSP 实战论坛型站点的 XSS 风险集»",
+          "a:#topic:201 «C使用 SvelteKit 构建博客与轻量论坛是否合理？Web 开发 ·»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/me/drafts",
+        "error": null,
+        "title": "我的草稿 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/editor «新建»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "favorites",
+      "note": "收藏",
+      "proto": {
+        "url": "#favorites",
+        "error": null,
+        "title": "我的收藏 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «去首页»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/favorites",
+        "error": null,
+        "title": "我的收藏 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «去首页逛逛»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "settings",
+      "note": "账号设置",
+      "proto": {
+        "url": "#settings:profile",
+        "error": null,
+        "title": "账号设置 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "button",
+              "overPx": 216,
+              "text": "隐私设置"
+            },
+            {
+              "el": "svg",
+              "overPx": 150,
+              "text": ""
+            },
+            {
+              "el": "use",
+              "overPx": 148,
+              "text": ""
+            },
+            {
+              "el": "button",
+              "overPx": 123,
+              "text": "OAuth 授权"
+            },
+            {
+              "el": "svg",
+              "overPx": 44,
+              "text": ""
+            },
+            {
+              "el": "use",
+              "overPx": 43,
+              "text": ""
+            },
+            {
+              "el": "button",
+              "overPx": 17,
+              "text": "通知设置"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «个人资料»",
+          "button «账号安全»",
+          "button «登录设备3»",
+          "button «通知设置»",
+          "button «OAuth 授权»",
+          "button «隐私设置»",
+          "input «昵称»",
+          "textarea «个人简介»",
+          "button «保存修改»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/settings",
+        "error": null,
+        "title": "账号设置 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "a",
+              "overPx": 54,
+              "text": "□隐私设置"
+            },
+            {
+              "el": "span",
+              "overPx": 24,
+              "text": "□"
+            },
+            {
+              "el": "button",
+              "overPx": 4,
+              "text": "⌁OAuth 授权"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «◈个人资料»",
+          "button «◇账号安全»",
+          "a:/me#sessions «▣登录设备»",
+          "a:/notifications «◌通知设置»",
+          "button «⌁OAuth 授权»",
+          "a:/settings/privacy «□隐私设置»",
+          "input «显示昵称»",
+          "textarea «简单介绍一下自己»",
+          "input «帖子下方展示的签名»",
+          "button «保存修改»",
+          "select «公开（所有人，含未登录）仅注册用户私密（仅自己）»",
+          "button «保存可见性»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "mfa",
+      "note": "两步验证（前端 settings 未见 MFA 区，标记核对）",
+      "proto": {
+        "url": "#mfa",
+        "error": null,
+        "title": "两步验证 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "input «000000»",
+          "button «返回账号安全设置»",
+          "button «确认启用»",
+          "button «重新生成恢复码»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "billing",
+      "note": "下载账单",
+      "proto": {
+        "url": "#billing",
+        "error": null,
+        "title": "下载账单 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "时间附件策略结果操作今天 10:21archit"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "时间附件策略结果操作今天 10:21archit"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "时间附件策略结果操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "再次下载"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 241,
+              "text": "再次下载"
+            },
+            {
+              "el": "th",
+              "overPx": 133,
+              "text": "结果"
+            },
+            {
+              "el": "td",
+              "overPx": 133,
+              "text": "已完成"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 93,
+              "text": "已完成"
+            },
+            {
+              "el": "th",
+              "overPx": 33,
+              "text": "策略"
+            },
+            {
+              "el": "td",
+              "overPx": 33,
+              "text": "免费等级"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «再次下载»",
+          "button «查看授权»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/me/billing",
+        "error": null,
+        "title": "下载账单 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "appeals",
+      "note": "申诉中心",
+      "proto": {
+        "url": "#appeals",
+        "error": null,
+        "title": "申诉中心 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/moderation/appeals",
+        "error": null,
+        "title": "申诉 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "input «处罚通知中的 ID»",
+          "textarea «content»",
+          "button «提交申诉»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "apikeys",
+      "note": "API 密钥",
+      "proto": {
+        "url": "#apikeys",
+        "error": null,
+        "title": "API 密钥 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «创建密钥»",
+          "button «撤销»",
+          "button «撤销»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/apikeys",
+        "error": null,
+        "title": "API 密钥 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "input «例如：我的脚本»",
+          "input «scopes»",
+          "input «scopes»",
+          "input «scopes»",
+          "input «scopes»",
+          "button «创建密钥»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "achievements",
+      "note": "成就墙",
+      "proto": {
+        "url": "#achievements",
+        "error": null,
+        "title": "成就墙 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «全部»",
+          "button «进行中»",
+          "button «已解锁»",
+          "button «隐藏»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/achievements",
+        "error": null,
+        "title": "成就墙 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "messages",
+      "note": "私信",
+      "proto": {
+        "url": "#messages",
+        "error": null,
+        "title": "消息 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «LLin LV.3@linlv3 · 活跃成员结论会在下次更新公告里公布»",
+          "span «查看 L 的用户信息»",
+          "button «NNina LV.3@nina · 性能与可观测性好的，性能那篇我明天发»",
+          "span «查看 N 的用户信息»",
+          "button «MMark LV.4@mark · 技术随笔版主收到，谢谢！昨天»",
+          "span «查看 M 的用户信息»",
+          "button «站站务助手 LV.5@bot · 官方账号欢迎加入 BBLBB！有任何问»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/messages",
+        "error": null,
+        "title": "消息 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/ «去逛逛社区»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "notifications",
+      "note": "通知",
+      "proto": {
+        "url": "#notifications",
+        "error": null,
+        "title": "通知中心 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «全部已读»",
+          "button «全部»",
+          "button «未读»",
+          "button «回复»",
+          "button «点赞»",
+          "button «系统»",
+          "a:#topic:201 «Lin 回复了你的帖子使用 SvelteKit 构建博客与轻量论坛是否合»",
+          "a:#topic:101 «Mark 赞了你的评论Rust 小机器上的 SQLite 并发实践 · »",
+          "a:#achievements «你解锁了成就「连续签到 7 天」系统通知 · 刚刚»",
+          "a:#user:Nina «Nina 关注了你互动提醒 · 刚刚»",
+          "a:#settings:notifications «管理通知偏好»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/notifications",
+        "error": null,
+        "title": "通知中心 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «全部已读»",
+          "button «全部»",
+          "button «未读»",
+          "button «标为已读»",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "shop",
+      "note": "商城",
+      "proto": {
+        "url": "#shop",
+        "error": null,
+        "title": "商城与积分 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «查看账单»",
+          "button «购买»",
+          "button «购买»",
+          "button «购买»",
+          "button «购买»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/shop",
+        "error": null,
+        "title": "商城与积分 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/me/wardrobe «我的衣柜»",
+          "a:/me/balance «积分明细»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "market",
+      "note": "应用市场",
+      "proto": {
+        "url": "#market",
+        "error": null,
+        "title": "应用市场 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "时间应用状态Webhook操作今天BBLBB C"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "时间应用状态Webhook操作今天BBLBB C"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "时间应用状态Webhook操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "查看购买"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 224,
+              "text": "查看购买"
+            },
+            {
+              "el": "th",
+              "overPx": 114,
+              "text": "Webhook"
+            },
+            {
+              "el": "td",
+              "overPx": 114,
+              "text": "已投递"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «查看详情»",
+          "button «申请接入»",
+          "button «查看购买»",
+          "button «查看状态»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/marketplace",
+        "error": null,
+        "title": "应用市场 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "a:/marketplace/purchases «查看全部购买»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "checkout",
+      "note": "市场结算",
+      "proto": {
+        "url": "#checkout",
+        "error": null,
+        "title": "市场结算 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "select «授权有效期»",
+          "textarea «确认原因»",
+          "button «取消»",
+          "button «确认并创建授权»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "purchases",
+      "note": "市场购买记录",
+      "proto": {
+        "url": "#purchases",
+        "error": null,
+        "title": "市场购买记录 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "交易金额状态Webhook操作BBLBB CLI"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "交易金额状态Webhook操作BBLBB CLI"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "交易金额状态Webhook操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "申请退款"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 230,
+              "text": "重试 Webhook"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 197,
+              "text": "申请退款"
+            },
+            {
+              "el": "th",
+              "overPx": 85,
+              "text": "Webhook"
+            },
+            {
+              "el": "td",
+              "overPx": 85,
+              "text": "已投递"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «申请退款»",
+          "button «重试 Webhook»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/marketplace/purchases",
+        "error": null,
+        "title": "Marketplace 购买记录 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «刷新»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "err403",
+      "note": "403（前端按页内错误态呈现，无独立路由）",
+      "proto": {
+        "url": "#403",
+        "error": null,
+        "title": "403 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «返回首页»",
+          "button «重试»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "err429",
+      "note": "429（前端按页内错误态呈现，无独立路由）",
+      "proto": {
+        "url": "#429",
+        "error": null,
+        "title": "429 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «返回首页»",
+          "button «重试»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "err500",
+      "note": "错误兜底（近似对比）",
+      "proto": {
+        "url": "#error",
+        "error": null,
+        "title": "ERROR · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «返回首页»",
+          "button «重试»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/this-route-does-not-exist-404",
+        "error": null,
+        "title": "出错了 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «刷新页面»",
+          "a:/ «返回首页»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin",
+      "note": "后台仪表盘",
+      "proto": {
+        "url": "#admin",
+        "error": null,
+        "title": "管理后台 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «今日»",
+          "button «本周»",
+          "button «本月»",
+          "button «今年»",
+          "button «处理举报»",
+          "button «调整积分»",
+          "button «查看审计»",
+          "button «切换普通成员»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin",
+        "error": null,
+        "title": "管理后台 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «仪表盘»",
+          "button «关闭管理菜单»",
+          "a:/admin «今日»",
+          "a:/admin?period=week «本周»",
+          "a:/admin?period=month «本月»",
+          "a:/admin?period=year «今年»",
+          "button «内容»",
+          "button «活跃»",
+          "button «审核»",
+          "a:/admin/moderation/cases «处理举报»",
+          "a:/admin/points «调整积分»",
+          "a:/admin/audit «查看审计»",
+          "a:/admin/settings «系统设置»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-posts",
+      "note": "后台·帖子",
+      "proto": {
+        "url": "#admin-posts",
+        "error": null,
+        "title": "管理后台 · posts · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "标题作者板块状态时间操作使用 SvelteKit"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "标题作者板块状态时间操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "标题作者板块状态时间操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "使用 SvelteKit 构建博客与轻量论坛是否"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "通过驳回Diff"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 276,
+              "text": "Diff"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 274,
+              "text": "Diff"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 236,
+              "text": "取消精华"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 210,
+              "text": "驳回"
+            },
+            {
+              "el": "button.btn.primary",
+              "overPx": 208,
+              "text": "通过"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 208,
+              "text": "隐藏"
+            },
+            {
+              "el": "th",
+              "overPx": 126,
+              "text": "时间"
+            },
+            {
+              "el": "td",
+              "overPx": 126,
+              "text": "今天 09:12"
+            },
+            {
+              "el": "th",
+              "overPx": 56,
+              "text": "状态"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «全部 5»",
+          "button «待审核 1»",
+          "button «公开 2»",
+          "button «精华 1»",
+          "button «已隐藏 1»",
+          "button «已删除 0»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "a:#topic:201 «查看原帖»",
+          "button «通过»",
+          "button «驳回»",
+          "button «Diff»",
+          "input «选择此项»",
+          "a:#topic:101 «查看原帖»",
+          "button «取消精华»",
+          "button «隐藏»",
+          "button «Diff»",
+          "input «选择此项»",
+          "a:#topic:202 «查看原帖»",
+          "button «设为精华»",
+          "button «隐藏»",
+          "button «Diff»",
+          "input «选择此项»",
+          "a:#topic:103 «查看原帖»",
+          "button «设为精华»",
+          "button «隐藏»",
+          "button «Diff»",
+          "input «选择此项»",
+          "button «恢复»",
+          "button «删除»",
+          "button «Diff»",
+          "button «导出内容清单»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量通过»",
+          "button «批量隐藏»",
+          "button «批量删除»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/posts",
+        "error": null,
+        "title": "帖子与文章 — BBLBB Admin",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 368,
+              "text": "标题作者板块状态时间操作E2E 讨论：你最喜欢的"
+            },
+            {
+              "el": "thead",
+              "overPx": 367,
+              "text": "标题作者板块状态时间操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 367,
+              "text": "标题作者板块状态时间操作"
+            },
+            {
+              "el": "th",
+              "overPx": 367,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 367,
+              "text": "E2E 讨论：你最喜欢的 Rust 特性？ 查看"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 367,
+              "text": "设为精华    隐藏"
+            },
+            {
+              "el": "form#[object HTMLInputElement]",
+              "overPx": 319,
+              "text": "隐藏"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 319,
+              "text": "隐藏"
+            },
+            {
+              "el": "form#[object HTMLInputElement]",
+              "overPx": 295,
+              "text": "删除"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 295,
+              "text": "删除"
+            },
+            {
+              "el": "form#[object HTMLInputElement]",
+              "overPx": 269,
+              "text": "设为精华"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 269,
+              "text": "设为精华"
+            },
+            {
+              "el": "form#[object HTMLInputElement]",
+              "overPx": 245,
+              "text": "恢复"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 245,
+              "text": "恢复"
+            },
+            {
+              "el": "th",
+              "overPx": 187,
+              "text": "时间"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «帖子与文章»",
+          "button «关闭管理菜单»",
+          "a:/admin/posts «全部0»",
+          "a:/admin/posts?status=pending_review «待审核0»",
+          "a:/admin/posts?status=published «公开1»",
+          "a:/admin/posts?status=featured «精华0»",
+          "a:/admin/posts?status=hidden «已隐藏1»",
+          "a:/admin/posts?status=deleted «已删除0»",
+          "input «搜索帖子»",
+          "button «搜索»",
+          "a:/posts/01a06aa9-0e62-7033-bf5e-476e83fbb20c «查看原帖»",
+          "button «设为精华»",
+          "button «隐藏»",
+          "a:/posts/01a06aa9-0e35-7ff1-b80c-56503eba4000 «查看原帖»",
+          "button «恢复»",
+          "button «删除»",
+          "button «导出内容清单»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-boards",
+      "note": "后台·板块",
+      "proto": {
+        "url": "#admin-boards",
+        "error": null,
+        "title": "管理后台 · boards · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "板块 / 描述主题数可见性发帖策略版主操作技术随"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "板块 / 描述主题数可见性发帖策略版主操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "板块 / 描述主题数可见性发帖策略版主操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "技术随笔深入记录工程实践、性能优化与架构取舍。8"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "编辑置顶"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 233,
+              "text": "编辑"
+            },
+            {
+              "el": "th",
+              "overPx": 151,
+              "text": "版主"
+            },
+            {
+              "el": "td",
+              "overPx": 151,
+              "text": "Chaos"
+            },
+            {
+              "el": "th",
+              "overPx": 85,
+              "text": "发帖策略"
+            },
+            {
+              "el": "td",
+              "overPx": 85,
+              "text": "登录即可"
+            },
+            {
+              "el": "th",
+              "overPx": 3,
+              "text": "可见性"
+            },
+            {
+              "el": "td",
+              "overPx": 3,
+              "text": "公开"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «编辑»",
+          "button «置顶»",
+          "input «选择此项»",
+          "button «编辑»",
+          "button «置顶»",
+          "input «选择此项»",
+          "button «编辑»",
+          "button «置顶»",
+          "input «选择此项»",
+          "button «编辑»",
+          "button «置顶»",
+          "input «选择此项»",
+          "button «编辑»",
+          "button «置顶»",
+          "input «选择此项»",
+          "button «编辑»",
+          "button «置顶»",
+          "button «新建板块»",
+          "button «导出板块»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/boards",
+        "error": null,
+        "title": "板块管理 — BBLBB Admin",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 432,
+              "text": "板块 / 描述路径主题数可见性发帖策略版主状态操"
+            },
+            {
+              "el": "thead",
+              "overPx": 431,
+              "text": "板块 / 描述路径主题数可见性发帖策略版主状态操"
+            },
+            {
+              "el": "tr",
+              "overPx": 431,
+              "text": "板块 / 描述路径主题数可见性发帖策略版主状态操"
+            },
+            {
+              "el": "th",
+              "overPx": 431,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 431,
+              "text": "综合讨论 自由讨论各类话题/general1公开"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 431,
+              "text": "查看 编辑      置顶"
+            },
+            {
+              "el": "form#[object HTMLInputElement]",
+              "overPx": 417,
+              "text": "置顶"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 417,
+              "text": "置顶"
+            },
+            {
+              "el": "input",
+              "overPx": 373,
+              "text": ""
+            },
+            {
+              "el": "button.btn.secondary",
+              "overPx": 365,
+              "text": "编辑"
+            },
+            {
+              "el": "a.btn.ghost",
+              "overPx": 307,
+              "text": "查看"
+            },
+            {
+              "el": "th",
+              "overPx": 249,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 249,
+              "text": "启用"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 235,
+              "text": "启用"
+            },
+            {
+              "el": "th",
+              "overPx": 185,
+              "text": "版主"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «板块管理»",
+          "button «关闭管理菜单»",
+          "a:/b/general «1»",
+          "a:/boards/general «查看»",
+          "button «编辑»",
+          "input «置顶 综合讨论 的原因»",
+          "button «置顶»",
+          "a:/b/tech «0»",
+          "a:/boards/tech «查看»",
+          "button «编辑»",
+          "input «置顶 技术分享 的原因»",
+          "button «置顶»",
+          "a:/b/creative «0»",
+          "a:/boards/creative «查看»",
+          "button «编辑»",
+          "input «置顶 创意工坊 的原因»",
+          "button «置顶»",
+          "a:/b/help «0»",
+          "a:/boards/help «查看»",
+          "button «编辑»",
+          "input «置顶 求助问答 的原因»",
+          "button «置顶»",
+          "a:/b/news «0»",
+          "a:/boards/news «查看»",
+          "button «编辑»",
+          "input «置顶 资讯动态 的原因»",
+          "button «置顶»",
+          "button «新建板块»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-tags",
+      "note": "后台·标签",
+      "proto": {
+        "url": "#admin-tags",
+        "error": null,
+        "title": "管理后台 · tags · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "标签使用次数状态操作Rust248正常停用合并S"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "标签使用次数状态操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "标签使用次数状态操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "Rust248正常停用合并SvelteKit18"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "停用合并"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 190,
+              "text": "合并"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 116,
+              "text": "停用"
+            },
+            {
+              "el": "th",
+              "overPx": 34,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 34,
+              "text": "正常"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «停用»",
+          "button «合并»",
+          "input «选择此项»",
+          "button «停用»",
+          "button «合并»",
+          "input «选择此项»",
+          "button «停用»",
+          "button «合并»",
+          "input «选择此项»",
+          "button «停用»",
+          "button «合并»",
+          "input «选择此项»",
+          "button «停用»",
+          "button «合并»",
+          "input «选择此项»",
+          "button «停用»",
+          "button «合并»",
+          "button «新建标签»",
+          "button «导出标签»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/tags",
+        "error": null,
+        "title": "标签管理 — BBLBB Admin",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «标签管理»",
+          "button «关闭管理菜单»",
+          "button «新建标签»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-attachments",
+      "note": "后台·附件",
+      "proto": {
+        "url": "#admin-attachments",
+        "error": null,
+        "title": "管理后台 · attachments · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "文件上传者大小范围扫描操作report.pngf"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "文件上传者大小范围扫描操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "文件上传者大小范围扫描操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "report.pngf-11Yuwen1.2 M"
+            },
+            {
+              "el": "td.adm-acts.adm-file-acts",
+              "overPx": 300,
+              "text": "临时链接删除附件"
+            },
+            {
+              "el": "div.drop-wrap.adm-file-menu",
+              "overPx": 285,
+              "text": "删除附件"
+            },
+            {
+              "el": "button.btn-icon.adm-file-menu__toggle",
+              "overPx": 285,
+              "text": ""
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 239,
+              "text": "临时链接"
+            },
+            {
+              "el": "svg",
+              "overPx": 228,
+              "text": ""
+            },
+            {
+              "el": "use",
+              "overPx": 226,
+              "text": ""
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 197,
+              "text": "扫描"
+            },
+            {
+              "el": "svg",
+              "overPx": 186,
+              "text": ""
+            },
+            {
+              "el": "use",
+              "overPx": 185,
+              "text": ""
+            },
+            {
+              "el": "th",
+              "overPx": 143,
+              "text": "扫描"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «临时链接»",
+          "button «更多操作»",
+          "input «选择此项»",
+          "button «临时链接»",
+          "button «更多操作»",
+          "input «选择此项»",
+          "button «扫描»",
+          "button «临时链接»",
+          "button «更多操作»",
+          "input «选择此项»",
+          "button «临时链接»",
+          "button «更多操作»",
+          "input «选择此项»",
+          "button «扫描»",
+          "button «临时链接»",
+          "button «更多操作»",
+          "button «全部扫描»",
+          "button «导出清单»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/attachments",
+        "error": null,
+        "title": "附件管理 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «附件管理»",
+          "button «关闭管理菜单»",
+          "input «搜索附件»",
+          "button «搜索»",
+          "a:/admin/storage «存储配置»",
+          "a:/admin/download-billing «下载计费»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-users",
+      "note": "后台·用户",
+      "proto": {
+        "url": "#admin-users",
+        "error": null,
+        "title": "管理后台 · users · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "用户等级B币贡献状态最近活动操作CChaos 你"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "用户等级B币贡献状态最近活动操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "用户等级B币贡献状态最近活动操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "CChaos 你Rust / 自托管爱好者LV."
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "详情调整积分禁用"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 246,
+              "text": "调整积分"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 220,
+              "text": "禁用"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 218,
+              "text": "详情"
+            },
+            {
+              "el": "button.btn.primary",
+              "overPx": 218,
+              "text": "解封"
+            },
+            {
+              "el": "th",
+              "overPx": 136,
+              "text": "最近活动"
+            },
+            {
+              "el": "td",
+              "overPx": 136,
+              "text": "今天"
+            },
+            {
+              "el": "th",
+              "overPx": 53,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 53,
+              "text": "正常"
+            },
+            {
+              "el": "span.sbadge.sb-brand",
+              "overPx": 39,
+              "text": "正常"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索用户»",
+          "select «按状态筛选»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "span «查看 Chaos 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 Yuwen 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 Mark 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 Alice 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 Nina 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 spam_bot_42 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «解封»",
+          "input «选择此项»",
+          "span «查看 Lin 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 Ken 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 Sara 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "input «选择此项»",
+          "span «查看 Zoe 的用户信息»",
+          "button «详情»",
+          "button «调整积分»",
+          "button «禁用»",
+          "button «导出用户 CSV»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量禁用»",
+          "button «批量启用»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/users",
+        "error": null,
+        "title": "用户管理 — BBLBB Admin",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 647,
+              "text": "用户等级B币经验邮箱状态角色最近活动操作c ca"
+            },
+            {
+              "el": "thead",
+              "overPx": 647,
+              "text": "用户等级B币经验邮箱状态角色最近活动操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 647,
+              "text": "用户等级B币经验邮箱状态角色最近活动操作"
+            },
+            {
+              "el": "th",
+              "overPx": 647,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 647,
+              "text": "c carolLV.100carol@e2e.e"
+            },
+            {
+              "el": "td",
+              "overPx": 647,
+              "text": "正常 (active)受限 (restricte"
+            },
+            {
+              "el": "form#[object HTMLInputElement]",
+              "overPx": 632,
+              "text": "正常 (active)受限 (restricte"
+            },
+            {
+              "el": "button.btn.primary",
+              "overPx": 561,
+              "text": "保存"
+            },
+            {
+              "el": "input.input-field",
+              "overPx": 511,
+              "text": ""
+            },
+            {
+              "el": "select.input-field",
+              "overPx": 504,
+              "text": "正常 (active)受限 (restricte"
+            },
+            {
+              "el": "th",
+              "overPx": 367,
+              "text": "最近活动"
+            },
+            {
+              "el": "td",
+              "overPx": 367,
+              "text": "—"
+            },
+            {
+              "el": "span.text-secondary",
+              "overPx": 319,
+              "text": "—"
+            },
+            {
+              "el": "th",
+              "overPx": 293,
+              "text": "角色"
+            },
+            {
+              "el": "td",
+              "overPx": 293,
+              "text": "member"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «用户管理»",
+          "button «关闭管理菜单»",
+          "input «搜索用户»",
+          "a:/users/carol «carol»",
+          "select «状态»",
+          "input «原因（审计）»",
+          "button «保存»",
+          "a:/users/bob «bob»",
+          "select «状态»",
+          "input «原因（审计）»",
+          "button «保存»",
+          "a:/users/alice «alice»",
+          "select «状态»",
+          "input «原因（审计）»",
+          "button «保存»",
+          "a:/users/cooldown «cooldown»",
+          "select «状态»",
+          "input «原因（审计）»",
+          "button «保存»",
+          "a:/users/mod «mod»",
+          "select «状态»",
+          "input «原因（审计）»",
+          "button «保存»",
+          "a:/users/admin «admin»",
+          "select «状态»",
+          "input «原因（审计）»",
+          "button «保存»",
+          "a:/users/dave «dave»",
+          "select «状态»",
+          "input «原因（审计）»",
+          "button «保存»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-roles",
+      "note": "后台·角色",
+      "proto": {
+        "url": "#admin-roles",
+        "error": null,
+        "title": "管理后台 · roles · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «+ 新建角色»",
+          "input «搜索角色»",
+          "button «站长拥有平台所有权和紧急处置能力。1成员27/35权限全站进入详情»",
+          "button «管理员管理内容、成员和平台日常配置。1成员23/35权限全站进入详情»",
+          "button «内容编辑负责内容编辑、发布、置顶和精选。1成员7/35权限全站内容进入详»",
+          "button «版主维护所负责板块的秩序和内容质量。1成员7/35权限所在板块进入详情»",
+          "button «社区运营负责社区活动、公告、精选和运营数据。0成员9/35权限全站社区进»",
+          "button «财务管理员处理积分、B 币、订单和退款。0成员6/35权限积分与交易进入»",
+          "button «主题管理员管理主题、插件和扩展集成。0成员3/35权限主题与插件进入详情»",
+          "button «创作者可以发布内容并管理自己的创作。1成员7/35权限个人内容进入详情»",
+          "button «成员完成注册验证后的基础社区成员。5成员4/35权限个人进入详情»",
+          "button «访客未登录用户，只能浏览公开内容。0成员1/35权限公开内容进入详情»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/roles",
+        "error": null,
+        "title": "角色与权限 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «角色与权限»",
+          "button «关闭管理菜单»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "input «permissions»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-reports",
+      "note": "后台·举报/案件",
+      "proto": {
+        "url": "#admin-reports",
+        "error": null,
+        "title": "管理后台 · reports · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «全部 6»",
+          "button «待处理 2»",
+          "button «处理中 1»",
+          "button «已处理 2»",
+          "button «已驳回 1»",
+          "input «全选当前列表»",
+          "button «标记处理中»",
+          "button «批量关闭»",
+          "button «批量驳回»",
+          "a:#admin-report:R-1020 «R-1020中优先级已处理广告 / 垃圾信息 内容摘要与处理上下文举报人»",
+          "input «选择此举报»",
+          "a:#admin-report:R-1024 «R-1024高优先级待处理广告 / 垃圾信息 内容摘要与处理上下文举报人»",
+          "input «选择此举报»",
+          "a:#admin-report:R-1023 «R-1023中优先级待处理人身攻击 内容摘要与处理上下文举报人 Nina»",
+          "input «选择此举报»",
+          "a:#admin-report:R-1022 «R-1022中优先级处理中垃圾广告 内容摘要与处理上下文举报人 Yuwe»",
+          "input «选择此举报»",
+          "a:#admin-report:R-1021 «R-1021中优先级已处理垃圾广告 内容摘要与处理上下文举报人 Yuwe»",
+          "input «选择此举报»",
+          "a:#admin-report:R-1018 «R-1018低优先级已驳回内容争议 内容摘要与处理上下文举报人 Mark»",
+          "input «选择此举报»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/moderation/cases",
+        "error": null,
+        "title": "案件队列 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "a.tab",
+              "overPx": 98,
+              "text": "已重开"
+            },
+            {
+              "el": "a.tab",
+              "overPx": 31,
+              "text": "已驳回"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «举报与审核»",
+          "button «关闭管理菜单»",
+          "a:/admin/moderation/cases «全部»",
+          "a:/admin/moderation/cases?status=open «待处理»",
+          "a:/admin/moderation/cases?status=triaged «已分级»",
+          "a:/admin/moderation/cases?status=investigating «调查中»",
+          "a:/admin/moderation/cases?status=resolved «已解决»",
+          "a:/admin/moderation/cases?status=rejected «已驳回»",
+          "a:/admin/moderation/cases?status=reopened «已重开»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-report",
+      "note": "后台·案件详情",
+      "proto": {
+        "url": "#admin-report:R-1024",
+        "error": null,
+        "title": "管理后台 · report · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "a:#topic:201 «查看原帖»",
+          "textarea «必填，写入审计日志»",
+          "button «隐藏内容»",
+          "button «禁言 7 天»",
+          "button «驳回举报»",
+          "button «提交处理»",
+          "a:#board:rust «rust»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-content",
+      "note": "后台·内容审核",
+      "proto": {
+        "url": "#admin-article-audit",
+        "error": null,
+        "title": "管理后台 · article-audit · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «返回内容列表»",
+          "button «通过审核»",
+          "button «填写驳回理由»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/content",
+        "error": null,
+        "title": "内容审核 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «管理后台»",
+          "button «关闭管理菜单»",
+          "a:/admin/activity «活跃任务配置 签到/任务奖励（活动域）»",
+          "a:/admin/shop «商城配置 商品/订单/退款»",
+          "a:/admin/users «用户管理 用户状态与角色»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-points",
+      "note": "后台·积分",
+      "proto": {
+        "url": "#admin-points",
+        "error": null,
+        "title": "管理后台 · points · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "账号行为资产变化类型来源时间Chaos签到经验+"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "账号行为资产变化类型来源时间"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "账号行为资产变化类型来源时间"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "时间"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "Chaos签到经验+5获得系统2026-09-0"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "2026-09-02 09:12"
+            },
+            {
+              "el": "th",
+              "overPx": 121,
+              "text": "来源"
+            },
+            {
+              "el": "td",
+              "overPx": 121,
+              "text": "系统"
+            },
+            {
+              "el": "th",
+              "overPx": 46,
+              "text": "类型"
+            },
+            {
+              "el": "td",
+              "overPx": 46,
+              "text": "获得"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "span «查看 Chaos 的用户信息»",
+          "button «调整积分»",
+          "select «按账号筛选»",
+          "select «按资产筛选»",
+          "select «按流水类型筛选»",
+          "input «开始日期»",
+          "input «结束日期»",
+          "input «搜索流水»",
+          "button «查询»",
+          "button «清除»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/points",
+        "error": null,
+        "title": "积分与货币 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «积分与货币»",
+          "button «关闭管理菜单»",
+          "input «账号»",
+          "select «资产»",
+          "select «类型»",
+          "input «开始日期»",
+          "input «结束日期»",
+          "button «查询»",
+          "a:/admin/points «清除»",
+          "a:/admin/activity «打开活跃任务配置»",
+          "a:/admin/shop «打开商城配置»",
+          "a:/admin/levels «等级与附件配额»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-levels",
+      "note": "后台·等级",
+      "proto": {
+        "url": "#admin-levels",
+        "error": null,
+        "title": "管理后台 · levels · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table.app-level-table",
+              "overPx": 300,
+              "text": "等级活跃度门槛对应用户核心权益状态操作Lv.0回"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "等级活跃度门槛对应用户核心权益状态操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "等级活跃度门槛对应用户核心权益状态操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "Lv.0回帖 0 · 发帖 0 · 送赞 0 ·"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "详细设置"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 285,
+              "text": "详细设置"
+            },
+            {
+              "el": "th",
+              "overPx": 175,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 175,
+              "text": "启用"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 161,
+              "text": "启用"
+            },
+            {
+              "el": "th",
+              "overPx": 116,
+              "text": "核心权益"
+            },
+            {
+              "el": "td",
+              "overPx": 116,
+              "text": "2 MB 附件"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «Lv.0»",
+          "a:#admin-users:Lv0 «0 名»",
+          "button «详细设置»",
+          "input «选择此项»",
+          "button «Lv.1»",
+          "a:#admin-users:Lv1 «1 名»",
+          "button «详细设置»",
+          "input «选择此项»",
+          "button «Lv.2»",
+          "a:#admin-users:Lv2 «3 名»",
+          "button «详细设置»",
+          "input «选择此项»",
+          "button «Lv.3»",
+          "a:#admin-users:Lv3 «4 名»",
+          "button «详细设置»",
+          "input «选择此项»",
+          "button «Lv.4»",
+          "a:#admin-users:Lv4 «2 名»",
+          "button «详细设置»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/levels",
+        "error": null,
+        "title": "等级管理 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "等级活跃度门槛对应用户核心权益状态操作Lv1 新"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "等级活跃度门槛对应用户核心权益状态操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "等级活跃度门槛对应用户核心权益状态操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "Lv1 新人0 经验6 名 查看发帖 5/日 ·"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 299,
+              "text": "详细设置"
+            },
+            {
+              "el": "button.btn.secondary",
+              "overPx": 253,
+              "text": "详细设置"
+            },
+            {
+              "el": "th",
+              "overPx": 169,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 169,
+              "text": "启用"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 155,
+              "text": "启用"
+            },
+            {
+              "el": "th",
+              "overPx": 105,
+              "text": "核心权益"
+            },
+            {
+              "el": "td",
+              "overPx": 105,
+              "text": "发帖 5/日 · 评论 20/日 · 附件 50"
+            },
+            {
+              "el": "span.text-secondary",
+              "overPx": 80,
+              "text": "发帖 5/日 · 评论 20/日 · 附件 50"
+            },
+            {
+              "el": "span.text-secondary",
+              "overPx": 79,
+              "text": "发帖 20/日 · 评论 100/日 · 附件 "
+            },
+            {
+              "el": "span.text-secondary",
+              "overPx": 75,
+              "text": "发帖 80/日 · 评论 400/日 · 附件 "
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «等级管理»",
+          "button «关闭管理菜单»",
+          "a:/admin/users «查看»",
+          "button «详细设置»",
+          "a:/admin/users «查看»",
+          "button «详细设置»",
+          "a:/admin/users «查看»",
+          "button «详细设置»",
+          "a:/admin/users «查看»",
+          "button «详细设置»",
+          "a:/admin/users «查看»",
+          "button «详细设置»",
+          "a:/admin/storage «存储配置»",
+          "a:/admin/points «积分与货币»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-achievements",
+      "note": "后台·成就",
+      "proto": {
+        "url": "#admin-achievements",
+        "error": null,
+        "title": "管理后台 · achievements · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table.achievement-table",
+              "overPx": 331,
+              "text": "成就分类解锁条件奖励状态操作✦first_rep"
+            },
+            {
+              "el": "thead",
+              "overPx": 331,
+              "text": "成就分类解锁条件奖励状态操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 331,
+              "text": "成就分类解锁条件奖励状态操作"
+            },
+            {
+              "el": "th",
+              "overPx": 331,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 331,
+              "text": "✦first_reply初次发言完成第一次有意义"
+            },
+            {
+              "el": "td",
+              "overPx": 331,
+              "text": "编辑更多"
+            },
+            {
+              "el": "div.achievement-actions",
+              "overPx": 316,
+              "text": "编辑更多"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 316,
+              "text": "更多"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 243,
+              "text": "编辑"
+            },
+            {
+              "el": "th",
+              "overPx": 161,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 161,
+              "text": "已启用"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 147,
+              "text": "已启用"
+            },
+            {
+              "el": "span.sbadge.sb-gray",
+              "overPx": 147,
+              "text": "已停用"
+            },
+            {
+              "el": "th",
+              "overPx": 106,
+              "text": "奖励"
+            },
+            {
+              "el": "td",
+              "overPx": 106,
+              "text": "+10 经验"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «导出配置»",
+          "button «+ 新建成就»",
+          "input «搜索成就»",
+          "select «按状态筛选»",
+          "select «按分类筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择 初次发言»",
+          "button «编辑»",
+          "button «更多»",
+          "input «选择 精华贡献者»",
+          "button «编辑»",
+          "button «更多»",
+          "input «选择 坚持输出»",
+          "button «编辑»",
+          "button «更多»",
+          "input «选择 ???»",
+          "button «编辑»",
+          "button «更多»",
+          "button «刷新列表»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/achievements",
+        "error": null,
+        "title": "成就管理 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.table",
+              "overPx": 512,
+              "text": "code名称分类条件奖励状态解锁数操作first"
+            },
+            {
+              "el": "thead",
+              "overPx": 509,
+              "text": "code名称分类条件奖励状态解锁数操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 509,
+              "text": "code名称分类条件奖励状态解锁数操作"
+            },
+            {
+              "el": "th",
+              "overPx": 509,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 509,
+              "text": "first_post首发帖  发布第一篇帖子，开"
+            },
+            {
+              "el": "td",
+              "overPx": 509,
+              "text": "停用   手工授予   删除"
+            },
+            {
+              "el": "div",
+              "overPx": 495,
+              "text": "停用   手工授予   删除"
+            },
+            {
+              "el": "form",
+              "overPx": 495,
+              "text": "停用"
+            },
+            {
+              "el": "button.btn.secondary",
+              "overPx": 435,
+              "text": "停用"
+            },
+            {
+              "el": "span",
+              "overPx": 424,
+              "text": "停用"
+            },
+            {
+              "el": "input.input-field",
+              "overPx": 385,
+              "text": ""
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 375,
+              "text": "删除"
+            },
+            {
+              "el": "span",
+              "overPx": 364,
+              "text": "删除"
+            },
+            {
+              "el": "button.btn.secondary",
+              "overPx": 325,
+              "text": "手工授予"
+            },
+            {
+              "el": "span",
+              "overPx": 314,
+              "text": "手工授予"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «成就管理»",
+          "button «关闭管理菜单»",
+          "input «first_post»",
+          "input «name»",
+          "input «community»",
+          "select «发帖数（post_count）回复数（comment_count）被赞数»",
+          "input «condition_threshold»",
+          "input «reward_exp»",
+          "input «reward_coin»",
+          "input «sort_order»",
+          "textarea «description»",
+          "input «is_hidden»",
+          "input «is_enabled»",
+          "input «必填»",
+          "button «创建成就»",
+          "input «搜索成就»",
+          "select «状态筛选»",
+          "select «分类筛选»",
+          "button «清除»",
+          "button «导出配置»",
+          "input «全选»",
+          "input «选中 first_post»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "input «选中 active_commenter»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "input «选中 centurion»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "input «选中 like_magnet»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "input «选中 streak_7»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "input «选中 hundred_followers»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "input «选中 streak_30»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "input «选中 community_elder»",
+          "input «原因（审计）»",
+          "button «停用»",
+          "button «手工授予»",
+          "button «删除»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-themes",
+      "note": "后台·主题",
+      "proto": {
+        "url": "#admin-themes",
+        "error": null,
+        "title": "管理后台 · themes · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «预览»",
+          "button «应用»",
+          "button «预览»",
+          "button «应用»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/themes",
+        "error": null,
+        "title": "主题管理 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «主题管理»",
+          "button «关闭管理菜单»",
+          "a:/ «查看站点»",
+          "input",
+          "input",
+          "textarea",
+          "input «记录到审计日志»",
+          "button «上传主题»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-plugins",
+      "note": "后台·插件",
+      "proto": {
+        "url": "#admin-plugins",
+        "error": null,
+        "title": "管理后台 · plugins · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table.plugin-table",
+              "overPx": 300,
+              "text": "插件类型版本状态操作视频嵌入将白名单来源的视频安"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "插件类型版本状态操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "插件类型版本状态操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "视频嵌入将白名单来源的视频安全嵌入帖子。配置型1"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "详情更新停用删除"
+            },
+            {
+              "el": "div.plugin-actions",
+              "overPx": 285,
+              "text": "详情更新停用删除"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 253,
+              "text": "查看日志"
+            },
+            {
+              "el": "button.btn.secondary",
+              "overPx": 227,
+              "text": "更新"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 227,
+              "text": "删除"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 225,
+              "text": "详情"
+            },
+            {
+              "el": "th",
+              "overPx": 143,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 143,
+              "text": "启用"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 129,
+              "text": "启用"
+            },
+            {
+              "el": "span.sbadge.sb-danger",
+              "overPx": 129,
+              "text": "错误"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «安装插件»",
+          "button «刷新»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «搜索插件»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «详情»",
+          "button «更新»",
+          "button «停用»",
+          "button «删除»",
+          "input «选择此项»",
+          "button «详情»",
+          "button «停用»",
+          "button «删除»",
+          "input «选择此项»",
+          "button «详情»",
+          "button «更新»",
+          "button «查看日志»",
+          "button «删除»",
+          "input «选择此项»",
+          "button «详情»",
+          "button «更新»",
+          "button «停用»",
+          "button «删除»",
+          "button «导出清单»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/plugins",
+        "error": null,
+        "title": "插件管理 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «插件管理»",
+          "button «关闭管理菜单»",
+          "input «id»",
+          "input «name»",
+          "input «capabilities»",
+          "input «subscriptions»",
+          "textarea «settings_schema»",
+          "input «记录到审计日志»",
+          "button «安装插件»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-oauth",
+      "note": "后台·OAuth",
+      "proto": {
+        "url": "#admin-oauth",
+        "error": null,
+        "title": "管理后台 · oauth · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "名称Client ID类型状态Scopes操作B"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "名称Client ID类型状态Scopes操作B"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "名称Client ID类型状态Scopes操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "禁用"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 285,
+              "text": "撤销授权"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 259,
+              "text": "禁用"
+            },
+            {
+              "el": "th",
+              "overPx": 175,
+              "text": "Scopes"
+            },
+            {
+              "el": "td",
+              "overPx": 175,
+              "text": "openid, profile"
+            },
+            {
+              "el": "th",
+              "overPx": 66,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 66,
+              "text": "启用中"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 52,
+              "text": "启用中"
+            },
+            {
+              "el": "span.sbadge.sb-gray",
+              "overPx": 52,
+              "text": "已禁用"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «禁用»",
+          "input «选择此项»",
+          "button «撤销授权»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/oauth",
+        "error": null,
+        "title": "OIDC 管理 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «OAuth 客户端»",
+          "button «关闭管理菜单»",
+          "a:/admin/marketplace «Marketplace Client»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-storage",
+      "note": "后台·存储",
+      "proto": {
+        "url": "#admin-storage",
+        "error": null,
+        "title": "管理后台 · storage · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «本地磁盘»",
+          "button «S3 兼容»",
+          "input «存储路径»",
+          "input «单文件上限 MB»",
+          "button «测试连接»",
+          "button «保存配置»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/storage",
+        "error": null,
+        "title": "文件存储 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «文件存储»",
+          "button «关闭管理菜单»",
+          "select «本地磁盘S3 兼容（S3/MinIO/R2）»",
+          "input «local_path»",
+          "input «s3_endpoint»",
+          "input «s3_region»",
+          "input «s3_bucket»",
+          "input «signed_url_ttl_seconds»",
+          "input «upload_max_bytes»",
+          "input «输入新的 Secret»",
+          "input «s3_path_style»",
+          "input «s3_presigned_uploads»",
+          "input «必填（写审计）»",
+          "button «保存配置»",
+          "button «测试连接（当前表单值）»",
+          "button «预演（迁移前置步骤）»",
+          "button «切换后端»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-download-billing",
+      "note": "后台·下载计费",
+      "proto": {
+        "url": "#admin-download-billing",
+        "error": null,
+        "title": "管理后台 · download-billing · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "单号文件用户大小结果操作DL-8823repor"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "单号文件用户大小结果操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "单号文件用户大小结果操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "DL-8823report.pngYuwen1."
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "详情"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 270,
+              "text": "详情"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 196,
+              "text": "详情"
+            },
+            {
+              "el": "th",
+              "overPx": 114,
+              "text": "结果"
+            },
+            {
+              "el": "td",
+              "overPx": 114,
+              "text": "已完成"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 94,
+              "text": "已完成"
+            },
+            {
+              "el": "span.sbadge.sb-danger",
+              "overPx": 82,
+              "text": "失败"
+            },
+            {
+              "el": "th",
+              "overPx": 32,
+              "text": "大小"
+            },
+            {
+              "el": "td.num",
+              "overPx": 32,
+              "text": "1.2 MB"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input",
+          "input «默认下载价格»",
+          "select «授权有效期»",
+          "input «单用户日限额»",
+          "button «保存计费策略»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «详情»",
+          "input «选择此项»",
+          "button «详情»",
+          "input «选择此项»",
+          "button «详情»",
+          "input «选择此项»",
+          "button «重试»",
+          "button «详情»",
+          "button «导出账单»",
+          "button «刷新记录»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/download-billing",
+        "error": null,
+        "title": "下载计费 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «下载计费»",
+          "button «关闭管理菜单»",
+          "input «is_enabled»",
+          "select «固定单价（fixed）免费（free）继承附件策略（inherit）禁用»",
+          "input «amount»",
+          "select «1 小时6 小时24 小时7 天»",
+          "input «daily_user_limit»",
+          "input «如：开启下载计费»",
+          "button «保存计费策略»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-ai",
+      "note": "后台·AI",
+      "proto": {
+        "url": "#admin-ai",
+        "error": null,
+        "title": "管理后台 · ai · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "任务号任务来源状态操作T-311草稿格式修复草稿"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "任务号任务来源状态操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "任务号任务来源状态操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "T-311草稿格式修复草稿 #d-12运行中中止"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "中止详情"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 244,
+              "text": "详情"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 170,
+              "text": "中止"
+            },
+            {
+              "el": "th",
+              "overPx": 88,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 88,
+              "text": "运行中"
+            },
+            {
+              "el": "span.sbadge.sb-brand",
+              "overPx": 56,
+              "text": "运行中"
+            },
+            {
+              "el": "span.sbadge.sb-hot",
+              "overPx": 56,
+              "text": "排队中"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 56,
+              "text": "已完成"
+            },
+            {
+              "el": "span.sbadge.sb-danger",
+              "overPx": 44,
+              "text": "失败"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «添加渠道»",
+          "button «获取模型»",
+          "button «编辑»",
+          "button «获取模型»",
+          "button «编辑»",
+          "button «获取模型»",
+          "button «编辑»",
+          "select «受控 Gateway · 内部网关OpenAI API · OpenAI»",
+          "select «bblbb-format-v1bblbb-summarize-v1bbl»",
+          "select «受控 Gateway · 内部网关OpenAI API · OpenAI»",
+          "select «gpt-4o-minigpt-4.1-minigpt-4o»",
+          "select «受控 Gateway · 内部网关OpenAI API · OpenAI»",
+          "select «bblbb-format-v1bblbb-summarize-v1bbl»",
+          "select «受控 Gateway · 内部网关OpenAI API · OpenAI»",
+          "select «qwen2.5:7bllama3.2»",
+          "select «受控 Gateway · 内部网关OpenAI API · OpenAI»",
+          "select «bblbb-format-v1bblbb-summarize-v1bbl»",
+          "button «保存场景配置»",
+          "select «数据策略»",
+          "input «月度预算»",
+          "input «每日调用上限»",
+          "button «测试当前默认模型»",
+          "button «保存调用策略»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «中止»",
+          "button «详情»",
+          "input «选择此项»",
+          "button «重试»",
+          "button «详情»",
+          "input «选择此项»",
+          "button «详情»",
+          "input «选择此项»",
+          "button «重试»",
+          "button «详情»",
+          "button «清理已完成»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/ai",
+        "error": null,
+        "title": "大模型设置 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «大模型设置»",
+          "button «关闭管理菜单»",
+          "input «enabled»",
+          "select «disabled（不发送）metadata_only（仅元数据）reda»",
+          "input «flag_formatting»",
+          "input «flag_seo»",
+          "input «flag_tagging»",
+          "input «flag_moderation»",
+          "input «不限»",
+          "input «不限»",
+          "input «必填（写审计）»",
+          "button «保存配置»",
+          "button «测试 Provider（当前表单值）»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-video",
+      "note": "后台·视频",
+      "proto": {
+        "url": "#admin-video",
+        "error": null,
+        "title": "管理后台 · video · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "任务号来源大小状态操作V-52sveltekit"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "任务号来源大小状态操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "任务号来源大小状态操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "V-52sveltekit-demo 嵌入42 "
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "取消删除"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 248,
+              "text": "删除"
+            },
+            {
+              "el": "button.btn.danger",
+              "overPx": 174,
+              "text": "删除"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 172,
+              "text": "取消"
+            },
+            {
+              "el": "th",
+              "overPx": 90,
+              "text": "状态"
+            },
+            {
+              "el": "td",
+              "overPx": 90,
+              "text": "转码中"
+            },
+            {
+              "el": "span.sbadge.sb-brand",
+              "overPx": 60,
+              "text": "转码中"
+            },
+            {
+              "el": "span.sbadge.sb-hot",
+              "overPx": 60,
+              "text": "排队中"
+            },
+            {
+              "el": "span.sbadge.sb-success",
+              "overPx": 60,
+              "text": "已完成"
+            },
+            {
+              "el": "span.sbadge.sb-danger",
+              "overPx": 48,
+              "text": "失败"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «取消»",
+          "button «删除»",
+          "input «选择此项»",
+          "button «取消»",
+          "button «删除»",
+          "input «选择此项»",
+          "button «删除»",
+          "input «选择此项»",
+          "button «重试»",
+          "button «删除»",
+          "button «刷新队列»",
+          "button «导出任务»",
+          "input",
+          "input «域名白名单»",
+          "select «CSP 策略»",
+          "select «解析失败回退»",
+          "button «保存白名单»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/video",
+        "error": null,
+        "title": "视频插件 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «视频插件»",
+          "button «关闭管理菜单»",
+          "input «enabled»",
+          "textarea «example.com»",
+          "textarea «embed.example.com»",
+          "textarea «video/mp4»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «必填（写审计）»",
+          "button «保存配置»",
+          "button «测试此 Provider»",
+          "input «enabled»",
+          "textarea «example.com»",
+          "textarea «embed.example.com»",
+          "textarea «video/mp4»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «必填（写审计）»",
+          "button «保存配置»",
+          "button «测试此 Provider»",
+          "input «enabled»",
+          "textarea «example.com»",
+          "textarea «embed.example.com»",
+          "textarea «video/mp4»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «不限»",
+          "input «必填（写审计）»",
+          "button «保存配置»",
+          "button «测试此 Provider»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-marketplace",
+      "note": "后台·市场",
+      "proto": {
+        "url": "#admin-marketplace",
+        "error": null,
+        "title": "管理后台 · marketplace · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "应用状态累计订单操作主题商店应用 · theme"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "应用状态累计订单操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "应用状态累计订单操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "主题商店应用 · theme-store已启用4"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 300,
+              "text": "下架管理"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 246,
+              "text": "管理"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 172,
+              "text": "驳回"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 144,
+              "text": "管理"
+            },
+            {
+              "el": "button.btn.primary",
+              "overPx": 98,
+              "text": "审批通过"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 98,
+              "text": "重新上架"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 70,
+              "text": "下架"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «下架»",
+          "button «管理»",
+          "input «选择此项»",
+          "button «下架»",
+          "button «管理»",
+          "input «选择此项»",
+          "button «审批通过»",
+          "button «驳回»",
+          "button «管理»",
+          "input «选择此项»",
+          "button «重新上架»",
+          "button «管理»",
+          "button «开始对账»",
+          "button «导出交易»",
+          "button «紧急禁用»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/marketplace",
+        "error": null,
+        "title": "Marketplace 管理 · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «市场与交易»",
+          "button «关闭管理菜单»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-bi",
+      "note": "后台·BI",
+      "proto": {
+        "url": "#admin-bi",
+        "error": null,
+        "title": "管理后台 · bi · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "button «今日»",
+          "button «本周»",
+          "button «本月»",
+          "button «今年»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/bi",
+        "error": null,
+        "title": "BI 数据看板 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «BI 看板»",
+          "button «关闭管理菜单»",
+          "a:/admin/bi?period=day «今日»",
+          "a:/admin/bi?period=week «本周»",
+          "a:/admin/bi?period=month «本月»",
+          "a:/admin/bi?period=year «本年»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-notifications",
+      "note": "后台·通知",
+      "proto": {
+        "url": "#admin-notifications",
+        "error": null,
+        "title": "管理后台 · notifications · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "模板触发方式队列失败操作验证邮件事件触发12预览"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "模板触发方式队列失败操作"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "模板触发方式队列失败操作"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "操作"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "验证邮件事件触发12预览发送测试通知摘要每日 0"
+            },
+            {
+              "el": "th",
+              "overPx": 225,
+              "text": "失败"
+            },
+            {
+              "el": "td.adm-acts",
+              "overPx": 225,
+              "text": "预览发送测试"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 142,
+              "text": "发送测试"
+            },
+            {
+              "el": "button.btn.ghost",
+              "overPx": 40,
+              "text": "预览"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "button «预览»",
+          "button «发送测试»",
+          "input «选择此项»",
+          "button «预览»",
+          "button «发送测试»",
+          "input «选择此项»",
+          "button «预览»",
+          "button «发送测试»",
+          "input «选择此项»",
+          "button «预览»",
+          "button «发送测试»",
+          "input «广播标题»",
+          "textarea «广播内容»",
+          "select «广播目标»",
+          "button «发送广播»",
+          "button «重试失败»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/notifications",
+        "error": null,
+        "title": "出错了 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «刷新页面»",
+          "a:/ «返回首页»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-audit",
+      "note": "后台·审计",
+      "proto": {
+        "url": "#admin-audit",
+        "error": null,
+        "title": "管理后台 · audit · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.app-table",
+              "overPx": 300,
+              "text": "时间操作人操作对象9-4 11:39Chaos积"
+            },
+            {
+              "el": "thead",
+              "overPx": 300,
+              "text": "时间操作人操作对象"
+            },
+            {
+              "el": "tr",
+              "overPx": 300,
+              "text": "时间操作人操作对象"
+            },
+            {
+              "el": "th",
+              "overPx": 300,
+              "text": "对象"
+            },
+            {
+              "el": "tbody",
+              "overPx": 300,
+              "text": "9-4 11:39Chaos积分调整 · +50"
+            },
+            {
+              "el": "td",
+              "overPx": 300,
+              "text": "用户 Mark"
+            },
+            {
+              "el": "th",
+              "overPx": 134,
+              "text": "操作"
+            },
+            {
+              "el": "td",
+              "overPx": 134,
+              "text": "积分调整 · +50 B币"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input «搜索当前列表»",
+          "select «按状态筛选»",
+          "button «清除»",
+          "input «过滤审计日志»",
+          "input «全选当前列表»",
+          "input «选择此项»",
+          "input «选择此项»",
+          "input «选择此项»",
+          "input «选择此项»",
+          "button «导出 CSV»",
+          "button «清空日志»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»",
+          "button «批量标记»",
+          "button «导出 CSV»",
+          "button «清除选择»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/audit",
+        "error": null,
+        "title": "审计日志 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": [
+            {
+              "el": "table.table",
+              "overPx": 214,
+              "text": "时间操作人操作对象详情2026/9/4 12:2"
+            },
+            {
+              "el": "thead",
+              "overPx": 211,
+              "text": "时间操作人操作对象详情"
+            },
+            {
+              "el": "tr",
+              "overPx": 211,
+              "text": "时间操作人操作对象详情"
+            },
+            {
+              "el": "th",
+              "overPx": 211,
+              "text": "详情"
+            },
+            {
+              "el": "tbody",
+              "overPx": 211,
+              "text": "2026/9/4 12:24:19modauth"
+            },
+            {
+              "el": "td",
+              "overPx": 211,
+              "text": "{\"kind\":\"mfa_changed\"}"
+            },
+            {
+              "el": "code.text-secondary",
+              "overPx": 197,
+              "text": "{\"kind\":\"mfa_changed\"}"
+            },
+            {
+              "el": "span.text-secondary",
+              "overPx": 170,
+              "text": "—"
+            },
+            {
+              "el": "th",
+              "overPx": 141,
+              "text": "对象"
+            },
+            {
+              "el": "td",
+              "overPx": 141,
+              "text": "user 75fc10b1-204d-4904-"
+            },
+            {
+              "el": "span.text-secondary",
+              "overPx": 127,
+              "text": "75fc10b1-204d-4904-8ca9-"
+            },
+            {
+              "el": "span",
+              "overPx": 72,
+              "text": "user"
+            },
+            {
+              "el": "th",
+              "overPx": 31,
+              "text": "操作"
+            },
+            {
+              "el": "td",
+              "overPx": 31,
+              "text": "auth.security_notificati"
+            },
+            {
+              "el": "span.badge",
+              "overPx": 17,
+              "text": "auth.security_notificati"
+            }
+          ]
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «审计日志»",
+          "button «关闭管理菜单»",
+          "input «过滤审计日志»",
+          "button «过滤»",
+          "a:/users/mod «mod»",
+          "a:/users/admin «admin»",
+          "a:/users/carol «carol»",
+          "a:/users/bob «bob»",
+          "a:/users/alice «alice»",
+          "button «导出 CSV»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    },
+    {
+      "slug": "admin-settings",
+      "note": "后台·设置",
+      "proto": {
+        "url": "#admin-settings",
+        "error": null,
+        "title": "管理后台 · settings · BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main «跳到主内容»",
+          "button «☰管理菜单»",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input",
+          "input «站点名称»",
+          "select «默认语言»",
+          "input «公开源地址»",
+          "input «API 限流»",
+          "button «恢复默认»",
+          "button «保存设置»",
+          "input",
+          "button «导出当前配置»",
+          "button «重置演示数据»",
+          "a:#home «首页»",
+          "a:#discover «发现»",
+          "button «发布»",
+          "a:#messages «消息»",
+          "a:#me «我的»"
+        ]
+      },
+      "app": {
+        "url": "http://127.0.0.1:4183/admin/settings",
+        "error": null,
+        "title": "系统设置 — BBLBB",
+        "overflow": {
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "hOverflowPx": 0,
+          "overflowing": []
+        },
+        "inventory": [
+          "a:#main-content «跳转到主要内容»",
+          "button «系统设置»",
+          "button «关闭管理菜单»",
+          "input «open_registration»",
+          "input «email_verification»",
+          "input «anonymous_replies»",
+          "input «public_rss»",
+          "input «maintenance_mode»",
+          "input «site_name»",
+          "select «简体中文English»",
+          "input «https://bblbb.example.com»",
+          "input «api_rate_limit»",
+          "input «如：开启维护模式排查问题»",
+          "button «恢复默认»",
+          "button «保存设置»",
+          "button «导出当前配置»",
+          "a:/ «首页»",
+          "a:/boards «板块»",
+          "a:/editor «发布»",
+          "a:/messages «消息»",
+          "a:/me «我的»"
+        ]
+      }
+    }
+  ],
+  "params": null
+}

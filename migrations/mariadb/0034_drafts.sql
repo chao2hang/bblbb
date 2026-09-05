@@ -13,9 +13,9 @@
 -- cascades.
 
 CREATE TABLE drafts (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    owner_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    board_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    owner_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    board_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     post_type VARCHAR(16) NOT NULL DEFAULT 'discussion',
     title VARCHAR(240) NOT NULL,
     markdown MEDIUMTEXT NOT NULL,

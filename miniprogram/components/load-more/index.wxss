@@ -1,0 +1,21 @@
+.lm {
+  padding: 32rpx 0;
+  display: flex;
+  justify-content: center;
+}
+
+.lm-center {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.lm-text {
+  font-size: 24rpx;
+}
+
+.spin-sm {
+  width: 28rpx;
+  height: 28rpx;
+  border-width: 3rpx;
+}

@@ -1,0 +1,88 @@
+<view class="page">
+  <!-- 未登录 -->
+  <view wx:if="{{!me}}" class="pf-anon">
+    <view class="avatar avatar-lg">?</view>
+    <view class="title mt-24">未登录</view>
+    <view class="subtitle">登录后发帖、评论、签到领经验</view>
+    <button class="btn btn-primary btn-sm mt-32" bindtap="onLoginTap">登录 / 注册</button>
+  </view>
+
+  <!-- 已登录 -->
+  <block wx:else>
+    <!-- 用户卡 -->
+    <view class="pf-hero">
+      <view class="row gap-24">
+        <view class="avatar avatar-lg">{{me.display_name || me.username ? (me.display_name || me.username).charAt(0) : '?'}}</view>
+        <view class="col flex-1">
+          <view class="pf-name row gap-16">
+            <text class="title">{{me.display_name || me.username}}</text>
+            <text class="badge">{{levelName || ('Lv' + me.level)}}</text>
+          </view>
+          <view class="text-2">@{{me.username}}</view>
+          <view class="text-3 pf-exp">{{expBalance}} 经验值</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 统计 -->
+    <view class="card pf-stats">
+      <view class="pf-stat" wx:for="{{[['发帖', stats.post_count], ['关注者', stats.followers], ['关注', stats.following]]}}" wx:key="*this">
+        <view class="pf-stat-num">{{item[1]}}</view>
+        <view class="text-3">{{item[0]}}</view>
+      </view>
+    </view>
+
+    <!-- 签到卡 -->
+    <view class="card pf-checkin">
+      <view class="row-between">
+        <view>
+          <view class="pf-ci-title">每日签到</view>
+          <view class="text-3" wx:if="{{streakDays > 0}}">已连续签到 {{streakDays}} 天</view>
+          <view class="text-3" wx:else>今天还没签到</view>
+        </view>
+        <button
+          class="btn {{checkedInToday ? 'btn-ghost' : 'btn-primary'}} btn-sm"
+          disabled="{{checkedInToday || checkingIn}}"
+          loading="{{checkingIn}}"
+          bindtap="onCheckIn"
+        >{{checkedInToday ? '已签到 ✓' : '签到 +10 经验'}}</button>
+      </view>
+    </view>
+
+    <!-- 菜单 -->
+    <view class="card card-flat pf-menu">
+      <view class="pf-menu-item" bindtap="goEdit">
+        <text class="pf-menu-icon">✏️</text>
+        <text class="pf-menu-text">编辑资料</text>
+        <text class="pf-menu-arrow">›</text>
+      </view>
+      <view class="pf-menu-item" bindtap="goFavorites">
+        <text class="pf-menu-icon">⭐</text>
+        <text class="pf-menu-text">我的收藏</text>
+        <text class="pf-menu-arrow">›</text>
+      </view>
+      <view class="pf-menu-item" bindtap="goAchievements">
+        <text class="pf-menu-icon">🏅</text>
+        <text class="pf-menu-text">成就</text>
+        <text class="pf-menu-arrow">›</text>
+      </view>
+      <view class="pf-menu-item" bindtap="goTransactions">
+        <text class="pf-menu-icon">🧾</text>
+        <text class="pf-menu-text">积分明细</text>
+        <text class="pf-menu-arrow">›</text>
+      </view>
+      <view class="pf-menu-item" bindtap="goShop">
+        <text class="pf-menu-icon">🛍️</text>
+        <text class="pf-menu-text">积分商城</text>
+        <text class="pf-menu-arrow">›</text>
+      </view>
+      <view class="pf-menu-item" bindtap="goSessions">
+        <text class="pf-menu-icon">📱</text>
+        <text class="pf-menu-text">设备与登录</text>
+        <text class="pf-menu-arrow">›</text>
+      </view>
+    </view>
+
+    <button class="btn btn-danger btn-block pf-logout" loading="{{loggingOut}}" bindtap="onLogoutTap">退出登录</button>
+  </block>
+</view>

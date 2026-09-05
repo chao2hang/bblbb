@@ -1,0 +1,82 @@
+.login-page {
+  padding-top: calc(80rpx + env(safe-area-inset-top));
+}
+
+.login-hero {
+  text-align: center;
+  padding: 40rpx 0 56rpx;
+}
+
+.login-logo {
+  width: 112rpx;
+  height: 112rpx;
+  margin: 0 auto 28rpx;
+  border-radius: 28rpx;
+  background: var(--accent);
+  color: #fff;
+  font-size: 60rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 1rpx;
+}
+
+.login-card {
+  padding: 40rpx 32rpx;
+}
+
+.remember-row {
+  margin-top: 8rpx;
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+}
+
+.remember-text {
+  font-size: 26rpx;
+  color: var(--ink-2);
+}
+
+.forgot-link {
+  font-size: 26rpx;
+}
+
+.register-hint {
+  text-align: center;
+  margin-top: 28rpx;
+  color: var(--accent);
+}
+
+.mfa-input {
+  letter-spacing: 8rpx;
+  font-size: 34rpx;
+  text-align: center;
+}
+
+.mfa-switch {
+  text-align: center;
+  margin-top: 24rpx;
+  color: var(--accent);
+}
+
+.mfa-back {
+  text-align: center;
+  margin-top: 16rpx;
+}
+
+.login-error {
+  margin-top: 28rpx;
+  padding: 20rpx 24rpx;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.ph {
+  color: var(--ink-3);
+}

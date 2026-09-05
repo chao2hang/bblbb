@@ -1,0 +1,56 @@
+.sh-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 32rpx;
+}
+
+.sh-balance-num {
+  font-size: 36rpx;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.sh-tabs {
+  display: flex;
+  gap: 40rpx;
+  padding: 12rpx 32rpx 20rpx;
+}
+
+.sh-tab {
+  font-size: 29rpx;
+  color: var(--ink-3);
+  padding-bottom: 8rpx;
+}
+
+.sh-tab.on {
+  color: var(--ink);
+  font-weight: 700;
+  border-bottom: 4rpx solid var(--accent);
+}
+
+.sh-icon {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 18rpx;
+  background: var(--line-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  flex-shrink: 0;
+}
+
+.sh-title {
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.sh-desc {
+  margin-top: 4rpx;
+}
+
+.sh-empty {
+  text-align: center;
+  padding: 120rpx 0;
+}

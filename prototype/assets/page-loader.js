@@ -6,9 +6,9 @@
   'use strict';
 
   var FRAGMENTS = [
-    ['home', 'pages/home.html'],
-    ['discover', 'pages/discover.html'],
-    ['design', 'pages/design.html']
+    ['home', '/pages/home.html'],
+    ['discover', '/pages/discover.html'],
+    ['design', '/pages/design.html']
   ];
 
   function inject(id, html) {
@@ -34,7 +34,7 @@
 
   Promise.all(FRAGMENTS.map(loadFragment)).then(function () {
     var script = document.createElement('script');
-    script.src = 'assets/prototype-app.js';
+    script.src = '/assets/prototype-app.js';
     script.onload = function () { window.__bblbbCompletionReady = true; };
     script.onerror = function () { document.title = 'BBLBB 加载失败'; };
     document.body.appendChild(script);

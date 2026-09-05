@@ -95,7 +95,10 @@ async fn sqlite_auth_crossdb_contract() {
 async fn mysql_auth_crossdb_contract() {
     let url = std::env::var("BBLBB_TEST_MYSQL_URL").expect("BBLBB_TEST_MYSQL_URL 未设置");
     let pool = create_pool(&url).await.unwrap();
-    let files = read_migration_files(&migrations_dir("mysql")).unwrap();
+    let files = read_migration_files(&migrations_dir(
+        common::mysql_family_migrations_dir(&pool).await,
+    ))
+    .unwrap();
     run_migrations(&pool, &files).await.unwrap();
     let app = app_with_key(pool.clone());
     auth_crossdb_flow(&pool, &app).await;

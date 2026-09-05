@@ -418,8 +418,12 @@ async fn update_me(
 /// GET /api/v1/users/{username} — 获取公开用户资料（公开投影 DTO，
 /// M03-PROFILE-01/02/06：不含邮箱、状态、Session、IP、处罚与审计信息；
 /// 不存在/已注销 → 404；封禁/注销中 → 安全降级投影）
+///
+/// GAP-FIX 社交域：追加 post_count/followers/following 公开计数与
+/// is_following（请求者视角，未登录恒 false）。
 async fn get_public_user(
     State(state): State<AppState>,
+    auth: AuthSession,
     Path(username): Path<String>,
 ) -> Result<Json<PublicProfile>, AppError> {
     let request_id = "get_public_user";
@@ -472,6 +476,13 @@ async fn get_public_user(
             // 封禁/注销中：安全降级投影（bio/签名/头像/Cover 置空，
             // 保留 id/username/display_name/level 与全键集；不泄漏状态）
             let degraded = matches!(status.as_str(), "banned" | "pending_delete");
+
+            // 社交统计（GAP-FIX：公开计数 + 请求者视角 is_following）。
+            let (post_count, followers, following, is_following) =
+                load_public_social_stats(pool, &id, auth.user.as_ref().map(|u| u.id.as_str()))
+                    .await
+                    .map_err(|e| AppError::internal(e, request_id))?;
+
             Ok(Json(PublicProfile {
                 id,
                 username,
@@ -482,9 +493,87 @@ async fn get_public_user(
                 cover_attachment_id: if degraded { None } else { cover_attachment_id },
                 signature: if degraded { None } else { signature },
                 created_at,
+                post_count,
+                followers,
+                following,
+                is_following,
             }))
         }
         None => Err(AppError::not_found("user not found", request_id)),
+    }
+}
+
+/// 公开社交统计：(post_count, followers, following, is_following)。
+///
+/// is_following 需要会话用户（未登录恒 false）；SQL 跨方言 `?` 占位符。
+async fn load_public_social_stats(
+    pool: &sqlx::Either<sqlx::SqlitePool, sqlx::MySqlPool>,
+    user_id: &str,
+    viewer_id: Option<&str>,
+) -> Result<(i64, i64, i64, bool), String> {
+    let post_count = social_scalar(
+        pool,
+        user_id,
+        "SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'published' AND deleted_at IS NULL",
+    )
+    .await?;
+    let followers = social_scalar(
+        pool,
+        user_id,
+        "SELECT COUNT(*) FROM user_follows WHERE followee_id = ?",
+    )
+    .await?;
+    let following = social_scalar(
+        pool,
+        user_id,
+        "SELECT COUNT(*) FROM user_follows WHERE follower_id = ?",
+    )
+    .await?;
+
+    let is_following = match viewer_id {
+        Some(viewer) => {
+            let row: Option<i64> = match pool {
+                sqlx::Either::Left(p) => sqlx::query_scalar(
+                    "SELECT 1 FROM user_follows WHERE follower_id = ? AND followee_id = ?",
+                )
+                .bind(viewer)
+                .bind(user_id)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| e.to_string())?,
+                sqlx::Either::Right(p) => sqlx::query_scalar(
+                    "SELECT 1 FROM user_follows WHERE follower_id = ? AND followee_id = ?",
+                )
+                .bind(viewer)
+                .bind(user_id)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| e.to_string())?,
+            };
+            row == Some(1)
+        }
+        None => false,
+    };
+    Ok((post_count, followers, following, is_following))
+}
+
+/// 单条 COUNT 聚合（社交统计共用）。
+async fn social_scalar(
+    pool: &sqlx::Either<sqlx::SqlitePool, sqlx::MySqlPool>,
+    user_id: &str,
+    sql: &str,
+) -> Result<i64, String> {
+    match pool {
+        sqlx::Either::Left(p) => sqlx::query_scalar::<_, i64>(sql)
+            .bind(user_id)
+            .fetch_one(p)
+            .await
+            .map_err(|e| e.to_string()),
+        sqlx::Either::Right(p) => sqlx::query_scalar::<_, i64>(sql)
+            .bind(user_id)
+            .fetch_one(p)
+            .await
+            .map_err(|e| e.to_string()),
     }
 }
 

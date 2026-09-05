@@ -8,7 +8,7 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, authedPatch, getAuthed } from '$lib/api/server';
-import { adminListState, type AdminLoadState } from '$lib/admin';
+import { adminListStateKeyed, type AdminLoadState } from '$lib/admin';
 import type { ShopConfig, ShopOrder, ShopProduct, Money } from '$lib/api/types';
 
 export interface AdminShopPageData {
@@ -26,20 +26,22 @@ export interface AdminShopActionData {
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
-  const productsResult = await getAuthed<{ items: ShopProduct[] }>(
+  // 注意形状：这两个端点返回具名数组（{ products: [] } / { orders: [] }），
+  // 不是 { items: [] }——用 adminListStateKeyed 归一（曾致 SSR 500）。
+  const productsResult = await getAuthed<{ products: ShopProduct[] }>(
     cookies,
     '/api/v1/admin/shop/products',
     requestId
   );
   if (!productsResult.ok && productsResult.status === 401) throw redirect(303, '/login');
-  const products = adminListState(productsResult);
+  const products = adminListStateKeyed<ShopProduct>(productsResult, 'products');
 
-  const ordersResult = await getAuthed<{ items: ShopOrder[] }>(
+  const ordersResult = await getAuthed<{ orders: ShopOrder[] }>(
     cookies,
     '/api/v1/admin/shop/orders',
     requestId
   );
-  const orders = adminListState(ordersResult);
+  const orders = adminListStateKeyed<ShopOrder>(ordersResult, 'orders');
 
   const configResult = await getAuthed<ShopConfig>(cookies, '/api/v1/admin/shop/config', requestId);
   let config: AdminShopPageData['config'];

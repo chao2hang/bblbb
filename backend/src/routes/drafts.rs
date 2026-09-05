@@ -73,6 +73,15 @@ struct CreateDraftRequest {
     #[serde(default)]
     visibility_level: Option<u32>,
     access_policy: String,
+    /// 付费定价（access_policy=paid 时必填 1-1000；快照到 drafts.price_coin）。
+    #[serde(default)]
+    price_coin: Option<u32>,
+    /// 摘要（≤300 字符；快照到 drafts.summary）。
+    #[serde(default)]
+    summary: Option<String>,
+    /// 标签（≤8 个、每个 1-32 字符；快照到 drafts.tags_json）。
+    #[serde(default)]
+    tags: Option<Vec<String>>,
     #[serde(default)]
     scheduled_at: Option<i64>,
     client_request_id: String,
@@ -121,6 +130,13 @@ fn draft_json(d: &Draft) -> Value {
         "visibility_level": d.visibility_level,
         "access_policy": d.access_policy,
         "scheduled_at": d.scheduled_at,
+        // GAP-FIX 快照字段（0062 drafts 列）。
+        "price_coin": d.price_coin,
+        "summary": d.summary,
+        "tags": d.tags_json
+            .as_deref()
+            .and_then(|t| serde_json::from_str::<Vec<String>>(t).ok())
+            .unwrap_or_default(),
     })
 }
 
@@ -197,6 +213,68 @@ async fn create_draft(
         .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
     let hash = request_hash(&body);
 
+    // GAP-FIX 付费定价/摘要/标签校验（与 posts 创建同一策略）。
+    match req.price_coin {
+        Some(p) if req.access_policy == "paid" => {
+            if !(1..=1000).contains(&p) {
+                return Err(AppError::with_code(
+                    axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                    "invalid_price_coin",
+                    "Unprocessable Entity",
+                    "price_coin must be between 1 and 1000",
+                    request_id,
+                ));
+            }
+        }
+        Some(_) => {
+            return Err(AppError::with_code(
+                axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                "invalid_price_coin",
+                "Unprocessable Entity",
+                "price_coin is only allowed for paid access policy",
+                request_id,
+            ));
+        }
+        None if req.access_policy == "paid" => {
+            return Err(AppError::with_code(
+                axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                "invalid_price_coin",
+                "Unprocessable Entity",
+                "price_coin is required for paid access policy",
+                request_id,
+            ));
+        }
+        None => {}
+    }
+    if let Some(summary) = req.summary.as_deref() {
+        if summary.trim().chars().count() > 300 {
+            return Err(AppError::bad_request(
+                "summary must be at most 300 characters",
+                request_id,
+                None,
+            ));
+        }
+    }
+    if let Some(tags) = req.tags.as_deref() {
+        if tags.len() > 8 {
+            return Err(AppError::bad_request(
+                "tags must contain at most 8 items",
+                request_id,
+                None,
+            ));
+        }
+        for tag in tags {
+            let len = tag.trim().chars().count();
+            if len == 0 || len > 32 {
+                return Err(AppError::bad_request(
+                    "each tag must be 1-32 characters",
+                    request_id,
+                    None,
+                ));
+            }
+        }
+    }
+
     let level = author_level(pool, &user.id).await?;
     let now = now_millis();
     let input = CreateDraftInput {
@@ -234,6 +312,18 @@ async fn create_draft(
         visibility_level: cmd.visibility_level.map(i64::from),
         access_policy: Some(cmd.access_policy.as_str().to_string()),
         scheduled_at: cmd.scheduled_at,
+        // GAP-FIX 快照字段（draft → posts 发布时同步，见 0062 迁移注释）。
+        price_coin: req.price_coin.map(i64::from),
+        summary: req
+            .summary
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
+        tags_json: req
+            .tags
+            .as_ref()
+            .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string())),
         version: 1,
         created_at: now,
         updated_at: now,
@@ -402,6 +492,10 @@ async fn update_draft(
             Some(ts) => ts,
             None => current.scheduled_at,
         },
+        // GAP-FIX 快照字段：PATCH 不在契约范围（创建时快照），保持原值。
+        price_coin: current.price_coin,
+        summary: current.summary,
+        tags_json: current.tags_json,
         version: current.version,
         created_at: current.created_at,
         updated_at: now,

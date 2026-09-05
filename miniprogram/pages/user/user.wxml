@@ -1,0 +1,67 @@
+<view class="page">
+  <view wx:if="{{state === 'loading' && !profile}}" class="loading-center"><view class="spin"></view></view>
+
+  <empty-state
+    wx:elif="{{state === 'error' && !profile}}"
+    state="error"
+    text="加载失败"
+    hint="{{error}}"
+    actionText="重试"
+    bind:action="onRetry"
+  />
+
+  <block wx:else>
+    <!-- 资料卡 -->
+    <view class="card card-flat u-hero" wx:if="{{profile}}">
+      <view class="row gap-24 u-hero-main">
+        <view class="avatar avatar-lg">{{profile.initial}}</view>
+        <view class="col flex-1">
+          <view class="row gap-16">
+            <text class="u-name">{{profile.displayName}}</text>
+            <text class="badge badge-gray">Lv{{profile.level}}</text>
+          </view>
+          <view class="text-2">@{{profile.username}} · {{profile.joinedText}} 加入</view>
+          <view class="text-3" wx:if="{{profile.bio}}">{{profile.bio}}</view>
+          <view class="text-3 u-sign" wx:if="{{profile.signature}}">「{{profile.signature}}」</view>
+        </view>
+      </view>
+
+      <view class="row u-stats">
+        <view class="u-stat"><text class="u-stat-num">{{profile.postCount}}</text><text class="text-3">发帖</text></view>
+        <view class="u-stat"><text class="u-stat-num">{{profile.followers}}</text><text class="text-3">关注者</text></view>
+        <view class="u-stat"><text class="u-stat-num">{{profile.following}}</text><text class="text-3">关注</text></view>
+        <view class="flex-1"></view>
+        <button
+          wx:if="{{!isSelf}}"
+          class="btn {{isFollowing ? 'btn-ghost' : 'btn-primary'}} btn-sm"
+          loading="{{followingBusy}}"
+          bindtap="onFollowTap"
+        >{{isFollowing ? '已关注' : '＋ 关注'}}</button>
+      </view>
+    </view>
+
+    <!-- 帖子列表 -->
+    <view class="u-section-title">TA 的帖子（{{profile.postCount}}）</view>
+    <view class="container">
+      <view wx:if="{{state === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+      <empty-state
+        wx:elif="{{state === 'error'}}"
+        state="error"
+        text="帖子加载失败"
+        hint="{{error}}"
+        actionText="重试"
+        bind:action="onRetry"
+      />
+      <block wx:else>
+        <post-card wx:for="{{items}}" wx:key="id" post="{{item}}" bind:tap="onPostTap" />
+        <view wx:if="{{!items.length}}" class="u-empty"><text class="text-3">还没有帖子</text></view>
+        <load-more
+          wx:if="{{items.length}}"
+          hasMore="{{hasMore}}"
+          loading="{{loadingMore}}"
+          bind:retry="onLoadMoreRetry"
+        />
+      </block>
+    </view>
+  </block>
+</view>

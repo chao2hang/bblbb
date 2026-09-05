@@ -313,10 +313,30 @@ async fn create_comment_reaction(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     let reaction = "like";
-    crate::reactions::service::add_reaction(pool, &user.id, "comment", &id, reaction, false)
-        .await
-        .map(Json)
-        .map_err(|e| map_reaction_error(e, request_id))
+    let summary =
+        crate::reactions::service::add_reaction(pool, &user.id, "comment", &id, reaction, false)
+            .await
+            .map_err(|e| map_reaction_error(e, request_id))?;
+    // 成就钩子（best-effort）：reaction_received 类成就按**评论作者**判定
+    // （被赞方）；失败只 warn 不阻断反应本身。
+    let author: Option<String> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT author_id FROM comments WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT author_id FROM comments WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    if let Some(author_id) = author {
+        if let Err(e) = crate::achievements::evaluate(pool, &author_id).await {
+            tracing::warn!(user_id = %author_id, error = %e, "achievement evaluate failed (comment reaction)");
+        }
+    }
+    Ok(Json(summary))
 }
 
 /// DELETE /api/v1/comments/{id}/reactions/{reaction} — 移除评论反应

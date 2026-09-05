@@ -175,6 +175,21 @@ function buildConfigChanges(form: FormData): Record<string, unknown> {
   if (perUserTokens !== undefined) budgets.per_user_daily_tokens = perUserTokens;
   if (siteTokens !== undefined) budgets.site_daily_tokens = siteTokens;
   if (Object.keys(budgets).length > 0) changes.budgets = budgets;
+  // 渠道 upsert（后端约定：body 同时携带 name + base_url 时执行
+  // ai_providers 插入/更新；status 值域 enabled/disabled）。不传 data_mode，
+  // 避免与站点级 data_mode 同键冲突（渠道侧取后端默认 redacted）。
+  const providerName = String(form.get('provider_name') ?? '').trim();
+  const providerBaseUrl = String(form.get('provider_base_url') ?? '').trim();
+  if (providerName && providerBaseUrl) {
+    changes.name = providerName;
+    changes.base_url = providerBaseUrl;
+    const defaultModel = String(form.get('provider_default_model') ?? '').trim();
+    if (defaultModel) changes.default_model = defaultModel;
+    const adapterType = String(form.get('provider_adapter_type') ?? '').trim();
+    if (adapterType) changes.adapter_type = adapterType;
+    const providerStatus = String(form.get('provider_status') ?? '').trim();
+    if (providerStatus) changes.status = providerStatus;
+  }
   return changes;
 }
 

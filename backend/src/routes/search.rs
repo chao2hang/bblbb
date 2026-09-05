@@ -27,6 +27,10 @@ struct SearchQuery {
     /// keyset 游标（base64url(`depth|indexed_at|doc_id`)）。
     #[serde(default)]
     after: Option<String>,
+    /// 精确标签过滤（GAP-FIX 筛选补齐）：按标签 slug 或名称解析为标签名
+    /// 后匹配 search_documents.tags_json（存的是标签名数组）。
+    #[serde(default)]
+    tag: Option<String>,
 }
 
 fn default_limit() -> i64 {
@@ -52,8 +56,44 @@ async fn search_public_content(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
     let now = crate::outbox::now_millis();
-    let req = SearchRequest::parse(&query.q, query.limit, query.after.as_deref())
+    let mut req = SearchRequest::parse(&query.q, query.limit, query.after.as_deref())
         .map_err(|e: SearchQueryError| AppError::bad_request(e.to_string(), request_id, None))?;
+
+    // 标签解析：slug 或名称命中启用标签即取其名称；未命中返回空页
+    // （精确过滤语义：不存在的标签没有匹配文档）。
+    if let Some(tag) = query
+        .tag
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
+        let name_sql =
+            "SELECT name FROM tags WHERE is_active = 1 AND (slug = ? OR name = ?) LIMIT 1";
+        let name: Option<String> = match pool {
+            sqlx::Either::Left(p) => sqlx::query_scalar(name_sql)
+                .bind(tag)
+                .bind(tag)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            sqlx::Either::Right(p) => sqlx::query_scalar(name_sql)
+                .bind(tag)
+                .bind(tag)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        };
+        match name {
+            Some(name) => req.tag = Some(name),
+            None => {
+                let body = json!({
+                    "items": [],
+                    "page": { "next_cursor": null, "has_more": false },
+                });
+                return Ok((StatusCode::OK, Json(body)).into_response());
+            }
+        }
+    }
 
     let page = execute_public_search(pool, &req, now)
         .await

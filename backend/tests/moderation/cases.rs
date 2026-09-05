@@ -16,7 +16,7 @@ use bblbb_backend::db::DatabasePool;
 use bblbb_backend::moderation::cases::service as cases;
 use bblbb_backend::moderation::cases::service::{CasesError, ContentAction, CreateReportInput};
 use bblbb_backend::moderation::model::{
-    CasePriority, CaseStatus, ReportReasonCode, ReportTargetType,
+    CasePriority, CaseStatus, ReportReasonCode, ReportTargetType, REPORT_DEDUP_WINDOW_MS,
 };
 use bblbb_backend::outbox::now_millis;
 use bblbb_backend::{build_router, AppConfig};
@@ -240,7 +240,12 @@ async fn report_dedup_window_returns_existing() {
     let author = insert_user(&pool, "victimd", 5).await;
     let post_id = publish_post(&pool, &author, "dedup target", "内容").await;
 
-    let now = now_millis();
+    // 锚定到当前去重窗口中点：真实时钟可能落在窗口末尾，导致 now+1h 跨越
+    // 7 天纪元边界落入下一窗口（dedup_until 按 div_euclid(W)+1 取整），
+    // 第二次举报被判定为合法新举报而非 DuplicateReport——每周边界前 1 小时
+    // 必然触发的时间炸弹。对齐到中点后 1 小时偏移永不越界。
+    let now = (now_millis() / REPORT_DEDUP_WINDOW_MS) * REPORT_DEDUP_WINDOW_MS
+        + REPORT_DEDUP_WINDOW_MS / 2;
     let first = cases::create_report(
         &pool,
         &reporter,

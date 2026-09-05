@@ -234,14 +234,20 @@ async fn api_surface_never_leaks_private_user_fields() {
     let profile: Value = serde_json::from_str(&body).unwrap();
     let mut keys: Vec<String> = profile.as_object().unwrap().keys().cloned().collect();
     keys.sort();
+    // GAP-FIX 社交域：公开投影追加公开社交统计
+    // （post_count/followers/following/is_following）。
     let mut expected = [
         "avatar_attachment_id",
         "bio",
         "cover_attachment_id",
         "created_at",
         "display_name",
+        "followers",
+        "following",
         "id",
+        "is_following",
         "level",
+        "post_count",
         "signature",
         "username",
     ]

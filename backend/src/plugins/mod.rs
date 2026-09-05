@@ -1175,22 +1175,22 @@ pub async fn put_plugin_data(
     }
     // 配额检查（skipped 非敏感）。
     let count: i64 = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar("SELECT COUNT(*) FROM plugin_data WHERE plugin_id = ? AND key != ?")
-                .bind(plugin_id)
-                .bind(key)
-                .fetch_one(p)
-                .await
-                .unwrap_or(0)
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar("SELECT COUNT(*) FROM plugin_data WHERE plugin_id = ? AND key != ?")
-                .bind(plugin_id)
-                .bind(key)
-                .fetch_one(p)
-                .await
-                .unwrap_or(0)
-        }
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT COUNT(*) FROM plugin_data WHERE plugin_id = ? AND `key` != ?",
+        )
+        .bind(plugin_id)
+        .bind(key)
+        .fetch_one(p)
+        .await
+        .unwrap_or(0),
+        Either::Right(p) => sqlx::query_scalar(
+            "SELECT COUNT(*) FROM plugin_data WHERE plugin_id = ? AND `key` != ?",
+        )
+        .bind(plugin_id)
+        .bind(key)
+        .fetch_one(p)
+        .await
+        .unwrap_or(0),
     };
     if count as usize >= PLUGIN_DATA_MAX_KEYS {
         return Err(PluginError::Conflict(format!(
@@ -1201,9 +1201,9 @@ pub async fn put_plugin_data(
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO plugin_data (plugin_id, key, value_json, updated_at)
+                "INSERT INTO plugin_data (plugin_id, `key`, value_json, updated_at)
                  VALUES (?, ?, ?, ?)
-                 ON CONFLICT(plugin_id, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",
+                 ON CONFLICT(plugin_id, `key`) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",
             )
             .bind(plugin_id)
             .bind(key)
@@ -1216,7 +1216,7 @@ pub async fn put_plugin_data(
         }
         Either::Right(p) => {
             sqlx::query(
-                "INSERT INTO plugin_data (plugin_id, key, value_json, updated_at)
+                "INSERT INTO plugin_data (plugin_id, `key`, value_json, updated_at)
                  VALUES (?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE value_json = VALUES(value_json), updated_at = VALUES(updated_at)",
             )

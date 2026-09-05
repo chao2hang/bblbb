@@ -89,13 +89,17 @@ pub async fn ensure_migration_table(pool: &DatabasePool) -> Result<(), sqlx::Err
             .await?;
         }
         Either::Right(p) => {
+            // 注意：不得使用 *_bin 排序规则——MySQL/MariaDB 会在协议层给 bin
+            // 排序规则列打 BINARY 标志，sqlx 0.8 会把 name 判为 VARBINARY 导致
+            // String 解码失败（读取已应用记录时报 ColumnDecode）。general_ci
+            // 为两引擎共有；该表仅为迁移簿记，排序规则无语义影响。
             sqlx::query(
                 "CREATE TABLE IF NOT EXISTS schema_migrations (
                     version BIGINT PRIMARY KEY NOT NULL,
                     name VARCHAR(255) NOT NULL,
                     checksum VARCHAR(64) NOT NULL,
                     applied_at BIGINT NOT NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin",
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
             )
             .execute(p)
             .await?;
@@ -179,10 +183,28 @@ pub async fn apply_migration(pool: &DatabasePool, file: &MigrationFile) -> Resul
         }
         Either::Right(p) => {
             let mut tx = p.begin().await?;
-            // MySQL/MariaDB 需要逐条执行
-            for stmt in file.sql.split(';') {
+            // MySQL/MariaDB 需要逐条执行。split 朴素分号切分有两个坑：
+            // 1) 整行注释（-- 开头）混在语句块里：若整块以注释开头就跳过，会把
+            //    紧跟注释的真实语句一并丢弃（历史 bug：0001 首行注释导致
+            //    CREATE TABLE users 从未执行，后续 FK 全部报 1824）；
+            // 2) 注释行内含分号（如 0017 的 "...); type stays"）：注释被切碎，
+            //    失去 -- 前缀的后半段会被误当代码执行（错误 1064）。
+            // 因此先整行剥掉 -- 注释，再按 ';' 切分，块内再剥一次残留注释行。
+            // 迁移文件中的字符串字面量不含分号（已审计），split 安全。
+            let stripped: String = file
+                .sql
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            for stmt in stripped.split(';') {
+                let stmt: String = stmt
+                    .lines()
+                    .filter(|l| !l.trim_start().starts_with("--"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
                 let stmt = stmt.trim();
-                if stmt.is_empty() || stmt.starts_with("--") {
+                if stmt.is_empty() {
                     continue;
                 }
                 sqlx::query(stmt).execute(&mut *tx).await?;

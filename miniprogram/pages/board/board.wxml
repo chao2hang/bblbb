@@ -1,0 +1,44 @@
+<view class="page page-with-bar">
+  <!-- 板块头 -->
+  <view class="bd-head card" wx:if="{{board}}">
+    <view class="bd-name">{{board.name}}</view>
+    <view class="bd-desc" wx:if="{{board.description}}">{{board.description}}</view>
+  </view>
+
+  <!-- 排序 -->
+  <view class="bd-sort">
+    <view class="bd-sort-item {{sort === 'latest' ? 'on' : ''}}" data-sort="latest" bindtap="onSortTap">最新</view>
+    <view class="bd-sort-item {{sort === 'hot' ? 'on' : ''}}" data-sort="hot" bindtap="onSortTap">热门</view>
+  </view>
+
+  <view class="container">
+    <view wx:if="{{loadState === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+
+    <empty-state
+      wx:elif="{{loadState === 'error'}}"
+      state="error"
+      text="加载失败"
+      hint="{{loadError}}"
+      actionText="点击重试"
+      bind:action="onRetry"
+    />
+
+    <block wx:else>
+      <post-card wx:for="{{items}}" wx:key="id" post="{{item}}" bind:tap="onPostTap" />
+      <view wx:if="{{!items.length}}" class="bd-empty">
+        <text class="text-3">该板块还没有帖子</text>
+      </view>
+      <load-more
+        wx:if="{{items.length}}"
+        hasMore="{{hasMore}}"
+        loading="{{loadingMore}}"
+        bind:retry="onLoadMoreRetry"
+      />
+    </block>
+  </view>
+
+  <!-- 底部发帖按钮 -->
+  <view class="composer-bar bd-composer">
+    <button class="btn btn-primary btn-sm" bindtap="onGotoCreate">＋ 在此板块发帖</button>
+  </view>
+</view>

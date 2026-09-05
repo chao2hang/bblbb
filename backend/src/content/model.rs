@@ -196,6 +196,12 @@ pub struct Draft {
     pub visibility_level: Option<i64>,
     pub access_policy: Option<String>,
     pub scheduled_at: Option<i64>,
+    /// 付费定价快照（GAP-FIX：drafts.price_coin，0062；金币）。
+    pub price_coin: Option<i64>,
+    /// 作者手写摘要快照（GAP-FIX：drafts.summary，0062；≤300 字符）。
+    pub summary: Option<String>,
+    /// 标签快照（GAP-FIX：drafts.tags_json，0062；JSON 字符串数组）。
+    pub tags_json: Option<String>,
     pub version: i64,
     pub created_at: i64,
     pub updated_at: i64,

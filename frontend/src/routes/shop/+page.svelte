@@ -47,15 +47,18 @@
 </script>
 
 <svelte:head>
-  <title>积分商城 — BBLBB</title>
+  <title>商城与积分 — BBLBB</title>
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">积分商城</span>
-  </nav>
+  <!-- 原型对齐（prototype/pages/shop.html）：app-route-head，无面包屑。 -->
+  <div class="app-route-head">
+    <div class="app-route-head__copy">
+      <span class="app-kicker">STYLE LAB / SHOP</span>
+      <h1 tabindex="-1">商城与积分</h1>
+      <p>装扮身份、购买权益与余额流水</p>
+    </div>
+  </div>
 
   {#if error}
     <p class="input-hint is-error" role="alert">{error}</p>
@@ -74,9 +77,11 @@
           <span class="badge badge-level">LV.{level}</span>
         </div>
       {/if}
-      <div style="margin-left:auto;">
+      <div style="margin-left:auto;display:flex;gap:var(--space-2);flex-wrap:wrap;">
         <a class="btn btn-secondary btn-sm" href="/me/wardrobe">我的衣柜</a>
-        <a class="btn btn-secondary btn-sm" href="/me/balance" style="margin-left:var(--space-2);">积分明细</a>
+        <a class="btn btn-secondary btn-sm" href="/me/balance">积分明细</a>
+        <!-- M18-MISC-03：查看账单入口（对齐原型） -->
+        <a class="btn btn-secondary btn-sm" href="/me/billing">查看账单</a>
       </div>
     </div>
   </div>

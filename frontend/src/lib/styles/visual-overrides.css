@@ -276,7 +276,6 @@ html.dark {
 
 /* Page-specific color cues remain subtle and semantic. */
 .home-discussions .section-title,
-.articles-page-card .card-title,
 .topic-title,
 .profile-name,
 .admin-page-title {
@@ -287,7 +286,6 @@ html.dark {
   background: transparent;
 }
 
-.articles-page-card .filter-bar,
 .points-section-header,
 .settings-section-header,
 .admin-content-toolbar {

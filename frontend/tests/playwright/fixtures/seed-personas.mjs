@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND = process.env.BBLBB_E2E_BACKEND ?? 'http://127.0.0.1:8080';
 const DB_PATH = process.env.BBLBB_E2E_DB;
-const OUT_PATH = join(__dirname, 'personas.json');
+const OUT_PATH = process.env.BBLBB_E2E_PERSONAS ?? join(__dirname, 'personas.json');
 
 if (!DB_PATH) {
   console.error('BBLBB_E2E_DB not set');

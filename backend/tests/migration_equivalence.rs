@@ -111,20 +111,32 @@ fn parse_table_body(name: &str, body: &str) -> Table {
     // 表级 PRIMARY KEY (col, ...) 中的列不可空
     let mut table_pk: Vec<String> = Vec::new();
 
-    for item in split_top_level(body) {
+    // 先剥掉整行注释：表体内允许注释（如 0043 对 SET NULL→RESTRICT 的
+    // 说明），注释里的逗号会把 split_top_level 的片段切碎、被误当代码
+    let body: String = body
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    for item in split_top_level(&body) {
         let trimmed = item.trim();
         if trimmed.is_empty() {
             continue;
         }
         let item_upper = trimmed.to_uppercase();
-        // 约束：PRIMARY/UNIQUE/KEY/CONSTRAINT/FOREIGN/CHECK
-        if item_upper.starts_with("PRIMARY KEY")
-            || item_upper.starts_with("UNIQUE")
-            || item_upper.starts_with("KEY")
+        // 约束：PRIMARY/UNIQUE/KEY/CONSTRAINT/FOREIGN/CHECK。
+        // 注意 KEY/UNIQUE 开头的行必须同时含 '(' 才视为约束：名为 key 的
+        // 列（idempotency_records.key / plugin_data.key，SQLite 侧无反引号）
+        // 不能被误判成索引行而丢列。约束行（KEY idx (col)、UNIQUE (a, b)、
+        // PRIMARY KEY (id)）都带括号；裸类型列（key TEXT NOT NULL）没有。
+        let is_constraint = item_upper.starts_with("PRIMARY KEY")
             || item_upper.starts_with("CONSTRAINT")
             || item_upper.starts_with("FOREIGN")
             || item_upper.starts_with("CHECK")
-        {
+            || ((item_upper.starts_with("UNIQUE") || item_upper.starts_with("KEY"))
+                && trimmed.contains('('));
+        if is_constraint {
             if item_upper.starts_with("PRIMARY KEY") {
                 // PRIMARY KEY (col1, col2)
                 if let Some(open) = item.find('(') {
@@ -235,7 +247,11 @@ fn mysql_and_mariadb_contents_match() {
         mariadb.keys().collect::<Vec<_>>()
     );
 
-    // 去掉以 -- 开头的注释行后比较可执行 SQL
+    // 去掉以 -- 开头的注释行后比较可执行 SQL。
+    // 排序规则例外：MySQL 8 用 utf8mb4_0900_as_cs（大小写敏感且非二进制
+    // 比较），MariaDB 10.11 没有等价排序规则，只能用 utf8mb4_general_ci。
+    // 这是三库迁移修复中有意的引擎差异（两者都不得用 *_bin——协议层 BINARY
+    // 标志会让 sqlx 0.8 解码 String 失败），归一化后比较。
     let strip_comments = |s: &str| -> String {
         s.lines()
             .filter(|line| {
@@ -244,6 +260,8 @@ fn mysql_and_mariadb_contents_match() {
             })
             .collect::<Vec<_>>()
             .join("\n")
+            .replace("utf8mb4_0900_as_cs", "ENGINE_CS_COLLATION")
+            .replace("utf8mb4_general_ci", "ENGINE_CS_COLLATION")
     };
 
     for (version, (mysql_name, mysql_sql)) in &mysql {

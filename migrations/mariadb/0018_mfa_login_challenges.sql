@@ -6,7 +6,7 @@
 
 CREATE TABLE mfa_login_challenges (
     id VARCHAR(36) NOT NULL PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     created_at BIGINT NOT NULL,
     expires_at BIGINT NOT NULL,

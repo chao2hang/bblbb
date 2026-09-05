@@ -554,6 +554,18 @@ fn is_unique_violation(err: &sqlx::Error) -> bool {
     matches!(err, sqlx::Error::Database(db) if db.is_unique_violation())
 }
 
+/// 平台费计算（溢出安全）：`amount * fee_bps / 10_000`。
+///
+/// `unit_amount` 虽有上限（offers 校验），但 `amount × quantity` 总额
+/// 与 `fee_bps`（≤10000）的乘积仍可能超出 i64：裸乘法在 debug 构建
+/// panic、release 构建回绕产生错误费率。此处显式失败（M12 资金安全）。
+fn platform_fee(amount: i64, fee_bps: i64) -> Result<i64, MarketplaceError> {
+    amount
+        .checked_mul(fee_bps)
+        .and_then(|v| v.checked_div(10_000))
+        .ok_or_else(|| MarketplaceError::Invalid("fee calculation overflow".into()))
+}
+
 // ─────────────────────────── Confirm（原子购买） ───────────────────────────
 
 /// 确认页投影（Session 用户本人可读）：显示商户/商品/数量/准确金额/余额
@@ -748,12 +760,12 @@ async fn execute_purchase(
                 validate_confirm_checks(&intent, user_id, interaction_id, expected_intent_version, now)?;
                 let (client, offer) = load_client_and_offer_sqlite(&mut conn, &intent).await?;
                 let limits = scope_limits_sqlite(&mut conn, &client.id).await?;
-                validate_limits(&limits, &intent, pool, user_id).await?;
+                validate_limits_sqlite(&limits, &intent, user_id, &mut conn, now).await?;
                 check_stock_sqlite(&mut conn, &offer, intent.quantity).await?;
                 check_user_status_sqlite(&mut conn, user_id).await?;
                 ensure_ledger_users_sqlite(&mut conn, &intent.client_id, now).await?;
 
-                let fee = intent.amount * client.fee_bps / 10_000;
+                let fee = platform_fee(intent.amount, client.fee_bps)?;
                 let merchant_net = intent.amount - fee;
                 let purchase_id = uuid::Uuid::now_v7().to_string();
                 let ledger_scope = format!("marketplace.purchase.{purchase_id}");
@@ -957,12 +969,12 @@ async fn execute_purchase(
                 validate_confirm_checks(&intent, user_id, interaction_id, expected_intent_version, now)?;
                 let (client, offer) = load_client_and_offer_mysql(&mut tx, &intent).await?;
                 let limits = scope_limits_mysql(&mut tx, &client.id).await?;
-                validate_limits(&limits, &intent, pool, user_id).await?;
+                validate_limits_mysql(&limits, &intent, user_id, &mut tx, now).await?;
                 check_stock_mysql(&mut tx, &offer, intent.quantity).await?;
                 check_user_status_mysql(&mut tx, user_id).await?;
                 ensure_ledger_users_mysql(&mut tx, &intent.client_id, now).await?;
 
-                let fee = intent.amount * client.fee_bps / 10_000;
+                let fee = platform_fee(intent.amount, client.fee_bps)?;
                 let merchant_net = intent.amount - fee;
                 let purchase_id = uuid::Uuid::now_v7().to_string();
                 let ledger_scope = format!("marketplace.purchase.{purchase_id}");
@@ -1196,12 +1208,12 @@ fn limits_from_json(limits_json: &str) -> (Option<i64>, Option<i64>, Option<i64>
     )
 }
 
-/// 限额校验（读意图金额与用户今日累计）。
-async fn validate_limits(
+/// 日限额判定核心（金额与次数；per-tx 校验含在内）。
+fn enforce_limits(
     limits: &(Option<i64>, Option<i64>, Option<i64>),
     intent: &IntentRow,
-    pool: &DatabasePool,
-    user_id: &str,
+    spent: i64,
+    count: i64,
 ) -> Result<(), MarketplaceError> {
     let (per_tx, daily_amount, daily_count) = limits;
     if let Some(per_tx) = per_tx {
@@ -1209,64 +1221,103 @@ async fn validate_limits(
             return Err(MarketplaceError::DailyLimitExceeded);
         }
     }
-    if daily_amount.is_some() || daily_count.is_some() {
-        let today_start = crate::outbox::now_millis() - (crate::outbox::now_millis() % 86_400_000);
-        let spent: i64 = match pool {
-            Either::Left(p) => {
-                sqlx::query_scalar(
-                    "SELECT COALESCE(SUM(amount),0) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ?",
-                )
-                .bind(user_id)
-                .bind(&intent.client_id)
-                .bind(today_start)
-                .fetch_one(p)
-                .await?
-            }
-            Either::Right(p) => {
-                sqlx::query_scalar(
-                    "SELECT COALESCE(SUM(amount),0) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ?",
-                )
-                .bind(user_id)
-                .bind(&intent.client_id)
-                .bind(today_start)
-                .fetch_one(p)
-                .await?
-            }
-        };
-        if let Some(limit) = daily_amount {
-            if spent + intent.amount > *limit {
-                return Err(MarketplaceError::DailyLimitExceeded);
-            }
+    if let Some(limit) = daily_amount {
+        if spent + intent.amount > *limit {
+            return Err(MarketplaceError::DailyLimitExceeded);
         }
-        if let Some(limit) = daily_count {
-            let count: i64 = match pool {
-                Either::Left(p) => {
-                    sqlx::query_scalar(
-                        "SELECT COUNT(*) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ?",
-                    )
-                    .bind(user_id)
-                    .bind(&intent.client_id)
-                    .bind(today_start)
-                    .fetch_one(p)
-                    .await?
-                }
-                Either::Right(p) => {
-                    sqlx::query_scalar(
-                        "SELECT COUNT(*) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ?",
-                    )
-                    .bind(user_id)
-                    .bind(&intent.client_id)
-                    .bind(today_start)
-                    .fetch_one(p)
-                    .await?
-                }
-            };
-            if count + 1 > *limit {
-                return Err(MarketplaceError::DailyLimitExceeded);
-            }
+    }
+    if let Some(limit) = daily_count {
+        if count + 1 > *limit {
+            return Err(MarketplaceError::DailyLimitExceeded);
         }
     }
     Ok(())
+}
+
+/// 今日窗口起点（UTC 日界；单次取值避免跨毫秒竞态）。
+fn today_start_ms(now: i64) -> i64 {
+    now - (now % 86_400_000)
+}
+
+/// 限额校验（SQLite；在购买事务的 `BEGIN IMMEDIATE` 连接上执行）。
+///
+/// 日累计聚合必须与购买同事务读取：整体写锁串行化并发 confirm，
+/// 防止两个并发事务都读到旧累计、双双通过限额后提交（check-then-act）。
+async fn validate_limits_sqlite(
+    limits: &(Option<i64>, Option<i64>, Option<i64>),
+    intent: &IntentRow,
+    user_id: &str,
+    conn: &mut sqlx::SqliteConnection,
+    now: i64,
+) -> Result<(), MarketplaceError> {
+    let (per_tx, daily_amount, daily_count) = limits;
+    if let Some(per_tx) = per_tx {
+        if intent.amount > *per_tx {
+            return Err(MarketplaceError::DailyLimitExceeded);
+        }
+    }
+    if daily_amount.is_none() && daily_count.is_none() {
+        return Ok(());
+    }
+    let today_start = today_start_ms(now);
+    let spent: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount),0) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ?",
+    )
+    .bind(user_id)
+    .bind(&intent.client_id)
+    .bind(today_start)
+    .fetch_one(&mut *conn)
+    .await?;
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ?",
+    )
+    .bind(user_id)
+    .bind(&intent.client_id)
+    .bind(today_start)
+    .fetch_one(&mut *conn)
+    .await?;
+    enforce_limits(limits, intent, spent, count)
+}
+
+/// 限额校验（MySQL/MariaDB；在购买事务内以 `FOR UPDATE` 锁定读执行）。
+///
+/// REPEATABLE READ 下普通 SELECT 读事务快照（看不到并发未提交购买），
+/// 锁定读绕过快照取最新已提交数据：并发 confirm 在同一用户的已购行/
+/// 间隙锁上串行化，日限额不被并发双提交绕过（MARKETPLACE-ACCOUNTING §4）。
+async fn validate_limits_mysql(
+    limits: &(Option<i64>, Option<i64>, Option<i64>),
+    intent: &IntentRow,
+    user_id: &str,
+    tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+    now: i64,
+) -> Result<(), MarketplaceError> {
+    let (per_tx, daily_amount, daily_count) = limits;
+    if let Some(per_tx) = per_tx {
+        if intent.amount > *per_tx {
+            return Err(MarketplaceError::DailyLimitExceeded);
+        }
+    }
+    if daily_amount.is_none() && daily_count.is_none() {
+        return Ok(());
+    }
+    let today_start = today_start_ms(now);
+    let spent: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount),0) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ? FOR UPDATE",
+    )
+    .bind(user_id)
+    .bind(&intent.client_id)
+    .bind(today_start)
+    .fetch_one(&mut **tx)
+    .await?;
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ? FOR UPDATE",
+    )
+    .bind(user_id)
+    .bind(&intent.client_id)
+    .bind(today_start)
+    .fetch_one(&mut **tx)
+    .await?;
+    enforce_limits(limits, intent, spent, count)
 }
 
 // ─────────────────────────── SQLite 内部助手 ───────────────────────────

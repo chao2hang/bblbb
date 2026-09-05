@@ -4,10 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import ReportPage from '../../../routes/moderation/report/+page.svelte';
 
+// 根布局 server load 现提供会话用户态（/me，导航防闪烁）与通知徽标状态
+// （全局壳）；页面数据合并了布局数据。
+const layoutNotifications = { unreadCount: 0, recent: [] };
+const layoutUser = null;
+
 describe('M05-UI-09 举报表单无 JS SSR', () => {
   it('渲染可提交的举报表单（action + 全部必填字段）', () => {
     const { body } = render(ReportPage, {
-      props: { data: { items: [], submitted: null }, form: null }
+      props: { data: { user: layoutUser, notifications: layoutNotifications, items: [], submitted: null }, form: null }
     });
     expect(body).toMatch(/<form[^>]*action="\?\/report"/);
     expect(body).toContain('name="target_type"');
@@ -22,7 +27,7 @@ describe('M05-UI-09 举报表单无 JS SSR', () => {
 
   it('提交成功渲染统一成功状态（可撤回入口）', () => {
     const { body } = render(ReportPage, {
-      props: { data: { items: [] }, form: { submitted: { id: 'r1', status: 'submitted' } } }
+      props: { data: { user: layoutUser, notifications: layoutNotifications, items: [] }, form: { submitted: { id: 'r1', status: 'submitted' } } }
     });
     expect(body).toContain('举报已提交');
     expect(body).toContain('r1');
@@ -31,7 +36,7 @@ describe('M05-UI-09 举报表单无 JS SSR', () => {
 
   it('API 拒绝（自身/跨板块/非法目标）渲染稳定错误而非猜测原因', () => {
     const { body } = render(ReportPage, {
-      props: { data: { items: [] }, form: { message: 'cannot report your own content' } }
+      props: { data: { user: layoutUser, notifications: layoutNotifications, items: [] }, form: { message: 'cannot report your own content' } }
     });
     expect(body).toContain('cannot report your own content');
     expect(body).toContain('举报');
@@ -41,6 +46,8 @@ describe('M05-UI-09 举报表单无 JS SSR', () => {
     const { body } = render(ReportPage, {
       props: {
         data: {
+          user: layoutUser,
+          notifications: layoutNotifications,
           items: [
             { id: 'r1', target_type: 'post', target_id: 'p1', reason_code: 'spam', status: 'open', created_at: 0, updated_at: 0 },
             { id: 'r2', target_type: 'user', target_id: 'u1', reason_code: 'harassment', status: 'withdrawn', created_at: 0, updated_at: 0 }

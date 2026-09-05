@@ -1,0 +1,72 @@
+.index-page {
+  padding-top: 24rpx;
+}
+
+.search-bar {
+  margin: 0 24rpx 20rpx;
+  height: 76rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 999rpx;
+  display: flex;
+  align-items: center;
+  padding: 0 32rpx;
+  gap: 16rpx;
+}
+
+.search-icon {
+  font-size: 28rpx;
+}
+
+.search-ph {
+  color: var(--ink-3);
+  font-size: 27rpx;
+}
+
+.board-scroll {
+  white-space: nowrap;
+  padding: 4rpx 24rpx 20rpx;
+}
+
+.board-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 60rpx;
+  padding: 0 32rpx;
+  margin-right: 16rpx;
+  border-radius: 999rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  color: var(--ink-2);
+  font-size: 26rpx;
+}
+
+.board-chip-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.sort-tabs {
+  display: flex;
+  gap: 32rpx;
+  padding: 0 32rpx 20rpx;
+}
+
+.sort-tab {
+  font-size: 28rpx;
+  color: var(--ink-3);
+  padding-bottom: 8rpx;
+}
+
+.sort-tab-on {
+  color: var(--ink);
+  font-weight: 700;
+  border-bottom: 4rpx solid var(--accent);
+}
+
+.index-empty {
+  text-align: center;
+  padding: 120rpx 0;
+}

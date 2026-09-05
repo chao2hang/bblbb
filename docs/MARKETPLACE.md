@@ -61,6 +61,8 @@ OIDC 登录与市场扣款授权分离。普通 `openid/profile/email` scope 永
 
 Checkout Intent 是一次性的，不作为 Bearer 凭证暴露在 URL、Referer 或日志中。确认动作必须同时绑定当前 Session 用户、Client 和意图；任何字段不一致均拒绝。
 
+**前后端分工**（强制规范，见 [`ARCHITECTURE.md §3.5`](ARCHITECTURE.md)）：结账同意页由 SvelteKit 托管（`/marketplace/checkout/{id}`，SSR + 原生 `form[method=POST]`，无 JS 可用），表单经 SvelteKit action 调用 `POST /api/v1/marketplace/checkout-intents/{id}/confirm`；金额、货币与余额一律来自服务端 Offer 快照，前端不得提交价格字段；扣款、不可变流水、审计与 Outbox 只能由 Rust 在单个事务内完成；Client 后台不能代替用户确认（双重绑定裁决只在 Rust）。
+
 ## 5. 原子事务
 
 账务、商户账户、结算、Checkout 用户绑定、服务凭证与退款资金来源以 [`MARKETPLACE-ACCOUNTING.md`](MARKETPLACE-ACCOUNTING.md) 为冻结事实来源。v1.0 采用平台托管双边站内账本：买方扣款、商户待结算入账和可选平台费同一事务，禁止将购买金额静默销毁或信任 Client 提交收款方。

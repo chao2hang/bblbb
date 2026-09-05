@@ -6,7 +6,7 @@
 -- Secret 不落库（仅 secret_configured + secret_ref）。
 
 CREATE TABLE ai_providers (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     name VARCHAR(120) NOT NULL,
     adapter_type VARCHAR(24) NOT NULL,
     base_url VARCHAR(512) NOT NULL,
@@ -35,9 +35,9 @@ CREATE TABLE ai_providers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE ai_consents (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
-    provider_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    provider_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     purpose VARCHAR(24) NOT NULL,
     data_mode VARCHAR(24) NOT NULL,
     disclosure_version BIGINT NOT NULL,
@@ -60,15 +60,15 @@ CREATE TABLE ai_consents (
 CREATE INDEX ai_consents_user_idx ON ai_consents (user_id, granted_at);
 
 CREATE TABLE ai_tasks (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     task_type VARCHAR(24) NOT NULL,
     target_type VARCHAR(16) NOT NULL,
-    target_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
-    provider_id VARCHAR(36) NOT NULL,
+    target_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    provider_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     content_revision BIGINT NOT NULL,
     policy_version BIGINT NOT NULL,
-    consent_id VARCHAR(36) NULL,
+    consent_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'queued',
     attempt BIGINT NOT NULL DEFAULT 0,
     max_attempts BIGINT NOT NULL DEFAULT 3,
@@ -97,19 +97,19 @@ CREATE INDEX ai_tasks_user_status_idx ON ai_tasks (user_id, status, created_at);
 CREATE INDEX ai_tasks_provider_status_idx ON ai_tasks (provider_id, status);
 
 CREATE TABLE ai_suggestions (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
-    task_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
+    task_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     suggestion_type VARCHAR(24) NOT NULL,
     target_type VARCHAR(16) NOT NULL,
-    target_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    target_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     schema_version BIGINT NOT NULL,
     base_revision BIGINT NOT NULL,
     payload_json TEXT NOT NULL,
     decision VARCHAR(16) NOT NULL DEFAULT 'pending',
     accepted_fields_json TEXT NULL,
     accepted_at BIGINT NULL,
-    accepted_by VARCHAR(36) NULL,
+    accepted_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     CONSTRAINT ai_suggestions_type_ck CHECK (suggestion_type IN ('formatting', 'seo', 'tagging', 'moderation')),

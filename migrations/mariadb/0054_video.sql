@@ -5,17 +5,17 @@
 -- video_provider_policies：direct/hls/xigua 每 Provider 策略，版本化。
 
 CREATE TABLE video_embeds (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
-    resolution_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    resolution_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     source VARCHAR(2048) NOT NULL,
     source_hash VARCHAR(64) NOT NULL,
     provider VARCHAR(16) NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'pending',
     target_type VARCHAR(16) NOT NULL,
-    target_id VARCHAR(36) NOT NULL,
+    target_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     title VARCHAR(240) NULL,
-    poster_attachment_id VARCHAR(36) NULL,
+    poster_attachment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     official_url VARCHAR(2048) NULL,
     error_class VARCHAR(64) NULL,
     policy_version BIGINT NOT NULL DEFAULT 1,
@@ -44,7 +44,7 @@ CREATE TABLE video_provider_policies (
     max_duration_ms BIGINT NOT NULL DEFAULT 3600000,
     config_json TEXT NULL,
     version BIGINT NOT NULL DEFAULT 1,
-    updated_by VARCHAR(36) NOT NULL,
+    updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     updated_at BIGINT NOT NULL,
     CONSTRAINT video_policies_provider_ck CHECK (provider IN ('direct', 'hls', 'xigua'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

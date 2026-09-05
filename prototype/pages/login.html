@@ -14,8 +14,8 @@
 <script src="../assets/page-chrome.js"></script>
 <main class="layout" id="main" tabindex="-1">
 <!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
-<section class="page app-page app-route-login" id="page-login">
-<section class="login-shell"><div class="login-brand"><span class="login-mark">BB</span><span>BBLBB</span></div><div class="login-card"><p class="login-eyebrow">WELCOME BACK</p><h1 tabindex="-1">登录 BBLBB</h1><p>登录后继续参与社区讨论与创作。</p><form data-auth-login=""><label class="login-field"><span>账号</span><input id="login-username" data-auth-user="" aria-label="账号" value="admin" autocomplete="username"><small data-auth-error=""></small></label><label class="login-field"><span>密码</span><input id="login-password" data-auth-password="" aria-label="密码" type="password" autocomplete="current-password"><small data-auth-password-error=""></small></label><p class="login-form-error" data-auth-form-error=""></p><button class="btn primary login-submit" type="submit">登录</button></form><p class="login-signup">还没有账号？ <a href="#register">立即注册</a></p><p class="login-signup"><a href="#forgot-password">忘记密码？</a></p><p class="login-demo-hint">演示账号：admin　密码：admin123</p></div></section>
+<section class="page app-page app-route-login login-page" id="page-login">
+<section class="login-shell"><div class="login-card"><p class="login-eyebrow">WELCOME BACK</p><h1 tabindex="-1">登录 BBLBB</h1><form data-auth-login=""><label class="login-field"><span>账号</span><input id="login-username" data-auth-user="" aria-label="账号" value="admin" autocomplete="username"><small data-auth-error=""></small></label><label class="login-field"><span>密码</span><input id="login-password" data-auth-password="" aria-label="密码" type="password" value="admin123" autocomplete="current-password"><small data-auth-password-error=""></small></label><p class="login-form-error" data-auth-form-error=""></p><button class="btn primary login-submit" type="submit">登录</button></form><p class="login-signup">还没有账号？ <a href="#register">立即注册</a></p><p class="login-signup"><a href="#forgot-password">忘记密码？</a></p></div></section>
 </section>
 </main>
 </body>

@@ -1,0 +1,33 @@
+{
+  "description": "BBLBB 社区论坛微信小程序",
+  "appid": "touristappid",
+  "projectname": "bblbb-miniprogram",
+  "compileType": "miniprogram",
+  "libVersion": "3.4.0",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": false,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "ignoreUploadUnusedFiles": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  },
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "dev" },
+      { "type": "file", "value": "README.md" }
+    ]
+  }
+}

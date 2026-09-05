@@ -1,0 +1,93 @@
+<view class="page">
+  <view class="container">
+    <!-- 板块选择 -->
+    <view class="field">
+      <text class="field-label">发布到板块</text>
+      <picker range="{{boards}}" range-key="name" value="{{boardIndex}}" bindchange="onBoardChange">
+        <view class="input picker-value {{boardIndex < 0 ? 'picker-placeholder' : ''}}">
+          {{boardIndex >= 0 ? boards[boardIndex].name : '请选择板块'}}
+        </view>
+      </picker>
+    </view>
+
+    <!-- 类型 -->
+    <view class="field">
+      <text class="field-label">内容类型</text>
+      <view class="type-row">
+        <view
+          class="type-item {{typeIndex === index ? 'on' : ''}}"
+          wx:for="{{types}}"
+          wx:key="value"
+          data-index="{{index}}"
+          bindtap="onTypeTap"
+        >
+          <view class="type-label">{{item.label}}</view>
+          <view class="type-hint">{{item.hint}}</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 标题 -->
+    <view class="field">
+      <text class="field-label">标题</text>
+      <input class="input" value="{{title}}" bindinput="onTitleInput" placeholder="一句话概括你的内容" placeholder-class="ph" maxlength="200" />
+    </view>
+
+    <!-- 正文 -->
+    <view class="field">
+      <view class="row-between">
+        <text class="field-label">正文（支持 Markdown）</text>
+        <text class="text-3">{{charCount}}/50000</text>
+      </view>
+      <textarea
+        class="textarea create-textarea"
+        value="{{markdown}}"
+        bindinput="onMarkdownInput"
+        placeholder="开始书写…&#10;支持 # 标题、**加粗**、列表、代码块等 Markdown 语法"
+        placeholder-class="ph"
+        maxlength="50000"
+        auto-height
+      />
+    </view>
+
+    <!-- 摘要 -->
+    <view class="field">
+      <text class="field-label">摘要（可选，文章列表展示）</text>
+      <input class="input" value="{{summary}}" bindinput="onSummaryInput" placeholder="≤300 字符" placeholder-class="ph" maxlength="300" />
+    </view>
+
+    <!-- 标签 -->
+    <view class="field">
+      <text class="field-label">标签（可选，逗号分隔，≤8 个）</text>
+      <input class="input" value="{{tagsText}}" bindinput="onTagsInput" placeholder="如：rust, 教程" placeholder-class="ph" />
+    </view>
+
+    <!-- 可见性 -->
+    <view class="field">
+      <text class="field-label">可见范围</text>
+      <picker range="{{policies}}" range-key="label" value="{{policyIndex}}" bindchange="onPolicyChange">
+        <view class="input picker-value">{{policies[policyIndex].label}}</view>
+      </picker>
+      <view class="form-hint" wx:if="{{policies[policyIndex].value === 'paid'}}">
+        付费内容需设置解锁价格（金币）
+      </view>
+      <input
+        wx:if="{{policies[policyIndex].value === 'paid'}}"
+        class="input mt-16"
+        type="number"
+        value="{{priceCoin}}"
+        bindinput="onPriceInput"
+        placeholder="解锁价格（1-1000 金币）"
+        placeholder-class="ph"
+      />
+    </view>
+
+    <button class="btn btn-primary btn-block mt-32" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">
+      发布
+    </button>
+    <view class="form-hint create-tip">
+      提示：新账号完成邮箱验证后 24 小时冷静期内暂不能发帖评论；
+      命中风控规则（敏感词/链接过多/重复内容等）的帖子将进入人工审核后公开。
+    </view>
+  </view>
+</view>

@@ -31,6 +31,10 @@ pub const REMEMBER_IDLE_TIMEOUT_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 pub const REMEMBER_ABSOLUTE_TIMEOUT_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 /// 默认 step-up 窗口：5 分钟（M02-MFA-07；配置 BBLBB__STEP_UP_WINDOW_SECS）
 pub const DEFAULT_STEP_UP_WINDOW_SECS: u64 = 5 * 60;
+/// 会话续期写库节流间隔：距上次活跃不足该值时跳过 `last_seen_at`/
+/// `idle_expires_at` 刷新写（60s 远小于 30min idle 窗口，语义不变；
+/// 消除每请求一次 UPDATE 的写放大与 SQLite 写锁竞争）。
+pub const SESSION_WRITE_THROTTLE_MS: i64 = 60 * 1000;
 
 /// 已认证的会话用户信息
 #[derive(Clone, Debug, Serialize)]
@@ -147,7 +151,7 @@ async fn resolve_session(
             // 获取用户和会话信息
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        u.level, s.id as session_id
+                        u.level, s.id as session_id, s.last_seen_at
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -164,12 +168,16 @@ async fn resolve_session(
                 }
                 // 更新 last_seen_at 和 idle_expires_at（滑动超时）
                 let new_idle = now + IDLE_TIMEOUT_MS;
-                sqlx::query("UPDATE user_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
-                    .bind(now)
-                    .bind(new_idle)
-                    .bind(&token_hash)
-                    .execute(p)
-                    .await?;
+                // 续期节流：距上次活跃不足阈值时跳过写库（避免每请求 UPDATE 的
+                // 写放大与 SQLite 写锁竞争）；idle 窗口远大于节流间隔，无语义变化
+                if now - row.last_seen_at >= SESSION_WRITE_THROTTLE_MS {
+                    sqlx::query("UPDATE user_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
+                        .bind(now)
+                        .bind(new_idle)
+                        .bind(&token_hash)
+                        .execute(p)
+                        .await?;
+                }
 
                 let csrf = generate_csrf_token(&row.session_id, &token_hash);
 
@@ -219,7 +227,7 @@ async fn resolve_session(
 
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        u.level, s.id as session_id
+                        u.level, s.id as session_id, s.last_seen_at
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -229,13 +237,23 @@ async fn resolve_session(
             .await?;
 
             if let Some(row) = row {
+                // 实时状态检查（M02-SESSION-06）：banned/deleted 即使 Session
+                // 有效也不认证——封禁/删除实时生效，不依赖后台任务。
+                // 三库一致：MySQL 分支与 SQLite 分支（上方）同语义。
+                if row.status == "banned" || row.status == "deleted" {
+                    return Ok(None);
+                }
                 let new_idle = now + IDLE_TIMEOUT_MS;
-                sqlx::query("UPDATE user_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
-                    .bind(now)
-                    .bind(new_idle)
-                    .bind(&token_hash)
-                    .execute(p)
-                    .await?;
+                // 续期节流：距上次活跃不足阈值时跳过写库（每请求 UPDATE 的
+                // 写放大与 SQLite 写锁竞争），idle 窗口远大于节流间隔故无语义变化
+                if now - row.last_seen_at >= SESSION_WRITE_THROTTLE_MS {
+                    sqlx::query("UPDATE user_sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
+                        .bind(now)
+                        .bind(new_idle)
+                        .bind(&token_hash)
+                        .execute(p)
+                        .await?;
+                }
 
                 let csrf = generate_csrf_token(&row.session_id, &token_hash);
 
@@ -763,6 +781,8 @@ struct UserSessionRow {
     display_name: Option<String>,
     level: i64,
     session_id: String,
+    /// 上次活跃（Unix 毫秒）：续期写库节流用（L4）。
+    last_seen_at: i64,
 }
 
 /// 设备列表行结构。

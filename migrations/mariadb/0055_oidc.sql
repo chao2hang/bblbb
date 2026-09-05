@@ -5,7 +5,7 @@
 -- 高熵 code/token 只存 hash；scope/redirect/client type 封闭约束；密钥加密保存。
 
 CREATE TABLE oauth_clients (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     name VARCHAR(120) NOT NULL,
     client_type VARCHAR(16) NOT NULL,
     client_id VARCHAR(128) NOT NULL,
@@ -15,9 +15,9 @@ CREATE TABLE oauth_clients (
     scopes_json TEXT NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'active',
     version BIGINT NOT NULL DEFAULT 1,
-    created_by VARCHAR(36) NOT NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
-    updated_by VARCHAR(36) NOT NULL,
+    updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     updated_at BIGINT NOT NULL,
     CONSTRAINT oauth_clients_type_ck CHECK (client_type IN ('public', 'confidential')),
     CONSTRAINT oauth_clients_status_ck CHECK (status IN ('active', 'disabled')),
@@ -25,9 +25,9 @@ CREATE TABLE oauth_clients (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE oauth_consents (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
-    client_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    client_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     scope VARCHAR(64) NOT NULL,
     granted_at BIGINT NOT NULL,
     revoked_at BIGINT NULL,
@@ -40,10 +40,10 @@ CREATE TABLE oauth_consents (
 CREATE INDEX oauth_consents_user_idx ON oauth_consents (user_id, granted_at);
 
 CREATE TABLE oauth_authorization_codes (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     code_hash VARCHAR(128) NOT NULL,
-    client_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    client_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     redirect_uri VARCHAR(2048) NOT NULL,
     scope VARCHAR(255) NOT NULL,
     nonce VARCHAR(255) NULL,
@@ -62,9 +62,9 @@ CREATE TABLE oauth_authorization_codes (
 CREATE INDEX oauth_codes_expiry_idx ON oauth_authorization_codes (expires_at);
 
 CREATE TABLE oauth_token_families (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
-    client_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
+    client_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     scope VARCHAR(255) NOT NULL,
     created_at BIGINT NOT NULL,
     revoked_at BIGINT NULL,
@@ -73,13 +73,13 @@ CREATE TABLE oauth_token_families (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE oauth_tokens (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
-    family_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
+    family_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     access_token_hash VARCHAR(128) NOT NULL,
     refresh_token_hash VARCHAR(128) NULL,
     id_token_jti VARCHAR(128) NULL,
-    client_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    client_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     scope VARCHAR(255) NOT NULL,
     issued_at BIGINT NOT NULL,
     expires_at BIGINT NOT NULL,
@@ -106,9 +106,9 @@ CREATE TABLE oauth_signing_keys (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE oauth_interactions (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
-    client_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
+    client_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     request_hash VARCHAR(128) NOT NULL,
     redirect_uri VARCHAR(2048) NOT NULL,
     scope VARCHAR(255) NOT NULL,

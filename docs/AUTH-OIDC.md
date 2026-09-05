@@ -117,6 +117,8 @@ GET|POST /oauth/logout
 
 SvelteKit 不接收、重建或自行验证原始 `redirect_uri`，避免形成第二套协议实现和开放重定向。Discovery 中的 URL 全部来自固定、验证过的 `PUBLIC_ORIGIN`，不根据不可信 Host 头动态生成。
 
+**前端职责边界**（强制规范，见 [`ARCHITECTURE.md §3.5`](ARCHITECTURE.md)）：`/oauth/*` 协议端点、token 签发/验签、client_secret 与签名密钥只在 Rust；SvelteKit 只托管同意/交互页并通过上述两个业务端点读写决策。若未来新增「第三方 IdP 登录 BBLBB」（BBLBB 作为依赖方），前端只允许按钮与重定向，code 换 token、JWKS 验签与 Session 铸造必须由 Rust 新增 `start`/`callback` 端点完成——即使采用 PKCE 公开客户端，浏览器持有的 id_token 也必须经后端验签后才能换取 BBLBB 会话。
+
 ## 6. Client 类型
 
 ### Public Client

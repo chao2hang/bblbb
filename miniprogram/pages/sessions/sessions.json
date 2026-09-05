@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "设备与登录",
+  "usingComponents": {
+    "empty-state": "/components/empty-state/index"
+  }
+}

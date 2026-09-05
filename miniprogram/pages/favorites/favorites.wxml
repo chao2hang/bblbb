@@ -1,0 +1,27 @@
+<view class="page">
+  <view class="container">
+    <view wx:if="{{state === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+
+    <empty-state
+      wx:elif="{{state === 'error'}}"
+      state="error"
+      text="加载失败"
+      hint="{{error}}"
+      actionText="重试"
+      bind:action="onRetry"
+    />
+
+    <block wx:else>
+      <post-card wx:for="{{items}}" wx:key="id" post="{{item}}" bind:tap="onPostTap" />
+      <view wx:if="{{!items.length}}" class="fv-empty">
+        <text class="text-3">还没有收藏的帖子</text>
+      </view>
+      <load-more
+        wx:if="{{items.length}}"
+        hasMore="{{hasMore}}"
+        loading="{{loadingMore}}"
+        bind:retry="onLoadMoreRetry"
+      />
+    </block>
+  </view>
+</view>

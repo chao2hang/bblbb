@@ -1,0 +1,24 @@
+<view class="pc" wx:if="{{view}}" bindtap="onTap" hover-class="pc-hover">
+  <view class="pc-top">
+    <view class="pc-badges" wx:if="{{view.isPinned || view.isFeatured}}">
+      <text class="badge" wx:if="{{view.isPinned}}">置顶</text>
+      <text class="badge badge-gold" wx:if="{{view.isFeatured}}">精华</text>
+    </view>
+    <view class="pc-title ellipsis-2">{{view.title}}</view>
+  </view>
+
+  <view class="pc-summary ellipsis-2" wx:if="{{view.summary}}">{{view.summary}}</view>
+
+  <view class="pc-meta">
+    <view class="avatar avatar-sm">{{view.authorInitial}}</view>
+    <text class="pc-author ellipsis">{{view.authorName}}</text>
+    <text class="pc-type badge badge-gray">{{view.typeLabel}}</text>
+    <view class="flex-1"></view>
+    <text class="text-3">{{view.timeText}}</text>
+  </view>
+
+  <view class="pc-stats">
+    <text class="text-3">回复 {{view.replyText}}</text>
+    <text class="text-3">浏览 {{view.viewText}}</text>
+  </view>
+</view>

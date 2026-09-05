@@ -12,12 +12,12 @@
 -- declaration carries a reason. Append-only; decisions are never overwritten.
 
 CREATE TABLE appeals (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    sanction_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    sanction_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     message TEXT NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'submitted',
-    reviewed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    reviewed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     decided_at BIGINT NULL,
     submitted_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
@@ -33,9 +33,9 @@ CREATE INDEX appeals_user_idx ON appeals (user_id, status);
 CREATE INDEX appeals_status_idx ON appeals (status);
 
 CREATE TABLE appeal_decisions (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    appeal_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    reviewer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    appeal_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    reviewer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     decision VARCHAR(16) NOT NULL,
     decision_note TEXT NULL,
     conflict_of_interest TEXT NULL,

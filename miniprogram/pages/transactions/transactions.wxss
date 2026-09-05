@@ -1,0 +1,34 @@
+.tx-item {
+  padding: 24rpx 28rpx;
+}
+
+.tx-kind {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.tx-right {
+  align-items: flex-end;
+}
+
+.tx-amount {
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.tx-amount.pos {
+  color: var(--green);
+}
+
+.tx-amount.neg {
+  color: var(--accent);
+}
+
+.tx-balance {
+  margin-top: 4rpx;
+}
+
+.tx-empty {
+  text-align: center;
+  padding: 120rpx 0;
+}

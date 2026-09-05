@@ -1,9 +1,11 @@
 <script lang="ts">
   // M03-UI-06：标签页 SSR——按分组展示标签（颜色/使用数），点击进入
   // /search?tag={slug} 标签筛选；空状态与权限无关（标签为公开元数据）。
+  // 原型对齐：prototype/pages/tags.html
+  // - 统一 .app-route-head（DISCOVER / TAGS）
+  // - .app-card > .app-card__body 容器
+  // - .app-tag-cloud > .app-tag 标签胶囊
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
-  import Icon from '$lib/components/ui/Icon.svelte';
-  // M14-SEO-01：标签页统一 SEO。
   import Seo from '$lib/components/Seo.svelte';
   import type { TagsPageData } from './+page.server';
 
@@ -13,7 +15,7 @@
   const groups = $derived(data.groups);
   const error = $derived(data.error);
 
-  /** 按分组组织：有 group_id 的进对应组，无组的进「未分组」。 */
+  /** 按分组组织：有 group_id 的进对应组，无组的进「其他」。 */
   const grouped = $derived.by(() => {
     const result: Array<{ groupId: string; groupName: string; items: typeof tags }> = [];
     for (const group of groups) {
@@ -27,8 +29,8 @@
 </script>
 
 <Seo
-  title="标签"
-  description="BBLBB 全部话题标签"
+  title="标签 · BBLBB 社区"
+  description="从一个关键词进入相关内容"
   og={{ type: 'website', siteName: 'BBLBB' }}
   jsonLd={{
     '@context': 'https://schema.org',
@@ -37,46 +39,41 @@
   }}
 />
 
-<div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">标签</span>
-  </nav>
-
-  {#if error && tags.length === 0}
-    <p class="input-hint is-error" role="alert">{error}</p>
-  {/if}
-
-  {#if tags.length === 0 && !error}
-    <EmptyState icon="tag" title="暂无标签" desc="还没有标签" />
-  {:else if grouped.length}
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">全部标签</span>
-        <span class="text-secondary" style="font-size:var(--text-sm);">共 {tags.length} 个标签</span>
-      </div>
-      <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-5);">
-        {#each grouped as group}
-          <section aria-label={group.groupName}>
-            <h2 class="board-tree-title" style="margin:0 0 var(--space-3);font-size:var(--text-lg);">{group.groupName}</h2>
-            <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);">
-              {#each group.items as tag}
-                <a
-                  class="tag-chip"
-                  href="/search?tag={tag.slug}"
-                  style="--tag-color:{tag.color || '#666'};"
-                  title="{tag.description ?? tag.name}"
-                >
-                  <Icon name="tag" size={12} />
-                  <span>{tag.name}</span>
-                  <span class="tag-count">{tag.usage_count}</span>
-                </a>
-              {/each}
-            </div>
-          </section>
-        {/each}
+<div class="container app-page">
+  <section class="page app-page app-route-tags" id="page-tags">
+    <div class="app-route-head">
+      <div class="app-route-head__copy">
+        <span class="app-kicker">DISCOVER / TAGS</span>
+        <h1 tabindex="-1">标签</h1>
+        <p>从一个关键词进入相关内容</p>
       </div>
     </div>
-  {/if}
+
+    {#if error && tags.length === 0}
+      <p class="input-hint is-error" role="alert">{error}</p>
+    {/if}
+
+    {#if tags.length === 0 && !error}
+      <EmptyState icon="tag" title="暂无标签" desc="还没有标签" />
+    {:else if grouped.length}
+      <section class="app-card">
+        <div class="app-card__body" style="display:flex;flex-direction:column;gap:20px;">
+          {#each grouped as group}
+            <div>
+              <h2 style="margin:0 0 10px;font-size:15px;font-weight:600;color:var(--color-text-primary);font-family:var(--font-family-base);">
+                {group.groupName}
+              </h2>
+              <div class="app-tag-cloud">
+                {#each group.items as tag}
+                  <a class="app-tag" href="/search?tag={tag.slug}">
+                    <b>{tag.usage_count}</b> # {tag.name}
+                  </a>
+                {/each}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
+  </section>
 </div>

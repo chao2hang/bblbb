@@ -8,9 +8,9 @@
 -- the comment; edited body is rendered/sanitized at write time (M04-COMMENTS-05).
 
 CREATE TABLE comment_revisions (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    comment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    editor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    comment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    editor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     body_markdown MEDIUMTEXT NOT NULL,
     body_html MEDIUMTEXT NOT NULL,
     renderer_version VARCHAR(32) NOT NULL,

@@ -11,8 +11,7 @@ test.beforeEach(async ({ page }) => {
 test.describe('积分/等级/签到（points/levels/activity）', () => {
   test('我的积分页展示余额/等级/签到（安全投影）', async ({ page }) => {
     await page.goto('/me/balance');
-    // 页面标题在 breadcrumb/span（无 h1）；断言标题文本与关键区块。
-    await expect(page.getByText('我的积分').first()).toBeVisible();
+    // 原型对齐后面包屑已移除；断言关键区块（余额/等级卡片）可见。
     await expect(page.getByRole('main')).toContainText(/余额|等级|经验|奖励|签到/i);
   });
 
@@ -32,7 +31,8 @@ test.describe('积分/等级/签到（points/levels/activity）', () => {
 test.describe('商城（shop）', () => {
   test('商城页展示商品列表或空态（不崩溃）', async ({ page }) => {
     await page.goto('/shop');
-    await expect(page.getByText('积分商城').first()).toBeVisible();
+    // 原型对齐：页头 h1 为「商城与积分」。
+    await expect(page.getByRole('heading', { name: '商城与积分' })).toBeVisible();
     await expect(page.getByRole('main')).toBeVisible();
   });
 });

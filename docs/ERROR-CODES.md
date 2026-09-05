@@ -66,7 +66,6 @@
 | `storage_upstream_error` | 503 | 存储供应商 5xx 或未知服务错误（瞬时） | 按幂等语义重试 |
 | `bad_request` | 400 | 通用参数错误（未细分稳定码的 400） | 修正请求，不重试 |
 | `conflict` | 409 | 通用冲突（未细分稳定码的 409） | 刷新后重试 |
-| `not_implemented` | 501 | 已登记但尚未实现的占位操作 | 等待上线 |
 | `video_insecure_scheme` | 422 | 视频 URL 非 HTTPS | 使用 HTTPS 链接 |
 | `video_invalid_url` | 422 | 视频 URL 结构无效 | 修正地址 |
 | `video_host_invalid` | 422 | 视频 URL Host 非精确白名单 | 使用支持的主机 |

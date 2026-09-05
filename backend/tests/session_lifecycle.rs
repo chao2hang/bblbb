@@ -159,6 +159,24 @@ async fn delete_with_csrf(
         .unwrap()
 }
 
+/// 由 cookie 值解析当前会话 ID（确定性，不依赖 last_seen 排序——
+/// 续期写库已按 60s 节流，活跃度排序不再能区分刚创建的会话）。
+async fn current_session_id(pool: &DatabasePool, cookie: &str) -> String {
+    let token = cookie.split('=').next_back().unwrap();
+    let token_hash = bblbb_backend::auth::token::hash_token(token);
+    let id: String = match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT id FROM user_sessions WHERE token_hash = ? AND revoked_at IS NULL",
+        )
+        .bind(&token_hash)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    id
+}
+
 async fn session_count(pool: &DatabasePool, user_id: &str) -> i64 {
     match pool {
         Either::Left(p) => {
@@ -370,15 +388,20 @@ async fn revoke_specific_session() {
     let cookie_a = login_cookie(&app, &email, "198.51.100.1").await;
     let _cookie_b = login_cookie(&app, &email, "198.51.100.2").await;
     let _other_cookie = login_cookie(&app, &other_email, "198.51.100.3").await;
-    // get_csrf 会刷新 cookie_a 的 last_seen → list 第一项即当前 session
+    // 当前请求的 CSRF（会话派生 token）
     let csrf = get_csrf(&app, &cookie_a).await;
 
-    // 取 A 的「其他设备」session（当前 session 之外的那个）
+    // 取 A 的「其他设备」session（当前 session 之外的那个）：
+    // 按会话 ID 确定性识别当前会话（续期写库已节流，不依赖 last_seen 排序）
+    let current_id = current_session_id(&pool, &cookie_a).await;
     let sessions = list_sessions_service(&pool, &user_id).await.unwrap();
     assert_eq!(sessions.len(), 2);
-    let current_id = sessions[0].id.clone();
-    let target = sessions[1].id.clone();
-    assert_ne!(target, current_id);
+    let target = sessions
+        .iter()
+        .find(|s| s.id != current_id)
+        .expect("必须存在当前会话之外的其他设备")
+        .id
+        .clone();
 
     let resp = delete_with_csrf(
         &app,

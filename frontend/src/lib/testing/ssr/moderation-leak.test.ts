@@ -6,6 +6,11 @@ import AppealDetail from '../../../routes/moderation/appeals/[id]/+page.svelte';
 import AdminAppeal from '../../../routes/admin/moderation/appeals/[id]/+page.svelte';
 import NotificationsPage from '../../../routes/notifications/+page.svelte';
 
+// 根布局 server load 现提供会话用户态（/me，导航防闪烁）与通知徽标状态
+// （全局壳）；页面数据合并了布局数据。
+const layoutNotifications = { unreadCount: 0, recent: [] };
+const layoutUser = null;
+
 describe('M05-UI-08 申诉人侧不泄漏内部 note', () => {
   it('申诉人侧投影：不渲染 decision_note / conflict_of_interest / 复核人', () => {
     // 即便后端数据被篡改加入内部字段，申诉人页面也只渲染白名单字段。
@@ -23,7 +28,7 @@ describe('M05-UI-08 申诉人侧不泄漏内部 note', () => {
       user_id: 'someone-else'
     } as any;
     const { body } = render(AppealDetail, {
-      props: { data: { appeal: tampered }, form: null }
+      props: { data: { user: layoutUser, notifications: layoutNotifications, appeal: tampered }, form: null }
     });
     expect(body).toContain('我的申诉内容');
     expect(body).not.toContain('内部判断');
@@ -55,7 +60,7 @@ describe('M05-UI-08 申诉人侧不泄漏内部 note', () => {
       ]
     };
     const { body } = render(AdminAppeal, {
-      props: { data: { appeal }, form: null }
+      props: { data: { user: layoutUser, notifications: layoutNotifications, appeal }, form: null }
     });
     expect(body).toContain('内部判断：举报人可信');
     expect(body).toContain('moderator-9');
@@ -63,7 +68,7 @@ describe('M05-UI-08 申诉人侧不泄漏内部 note', () => {
 
   it('前端篡改触发 403/409 时渲染稳定错误，不猜测原因', () => {
     const { body } = render(AdminAppeal, {
-      props: { data: { appeal: null, forbidden: true, message: 'moderation.sanction permission required' }, form: null }
+      props: { data: { user: layoutUser, notifications: layoutNotifications, appeal: null, forbidden: true, message: 'moderation.sanction permission required' }, form: null }
     });
     expect(body).toContain('无权复核该申诉');
     expect(body).toContain('moderation.sanction permission required');

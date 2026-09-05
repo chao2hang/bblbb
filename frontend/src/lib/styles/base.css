@@ -359,3 +359,16 @@ samp {
   border-top: var(--border-default);
   margin: var(--space-8) 0;
 }
+
+/* 视觉隐藏但保留在可访问性树（对齐原型 .sr-only；页面主标题等场景） */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}

@@ -1,6 +1,6 @@
 # BBLBB — HTTP API 契约
 
-> 版本：v0.4
+> 版本：v0.5（2026-09-05：登记 M17-GAPFIX 社交/经济/个人域端点与 M18 原型对齐扩展，见 §20/§21）
 > 机器可读事实来源为 [`../openapi/openapi.yaml`](../openapi/openapi.yaml)；本文规定所有 API 必须遵守的跨端点规则，不能与 OpenAPI 产生未经批准的差异。稳定状态、权限和错误码分别见 `STATE-MACHINES.md`、`PERMISSION-MATRIX.md` 和 `ERROR-CODES.md`。
 
 ## 1. 路径与版本
@@ -317,6 +317,7 @@ v1 预计：
 /api/v1/posts/*
 /api/v1/comments/*
 /api/v1/tags/*
+/api/v1/tags/{slug}/posts
 /api/v1/attachments/*
 /api/v1/notifications/*
 /api/v1/marketplace/offers/*
@@ -345,6 +346,25 @@ v1 预计：
 /api/v1/admin/marketplace/*
 /api/v1/oauth/interactions/{id}
 /api/v1/oauth/interactions/{id}/decision
+/api/v1/users/{username}/follow
+/api/v1/users/{username}/followers
+/api/v1/users/{username}/following
+/api/v1/boards/{slug}/follow
+/api/v1/posts/{id}/favorite
+/api/v1/me/favorites
+/api/v1/me/following
+/api/v1/conversations/*
+/api/v1/achievements
+/api/v1/me/achievements/{code}/equip
+/api/v1/me/api-keys/*
+/api/v1/me/password
+/api/v1/me/sanctions
+/api/v1/me/point-transactions
+/api/v1/me/oauth-grants/*
+/api/v1/posts/{id}/unlock
+/api/v1/stats
+/api/v1/rss
+/api/v1/atom
 ```
 
 端点详情由实现中的 OpenAPI 提供；文档和 schema 不一致时 CI 失败。
@@ -356,3 +376,121 @@ v1 预计：
 - 废弃字段先在 OpenAPI 标记并至少保留一个受支持小版本周期。
 - 安全紧急变更可提前停止危险行为，但需发布迁移说明。
 - 对外插件事件和 OIDC claim 分别维护独立版本，不与内部 Rust 类型绑定。
+
+## 20. M18 原型对齐扩展端点与参数
+
+在 2026-09-04 原型全站对比（`reports/mobile-compare/REPORT.md`）后，补充以下端点与参数：
+
+- **标签聚合**：`GET /api/v1/tags/{slug}/posts`（公开；published + 未删除；created_at 游标分页；投影含 board 与作者摘要）。
+- **板块帖子扩展**：`GET /api/v1/boards/{slug}/posts` 扩展 `sort=featured`（精华优先）、`sort=unanswered`（无回复过滤）与 `q`（标题/作者模糊搜索，LIKE + ESCAPE '!'）。
+- **首页帖子流扩展**：`GET /api/v1/posts` 列表项投影增加 `like_count`（post_reactions 聚合）；扩展 `sort=following`（当前登录用户关注的作者，未登录返回空数组）。
+- **内部管理运营端点登记**（documented non-contract，`scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT` 注册表）：站点统计 `GET /api/v1/admin/stats`、趋势 `GET /api/v1/admin/stats/trend`、BI 指标 `GET /api/v1/admin/bi/metrics`、审计读取 `GET /api/v1/admin/audit-logs`、系统设置 `GET/PATCH /api/v1/admin/settings`、帖子管理 `GET /api/v1/admin/posts` 与 `POST /api/v1/admin/posts/{id}/action`、通知广播与召回 `GET/POST /api/v1/admin/notifications/*`、通知模板 `GET /api/v1/admin/notifications/templates`、角色分配 `POST/DELETE /api/v1/admin/users/{id}/roles*`、成就管理 `GET/POST/PATCH/DELETE /api/v1/admin/achievements*` 与手工授予 `POST /api/v1/admin/achievements/{code}/grant`、积分流水与调整 `GET /api/v1/admin/points/ledger`、`POST /api/v1/admin/points/adjust`、等级规则 `GET /api/v1/admin/levels`、`PATCH /api/v1/admin/levels/{level}`、附件管理 `GET /api/v1/admin/attachments`、`DELETE /api/v1/admin/attachments/{id}`、下载交易 `GET /api/v1/admin/download-billing/transactions`、标签合并 `POST /api/v1/admin/tags/{id}/merge`。这些为运营管理接口（沿用 M12/M13 Marketplace/Plugin 先例），安全语义集中记录于 [`OPERATIONS.md §19.8`](OPERATIONS.md)；不进入冻结契约，也不得被公开客户端依赖。
+- **Feed/SEO 投影端点**：`GET /api/v1/rss`、`GET /api/v1/atom`、`GET /api/v1/sitemap.xml` 与 `GET /robots.txt` 为公开只读投影，内容、缓存与 `X-Robots-Tag` 策略见 [`CRAWLER-POLICY.md §7`](CRAWLER-POLICY.md)。
+
+## 21. M17-GAPFIX 社交、经济与个人域端点
+
+原型差距补齐（GAP-FIX）引入的社交/经济/个人域端点全部进入冻结契约（迁移 0060/0062），实现与测试证据见 [`../todo/OPENAPI-COVERAGE.md`](../todo/OPENAPI-COVERAGE.md)（M17-GAPFIX 工作包）。
+
+### 21.1 关注与收藏（toggle 语义）
+
+```text
+POST   /api/v1/users/{username}/follow     关注用户 → 200 {following, followers}
+DELETE /api/v1/users/{username}/follow     取关 → 200 {following, followers}
+GET    /api/v1/users/{username}/followers   粉丝列表（keyset created_at DESC）
+GET    /api/v1/users/{username}/following   关注列表（keyset created_at DESC）
+POST   /api/v1/boards/{slug}/follow        关注板块 → 200 {following}
+DELETE /api/v1/boards/{slug}/follow        取关板块 → 200 {following}
+GET    /api/v1/me/following                本人关注汇总 {users[], boards[]}（各 limit 200）
+POST   /api/v1/posts/{id}/favorite         收藏 → 200 {favorited, favorite_count}
+DELETE /api/v1/posts/{id}/favorite         取消收藏 → 200 {favorited, favorite_count}
+GET    /api/v1/me/favorites                本人收藏列表（keyset favorites.created_at DESC）
+```
+
+- 权限：全部 `authenticated` + Session CSRF；列表端点对未登录 401。
+- **toggle 幂等不使用 `Idempotency-Key`**：`favorites(user_id, post_id)`、`user_follows`、`board_follows` 复合主键即天然幂等键——重复 POST/DELETE 返回当前态与计数，不产生重复行；body 的 `client_request_id` 按契约接收但不参与判定。
+- 关注自己返回 422 `cannot_follow_self`；目标用户/板块/帖子不存在返回 404。
+- 只允许收藏 `published`/`hidden` 且未删除的帖子（与评论创建路径同一可见性判定），不可收藏时 404，不泄露存在性。
+- 新关注成功后对被关注者 best-effort 触发成就钩子（见 `backend/src/achievements/`），失败不影响关注结果。
+
+### 21.2 私信（Conversations）
+
+```text
+GET  /api/v1/conversations                       本人会话列表（last_message_at DESC keyset）
+POST /api/v1/conversations                        与指定用户开（或复用）会话 → 201 {id, other}
+GET  /api/v1/conversations/{id}/messages          消息线程（created_at ASC，after = 上一页最后一条）
+POST /api/v1/conversations/{id}/messages          发消息 → 201
+POST /api/v1/conversations/{id}/read              标记已读（本人 last_read_at）→ 204
+```
+
+- 权限：`authenticated` + CSRF；**仅会话参与者可读写**，非参与者与不存在一律 404（不枚举会话 ID）。
+- 与自己开会话 422；目标用户不存在 404。创建语义为 find-or-create：两人已有会话时返回既有 `id`。
+- 发消息走 `client_request_id` + `idempotency_records` 幂等（scope `conversation.message`）：同 key + 相同请求摘要重放返回原消息；同 key 不同摘要返回 409 `idempotency_conflict`。
+- 消息落库后给对方插入 `type='mention'`、`link='/messages'` 的通知（best-effort，不阻断发送）。
+- 会话列表只含双人会话，`other` 为对方公开投影；不返回对方 email 等私有字段。
+
+### 21.3 成就与徽章装备
+
+```text
+GET    /api/v1/achievements                     公共成就目录（匿名可读；隐藏成就 description 脱敏）
+GET    /api/v1/me/achievements                  本人成就视图（解锁状态/进度/装备位 + stats 汇总）
+PUT    /api/v1/me/achievements/{code}/equip     装备徽章（仅已解锁；超过 3 槽 → 409）
+DELETE /api/v1/me/achievements/{code}/equip     卸下徽章
+```
+
+- 目录 `public`；本人视图与装备操作 `authenticated` + CSRF。
+- 装备位上限 3（`MAX_EQUIPPED_SLOTS`），超出返回 409；装备尚未解锁的成就同样返回 409。
+- 管理侧目录/新建/更新（If-Match version）/删除与手工授予（`POST /api/v1/admin/achievements/{code}/grant`）为 documented non-contract 端点（§20）；`manual` 类成就唯一授予来源，复用统一 unlock 路径并发徽章通知。
+
+### 21.4 个人 API 密钥
+
+```text
+GET    /api/v1/me/api-keys           本人密钥列表（仅 prefix，不含明文）
+POST  /api/v1/me/api-keys            创建 → 201（明文 key 仅此一次返回）
+DELETE /api/v1/me/api-keys/{id}      软删除（revoked_at 置位，立即失效）→ 204
+```
+
+- 权限：`authenticated` + CSRF。
+- 明文格式 `bblbb_<32 位 base62>`（`OsRng` 熵，与 auth token 同源）；数据库只存 SHA-256，`prefix` = 明文前 12 字符供人工识别。
+- scopes 白名单：`posts:read | drafts:write | notifications:read | me:read` 的子集。
+- 创建走 `client_request_id` 幂等（scope `apikey.create`）；同 key 重放返回 409 并说明「密钥已创建，明文仅首次返回」——明文不可二次出示，也不产生重复行。
+- 密钥仅用于机器对机器读取场景，不能替代 Session 完成写操作或提权。
+
+### 21.5 个人域（账号与账务投影）
+
+```text
+POST   /api/v1/me/password                     修改密码（校验当前密码）
+GET    /api/v1/me/sanctions                     本人处罚记录（sanctions 表投影）
+GET    /api/v1/me/point-transactions            本人积分流水（keyset created_at DESC）
+GET    /api/v1/me/oauth-grants                  本人 OAuth 授权列表
+DELETE /api/v1/me/oauth-grants/{client_id}      撤销本人对某 Client 的授权
+```
+
+- 权限：`authenticated` + CSRF；全部仅返回本人数据，不暴露他人余额/邮箱/Session。
+- 修改密码成功后吊销其他设备 Session（当前设备保留）；当前密码错误 401。
+- 处罚投影来自 `sanctions` 表（用户被处罚记录），不是案件维度的 `moderation_actions` 审核日志；`expires_at` 映射 `ends_at`。
+- OAuth 授权撤销只影响后续 token 签发，不追溯已签发 token 的剩余寿命（以 OIDC 撤销端点为准）。
+
+### 21.6 付费内容解锁
+
+```text
+POST /api/v1/posts/{id}/unlock     解锁 paid 策略帖子
+```
+
+- 权限：`authenticated` + CSRF；定价权威来源为 `posts.price_coin`（金币计价），缺失时回退 `content_access_policies.amount`。
+- 已解锁重复调用幂等返回 200，不重复扣费；余额不足返回 409 `insufficient_funds`。
+- 扣费充足时在同一事务内完成：ledger `consume`（source_type=`post_unlock`，幂等 scope `post.unlock`）+ `content_access_grants` purchase grant + 通知作者；仅在提交后才返回解锁成功。
+- 解锁后通过既有帖子投影（`restricted.unlocked=true`）读取正文；本端点不返回正文本身。
+
+### 21.7 站点统计
+
+```text
+GET /api/v1/stats     公开站点统计（成员/帖子/板块等聚合计数）
+```
+
+- 权限：`public`；`Cache-Control: public, max-age=60`。
+- 只返回聚合数字（成员、帖子、评论、板块、标签计数），不含任何用户级明细；计数口径与运营端点 `GET /api/v1/admin/stats`（non-contract）一致，但投影更少。
+
+### 21.8 Feed 投影
+
+`GET /api/v1/rss` 与 `GET /api/v1/atom` 为公开只读内容订阅投影，排序、缓存与防泄漏规则遵循 [`CRAWLER-POLICY.md §7.1`](CRAWLER-POLICY.md)（`published_at DESC, id DESC` 稳定排序；受限/未发布正文不出现在投影中）。
+

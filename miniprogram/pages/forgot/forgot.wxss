@@ -1,0 +1,23 @@
+.fg-head {
+  padding-top: 32rpx;
+}
+
+.fg-back {
+  text-align: center;
+  margin-top: 28rpx;
+  font-size: 26rpx;
+  color: var(--accent);
+}
+
+.fg-error {
+  margin-top: 24rpx;
+  padding: 20rpx 24rpx;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 12rpx;
+  font-size: 26rpx;
+}
+
+.ph {
+  color: var(--ink-3);
+}

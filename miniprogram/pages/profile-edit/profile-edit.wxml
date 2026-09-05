@@ -1,0 +1,22 @@
+<view class="page">
+  <view class="container">
+    <view class="field">
+      <text class="field-label">昵称（展示名）</text>
+      <input class="input" value="{{display_name}}" data-field="display_name" bindinput="onInput"
+        placeholder="留空则显示用户名" placeholder-class="ph" maxlength="32" />
+    </view>
+    <view class="field">
+      <text class="field-label">个人简介</text>
+      <textarea class="textarea pf-bio" value="{{bio}}" data-field="bio" bindinput="onInput"
+        placeholder="介绍一下自己" placeholder-class="ph" maxlength="200" auto-height />
+    </view>
+    <view class="field">
+      <text class="field-label">签名</text>
+      <input class="input" value="{{signature}}" data-field="signature" bindinput="onInput"
+        placeholder="一句话签名" placeholder-class="ph" maxlength="60" />
+    </view>
+    <button class="btn btn-primary btn-block mt-32" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSave">
+      保存
+    </button>
+  </view>
+</view>

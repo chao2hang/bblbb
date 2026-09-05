@@ -79,7 +79,28 @@ import type {
   VideoProviderTestResult,
   VideoResolveRequest,
   VideoEmbedCreate,
-  VideoEmbedPatch
+  VideoEmbedPatch,
+  // GAP-FIX：社交域 + 管理域补齐投影（见 GAP-FIX-SPEC 一、二节）
+  ConversationItem,
+  ConversationMessage,
+  AchievementDef,
+  MyAchievementItem,
+  ApiKeyItem,
+  ApiKeyCreated,
+  AdminStats,
+  AdminBiMetrics,
+  AuditLogItem,
+  AdminSettingsResult,
+  AdminPostItem,
+  AdminPostActionResult,
+  PointsLedgerItem,
+  PointTransactionItem,
+  AdminLevelItem,
+  SanctionItem,
+  OAuthGrantItem,
+  AdminAttachmentItem,
+  AdminDownloadTxItem,
+  BroadcastItem
 } from './types';
 import type { Problem } from '../errors';
 import { normalizeSearchPage } from '../search';
@@ -467,10 +488,12 @@ export async function search(
 
 export async function listNotifications(
   fetchFn: typeof fetch,
-  unreadOnly?: boolean
+  unreadOnly?: boolean,
+  category?: string | null
 ): Promise<NotificationListResult> {
   const params = new URLSearchParams();
   if (unreadOnly) params.set('unread_only', 'true');
+  if (category) params.set('category', category);
   const query = params.toString();
   return request(fetchFn, `/notifications${query ? `?${query}` : ''}`);
 }
@@ -1483,4 +1506,581 @@ export async function testVideoPolicy(
     headers: idemHeaders(clientRequestId),
     body: JSON.stringify(candidate)
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAP-FIX：社交域 + 管理域补齐（规格见 GAP-FIX-SPEC 一、二节）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GAP-FIX 列表查询辅助：after/limit 游标 + 可选过滤参数 → query string
+ *  （空值一律跳过，不产生空参数）。 */
+function pageQuery(
+  after?: string | null,
+  limit?: number,
+  extra: Record<string, string | undefined | null> = {}
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(extra)) {
+    if (value !== undefined && value !== null && value !== '') params.set(key, value);
+  }
+  if (after) params.set('after', after);
+  if (limit) params.set('limit', String(limit));
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+// ─── 社交域：帖子收藏（favorites.rs） ─────────────────────────────────────
+
+/** POST /api/v1/posts/{id}/favorite：收藏帖子（幂等，重复调用返回当前态）。 */
+export async function favoritePost(
+  fetchFn: typeof fetch,
+  id: string,
+  clientRequestId: string
+): Promise<{ favorited: boolean; favorite_count: number }> {
+  return request(fetchFn, `/posts/${encodeURIComponent(id)}/favorite`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ client_request_id: clientRequestId })
+  });
+}
+
+/** DELETE /api/v1/posts/{id}/favorite：取消收藏（幂等）。 */
+export async function unfavoritePost(
+  fetchFn: typeof fetch,
+  id: string
+): Promise<{ favorited: boolean; favorite_count: number }> {
+  return request(fetchFn, `/posts/${encodeURIComponent(id)}/favorite`, {
+    method: 'DELETE'
+  });
+}
+
+/** GET /api/v1/me/favorites：我收藏的帖子（favorites.created_at DESC keyset）。 */
+export async function listMyFavorites(
+  fetchFn: typeof fetch,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<PostSummary>> {
+  return request(fetchFn, `/me/favorites${pageQuery(after, limit)}`);
+}
+
+// ─── 社交域：用户 / 板块关注（follows.rs） ────────────────────────────────
+
+/** POST /api/v1/users/{username}/follow：关注用户。 */
+export async function followUser(
+  fetchFn: typeof fetch,
+  username: string
+): Promise<{ following: boolean; followers: number }> {
+  return request(fetchFn, `/users/${encodeURIComponent(username)}/follow`, {
+    method: 'POST'
+  });
+}
+
+/** DELETE /api/v1/users/{username}/follow：取关用户。 */
+export async function unfollowUser(
+  fetchFn: typeof fetch,
+  username: string
+): Promise<{ following: boolean; followers: number }> {
+  return request(fetchFn, `/users/${encodeURIComponent(username)}/follow`, {
+    method: 'DELETE'
+  });
+}
+
+/** GET /api/v1/users/{username}/followers：某用户的粉丝列表。 */
+export async function listFollowers(
+  fetchFn: typeof fetch,
+  username: string,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<{ username: string; display_name: string | null; level: number; created_at: number }>> {
+  return request(
+    fetchFn,
+    `/users/${encodeURIComponent(username)}/followers${pageQuery(after, limit)}`
+  );
+}
+
+/** GET /api/v1/users/{username}/following：某用户关注的人。 */
+export async function listFollowing(
+  fetchFn: typeof fetch,
+  username: string,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<{ username: string; display_name: string | null; level: number; created_at: number }>> {
+  return request(
+    fetchFn,
+    `/users/${encodeURIComponent(username)}/following${pageQuery(after, limit)}`
+  );
+}
+
+/** POST /api/v1/boards/{slug}/follow：关注板块。 */
+export async function followBoard(
+  fetchFn: typeof fetch,
+  slug: string
+): Promise<{ following: boolean }> {
+  return request(fetchFn, `/boards/${encodeURIComponent(slug)}/follow`, {
+    method: 'POST'
+  });
+}
+
+/** DELETE /api/v1/boards/{slug}/follow：取关板块。 */
+export async function unfollowBoard(
+  fetchFn: typeof fetch,
+  slug: string
+): Promise<{ following: boolean }> {
+  return request(fetchFn, `/boards/${encodeURIComponent(slug)}/follow`, {
+    method: 'DELETE'
+  });
+}
+
+/** GET /api/v1/me/following：我关注的用户名与板块 slug（limit 200）。 */
+export async function listMyFollowing(
+  fetchFn: typeof fetch
+): Promise<{ users: string[]; boards: string[] }> {
+  return request(fetchFn, '/me/following');
+}
+
+// ─── 社交域：私信（conversations.rs） ─────────────────────────────────────
+
+/** GET /api/v1/conversations：我的会话列表（last_message_at DESC）。 */
+export async function listConversations(
+  fetchFn: typeof fetch,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<ConversationItem>> {
+  return request(fetchFn, `/conversations${pageQuery(after, limit)}`);
+}
+
+/** POST /api/v1/conversations：与用户开私信会话（已有会话返回既有 id；
+ *  与自己开 422；目标不存在 404）。 */
+export async function createConversation(
+  fetchFn: typeof fetch,
+  username: string,
+  clientRequestId: string
+): Promise<{ id: string; other: { username: string; display_name: string | null } }> {
+  return request(fetchFn, '/conversations', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ username, client_request_id: clientRequestId })
+  });
+}
+
+/** GET /api/v1/conversations/{id}/messages：会话消息（created_at ASC，
+ *  after=上一页最后一条 created_at）。 */
+export async function listMessages(
+  fetchFn: typeof fetch,
+  conversationId: string,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<ConversationMessage>> {
+  return request(
+    fetchFn,
+    `/conversations/${encodeURIComponent(conversationId)}/messages${pageQuery(after, limit)}`
+  );
+}
+
+/** POST /api/v1/conversations/{id}/messages：发送私信（1-2000 字，幂等；
+ *  非参与者 404）。 */
+export async function sendMessage(
+  fetchFn: typeof fetch,
+  conversationId: string,
+  body: string,
+  clientRequestId: string
+): Promise<ConversationMessage> {
+  return request(fetchFn, `/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ body, client_request_id: clientRequestId })
+  });
+}
+
+/** POST /api/v1/conversations/{id}/read：标记会话已读（204）。 */
+export async function readConversation(
+  fetchFn: typeof fetch,
+  conversationId: string
+): Promise<void> {
+  return request(fetchFn, `/conversations/${encodeURIComponent(conversationId)}/read`, {
+    method: 'POST'
+  });
+}
+
+// ─── 社交域：成就（achievements.rs） ──────────────────────────────────────
+
+/** GET /api/v1/achievements：全部成就定义（隐藏成就描述脱敏）。 */
+export async function listAchievements(
+  fetchFn: typeof fetch
+): Promise<{ items: AchievementDef[] }> {
+  return request(fetchFn, '/achievements');
+}
+
+/** GET /api/v1/me/achievements：我的成就进度与统计。 */
+export async function listMyAchievements(
+  fetchFn: typeof fetch
+): Promise<{
+  items: MyAchievementItem[];
+  stats: { unlocked: number; total: number; equipped: number; max_slots: number };
+}> {
+  return request(fetchFn, '/me/achievements');
+}
+
+/** PUT /api/v1/me/achievements/{code}/equip：装备成就徽章（仅已解锁可装备，
+ *  超过 max_slots 409）。 */
+export async function equipAchievement(
+  fetchFn: typeof fetch,
+  code: string
+): Promise<{ equipped: boolean }> {
+  return request(fetchFn, `/me/achievements/${encodeURIComponent(code)}/equip`, {
+    method: 'PUT'
+  });
+}
+
+/** DELETE /api/v1/me/achievements/{code}/equip：卸下成就徽章。 */
+export async function unequipAchievement(
+  fetchFn: typeof fetch,
+  code: string
+): Promise<{ equipped: boolean }> {
+  return request(fetchFn, `/me/achievements/${encodeURIComponent(code)}/equip`, {
+    method: 'DELETE'
+  });
+}
+
+// ─── 社交域：API Key（apikeys.rs） ────────────────────────────────────────
+
+/** GET /api/v1/me/api-keys：我的 API Key 列表。 */
+export async function listApiKeys(fetchFn: typeof fetch): Promise<{ items: ApiKeyItem[] }> {
+  return request(fetchFn, '/me/api-keys');
+}
+
+/** POST /api/v1/me/api-keys：创建 API Key（key 明文仅此一次返回）。 */
+export async function createApiKey(
+  fetchFn: typeof fetch,
+  name: string,
+  scopes: string[],
+  clientRequestId: string
+): Promise<ApiKeyCreated> {
+  return request(fetchFn, '/me/api-keys', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ name, scopes, client_request_id: clientRequestId })
+  });
+}
+
+/** DELETE /api/v1/me/api-keys/{id}：吊销 API Key（软删除，立即失效）。 */
+export async function revokeApiKey(
+  fetchFn: typeof fetch,
+  id: string
+): Promise<void> {
+  return request(fetchFn, `/me/api-keys/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+}
+
+// ─── 管理域：仪表盘 / BI（stats） ────────────────────────────────────────
+
+/** GET /api/v1/admin/stats：管理仪表盘统计（admin.manage）。 */
+export async function getAdminStats(fetchFn: typeof fetch): Promise<AdminStats> {
+  return request(fetchFn, '/admin/stats');
+}
+
+/** GET /api/v1/admin/bi/metrics?period=：BI 指标（day|week|month|year）。 */
+export async function getAdminBiMetrics(
+  fetchFn: typeof fetch,
+  period: 'day' | 'week' | 'month' | 'year'
+): Promise<AdminBiMetrics> {
+  return request(fetchFn, `/admin/bi/metrics?period=${encodeURIComponent(period)}`);
+}
+
+/** GET /api/v1/admin/audit-logs：审计日志（created_at DESC keyset，q 模糊）。 */
+export async function listAdminAuditLogs(
+  fetchFn: typeof fetch,
+  q?: string,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<AuditLogItem>> {
+  return request(fetchFn, `/admin/audit-logs${pageQuery(after, limit, { q })}`);
+}
+
+// ─── 管理域：系统设置 ─────────────────────────────────────────────────────
+
+/** GET /api/v1/admin/settings：系统设置（含 version 乐观并发）。 */
+export async function getAdminSettings(fetchFn: typeof fetch): Promise<AdminSettingsResult> {
+  return request(fetchFn, '/admin/settings');
+}
+
+/** PATCH /api/v1/admin/settings：更新系统设置（If-Match version 守卫；
+ *  patch 可携带 reason 进审计）。 */
+export async function updateAdminSettings(
+  fetchFn: typeof fetch,
+  patch: Partial<AdminSettingsResult['settings']> & { reason?: string },
+  ifMatch: number
+): Promise<AdminSettingsResult> {
+  return request(fetchFn, '/admin/settings', {
+    method: 'PATCH',
+    headers: { 'If-Match': String(ifMatch) },
+    body: JSON.stringify(patch)
+  });
+}
+
+// ─── 管理域：帖子管理 ─────────────────────────────────────────────────────
+
+/** GET /api/v1/admin/posts：帖子管理列表（status/board/q 过滤）。 */
+export async function listAdminPosts(
+  fetchFn: typeof fetch,
+  opts: {
+    status?: string;
+    board?: string;
+    q?: string;
+    after?: string | null;
+    limit?: number;
+  } = {}
+): Promise<PageResult<AdminPostItem>> {
+  return request(
+    fetchFn,
+    `/admin/posts${pageQuery(opts.after, opts.limit, {
+      status: opts.status,
+      board: opts.board,
+      q: opts.q
+    })}`
+  );
+}
+
+/** POST /api/v1/admin/posts/{id}/action：审核/加精/置顶/锁定等动作（写审计）。 */
+export async function adminPostAction(
+  fetchFn: typeof fetch,
+  postId: string,
+  action:
+    | 'approve'
+    | 'reject'
+    | 'hide'
+    | 'restore'
+    | 'feature'
+    | 'unfeature'
+    | 'pin'
+    | 'unpin'
+    | 'lock'
+    | 'unlock'
+    | 'delete',
+  reason: string
+): Promise<AdminPostActionResult> {
+  return request(fetchFn, `/admin/posts/${encodeURIComponent(postId)}/action`, {
+    method: 'POST',
+    body: JSON.stringify({ action, reason })
+  });
+}
+
+// ─── 管理域：积分 ──────────────────────────────────────────────────────────
+
+/** GET /api/v1/admin/points/ledger：全站积分流水（多条件过滤）。 */
+export async function listAdminPointsLedger(
+  fetchFn: typeof fetch,
+  opts: {
+    username?: string;
+    asset?: string;
+    kind?: string;
+    from?: string;
+    to?: string;
+    after?: string | null;
+    limit?: number;
+  } = {}
+): Promise<PageResult<PointsLedgerItem>> {
+  return request(
+    fetchFn,
+    `/admin/points/ledger${pageQuery(opts.after, opts.limit, {
+      username: opts.username,
+      asset: opts.asset,
+      kind: opts.kind,
+      from: opts.from,
+      to: opts.to
+    })}`
+  );
+}
+
+/** POST /api/v1/admin/points/adjust：手工调整积分（幂等；写审计+通知用户）。 */
+export async function adminPointsAdjust(
+  fetchFn: typeof fetch,
+  input: { username: string; currency: 'exp' | 'coin'; amount: number; reason: string },
+  clientRequestId: string
+): Promise<{ username: string; currency: string; amount: number; balance: number }> {
+  return request(fetchFn, '/admin/points/adjust', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ ...input, client_request_id: clientRequestId })
+  });
+}
+
+/** GET /api/v1/me/point-transactions：本人积分流水。 */
+export async function listMyPointTransactions(
+  fetchFn: typeof fetch,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<PointTransactionItem>> {
+  return request(fetchFn, `/me/point-transactions${pageQuery(after, limit)}`);
+}
+
+// ─── 管理域：等级规则 ──────────────────────────────────────────────────────
+
+/** GET /api/v1/admin/levels：等级规则列表。 */
+export async function listAdminLevels(fetchFn: typeof fetch): Promise<{ items: AdminLevelItem[] }> {
+  return request(fetchFn, '/admin/levels');
+}
+
+/** PATCH /api/v1/admin/levels/{level}：更新等级规则（If-Match version 守卫）。 */
+export async function updateAdminLevel(
+  fetchFn: typeof fetch,
+  level: number,
+  patch: Partial<
+    Pick<
+      AdminLevelItem,
+      'name' | 'min_exp' | 'daily_post_limit' | 'daily_comment_limit' | 'is_enabled'
+    >
+  > & { reason?: string },
+  ifMatch: number
+): Promise<AdminLevelItem> {
+  return request(fetchFn, `/admin/levels/${encodeURIComponent(String(level))}`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(ifMatch) },
+    body: JSON.stringify(patch)
+  });
+}
+
+// ─── 用户侧：处罚 / 账号 / OAuth 授权 ─────────────────────────────────────
+
+/** GET /api/v1/me/sanctions：本人被处罚记录。 */
+export async function listMySanctions(fetchFn: typeof fetch): Promise<{ items: SanctionItem[] }> {
+  return request(fetchFn, '/me/sanctions');
+}
+
+/** POST /api/v1/me/password：修改密码（旧密码错 401；成功后撤销其他会话）。 */
+export async function changeMyPassword(
+  fetchFn: typeof fetch,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  return request(fetchFn, '/me/password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+  });
+}
+
+/** GET /api/v1/me/oauth-grants：本人 OAuth 授权记录。 */
+export async function listMyOAuthGrants(
+  fetchFn: typeof fetch
+): Promise<{ items: OAuthGrantItem[] }> {
+  return request(fetchFn, '/me/oauth-grants');
+}
+
+/** DELETE /api/v1/me/oauth-grants/{clientId}：撤销 OAuth 授权。 */
+export async function revokeOAuthGrant(
+  fetchFn: typeof fetch,
+  clientId: string
+): Promise<void> {
+  return request(fetchFn, `/me/oauth-grants/${encodeURIComponent(clientId)}`, {
+    method: 'DELETE'
+  });
+}
+
+// ─── 管理域：附件 / 下载账单 ──────────────────────────────────────────────
+
+/** GET /api/v1/admin/attachments：附件管理列表（q 文件名/上传者模糊）。 */
+export async function listAdminAttachments(
+  fetchFn: typeof fetch,
+  q?: string,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<AdminAttachmentItem>> {
+  return request(fetchFn, `/admin/attachments${pageQuery(after, limit, { q })}`);
+}
+
+/** DELETE /api/v1/admin/attachments/{id}：软删除附件（reason 写审计）。 */
+export async function deleteAdminAttachment(
+  fetchFn: typeof fetch,
+  id: string,
+  reason: string
+): Promise<void> {
+  return request(fetchFn, `/admin/attachments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason })
+  });
+}
+
+/** GET /api/v1/admin/download-billing/transactions：下载计费流水。 */
+export async function listAdminDownloadTransactions(
+  fetchFn: typeof fetch,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<AdminDownloadTxItem>> {
+  return request(fetchFn, `/admin/download-billing/transactions${pageQuery(after, limit)}`);
+}
+
+// ─── 管理域：通知广播 ──────────────────────────────────────────────────────
+
+/** GET /api/v1/admin/notifications/outbox：广播发件箱。 */
+export async function listAdminBroadcasts(
+  fetchFn: typeof fetch,
+  after?: string | null,
+  limit?: number
+): Promise<PageResult<BroadcastItem>> {
+  return request(fetchFn, `/admin/notifications/outbox${pageQuery(after, limit)}`);
+}
+
+/** POST /api/v1/admin/notifications/broadcast：全站广播（幂等；分批投递，
+ *  返回目标用户数）。 */
+export async function broadcastNotification(
+  fetchFn: typeof fetch,
+  title: string,
+  body: string,
+  clientRequestId: string
+): Promise<{ id: string; target_count: number }> {
+  return request(fetchFn, '/admin/notifications/broadcast', {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ title, body, client_request_id: clientRequestId })
+  });
+}
+
+/** POST /api/v1/admin/notifications/outbox/{id}/recall：撤回广播（删除未读
+ *  通知行，已读保留）。 */
+export async function recallBroadcast(
+  fetchFn: typeof fetch,
+  id: string,
+  reason: string
+): Promise<void> {
+  return request(fetchFn, `/admin/notifications/outbox/${encodeURIComponent(id)}/recall`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  });
+}
+
+// ─── 管理域：标签合并 / 付费解锁 / 公开统计 ──────────────────────────────
+
+/** POST /api/v1/admin/tags/{sourceId}/merge：合并标签（usage 转移到目标）。 */
+export async function mergeAdminTag(
+  fetchFn: typeof fetch,
+  sourceId: string,
+  targetId: string,
+  reason: string
+): Promise<{ merged: string; into: string; moved_usage: number }> {
+  return request(fetchFn, `/admin/tags/${encodeURIComponent(sourceId)}/merge`, {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId, reason })
+  });
+}
+
+/** POST /api/v1/posts/{id}/unlock：付费解锁帖子（幂等；扣 coin + 写授权；
+ *  余额不足 409 insufficient_funds）。 */
+export async function unlockPost(
+  fetchFn: typeof fetch,
+  postId: string,
+  clientRequestId: string
+): Promise<{ unlocked: boolean; coin_balance: number }> {
+  return request(fetchFn, `/posts/${encodeURIComponent(postId)}/unlock`, {
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ client_request_id: clientRequestId })
+  });
+}
+
+/** GET /api/v1/stats：公开统计（Cache-Control public max-age=60）。 */
+export async function getPublicStats(
+  fetchFn: typeof fetch
+): Promise<{ members: number; posts: number; comments: number; boards: number; tags: number }> {
+  return request(fetchFn, '/stats');
 }

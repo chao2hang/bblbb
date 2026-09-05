@@ -148,6 +148,76 @@ export const actions: Actions = {
       return fail(503, { message: '更新失败，请稍后重试' } satisfies AdminMarketplaceActionData);
     }
   },
+  /** 概览表状态切换（M17-GAPFIX-07）：取当前完整视图 → PATCH 全量保形 + 新状态。
+   * 值域：pending/active/disabled/emergency_disabled（emergency 需人工恢复，不提供按钮）。 */
+  setStatus: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const key = String(form.get('client_id') ?? '').trim();
+    const version = Number(form.get('version') ?? 1);
+    const status = String(form.get('status') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!key || !status) return fail(422, { message: '缺少参数' } satisfies AdminMarketplaceActionData);
+    if (!reason) return fail(422, { message: '操作原因必填' } satisfies AdminMarketplaceActionData);
+    try {
+      const detail = await getAuthed<MarketplaceClientView>(
+        cookies,
+        `/api/v1/admin/marketplace/clients/${encodeURIComponent(key)}`,
+        request.headers.get('x-request-id')
+      );
+      if (!detail.ok) return fail(detail.status, { message: detail.message } satisfies AdminMarketplaceActionData);
+      const c = detail.data;
+      const body = {
+        name: c.name,
+        owner_user_id: c.owner_user_id ?? '',
+        terms_url: c.terms_url ?? '',
+        privacy_url: c.privacy_url ?? '',
+        webhook_url: c.webhook_url ?? '',
+        redirect_uris: c.redirect_uris ?? [],
+        fee_bps: c.fee_bps ?? 0,
+        scopes: (c.scopes ?? []).map((sc) => ({ scope: sc.scope, status: sc.status, limits: sc.limits ?? {} })),
+        status,
+        reason
+      };
+      const result = await authedPatch<MarketplaceClientView>(
+        cookies,
+        `/api/v1/admin/marketplace/clients/${encodeURIComponent(key)}`,
+        body,
+        { 'If-Match': String(version) },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `Client「${result.data.name}」状态已切换为 ${result.data.status}` } satisfies AdminMarketplaceActionData;
+      }
+      if (result.status === 409) {
+        return fail(409, { message: `版本冲突：${result.message}，请刷新后重试` } satisfies AdminMarketplaceActionData);
+      }
+      return fail(result.status, { message: result.message, code: result.code, requestId: result.requestId } satisfies AdminMarketplaceActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '操作失败，请稍后重试' } satisfies AdminMarketplaceActionData);
+    }
+  },
+  /** 全站对账（M17-GAPFIX-07）：POST /admin/marketplace/reconciliation/run（无 client_id）。 */
+  runReconciliationAll: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) return fail(422, { message: '操作原因必填' } satisfies AdminMarketplaceActionData);
+    try {
+      const result = await authedPost<unknown>(
+        cookies,
+        '/api/v1/admin/marketplace/reconciliation/run',
+        { reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: '对账已完成（结果见审计与 Webhook 投递记录）' } satisfies AdminMarketplaceActionData;
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminMarketplaceActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '对账启动失败，请稍后重试' } satisfies AdminMarketplaceActionData);
+    }
+  },
   rotateWebhook: async ({ request, cookies }) => {
     const form = await request.formData();
     const clientId = String(form.get('client_id') ?? '').trim();

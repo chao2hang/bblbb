@@ -1,0 +1,50 @@
+.picker-value {
+  display: flex;
+  align-items: center;
+}
+
+.picker-placeholder {
+  color: var(--ink-3);
+}
+
+.type-row {
+  display: flex;
+  gap: 20rpx;
+}
+
+.type-item {
+  flex: 1;
+  border: 1rpx solid var(--line);
+  border-radius: 14rpx;
+  background: var(--card);
+  padding: 22rpx 24rpx;
+}
+
+.type-item.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.type-label {
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.type-hint {
+  font-size: 22rpx;
+  color: var(--ink-3);
+  margin-top: 6rpx;
+}
+
+.create-textarea {
+  min-height: 480rpx;
+}
+
+.create-tip {
+  text-align: center;
+  margin-top: 24rpx;
+}
+
+.ph {
+  color: var(--ink-3);
+}

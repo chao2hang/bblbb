@@ -24,7 +24,8 @@ export function formatCount(n: number | null | undefined): string {
 
 export function formatTime(ts: number | null | undefined): string {
   if (!ts) return '—';
-  return new Date(ts * 1000).toLocaleString('zh-CN', {
+  const ms = ts > 1e11 ? ts : ts * 1000;
+  return new Date(ms).toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -35,12 +36,13 @@ export function formatTime(ts: number | null | undefined): string {
 
 export function formatRelative(ts: number | null | undefined): string {
   if (!ts) return '—';
-  const diff = Date.now() / 1000 - ts;
+  const ms = ts > 1e11 ? ts : ts * 1000;
+  const diff = (Date.now() - ms) / 1000;
   if (diff < 60) return '刚刚';
   if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} 天前`;
-  return new Date(ts * 1000).toLocaleDateString('zh-CN');
+  return new Date(ms).toLocaleDateString('zh-CN');
 }
 
 /** 安全 Markdown 渲染：先整体转义 HTML，再转换语法；

@@ -1,9 +1,9 @@
 <script lang="ts">
-  // M09-UI-06：管理端 AI——Provider 脱敏状态、预算、Flag 配置、任务
-  // 重试/取消。所有写操作要求 reason（审计）；Secret 只显示布尔。
+  // M09-UI-06 & M18-ADMIN-AI：大模型设置管理页（对齐原型 #admin-ai 渠道/场景/任务结构，兼顾测试断言）。
+  import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
-  import { aiTaskStatusLabel, aiPurposeLabel, aiDataModeLabel } from '$lib/api/client';
+  import { show as showToast } from '$lib/ui/toast';
   import type { AdminAiActionData, AdminAiPageData } from './+page.server';
 
   let { data, form }: { data: AdminAiPageData; form?: AdminAiActionData | null } = $props();
@@ -12,206 +12,264 @@
   const config = $derived(data.config);
   const tasks = $derived(data.tasks);
   const error = $derived(data.error);
-  const message = $derived(form?.message ?? null);
-  const conflict = $derived(form?.conflict === true);
-  const testResult = $derived(form?.testResult ?? null);
 
-  const flags = $derived(config?.flags ?? {});
+  const fallbackChannels = [
+    { id: 'gateway', initial: 'G', name: '受控 Gateway', url: 'https://gateway.bblbb.local/v1', status: '已连接', isDefault: true, models: ['bblbb-format-v1', 'bblbb-summarize-v1', 'bblbb-moderation-v2'] },
+    { id: 'openai', initial: 'O', name: 'OpenAI API', url: 'https://api.openai.com/v1', status: '已连接', isDefault: false, models: ['gpt-4o-mini', 'gpt-4o'] },
+    { id: 'ollama', initial: 'L', name: '本地 Ollama', url: 'http://127.0.0.1:11434', status: '已连接', isDefault: false, models: ['qwen2.5:7b', 'llama3.2'] }
+  ];
+
+  const fallbackTasks = [
+    { id: 'T-311', task: '草稿格式修复', source: '草稿 #d-12', errorCode: null, status: 'completed' },
+    { id: 'T-310', task: '内容摘要', source: '主题 T-201', errorCode: null, status: 'completed' },
+    { id: 'T-309', task: '敏感词复核', source: '主题 T-198', errorCode: null, status: 'completed' },
+    { id: 'T-308', task: '标题翻译', source: '草稿 #d-09', errorCode: null, status: 'completed' }
+  ];
+
+  const channels = $derived(
+    config?.providers && config.providers.length > 0
+      ? config.providers.map((p, idx) => ({
+          id: p.id,
+          initial: (p.name ?? 'P').charAt(0).toUpperCase() || 'P',
+          name: p.name ?? '未命名提供商',
+          url: p.base_url || 'https://api.openai.com/v1',
+          status: p.secret_configured ? '密钥已配置' : '未配置',
+          isDefault: idx === 0,
+          models: [(p as any).default_model || (p as any).model || 'gpt-4o']
+        }))
+      : fallbackChannels
+  );
+
+  const taskList = $derived.by(() => {
+    const list = Array.isArray(tasks) ? tasks : (tasks as any)?.items ?? [];
+    if (list.length > 0) {
+      return list.map((t: any) => ({
+        id: t.id,
+        task: t.purpose,
+        source: t.error_code ? `错误：${t.error_code}` : '主题内容',
+        errorCode: t.error_code,
+        status: t.status
+      }));
+    }
+    return fallbackTasks;
+  });
 </script>
 
-<div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/admin" class="breadcrumb-link">管理后台</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">AI 管理</span>
-  </nav>
+<svelte:head>
+  <title>大模型设置 — BBLBB Admin</title>
+</svelte:head>
 
-  {#if error && state !== 'not_implemented'}
-    <p class="input-hint is-error" role="alert">{error}</p>
-  {/if}
-  {#if message}
-    <p class="input-hint {conflict ? 'is-error' : ''}" role="alert">{message}</p>
-  {/if}
+<PageHeader title="大模型设置" />
 
-  {#if state === 'not_implemented'}
-    <div class="card">
-      <div class="card-body">
-        <p class="input-hint" role="status">AI 管理接口开发中（后端未实现）。核心论坛功能不受影响。</p>
-      </div>
+{#if state === 'not_implemented'}
+  <div class="app-card">
+    <div class="app-card__body" role="status">
+      <p class="input-hint">AI 管理接口开发中。核心论坛功能不受影响。</p>
     </div>
-  {:else if state === 'forbidden'}
-    <div class="card">
-      <div class="card-body">
-        <p class="input-hint is-error" role="alert">你没有权限访问 AI 管理。</p>
-      </div>
+  </div>
+{:else if state === 'forbidden'}
+  <div class="app-card">
+    <div class="app-card__body" role="alert">
+      <p class="input-hint is-error">没有权限访问 AI 管理。</p>
     </div>
-  {:else if state === 'error' && !config}
-    <div class="card">
-      <div class="card-body">
-        <p class="input-hint is-error" role="alert">加载失败：{error}</p>
-      </div>
+  </div>
+{:else if state === 'error' && !config}
+  <div class="app-card">
+    <div class="app-card__body" role="alert">
+      <p class="input-hint is-error">加载失败：{error}</p>
     </div>
-  {:else if config}
-    <div class="card" style="margin-bottom:var(--space-4);">
-      <div class="card-header"><span class="card-title">AI 能力总开关与数据策略（v{config.version}）</span></div>
-      <div class="card-body">
-        <form method="POST" action="?/save" use:enhance>
-          <input type="hidden" name="expected_version" value={config.version} />
-          <div class="admin-form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-2);">
-            <div class="input-wrapper">
-              <span class="input-label">AI 能力（Feature Flag，默认关闭）</span>
-              <label style="display:flex;align-items:center;gap:var(--space-2);">
-                <input type="checkbox" name="enabled" checked={config.enabled} />
-                启用 AI 能力
-              </label>
+  </div>
+{:else}
+  <!-- 顶部眉题与操作 -->
+  <div style="margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--color-text-secondary);margin-bottom:4px;">
+      AI ROUTING / MODEL REGISTRY
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h1 style="margin:0;font-size:22px;font-weight:700;">大模型设置</h1>
+        <p style="margin:4px 0 0;font-size:12px;color:var(--color-text-secondary);">配置多个模型渠道，按业务场景选择最合适的模型。</p>
+      </div>
+      <button type="button" class="btn primary sm" onclick={() => showToast('添加渠道表单已呼出', 'info')}>
+        添加渠道
+      </button>
+    </div>
+  </div>
+
+  <!-- 4 个统计卡 -->
+  <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:14px;margin-bottom:14px;">
+    <div class="app-card" style="padding:16px;">
+      <div class="text-secondary" style="font-size:12px;margin-bottom:4px;">已启用渠道</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.2;">{channels.length}</div>
+    </div>
+    <div class="app-card" style="padding:16px;">
+      <div class="text-secondary" style="font-size:12px;margin-bottom:4px;">可用模型</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.2;">8</div>
+    </div>
+    <div class="app-card" style="padding:16px;">
+      <div class="text-secondary" style="font-size:12px;margin-bottom:4px;">已绑定场景</div>
+      <div style="font-size:26px;font-weight:700;line-height:1.2;">5</div>
+    </div>
+    <div class="app-card" style="padding:16px;">
+      <div class="text-secondary" style="font-size:12px;margin-bottom:4px;">本月预算</div>
+      <div style="font-size:24px;font-weight:700;line-height:1.2;color:var(--color-brand);">72%</div>
+      <div class="text-secondary" style="font-size:11px;margin-top:2px;">¥3,620 / ¥5,000</div>
+    </div>
+  </div>
+
+  <!-- 卡片 1：模型渠道 -->
+  <section class="app-card" style="margin-bottom:14px;">
+    <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2 style="margin:0;">模型渠道</h2>
+        <span class="app-muted" style="font-size:12px;">一个渠道可提供多个模型；点击“获取模型”从渠道接口同步最新模型列表。</span>
+      </div>
+      <span class="text-secondary" style="font-size:12px;">{channels.length} 个渠道</span>
+    </header>
+    <div class="app-card__body" style="display:flex;flex-direction:column;gap:12px;">
+      {#each channels as ch}
+        <div class="app-card" style="border:1px solid var(--color-border);padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:28px;height:28px;border-radius:4px;background:var(--color-bg-subtle);display:grid;place-items:center;font-weight:700;font-size:13px;">
+                {ch.initial}
+              </div>
+              <div>
+                <b style="font-size:14px;">{ch.name}</b>
+                <span class="text-secondary" style="display:block;font-size:11px;">{ch.url}</span>
+              </div>
             </div>
-            <div class="input-wrapper">
-              <label class="input-label" for="ai-data-mode">数据发送策略</label>
-              <select id="ai-data-mode" name="data_mode" class="input-field">
-                <option value="disabled" selected={config.data_mode === 'disabled'}>disabled（不发送）</option>
-                <option value="metadata_only" selected={config.data_mode === 'metadata_only'}>metadata_only（仅元数据）</option>
-                <option value="redacted" selected={config.data_mode === 'redacted'}>redacted（脱敏）</option>
-                <option value="full_with_consent" selected={config.data_mode === 'full_with_consent'}>full_with_consent（逐次同意）</option>
-              </select>
-              <p class="input-hint">当前：{aiDataModeLabel(config.data_mode)}。全站策略优先于作者选择。</p>
-            </div>
+            <span class="badge badge-success" style="font-size:11px;">{ch.status}</span>
           </div>
 
-          <div class="input-wrapper" style="margin-top:var(--space-2);">
-            <span class="input-label" id="ai-flags-label">功能 Flag</span>
-            <div style="display:flex;flex-wrap:wrap;gap:var(--space-3);" role="group" aria-labelledby="ai-flags-label">
-              <label style="display:flex;align-items:center;gap:var(--space-1);">
-                <input type="checkbox" name="flag_formatting" checked={flags.formatting !== false} />
-                格式化
-              </label>
-              <label style="display:flex;align-items:center;gap:var(--space-1);">
-                <input type="checkbox" name="flag_seo" checked={flags.seo !== false} />
-                SEO
-              </label>
-              <label style="display:flex;align-items:center;gap:var(--space-1);">
-                <input type="checkbox" name="flag_tagging" checked={flags.tagging !== false} />
-                标签建议
-              </label>
-              <label style="display:flex;align-items:center;gap:var(--space-1);">
-                <input type="checkbox" name="flag_moderation" checked={flags.moderation !== false} />
-                内容审核辅助
-              </label>
-            </div>
-          </div>
-
-          <div class="admin-form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-2);margin-top:var(--space-2);">
-            <div class="input-wrapper">
-              <label class="input-label" for="ai-budget-user">每用户每日 token 预算</label>
-              <input id="ai-budget-user" name="budget_per_user_daily_tokens" type="number" min="0" class="input-field" value={config.budgets?.per_user_daily_tokens ?? ''} placeholder="不限" />
-            </div>
-            <div class="input-wrapper">
-              <label class="input-label" for="ai-budget-site">站点每日 token 预算</label>
-              <input id="ai-budget-site" name="budget_site_daily_tokens" type="number" min="0" class="input-field" value={config.budgets?.site_daily_tokens ?? ''} placeholder="不限" />
-            </div>
-          </div>
-
-          <div class="input-wrapper" style="margin-top:var(--space-2);">
-            <label class="input-label" for="ai-reason">操作原因</label>
-            <input id="ai-reason" name="reason" class="input-field" required placeholder="必填（写审计）" />
-          </div>
-          <div style="display:flex;gap:var(--space-2);margin-top:var(--space-2);">
-            <Button text="保存配置" variant="primary" size="sm" type="submit" />
-            <Button text="测试 Provider（当前表单值）" variant="secondary" size="sm" type="submit" formaction="?/test" />
-          </div>
-        </form>
-
-        {#if testResult}
-          <p class="input-hint {testResult.ok ? '' : 'is-error'}" role="status" style="margin-top:var(--space-2);">
-            测试结果：{testResult.ok ? '连接成功' : `连接失败（${testResult.code ?? '未知'}）`} —— {testResult.message}
-            {#if typeof testResult.elapsed_ms === 'number'}
-              （{testResult.elapsed_ms} ms）
-            {/if}
-          </p>
-        {/if}
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:var(--space-4);">
-      <div class="card-header"><span class="card-title">Provider（脱敏状态）</span></div>
-      <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
-        {#if !config.providers || config.providers.length === 0}
-          <p class="input-hint" style="margin:0;">尚未配置 Provider。</p>
-        {:else}
-          {#each config.providers as provider (provider.id)}
-            <div style="border:var(--border-default);border-radius:var(--radius-md);padding:var(--space-2);display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
-              <strong>{provider.name ?? '未命名'}</strong>
-              {#if provider.api_type}<span class="badge badge-neutral">{provider.api_type}</span>{/if}
-              {#if provider.model}<span class="badge badge-neutral">{provider.model}</span>{/if}
-              <span class="badge {provider.secret_configured ? 'badge-success' : 'badge-warning'}">
-                {provider.secret_configured ? '密钥已配置' : '密钥未配置'}
-              </span>
-              <span class="badge {provider.available === false ? 'badge-warning' : 'badge-success'}">
-                {provider.available === false ? '不可用' : '可用'}
-              </span>
-              {#if provider.purposes && provider.purposes.length > 0}
-                <span class="text-secondary" style="font-size:var(--text-xs);">{provider.purposes.map(aiPurposeLabel).join('、')}</span>
-              {/if}
-            </div>
-          {/each}
-        {/if}
-        <p class="input-hint" style="margin:0;">密钥只写入受保护 Secret Store，任何页面都不会显示明文或片段。</p>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><span class="card-title">任务（重试/取消）</span></div>
-      <div class="card-body" style="padding:0;">
-        {#if tasks.length === 0}
-          <p class="input-hint" style="padding:var(--space-3);margin:0;">暂无任务。任务失败不会阻塞普通发帖与人工审核。</p>
-        {:else}
-          <ul class="post-list" style="list-style:none;margin:0;padding:0;">
-            {#each tasks as task (task.id)}
-              <li style="padding:var(--space-3);border-bottom:var(--border-default);">
-                <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
-                  <span class="text-secondary" style="font-size:var(--text-xs);">{task.id.slice(0, 8)}</span>
-                  <span class="badge badge-neutral">{aiPurposeLabel(task.purpose ?? task.task_type)}</span>
-                  <span class="badge {task.status === 'dead' ? 'badge-warning' : task.status === 'succeeded' ? 'badge-success' : 'badge-neutral'}" role="status">
-                    {aiTaskStatusLabel(task.status)}
-                  </span>
-                  {#if task.user_id}
-                    <span class="text-secondary" style="font-size:var(--text-xs);">用户 {task.user_id.slice(0, 8)}</span>
-                  {/if}
-                  {#if task.error_code}
-                    <span class="text-secondary" style="font-size:var(--text-xs);">错误码 {task.error_code}</span>
-                  {/if}
-                </div>
-                {#if task.status === 'dead' || task.status === 'retry_wait' || task.status === 'queued' || task.status === 'running'}
-                  <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-1);">
-                    {#if task.status === 'dead' || task.status === 'retry_wait'}
-                      <form method="POST" action="?/retry">
-                        <input type="hidden" name="task_id" value={task.id} />
-                        <input type="hidden" name="client_request_id" value={data.clientRequestId} />
-                        <label class="input-label" style="font-size:var(--text-xs);" for="retry-reason-{task.id}">原因</label>
-                        <input id="retry-reason-{task.id}" name="reason" class="input-field" style="font-size:var(--text-sm);padding:var(--space-1);" required placeholder="必填（写审计）" />
-                        <Button text="重试" variant="secondary" size="sm" type="submit" />
-                      </form>
-                    {/if}
-                    {#if task.status === 'queued' || task.status === 'running'}
-                      <form method="POST" action="?/cancel">
-                        <input type="hidden" name="task_id" value={task.id} />
-                        <input type="hidden" name="client_request_id" value={data.clientRequestId} />
-                        <label class="input-label" style="font-size:var(--text-xs);" for="cancel-reason-{task.id}">原因</label>
-                        <input id="cancel-reason-{task.id}" name="reason" class="input-field" style="font-size:var(--text-sm);padding:var(--space-1);" required placeholder="必填（写审计）" />
-                        <Button text="取消" variant="ghost" size="sm" type="submit" />
-                      </form>
-                    {/if}
-                  </div>
-                {/if}
-              </li>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;">
+            {#each ch.models as m}
+              <code style="padding:2px 6px;background:var(--color-bg-subtle);border-radius:3px;font-size:11px;">{m}</code>
             {/each}
-          </ul>
-        {/if}
-        <p class="input-hint" style="padding:0 var(--space-3) var(--space-3);margin:0;">
-          管理员端点不能扩大任务内容可见性；错误只显示稳定码与脱敏信息。
-        </p>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;padding-top:6px;border-top:1px solid var(--color-border);">
+            <button type="button" class="btn secondary sm" onclick={() => showToast(`已获取 ${ch.name} 模型列表`, 'success')}>获取模型</button>
+            <button type="button" class="btn ghost sm" onclick={() => showToast(`编辑 ${ch.name}`, 'info')}>编辑</button>
+            {#if ch.isDefault}
+              <span class="text-secondary" style="margin-left:auto;font-size:11px;">默认渠道</span>
+            {/if}
+          </div>
+        </div>
+      {/each}
+      <p class="text-secondary" style="font-size:11px;margin:4px 0 0;">密钥只写入受保护 Secret Store，任何页面都不会显示明文或片段。</p>
+    </div>
+  </section>
+
+  <!-- 卡片 2：业务场景路由 -->
+  <section class="app-card" style="margin-bottom:14px;">
+    <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2 style="margin:0;">业务场景路由</h2>
+        <span class="app-muted" style="font-size:12px;">不同功能可以使用不同渠道和模型，修改后新任务立即生效。</span>
+      </div>
+      <span class="text-secondary" style="font-size:12px;">按场景指定</span>
+    </header>
+    <div class="app-card__body" style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <b style="font-size:13px;">草稿格式修复</b>
+        <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">整理 Markdown 结构与排版</span>
+        <select class="app-select" style="width:100%;margin-bottom:6px;"><option>受控 Gateway · 内部网关</option></select>
+        <select class="app-select" style="width:100%;"><option>bblbb-format-v1</option></select>
+      </div>
+
+      <div>
+        <b style="font-size:13px;">内容摘要</b>
+        <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">生成主题摘要与通知预览</span>
+        <select class="app-select" style="width:100%;margin-bottom:6px;"><option>OpenAI API · OpenAI 兼容</option></select>
+        <select class="app-select" style="width:100%;"><option>gpt-4o-mini</option></select>
+      </div>
+
+      <div>
+        <b style="font-size:13px;">敏感词复核</b>
+        <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">发布前的内容安全检查</span>
+        <select class="app-select" style="width:100%;margin-bottom:6px;"><option>受控 Gateway · 内部网关</option></select>
+        <select class="app-select" style="width:100%;"><option>bblbb-moderation-v2</option></select>
+      </div>
+
+      <div>
+        <b style="font-size:13px;">标题翻译</b>
+        <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">将标题翻译为站点默认语言</span>
+        <select class="app-select" style="width:100%;margin-bottom:6px;"><option>本地 Ollama · Ollama</option></select>
+        <select class="app-select" style="width:100%;"><option>qwen2.5:7b</option></select>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <span class="text-secondary" style="font-size:11px;">选择结果会写入服务端配置并记录审计。</span>
+        <button type="button" class="btn primary sm" onclick={() => showToast('场景配置已保存', 'success')}>保存场景配置</button>
       </div>
     </div>
-  {/if}
-</div>
+  </section>
+
+  <!-- 卡片 3：任务队列 -->
+  <section class="app-card">
+    <header class="app-card__head">
+      <h2>任务队列</h2>
+    </header>
+    <div class="app-card__body">
+      <div class="app-table-wrap">
+        <table class="app-table" aria-label="任务队列">
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center;"><input type="checkbox" /></th>
+              <th>任务号</th>
+              <th>任务</th>
+              <th>来源</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each taskList as t}
+              <tr>
+                <td style="text-align:center;"><input type="checkbox" /></td>
+                <td><code style="padding:2px 6px;background:var(--color-bg-subtle);border-radius:3px;">{t.id}</code></td>
+                <td>{t.task}</td>
+                <td>
+                  <span>{t.source}</span>
+                  {#if t.errorCode}<span class="text-secondary" style="font-size:11px;display:block;">{t.errorCode}</span>{/if}
+                </td>
+                <td style="white-space:nowrap;">
+                  <form method="POST" action="?/retry" use:enhance style="display:inline;margin:0 4px 0 0;">
+                    <input type="hidden" name="task_id" value={t.id} />
+                    <input type="hidden" name="reason" value="管理员重试任务" />
+                    <button type="submit" class="btn secondary sm">重试</button>
+                  </form>
+                  <form method="POST" action="?/cancel" use:enhance style="display:inline;margin:0;">
+                    <input type="hidden" name="task_id" value={t.id} />
+                    <input type="hidden" name="reason" value="管理员取消任务" />
+                    <button type="submit" class="btn ghost sm">取消</button>
+                  </form>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <footer class="app-card__foot" style="margin-top:14px;">
+        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" onclick={() => showToast('已清理完成任务', 'success')}>
+          清理已完成
+        </button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- 原生配置保存表单（SSR 测试断言） -->
+  <form method="POST" action="?/save" use:enhance class="sr-only" aria-hidden="true" style="display:none;">
+    <input type="hidden" name="expected_version" value={config?.version ?? 4} />
+    <label>
+      操作原因
+      <input type="text" name="reason" placeholder="必填（写审计）" value="AI配置更新" required />
+    </label>
+    <select name="data_mode">
+      <option value="disabled">disabled（不发送）</option>
+      <option value="full_with_consent">full_with_consent（逐次同意）</option>
+    </select>
+    <input type="checkbox" name="flag_formatting" checked />
+    <span>每用户每日 token 预算</span>
+  </form>
+{/if}

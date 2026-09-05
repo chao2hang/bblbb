@@ -1,6 +1,7 @@
 <!-- M07-UI-08：管理端活跃——签到/任务配置（版本冲突提示、审计 reason 必填）。
 -->
 <script lang="ts">
+  import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import { adminStateLabel } from '$lib/admin';
   import Button from '$lib/components/ui/Button.svelte';
@@ -29,23 +30,22 @@
   }
 </script>
 
+<svelte:head>
+  <title>活跃管理 — BBLBB</title>
+</svelte:head>
+
+<PageHeader title="活跃管理" />
+
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/admin" class="breadcrumb-link">管理后台</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">活跃管理</span>
-  </nav>
 
   {#if message}
     <p class="input-hint is-error" role="alert">{message}</p>
   {/if}
 
   {#if config.state === 'ok'}
-    <div class="card" style="margin-bottom:var(--space-4);">
-      <div class="card-header"><span class="card-title">签到与活跃配置（v{config.data.version}）</span></div>
-      <div class="card-body">
+    <div class="app-card" style="margin-bottom:var(--space-4);">
+      <div class="app-card__head"><h2>签到与活跃配置（v{config.data.version}）</h2></div>
+      <div class="app-card__body">
         <form method="POST" action="?/save-config" use:enhance>
           <input type="hidden" name="expected_version" value={config.data.version} />
           <div style="display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center;">
@@ -67,16 +67,16 @@
       </div>
     </div>
   {:else}
-    <div class="card" style="margin-bottom:var(--space-4);">
-      <div class="card-body">
+    <div class="app-card" style="margin-bottom:var(--space-4);">
+      <div class="app-card__body">
         <p class="input-hint is-error" role="alert">{adminStateLabel(config.state)}：{config.message}</p>
       </div>
     </div>
   {/if}
 
-  <div class="card" style="margin-bottom:var(--space-4);">
-    <div class="card-header"><span class="card-title">新建任务</span></div>
-    <div class="card-body">
+  <div class="app-card" style="margin-bottom:var(--space-4);">
+    <div class="app-card__head"><h2>新建任务</h2></div>
+    <div class="app-card__body">
       <form method="POST" action="?/create-task" use:enhance>
         <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:flex-end;">
           <div class="input-wrapper">
@@ -105,8 +105,8 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-header"><span class="card-title">任务列表（{tasks.state === 'ok' ? tasks.items.length : '—'}）</span></div>
+  <div class="app-card">
+    <div class="app-card__head"><h2>任务列表（{tasks.state === 'ok' ? tasks.items.length : '—'}）</h2></div>
     <div class="card-body" style="padding:0;">
       {#if tasks.state !== 'ok'}
         <p class="input-hint is-error" role="alert" style="padding:var(--space-4);">{adminStateLabel(tasks.state)}</p>
@@ -119,7 +119,7 @@
               <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
                 <div style="min-width:0;flex:1;">
                   <strong>{kindLabel(t.kind)}</strong>
-                  <span class="badge badge-neutral" style="margin-left:var(--space-2);">{t.title ?? ''}</span>
+                  {#if t.title}<span class="badge badge-neutral" style="margin-left:var(--space-2);">{t.title}</span>{/if}
                   <span class="badge {t.is_enabled ? 'badge-success' : 'badge-neutral'}">{t.is_enabled ? '启用' : '停用'}</span>
                   <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
                     +{t.amount} {t.currency.toUpperCase()} · v{t.version} · 更新于 {new Date(t.updated_at).toLocaleString('zh-CN')}

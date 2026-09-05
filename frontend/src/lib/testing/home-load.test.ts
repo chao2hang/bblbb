@@ -24,8 +24,13 @@ const post = {
   id: 'p1',
   title: '你好 BBLBB',
   author_id: 'u1',
+  author_name: 'chaos',
+  board_id: 'b1',
+  summary: '第一帖摘要',
+  is_featured: false,
   reply_count: 2,
   view_count: 10,
+  like_count: 0,
   pinned: false,
   created_at: 0,
   last_reply_at: null
@@ -38,7 +43,12 @@ interface HomeLoadData {
 }
 
 async function runLoad(fetchMock: typeof fetch): Promise<HomeLoadData> {
-  return (await load({ fetch: fetchMock } as never)) as HomeLoadData;
+  // GAP-FIX 首页增强：load 需读 ?sort=/?after=（url）——测试按 load 自身
+  // 结构补 fixture（默认全部 tab）。
+  return (await load({
+    fetch: fetchMock,
+    url: new URL('http://test.local/')
+  } as never)) as HomeLoadData;
 }
 
 describe('首页 server load（无 JS 基线）', () => {
@@ -47,7 +57,8 @@ describe('首页 server load（无 JS 基线）', () => {
       const u = String(url);
       if (u.includes('/api/v1/boards')) return jsonResponse({ items: [board], next_cursor: null, has_more: false });
       if (u.includes('/api/v1/tags')) return jsonResponse({ items: [tag], next_cursor: null, has_more: false });
-      if (u.includes('/api/v1/search')) return jsonResponse({ items: [post], next_cursor: null, has_more: false });
+      // GAP-FIX：首页帖子流由 /search 改为直连 /api/v1/posts（sort 筛选）。
+      if (u.includes('/api/v1/posts')) return jsonResponse({ items: [post], page: { next_cursor: null, has_more: false } });
       return jsonResponse({});
     });
     const data = await runLoad(fetchMock as typeof fetch);

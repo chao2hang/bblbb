@@ -380,6 +380,21 @@ async fn refund_checks(
     Ok((client, fee_refundable))
 }
 
+/// 按退款比例分摊的平台费退还（溢出安全）：`fee_amount * refund / amount`。
+///
+/// 裸乘法 `fee_amount × amount` 可能超出 i64（金额乘积），debug 构建
+/// panic、release 构建回绕产生错误分成。此处显式失败（M12 资金安全）。
+fn proportional_fee_refund(
+    fee_amount: i64,
+    refund_amount: i64,
+    purchase_amount: i64,
+) -> Result<i64, MarketplaceError> {
+    fee_amount
+        .checked_mul(refund_amount)
+        .and_then(|v| v.checked_div(purchase_amount.max(1)))
+        .ok_or_else(|| MarketplaceError::Invalid("fee refund overflow".into()))
+}
+
 /// 退款事务本体。锁顺序：idempotency op → Purchase → 商户账户。
 #[allow(clippy::explicit_auto_deref)]
 #[allow(clippy::too_many_arguments)]
@@ -402,7 +417,7 @@ async fn execute_refund(
                 let (client, fee_refundable) =
                     refund_checks(pool, &purchase, principal, actor_type, input.amount).await?;
                 let fee_refund = if fee_refundable {
-                    purchase.fee_amount * input.amount / purchase.amount.max(1)
+                    proportional_fee_refund(purchase.fee_amount, input.amount, purchase.amount)?
                 } else {
                     0
                 };
@@ -603,7 +618,7 @@ async fn execute_refund(
                 let (client, fee_refundable) =
                     refund_checks(pool, &purchase, principal, actor_type, input.amount).await?;
                 let fee_refund = if fee_refundable {
-                    purchase.fee_amount * input.amount / purchase.amount.max(1)
+                    proportional_fee_refund(purchase.fee_amount, input.amount, purchase.amount)?
                 } else {
                     0
                 };

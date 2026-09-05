@@ -1,0 +1,77 @@
+.pf-anon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 160rpx 48rpx;
+}
+
+.pf-hero {
+  padding: 48rpx 32rpx 8rpx;
+}
+
+.pf-name {
+  gap: 12rpx;
+}
+
+.pf-exp {
+  margin-top: 8rpx;
+}
+
+.pf-stats {
+  display: flex;
+  margin-top: 24rpx;
+}
+
+.pf-stat {
+  flex: 1;
+  text-align: center;
+}
+
+.pf-stat-num {
+  font-size: 38rpx;
+  font-weight: 800;
+}
+
+.pf-checkin {
+  margin-top: 20rpx;
+}
+
+.pf-ci-title {
+  font-size: 29rpx;
+  font-weight: 700;
+  margin-bottom: 6rpx;
+}
+
+.pf-menu {
+  margin-top: 20rpx;
+}
+
+.pf-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 30rpx 28rpx;
+  border-bottom: 1rpx solid var(--line-soft);
+}
+
+.pf-menu-item:last-child {
+  border-bottom: none;
+}
+
+.pf-menu-icon {
+  font-size: 32rpx;
+}
+
+.pf-menu-text {
+  flex: 1;
+  font-size: 29rpx;
+}
+
+.pf-menu-arrow {
+  color: var(--ink-3);
+  font-size: 36rpx;
+}
+
+.pf-logout {
+  margin: 48rpx 32rpx 0;
+}

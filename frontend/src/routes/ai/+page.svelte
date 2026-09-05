@@ -28,11 +28,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">AI 能力与同意</span>
-  </nav>
 
   {#if message}
     <p class="input-hint is-error" role="alert">{message}</p>

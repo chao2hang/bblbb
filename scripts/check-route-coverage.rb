@@ -55,7 +55,36 @@ DOCUMENTED_NON_CONTRACT = {
   "admin/plugins/{p}/enable" => %w[POST],
   "admin/plugins/{p}/metrics" => %w[GET],
   "admin/plugins/{p}/settings" => %w[PATCH],
-  "admin/plugins/capabilities" => %w[GET]
+  "admin/plugins/capabilities" => %w[GET],
+  # GAP-FIX 管理域（GAP-FIX-SPEC §二）：站点统计/BI/审计读取/系统设置/
+  # 帖子管理动作/通知广播/角色分配/成就管理为运营管理接口，同 M12/M13
+  # 先例不进入冻结契约，记录于 docs/OPERATIONS.md。
+  "admin/stats" => %w[GET],
+  "admin/stats/trend" => %w[GET],
+  "admin/bi/metrics" => %w[GET],
+  "admin/audit-logs" => %w[GET],
+  "admin/settings" => %w[GET PATCH],
+  "admin/posts" => %w[GET],
+  "admin/posts/{p}/action" => %w[POST],
+  "admin/notifications/broadcast" => %w[POST],
+  "admin/notifications/outbox" => %w[GET],
+  "admin/notifications/outbox/{p}/recall" => %w[POST],
+  "admin/notifications/templates" => %w[GET],
+  "admin/users/{p}/roles" => %w[POST],
+  "admin/users/{p}/roles/{p}" => %w[DELETE],
+  "admin/achievements" => %w[GET POST],
+  "admin/achievements/{p}" => %w[PATCH DELETE],
+  "admin/achievements/{p}/grant" => %w[POST],
+  # GAP-FIX 经济与个人域（GAP-FIX-SPEC §二）：积分流水/调整、等级规则、
+  # 附件管理、下载交易、标签合并为运营管理接口，同上先例。
+  "admin/points/ledger" => %w[GET],
+  "admin/points/adjust" => %w[POST],
+  "admin/levels" => %w[GET],
+  "admin/levels/{p}" => %w[PATCH],
+  "admin/attachments" => %w[GET],
+  "admin/attachments/{p}" => %w[DELETE],
+  "admin/download-billing/transactions" => %w[GET],
+  "admin/tags/{p}/merge" => %w[POST]
 }.freeze
 
 def normalize_path(path)

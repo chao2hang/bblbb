@@ -14,6 +14,10 @@ use crate::db::DatabasePool;
 use crate::marketplace::clients::{MarketplaceClient, ServicePrincipal};
 use crate::marketplace::MarketplaceError;
 
+/// 单价上限（10^14）：与 `fee_bps ≤ 10000` 共同保证
+/// `unit_amount × quantity × fee_bps` 的中间乘积不超出 i64（M12 资金安全）。
+pub const MAX_UNIT_AMOUNT: i64 = 100_000_000_000_000;
+
 /// Offer 行（`offers` 当前版本投影）。
 #[derive(Debug, Clone)]
 pub struct OfferRow {
@@ -226,6 +230,13 @@ pub fn validate_offer_input(body: &Value) -> Result<OfferInput, MarketplaceError
     }
     if amount < 0 {
         return Err(MarketplaceError::Invalid("unit_amount must be >= 0".into()));
+    }
+    // 上限：确保 `amount × quantity × fee_bps` 在 i64 内安全计算
+    // （fee = amount * 10000 ≤ 10^18 < i64::MAX；M12 资金安全）。
+    if amount > MAX_UNIT_AMOUNT {
+        return Err(MarketplaceError::Invalid(format!(
+            "unit_amount must be <= {MAX_UNIT_AMOUNT}"
+        )));
     }
     if !(quantity_min >= 1 && quantity_max >= 1 && quantity_max >= quantity_min) {
         return Err(MarketplaceError::Invalid(

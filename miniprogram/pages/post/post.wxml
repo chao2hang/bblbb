@@ -1,0 +1,176 @@
+<view class="page page-with-bar">
+  <!-- 加载中 -->
+  <view wx:if="{{loadState === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+
+  <!-- 失败 -->
+  <empty-state
+    wx:elif="{{loadState === 'error'}}"
+    state="error"
+    text="加载失败"
+    hint="{{loadError}}"
+    actionText="点击重试"
+    bind:action="loadPost"
+  />
+
+  <block wx:else>
+    <view class="container">
+      <!-- 标题与作者 -->
+      <view class="pt-head">
+        <view class="pt-title">{{post.title}}</view>
+        <view class="row pt-author" bindtap="onAuthorTap">
+          <view class="avatar avatar-sm">{{author.initial}}</view>
+          <view class="col pt-author-info">
+            <view class="pt-author-name ellipsis">
+              {{author.displayName}}
+              <text class="badge badge-gray pt-level">Lv{{author.level}}</text>
+            </view>
+            <view class="text-3">{{author.timeText}}</view>
+          </view>
+          <view class="flex-1"></view>
+          <text class="badge badge-gray">{{typeLabel}}</text>
+        </view>
+      </view>
+
+      <!-- 锁定横幅 -->
+      <view class="card pt-locked" wx:if="{{!unlocked}}">
+        <view class="pt-locked-icon">🔒</view>
+        <view class="pt-locked-text" wx:if="{{policy === 'paid'}}">
+          付费内容 · 解锁价 {{priceCoin}} 金币
+        </view>
+        <view class="pt-locked-text" wx:elif="{{policy === 'logged_in'}}">登录后可查看完整内容</view>
+        <view class="pt-locked-text" wx:elif="{{policy === 'after_reply'}}">参与回复后可查看完整内容</view>
+        <view class="pt-locked-text" wx:else>该内容对 Lv{{requiredLevel}} 及以上用户可见</view>
+        <button
+          wx:if="{{policy === 'paid' && unlocked === false}}"
+          class="btn btn-primary btn-sm pt-unlock-btn"
+          bindtap="onUnlockTap"
+        >解锁全文</button>
+        <button
+          wx:if="{{policy === 'logged_in' && !isLoggedIn}}"
+          class="btn btn-primary btn-sm pt-unlock-btn"
+          bindtap="onLoginTap"
+        >去登录</button>
+      </view>
+
+      <!-- 正文 -->
+      <view class="card pt-body-card" wx:if="{{unlocked}}">
+        <block wx:if="{{editing}}">
+          <input class="input" value="{{editTitle}}" bindinput="onEditTitleInput" placeholder="标题" placeholder-class="ph" />
+          <textarea class="textarea mt-16" value="{{editMarkdown}}" bindinput="onEditMarkdownInput" placeholder="正文（Markdown）" placeholder-class="ph" />
+          <view class="row gap-16 mt-24">
+            <button class="btn btn-ghost btn-sm flex-1" bindtap="cancelEdit">取消</button>
+            <button class="btn btn-primary btn-sm flex-1" loading="{{submittingEdit}}" bindtap="saveEdit">保存</button>
+          </view>
+        </block>
+        <view wx:else class="rich-body">
+          <rich-text nodes="{{bodyNodes}}"></rich-text>
+        </view>
+      </view>
+
+      <!-- 操作栏 -->
+      <view class="card pt-actions row">
+        <view class="pt-action {{iReacted ? 'on' : ''}}" bindtap="onLikeTap">
+          <text class="pt-action-icon">{{iReacted ? '👍' : '👍🏻'}}</text>
+          <text class="pt-action-text">{{likeTotal ? likeTotal : '点赞'}}</text>
+        </view>
+        <view class="pt-action {{iFavorited ? 'on' : ''}}" bindtap="onFavoriteTap">
+          <text class="pt-action-icon">{{iFavorited ? '⭐' : '☆'}}</text>
+          <text class="pt-action-text">{{favoriteCount ? favoriteCount : '收藏'}}</text>
+        </view>
+        <view class="pt-action" wx:if="{{isOwn}}" bindtap="startEdit">
+          <text class="pt-action-icon">✏️</text>
+          <text class="pt-action-text">编辑</text>
+        </view>
+        <view class="flex-1"></view>
+        <text class="text-3">回复 {{post.reply_count || 0}} · 浏览 {{post.view_count || 0}}</text>
+      </view>
+
+      <!-- 评论 -->
+      <view class="pt-comments" wx:if="{{unlocked}}">
+        <view class="pt-section-title">全部回复（{{post.reply_count || comments.length}}）</view>
+
+        <view wx:if="{{commentsState === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+        <empty-state
+          wx:elif="{{commentsState === 'error'}}"
+          state="error"
+          text="评论加载失败"
+          hint="{{commentsError}}"
+          actionText="重试"
+          bind:action="onRetryComments"
+        />
+
+        <block wx:else>
+          <view wx:if="{{!comments.length}}" class="pt-no-comments">
+            <text class="text-3">还没有回复，来抢首楼</text>
+          </view>
+
+          <view
+            class="card cmt"
+            wx:for="{{comments}}"
+            wx:key="id"
+            data-comment="{{item}}"
+            bindlongpress="onCommentLongTap"
+          >
+            <view class="row cmt-head">
+              <view class="avatar avatar-sm">{{item.initial}}</view>
+              <view class="flex-1 col">
+                <view class="row gap-8">
+                  <text class="cmt-name ellipsis">{{item.name}}</text>
+                  <text class="badge badge-gray cmt-floor">#{{item.floor}}</text>
+                  <text class="badge" wx:if="{{item.isOwn}}">我</text>
+                </view>
+                <text class="text-3">{{item.timeText}}</text>
+              </view>
+              <text
+                class="cmt-reply-link"
+                wx:if="{{!item.parentId}}"
+                data-comment="{{item}}"
+                catchtap="onReplyTap"
+              >回复</text>
+            </view>
+            <view class="cmt-body rich-body" wx:if="{{item.bodyNodes}}">
+              <rich-text nodes="{{item.bodyNodes}}"></rich-text>
+            </view>
+            <view class="cmt-reply-tag" wx:if="{{item.parentId}}">
+              ↳ 回复了 {{item.parentFloor ? ' #' + item.parentFloor + ' 楼' : '楼上'}}
+            </view>
+          </view>
+
+          <load-more
+            wx:if="{{comments.length}}"
+            hasMore="{{hasMore}}"
+            loading="{{loadingMore}}"
+            bind:retry="onLoadMoreRetry"
+          />
+        </block>
+      </view>
+    </view>
+  </block>
+
+  <!-- 底部评论输入栏 -->
+  <view class="composer-bar" wx:if="{{unlocked && loadState === 'ready'}}">
+    <view class="row gap-16">
+      <view class="flex-1">
+        <view class="composer-reply" wx:if="{{replyTo}}">
+          回复 {{replyTo.name}} #{{replyTo.floor}}
+          <text class="composer-reply-x" bindtap="onCancelReply">✕</text>
+        </view>
+        <input
+          class="input composer-input"
+          value="{{draft}}"
+          bindinput="onDraftInput"
+          placeholder="友善发言，理性讨论…"
+          placeholder-class="ph"
+          confirm-type="send"
+          bindconfirm="onSubmitComment"
+        />
+      </view>
+      <button
+        class="btn btn-primary btn-sm"
+        loading="{{submittingComment}}"
+        disabled="{{submittingComment}}"
+        bindtap="onSubmitComment"
+      >发送</button>
+    </view>
+  </view>
+</view>

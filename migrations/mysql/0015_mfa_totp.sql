@@ -14,8 +14,8 @@
 --    消费时原子标记（consumed_at 由 UPDATE WHERE consumed_at IS NULL 保证唯一）
 
 CREATE TABLE totp_credentials (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     encrypted_secret MEDIUMTEXT NOT NULL,
     last_accepted_step BIGINT NOT NULL DEFAULT 0,
     created_at BIGINT NOT NULL,
@@ -25,12 +25,12 @@ CREATE TABLE totp_credentials (
     KEY totp_credentials_user_idx (user_id),
     CONSTRAINT totp_credentials_user_fk
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin;
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_as_cs;
 
 CREATE TABLE mfa_recovery_codes (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    code_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    code_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     consumed_at BIGINT NULL,
     PRIMARY KEY (id),
@@ -38,4 +38,4 @@ CREATE TABLE mfa_recovery_codes (
     KEY mfa_recovery_codes_user_idx (user_id),
     CONSTRAINT mfa_recovery_codes_user_fk
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin;
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_as_cs;

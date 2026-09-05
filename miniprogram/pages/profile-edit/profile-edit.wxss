@@ -1,0 +1,7 @@
+.pf-bio {
+  min-height: 160rpx;
+}
+
+.ph {
+  color: var(--ink-3);
+}

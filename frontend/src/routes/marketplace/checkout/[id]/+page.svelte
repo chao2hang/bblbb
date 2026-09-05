@@ -42,11 +42,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">Marketplace 结账</span>
-  </nav>
 
   {#if loadError}
     <div class="card">

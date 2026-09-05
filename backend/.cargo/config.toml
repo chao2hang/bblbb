@@ -1,0 +1,3 @@
+[build]
+# 构建产物固定放 /data，避免打爆根分区（~160 个集成测试目标，debug 产物达数十 GB）
+target-dir = "/data/cargo-target/bblbb"

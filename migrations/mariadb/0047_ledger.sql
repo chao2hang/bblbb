@@ -13,7 +13,7 @@
 -- point_balance_snapshots: point-in-time balance snapshots for accounting.
 
 CREATE TABLE currencies (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     code VARCHAR(16) NOT NULL,
     name VARCHAR(64) NOT NULL,
     kind VARCHAR(16) NOT NULL,
@@ -32,8 +32,8 @@ VALUES
     ('01911fd5-0047-0000-0000-000000000002', 'coin', '金币', 'spendable', 0, 1, 1722816000, 1722816000);
 
 CREATE TABLE point_accounts (
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     balance BIGINT NOT NULL DEFAULT 0,
     frozen_balance BIGINT NOT NULL DEFAULT 0,
     version BIGINT NOT NULL DEFAULT 0,
@@ -48,15 +48,15 @@ CREATE TABLE point_accounts (
 CREATE INDEX point_accounts_currency_idx ON point_accounts (currency_id);
 
 CREATE TABLE point_operations (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    idempotency_scope VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    idempotency_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    request_hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    idempotency_scope VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    idempotency_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    request_hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     kind VARCHAR(16) NOT NULL,
-    actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    source_type VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    source_id VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    reverses_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    source_type VARCHAR(32) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    source_id VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    reverses_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     memo VARCHAR(255) NOT NULL,
     created_at BIGINT NOT NULL,
     PRIMARY KEY (id),
@@ -70,10 +70,10 @@ CREATE INDEX point_operations_source_idx ON point_operations (source_type, sourc
 CREATE INDEX point_operations_reverses_idx ON point_operations (reverses_operation_id);
 
 CREATE TABLE point_transactions (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     delta_balance BIGINT NOT NULL,
     delta_frozen BIGINT NOT NULL,
     balance_after BIGINT NOT NULL,
@@ -89,9 +89,9 @@ CREATE INDEX point_transactions_operation_idx ON point_transactions (operation_i
 CREATE INDEX point_transactions_user_idx ON point_transactions (user_id, currency_id, created_at);
 
 CREATE TABLE point_balance_snapshots (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     balance BIGINT NOT NULL,
     frozen_balance BIGINT NOT NULL,
     snapshot_at BIGINT NOT NULL,

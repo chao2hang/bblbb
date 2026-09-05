@@ -130,7 +130,7 @@ pub async fn login_user(
     let row: Option<LoginUserRow> = match pool {
         Either::Left(p) => sqlx::query_as(
             "SELECT id, username_normalized, email_normalized, email_verified, status,
-                    display_name, password_hash, failed_login_count, locked_until
+                    display_name, password_hash, locked_until
              FROM users WHERE email_normalized = ? OR username_normalized = ?",
         )
         .bind(identifier_normalized)
@@ -140,7 +140,7 @@ pub async fn login_user(
         .map_err(LoginError::Database)?,
         Either::Right(p) => sqlx::query_as(
             "SELECT id, username_normalized, email_normalized, email_verified, status,
-                    display_name, password_hash, failed_login_count, locked_until
+                    display_name, password_hash, locked_until
              FROM users WHERE email_normalized = ? OR username_normalized = ?",
         )
         .bind(identifier_normalized)
@@ -240,23 +240,74 @@ pub async fn login_user(
         });
     }
 
-    // 密码错误：递增连续失败计数，达到阈值触发短时锁定
-    let new_count = user.failed_login_count + 1;
-    let new_locked = if new_count >= limits.fail_threshold as i64 {
-        Some(now + limits.lockout_ms)
-    } else {
-        None
-    };
+    // 密码错误：原子递增连续失败计数，达到阈值触发短时锁定
+    // （SQL 端 `failed_login_count = failed_login_count + 1` 自增，
+    // 修复并发失败登录先读后写导致少计数、延迟锁定触发的竞态）
     // M15-OBSERVE-05：登录失败 / 锁定指标
     crate::observability::metrics::registry().counter_inc("bblbb_session_login_failures_total", 1);
-    if new_locked.is_some() {
-        crate::observability::metrics::registry().counter_inc("bblbb_session_lockouts_total", 1);
-    }
-    update_failure_count(pool, &user.id, new_count, new_locked, now)
+    let threshold = limits.fail_threshold as i64;
+    let lockout_deadline = now + limits.lockout_ms;
+    let locked = record_failure_attempt(pool, &user.id, threshold, lockout_deadline, now)
         .await
         .map_err(LoginError::Database)?;
+    if locked {
+        crate::observability::metrics::registry().counter_inc("bblbb_session_lockouts_total", 1);
+    }
 
     Err(LoginError::InvalidCredentials)
+}
+
+/// 原子记录一次登录失败：递增失败计数，达到阈值设置锁定。
+///
+/// `CASE WHEN failed_login_count + 1 >= ?` 中的列引用取 UPDATE 前的
+/// 行值（SQLite 与 MySQL 语义一致）；返回本次失败是否触发锁定。
+async fn record_failure_attempt(
+    pool: &DatabasePool,
+    user_id: &str,
+    threshold: i64,
+    lockout_deadline: i64,
+    now: i64,
+) -> Result<bool, sqlx::Error> {
+    let update = "UPDATE users
+         SET failed_login_count = failed_login_count + 1,
+             locked_until = CASE WHEN failed_login_count + 1 >= ? THEN ? ELSE locked_until END,
+             updated_at = ?
+         WHERE id = ?";
+    match pool {
+        Either::Left(p) => sqlx::query(update)
+            .bind(threshold)
+            .bind(lockout_deadline)
+            .bind(now)
+            .bind(user_id)
+            .execute(p)
+            .await
+            .map(|_| ())?,
+        Either::Right(p) => sqlx::query(update)
+            .bind(threshold)
+            .bind(lockout_deadline)
+            .bind(now)
+            .bind(user_id)
+            .execute(p)
+            .await
+            .map(|_| ())?,
+    };
+    // 锁定判定读回：仍在锁定中的用户已被前置检查拒绝（不会到达此处），
+    // 因此 locked_until > now 即本次失败触发的新锁定
+    let locked_until: Option<i64> = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT locked_until FROM users WHERE id = ?")
+                .bind(user_id)
+                .fetch_one(p)
+                .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar("SELECT locked_until FROM users WHERE id = ?")
+                .bind(user_id)
+                .fetch_one(p)
+                .await?
+        }
+    };
+    Ok(locked_until.is_some_and(|l| l > now))
 }
 
 fn rate_limited_from(status: RateLimitStatus) -> LoginError {
@@ -297,41 +348,6 @@ async fn reset_failure_count(
     }
 }
 
-async fn update_failure_count(
-    pool: &DatabasePool,
-    user_id: &str,
-    new_count: i64,
-    new_locked: Option<i64>,
-    now: i64,
-) -> Result<(), sqlx::Error> {
-    match pool {
-        Either::Left(p) => {
-            sqlx::query(
-                "UPDATE users SET failed_login_count = ?, locked_until = ?, updated_at = ? WHERE id = ?",
-            )
-            .bind(new_count)
-            .bind(new_locked)
-            .bind(now)
-            .bind(user_id)
-            .execute(p)
-            .await
-            .map(|_| ())
-        }
-        Either::Right(p) => {
-            sqlx::query(
-                "UPDATE users SET failed_login_count = ?, locked_until = ?, updated_at = ? WHERE id = ?",
-            )
-            .bind(new_count)
-            .bind(new_locked)
-            .bind(now)
-            .bind(user_id)
-            .execute(p)
-            .await
-            .map(|_| ())
-        }
-    }
-}
-
 /// 登录查询行。
 #[derive(sqlx::FromRow)]
 struct LoginUserRow {
@@ -342,6 +358,5 @@ struct LoginUserRow {
     status: String,
     display_name: Option<String>,
     password_hash: String,
-    failed_login_count: i64,
     locked_until: Option<i64>,
 }

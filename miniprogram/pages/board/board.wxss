@@ -1,0 +1,42 @@
+.bd-head {
+  margin-top: 24rpx;
+}
+
+.bd-name {
+  font-size: 36rpx;
+  font-weight: 800;
+}
+
+.bd-desc {
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: var(--ink-2);
+}
+
+.bd-sort {
+  display: flex;
+  gap: 32rpx;
+  padding: 0 32rpx 20rpx;
+}
+
+.bd-sort-item {
+  font-size: 28rpx;
+  color: var(--ink-3);
+  padding-bottom: 8rpx;
+}
+
+.bd-sort-item.on {
+  color: var(--ink);
+  font-weight: 700;
+  border-bottom: 4rpx solid var(--accent);
+}
+
+.bd-empty {
+  text-align: center;
+  padding: 120rpx 0;
+}
+
+.bd-composer {
+  display: flex;
+  justify-content: flex-end;
+}

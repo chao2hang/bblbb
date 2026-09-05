@@ -31,11 +31,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">举报</span>
-  </nav>
 
   <h1 class="page-title">举报内容</h1>
 
@@ -56,14 +51,15 @@
             <label>
               <span class="field-label">目标类型</span>
               <select name="target_type" required>
-                {#each targetTypes as t}
-                  <option value={t.value}>{t.label}</option>
+                {#each targetTypes as t (t.value)}
+                  <!-- GAP-FIX：?post= 入口预填（帖子详情「举报」按钮带参）。 -->
+                  <option value={t.value} selected={data.prefill?.target_type === t.value}>{t.label}</option>
                 {/each}
               </select>
             </label>
             <label>
               <span class="field-label">目标 ID</span>
-              <input name="target_id" type="text" required placeholder="帖子/评论/用户 ID" />
+              <input name="target_id" type="text" required placeholder="帖子/评论/用户 ID" value={data.prefill?.target_id ?? ''} />
             </label>
           </div>
           <label>

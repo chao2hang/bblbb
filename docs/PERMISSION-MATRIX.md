@@ -1,6 +1,6 @@
 # BBLBB — Endpoint、Scope 与权限矩阵
 
-> 基线：v0.4。Scope 只限制 OAuth Token 能代表 Client 请求什么，不能提升用户自身 RBAC/Object 权限。Session 写请求均要求 CSRF；Bearer-only 请求不使用 Cookie 时不要求 CSRF。
+> 基线：v0.5（2026-09-05：新增「社交与个人域」动作表，附录使用数同步至 223 operation）。Scope 只限制 OAuth Token 能代表 Client 请求什么，不能提升用户自身 RBAC/Object 权限。Session 写请求均要求 CSRF；Bearer-only 请求不使用 Cookie 时不要求 CSRF。
 
 ## 1. 身份和标记
 
@@ -93,6 +93,30 @@
 | 管理 Provider Policy | S | — | `video.manage` | R + CSP/egress 校验 | 是 | 必须 |
 | 执行策略测试 | S | — | `video.manage` | 固定安全探针 | 是 | 必须 |
 
+## 社交与个人域（M17-GAPFIX，2026 追加）
+
+> 端点清单与跨端点规则见 [`API.md §21`](API.md)；本节为动作级权限矩阵。
+> 社交/个人域端点不开放 OAuth Bearer 调用（契约 `security: sessionCookie`），
+> 全部走 Session + CSRF。
+
+| 动作 | 身份 | OAuth Scope | Permission | 额外规则 | CSRF | 审计 |
+|---|---|---|---|---|---|---|
+| 关注/取关用户与板块 | S | — | `authenticated` | toggle 幂等（复合主键）；自关注 422 `cannot_follow_self`；不存在 404 | S 是 | 否（best-effort 成就钩子） |
+| 粉丝/关注/本人关注列表 | S | — | `authenticated` | keyset 分页；仅公开投影 | 否 | 否 |
+| 收藏/取消收藏帖子 | S | — | `authenticated` | toggle 幂等；仅 published/hidden 可收藏 | S 是 | 否 |
+| 本人收藏列表 | S | — | `authenticated` | keyset 分页；仅本人 | 否 | 否 |
+| 私信会话/消息读写 | S | — | `authenticated` | 仅参与者（非参与者 404）；消息 `client_request_id` 幂等；对方通知 best-effort | S 是 | 否 |
+| 标记会话已读 | S | — | `authenticated` | 仅本人 `last_read_at` | S 是 | 否 |
+| 公共成就目录 | 匿名/S | — | `public` | 隐藏成就描述脱敏 | 否 | 否 |
+| 本人成就视图与徽章装备 | S | — | `authenticated` | 仅已解锁可装备；3 槽上限 409 | S 是 | 否 |
+| API 密钥创建/列表/吊销 | S | — | `authenticated` | 明文仅首次返回（SHA-256 存储 + prefix 识别）；scopes 白名单；吊销软删除立即失效 | S 是 | 否（数据库留痕） |
+| 修改本人密码 | S | — | `authenticated` | 当前密码校验（错 401）；成功吊销其他 Session | S 是 | `me.password.change` |
+| 查询本人处罚/积分流水/OAuth 授权 | S | — | `authenticated` | 仅本人投影；不含他人余额/email | 否 | 否 |
+| 撤销本人 OAuth 授权 | S | — | `authenticated` | 不追溯已签发 token 剩余寿命 | S 是 | `me.oauth_grant.revoke` |
+| 付费帖子解锁 | S | — | `authenticated` | 幂等 200；余额不足 409 `insufficient_funds`；同事务扣费+grant | S 是 | 不可变积分流水（source_type=`post_unlock`） |
+| 站点统计 | 匿名/S | — | `public` | 仅聚合计数；`Cache-Control: public, max-age=60` | 否 | 否 |
+| RSS/Atom 投影 | 匿名 | — | `public` | 只读投影；规则见 [`CRAWLER-POLICY.md §7.1`](CRAWLER-POLICY.md) | 否 | 否 |
+
 ## 8. 高风险要求
 
 - `storage.manage`、`download_billing.manage`、`marketplace.manage`、`marketplace.refund_admin`、`ai.manage`、`video.manage`、OIDC 密钥操作必须近期重新认证。
@@ -101,12 +125,12 @@
 
 ## 附录：operation 级 x-permission 注册表
 
-> 由 `openapi/openapi.yaml` 的 `x-permission` 扩展直接导出，并由 `ruby scripts/check-permission-matrix.rb` 三方校验：**OpenAPI → 本矩阵**（每个取值都必须在本注册表或上文动作表出现）、**OpenAPI → 权限注册表**（`backend/src/authz/mod.rs::PERMISSION_REGISTRY`，身份级标记除外）、**注册表 ↔ 本矩阵**（注册表权限必须在本文档出现，本附录行必须是已注册权限）。新增 operation 必须先登记 permission；新增权限必须先注册 `PERMISSION_REGISTRY`。`public` 与 `authenticated` 是身份级标记：`public` = 匿名可访问；`authenticated` = 任意已登录用户，对象级判定（作者/所有者/板块范围）在 handler 内完成。下表"使用数"来自 183 个 operation；operationId 只列代表，完整映射以 openapi.yaml 为准。
+> 由 `openapi/openapi.yaml` 的 `x-permission` 扩展直接导出，并由 `ruby scripts/check-permission-matrix.rb` 三方校验：**OpenAPI → 本矩阵**（每个取值都必须在本注册表或上文动作表出现）、**OpenAPI → 权限注册表**（`backend/src/authz/mod.rs::PERMISSION_REGISTRY`，身份级标记除外）、**注册表 ↔ 本矩阵**（注册表权限必须在本文档出现，本附录行必须是已注册权限）。新增 operation 必须先登记 permission；新增权限必须先注册 `PERMISSION_REGISTRY`。`public` 与 `authenticated` 是身份级标记：`public` = 匿名可访问；`authenticated` = 任意已登录用户，对象级判定（作者/所有者/板块范围）在 handler 内完成。下表"使用数"来自 223 个 operation；operationId 只列代表，完整映射以 openapi.yaml 为准。
 
 | x-permission | 使用数 | 代表 operationId | 关联矩阵小节 |
 |---|---:|---|---|
-| `public` | 16 | getHealth、login、listBoards、listPosts、getCsrfToken、register、searchPublicContent 等 | §1 身份和标记 |
-| `authenticated` | 57 | get_attachments_id_、post_me_profile_cover、post_attachments_id_download、get_notifications、post_shop_orders、post_ai_drafts_draft_id_format、post_video_embeds 等 | §1 身份和标记 |
+| `public` | 21 | getHealth、login、listBoards、listPosts、getCsrfToken、register、searchPublicContent、listTagPosts、get_achievements、get_stats、getPublicRssFeed、getPublicAtomFeed 等 | §1 身份和标记；社交与个人域 |
+| `authenticated` | 90 | get_attachments_id_、post_me_profile_cover、post_attachments_id_download、get_notifications、post_shop_orders、post_ai_drafts_draft_id_format、post_video_embeds、post_users_username_follow、post_posts_id_favorite、get_conversations、get_me_favorites、post_me_api_keys、put_me_achievements_code_equip、post_me_password、post_posts_id_unlock 等 | §1 身份和标记；社交与个人域 |
 | `session.revoke_own` | 3 | logout、logoutAll、revokeSession | §1 身份和标记 |
 | `session.read_own` | 1 | listSessions | §1 身份和标记 |
 | `user.read_public` | 1 | getPublicUser | §1 身份和标记 |
@@ -128,11 +152,11 @@
 | `post.edit_own` | 3 | updatePost、updateDraft、deleteDraft | §2 核心论坛 |
 | `comment.read` | 1 | listComments | §2 核心论坛 |
 | `comment.create` | 1 | createComment | §2 核心论坛 |
-| `attachment.upload` | 1 | createAttachment | §2 核心论坛 |
+| `attachment.upload` | 2 | createAttachment、updateAttachment | §2 核心论坛 |
 | `download_billing.manage` | 4 | getDownloadBillingConfig、updateDownloadBillingConfig、getAttachmentDownloadPolicyAdmin、updateAttachmentDownloadPolicyAdmin | §3 下载计费 |
 | `appeal.create_own` | 1 | createAppeal | §2 核心论坛 |
 | `appeal.read_own` | 2 | listOwnAppeals、getOwnAppeal | §2 核心论坛 |
-| `moderation.review` | 5 | listModerationCases、getModerationCase、updateModerationCase、listModerationAppeals、getModerationAppeal | §2 核心论坛（审核） |
+| `moderation.review` | 7 | listModerationCases、getModerationCase、updateModerationCase、listModerationAppeals、getModerationAppeal、createAdminModerationCase、assignAdminModerationCase | §2 核心论坛（审核） |
 | `moderation.sanction` | 1 | decideModerationAppeal | §2 核心论坛（审核） |
 | `shop.manage` | 8 | getAdminShopConfig、updateAdminShopConfig、listAdminShopProducts、createAdminShopProduct、publishAdminShopProduct 等 | §6 Internal Shop |
 | `shop.refund` | 1 | refundAdminShopOrder | §6 Internal Shop |

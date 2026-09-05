@@ -160,6 +160,12 @@ async fn record_visit(
         .await
         .map_err(|e| map_activity_error(e, request_id))?;
 
+    // 成就钩子（best-effort）：checkin_streak 类成就；失败只 warn 不阻断
+    // 签到结果返回（领取本身已提交）。
+    if let Err(e) = crate::achievements::evaluate(pool, &user.id).await {
+        tracing::warn!(user_id = %user.id, error = %e, "achievement evaluate failed (check-in)");
+    }
+
     let body = json!({
         "checked_in_today": outcome.checked_in_today,
         "streak_days": outcome.streak_days,

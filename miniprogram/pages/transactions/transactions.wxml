@@ -1,0 +1,42 @@
+<view class="page">
+  <view class="container">
+    <view wx:if="{{state === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+    <empty-state
+      wx:elif="{{state === 'error'}}"
+      state="error"
+      text="加载失败"
+      hint="{{error}}"
+      actionText="重试"
+      bind:action="onRetry"
+    />
+
+    <block wx:else>
+      <view wx:if="{{!items.length}}" class="tx-empty">
+        <text class="text-3">暂无积分变动记录</text>
+      </view>
+
+      <view class="card tx-item" wx:for="{{items}}" wx:key="id">
+        <view class="row gap-20">
+          <view class="col flex-1">
+            <view class="tx-kind">{{item.kindLabel}}</view>
+            <view class="text-3" wx:if="{{item.memo}}">{{item.memo}}</view>
+            <view class="text-3">{{item.timeText}}</view>
+          </view>
+          <view class="col tx-right">
+            <text class="tx-amount {{item.isNegative ? 'neg' : 'pos'}}">{{item.amountText}}</text>
+            <text class="text-3 tx-balance" wx:if="{{item.balance_after !== null && item.balance_after !== undefined}}">
+              余额 {{item.balance_after}}
+            </text>
+          </view>
+        </view>
+      </view>
+
+      <load-more
+        wx:if="{{items.length}}"
+        hasMore="{{hasMore}}"
+        loading="{{loadingMore}}"
+        bind:retry="onLoadMoreRetry"
+      />
+    </block>
+  </view>
+</view>

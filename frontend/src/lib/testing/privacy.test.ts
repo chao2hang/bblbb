@@ -89,7 +89,12 @@ interface HomeLoadData {
 }
 
 async function runLoad(fetchMock: typeof fetch): Promise<HomeLoadData> {
-  return (await load({ fetch: fetchMock } as never)) as HomeLoadData;
+  // GAP-FIX 首页增强：load 需读 ?sort=/?after=（url）——测试按 load 自身
+  // 结构补 fixture（默认全部 tab）。
+  return (await load({
+    fetch: fetchMock,
+    url: new URL('http://test.local/')
+  } as never)) as HomeLoadData;
 }
 
 function adversarialFetch(): typeof fetch {
@@ -99,8 +104,9 @@ function adversarialFetch(): typeof fetch {
       return jsonResponse({ items: [adversarialBoard], next_cursor: null, has_more: false });
     if (u.includes('/api/v1/tags'))
       return jsonResponse({ items: [adversarialTag], next_cursor: null, has_more: false });
-    if (u.includes('/api/v1/search'))
-      return jsonResponse({ items: [adversarialPost], next_cursor: null, has_more: false });
+    // GAP-FIX：首页帖子流由 /search 改为直连 /api/v1/posts（sort 筛选）。
+    if (u.includes('/api/v1/posts'))
+      return jsonResponse({ items: [adversarialPost], page: { next_cursor: null, has_more: false } });
     return jsonResponse({});
   }) as typeof fetch;
 }
@@ -121,7 +127,21 @@ describe('M00-FRONTEND-09 隐私守卫：hydration payload / 预取数据源', (
     );
     expect(Object.keys(data.tags[0]).sort()).toEqual(['id', 'name', 'slug', 'usage_count'].sort());
     expect(Object.keys(data.posts[0]).sort()).toEqual(
-      ['author_id', 'created_at', 'id', 'last_reply_at', 'pinned', 'reply_count', 'title', 'view_count'].sort()
+      [
+        'author_id',
+        'author_name',
+        'board_id',
+        'created_at',
+        'id',
+        'is_featured',
+        'last_reply_at',
+        'like_count',
+        'pinned',
+        'reply_count',
+        'summary',
+        'title',
+        'view_count'
+      ].sort()
     );
   });
 

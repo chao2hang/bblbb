@@ -425,8 +425,9 @@ impl PostRevisionRow {
 pub async fn insert_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx::Error> {
     let sql = "INSERT INTO drafts (
         id, owner_id, board_id, post_type, title, markdown, visibility_level,
-        access_policy, scheduled_at, version, created_at, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        access_policy, scheduled_at, price_coin, summary, tags_json,
+        version, created_at, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     match pool {
         Either::Left(p) => sqlx::query(sql)
             .bind(&draft.id)
@@ -438,6 +439,9 @@ pub async fn insert_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx
             .bind(draft.visibility_level)
             .bind(&draft.access_policy)
             .bind(draft.scheduled_at)
+            .bind(draft.price_coin)
+            .bind(&draft.summary)
+            .bind(&draft.tags_json)
             .bind(draft.version)
             .bind(draft.created_at)
             .bind(draft.updated_at)
@@ -455,6 +459,9 @@ pub async fn insert_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx
             .bind(draft.visibility_level)
             .bind(&draft.access_policy)
             .bind(draft.scheduled_at)
+            .bind(draft.price_coin)
+            .bind(&draft.summary)
+            .bind(&draft.tags_json)
             .bind(draft.version)
             .bind(draft.created_at)
             .bind(draft.updated_at)
@@ -472,8 +479,8 @@ pub async fn get_draft(
     owner_id: &str,
 ) -> Result<Option<Draft>, sqlx::Error> {
     let sql = "SELECT id, owner_id, board_id, post_type, title, markdown,
-        visibility_level, access_policy, scheduled_at, version, created_at,
-        updated_at, deleted_at FROM drafts WHERE id = ? AND owner_id = ? AND deleted_at IS NULL";
+        visibility_level, access_policy, scheduled_at, price_coin, summary, tags_json,
+        version, created_at, updated_at, deleted_at FROM drafts WHERE id = ? AND owner_id = ? AND deleted_at IS NULL";
     match pool {
         Either::Left(p) => {
             let row = sqlx::query_as::<_, DraftRow>(sql)
@@ -569,8 +576,8 @@ pub async fn list_drafts_cursor(
     limit: i64,
 ) -> Result<Vec<Draft>, sqlx::Error> {
     let sql = "SELECT id, owner_id, board_id, post_type, title, markdown,
-        visibility_level, access_policy, scheduled_at, version, created_at,
-        updated_at, deleted_at FROM drafts
+        visibility_level, access_policy, scheduled_at, price_coin, summary, tags_json,
+        version, created_at, updated_at, deleted_at FROM drafts
         WHERE owner_id = ? AND deleted_at IS NULL AND (? IS NULL OR updated_at < ?)
         ORDER BY updated_at DESC, id DESC LIMIT ?";
     match pool {
@@ -604,8 +611,8 @@ pub async fn list_scheduled_drafts(
     limit: i64,
 ) -> Result<Vec<Draft>, sqlx::Error> {
     let sql = "SELECT id, owner_id, board_id, post_type, title, markdown,
-        visibility_level, access_policy, scheduled_at, version, created_at,
-        updated_at, deleted_at FROM drafts
+        visibility_level, access_policy, scheduled_at, price_coin, summary, tags_json,
+        version, created_at, updated_at, deleted_at FROM drafts
         WHERE deleted_at IS NULL AND scheduled_at IS NOT NULL AND scheduled_at <= ?
         ORDER BY scheduled_at ASC LIMIT ?";
     match pool {
@@ -639,6 +646,9 @@ struct DraftRow {
     visibility_level: Option<i64>,
     access_policy: Option<String>,
     scheduled_at: Option<i64>,
+    price_coin: Option<i64>,
+    summary: Option<String>,
+    tags_json: Option<String>,
     version: i64,
     created_at: i64,
     updated_at: i64,
@@ -657,6 +667,9 @@ impl DraftRow {
             visibility_level: self.visibility_level,
             access_policy: self.access_policy,
             scheduled_at: self.scheduled_at,
+            price_coin: self.price_coin,
+            summary: self.summary,
+            tags_json: self.tags_json,
             version: self.version,
             created_at: self.created_at,
             updated_at: self.updated_at,

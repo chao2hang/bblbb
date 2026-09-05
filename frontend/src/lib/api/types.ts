@@ -121,6 +121,10 @@ export type Board = Omit<
   parent_id?: string | null;
   visibility?: 'public' | 'members' | 'restricted' | 'hidden' | null;
   posting_mode?: 'normal' | 'approval' | 'readonly' | 'closed' | null;
+  /** 管理端投影（GET/PATCH /admin/boards）返回；展示顺序按其升序。 */
+  sort_order?: number;
+  /** 管理端投影：板块版主用户名列表（board_role_assignments 聚合）。 */
+  moderators?: string[];
   /** 已认证投影才返回（匿名公开投影恒缺）。 */
   post_count?: number;
   /** 后端返回 0/1 整数（活跃投影恒 1）；已认证投影才返回。 */
@@ -154,7 +158,7 @@ export interface PostAuthor {
  *  契约目标：Post。公开列表投影不含正文（body_html 仅详情接口按可见性返回）。 */
 export interface PostSummary {
   id: string;
-  board_id?: string;
+  board_id?: string | null;
   board_slug?: string | null;
   board_name?: string | null;
   post_type?: 'article' | 'discussion';
@@ -167,8 +171,15 @@ export interface PostSummary {
   status?: string;
   reply_count: number;
   view_count: number;
+  /** 点赞计数（M18-HOME-01，原型帖子卡底部 ♥ 展示）。 */
+  like_count?: number;
   pinned?: boolean;
   pinned_at?: number | null;
+  /** 精选标记（GET /posts 列表投影；featured_at IS NOT NULL）。 */
+  is_featured?: boolean;
+  featured_at?: number | null;
+  /** 作者手写摘要（≤300 字符；列表卡片展示）。 */
+  summary?: string | null;
   created_at: number;
   updated_at?: number;
   last_reply_at: number | null;
@@ -671,12 +682,37 @@ export interface Presentation {
 
 // ── 活跃与等级（M07-LEVELS） ───────────────────────────────────────────────
 
-/** 活动摘要（GET /activity/summary）。字段缺失时前端兼容降级。 */
+/** 活动摘要等级对象（M07-LEVELS 后端实际投影：level 为对象而非数字）。 */
+export interface ActivityLevel {
+  level_id: string;
+  /** 等级名（如 "L1"）。 */
+  name?: string | null;
+  /** 等级序号（1 起）。 */
+  sort_order?: number | null;
+  /** 升级所需经验阈值。 */
+  threshold?: number | null;
+  icon?: string | null;
+  color?: string | null;
+  computed_from_balance?: number | null;
+  benefits?: {
+    badge?: string | null;
+    max_visibility?: number;
+    perks?: string[];
+  } | null;
+  benefits_version?: string | null;
+}
+
+/** 活动摘要（GET /activity/summary）。字段缺失时前端兼容降级。
+ *  注意：后端 level 为对象（ActivityLevel）、经验在 experience.balance；
+ *  旧字段（level:number / xp / balances）保留为可选以兼容历史投影。 */
 export interface ActivitySummary {
-  level: number;
+  /** 后端实际返回：等级对象。旧投影可能为数字。 */
+  level: ActivityLevel | number;
   level_name?: string | null;
-  /** 当前经验余额（experience 货币）。 */
-  xp: number;
+  /** 当前经验余额（experience 货币，后端实际字段）。 */
+  experience?: { balance: number; currency: string } | null;
+  /** 当前经验余额（旧投影字段）。 */
+  xp?: number;
   /** 距下一级所需经验；null = 已满级。 */
   xp_to_next?: number | null;
   /** 本自然日是否已签到（自动领取）。 */
@@ -699,6 +735,20 @@ export interface ActivitySummary {
     target?: number | null;
   }>;
   updated_at?: number;
+}
+
+/** 取活动摘要的等级序号：兼容 level 为对象（sort_order）或数字。 */
+export function activityLevelNumber(level: ActivitySummary['level'] | null | undefined): number | null {
+  if (typeof level === 'number') return level;
+  if (level && typeof level === 'object' && typeof level.sort_order === 'number') return level.sort_order;
+  return null;
+}
+
+/** 取活动摘要的经验余额：兼容 experience.balance 与旧 xp 字段。 */
+export function activityXp(summary: Pick<ActivitySummary, 'experience' | 'xp'> | null | undefined): number {
+  if (!summary) return 0;
+  if (summary.experience && typeof summary.experience.balance === 'number') return summary.experience.balance;
+  return typeof summary.xp === 'number' ? summary.xp : 0;
 }
 
 // ── 管理端：存储/配额/下载计费/商城/活跃（M06-UI/M07-UI） ──────────────────
@@ -1370,5 +1420,259 @@ export interface MarketplaceDeliveryView {
   last_status_code?: number | null;
   last_error?: string | null;
   delivered_at?: number | null;
+  created_at: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAP-FIX：社交域 + 管理域补齐投影（规格见 GAP-FIX-SPEC 一、二节）
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── 社交域：私信（conversations.rs） ─────────────────────────────────────
+
+/** 会话列表行（GET /conversations；双人会话，other=对方）。 */
+export interface ConversationItem {
+  id: string;
+  other: { username: string; display_name: string | null; level: number };
+  /** 最近一条消息（后端 LEFT JOIN：无消息的会话为 null）。 */
+  last_message: { body: string; created_at: number; sender_username: string } | null;
+  unread_count: number;
+  updated_at: number;
+}
+
+/** 私信消息（GET/POST /conversations/{id}/messages；created_at ASC）。 */
+export interface ConversationMessage {
+  id: string;
+  sender_username: string;
+  body: string;
+  created_at: number;
+}
+
+// ─── 社交域：成就（achievements.rs） ──────────────────────────────────────
+
+/** 成就定义（GET /achievements；隐藏成就 description 脱敏为「隐藏成就」）。 */
+export interface AchievementDef {
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  reward_exp: number;
+  reward_coin: number;
+  is_hidden: boolean;
+  sort_order: number;
+}
+
+/** 我的成就进度行（GET /me/achievements；未解锁返回 progress/target）。 */
+export interface MyAchievementItem {
+  code: string;
+  unlocked_at: number | null;
+  progress: number;
+  target: number;
+  equipped: boolean;
+}
+
+// ─── 社交域：API Key（apikeys.rs） ────────────────────────────────────────
+
+/** API Key 列表行（GET /me/api-keys；revoked_at 非空即已吊销）。 */
+export interface ApiKeyItem {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  created_at: number;
+  last_used_at: number | null;
+  revoked_at: number | null;
+}
+
+/** 创建 API Key 响应（POST /me/api-keys；key 明文仅此一次返回）。 */
+export interface ApiKeyCreated {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  created_at: number;
+  key: string;
+}
+
+// ─── 管理域：仪表盘 / BI / 审计 / 系统设置 ────────────────────────────────
+
+/** 管理仪表盘统计（GET /admin/stats；recent_admin_actions ≤8 条）。 */
+export interface AdminStats {
+  members: number;
+  members_delta_7d: number;
+  posts_today: number;
+  posts_today_delta: number;
+  posts_yesterday: number;
+  reports_pending: number;
+  active_today: number;
+  recent_admin_actions: { action: string; actor_username: string; created_at: number }[];
+}
+
+/** 运营趋势桶（GET /admin/stats/trend；start/end 为毫秒，标签前端本地渲染）。 */
+export interface AdminStatsTrendBucket {
+  start: number;
+  end: number;
+  /** published 帖子数。 */
+  posts: number;
+  /** published 评论数。 */
+  comments: number;
+  /** 桶内 posts+comments 去重作者数。 */
+  active_users: number;
+  /** 新增举报数。 */
+  reports: number;
+}
+
+/** 运营趋势（GET /admin/stats/trend?period=day|week|month|year；8 桶）。 */
+export interface AdminStatsTrend {
+  period: 'day' | 'week' | 'month' | 'year';
+  bucket_ms: number;
+  buckets: AdminStatsTrendBucket[];
+}
+
+/** 管理 BI 指标（GET /admin/bi/metrics?period=）。 */
+export interface AdminBiMetrics {
+  period: 'day' | 'week' | 'month' | 'year';
+  generated_at: number;
+  metrics: { key: string; label: string; value: number; target: number; delta_pct: number }[];
+}
+
+/** 审计日志行（GET /admin/audit-logs；actor_username 来自 users 左联）。 */
+export interface AuditLogItem {
+  id: string;
+  actor_id: string;
+  actor_username: string | null;
+  action: string;
+  object_type: string;
+  object_id: string;
+  detail: string | null;
+  created_at: number;
+}
+
+/** 系统设置（GET/PATCH /admin/settings；version 供 If-Match 乐观并发）。 */
+export interface AdminSettingsResult {
+  settings: {
+    open_registration: boolean;
+    email_verification: boolean;
+    anonymous_replies: boolean;
+    public_rss: boolean;
+    maintenance_mode: boolean;
+    site_name: string;
+    default_lang: string;
+    public_source: string;
+    api_rate_limit: number;
+  };
+  version: number;
+}
+
+// ─── 管理域：帖子 / 积分 / 等级 ────────────────────────────────────────────
+
+/** 管理端帖子行（GET /admin/posts）。 */
+export interface AdminPostItem {
+  id: string;
+  title: string;
+  author_username: string;
+  board_slug: string;
+  board_name: string | null;
+  status: string;
+  review_status: string;
+  is_featured: boolean;
+  is_pinned: boolean;
+  is_locked: boolean;
+  view_count: number;
+  created_at: number;
+}
+
+/** 管理端帖子动作结果（POST /admin/posts/{id}/action）。 */
+export interface AdminPostActionResult {
+  id: string;
+  status: string;
+  review_status: string;
+  is_featured: boolean;
+  is_pinned: boolean;
+  is_locked: boolean;
+}
+
+/** 积分流水行（GET /admin/points/ledger；point_transactions + users 联查）。 */
+export interface PointsLedgerItem {
+  id: string;
+  username: string;
+  kind: string;
+  currency: string;
+  amount: number;
+  balance_after: number;
+  source_type: string;
+  memo: string | null;
+  created_at: number;
+}
+
+/** 本人积分流水行（GET /me/point-transactions；同上但无 username）。 */
+export interface PointTransactionItem {
+  id: string;
+  kind: string;
+  currency: string;
+  amount: number;
+  balance_after: number;
+  memo: string | null;
+  created_at: number;
+}
+
+/** 等级规则行（GET/PATCH /admin/levels；version 供 If-Match）。 */
+export interface AdminLevelItem {
+  level: number;
+  name: string;
+  min_exp: number;
+  daily_post_limit: number;
+  daily_comment_limit: number;
+  attachment_quota: number;
+  is_enabled: boolean;
+  user_count: number;
+  version: number;
+}
+
+// ─── 用户侧：处罚 / OAuth 授权 ───────────────────────────────────────────
+
+/** 本人处罚记录行（GET /me/sanctions；moderation_actions 投影）。 */
+export interface SanctionItem {
+  id: string;
+  kind: string;
+  reason: string;
+  created_at: number;
+  expires_at: number | null;
+}
+
+/** OAuth 授权记录行（GET /me/oauth-grants）。 */
+export interface OAuthGrantItem {
+  client_id: string;
+  client_name: string;
+  scopes: string[];
+  granted_at: number;
+  last_used_at: number | null;
+}
+
+// ─── 管理域：附件 / 下载账单 / 通知广播 ──────────────────────────────────
+
+/** 管理端附件行（GET /admin/attachments）。 */
+export interface AdminAttachmentItem {
+  id: string;
+  filename: string;
+  uploader_username: string;
+  size_bytes: number;
+  created_at: number;
+}
+
+/** 下载计费流水行（GET /admin/download-billing/transactions）。 */
+export interface AdminDownloadTxItem {
+  id: string;
+  username: string;
+  filename: string;
+  amount: number;
+  created_at: number;
+}
+
+/** 通知广播行（GET /admin/notifications/outbox；notification_broadcasts）。 */
+export interface BroadcastItem {
+  id: string;
+  title: string;
+  body: string;
+  target_count: number;
   created_at: number;
 }
