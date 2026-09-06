@@ -75,9 +75,9 @@ CREATE INDEX plugin_call_metrics_plugin_idx ON plugin_call_metrics (plugin_id, o
 
 CREATE TABLE plugin_data (
     plugin_id VARCHAR(64) NOT NULL,
-    key VARCHAR(128) NOT NULL,
+    `key` VARCHAR(128) NOT NULL,
     value_json TEXT NOT NULL,
     updated_at BIGINT NOT NULL,
-    PRIMARY KEY (plugin_id, key),
+    PRIMARY KEY (plugin_id, `key`),
     CONSTRAINT plugin_data_plugin_fk FOREIGN KEY (plugin_id) REFERENCES plugins (plugin_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
