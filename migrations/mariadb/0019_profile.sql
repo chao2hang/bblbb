@@ -1,7 +1,7 @@
 
 ALTER TABLE users ADD COLUMN level BIGINT NOT NULL DEFAULT 1;
 ALTER TABLE users ADD COLUMN level_updated_at BIGINT NULL;
-ALTER TABLE users ADD COLUMN avatar_attachment_id VARCHAR(36) NULL;
+ALTER TABLE users ADD COLUMN avatar_attachment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL;
 ALTER TABLE users ADD COLUMN signature TEXT NULL;
 ALTER TABLE users ADD COLUMN last_login_at BIGINT NULL;
 ALTER TABLE users ADD COLUMN delete_requested_at BIGINT NULL;
@@ -28,7 +28,7 @@ CREATE TABLE user_privacy (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE profile_revisions (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
     user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     revision BIGINT NOT NULL,
     changes_json TEXT NOT NULL,

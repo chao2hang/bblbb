@@ -53,11 +53,11 @@ CREATE INDEX comment_reactions_user_idx ON comment_reactions (user_id);
 
 -- 审计日志表
 CREATE TABLE audit_logs (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
-    actor_id VARCHAR(36) NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
+    actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     action VARCHAR(100) NOT NULL,
     target_type VARCHAR(50) NULL,
-    target_id VARCHAR(36) NULL,
+    target_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     metadata TEXT,
     request_id VARCHAR(100) NULL,
     ip_address VARCHAR(45) NULL,
@@ -70,7 +70,7 @@ CREATE INDEX audit_logs_created_at_idx ON audit_logs (created_at);
 
 -- 事务性发件箱表
 CREATE TABLE outbox_events (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
     event_type VARCHAR(50) NOT NULL,
     payload TEXT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',

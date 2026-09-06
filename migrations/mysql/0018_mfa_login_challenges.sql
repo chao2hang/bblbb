@@ -5,7 +5,7 @@
 -- recovery code to complete login; atomic consumption prevents replay.
 
 CREATE TABLE mfa_login_challenges (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
     user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     created_at BIGINT NOT NULL,

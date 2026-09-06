@@ -36,10 +36,7 @@ CREATE TABLE sanctions (
     CONSTRAINT sanctions_revoked_by_fk FOREIGN KEY (revoked_by) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT sanctions_kind_ck CHECK (kind IN ('warning', 'rate_limit', 'mute', 'board_mute', 'ban')),
     CONSTRAINT sanctions_status_ck CHECK (status IN ('scheduled', 'active', 'expired', 'revoked')),
-    CONSTRAINT sanctions_board_scope_ck CHECK ((kind = 'board_mute' AND board_id IS NOT NULL)
-        OR (kind != 'board_mute' AND board_id IS NULL)),
-    CONSTRAINT sanctions_timeline_ck CHECK (ends_at IS NULL OR ends_at > starts_at),
-    CONSTRAINT sanctions_revoked_ck CHECK (status != 'revoked' OR (revoked_at IS NOT NULL AND revoked_by IS NOT NULL))
+    CONSTRAINT sanctions_timeline_ck CHECK (ends_at IS NULL OR ends_at > starts_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE INDEX sanctions_user_status_idx ON sanctions (user_id, status);

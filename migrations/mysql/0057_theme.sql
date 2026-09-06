@@ -24,7 +24,7 @@ CREATE TABLE themes (
     revision BIGINT NOT NULL DEFAULT 1,
     tokens_json TEXT NOT NULL,
     asset_meta_json TEXT NULL,
-    created_by VARCHAR(36) NOT NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     CONSTRAINT themes_kind_ck CHECK (kind IN ('data')),
@@ -34,11 +34,11 @@ CREATE TABLE themes (
 CREATE INDEX themes_status_idx ON themes (status);
 
 CREATE TABLE theme_revisions (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     theme_name VARCHAR(64) NOT NULL,
     revision BIGINT NOT NULL,
     tokens_json TEXT NOT NULL,
-    changed_by VARCHAR(36) NOT NULL,
+    changed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     reason VARCHAR(500) NULL,
     created_at BIGINT NOT NULL,
     CONSTRAINT theme_revisions_uq UNIQUE (theme_name, revision),
@@ -48,7 +48,7 @@ CREATE TABLE theme_revisions (
 CREATE INDEX theme_revisions_theme_idx ON theme_revisions (theme_name);
 
 CREATE TABLE plugins (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     plugin_id VARCHAR(64) NOT NULL,
     name VARCHAR(120) NOT NULL,
     version VARCHAR(32) NOT NULL,
@@ -61,7 +61,7 @@ CREATE TABLE plugins (
     settings_schema_json TEXT NOT NULL,
     settings_json TEXT NOT NULL DEFAULT ('{}'),
     policy_revision BIGINT NOT NULL DEFAULT 1,
-    created_by VARCHAR(36) NOT NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     CONSTRAINT plugins_kind_ck CHECK (kind IN ('config')),
@@ -72,7 +72,7 @@ CREATE TABLE plugins (
 CREATE INDEX plugins_status_idx ON plugins (status);
 
 CREATE TABLE plugin_call_metrics (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     plugin_id VARCHAR(64) NOT NULL,
     event_type VARCHAR(64) NOT NULL,
     result VARCHAR(16) NOT NULL,

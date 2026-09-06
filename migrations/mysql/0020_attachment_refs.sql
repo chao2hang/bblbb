@@ -5,4 +5,4 @@
 -- validation live in the M3-PROFILE service layer
 -- (ProfileCoverSet.attachment_id format: uuid), no cross-DB URL judgment in the DB.
 
-ALTER TABLE users ADD COLUMN cover_attachment_id VARCHAR(36) NULL;
+ALTER TABLE users ADD COLUMN cover_attachment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL;

@@ -4,7 +4,7 @@
 -- 同一消费者对同一事件只领取一次；不同消费者（consumer）各自独立去重。
 
 CREATE TABLE outbox_consumed (
-    event_id VARCHAR(36) NOT NULL,
+    event_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     consumer VARCHAR(64) NOT NULL,
     consumed_at BIGINT NOT NULL,
     PRIMARY KEY (event_id, consumer)
