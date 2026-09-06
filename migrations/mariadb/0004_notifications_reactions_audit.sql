@@ -1,7 +1,7 @@
 
 CREATE TABLE notifications (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     type VARCHAR(20) NOT NULL DEFAULT 'system',
     title VARCHAR(200) NOT NULL,
     body TEXT,
@@ -17,8 +17,8 @@ CREATE INDEX notifications_user_id_idx ON notifications (user_id);
 CREATE INDEX notifications_user_unread_idx ON notifications (user_id, is_read);
 
 CREATE TABLE post_reactions (
-    post_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     reaction VARCHAR(20) NOT NULL DEFAULT 'like',
     created_at BIGINT NOT NULL,
     PRIMARY KEY (post_id, user_id, reaction),
@@ -30,8 +30,8 @@ CREATE INDEX post_reactions_post_idx ON post_reactions (post_id);
 CREATE INDEX post_reactions_user_idx ON post_reactions (user_id);
 
 CREATE TABLE comment_reactions (
-    comment_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    comment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     reaction VARCHAR(20) NOT NULL DEFAULT 'like',
     created_at BIGINT NOT NULL,
     PRIMARY KEY (comment_id, user_id, reaction),
@@ -43,11 +43,11 @@ CREATE INDEX comment_reactions_comment_idx ON comment_reactions (comment_id);
 CREATE INDEX comment_reactions_user_idx ON comment_reactions (user_id);
 
 CREATE TABLE audit_logs (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
-    actor_id VARCHAR(36) NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
+    actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     action VARCHAR(100) NOT NULL,
     target_type VARCHAR(50) NULL,
-    target_id VARCHAR(36) NULL,
+    target_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     metadata TEXT,
     request_id VARCHAR(100) NULL,
     ip_address VARCHAR(45) NULL,
@@ -59,7 +59,7 @@ CREATE INDEX audit_logs_target_idx ON audit_logs (target_type, target_id);
 CREATE INDEX audit_logs_created_at_idx ON audit_logs (created_at);
 
 CREATE TABLE outbox_events (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
     event_type VARCHAR(50) NOT NULL,
     payload TEXT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',

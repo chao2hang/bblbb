@@ -1,6 +1,6 @@
 
 CREATE TABLE idempotency_records (
-    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL PRIMARY KEY,
     scope VARCHAR(50) NOT NULL,
     key VARCHAR(200) NOT NULL,
     request_hash CHAR(64) NOT NULL,
