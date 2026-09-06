@@ -1,13 +1,13 @@
 
 ALTER TABLE outbox_events
     ADD COLUMN payload_version INT NOT NULL DEFAULT 1,
-    ADD COLUMN idempotency_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL;
+    ADD COLUMN idempotency_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_general_ci NULL;
 
 CREATE UNIQUE INDEX outbox_events_idempotency_key_uq
     ON outbox_events (idempotency_key);
 
 CREATE TABLE jobs (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     queue VARCHAR(64) NOT NULL DEFAULT 'default',
     kind VARCHAR(64) NOT NULL,
     payload MEDIUMTEXT NOT NULL,
@@ -16,9 +16,9 @@ CREATE TABLE jobs (
     attempts INT NOT NULL DEFAULT 0,
     max_attempts INT NOT NULL DEFAULT 5,
     available_at BIGINT NOT NULL,
-    locked_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    locked_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     locked_until BIGINT NULL,
-    deduplication_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    deduplication_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     last_error TEXT NULL,
     completed_at BIGINT NULL,
     created_at BIGINT NOT NULL,
@@ -28,4 +28,4 @@ CREATE TABLE jobs (
     UNIQUE KEY jobs_deduplication_key_uq (deduplication_key),
     KEY jobs_status_available_at_idx (status, available_at),
     KEY jobs_queue_status_idx (queue, status)
-) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin;
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci;

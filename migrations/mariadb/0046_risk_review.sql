@@ -5,11 +5,11 @@ ALTER TABLE posts ADD COLUMN review_status VARCHAR(16) NOT NULL DEFAULT 'none'
 CREATE INDEX posts_review_status_idx ON posts (review_status);
 
 CREATE TABLE risk_policies (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     version INTEGER NOT NULL,
     thresholds_json MEDIUMTEXT NOT NULL,
     reason VARCHAR(512) NOT NULL,
-    updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     updated_at BIGINT NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY risk_policies_version_uq (id, version),
@@ -17,9 +17,9 @@ CREATE TABLE risk_policies (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE risk_evaluations (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    author_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    author_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     verdict VARCHAR(16) NOT NULL,
     reason_category VARCHAR(32) NULL,
     policy_version INTEGER NOT NULL,

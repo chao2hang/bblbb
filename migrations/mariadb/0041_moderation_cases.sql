@@ -1,7 +1,7 @@
 
 CREATE TABLE reports (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    reporter_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    reporter_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     target_type VARCHAR(16) NOT NULL,
     target_id VARCHAR(64) NOT NULL,
     reason_code VARCHAR(16) NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE reports (
     status VARCHAR(16) NOT NULL DEFAULT 'open',
     report_dedup_key VARCHAR(255) NOT NULL,
     dedup_until BIGINT NOT NULL,
-    assigned_to CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    assigned_to CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     PRIMARY KEY (id),
@@ -27,12 +27,12 @@ CREATE INDEX reports_status_idx ON reports (status, dedup_until);
 CREATE INDEX reports_dedup_key_idx ON reports (report_dedup_key);
 
 CREATE TABLE moderation_cases (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     title VARCHAR(200) NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'open',
     priority VARCHAR(8) NOT NULL DEFAULT 'normal',
-    assigned_to CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    assigned_to CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     resolved_at BIGINT NULL,
@@ -49,9 +49,9 @@ CREATE INDEX moderation_cases_assignee_idx ON moderation_cases (assigned_to);
 CREATE INDEX moderation_cases_created_idx ON moderation_cases (created_at);
 
 CREATE TABLE case_reports (
-    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    report_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    added_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    report_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    added_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     added_at BIGINT NOT NULL,
     PRIMARY KEY (case_id, report_id),
     CONSTRAINT case_reports_case_fk FOREIGN KEY (case_id) REFERENCES moderation_cases (id) ON DELETE CASCADE,
@@ -62,10 +62,10 @@ CREATE TABLE case_reports (
 CREATE INDEX case_reports_report_idx ON case_reports (report_id);
 
 CREATE TABLE case_assignments (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    assignee_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    assigned_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    assignee_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    assigned_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     assigned_at BIGINT NOT NULL,
     released_at BIGINT NULL,
     note TEXT NULL,
@@ -79,9 +79,9 @@ CREATE INDEX case_assignments_case_idx ON case_assignments (case_id, assigned_at
 CREATE INDEX case_assignments_assignee_idx ON case_assignments (assignee_id);
 
 CREATE TABLE moderation_notes (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    author_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    author_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     body TEXT NOT NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NULL,

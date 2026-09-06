@@ -1,8 +1,8 @@
 
 CREATE TABLE moderation_actions (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    case_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     action VARCHAR(24) NOT NULL,
     target_type VARCHAR(16) NULL,
     target_id VARCHAR(64) NULL,
@@ -23,12 +23,12 @@ CREATE INDEX moderation_actions_actor_idx ON moderation_actions (actor_id, creat
 CREATE INDEX moderation_actions_target_idx ON moderation_actions (target_type, target_id);
 
 CREATE TABLE moderation_action_revisions (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    action_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    action_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     revision INT NOT NULL,
     snapshot_json TEXT NOT NULL,
     change_reason TEXT NULL,
-    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY moderation_action_revisions_uq (action_id, revision),

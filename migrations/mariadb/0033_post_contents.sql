@@ -1,6 +1,6 @@
 
 CREATE TABLE post_contents (
-    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     body_markdown MEDIUMTEXT NOT NULL,
     body_html MEDIUMTEXT NOT NULL,
     restricted_markdown MEDIUMTEXT NULL,
@@ -13,9 +13,9 @@ CREATE TABLE post_contents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE post_revisions (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    editor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    editor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     body_markdown MEDIUMTEXT NOT NULL,
     body_html MEDIUMTEXT NOT NULL,
     restricted_markdown MEDIUMTEXT NULL,

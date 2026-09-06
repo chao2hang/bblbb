@@ -11,7 +11,7 @@ CREATE UNIQUE INDEX notifications_delivery_dedup_uq
     ON notifications (user_id, delivery_dedup_key);
 
 CREATE TABLE notification_preferences (
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     category VARCHAR(16) NOT NULL,
     email_enabled TINYINT NOT NULL DEFAULT 1,
     in_app_enabled TINYINT NOT NULL DEFAULT 1,
