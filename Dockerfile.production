@@ -31,7 +31,7 @@ COPY frontend ./
 RUN npm run build
 
 FROM debian:bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 curl nodejs && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 10001 --create-home --home-dir /app bblbb
 WORKDIR /app
 COPY --from=backend-build /src/backend/target/release/bblbb-backend /app/bin/bblbb-backend
