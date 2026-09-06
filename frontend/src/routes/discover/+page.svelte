@@ -102,8 +102,18 @@
                 {#if post.board_name}
                   <span>{post.board_name}</span>
                 {/if}
-                <a class="thread-comment-link" href="/posts/{encodeURIComponent(post.id)}" aria-label="查看回复">
-                  {formatCount(post.reply_count)} 回复
+                <span class="thread-likes" style="display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--color-text-tertiary);" aria-label="{formatCount(post.like_count ?? 0)} 人点赞">
+                  <Icon name="heart" size={13} />
+                  {formatCount(post.like_count ?? 0)}
+                </span>
+                <a
+                  class="thread-comment-link"
+                  href="/posts/{encodeURIComponent(post.id)}"
+                  aria-label="查看回复"
+                  style="display:inline-flex;align-items:center;gap:3px;"
+                >
+                  <Icon name="message-square" size={13} />
+                  {formatCount(post.reply_count)}
                 </a>
               </div>
             </div>
@@ -114,6 +124,10 @@
           <div class="thread-empty">
             <div class="empty-state-title">还没有活跃内容</div>
             <p class="empty-state-desc">社区的第一批讨论正等着你来发起</p>
+            <a class="empty-state-cta" href="/editor" style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:8px 18px;border-radius:var(--radius-sm);background:var(--color-brand);color:#fff;font-size:var(--text-sm);font-weight:var(--weight-medium);text-decoration:none;">
+              <Icon name="plus" size={15} />
+              <span>发布第一篇内容</span>
+            </a>
           </div>
         {/if}
       </div>
