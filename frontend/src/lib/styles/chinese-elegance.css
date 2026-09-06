@@ -3218,8 +3218,8 @@ body:has(#page-login:not([hidden])) {
   #main-content > .container#page-discover {
     width: 100% !important;
     max-width: none !important;
-    margin: 20px auto 0 !important;
-    padding: 0 10px !important;
+    margin: 0 !important;
+    padding: 0 !important;
     box-sizing: border-box !important;
   }
 }
