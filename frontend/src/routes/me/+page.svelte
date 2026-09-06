@@ -5,10 +5,16 @@
   // - 设备列表：逐设备撤销（?/revoke，隐藏 session_id）与退出全部设备
   //   （?/logoutall）为原生 form[method=POST]（无 JS 可用，use:enhance
   //   渐进增强）；
-  // - 当前设备按 last_seen_at 最大标记（后端每次请求滑动更新）。
+  // - 当前设备按 last_seen_at 最大标记（后端每次请求滑动更新）；
+  // - GAP-FIX 既有页面增强：账户卡（经验/B币/签到，GET /activity/summary
+  //   失败时整卡隐藏）、快捷入口行（收藏/积分明细/我的帖子/私信/API 密钥/
+  //   下载账单）、我的处罚区块（GET /me/sanctions，后端端点落地前恒空；
+  //   有记录时显示类型/原因/时间 + 去申诉入口）。
   import { enhance } from '$app/forms';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import { formatRelative } from '$lib/utils';
+  import { activityLevelNumber, activityXp } from '$lib/api/types';
   import type { MeActionData, MePageData } from './+page.server';
 
   let { data, form }: { data: MePageData; form?: MeActionData } = $props();
@@ -17,10 +23,43 @@
   const sessions = $derived(data.sessions);
   const currentId = $derived(data.currentSessionId);
   const error = $derived(data.error);
+  // GAP-FIX 账户卡 / 我的处罚（load 增强数据；缺失时安全降级不渲染）。
+  const activity = $derived(data.activity ?? null);
+  const sanctions = $derived(data.sanctions ?? []);
+  const coinBalance = $derived((activity?.balances ?? []).find((b) => b.currency === 'coin'));
   const topMessage = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
   const mfaStep = $derived(form?.mfa);
+
+  /** 快捷入口（M18-IA-01 对齐原型：账号安全/登录设备/通知设置/OAuth授权 + 业务入口）。 */
+  const quickLinks = [
+    { href: '/settings#settings-security', icon: 'shield', label: '账号安全' },
+    { href: '#sessions', icon: 'smartphone', label: '登录设备' },
+    { href: '/notifications', icon: 'bell', label: '通知设置' },
+    { href: '/settings#settings-oauth', icon: 'key', label: 'OAuth 授权' },
+    { href: '/favorites', icon: 'star', label: '我的收藏' },
+    { href: '/me/balance', icon: 'coins', label: '积分明细' },
+    { href: '/messages', icon: 'mail', label: '私信' },
+    { href: '/apikeys', icon: 'key', label: 'API 密钥' },
+    { href: '/me/billing', icon: 'download', label: '下载账单' }
+  ] as const;
+
+  /** 处罚类型中文标签（moderation SanctionKind；未知值原样展示）。 */
+  const sanctionKindLabels: Record<string, string> = {
+    warning: '警告',
+    rate_limit: '限流',
+    mute: '禁言',
+    board_mute: '板块禁言',
+    ban: '封禁',
+    suspend: '暂停'
+  };
+
+  /** 后端时间戳为毫秒（M01-DB-08），formatRelative 口径为秒。 */
+  function toSeconds(ts: number | null | undefined): number | null {
+    if (typeof ts !== 'number' || !Number.isFinite(ts) || ts <= 0) return null;
+    return ts > 1e11 ? Math.floor(ts / 1000) : ts;
+  }
 
   const statusLabel: Record<string, string> = {
     active: '正常',
@@ -71,15 +110,16 @@
 </script>
 
 <svelte:head>
-  <title>我的主页 — BBLBB</title>
+  <title>我的 — BBLBB</title>
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">我的主页</span>
-  </nav>
+  <!-- 原型对齐（prototype/pages/me.html）：app-route-head 仅 h1「我的」，无面包屑。 -->
+  <div class="app-route-head">
+    <div class="app-route-head__copy">
+      <h1 tabindex="-1">我的</h1>
+    </div>
+  </div>
 
   {#if error}
     <p class="input-hint is-error" role="alert">{error}</p>
@@ -143,15 +183,107 @@
         </div>
       </div>
       <div class="side-col">
+        <!-- GAP-FIX 账户卡：经验 / B币（GET /activity/summary；失败/缺失时
+             整卡隐藏，不阻塞页面）。贡献统计暂无后端端点，不展示。 -->
+        {#if activity}
+          {@const lvlNum = activityLevelNumber(activity.level)}
+          {@const lvlName =
+            typeof activity.level === 'object' && activity.level && 'name' in activity.level
+              ? (activity.level.name ?? null)
+              : (activity.level_name ?? null)}
+          {@const lvlSuffix = lvlName && lvlName !== `L${lvlNum}` ? ` · ${lvlName}` : ''}
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">账户</span>
+              {#if lvlNum !== null}<span class="badge badge-level">LV.{lvlNum}{lvlSuffix}</span>{/if}
+            </div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                <span class="text-secondary" style="font-size:var(--text-sm);">经验</span>
+                <strong style="font-variant-numeric:tabular-nums;">{activityXp(activity)}</strong>
+              </div>
+              {#if activity.xp_to_next !== null && activity.xp_to_next !== undefined}
+                <p class="input-hint" style="margin:0;">距下一级还需 {activity.xp_to_next} 经验</p>
+              {/if}
+              <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                <span class="text-secondary" style="font-size:var(--text-sm);">B币余额</span>
+                <strong style="font-variant-numeric:tabular-nums;">{coinBalance ? coinBalance.amount : '—'}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                <span class="text-secondary" style="font-size:var(--text-sm);">连续签到</span>
+                <span style="font-variant-numeric:tabular-nums;">{activity.streak_days} 天{activity.checked_in_today ? '（今日已签）' : ''}</span>
+              </div>
+              <a class="btn btn-secondary btn-sm" href="/me/balance" style="text-align:center;">签到 / 积分明细</a>
+            </div>
+          </div>
+        {/if}
+
         <div class="card">
           <div class="card-header"><span class="card-title">快捷操作</span></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
             <Button text="发布新帖" variant="primary" size="sm" icon="pen-line" href="/editor" />
+            <Button text="编辑资料" variant="secondary" size="sm" icon="edit-3" href="/settings" />
             <Button text="账号设置" variant="secondary" size="sm" icon="settings" href="/settings" />
+          </div>
+        </div>
+
+        <!-- GAP-FIX 快捷入口行：收藏/积分明细/我的帖子/私信/API 密钥/下载账单。 -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">快捷入口</span></div>
+          <div class="card-body" style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:var(--space-2);">
+            {#each quickLinks as link (link.href)}
+              <a
+                href={link.href}
+                class="btn btn-ghost btn-sm"
+                style="justify-content:flex-start;gap:var(--space-2);"
+              >
+                {link.label}
+              </a>
+            {/each}
+            <a
+              href="/users/{encodeURIComponent(user.username)}?tab=posts"
+              class="btn btn-ghost btn-sm"
+              style="justify-content:flex-start;gap:var(--space-2);"
+            >
+              我的帖子
+            </a>
           </div>
         </div>
       </div>
     </div>
+
+    {#if sanctions.length > 0}
+      <!-- GAP-FIX 我的处罚：listMySanctions（load 取 GET /me/sanctions；后端
+           端点落地前恒空，此卡不渲染）。 -->
+      <div class="card" style="margin-top:var(--space-5);border-color:var(--color-warning);">
+        <div class="card-header">
+          <span class="card-title">我的处罚记录</span>
+          <span class="badge badge-warning">{sanctions.length} 条</span>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;">
+            {#each sanctions as sanction (sanction.id)}
+              <li style="padding:var(--space-3) var(--space-4);border-bottom:var(--border-default);display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
+                <span class="badge badge-warning">{sanctionKindLabels[sanction.kind] ?? sanction.kind}</span>
+                <span style="flex:1;min-width:0;">{sanction.reason}</span>
+                <span class="text-secondary" style="font-size:var(--text-xs);">
+                  {formatRelative(toSeconds(sanction.created_at))}
+                  {#if sanction.expires_at}
+                    · 至 {formatRelative(toSeconds(sanction.expires_at))}
+                  {:else}
+                    · 未注明期限
+                  {/if}
+                </span>
+                <a class="btn btn-secondary btn-sm" href="/moderation/appeals?create">去申诉</a>
+              </li>
+            {/each}
+          </ul>
+          <p class="input-hint" style="padding:var(--space-2) var(--space-4);margin:0;">
+            对处罚有异议可提交申诉，由管理团队复核；申诉入口会要求处罚 ID（处罚通知中的 ID）。
+          </p>
+        </div>
+      </div>
+    {/if}
 
     <div class="card" style="margin-top:var(--space-5);">
       <div class="card-header">

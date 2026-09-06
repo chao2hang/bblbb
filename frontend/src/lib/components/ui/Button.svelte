@@ -10,6 +10,7 @@
     href = '',
     disabled = false,
     type = 'button',
+    block = false,
     extraClass = '',
     formaction = '',
     onclick,
@@ -22,6 +23,7 @@
     href?: string;
     disabled?: boolean;
     type?: 'button' | 'submit';
+    block?: boolean;
     extraClass?: string;
     /** 原生 formaction（提交到指定 action，如表单内“测试连接”按钮）。 */
     formaction?: string;
@@ -29,7 +31,11 @@
     children?: Snippet;
   } = $props();
 
-  const classes = $derived(['btn', `btn-${variant}`, `btn-${size}`, extraClass].filter(Boolean).join(' '));
+  const classes = $derived(
+    ['btn', variant, `btn-${variant}`, size, `btn-${size}`, block ? 'btn-block' : '', extraClass]
+      .filter(Boolean)
+      .join(' ')
+  );
 </script>
 
 {#if href}

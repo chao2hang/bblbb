@@ -10,6 +10,8 @@ const okData: AdminUsersPageData = {
     {
       id: 'u1',
       username: 'alice',
+      coin_balance: 120,
+      exp_balance: 800,
       email: 'alice@example.com',
       email_verified: true,
       status: 'active',

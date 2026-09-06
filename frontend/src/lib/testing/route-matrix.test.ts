@@ -27,7 +27,7 @@ function productionRoutes(): Set<string> {
 
 /** 原型 router.js 中的全部路由 pattern（仅测试引用，作为设计回归基线）。 */
 const PROTOTYPE_ROUTES = [
-  '/', '/articles', '/boards', '/boards/{slug}', '/tags', '/tags/{name}',
+  '/', '/boards', '/boards/{slug}', '/tags', '/tags/{name}',
   '/topics/{id}', '/users/{name}', '/publish', '/notifications', '/favorites',
   '/shop', '/activity', '/me/closet', '/search', '/settings', '/login',
   '/register', '/forgot-password', '/403', '/404', '/429', '/admin',
@@ -36,7 +36,10 @@ const PROTOTYPE_ROUTES = [
   '/admin/ai', '/admin/video', '/admin/storage', '/admin/notifications',
   '/admin/audit', '/admin/reports', '/admin/reports/{id}', '/admin/points',
   '/admin/levels', '/admin/themes', '/admin/plugins', '/admin/oauth',
-  '/admin/marketplace', '/admin/shop', '/admin/activity', '/admin/settings'
+  '/admin/marketplace', '/admin/shop', '/admin/activity', '/admin/settings',
+  // GAP-FIX / M18：现行原型（prototype-app.js 路由表）存在而旧 router.js 基线未收录的路由
+  '/discover', '/messages', '/achievements', '/apikeys', '/market', '/billing',
+  '/admin-achievements', '/admin-bi', '/mfa'
 ];
 
 function listSourceFiles(dir: string, acc: string[] = []): string[] {

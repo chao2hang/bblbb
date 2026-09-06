@@ -10,9 +10,9 @@ ALTER TABLE users
 
 -- Email verification tokens (hashed, one-time use)
 CREATE TABLE email_verification_tokens (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     expires_at BIGINT NOT NULL,
     consumed_at BIGINT NULL,
     created_at BIGINT NOT NULL,
@@ -21,13 +21,13 @@ CREATE TABLE email_verification_tokens (
     KEY email_verification_tokens_user_idx (user_id),
     CONSTRAINT email_verification_tokens_user_fk
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin;
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_as_cs;
 
 -- Password reset tokens (hashed, one-time use, 30 min expiry)
 CREATE TABLE password_reset_tokens (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     expires_at BIGINT NOT NULL,
     consumed_at BIGINT NULL,
     created_at BIGINT NOT NULL,
@@ -36,4 +36,4 @@ CREATE TABLE password_reset_tokens (
     KEY password_reset_tokens_user_idx (user_id),
     CONSTRAINT password_reset_tokens_user_fk
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin;
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_as_cs;

@@ -5,6 +5,11 @@
 @import './lib/styles/components.css';
 @import './lib/styles/pages.css';
 @import './lib/styles/visual-overrides.css';
+/* 原型应用骨架与工作流层（提供所有 .app-* 与 .wf-* 类名完整定义） */
+@import './lib/styles/prototype-app.css';
+@import './lib/styles/prototype-workflows.css';
+/* 中国风黑白灰设计系统：与原型 8765 视觉对齐的最后覆盖层 */
+@import './lib/styles/chinese-elegance.css';
 
 /* SvelteKit 根容器：与原型 #app 语义等价 */
 body > .sveltekit,

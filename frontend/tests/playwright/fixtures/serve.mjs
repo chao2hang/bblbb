@@ -19,12 +19,16 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, '..', '..', '..', '..');
 const FRONTEND = join(REPO, 'frontend');
-const BACKEND_BIN = join(REPO, 'backend', 'target', 'debug', 'bblbb-backend');
-const DB_PATH = join(REPO, 'data', 'e2e.sqlite');
+// 二进制路径可覆盖：本仓库 cargo target-dir 固定在 /data/cargo-target/bblbb
+//（backend/.cargo/config.toml），backend/target/debug 下可能是陈旧产物。
+const BACKEND_BIN =
+  process.env.E2E_BACKEND_BIN ?? join(REPO, 'backend', 'target', 'debug', 'bblbb-backend');
+// 视觉检测等复用方可用环境变量改端口/库/输出；默认值与 Playwright 语义不变。
+const DB_PATH = join(REPO, 'data', process.env.E2E_DB_PATH ?? 'e2e.sqlite');
 const VITE_BIN = join(FRONTEND, 'node_modules', '.bin', 'vite');
 
-const BACKEND_PORT = 8080;
-const FRONTEND_PORT = 4173;
+const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8080);
+const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 4173);
 const HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/healthz`;
 
 const children = [];
@@ -94,6 +98,8 @@ async function main() {
         BBLBB__DATABASE_URL: `sqlite://${DB_PATH}`,
         BBLBB__MFA_ENCRYPTION_KEY: 'e2e-mfa-encryption-key-0000',
         BBLBB__PUBLIC_ORIGIN: `http://127.0.0.1:${FRONTEND_PORT}`,
+        // 绑定地址跟随 BACKEND_PORT（默认 127.0.0.1:8080 与旧行为一致）。
+        BBLBB__BIND_ADDRESS: `127.0.0.1:${BACKEND_PORT}`,
         BBLBB__LOG_FILTER: 'info'
       }
     }
@@ -108,7 +114,10 @@ async function main() {
     env: {
       ...process.env,
       BBLBB_E2E_BACKEND: `http://127.0.0.1:${BACKEND_PORT}`,
-      BBLBB_E2E_DB: DB_PATH
+      BBLBB_E2E_DB: DB_PATH,
+      ...(process.env.BBLBB_E2E_PERSONAS
+        ? { BBLBB_E2E_PERSONAS: process.env.BBLBB_E2E_PERSONAS }
+        : {})
     },
     stdio: ['ignore', 'inherit', 'inherit']
   });
@@ -121,8 +130,14 @@ async function main() {
   log('main', 'personas seeded');
 
   // 4. 启动 vite dev。
+  // INTERNAL_API_ORIGIN：SSR 侧 fetch 的 API 基址（默认 127.0.0.1:8080），
+  // 必须与 BACKEND_PORT 一致，否则多实例并行时 SSR 会打到别的后端。
   const vite = spawnChild('vite', VITE_BIN, ['dev', '--port', String(FRONTEND_PORT), '--strictPort'], {
-    cwd: FRONTEND
+    cwd: FRONTEND,
+    env: {
+      ...process.env,
+      INTERNAL_API_ORIGIN: `http://127.0.0.1:${BACKEND_PORT}`
+    }
   });
   await new Promise((r) => setTimeout(r, 4000));
 

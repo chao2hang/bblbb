@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**193**
-- 唯一 operationId：**193**
-- 实现状态：`verified` 193
-- 里程碑分配：`M0` 1；`M2` 18；`M3` 25；`M4` 17；`M5` 21；`M6` 20；`M7` 28；`M8` 3；`M9` 16；`M10` 10；`M11` 14；`M12` 12；`M13` 8
+- 契约操作：**223**
+- 唯一 operationId：**223**
+- 实现状态：`implemented` 29；`verified` 194
+- 里程碑分配：`M0` 1；`M2` 22；`M3` 31；`M4` 21；`M5` 22；`M6` 20；`M7` 35；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 8；`M17` 6
 
 ## 状态规则
 
@@ -42,12 +42,18 @@
 | `listSessions` | `GET` | `/api/v1/auth/sessions` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `revokeSession` | `DELETE` | `/api/v1/auth/sessions/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `verifyEmail` | `POST` | `/api/v1/auth/verify-email` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
+| `get_me_api_keys` | `GET` | `/api/v1/me/api-keys` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
+| `post_me_api_keys` | `POST` | `/api/v1/me/api-keys` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
+| `delete_me_api_keys_id` | `DELETE` | `/api/v1/me/api-keys/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
+| `post_me_password` | `POST` | `/api/v1/me/password` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
 | `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
 | `getAdminBoard` | `GET` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `updateAdminBoard` | `PATCH` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
 | `listBoards` | `GET` | `/api/v1/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
 | `getBoard` | `GET` | `/api/v1/boards/{slug}` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
+| `delete_boards_slug_follow` | `DELETE` | `/api/v1/boards/{slug}/follow` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `agent/backend` |
+| `post_boards_slug_follow` | `POST` | `/api/v1/boards/{slug}/follow` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `agent/backend` |
 | `listTags` | `GET` | `/api/v1/tags` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
 | `listAdminRoles` | `GET` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `verified` | `platform/admin-platform` |
 | `createAdminRole` | `POST` | `/api/v1/admin/roles` | Roles | `M3` / `M03-AUTHZ` | `P0` | `verified` | `platform/admin-platform` |
@@ -67,6 +73,10 @@
 | `post_me_profile_cover` | `POST` | `/api/v1/me/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `verified` | `platform/profile` |
 | `get_users_user_id_profile_cover` | `GET` | `/api/v1/users/{user_id}/profile-cover` | Users | `M3` / `M03-PROFILE` | `P1` | `verified` | `platform/profile` |
 | `getPublicUser` | `GET` | `/api/v1/users/{username}` | Users | `M3` / `M03-PROFILE` | `P1` | `verified` | `security-backend` |
+| `delete_users_username_follow` | `DELETE` | `/api/v1/users/{username}/follow` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `agent/backend` |
+| `post_users_username_follow` | `POST` | `/api/v1/users/{username}/follow` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `agent/backend` |
+| `get_users_username_followers` | `GET` | `/api/v1/users/{username}/followers` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `agent/backend` |
+| `get_users_username_following` | `GET` | `/api/v1/users/{username}/following` | Users | `M3` / `M03-PROFILE` | `P1` | `implemented` | `agent/backend` |
 | `delete_comments_id_` | `DELETE` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `verified` | `backend-content` |
 | `patch_comments_id_` | `PATCH` | `/api/v1/comments/{id}` | Comments | `M4` / `M04-COMMENTS` | `P1` | `verified` | `backend-content` |
 | `listComments` | `GET` | `/api/v1/posts/{postId}/comments` | Comments | `M4` / `M04-COMMENTS` | `P1` | `verified` | `backend-content` |
@@ -80,8 +90,12 @@
 | `listBoardPosts` | `GET` | `/api/v1/boards/{slug}/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `verified` | `backend-content` |
 | `listPosts` | `GET` | `/api/v1/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `verified` | `backend-content` |
 | `createPost` | `POST` | `/api/v1/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `verified` | `backend-content` |
+| `delete_posts_id_favorite` | `DELETE` | `/api/v1/posts/{id}/favorite` | Posts | `M4` / `M04-POSTS` | `P1` | `implemented` | `agent/backend` |
+| `post_posts_id_favorite` | `POST` | `/api/v1/posts/{id}/favorite` | Posts | `M4` / `M04-POSTS` | `P1` | `implemented` | `agent/backend` |
+| `post_posts_id_unlock` | `POST` | `/api/v1/posts/{id}/unlock` | Posts | `M4` / `M04-POSTS` | `P1` | `implemented` | `agent/backend` |
 | `getPost` | `GET` | `/api/v1/posts/{postId}` | Posts | `M4` / `M04-POSTS` | `P1` | `verified` | `backend-content` |
 | `updatePost` | `PATCH` | `/api/v1/posts/{postId}` | Posts | `M4` / `M04-POSTS` | `P1` | `verified` | `backend-content` |
+| `listTagPosts` | `GET` | `/api/v1/tags/{slug}/posts` | Posts | `M4` / `M04-POSTS` | `P1` | `verified` | `agent/backend` |
 | `listPostRevisions` | `GET` | `/api/v1/posts/{id}/revisions` | Revisions | `M4` / `M04-POSTS` | `P1` | `verified` | `backend-content` |
 | `getPostRevision` | `GET` | `/api/v1/posts/{id}/revisions/{revisionId}` | Revisions | `M4` / `M04-POSTS` | `P1` | `verified` | `backend-content` |
 | `createAdminModerationCase` | `POST` | `/api/v1/admin/moderation/cases` | Admin | `M5` / `M05-SANCTIONS` | `P0` | `verified` | `backend-content` |
@@ -97,6 +111,7 @@
 | `createAppeal` | `POST` | `/api/v1/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `verified` | `backend-moderation` |
 | `getOwnAppeal` | `GET` | `/api/v1/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `verified` | `backend-moderation` |
 | `withdrawAppeal` | `POST` | `/api/v1/appeals/{id}/withdraw` | Moderation | `M5` / `M05-APPEALS` | `P1` | `verified` | `backend-content` |
+| `get_me_sanctions` | `GET` | `/api/v1/me/sanctions` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `agent/backend` |
 | `listOwnReports` | `GET` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-content` |
 | `post_reports` | `POST` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-moderation` |
 | `withdrawReport` | `POST` | `/api/v1/reports/{id}/withdraw` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-content` |
@@ -125,6 +140,7 @@
 | `updateAttachmentDownloadPolicyAdmin` | `PATCH` | `/api/v1/admin/attachments/{id}/download-policy` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `verified` | `backend-download` |
 | `getDownloadBillingConfig` | `GET` | `/api/v1/admin/download-billing/config` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `verified` | `backend-download` |
 | `updateDownloadBillingConfig` | `PATCH` | `/api/v1/admin/download-billing/config` | Download Billing | `M6` / `M06-DOWNLOAD` | `P0` | `verified` | `backend-download` |
+| `get_achievements` | `GET` | `/api/v1/achievements` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
 | `get_activity_summary` | `GET` | `/api/v1/activity/summary` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `backend-economy` |
 | `recordAuthenticatedVisit` | `POST` | `/api/v1/activity/visit` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `backend-economy` |
 | `getAdminActivityConfig` | `GET` | `/api/v1/admin/activity/config` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `backend-economy` |
@@ -134,6 +150,12 @@
 | `updateAdminActivityTask` | `PATCH` | `/api/v1/admin/activity/tasks/{id}` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `backend-economy` |
 | `post_comments_id_reactions` | `POST` | `/api/v1/comments/{id}/reactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `backend-shop` |
 | `delete_comments_id_reactions_reaction_` | `DELETE` | `/api/v1/comments/{id}/reactions/{reaction}` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `platform/levels` |
+| `get_me_achievements` | `GET` | `/api/v1/me/achievements` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
+| `delete_me_achievements_code_equip` | `DELETE` | `/api/v1/me/achievements/{code}/equip` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
+| `put_me_achievements_code_equip` | `PUT` | `/api/v1/me/achievements/{code}/equip` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
+| `get_me_favorites` | `GET` | `/api/v1/me/favorites` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
+| `get_me_following` | `GET` | `/api/v1/me/following` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
+| `get_me_point_transactions` | `GET` | `/api/v1/me/point-transactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
 | `post_posts_id_reactions` | `POST` | `/api/v1/posts/{id}/reactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `backend-shop` |
 | `delete_posts_id_reactions_reaction_` | `DELETE` | `/api/v1/posts/{id}/reactions/{reaction}` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `platform/levels` |
 | `getAdminShopConfig` | `GET` | `/api/v1/admin/shop/config` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
@@ -183,6 +205,8 @@
 | `patch_video_embeds_id_` | `PATCH` | `/api/v1/video-embeds/{id}` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
 | `post_video_embeds_id_refresh` | `POST` | `/api/v1/video-embeds/{id}/refresh` | Video | `M10` / `M10-VIDEO` | `P0` | `verified` | `platform/video` |
 | `get_well_known_openid_configuration` | `GET` | `/.well-known/openid-configuration` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `verified` | `platform/oidc` |
+| `get_me_oauth_grants` | `GET` | `/api/v1/me/oauth-grants` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `implemented` | `agent/backend` |
+| `delete_me_oauth_grants_client_id` | `DELETE` | `/api/v1/me/oauth-grants/{client_id}` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `implemented` | `agent/backend` |
 | `get_oauth_interactions_id_` | `GET` | `/api/v1/oauth/interactions/{id}` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `verified` | `platform/oidc` |
 | `post_oauth_interactions_id_decision` | `POST` | `/api/v1/oauth/interactions/{id}/decision` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `verified` | `platform/oidc` |
 | `get_oauth_authorize` | `GET` | `/oauth/authorize` | OAuth | `M11` / `M11-PROTOCOL` | `P0` | `verified` | `platform/oidc` |
@@ -216,3 +240,9 @@
 | `get_me_preferences_theme` | `GET` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
 | `put_me_preferences_theme` | `PUT` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
 | `get_themes_active` | `GET` | `/api/v1/themes/active` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
+| `get_conversations` | `GET` | `/api/v1/conversations` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
+| `post_conversations` | `POST` | `/api/v1/conversations` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
+| `get_conversations_id_messages` | `GET` | `/api/v1/conversations/{id}/messages` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
+| `post_conversations_id_messages` | `POST` | `/api/v1/conversations/{id}/messages` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
+| `post_conversations_id_read` | `POST` | `/api/v1/conversations/{id}/read` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
+| `get_stats` | `GET` | `/api/v1/stats` | Stats | `M17` / `M17-GAPFIX` | `P0` | `implemented` | `agent/backend` |

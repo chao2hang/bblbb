@@ -376,8 +376,13 @@
 }
 
 @media (max-width: 640px) {
+  /* 对齐原型（prototype-app.css ≤767px）：板块/内容卡片移动端保持双列，
+     仅缩小间距与内边距；统计卡仍单列。 */
   .articles-grid,
-  .boards-grid,
+  .boards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
   .stats-grid,
   .stats-grid-3 {
     grid-template-columns: 1fr;

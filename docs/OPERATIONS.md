@@ -486,3 +486,121 @@ ops/smoke/smoke.sh                                      # 发布后冒烟
   `/tmp` 下的存储根；开发/冒烟环境请把 `BBLBB__STORAGE_DIR` 指向非符号链接路径
   （如仓库内 `data/`）。生产 Linux 无此行为。
 - 上一版本 client 兼容检查：`ruby scripts/check-client-compat.rb`（RC 前必跑）。
+
+## 19.8 GAP-FIX 管理域非契约端点（2026 追加）
+
+以下运营管理端点与 M12 Marketplace 管理 / M13 Plugin 管理同类，属于领域管理
+接口，不进入冻结 193-op 契约（`scripts/check-route-coverage.rb` 的
+DOCUMENTED_NON_CONTRACT 登记为准），权限均为相应 `*.manage`/`post.moderate`/
+`role.manage` 注册项，敏感写操作全部落审计（audit_logs）：
+
+- 仪表盘与 BI：`GET /api/v1/admin/stats`、`GET /api/v1/admin/stats/trend`
+  （运营趋势 8 桶时间序列：day=3h/week=1d/month=4d/year=45d，published 帖子、
+  published 评论、桶内去重作者、新增举报；桶边界 Rust 内切分）、
+  `GET /api/v1/admin/bi/metrics`
+- 审计读取：`GET /api/v1/admin/audit-logs`（keyset 分页 + q 过滤）
+- 系统设置：`GET/PATCH /api/v1/admin/settings`（If-Match 乐观锁）
+- 帖子管理：`GET /api/v1/admin/posts`、`POST /api/v1/admin/posts/{id}/action`
+  （approve/reject/hide/restore/delete/feature/unfeature/pin/unpin/lock/unlock）
+- 通知广播：`GET /api/v1/admin/notifications/outbox`、
+  `POST /api/v1/admin/notifications/broadcast`（幂等）、
+  `POST /api/v1/admin/notifications/outbox/{id}/recall`
+- 角色分配：`POST /api/v1/admin/users/{id}/roles`、
+  `DELETE /api/v1/admin/users/{id}/roles/{role_name}`
+- 成就管理：`GET/POST /api/v1/admin/achievements`、
+  `PATCH/DELETE /api/v1/admin/achievements/{code}`、
+  `POST /api/v1/admin/achievements/{code}/grant`
+- 积分管理：`GET /api/v1/admin/points/ledger`、
+  `POST /api/v1/admin/points/adjust`（写账本，禁止直接改余额）
+- 等级规则：`GET /api/v1/admin/levels`、`PATCH /api/v1/admin/levels/{level}`
+- 附件管理：`GET /api/v1/admin/attachments`、
+  `DELETE /api/v1/admin/attachments/{id}`（软删）
+- 下载交易：`GET /api/v1/admin/download-billing/transactions`
+- 标签合并：`POST /api/v1/admin/tags/{id}/merge`
+
+## 20. 从零部署 Runbook（快速路径）
+
+本节把既有交付物串成一条线性部署路径；各步骤的详细规格在引用文档中，此处不重复。
+首次部署到生产前，先在副本库完整演练一次（`deploy/staging/README.md`）。
+
+### 20.1 前置条件
+
+- 一台 Linux 服务器（SQLite 模式 512MB 内存即可），域名已解析到该机器；
+- systemd、Caddy 2 已安装；`sqlite3` CLI 可用（MySQL/MariaDB 见 §17）；
+- 构建机具备 Rust 工具链与 Node 22（`.nvmrc`），负责产出 release bundle。
+
+### 20.2 构建发布产物
+
+```sh
+deploy/scripts/build-release-bundle.sh --version <v>   # 产出不可变 dist/<v>.tar.gz
+```
+
+产物布局、版本固定与校验命令见 `deploy/RELEASE-BUNDLE.md`；发布元数据
+（SBOM/checksum/commit）由 `deploy/scripts/record-release-metadata.sh` 登记。
+
+### 20.3 服务器准备
+
+1. 创建 `bblbb` 服务用户；目录布局按 §2 与 `deploy/RELEASE-BUNDLE.md`：
+   `/opt/bblbb/releases/<version>`（bblbb 只读）、`/var/lib/bblbb`（可写）、
+   `/etc/bblbb/`（配置与 Secret）。
+2. 编写 `/etc/bblbb/backend.env`（非 Secret 配置：`PUBLIC_ORIGIN`、
+   `BBLBB__BIND_ADDRESS=127.0.0.1:8080`、DB URL 等，见 §3 与
+   `docs/CONFIGURATION.md`）。
+3. Secret 只经 systemd credentials 注入，不进 env 文件：master-key、
+   OIDC 密钥加密密钥、MFA 加密密钥、市场 Webhook 签名密钥、SMTP/S3 凭证
+   （`deploy/systemd/bblbb-backend.service` 的 `LoadCredential=` 清单）。
+4. OIDC 密钥的分离存储与备份要求见 `ops/backup/oidc-keys.md`。
+
+### 20.4 Caddy 与 systemd
+
+1. 复制 `deploy/Caddyfile.template` 为 `/etc/caddy/Caddyfile`，替换域名。
+   路由规则（§4）：`/api/v1/*`、`/.well-known/*`、`/oauth/*`、`/healthz`
+   → Rust 127.0.0.1:8080；其余 → SvelteKit 127.0.0.1:3000；
+   `/readyz` 与 `/metrics` 不对外代理。
+2. 安装 `deploy/systemd/*.service`：`bblbb-backend`、`bblbb-worker`、
+   `bblbb-frontend`、`bblbb-backup.timer`（§12 加固项已内置）。
+
+### 20.5 首次启动（迁移 → 引导 → 起服务）
+
+```sh
+# 1) 启动检查（origin/DB/目录权限/迁移状态/OIDC 密钥）
+deploy/scripts/startup-checks.sh --env-file /etc/bblbb/backend.env
+# 2) 显式迁移（backend 默认不自动迁移）
+BBLBB__AUTO_MIGRATE=true /opt/bblbb/current/backend/bblbb-backend --migrate
+# 3) 首个管理员 bootstrap token（一次性输出，见 §15）
+# 4) 按依赖顺序启动：backend → worker → frontend
+systemctl start bblbb-backend bblbb-worker bblbb-frontend
+```
+
+启用可选能力（默认全部关闭）走 feature flags：`oidc`、`marketplace`、
+`ai`、`video`、`download_billing`（`docs/CONFIGURATION.md §1.5`）。
+小程序端另需将后端 HTTPS 域名登记为 request 合法域名，并在
+`BBLBB__ALLOWED_ORIGINS` 放行 `https://servicewechat.com`（`miniprogram/README.md`）。
+
+### 20.6 验证与 OAuth/交易部署面检查
+
+```sh
+curl -fsS https://<域名>/healthz                    # 请求 ID/Problem 边界
+curl -fsS http://127.0.0.1:8080/readyz              # 本机就绪（不对外）
+curl -fsS https://<域名>/.well-known/openid-configuration | jq .issuer
+                                                     # 必须 200：证明 /oauth 面已路由到 Rust
+ops/smoke/smoke.sh                                  # 端到端冒烟（PASS 计数）
+```
+
+- OIDC discovery 的 `issuer` 必须等于 `PUBLIC_ORIGIN`（动态 Host 不参与生成）。
+- 市场 Webhook：确认签名密钥已注入且 `webhook-deliveries` 可观测（`MARKETPLACE.md §8`）。
+- OAuth 登录与交易的前后端分工规范见 `docs/ARCHITECTURE.md §3.5`；
+  Caddy 不得把 `/oauth/*` 或 `/api/v1/marketplace/*` 改由前端处理。
+
+### 20.7 升级与回滚（后续发布）
+
+后续版本一律走发布编排（备份 → 启动检查 → 显式迁移 → 原子切 current →
+按序重启 → 验证；失败自动停止切流）：
+
+```sh
+deploy/scripts/release.sh --bundle dist/<v>.tar.gz
+deploy/scripts/release.sh --rollback
+```
+
+发布顺序固定为 backend → worker → frontend（前端依赖新 API）；每版本在
+`deploy/RELEASES.md` 登记 commit/checksum/迁移 drill/冒烟证据。

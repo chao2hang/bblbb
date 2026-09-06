@@ -16,8 +16,8 @@
 --   replay/no-double-charge.
 
 CREATE TABLE attachments (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    owner_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    owner_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     storage_backend VARCHAR(16) NOT NULL,
     storage_key VARCHAR(512) NOT NULL,
     original_name VARCHAR(255) NULL,
@@ -44,8 +44,8 @@ CREATE INDEX attachments_owner_status_idx ON attachments (owner_id, status, crea
 CREATE INDEX attachments_backend_key_idx ON attachments (storage_backend, storage_key);
 
 CREATE TABLE attachment_links (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    attachment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    attachment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     target_type VARCHAR(32) NOT NULL,
     target_id VARCHAR(64) NOT NULL,
     purpose VARCHAR(32) NOT NULL,
@@ -58,7 +58,7 @@ CREATE INDEX attachment_links_target_idx ON attachment_links (target_type, targe
 CREATE INDEX attachment_links_attachment_idx ON attachment_links (attachment_id);
 
 CREATE TABLE user_quota_counters (
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     bytes_reserved BIGINT NOT NULL DEFAULT 0,
     bytes_charged BIGINT NOT NULL DEFAULT 0,
     bytes_released BIGINT NOT NULL DEFAULT 0,
@@ -70,14 +70,14 @@ CREATE TABLE user_quota_counters (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE quota_policy_revisions (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     level INT NOT NULL,
     single_file_max_bytes BIGINT NOT NULL,
     total_bytes BIGINT NOT NULL,
     daily_upload_bytes BIGINT NOT NULL,
     retention_days INT NOT NULL DEFAULT 30,
     policy_version INT NOT NULL,
-    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT quota_policy_revisions_created_by_fk FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT
@@ -86,11 +86,11 @@ CREATE TABLE quota_policy_revisions (
 CREATE INDEX quota_policy_revisions_level_idx ON quota_policy_revisions (level, policy_version);
 
 CREATE TABLE download_billing_policies (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     scope_type VARCHAR(16) NOT NULL,
     scope_id VARCHAR(64) NULL,
     mode VARCHAR(16) NOT NULL,
-    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     amount BIGINT NOT NULL DEFAULT 0,
     authorization_ttl_seconds BIGINT NOT NULL DEFAULT 3600,
     daily_user_limit BIGINT NULL,
@@ -111,14 +111,14 @@ CREATE TABLE download_billing_policies (
 CREATE INDEX download_policies_scope_idx ON download_billing_policies (scope_type, scope_id, is_enabled);
 
 CREATE TABLE download_authorizations (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    attachment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    attachment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     policy_version INT NOT NULL,
-    point_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    point_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'active',
     charged_amount BIGINT NOT NULL DEFAULT 0,
-    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     valid_from BIGINT NOT NULL,
     expires_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL,
@@ -133,11 +133,11 @@ CREATE INDEX download_auth_user_lookup_idx ON download_authorizations (user_id, 
 CREATE UNIQUE INDEX download_auth_operation_uq ON download_authorizations (point_operation_id);
 
 CREATE TABLE download_idempotency_records (
-    scope VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    idempotency_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    request_hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    authorization_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    scope VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    idempotency_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    request_hash VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    authorization_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     response_status VARCHAR(32) NOT NULL,
     created_at BIGINT NOT NULL,
     completed_at BIGINT NULL,

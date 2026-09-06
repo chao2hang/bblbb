@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "搜索",
+  "usingComponents": {
+    "empty-state": "/components/empty-state/index",
+    "load-more": "/components/load-more/index"
+  }
+}

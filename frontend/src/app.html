@@ -3,6 +3,36 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#F5F3EE" id="theme-color" />
+    <!-- 全局壳·主题防闪烁（照原型各页面 head 内联脚本的模式）：
+         首帧前同步读取 localStorage `bblbb-theme`（light/dark/system，默认
+         system）并用 matchMedia 解析暗色，随后写显式 html.light/dark class
+         （tokens.css 的 html:not(.light):not(.dark) 系统跟随分支保留给无 JS
+         场景；一旦本脚本执行，显式 class 恒定胜出）+ dataset.themePreference
+         + color-scheme + #theme-color meta。 -->
+    <script>
+      try {
+        var p = localStorage.getItem('bblbb-theme') || 'system';
+        var t =
+          p === 'dark' ||
+          (p !== 'light' &&
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches)
+            ? 'dark'
+            : 'light';
+        var root = document.documentElement;
+        root.classList.add(t);
+        root.dataset.theme = t;
+        root.dataset.themePreference = p;
+        root.style.colorScheme = t;
+        var themeColorMeta = document.querySelector('#theme-color');
+        if (themeColorMeta) {
+          themeColorMeta.setAttribute('content', t === 'dark' ? '#0D0D0D' : '#F5F3EE');
+        }
+      } catch (e) {
+        document.documentElement.classList.add('light');
+      }
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

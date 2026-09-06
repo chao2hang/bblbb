@@ -2,6 +2,9 @@
 //
 // - load：转发浏览器会话 Cookie → GET /api/v1/me（安全投影，含
 //   mfa_enabled）与 GET /api/v1/auth/sessions（设备列表）；401 → 跳登录；
+// - GAP-FIX 增强数据（非致命，失败只降级对应区块）：GET /activity/summary
+//   （账户卡：等级/经验/B币）与 GET /me/sanctions（我的处罚；TODO(BE-2)
+//   后端端点尚未注册，当前 404 → 空列表）；
 // - revoke / logoutall：Session 设备管理（M02-UX-05）；
 // - mfa-enroll / mfa-confirm / mfa-cancel：TOTP enrollment 三步
 //   （M02-UX-06）；
@@ -17,7 +20,7 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedDelete, authedPost, getAuthed } from '$lib/api/server';
-import type { User } from '$lib/api/types';
+import type { ActivitySummary, SanctionItem, User } from '$lib/api/types';
 import type { DeviceSession } from '$lib/api/generated/v1';
 
 export interface MePageData {
@@ -25,6 +28,12 @@ export interface MePageData {
   sessions: DeviceSession[];
   currentSessionId: string | null;
   error: string | null;
+  /** GAP-FIX 账户卡：等级/经验/B币（GET /activity/summary，失败降级 null）。
+   *  可选：旧 fixture/渐进迁移下允许缺失（页面按 null 处理）。 */
+  activity?: ActivitySummary | null;
+  /** GAP-FIX 我的处罚（GET /me/sanctions；后端端点落地前恒空）。
+   *  可选：同上。 */
+  sanctions?: SanctionItem[];
 }
 
 export type MfaStep =
@@ -53,7 +62,14 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   const meResult = await getAuthed<User>(cookies, '/api/v1/me', requestId);
   if (meResult.ok === false) {
     if (meResult.status === 401) throw redirect(303, '/login');
-    return { user: null, sessions: [], currentSessionId: null, error: meResult.message } satisfies MePageData;
+    return {
+      user: null,
+      sessions: [],
+      currentSessionId: null,
+      error: meResult.message,
+      activity: null,
+      sanctions: []
+    } satisfies MePageData;
   }
   const sessionsResult = await getAuthed<DeviceSession[]>(
     cookies,
@@ -66,15 +82,32 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
       user: meResult.data,
       sessions: [],
       currentSessionId: null,
-      error: sessionsResult.message
+      error: sessionsResult.message,
+      activity: null,
+      sanctions: []
     } satisfies MePageData;
   }
+
+  // GAP-FIX 账户卡 + 我的处罚（增强数据，非致命——失败只降级对应区块）：
+  // - GET /activity/summary：等级/经验/B币（economy.rs 已落地）；
+  // - GET /me/sanctions：本人处罚记录。TODO(BE-2)：后端端点尚未注册
+  //   （GAP-FIX-SPEC 二节「用户侧处罚」），当前 404 → 空列表，落地后自动显示。
+  const [activityResult, sanctionsResult] = await Promise.all([
+    getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId),
+    getAuthed<{ items?: SanctionItem[] }>(cookies, '/api/v1/me/sanctions', requestId)
+  ]);
+  const activity = activityResult.ok ? activityResult.data : null;
+  const sanctions =
+    sanctionsResult.ok && Array.isArray(sanctionsResult.data.items) ? sanctionsResult.data.items : [];
+
   const sessions = sessionsResult.data;
   return {
     user: meResult.data,
     sessions,
     currentSessionId: currentSessionId(sessions),
-    error: null
+    error: null,
+    activity,
+    sanctions
   } satisfies MePageData;
 };
 

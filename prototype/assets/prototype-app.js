@@ -312,7 +312,9 @@
     var host = q('.layout') || document.querySelector('main');
     if (!host) return null;
     el = document.createElement('section');
-    el.className = 'page app-page';
+    /* login 路由在 pages/login.html 模板上声明了 login-page（整高居中认证页），
+       SPA 重建容器时需保留，否则卡片会贴在通用内容列左侧。 */
+    el.className = 'page app-page' + (id === 'login' ? ' login-page' : '');
     el.id = 'page-' + id;
     el.hidden = true;
     host.appendChild(el);
@@ -339,7 +341,7 @@
     var bank = window.__PAGES || (window.__PAGES = {});
     if (typeof bank[name] === 'string') { onReady(bank[name]); return; }
     if (!TPL_PROMISES[name]) {
-      TPL_PROMISES[name] = fetch('pages/' + name + '.html', { cache: 'no-store' }).then(function (res) {
+      TPL_PROMISES[name] = fetch('/pages/' + name + '.html', { cache: 'no-store' }).then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.text();
       }).then(function (text) {
@@ -1449,11 +1451,11 @@
       var msgHeadName = q('.chat-identity h2'); if (msgHeadName) msgHeadName.textContent = activeConv.name;
       var msgHeadSub = q('.chat-identity small'); if (msgHeadSub) msgHeadSub.textContent = '@' + activeConv.username + ' · LV.' + activeConv.level + ' · ' + activeConv.role;
       var msgBody = q('[data-chat-body]'); if (msgBody) { msgBody.innerHTML = renderConversationBody(activeName); msgBody.scrollTop = msgBody.scrollHeight; }
-      var msgFailBtn = q('[data-message-fail]'); if (msgFailBtn) msgFailBtn.textContent = state.messageFail ? '关闭发送失败模拟' : '模拟发送失败';
+      
 
     qa('[data-conversation]').forEach(function (b) { b.addEventListener('click', function () { var name = b.getAttribute('data-conversation'); state.activeConversation = name; saveState(); renderMessages(true); }); });
     var messageBack = q('[data-message-back]'); if (messageBack) messageBack.addEventListener('click', function () { var page = q('#page-messages'); if (page) page.classList.remove('is-mobile-chat-open'); var firstConversation = q('[data-conversation]'); if (firstConversation) firstConversation.focus(); });
-    var messageFail = q('[data-message-fail]'); if (messageFail) messageFail.addEventListener('click', function () { state.messageFail = !state.messageFail; saveState(); this.textContent = state.messageFail ? '关闭发送失败模拟' : '模拟发送失败'; toast(state.messageFail ? '下一次发送将失败' : '已关闭失败模拟'); });
+    
     q('[data-send-message]').addEventListener('click', function () { var input = q('[data-chat-input]'); var status = q('[data-message-status]'); var value = input.value.trim(); if (!value) return; var name = state.activeConversation || 'Lin'; var id = 'message-' + Date.now(); var message = { id: id, text: value, failed: false }; if (!Array.isArray(state.messages[name])) state.messages[name] = []; state.messages[name].push(message); saveState(); var bubble = document.createElement('div'); bubble.className = 'bubble me'; bubble.textContent = value; bubble.setAttribute('data-message-id', id); var msgBody = q('[data-chat-body]'); msgBody.appendChild(bubble); msgBody.scrollTop = msgBody.scrollHeight; input.value = ''; status.textContent = '发送中…'; this.disabled = true; var send = this; window.setTimeout(function () { if (state.messageFail) { message.failed = true; saveState(); bubble.classList.add('message-failed'); status.textContent = '发送失败 · 可重试'; var retry = document.createElement('button'); retry.type = 'button'; retry.className = 'btn ghost sm'; retry.textContent = '重试'; retry.setAttribute('data-retry-message', 'true'); status.appendChild(retry); retry.addEventListener('click', function () { retry.disabled = true; state.messageFail = false; saveState(); status.textContent = '重新发送中…'; window.setTimeout(function () { message.failed = false; saveState(); bubble.classList.remove('message-failed'); bubble.classList.add('message-sent'); status.textContent = '已发送 · 刚刚'; retry.remove(); send.disabled = false; }, 450); }); } else { message.failed = false; saveState(); bubble.classList.add('message-sent'); status.textContent = '已发送 · 刚刚'; send.disabled = false; } }, 500); });
     });
 }

@@ -1,15 +1,35 @@
 // M03-UI-07：管理标签页——列表（后端裁决）+ 新建标签表单。
-import { fail, isRedirect, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPost, getAuthed } from '$lib/api/server';
+import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { adminListState, type AdminLoadState } from '$lib/admin';
 import type { Tag } from '$lib/api/types';
 
+/** 管理端标签行（Tag + 0061 生命周期与版本字段）。 */
+export interface AdminTagItem extends Tag {
+  is_active?: number | boolean;
+  status?: string | null;
+  updated_at?: number;
+}
+
+async function reloadTags(cookies: Cookies, requestId: string | null): Promise<AdminLoadState<AdminTagItem>> {
+  const result = await getAuthed<{ items: AdminTagItem[] }>(cookies, '/api/v1/admin/tags', requestId);
+  if (!result.ok && result.status === 401) throw redirect(303, '/login');
+  return adminListState(result);
+}
+
 export interface AdminTagsPageData {
-  loadState: AdminLoadState<Tag>;
+  loadState: AdminLoadState<AdminTagItem>;
   created?: boolean;
   message?: string;
   requestId?: string | null;
+}
+
+export interface AdminTagsActionData {
+  loadState?: AdminLoadState<AdminTagItem>;
+  message?: string | null;
+  requestId?: string | null;
+  created?: boolean;
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
@@ -25,7 +45,7 @@ export const actions: Actions = {
     const reason = String(form.get('reason') ?? '').trim();
     const name = String(form.get('name') ?? '').trim();
     if (!reason || !name) {
-      return fail(422, { loadState: { state: 'error', message: '名称与操作原因均必填' } } satisfies AdminTagsPageData);
+      return fail(422, { loadState: { state: 'error', message: '名称与操作原因均必填' } } satisfies AdminTagsActionData);
     }
     try {
       const result = await authedPost<unknown>(
@@ -35,15 +55,74 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { loadState: { state: 'ok', items: [] }, created: true } satisfies AdminTagsPageData;
+        return { loadState: await reloadTags(cookies, request.headers.get('x-request-id')), created: true } satisfies AdminTagsActionData;
       }
       if (result.status === 403) {
-        return fail(403, { loadState: { state: 'forbidden', message: result.message } } satisfies AdminTagsPageData);
+        return fail(403, { loadState: { state: 'forbidden', message: result.message } } satisfies AdminTagsActionData);
       }
-      return fail(result.status, { loadState: { state: 'error', message: result.message } } satisfies AdminTagsPageData);
+      return fail(result.status, { loadState: { state: 'error', message: result.message } } satisfies AdminTagsActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { loadState: { state: 'error', message: '保存失败，请稍后重试' } } satisfies AdminTagsPageData);
+      return fail(503, { loadState: { state: 'error', message: '保存失败，请稍后重试' } } satisfies AdminTagsActionData);
+    }
+  },
+
+  /** 停用/启用（M17-GAPFIX-07）：PATCH /admin/tags/{id} {is_active}，If-Match。 */
+  toggle: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const id = String(form.get('id') ?? '').trim();
+    const version = Number(form.get('version') ?? 0);
+    const reason = String(form.get('reason') ?? '').trim();
+    const nextActive = String(form.get('is_active') ?? '') === 'true';
+    if (!id) return fail(422, { message: '缺少标签标识' } satisfies AdminTagsActionData);
+    if (!Number.isInteger(version) || version < 1) {
+      return fail(409, { message: '版本缺失或无效，请刷新后重试' } satisfies AdminTagsActionData);
+    }
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' } satisfies AdminTagsActionData);
+    try {
+      const result = await authedPatch<unknown>(
+        cookies,
+        `/api/v1/admin/tags/${encodeURIComponent(id)}`,
+        { is_active: nextActive, reason },
+        { 'If-Match': String(version) },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { loadState: await reloadTags(cookies, request.headers.get('x-request-id')), message: `标签已${nextActive ? '启用' : '停用'}` } satisfies AdminTagsActionData;
+      }
+      if (result.status === 409) {
+        return fail(409, { loadState: await reloadTags(cookies, request.headers.get('x-request-id')), message: `版本冲突：${result.message}，请刷新后重试` } satisfies AdminTagsActionData);
+      }
+      return fail(result.status, { loadState: await reloadTags(cookies, request.headers.get('x-request-id')), message: result.message } satisfies AdminTagsActionData);
+    } catch {
+      return fail(503, { message: '操作失败，请稍后重试' } satisfies AdminTagsActionData);
+    }
+  },
+
+  /** 合并（M17-GAPFIX-07）：POST /admin/tags/{id}/merge {target_id, reason}
+   * ——源关联转移至目标、源标记 merged 并停用。 */
+  merge: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const id = String(form.get('id') ?? '').trim();
+    const targetId = String(form.get('target_id') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!id) return fail(422, { message: '缺少源标签标识' } satisfies AdminTagsActionData);
+    if (!targetId) return fail(422, { message: '请选择并入的目标标签' } satisfies AdminTagsActionData);
+    if (targetId === id) return fail(422, { message: '目标标签不能与源标签相同' } satisfies AdminTagsActionData);
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' } satisfies AdminTagsActionData);
+    try {
+      const result = await authedPost<unknown>(
+        cookies,
+        `/api/v1/admin/tags/${encodeURIComponent(id)}/merge`,
+        { target_id: targetId, reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { loadState: await reloadTags(cookies, request.headers.get('x-request-id')), message: '标签已合并（关联已转移，源标签停用）' } satisfies AdminTagsActionData;
+      }
+      return fail(result.status, { loadState: await reloadTags(cookies, request.headers.get('x-request-id')), message: result.message } satisfies AdminTagsActionData);
+    } catch {
+      return fail(503, { message: '合并失败，请稍后重试' } satisfies AdminTagsActionData);
     }
   }
 };

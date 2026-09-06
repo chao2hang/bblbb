@@ -6,7 +6,7 @@
 # OpenAPI 3.1 structural validation for openapi/openapi.yaml:
 #   * YAML loads with aliases (Psych 3.x, Ruby 2.6 compatible).
 #   * Every internal "$ref" resolves against the same document.
-#   * The 193 operations each carry tags / security / x-permission / x-csrf /
+#   * The 223 operations each carry tags / security / x-permission / x-csrf /
 #     responses and a unique operationId.
 #   * components.schemas are structurally sane (no response-shaped schemas,
 #     no empty enum members).
@@ -165,7 +165,7 @@ document.fetch("paths", {}).each do |path, path_item|
   end
 end
 
-errors << "expected 193 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 193
+errors << "expected 223 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 223
 
 # Every declared tag must be registered in the top-level tags list.
 registered_tags = document.fetch("tags", []).map { |tag| tag["name"] }
@@ -212,8 +212,8 @@ if File.file?(COVERAGE_PATH)
   begin
     coverage = JSON.parse(File.read(COVERAGE_PATH))
     rows = coverage.fetch("operations")
-    errors << "coverage manifest expected_operations must be 193, got #{coverage.fetch('expected_operations')}" unless coverage.fetch("expected_operations") == 193
-    errors << "coverage manifest has #{rows.length} rows, expected 193" unless rows.length == 193
+    errors << "coverage manifest expected_operations must be 223, got #{coverage.fetch('expected_operations')}" unless coverage.fetch("expected_operations") == 223
+    errors << "coverage manifest has #{rows.length} rows, expected 222" unless rows.length == 223
 
     seen = {}
     rows.each_with_index do |entry, index|

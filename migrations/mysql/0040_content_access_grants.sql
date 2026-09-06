@@ -14,14 +14,14 @@
 -- grant per (user_id, grant_target_key), so duplicate requests never double-charge.
 
 CREATE TABLE content_access_grants (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    comment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    policy_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    comment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    policy_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     source_kind VARCHAR(16) NOT NULL,
     source_id VARCHAR(64) NULL,
-    point_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    point_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     grant_target_key VARCHAR(128) NOT NULL,
     granted_at BIGINT NOT NULL,
     revoked_at BIGINT NULL,

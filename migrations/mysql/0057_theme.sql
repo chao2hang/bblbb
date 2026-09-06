@@ -8,6 +8,9 @@
 -- plugin_call_metrics：插件调用摘要（ok/error/timeout/repeat/stale/skipped +
 --   policy_revision），异步记录，不阻塞核心论坛。
 -- plugin_data：插件自身命名空间数据（配额由服务层校验）。
+-- 注意：TEXT 列的字面量默认值在 MySQL 8 不合法，须用括号表达式
+-- `DEFAULT ('{}')`（MySQL 8.0.13+/MariaDB 10.2.1+ 支持，语义与 SQLite 一致）；
+-- `key` 为保留字，DDL 与查询中反引号转义（SQLite 同样接受反引号）。
 
 CREATE TABLE themes (
     name VARCHAR(64) PRIMARY KEY NOT NULL,
@@ -21,7 +24,7 @@ CREATE TABLE themes (
     revision BIGINT NOT NULL DEFAULT 1,
     tokens_json TEXT NOT NULL,
     asset_meta_json TEXT NULL,
-    created_by VARCHAR(36) NOT NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     CONSTRAINT themes_kind_ck CHECK (kind IN ('data')),
@@ -31,11 +34,11 @@ CREATE TABLE themes (
 CREATE INDEX themes_status_idx ON themes (status);
 
 CREATE TABLE theme_revisions (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     theme_name VARCHAR(64) NOT NULL,
     revision BIGINT NOT NULL,
     tokens_json TEXT NOT NULL,
-    changed_by VARCHAR(36) NOT NULL,
+    changed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     reason VARCHAR(500) NULL,
     created_at BIGINT NOT NULL,
     CONSTRAINT theme_revisions_uq UNIQUE (theme_name, revision),
@@ -45,7 +48,7 @@ CREATE TABLE theme_revisions (
 CREATE INDEX theme_revisions_theme_idx ON theme_revisions (theme_name);
 
 CREATE TABLE plugins (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     plugin_id VARCHAR(64) NOT NULL,
     name VARCHAR(120) NOT NULL,
     version VARCHAR(32) NOT NULL,
@@ -56,9 +59,9 @@ CREATE TABLE plugins (
     capabilities_json TEXT NOT NULL,
     subscriptions_json TEXT NOT NULL,
     settings_schema_json TEXT NOT NULL,
-    settings_json TEXT NOT NULL DEFAULT '{}',
+    settings_json TEXT NOT NULL DEFAULT ('{}'),
     policy_revision BIGINT NOT NULL DEFAULT 1,
-    created_by VARCHAR(36) NOT NULL,
+    created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     CONSTRAINT plugins_kind_ck CHECK (kind IN ('config')),
@@ -69,7 +72,7 @@ CREATE TABLE plugins (
 CREATE INDEX plugins_status_idx ON plugins (status);
 
 CREATE TABLE plugin_call_metrics (
-    id VARCHAR(36) PRIMARY KEY NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,
     plugin_id VARCHAR(64) NOT NULL,
     event_type VARCHAR(64) NOT NULL,
     result VARCHAR(16) NOT NULL,
@@ -85,9 +88,9 @@ CREATE INDEX plugin_call_metrics_plugin_idx ON plugin_call_metrics (plugin_id, o
 
 CREATE TABLE plugin_data (
     plugin_id VARCHAR(64) NOT NULL,
-    key VARCHAR(128) NOT NULL,
+    `key` VARCHAR(128) NOT NULL,
     value_json TEXT NOT NULL,
     updated_at BIGINT NOT NULL,
-    PRIMARY KEY (plugin_id, key),
+    PRIMARY KEY (plugin_id, `key`),
     CONSTRAINT plugin_data_plugin_fk FOREIGN KEY (plugin_id) REFERENCES plugins (plugin_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

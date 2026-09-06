@@ -18,6 +18,9 @@
   const topMessage = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
+
+  /** M18-MISC-01：同意社区规则（对齐原型表单控件）。 */
+  let agreed = $state(true);
 </script>
 
 <svelte:head>
@@ -117,7 +120,14 @@
               <p class="input-hint is-error" id="reg-confirm-error" role="alert">{confirmError}</p>
             {/if}
           </div>
-          <Button text="注册" variant="primary" size="lg" type="submit" />
+          <!-- M18-MISC-01：对齐原型注册页「我已阅读并同意 社区规则」 -->
+          <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-4);">
+            <input type="checkbox" id="reg-agree" name="agree" bind:checked={agreed} />
+            <label for="reg-agree" style="font-size:var(--text-sm);color:var(--color-text-secondary);cursor:pointer;user-select:none;">
+              我已阅读并同意 <a href="/posts/rules" class="text-link" target="_blank" rel="noopener">社区规则</a>
+            </label>
+          </div>
+          <Button text="创建账号" variant="primary" size="lg" type="submit" block disabled={!agreed} />
         </form>
       {/if}
     </div>

@@ -17,7 +17,9 @@ CREATE TABLE sanctions (
     CONSTRAINT sanctions_user_fk FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT sanctions_board_fk FOREIGN KEY (board_id) REFERENCES boards (id) ON DELETE CASCADE,
     CONSTRAINT sanctions_creator_fk FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT,
-    CONSTRAINT sanctions_revoked_by_fk FOREIGN KEY (revoked_by) REFERENCES users (id) ON DELETE SET NULL,
+    -- 与 MySQL 版一致：RESTRICT 保持 CHECK 不变量（MariaDB 虽允许 SET NULL，
+    -- 但为三库行为一致统一用 RESTRICT；生产不物理删除 users 行）
+    CONSTRAINT sanctions_revoked_by_fk FOREIGN KEY (revoked_by) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT sanctions_kind_ck CHECK (kind IN ('warning', 'rate_limit', 'mute', 'board_mute', 'ban')),
     CONSTRAINT sanctions_status_ck CHECK (status IN ('scheduled', 'active', 'expired', 'revoked')),
     CONSTRAINT sanctions_timeline_ck CHECK (ends_at IS NULL OR ends_at > starts_at)

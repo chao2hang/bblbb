@@ -186,3 +186,7 @@ path = "tests/faults.rs"
 [[test]]
 name = "economy_step_injection"
 path = "tests/economy/step_injection.rs"
+
+[profile.dev]
+# 只保留行号表，不生成完整 DWARF；测试二进制体积可缩 5-10 倍，backtrace 仍可用
+debug = 1

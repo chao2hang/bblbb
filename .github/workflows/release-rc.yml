@@ -27,7 +27,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # AGENTS.md §3.4：release 构建缓存（release 全量编译最慢，收益最大）
+      - name: Install sccache
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sccache
+      - name: Cache sccache build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: sccache-${{ runner.os }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            sccache-${{ runner.os }}-release-
+            sccache-${{ runner.os }}-
+      - name: Cache cargo registry and git deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-deps-${{ runner.os }}-
       - name: Build release backend
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_IDLE_TIMEOUT: "0"
         working-directory: backend
         run: cargo build --release
       - name: Release bundle test

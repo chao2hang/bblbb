@@ -1,0 +1,402 @@
+/**
+ * BBLBB 小程序全局样式
+ *
+ * 设计语言与 prototype/ 高保真原型一致：
+ * 暖纸底（#F5F3EE）、墨色文字、珊瑚红强调（#E45735）、
+ * 细边框卡片、克制的圆角——「纸墨」社区质感。
+ */
+
+page {
+  --paper: #f5f3ee;
+  --card: #fffdf9;
+  --ink: #1a1817;
+  --ink-2: #6b6560;
+  --ink-3: #9a938a;
+  --line: #e5e0d8;
+  --line-soft: #efebe3;
+  --accent: #e45735;
+  --accent-soft: #fbeae4;
+  --gold: #e9a100;
+  --green: #4cb74c;
+  --blue: #48b0dd;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 28rpx;
+  line-height: 1.6;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+}
+
+/* ── 布局 ─────────────────────────────────────────────────────────────── */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+}
+
+.page-with-bar {
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
+
+.container {
+  padding: 24rpx;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+}
+
+.gap-8 { gap: 8rpx; }
+.gap-16 { gap: 16rpx; }
+.gap-24 { gap: 24rpx; }
+.flex-1 { flex: 1; min-width: 0; }
+.mt-16 { margin-top: 16rpx; }
+.mt-24 { margin-top: 24rpx; }
+.mt-32 { margin-top: 32rpx; }
+
+/* ── 文字 ─────────────────────────────────────────────────────────────── */
+
+.title {
+  font-size: 34rpx;
+  font-weight: 700;
+  letter-spacing: 0.5rpx;
+}
+
+.subtitle {
+  font-size: 26rpx;
+  color: var(--ink-2);
+}
+
+.text-2 {
+  color: var(--ink-2);
+}
+
+.text-3 {
+  color: var(--ink-3);
+  font-size: 24rpx;
+}
+
+.text-accent {
+  color: var(--accent);
+}
+
+.text-green {
+  color: var(--green);
+}
+
+.ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* ── 卡片 ─────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+}
+
+.card-flat {
+  padding: 0;
+  overflow: hidden;
+}
+
+.card-divider {
+  border-top: 1rpx solid var(--line-soft);
+  margin: 20rpx 0;
+}
+
+/* ── 按钮 ─────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.btn::after {
+  border: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary[disabled] {
+  background: #e8c8bd;
+  color: #fff;
+}
+
+.btn-ghost {
+  background: var(--card);
+  color: var(--ink);
+  border: 1rpx solid var(--line);
+}
+
+.btn-danger {
+  background: var(--card);
+  color: var(--accent);
+  border: 1rpx solid var(--accent-soft);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-sm {
+  height: 64rpx;
+  font-size: 26rpx;
+  border-radius: 12rpx;
+  padding: 0 28rpx;
+}
+
+/* ── 表单 ─────────────────────────────────────────────────────────────── */
+
+.field {
+  margin-bottom: 24rpx;
+}
+
+.field-label {
+  font-size: 26rpx;
+  color: var(--ink-2);
+  margin-bottom: 12rpx;
+  display: block;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 14rpx;
+  padding: 22rpx 24rpx;
+  font-size: 30rpx;
+  color: var(--ink);
+}
+
+.input[disabled] {
+  background: var(--line-soft);
+  color: var(--ink-3);
+}
+
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  border-radius: 14rpx;
+  padding: 22rpx 24rpx;
+  font-size: 30rpx;
+  min-height: 360rpx;
+}
+
+.form-hint {
+  font-size: 24rpx;
+  color: var(--ink-3);
+  margin-top: 10rpx;
+}
+
+/* ── 徽标 / 标签 ──────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 20rpx;
+  line-height: 1;
+  padding: 6rpx 14rpx;
+  border-radius: 8rpx;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.badge-gray {
+  background: var(--line-soft);
+  color: var(--ink-2);
+}
+
+.badge-gold {
+  background: #fdf3dd;
+  color: #b47c00;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  background: var(--line-soft);
+  color: var(--ink-2);
+  margin-right: 12rpx;
+}
+
+/* ── 头像 ─────────────────────────────────────────────────────────────── */
+
+.avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar-sm {
+  width: 56rpx;
+  height: 56rpx;
+  font-size: 26rpx;
+}
+
+.avatar-lg {
+  width: 128rpx;
+  height: 128rpx;
+  font-size: 52rpx;
+}
+
+/* ── 帖子正文（rich-text 作用域） ─────────────────────────────────────── */
+
+.rich-body {
+  font-size: 30rpx;
+  line-height: 1.75;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.rich-body p { margin: 0 0 24rpx; }
+.rich-body h1, .rich-body h2, .rich-body h3, .rich-body h4 {
+  font-weight: 700;
+  margin: 32rpx 0 16rpx;
+  line-height: 1.4;
+}
+.rich-body h1 { font-size: 40rpx; }
+.rich-body h2 { font-size: 36rpx; }
+.rich-body h3 { font-size: 33rpx; }
+.rich-body h4 { font-size: 31rpx; }
+.rich-body ul, .rich-body ol {
+  margin: 0 0 24rpx;
+  padding-left: 48rpx;
+}
+.rich-body li { margin-bottom: 8rpx; }
+.rich-body blockquote {
+  border-left: 6rpx solid var(--line);
+  padding: 8rpx 24rpx;
+  color: var(--ink-2);
+  background: var(--line-soft);
+  border-radius: 0 12rpx 12rpx 0;
+  margin: 0 0 24rpx;
+}
+.rich-body code {
+  font-size: 26rpx;
+  background: var(--line-soft);
+  border-radius: 6rpx;
+  padding: 2rpx 10rpx;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+.rich-body pre {
+  background: #262322;
+  color: #f0ece4;
+  border-radius: 14rpx;
+  padding: 24rpx;
+  overflow-x: auto;
+  margin: 0 0 24rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+.rich-body pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 24rpx;
+}
+.rich-body a { color: var(--accent); }
+.rich-body img { max-width: 100%; border-radius: 12rpx; margin: 8rpx 0; }
+.rich-body hr {
+  border: none;
+  border-top: 1rpx solid var(--line);
+  margin: 32rpx 0;
+}
+.rich-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 24rpx;
+  font-size: 26rpx;
+}
+.rich-body th, .rich-body td {
+  border: 1rpx solid var(--line);
+  padding: 12rpx 16rpx;
+  text-align: left;
+}
+.rich-body th { background: var(--line-soft); font-weight: 700; }
+
+/* ── 空状态 / 加载 ────────────────────────────────────────────────────── */
+
+.spin {
+  width: 40rpx;
+  height: 40rpx;
+  border: 4rpx solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-center {
+  display: flex;
+  justify-content: center;
+  padding: 80rpx 0;
+}
+
+/* ── 底部输入栏 ───────────────────────────────────────────────────────── */
+
+.composer-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--card);
+  border-top: 1rpx solid var(--line);
+  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  z-index: 50;
+}

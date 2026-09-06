@@ -1,0 +1,4 @@
+.fv-empty {
+  text-align: center;
+  padding: 120rpx 0;
+}

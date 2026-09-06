@@ -310,8 +310,11 @@
     {#if feature === 'loading'}
       <p class="input-hint" role="status">正在检查 AI 能力…</p>
     {:else if feature === 'disabled'}
-      <!-- M09-UI-07：AI 关闭/故障/撤回时普通发帖与编辑不受影响。 -->
-      <p class="input-hint" role="status">{notice ?? 'AI 辅助未开放。发布与编辑不受影响。'}</p>
+      <!-- M09-UI-07：AI 关闭/故障/撤回时普通发帖与编辑不受影响。
+           notice 非空时由下方通用 {#if notice} 块统一展示，避免同文案重复两行。 -->
+      {#if !notice}
+        <p class="input-hint" role="status">AI 辅助未开放。发布与编辑不受影响。</p>
+      {/if}
     {:else if phase === 'consenting' || phase === 'granting'}
       <ConsentPanel
         purpose={PURPOSE}

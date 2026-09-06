@@ -76,6 +76,27 @@ Caddy :443
 3. 将事件转换为幂等 `jobs` 或直接执行轻量消费者。
 4. 邮件、通知、搜索和插件失败独立重试，不回滚已提交业务事务。
 
+### 3.5 OAuth 登录与市场交易的分工边界（强制规范）
+
+浏览器与小程序运行时是**完全非受信环境**：放在前端代码里的校验、定价和余额判断都可以被 DevTools 绕过。因此 OAuth 登录与交易**不能整体放进前端**——协议端点、资金事务与会话铸造只属于 Rust；SvelteKit 只拥有 UI、托管页和表单编排。分工如下：
+
+| 职责 | 归属 | 说明 |
+|---|---|---|
+| 登录/授权/结账页 UI、跳转与余额展示 | SvelteKit | 渐进增强（原生 `form[method=POST]`，无 JS 可用） |
+| OIDC 协议端点（`/oauth/*`、`/.well-known/*`） | **仅 Rust** | Caddy 直接路由，不经 SvelteKit（§2） |
+| token 签发/验签、client_secret、JWKS 私钥、Webhook 签名密钥 | **仅 Rust** | Secret 绝不进入前端 bundle / SvelteKit 服务器代码 |
+| 会话铸造（`__Host-bblbb_session` HttpOnly Cookie） | **仅 Rust** | SvelteKit action 代理时必须完整转发 `Set-Cookie`（§3.2） |
+| 交易原子性（扣款+流水+审计+Outbox 同事务） | **仅 Rust** | JS 无法执行多语句 DB 事务；金额权威来自服务端 Offer 快照 |
+| 交易确认的双重绑定裁决 | **仅 Rust** | Session user = Intent user + CSRF + interaction 绑定，防止商户代替用户确认 |
+| 第三方登录（BBLBB 作为依赖方，未来） | 前端按钮+重定向；**code 换 token / 验签 / 铸造 Session 必须在 Rust** | 即使采用 PKCE 公开客户端，id_token 也必须交后端 JWKS 验签 |
+
+两个已落地的标准模式（其他同类流程照此办理）：
+
+- **OIDC 同意页（BBLBB 作为 Provider）**：SvelteKit 托管 `/auth/consent/{interaction_id}` 页面，数据来自 `GET /api/v1/oauth/interactions/{id}`，决策走 `POST /api/v1/oauth/interactions/{id}/decision`（Session + CSRF）；SvelteKit 不接收、重建或验证 `redirect_uri`（`AUTH-OIDC.md §5`）。
+- **市场结账页（`frontend/src/routes/marketplace/checkout/[id]`）**：SvelteKit SSR 托管页 + 原生表单 POST → SvelteKit action → `POST /api/v1/marketplace/checkout-intents/{id}/confirm`（Rust 原子消费意图并执行购买，`MARKETPLACE.md §4`）。
+
+前端在上述流程中**不得**：持有或转发任何 Secret；提交价格、货币或余额等应由服务端裁决的字段；绕过 CSRF/托管页直接调用确认端点；以隐藏按钮/文案代替服务端权限检查（§5）。
+
 ## 4. 后端模块
 
 ```text

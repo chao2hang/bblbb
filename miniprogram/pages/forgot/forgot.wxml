@@ -1,0 +1,46 @@
+<view class="page">
+  <view class="container">
+    <view class="fg-head">
+      <view class="title">找回密码</view>
+      <view class="subtitle mt-16">{{step === 'request' ? '输入注册邮箱，获取重置链接' : '输入邮件中的重置 token 与新密码'}}</view>
+    </view>
+
+    <view class="card mt-32" wx:if="{{step === 'request'}}">
+      <view class="field">
+        <text class="field-label">注册邮箱</text>
+        <input class="input" value="{{email}}" data-field="email" bindinput="onInput"
+          placeholder="your@example.com" placeholder-class="ph" />
+      </view>
+      <button class="btn btn-primary btn-block" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onRequest">
+        发送重置邮件
+      </button>
+      <view class="form-hint" wx:if="{{requested}}">
+        若该邮箱已注册且未删除，重置邮件已发送，请前往收件箱查看。
+      </view>
+      <view class="fg-error" wx:if="{{error}}">{{error}}</view>
+    </view>
+
+    <view class="card mt-32" wx:else>
+      <view class="field">
+        <text class="field-label">重置 Token</text>
+        <input class="input" value="{{token}}" data-field="token" bindinput="onInput"
+          placeholder="邮件链接中的 token（30 分钟有效）" placeholder-class="ph" />
+      </view>
+      <view class="field">
+        <text class="field-label">新密码</text>
+        <input class="input" value="{{password}}" data-field="password" bindinput="onInput"
+          placeholder="8-256 位" placeholder-class="ph" password />
+      </view>
+      <view class="field">
+        <text class="field-label">确认新密码</text>
+        <input class="input" value="{{confirm}}" data-field="confirm" bindinput="onInput"
+          placeholder="再次输入新密码" placeholder-class="ph" password confirm-type="go" bindconfirm="onConfirm" />
+      </view>
+      <button class="btn btn-primary btn-block" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onConfirm">
+        确认重置
+      </button>
+      <view class="fg-back" bindtap="onBack">← 换个邮箱重新发送</view>
+      <view class="fg-error" wx:if="{{error}}">{{error}}</view>
+    </view>
+  </view>
+</view>

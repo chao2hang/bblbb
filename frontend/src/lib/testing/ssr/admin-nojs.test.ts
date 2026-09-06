@@ -41,22 +41,26 @@ describe('M03-UI-07 管理标签/角色/Assignment 页 SSR', () => {
   });
 
   it('角色页：403 无权限态', () => {
-    const { body } = render(AdminRoles, { props: { data: { loadState: { state: 'forbidden', message: 'forbidden' } } } });
+    const { body } = render(AdminRoles, { props: { data: { loadState: { state: 'forbidden', message: 'forbidden' }, allPermissions: [] } } });
     expect(body).toContain('无权限');
   });
 
-  it('角色页：ok 渲染角色列表（名称/scope/权限）', () => {
+  it('角色页：ok 渲染角色卡 + 权限复选网格（视觉对齐 M17-GAPFIX-06）', () => {
     const { body } = render(AdminRoles, {
-      props: { data: { loadState: { state: 'ok', items: [{ id: 'r1', name: 'administrator', scope: 'global', permissions: ['admin.manage'] }] } } }
+      props: { data: { loadState: { state: 'ok', items: [{ id: 'r1', name: 'administrator', scope: 'global', permissions: ['admin.manage'] }] }, allPermissions: ['admin.manage'] } }
     });
-    expect(body).toContain('administrator');
-    expect(body).toContain('global');
+    expect(body).toContain('app-role-grid');
+    expect(body).toContain('管理员 · 全站');
+    expect(body).toContain('管理后台');
     expect(body).toContain('admin.manage');
   });
 
-  it('Assignment 页：说明 assignment 契约并由后端裁决', () => {
+  it('角色委派页：产品语气说明 + 后端裁决状态（视觉对齐 M17-GAPFIX-06：不暴露表名/工作项编号）', () => {
     const { body } = render(AdminAssignments, { props: { data: { loadState: { state: 'not_implemented', message: 'x' } } } });
-    expect(body).toContain('board_role_assignments');
-    expect(body).toContain('M13-ADMIN');
+    expect(body).toContain('角色委派');
+    expect(body).toContain('所有授予与撤销都会写入审计日志');
+    expect(body).toContain('角色委派接口开发中');
+    expect(body).not.toContain('board_role_assignments');
+    expect(body).not.toContain('M13-ADMIN');
   });
 });

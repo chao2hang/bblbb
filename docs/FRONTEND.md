@@ -54,6 +54,7 @@ frontend/src/
       reset-password/
       sessions/
       consent/[interactionId]/ OIDC 授权同意 UI；只接受 Rust 创建的短期 interaction
+    mfa/                       独立两步验证页（M18-MFA-01：TOTP secret 展示/确认/恢复码）
     admin/
       +layout.server.ts        展示守卫；Rust API 仍二次鉴权
       dashboard/
@@ -258,8 +259,12 @@ v1 目标为 WCAG 2.2 AA：
 - **hydration 输入保护**：受控输入（`value={expr}`）在 hydration 完成前会被重置
   —— 表单初始态用非受控输入（`value={expr || undefined}`），仅在需要回填时受控
   （register/search 已应用）；测试侧用 `stableFill` 轮询校验。
-- **会话态同步**：`+layout.svelte` 按路径变化重取 `/me`（onMount 只跑一次，SPA
-  跳转后 navbar 登录态会陈旧）；登录/退出后导航立即反映真实会话。
+- **会话态同步（导航无闪烁）**：`+layout.server.ts` 服务端取 `/me` 与通知徽标
+  （并行、失败降级空态），SSR 首帧即渲染真实登录态 navbar（hydration 不闪、无 JS
+  基线一致）；`+layout.svelte` 客户端仍按路径变化重取 `/me`（onMount 只跑一次，
+  SPA 跳转后 navbar 登录态会陈旧），但刷新期间保留最后一次已知用户、响应到达才
+  更新——导航过程 navbar 不回退未登录 UI（修复切页 navbar「一抽一抽」），登录/
+  退出后导航仍立即反映真实会话。
 - **E2E 与 a11y 验收（M14-A11Y）**：Playwright 双项目（desktop/mobile）由
   `tests/playwright/fixtures/serve.mjs` 编排真实 Rust 后端 + DB persona 铸种；
   axe 基线（serious/critical = P0）报告 artifact `tests/a11y/axe-report.json`；

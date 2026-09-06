@@ -27,6 +27,7 @@ tags:
 - name: Feeds
 - name: Health
 - name: Marketplace
+- name: Messages
 - name: Moderation
 - name: Notifications
 - name: OAuth
@@ -36,6 +37,7 @@ tags:
 - name: Roles
 - name: Search
 - name: Shop
+- name: Stats
 - name: Tags
 - name: Themes
 - name: Users
@@ -507,6 +509,12 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: author_username
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
       - name: sort
         in: query
         schema:
@@ -514,7 +522,23 @@ paths:
           enum:
           - latest
           - popular
+          - featured
+          - unanswered
+          - following
         default: latest
+      - name: type
+        in: query
+        schema:
+          type: string
+          enum:
+          - article
+          - topic
+      - name: tag
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
       - "$ref": "#/components/parameters/Limit"
       - "$ref": "#/components/parameters/After"
       responses:
@@ -988,6 +1012,24 @@ paths:
         required: true
         schema:
           type: string
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - latest
+          - hot
+          - featured
+          - unanswered
+        default: latest
+        description: latest=创建时间倒序；hot=浏览量倒序；featured=精华优先（M18-BOARD-01）；unanswered=仅未回复（M18-BOARD-01）
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+        description: 作者/标题过滤（LIKE 匹配 title 与作者 display_name/username，M18-BOARD-01）
       - "$ref": "#/components/parameters/Limit"
       - "$ref": "#/components/parameters/After"
       responses:
@@ -1018,6 +1060,34 @@ paths:
         '429':
           "$ref": "#/components/responses/RateLimited"
       summary: listTags
+  "/api/v1/tags/{slug}/posts":
+    get:
+      tags:
+      - Posts
+      operationId: listTagPosts
+      security: *1
+      x-permission: public
+      x-csrf: false
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/After"
+      responses:
+        '200':
+          description: Tag post page
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PostPage"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      summary: listTagPosts
   "/api/v1/attachments":
     post:
       tags:
@@ -1666,6 +1736,19 @@ paths:
       security: *2
       x-permission: authenticated
       x-csrf: false
+      parameters:
+      - name: category
+        in: query
+        schema:
+          type: string
+          enum:
+          - system
+          - reply
+          - mention
+          - reaction
+          - moderation
+          - badge
+          - digest
       responses:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
@@ -6448,6 +6531,838 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/GenericRequest"
+  "/api/v1/achievements":
+    get:
+      tags:
+      - Activity
+      operationId: get_achievements
+      summary: 公共成就目录（隐藏成就描述掩码）
+      security: []
+      x-permission: public
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/stats":
+    get:
+      tags:
+      - Stats
+      operationId: get_stats
+      summary: 站点公开统计（成员/帖子/评论/板块/标签）
+      security: []
+      x-permission: public
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/achievements":
+    get:
+      tags:
+      - Activity
+      operationId: get_me_achievements
+      summary: 我的成就（解锁/进度/装备槽统计）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/achievements/{code}/equip":
+    put:
+      tags:
+      - Activity
+      operationId: put_me_achievements_code_equip
+      summary: 装备已解锁成就徽章
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - "$ref": "#/components/parameters/IfMatch"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    delete:
+      tags:
+      - Activity
+      operationId: delete_me_achievements_code_equip
+      summary: 卸下成就徽章
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/api-keys":
+    get:
+      tags:
+      - Auth
+      operationId: get_me_api_keys
+      summary: 我的 API 密钥列表（哈希存储，明文不回显）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    post:
+      tags:
+      - Auth
+      operationId: post_me_api_keys
+      summary: 创建 API 密钥（明文仅本次响应返回一次）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateApiKeyRequest"
+      responses:
+        '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/api-keys/{id}":
+    delete:
+      tags:
+      - Auth
+      operationId: delete_me_api_keys_id
+      summary: 撤销 API 密钥（幂等软删除）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/favorites":
+    get:
+      tags:
+      - Activity
+      operationId: get_me_favorites
+      summary: 我的收藏帖子（keyset 分页）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/After"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/following":
+    get:
+      tags:
+      - Activity
+      operationId: get_me_following
+      summary: 我的关注快照（用户名 + 板块 slug）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/oauth-grants":
+    get:
+      tags:
+      - OAuth
+      operationId: get_me_oauth_grants
+      summary: 我授权过的 OAuth 应用
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/oauth-grants/{client_id}":
+    delete:
+      tags:
+      - OAuth
+      operationId: delete_me_oauth_grants_client_id
+      summary: 撤销对 OAuth 应用的授权（幂等）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - name: client_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/password":
+    post:
+      tags:
+      - Auth
+      operationId: post_me_password
+      summary: 修改密码（撤销其他会话并安全通知）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PasswordChangeRequest"
+      responses:
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/point-transactions":
+    get:
+      tags:
+      - Activity
+      operationId: get_me_point_transactions
+      summary: 我的积分流水（keyset 分页）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/After"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/sanctions":
+    get:
+      tags:
+      - Moderation
+      operationId: get_me_sanctions
+      summary: 我的处罚记录（不含已撤销）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/posts/{id}/favorite":
+    post:
+      tags:
+      - Posts
+      operationId: post_posts_id_favorite
+      summary: 收藏帖子（幂等切换）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/PostId"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    delete:
+      tags:
+      - Posts
+      operationId: delete_posts_id_favorite
+      summary: 取消收藏
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/PostId"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/posts/{id}/unlock":
+    post:
+      tags:
+      - Posts
+      operationId: post_posts_id_unlock
+      summary: B 币解锁付费帖子（幂等，重放不重复扣款）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/PostId"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UnlockRequest"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/boards/{slug}/follow":
+    post:
+      tags:
+      - Boards
+      operationId: post_boards_slug_follow
+      summary: 关注板块
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Slug"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    delete:
+      tags:
+      - Boards
+      operationId: delete_boards_slug_follow
+      summary: 取关板块
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Slug"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/users/{username}/follow":
+    post:
+      tags:
+      - Users
+      operationId: post_users_username_follow
+      summary: 关注用户（自关注 422）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Username"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    delete:
+      tags:
+      - Users
+      operationId: delete_users_username_follow
+      summary: 取消关注用户
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Username"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/users/{username}/followers":
+    get:
+      tags:
+      - Users
+      operationId: get_users_username_followers
+      summary: 用户的粉丝列表（keyset 分页）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/Username"
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/After"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/users/{username}/following":
+    get:
+      tags:
+      - Users
+      operationId: get_users_username_following
+      summary: 用户的关注列表（keyset 分页）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/Username"
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/After"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/conversations":
+    get:
+      tags:
+      - Messages
+      operationId: get_conversations
+      summary: 我的私信会话列表（keyset 分页）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/After"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    post:
+      tags:
+      - Messages
+      operationId: post_conversations
+      summary: 创建（或复用）与用户的会话（自谈 422）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateConversationRequest"
+      responses:
+        '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/conversations/{id}/messages":
+    get:
+      tags:
+      - Messages
+      operationId: get_conversations_id_messages
+      summary: 会话消息列表（keyset 分页）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/Id"
+      - "$ref": "#/components/parameters/Limit"
+      - "$ref": "#/components/parameters/After"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    post:
+      tags:
+      - Messages
+      operationId: post_conversations_id_messages
+      summary: 发送私信（通知对方，type=mention）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Id"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SendMessageRequest"
+      responses:
+        '201':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/conversations/{id}/read":
+    post:
+      tags:
+      - Messages
+      operationId: post_conversations_id_read
+      summary: 标记会话已读
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Id"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericRequest"
+      responses:
+        '204':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: No content
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
 components:
   securitySchemes:
     sessionCookie:
@@ -6931,6 +7846,29 @@ components:
           - string
           - 'null'
           format: date-time
+        summary:
+          type:
+          - string
+          - 'null'
+          maxLength: 300
+          description: 文章摘要（article 类型展示于列表封面）。
+        price_coin:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          maximum: 1000
+          description: 付费可见价格（B 币）；access_policy=paid 时必填，其他策略必须缺省。
+        tags:
+          type:
+          - array
+          - 'null'
+          maxItems: 8
+          items:
+            type: string
+            minLength: 1
+            maxLength: 32
+          description: 标签 slug/名称列表；未知标签跳过（创建标签属 tag.manage）。
         client_request_id:
           type: string
           minLength: 16
@@ -7408,7 +8346,6 @@ components:
           - webhook_invalid_signature
           - bad_request
           - conflict
-          - not_implemented
           - video_insecure_scheme
           - video_invalid_url
           - video_host_invalid
@@ -8310,3 +9247,78 @@ components:
           type: string
           minLength: 1
           maxLength: 64
+    PasswordChangeRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - current_password
+      - new_password
+      properties:
+        current_password:
+          type: string
+          writeOnly: true
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          writeOnly: true
+    UnlockRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - client_request_id
+      properties:
+        client_request_id:
+          type: string
+          minLength: 16
+          maxLength: 128
+    CreateApiKeyRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - scopes
+      - client_request_id
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        scopes:
+          type: array
+          items:
+            type: string
+        client_request_id:
+          type: string
+          minLength: 16
+          maxLength: 128
+    CreateConversationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - username
+      - client_request_id
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        client_request_id:
+          type: string
+          minLength: 16
+          maxLength: 128
+    SendMessageRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - body
+      - client_request_id
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        client_request_id:
+          type: string
+          minLength: 16
+          maxLength: 128

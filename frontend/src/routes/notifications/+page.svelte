@@ -10,6 +10,7 @@
     type NotificationPreference
   } from '$lib/api/client';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import { formatRelative } from '$lib/utils';
 
   let items = $state<Notification[]>([]);
@@ -22,10 +23,22 @@
 
   const tabs = [
     { key: 'all', label: '全部' },
-    { key: 'unread', label: '未读' }
+    { key: 'unread', label: '未读' },
+    { key: 'reply', label: '回复' },
+    { key: 'reaction', label: '点赞' },
+    { key: 'system', label: '系统' }
   ];
 
+  /** 类型图标（对齐原型）：回复、点赞、系统铃铛。 */
+  function typeIcon(cat: string | null | undefined): string {
+    if (cat === 'reply') return 'message-square';
+    if (cat === 'reaction') return 'heart';
+    return 'bell';
+  }
+
   const categoryLabels: Record<string, string> = {
+    reply: '回复',
+    reaction: '点赞',
     activity: '互动',
     moderation: '审核',
     system: '系统',
@@ -37,7 +50,9 @@
     loading = true;
     actionError = null;
     try {
-      const result = await listNotifications(fetch, tab === 'unread');
+      const isUnread = tab === 'unread';
+      const category = tab !== 'all' && tab !== 'unread' ? tab : null;
+      const result = await listNotifications(fetch, isUnread, category);
       items = result.items;
       unreadCount = result.unread_count;
     } catch {
@@ -92,15 +107,18 @@
 </script>
 
 <svelte:head>
-  <title>通知 — BBLBB</title>
+  <title>通知中心 — BBLBB</title>
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">通知</span>
-  </nav>
+  <!-- 原型对齐（prototype/pages/notifications.html）：app-route-head，无面包屑。 -->
+  <div class="app-route-head">
+    <div class="app-route-head__copy">
+      <span class="app-kicker">INBOX / NOTIFICATIONS</span>
+      <h1 tabindex="-1">通知中心</h1>
+      <p>最近 30 天的互动、关注和系统提醒</p>
+    </div>
+  </div>
 
   {#if actionError}
     <p class="form-error" role="alert" data-testid="notify-action-error">{actionError}</p>
@@ -140,6 +158,14 @@
               class:notify-unread={!item.is_read}
               style="padding:var(--space-4);border-bottom:var(--border-default);display:flex;gap:var(--space-3);align-items:flex-start;"
             >
+              <!-- 原型同款类型图标卡（圆角底） -->
+              <div
+                class="notify-icon-box"
+                style="width:36px;height:36px;border-radius:var(--radius-md);background:var(--color-bg-subtle, rgba(0,0,0,0.04));display:flex;align-items:center;justify-content:center;color:var(--color-brand);flex-shrink:0;"
+                aria-hidden="true"
+              >
+                <Icon name={typeIcon(item.category)} size={18} />
+              </div>
               {#if item.unavailable}
                 <div style="min-width:0;flex:1;">
                   <div style="font-weight:var(--weight-medium);">{item.title}</div>
@@ -153,7 +179,12 @@
                   class="post-row-link"
                   style="min-width:0;flex:1;text-decoration:none;display:block;"
                 >
-                  <div style="font-weight:var(--weight-medium);">{item.title}</div>
+                  <div style="font-weight:var(--weight-medium);display:flex;align-items:center;gap:6px;">
+                    {#if !item.is_read}
+                      <span class="nav-dot" style="width:6px;height:6px;border-radius:50%;background:var(--color-brand);display:inline-block;flex-shrink:0;" aria-label="未读"></span>
+                    {/if}
+                    {item.title}
+                  </div>
                   {#if item.body}<div class="text-secondary" style="font-size:var(--text-sm);margin-top:2px;">{item.body}</div>{/if}
                 </a>
                 {#if !item.is_read}

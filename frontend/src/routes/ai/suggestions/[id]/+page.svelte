@@ -40,13 +40,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/ai" class="breadcrumb-link">AI 能力</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">建议</span>
-  </nav>
 
   {#if notFound}
     <div class="card">

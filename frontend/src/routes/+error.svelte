@@ -11,11 +11,15 @@
   }
 
   const error = $derived((page.error ?? {}) as PageError);
-  const status = $derived(error.status ?? 500);
+  // SvelteKit 未匹配路由的默认错误对象是 { message: 'Not Found' }，不带
+  // status 字段；直接 ?? 500 会把 404 渲染成「服务器错误」。按 message 兜底。
+  const status = $derived(error.status ?? (error.message === 'Not Found' ? 404 : 500));
   const desc = $derived(
     error.message && error.message !== 'Not Found' && error.message !== 'Internal Error'
       ? error.message
-      : ''
+      : status === 404
+        ? '页面不存在或已被删除。'
+        : ''
   );
 </script>
 

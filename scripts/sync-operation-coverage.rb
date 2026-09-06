@@ -62,6 +62,10 @@ def assignment_for(tag, path, operation_id)
     ["M12", "M12-CHECKOUT", "P0"]
   when "Themes"
     ["M13", "M13-THEME", "P1"]
+  when "Messages"
+    ["M17", "M17-GAPFIX", "P1"]
+  when "Stats"
+    ["M17", "M17-GAPFIX", "P0"]
   when "Admin"
     return ["M6", "M06-QUOTA", "P0"] if path.include?("/storage") || path.include?("attachment-quota")
     return ["M5", "M05-SANCTIONS", "P0"] if path.include?("/moderation")
@@ -184,7 +188,7 @@ existing = load_existing
 operations = operations_from(document, existing)
 operation_ids = operations.map { |entry| entry.fetch("operation_id") }
 raise "Duplicate operationId in OpenAPI" unless operation_ids.uniq.length == operation_ids.length
-raise "Expected 193 operations, got #{operations.length}" unless operations.length == 193
+raise "Expected 223 operations, got #{operations.length}" unless operations.length == 223
 
 payload = {
   "schema_version" => 1,

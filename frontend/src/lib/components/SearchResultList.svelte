@@ -7,6 +7,7 @@
   // {@html}、绝不拼接/推导正文（对抗性输入测试见 search-nojs.test）。
   import EmptyState from './ui/EmptyState.svelte';
   import Icon from './ui/Icon.svelte';
+  import UserCard from './UserCard.svelte';
   import type { SearchResultView } from '$lib/api/types';
 
   let {
@@ -39,6 +40,14 @@
     };
     return map[type] ?? 'search';
   }
+
+  /** 用户结果：从稳定公开 URL（/users/{username}，后端 url_for 组装）取
+   *  用户名，供 UserHoverCard 触发卡使用；取不到时退回普通链接。 */
+  function usernameOfUserResult(item: SearchResultView): string | null {
+    if (item.type !== 'user' || !item.url.startsWith('/users/')) return null;
+    const username = decodeURIComponent(item.url.slice('/users/'.length));
+    return username || null;
+  }
 </script>
 
 {#if !results || results.length === 0}
@@ -47,9 +56,18 @@
   <ul class="search-result-list" aria-label="搜索结果">
     {#each results as item (item.id + item.type)}
       <li class="search-result-item">
-        <a class="search-result-title" href={item.url}>
-          {item.title || '（无标题）'}
-        </a>
+        {#if usernameOfUserResult(item)}
+          {@const username = usernameOfUserResult(item)!}
+          <!-- 全局壳·UserHoverCard 接线：用户结果标题即触发链接
+               （hover/focus 出卡；窄屏点击出底部卡）。 -->
+          <UserCard class="search-result-title" user={{ username, display_name: item.title }}>
+            {item.title || '（无标题）'}
+          </UserCard>
+        {:else}
+          <a class="search-result-title" href={item.url}>
+            {item.title || '（无标题）'}
+          </a>
+        {/if}
         <div class="search-result-meta">
           <span class="badge badge-neutral">
             <Icon name={typeIcon(item.type)} size={11} />

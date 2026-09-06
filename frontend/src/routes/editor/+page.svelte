@@ -5,10 +5,17 @@
   //   Unicode 字数 / 服务端字段错误（422/400/409/429 映射）；
   // - M04-UI-03：登录后 1.5s 防抖自动保存草稿、beforeunload 离开提示、
   //   ?draft= 恢复、409 version_conflict diff 提示（重新加载）、删除（草稿列表页）；
-  // - M04-UI-04：article/discussion 切换、板块、标签（多选，契约暂无字段 →
-  //   置灰+提示）、封面（占位，附件 M6）、定时发布时间（datetime-local → 毫秒）；
+  // - M04-UI-04：板块、标签（多选，契约暂无字段 → 置灰+提示）、封面（占位，
+  //   附件 M6）、定时发布时间（datetime-local → 毫秒）。
+  //   原型对齐：文章/讨论类型切换已移除（产品不再区分文章类型），新内容统一
+  //   以 post_type=discussion 提交（post_type 仍是数据层字段，历史内容不受影响）。
   // - M04-UI-05：可见性选项只展示后端允许等级（≤ 作者当前等级），超等级选项
   //   置灰+提示；前端篡改仍由后端 422 visibility_level_exceeds_author 拒绝。
+  // - GAP-FIX 编辑器增强：Markdown 工具栏（加粗/斜体/标题/引用/代码/链接/
+  //   列表 + Ctrl+B/I，无 JS 降级为纯 textarea）、标签输入（逗号分隔；后端
+  //   CreatePostRequest 暂无 tags 字段 → 提交时静默丢弃 TODO）、付费可见 +
+  //   价格输入（1-1000 B币，price_coin 随发布提交）、内容摘要（summary，
+  //   后端字段落地前随发布提交）。
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -49,19 +56,32 @@
   const MAX_TITLE_CHARS = 200;
   const MAX_MARKDOWN_CHARS = 50_000; // 后端 PostContent 权威上限（Unicode 字符）
   const AUTOSAVE_DEBOUNCE_MS = 1500;
+  /** 内容摘要上限（GAP-FIX 编辑器增强；后端字段落地前仅随发布提交）。 */
+  const MAX_SUMMARY_CHARS = 300;
+  /** 付费帖子价格区间（B 币，GAP-FIX-SPEC 付费解锁：1-1000）。 */
+  const PRICE_MIN = 1;
+  const PRICE_MAX = 1000;
 
   const POLICY_OPTIONS = [
     { value: 'public', label: '公开' },
     { value: 'logged_in', label: '登录可见' },
     { value: 'after_reply', label: '回复解锁' },
-    { value: 'level', label: '等级可见' }
+    { value: 'level', label: '等级可见' },
+    { value: 'paid', label: '付费可见' }
   ] as const;
 
-  let postType = $state<'article' | 'discussion'>('discussion');
+  // 原型对齐：产品不再区分文章/讨论类型——编辑器无类型选择，新内容统一按
+  // discussion 提交（post_type 仍为契约必填字段；?draft= 恢复时草稿内容
+  // 优先，见 hydrateFromDraft）。
+  const POST_TYPE = 'discussion' as const;
+
   let title = $state('');
   let markdown = $state('');
+  let summaryInput = $state('');
+  let tagsInput = $state('');
+  let priceCoinInput = $state('');
   let boardId = $state('');
-  let accessPolicy = $state<'public' | 'logged_in' | 'after_reply' | 'level'>('public');
+  let accessPolicy = $state<'public' | 'logged_in' | 'after_reply' | 'level' | 'paid'>('public');
   let visibilityLevel = $state(1);
   let scheduledAt = $state('');
   // M08-INDEX-03：作者逐帖退出搜索索引 / AI 摘要（管理员全站/板块策略优先）。
@@ -76,6 +96,12 @@
   let previewMode = $state(false);
   let submitting = $state(false);
   let error = $state<Problem | null>(null);
+
+  // ── Markdown 工具栏（GAP-FIX 编辑器增强） ──
+  // 需要Selection API（selectionStart/End + setRangeText），无 JS 环境
+  // 不可用 → 按钮栏挂载后才渲染（textarea 本身始终可直接输入）。
+  let toolbarMounted = $state(false);
+  let editorEl = $state<HTMLTextAreaElement | undefined>(undefined);
 
   // ── 视频引用（M10-UI-01/02） ──
   let videoResolutions = $state<VideoResolveResult[]>([]);
@@ -101,7 +127,7 @@
   const recovery = $derived(problemRecovery(error));
 
   function currentSnapshot(): string {
-    return `${postType}|${title}|${markdown}|${boardId}|${visibilityLevel}|${accessPolicy}|${scheduledAt}|${searchIndexOptOut}|${aiSummaryOptOut}`;
+    return `${title}|${markdown}|${boardId}|${visibilityLevel}|${accessPolicy}|${scheduledAt}|${searchIndexOptOut}|${aiSummaryOptOut}`;
   }
 
   /** M04-UI-05：可见等级选项只展示到作者当前等级，超等级选项置灰。 */
@@ -116,6 +142,9 @@
   );
 
   onMount(async () => {
+    // Markdown 工具栏依赖 Selection API：仅在浏览器挂载后才渲染按钮
+    // （无 JS 环境按钮不出现，textarea 直接可用）。
+    toolbarMounted = true;
     // 并行拉取基础数据；getMe 决定是否启用草稿自动保存与可见等级上限。
     user = await getMe(fetch);
     userLoaded = true;
@@ -145,18 +174,20 @@
   function hydrateFromDraft(draft: Draft) {
     draftId = draft.id;
     draftVersion = draft.version;
-    postType = draft.type === 'article' ? 'article' : 'discussion';
     title = draft.title;
     markdown = draft.markdown;
     if (draft.board_id) boardId = draft.board_id;
     if (draft.visibility_level > 0) visibilityLevel = draft.visibility_level;
     if (draft.access_policy === 'public' || draft.access_policy === 'logged_in' ||
-        draft.access_policy === 'after_reply' || draft.access_policy === 'level') {
+        draft.access_policy === 'after_reply' || draft.access_policy === 'level' ||
+        draft.access_policy === 'paid') {
       accessPolicy = draft.access_policy;
     }
     scheduledAt = msToDatetimeLocal(draft.scheduled_at);
     if (typeof draft.search_index_opt_out === 'boolean') searchIndexOptOut = draft.search_index_opt_out;
     if (typeof draft.ai_summary_opt_out === 'boolean') aiSummaryOptOut = draft.ai_summary_opt_out;
+    // 摘要/标签/价格暂不随草稿保存（DraftCreate/Patch 无对应字段；后端
+    // GAP-FIX BE-2a 落地前仅随发布提交，见 handleSubmit 内 TODO 注释）。
     lastSaved = currentSnapshot();
     dirty = false;
     draftState = 'saved';
@@ -185,6 +216,110 @@
     return () => window.removeEventListener('beforeunload', handler);
   });
 
+  // ── Markdown 工具栏（GAP-FIX 编辑器增强） ────────────────────────────────
+
+  /** 把 [start,end) 替换为 replacement 并同步 state（setRangeText 不触发
+   *  input 事件，需手动回写 bind:value 绑定的 markdown）。 */
+  function applyEdit(
+    start: number,
+    end: number,
+    replacement: string,
+    caret: number,
+    caretEnd?: number
+  ): void {
+    if (!editorEl) return;
+    const el = editorEl;
+    el.focus();
+    el.setRangeText(replacement, start, end);
+    el.setSelectionRange(caret, caretEnd ?? caret);
+    markdown = el.value;
+  }
+
+  /** 选区包裹语法（如 **加粗**）；无选区时插入占位词并选中，便于直接输入。 */
+  function wrapSelection(prefix: string, suffix: string, placeholder: string): void {
+    if (!editorEl) return;
+    const start = editorEl.selectionStart ?? 0;
+    const end = editorEl.selectionEnd ?? 0;
+    const selected = markdown.slice(start, end) || placeholder;
+    applyEdit(
+      start,
+      end,
+      `${prefix}${selected}${suffix}`,
+      start + prefix.length,
+      start + prefix.length + selected.length
+    );
+  }
+
+  /** 行前缀语法（标题/引用/列表）：对选区覆盖的所有行加前缀。 */
+  function prefixLines(prefix: string): void {
+    if (!editorEl) return;
+    const start = editorEl.selectionStart ?? 0;
+    const end = editorEl.selectionEnd ?? start;
+    const from = markdown.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+    let to = markdown.indexOf('\n', end);
+    if (to === -1) to = markdown.length;
+    const replaced = markdown
+      .slice(from, to)
+      .split('\n')
+      .map((line) => prefix + line)
+      .join('\n');
+    applyEdit(from, to, replaced, from + replaced.length);
+  }
+
+  /** 链接：[选中文字](url)——选中文字作链接文本，光标落在 URL 处。 */
+  function insertLink(): void {
+    if (!editorEl) return;
+    const start = editorEl.selectionStart ?? 0;
+    const end = editorEl.selectionEnd ?? 0;
+    const selected = markdown.slice(start, end) || '链接文字';
+    const replacement = `[${selected}](https://)`;
+    const urlStart = start + selected.length + 3;
+    applyEdit(start, end, replacement, urlStart, urlStart + 8);
+  }
+
+  /** M18-EDITOR-01：表格插入模板（对齐原型工具栏）。 */
+  function insertTable(): void {
+    if (!editorEl) return;
+    const tableTemplate = '\n| 标题 1 | 标题 2 |\n| ------ | ------ |\n| 内容 1 | 内容 2 |\n';
+    wrapSelection(tableTemplate, '', '');
+  }
+
+  /** 编辑器内快捷键：Ctrl/Cmd+B 加粗、Ctrl/Cmd+I 斜体。 */
+  function handleEditorKeydown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key === 'b') {
+      event.preventDefault();
+      wrapSelection('**', '**', '加粗文字');
+    } else if (key === 'i') {
+      event.preventDefault();
+      wrapSelection('*', '*', '斜体文字');
+    }
+  }
+
+  // ── 标签 / 摘要 / 付费价格（GAP-FIX 编辑器增强） ─────────────────────────
+
+  /** 逗号（中英文都支持）分隔标签输入 → 提交用的数组（最多 8 个）。 */
+  const parsedTags = $derived(
+    tagsInput
+      .split(/[,，]/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .slice(0, 8)
+  );
+
+  /** 付费价格校验：access_policy=paid 时必填，1-1000 整数（B 币）。 */
+  const priceError = $derived.by(() => {
+    if (accessPolicy !== 'paid') return null;
+    const raw = priceCoinInput.trim();
+    if (!raw) return `付费帖子需设定价格（${PRICE_MIN}-${PRICE_MAX} B币）`;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < PRICE_MIN || n > PRICE_MAX) {
+      return `价格需为 ${PRICE_MIN}-${PRICE_MAX} 之间的整数（B币）`;
+    }
+    return null;
+  });
+
   function patchInput(): DraftPatchInput {
     const patch: DraftPatchInput = {
       title: title.trim() || undefined,
@@ -208,7 +343,7 @@
         draftVersion = updated.version;
       } else {
         const input: DraftCreateInput = {
-          type: postType,
+          type: POST_TYPE,
           title: title.trim() || '未命名草稿',
           markdown: markdown.trim() || '（空草稿）',
           visibility_level: visibilityLevel,
@@ -278,11 +413,17 @@
       return;
     }
     if (!title.trim() || !markdown.trim() || !boardId) return;
+    // 付费价格前端校验（1-1000 B币）；不合法则停在编辑器展示 inline 错误。
+    if (priceError) return;
     submitting = true;
     error = null;
     published = null;
-    const input: PostCreateInput = {
-      type: postType,
+    // GAP-FIX 付费解锁：price_coin 随发布提交（access_policy=paid 时）。
+    // TODO(BE-2a)：后端 CreatePostRequest 暂未接收 price_coin/summary 字段
+    // （grep backend/src/routes/posts.rs 确认；serde 默认忽略未知字段，
+    // 提交不报错），后端按 GAP-FIX-SPEC 落地后本字段即生效。
+    const input: PostCreateInput & { price_coin?: number; summary?: string } = {
+      type: POST_TYPE,
       title: title.trim(),
       markdown: markdown.trim(),
       board_id: boardId,
@@ -293,6 +434,11 @@
       scheduled_at: scheduledToMs(scheduledAt),
       client_request_id: newClientRequestId()
     };
+    if (accessPolicy === 'paid') input.price_coin = Number(priceCoinInput.trim());
+    // 原型对齐：摘要对所有内容开放（不再限文章类型）。
+    if (summaryInput.trim()) input.summary = summaryInput.trim();
+    // 标签输入（tags）：TODO(BE-2a) 后端 CreatePostRequest 暂无 tags 字段，
+    // 提交时静默丢弃（parsedTags 仅作输入预览），后端落地后改为随 body 提交。
     try {
       const result = await createPost(fetch, input);
       // 视频引用（M10-UI-02）：只提交 resolution_id + 允许字段；创建失败
@@ -382,19 +528,19 @@
 </script>
 
 <svelte:head>
-  <title>发布 — BBLBB</title>
+  <title>发布内容 — BBLBB</title>
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    {#if draftId}
-      <a href="/me/drafts" class="breadcrumb-link">草稿</a>
-      <span class="breadcrumb-sep">/</span>
-    {/if}
-    <span class="breadcrumb-current">发布新帖</span>
+  <!-- 原型对齐（prototype/pages/publish.html）：位置导航用 topic-context + sr-only h1，不用 .breadcrumb。 -->
+  <nav class="topic-context" aria-label="发布位置">
+    <a href="/">首页</a>
+    <span aria-hidden="true">/</span>
+    <a href="/me">我的</a>
+    <span aria-hidden="true">/</span>
+    <span class="topic-context__current">发布内容</span>
   </nav>
+  <h1 class="sr-only" tabindex="-1">发布内容</h1>
 
   <form class="publish-layout" onsubmit={handleSubmit}>
     <div class="publish-main">
@@ -409,27 +555,13 @@
         </div>
       {/if}
 
-      <div class="card" style="margin-bottom:var(--space-4);">
-        <div class="card-body" role="group" aria-label="帖子类型">
-          <span class="card-title" style="display:block;margin-bottom:var(--space-2);">帖子类型</span>
-          <label class="radio-inline" style="margin-right:var(--space-4);">
-            <input type="radio" name="post_type" value="discussion" bind:group={postType} checked={postType === 'discussion'} />
-            讨论
-          </label>
-          <label class="radio-inline">
-            <input type="radio" name="post_type" value="article" bind:group={postType} checked={postType === 'article'} />
-            文章
-          </label>
-        </div>
-      </div>
-
       <div class="publish-title-field">
         <label for="publish-title">标题</label>
         <div class="publish-title-control">
           <input
             type="text"
             class="input-field publish-title-input"
-            placeholder="一句话说清你想讨论什么…"
+            placeholder="一句话说清你想表达什么…"
             bind:value={title}
             id="publish-title"
             maxlength={MAX_TITLE_CHARS}
@@ -438,6 +570,23 @@
           <span class="publish-title-hint">{charCount(title)} / {MAX_TITLE_CHARS}</span>
         </div>
         {#if titleError}<p class="input-hint is-error" role="alert">{titleError}</p>{/if}
+      </div>
+
+      <!-- 内容摘要（GAP-FIX 编辑器增强）：原型对齐，对所有内容开放
+           （文章类型移除后不再条件显示）。
+           TODO(BE-2a)：后端暂无 summary 字段（grep posts.rs 确认），随发布
+           提交、当前被忽略；落地后用于列表/搜索摘要展示。 -->
+      <div class="publish-title-field">
+        <label for="publish-summary">摘要（可选）</label>
+        <textarea
+          class="input-field"
+          id="publish-summary"
+          placeholder="一两句话概括内容，将展示在列表与搜索结果中…"
+          bind:value={summaryInput}
+          rows="2"
+          maxlength={MAX_SUMMARY_CHARS}
+        ></textarea>
+        <p class="input-hint">最多 {MAX_SUMMARY_CHARS} 字；留空由系统自动截取。</p>
       </div>
 
       <div class="card">
@@ -449,11 +598,33 @@
               <SafeHtml html={renderSafeMarkdown(markdown) || '<p class="text-tertiary">（空内容）</p>'} />
             </div>
           {:else}
+            {#if toolbarMounted}
+              <!-- Markdown 工具栏：依赖 Selection API（onMount 后才渲染），
+                   无 JS 环境不出现，textarea 仍可直接书写 Markdown。 -->
+              <div
+                class="editor-toolbar"
+                role="toolbar"
+                aria-label="Markdown 格式化"
+                style="display:flex;flex-wrap:wrap;gap:var(--space-1);padding:var(--space-2) var(--space-4);border-bottom:var(--border-default);"
+              >
+                <button type="button" class="btn btn-ghost btn-sm" title="加粗（Ctrl+B）" aria-label="加粗" onclick={() => wrapSelection('**', '**', '加粗文字')}><strong>B</strong></button>
+                <button type="button" class="btn btn-ghost btn-sm" title="斜体（Ctrl+I）" aria-label="斜体" onclick={() => wrapSelection('*', '*', '斜体文字')}><em>I</em></button>
+                <button type="button" class="btn btn-ghost btn-sm" title="标题（行前加 ##）" aria-label="标题" onclick={() => prefixLines('## ')}>H2</button>
+                <button type="button" class="btn btn-ghost btn-sm" title="引用（行前加 >）" aria-label="引用" onclick={() => prefixLines('> ')}>&ldquo;&rdquo;</button>
+                <button type="button" class="btn btn-ghost btn-sm" title="行内代码" aria-label="行内代码" onclick={() => wrapSelection('`', '`', '代码')}>&lt;/&gt;</button>
+                <button type="button" class="btn btn-ghost btn-sm" title="链接" aria-label="链接" onclick={insertLink}>🔗</button>
+                <button type="button" class="btn btn-ghost btn-sm" title="无序列表（行前加 -）" aria-label="无序列表" onclick={() => prefixLines('- ')}>•&mdash;</button>
+                <!-- M18-EDITOR-01：表格工具按钮（对齐原型） -->
+                <button type="button" class="btn btn-ghost btn-sm" title="插入表格" aria-label="表格" onclick={insertTable}>⊞</button>
+              </div>
+            {/if}
             <textarea
               class="editor-textarea"
               id="publish-content"
-              placeholder="使用 Markdown 编写内容…"
+              placeholder="使用 Markdown 编写内容…（Ctrl+B 加粗 / Ctrl+I 斜体）"
               bind:value={markdown}
+              bind:this={editorEl}
+              onkeydown={handleEditorKeydown}
               rows="16"
               maxlength={MAX_MARKDOWN_CHARS}
             ></textarea>
@@ -501,20 +672,53 @@
           </div>
 
           <div class="input-wrapper">
-            <label class="input-label" for="publish-visibility">可见性</label>
-            <select class="input-field" id="publish-visibility" bind:value={accessPolicy}>
+            <span class="input-label">内容可见性</span>
+            <!-- M18-EDITOR-02：4 选项卡（对齐原型 radio 卡片设计） -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:var(--space-2);margin-top:var(--space-1);">
               {#each POLICY_OPTIONS as option}
-                <option value={option.value}>{option.label}</option>
+                <label
+                  style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid {accessPolicy === option.value ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-sm);background:{accessPolicy === option.value ? 'var(--color-bg-subtle)' : 'transparent'};cursor:pointer;font-size:var(--text-sm);user-select:none;"
+                >
+                  <input
+                    type="radio"
+                    name="access_policy_radio"
+                    value={option.value}
+                    checked={accessPolicy === option.value}
+                    onchange={() => (accessPolicy = option.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
               {/each}
-              <option value="paid" disabled>付费可见（即将开放）</option>
-            </select>
+            </div>
             {#if accessPolicy === 'level'}
-              <label class="input-label" for="publish-level" style="margin-top:var(--space-2);">最低可见等级</label>
+              <label class="input-label" for="publish-level" style="margin-top:var(--space-3);">最低可见等级</label>
               <select class="input-field" id="publish-level" bind:value={visibilityLevel}>
                 {#each levelOptions as level}
                   <option value={level} disabled={level > userLevel}>{level}（LV.{level}）</option>
                 {/each}
               </select>
+            {/if}
+            {#if accessPolicy === 'paid'}
+              <!-- 付费可见（GAP-FIX 付费解锁）：价格 1-1000 B币，前端校验；
+                   price_coin 随发布提交（后端字段见上方 TODO 注释）。 -->
+              <label class="input-label" for="publish-price" style="margin-top:var(--space-3);">价格（B币）</label>
+              <input
+                type="number"
+                class="input-field"
+                id="publish-price"
+                bind:value={priceCoinInput}
+                min={PRICE_MIN}
+                max={PRICE_MAX}
+                step="1"
+                inputmode="numeric"
+                placeholder="1-1000"
+                aria-invalid={priceError ? 'true' : undefined}
+              />
+              {#if priceError}
+                <p class="input-hint is-error" role="alert">{priceError}</p>
+              {:else}
+                <p class="input-hint">读者需支付 {PRICE_MIN}-{PRICE_MAX} B币解锁正文；余额不足时无法解锁。</p>
+              {/if}
             {/if}
             {#if !user}
               <p class="input-hint">登录后可见等级选项按你的等级启用；越级提交仍会被服务端拒绝。</p>
@@ -597,15 +801,35 @@
           />
 
           <div class="input-wrapper">
-            <span class="input-label" id="publish-tags-label">标签</span>
-            <div class="tag-cloud" role="group" aria-labelledby="publish-tags-label" aria-disabled="true">
-              {#each tags.slice(0, 12) as tag}
-                <button type="button" class="tag-chip" disabled title="标签功能将在后续版本开放（当前契约暂不支持帖内标签）">
-                  {tag.name}
-                </button>
+            <!-- 标签输入（GAP-FIX 编辑器增强）：逗号分隔（中英文逗号均可）。
+                 TODO(BE-2a)：后端 CreatePostRequest 暂无 tags 字段（grep
+                 backend/src/routes/posts.rs 确认），提交时静默丢弃；后端落地
+                 后在 handleSubmit 中随 body 一并提交。 -->
+            <label class="input-label" for="publish-tags">标签（可选）</label>
+            <input
+              type="text"
+              class="input-field"
+              id="publish-tags"
+              bind:value={tagsInput}
+              placeholder="逗号分隔，如：前端, Svelte, 教程"
+              list="publish-tags-options"
+              autocomplete="off"
+            />
+            <datalist id="publish-tags-options">
+              {#each tags.slice(0, 30) as tag}
+                <option value={tag.name}></option>
               {/each}
-            </div>
-            <p class="input-hint">标签功能将在后续版本开放（当前契约暂不支持帖内标签）。</p>
+            </datalist>
+            {#if parsedTags.length > 0}
+              <div class="tag-cloud" style="margin-top:var(--space-2);" aria-label="已输入的标签">
+                {#each parsedTags as tag}
+                  <span class="tag-chip">{tag}</span>
+                {/each}
+              </div>
+              <p class="input-hint">已识别 {parsedTags.length} 个标签（最多 8 个，超出部分忽略）；标签功能上线前仅作记录。</p>
+            {:else}
+              <p class="input-hint">多个标签用逗号分隔；标签功能上线后将展示在帖子与标签聚合页。</p>
+            {/if}
           </div>
 
           <div class="input-wrapper">
@@ -616,17 +840,36 @@
         </div>
       </div>
 
-      {#if draftId}
-        <a class="btn btn-secondary btn-sm" style="margin-top:var(--space-2);width:100%;text-align:center;" href="/me/drafts">查看我的草稿</a>
-      {/if}
-      <Button
-        text={submitting ? '发布中…' : scheduledAt ? '定时发布' : '立即发布'}
-        variant="primary"
-        size="lg"
-        type="submit"
-        extraClass="btn-block"
-        disabled={submitting}
-      />
+      <!-- M18-EDITOR-03：页脚操作区对齐原型（保存草稿 + 立即发布 + 草稿箱链接） -->
+      <div style="display:flex;gap:var(--space-2);margin-top:var(--space-3);align-items:center;">
+        {#if user}
+          <button
+            type="button"
+            class="btn btn-secondary"
+            style="flex:1;"
+            onclick={() => void saveDraft()}
+            disabled={draftState === 'saving' || (!title.trim() && !markdown.trim())}
+          >
+            {draftState === 'saving' ? '保存中…' : '保存草稿'}
+          </button>
+        {/if}
+        <div style={user ? 'flex:2;' : 'width:100%;'}>
+          <Button
+            text={submitting ? '发布中…' : scheduledAt ? '定时发布' : '立即发布'}
+            variant="primary"
+            size="lg"
+            type="submit"
+            extraClass="btn-block"
+            disabled={submitting}
+          />
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-2);">
+        <span class="text-tertiary" style="font-size:var(--text-xs);">
+          {draftStateLabel ?? '草稿自动保存已开启'}
+        </span>
+        <a class="text-link" style="font-size:var(--text-xs);" href="/me/drafts">进入草稿箱 →</a>
+      </div>
       <p class="input-hint" style="margin-top:var(--space-2);">
         发布即表示你同意社区规范；发布后内容仍可编辑，正文以服务端渲染结果为准。
       </p>

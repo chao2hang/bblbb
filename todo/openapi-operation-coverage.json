@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 193,
+  "expected_operations": 223,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -353,6 +353,74 @@
       "evidence": "M02-IDENTITY-06/UX-02: 一次性 token 原子激活；无效统一 400；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
+      "operation_id": "get_me_api_keys",
+      "method": "GET",
+      "path": "/api/v1/me/api-keys",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/apikeys.rs::list_my_api_keys",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_me_api_keys",
+      "method": "POST",
+      "path": "/api/v1/me/api-keys",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/apikeys.rs::create_api_key",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "delete_me_api_keys_id",
+      "method": "DELETE",
+      "path": "/api/v1/me/api-keys/{id}",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/apikeys.rs::revoke_api_key",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_me_password",
+      "method": "POST",
+      "path": "/api/v1/me/password",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/economy_ext.rs::change_my_password",
+      "tests": [
+        "backend/tests/economy_ext.rs"
+      ],
+      "evidence": "M17-GAPFIX-03（经济与个人域，迁移 0062_economy_ext）：cargo test --test economy_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
       "operation_id": "listAdminBoards",
       "method": "GET",
       "path": "/api/v1/admin/boards",
@@ -457,6 +525,40 @@
         "backend/tests/boards_no_leak.rs"
       ],
       "evidence": "（M03-BOARDS-03/04/08）get_board：board_read_gate 可见性门（public 匿名可见/members 有效已登录/restricted 板块角色或管理通道/hidden 管理权限一律 404 不泄漏）+ deleted_at/is_active 活跃投影 + Cache-Control 按可见性裁剪 + 匿名=Option；x-permission=board.read；测试：boards_visibility（public 匿名/members 匿名 401+banned 状态门/restricted 角色边界/hidden 匿名 401+成员 404+管理员可见）、boards_pagination（详情缓存策略）、boards_no_leak（hidden 与不存在 slug 完全不可区分含错误体一致性）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "delete_boards_slug_follow",
+      "method": "DELETE",
+      "path": "/api/v1/boards/{slug}/follow",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/follows.rs::unfollow_board",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_boards_slug_follow",
+      "method": "POST",
+      "path": "/api/v1/boards/{slug}/follow",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/follows.rs::follow_board",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
     },
     {
       "operation_id": "listTags",
@@ -799,6 +901,74 @@
       "evidence": "M03-PROFILE-02/05/06/09 implemented：PublicProfile allowlist 九字段（id/username/display_name/bio/level/avatar_attachment_id/cover_attachment_id/signature/created_at），键集严格断言；deleted→404（不泄漏存在性）；banned/pending_delete→200 降级投影（bio/signature/avatar/cover=null，无状态泄漏）；媒体只回附件 UUID（稳定端点 /api/v1/attachments/{id} 由 M6 落地）；x-permission=user.read_public；测试：user_dto（allowlist/作者卡稳定 profile_url）、public_profile_leak（无泄漏+降级+404）、user_leak_sweep（匿名/跨用户/本人三视角无邮箱泄漏）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
+      "operation_id": "delete_users_username_follow",
+      "method": "DELETE",
+      "path": "/api/v1/users/{username}/follow",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/follows.rs::unfollow_user",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_users_username_follow",
+      "method": "POST",
+      "path": "/api/v1/users/{username}/follow",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/follows.rs::follow_user",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "get_users_username_followers",
+      "method": "GET",
+      "path": "/api/v1/users/{username}/followers",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/follows.rs::list_followers",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "get_users_username_following",
+      "method": "GET",
+      "path": "/api/v1/users/{username}/following",
+      "primary_tag": "Users",
+      "milestone": "M3",
+      "work_package": "M03-PROFILE",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/follows.rs::list_following",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
       "operation_id": "delete_comments_id_",
       "method": "DELETE",
       "path": "/api/v1/comments/{id}",
@@ -1026,6 +1196,57 @@
       "evidence": "M04-POSTS-06/10: 即时/定时发布 createPost——validate_post_create→幂等门(scope post.create)→publish_new_post(publish_preflight→事务写 posts/post_contents/post_revisions→板块计数→搜索索引)；scheduled_at 未来→draft 态由 content.publish Job 到期再预检发布；重复请求同 key 重放返回原帖；集成测试 posts_publish.rs/posts_tx.rs；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
+      "operation_id": "delete_posts_id_favorite",
+      "method": "DELETE",
+      "path": "/api/v1/posts/{id}/favorite",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/favorites.rs::unfavorite_post",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_posts_id_favorite",
+      "method": "POST",
+      "path": "/api/v1/posts/{id}/favorite",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/favorites.rs::favorite_post",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_posts_id_unlock",
+      "method": "POST",
+      "path": "/api/v1/posts/{id}/unlock",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/economy_ext.rs::unlock_post",
+      "tests": [
+        "backend/tests/economy_ext.rs"
+      ],
+      "evidence": "M17-GAPFIX-03（经济与个人域，迁移 0062_economy_ext）：cargo test --test economy_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
       "operation_id": "getPost",
       "method": "GET",
       "path": "/api/v1/posts/{postId}",
@@ -1061,6 +1282,24 @@
         "backend/tests/posts_tx.rs"
       ],
       "evidence": "M04-POSTS-08/10: 编辑帖子 If-Match 版本冲突 409→不可变修订（version+1，UNIQUE 兜底并发）→post_contents 重渲染；管理员代改需 post.moderate+reason+step-up+审计；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "listTagPosts",
+      "method": "GET",
+      "path": "/api/v1/tags/{slug}/posts",
+      "primary_tag": "Posts",
+      "milestone": "M4",
+      "work_package": "M04-POSTS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "verified",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/boards.rs::list_tag_posts",
+      "tests": [
+        "frontend/src/routes/tags/[slug]/+page.server.ts",
+        "scripts/check-contract.rb"
+      ],
+      "evidence": "files=backend/src/routes/boards.rs; curl 200 items OK"
     },
     {
       "operation_id": "listPostRevisions",
@@ -1316,6 +1555,23 @@
         "backend/tests/moderation/appeals.rs"
       ],
       "evidence": "cargo test --test moderation_appeals 8 pass; contract=申诉撤回; commit=f242434; review=withdraw_appeal 断言；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "get_me_sanctions",
+      "method": "GET",
+      "path": "/api/v1/me/sanctions",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/economy_ext.rs::list_my_sanctions",
+      "tests": [
+        "backend/tests/economy_ext.rs"
+      ],
+      "evidence": "M17-GAPFIX-03（经济与个人域，迁移 0062_economy_ext）：cargo test --test economy_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
     },
     {
       "operation_id": "listOwnReports",
@@ -1800,6 +2056,23 @@
       "evidence": "cargo test --test download_billing 8 pass; contract=附件级下载策略/站点计费配置管理(download_billing.manage + reason + 审计); commit=3a46751; review=disabled_policy_rejects_download + audit_and_outbox_written_in_same_tx；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
+      "operation_id": "get_achievements",
+      "method": "GET",
+      "path": "/api/v1/achievements",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/achievements.rs::list_achievements",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
       "operation_id": "get_activity_summary",
       "method": "GET",
       "path": "/api/v1/activity/summary",
@@ -1951,6 +2224,108 @@
         "backend/tests/reactions.rs"
       ],
       "evidence": "；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "get_me_achievements",
+      "method": "GET",
+      "path": "/api/v1/me/achievements",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/achievements.rs::list_my_achievements",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "delete_me_achievements_code_equip",
+      "method": "DELETE",
+      "path": "/api/v1/me/achievements/{code}/equip",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/achievements.rs::unequip_achievement",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "put_me_achievements_code_equip",
+      "method": "PUT",
+      "path": "/api/v1/me/achievements/{code}/equip",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/achievements.rs::equip_achievement",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "get_me_favorites",
+      "method": "GET",
+      "path": "/api/v1/me/favorites",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/favorites.rs::list_my_favorites",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "get_me_following",
+      "method": "GET",
+      "path": "/api/v1/me/following",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/follows.rs::list_my_following",
+      "tests": [
+        "backend/tests/favorites_follows.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "get_me_point_transactions",
+      "method": "GET",
+      "path": "/api/v1/me/point-transactions",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/economy_ext.rs::list_my_point_transactions",
+      "tests": [
+        "backend/tests/economy_ext.rs"
+      ],
+      "evidence": "M17-GAPFIX-03（经济与个人域，迁移 0062_economy_ext）：cargo test --test economy_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
     },
     {
       "operation_id": "post_posts_id_reactions",
@@ -2826,6 +3201,40 @@
       "evidence": "M11 complete: discovery issuer-derived endpoints; cargo test --test oidc (17 passed); commit=1e2d98b"
     },
     {
+      "operation_id": "get_me_oauth_grants",
+      "method": "GET",
+      "path": "/api/v1/me/oauth-grants",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/economy_ext.rs::list_my_oauth_grants",
+      "tests": [
+        "backend/tests/economy_ext.rs"
+      ],
+      "evidence": "M17-GAPFIX-03（经济与个人域，迁移 0062_economy_ext）：cargo test --test economy_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "delete_me_oauth_grants_client_id",
+      "method": "DELETE",
+      "path": "/api/v1/me/oauth-grants/{client_id}",
+      "primary_tag": "OAuth",
+      "milestone": "M11",
+      "work_package": "M11-PROTOCOL",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/economy_ext.rs::revoke_my_oauth_grant",
+      "tests": [
+        "backend/tests/economy_ext.rs"
+      ],
+      "evidence": "M17-GAPFIX-03（经济与个人域，迁移 0062_economy_ext）：cargo test --test economy_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
       "operation_id": "get_oauth_interactions_id_",
       "method": "GET",
       "path": "/api/v1/oauth/interactions/{id}",
@@ -3392,6 +3801,108 @@
         "backend/tests/admin_routes.rs"
       ],
       "evidence": "M13-THEME shipped: 0057_theme.sql; theme domain closed-token schema, fallback, revision; backend/tests/theme.rs + profile_routes.rs; frontend theme projection; check-roadmap exit 0; commit=eca6120"
+    },
+    {
+      "operation_id": "get_conversations",
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "primary_tag": "Messages",
+      "milestone": "M17",
+      "work_package": "M17-GAPFIX",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/conversations.rs::list_conversations",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_conversations",
+      "method": "POST",
+      "path": "/api/v1/conversations",
+      "primary_tag": "Messages",
+      "milestone": "M17",
+      "work_package": "M17-GAPFIX",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/conversations.rs::create_conversation",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "get_conversations_id_messages",
+      "method": "GET",
+      "path": "/api/v1/conversations/{id}/messages",
+      "primary_tag": "Messages",
+      "milestone": "M17",
+      "work_package": "M17-GAPFIX",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/conversations.rs::list_messages",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_conversations_id_messages",
+      "method": "POST",
+      "path": "/api/v1/conversations/{id}/messages",
+      "primary_tag": "Messages",
+      "milestone": "M17",
+      "work_package": "M17-GAPFIX",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/conversations.rs::send_message",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_conversations_id_read",
+      "method": "POST",
+      "path": "/api/v1/conversations/{id}/read",
+      "primary_tag": "Messages",
+      "milestone": "M17",
+      "work_package": "M17-GAPFIX",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/conversations.rs::mark_read",
+      "tests": [
+        "backend/tests/conversations.rs"
+      ],
+      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "get_stats",
+      "method": "GET",
+      "path": "/api/v1/stats",
+      "primary_tag": "Stats",
+      "milestone": "M17",
+      "work_package": "M17-GAPFIX",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/admin_ext.rs::get_public_stats",
+      "tests": [
+        "backend/tests/admin_ext.rs"
+      ],
+      "evidence": "M17-GAPFIX-02（管理/运营域，迁移 0061_admin_ext）：cargo test --test admin_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
     }
   ]
 }

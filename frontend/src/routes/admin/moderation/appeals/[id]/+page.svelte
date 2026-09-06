@@ -37,21 +37,16 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">复核申诉</span>
-  </nav>
 
   {#if data.forbidden}
-    <div class="card">
+    <div class="app-card">
       <div class="card-body" role="alert" data-testid="admin-appeal-forbidden">
         <p class="form-error">无权复核该申诉：{data.message ?? '需要 moderation.sanction 权限'}</p>
       </div>
     </div>
   {:else if !appeal}
-    <div class="card">
-      <div class="card-body">
+    <div class="app-card">
+      <div class="app-card__body">
         {#if form?.message}<p class="form-error" role="alert">{form.message}</p>{/if}
         {#if okMessage}<p class="form-success" role="status">{okMessage}</p>{/if}
         <EmptyState icon="scale" title="未找到申诉" desc="该申诉不存在或当前角色无权查看" />
@@ -61,8 +56,8 @@
     {#if form?.message}<p class="form-error" role="alert">{form.message}</p>{/if}
     {#if okMessage}<p class="form-success" role="status" data-testid="admin-appeal-ok">{okMessage}</p>{/if}
 
-    <div class="card">
-      <div class="card-header">
+    <div class="app-card">
+      <div class="app-card__head">
         <span class="card-title">申诉 <code>{appeal.id}</code></span>
         <span class="badge">{statusLabels[appeal.status] ?? appeal.status}</span>
       </div>
@@ -86,9 +81,9 @@
     </div>
 
     {#if !isDecided}
-      <div class="card" style="margin-top:var(--space-4);">
-        <div class="card-header"><span class="card-title">作出决定</span></div>
-        <div class="card-body">
+      <div class="app-card" style="margin-top:var(--space-4);">
+        <div class="app-card__head"><h2>作出决定</h2></div>
+        <div class="app-card__body">
           <form method="POST" action="?/decide" use:enhance class="stack">
             <label>
               <span class="field-label">决定</span>

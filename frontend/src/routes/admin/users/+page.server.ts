@@ -13,6 +13,10 @@ export interface AdminUserItem {
   display_name: string | null;
   level: number;
   roles: string[];
+  /** B币实时余额（point_accounts；无账户 = 0）。 */
+  coin_balance: number;
+  /** 经验实时余额。 */
+  exp_balance: number;
   created_at: number;
   updated_at: number;
   last_login_at: number | null;

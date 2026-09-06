@@ -1,6 +1,6 @@
 # BBLBB
 
-BBLBB 是一个使用 **Rust + SvelteKit** 构建的轻量社区论坛，兼顾博客式内容发布与论坛讨论体验。
+BBLBB 是一个使用 **Rust + SvelteKit** 构建的轻量社区论坛，统一内容发布与论坛讨论体验。
 
 项目的 **v0.5 正式需求基线已于 2026-08-04 冻结**，仓库当前以可实施规格文档和高保真原型为主；统一文档状态和 v1.0 发布矩阵见 [`docs/DOCUMENT-STATUS.md`](docs/DOCUMENT-STATUS.md)，已确认决策见 [`docs/PRODUCT-DECISIONS.md`](docs/PRODUCT-DECISIONS.md)。
 
@@ -8,10 +8,14 @@ BBLBB 是一个使用 **Rust + SvelteKit** 构建的轻量社区论坛，兼顾�
 
 - SQLite 默认运行，同时支持 MySQL 8 和 MariaDB 10.11
 - 用户、Session、多角色和板块级权限管理
-- 文章、讨论、板块、标签与楼层回复
+- 内容（统一发布，不再区分文章/讨论）、板块、标签与楼层回复
 - 举报、审核、处罚、申诉与不可变审计
 - 积分、货币、等级与受限内容解锁
 - 内部积分商城、昵称/头像装扮、签到任务与社区互动氛围
+- 社交：关注用户与板块、帖子收藏、双向私信与已读状态
+- 成就系统：解锁进度、徽章装备位（3 槽）与管理授予
+- 个人 API 密钥（scopes 白名单，明文仅创建时返回一次）
+- RSS/Atom 内容订阅、sitemap 与公开站点统计
 - 安全公开市场 API、原子购买扣款与不可变入账
 - 受控大模型 Gateway，用于格式化、内容审计和 SEO 辅助
 - 视频嵌入插件，支持常见视频 URL、HLS 和西瓜视频安全引用
@@ -51,6 +55,8 @@ Caddy
 | [`SCHEMA.md`](docs/SCHEMA.md) | 双数据库数据模型与事务规则 |
 | [`openapi/openapi.yaml`](openapi/openapi.yaml) | 机器可读 API 契约，作为接口字段事实来源 |
 | [`API.md`](docs/API.md) / [`API-CONTRACTS.md`](docs/API-CONTRACTS.md) | API 跨端点规则、资源 DTO、错误、分页、幂等与缓存 |
+| [`API-COMPATIBILITY.md`](docs/API-COMPATIBILITY.md) | v1 兼容策略与弃用流程 |
+| [`MARKDOWN.md`](docs/MARKDOWN.md) | Markdown 渲染管线与策略变更管理 |
 | [`AUTH-OIDC.md`](docs/AUTH-OIDC.md) | 本地认证、Session、CSRF 与 OIDC |
 | [`AUTHORIZATION.md`](docs/AUTHORIZATION.md) | RBAC、板块角色和对象级权限 |
 | [`INTERNAL-MARKETPLACE.md`](docs/INTERNAL-MARKETPLACE.md) | 内部积分商城、装扮、签到、活跃任务和社区反应 |
@@ -61,11 +67,13 @@ Caddy
 | [`MODERATION.md`](docs/MODERATION.md) | 举报、审核、处罚与申诉 |
 | [`SECURITY.md`](docs/SECURITY.md) | 威胁模型和安全基线 |
 | [`CRAWLER-POLICY.md`](docs/CRAWLER-POLICY.md) | 搜索索引、AI 爬虫、页面投影和批量访问策略 |
+| [`SEARCH.md`](docs/SEARCH.md) | 搜索索引存储契约 |
 | [`FRONTEND.md`](docs/FRONTEND.md) | SvelteKit、SSR、SEO 与可访问性 |
 | [`THEME.md`](docs/THEME.md) | 数据型和可信代码型主题 |
 | [`PROTOTYPE-IA.md`](docs/PROTOTYPE-IA.md) | 原型信息架构、路由与页面流程 |
 | [`PROTOTYPE-UI.md`](docs/PROTOTYPE-UI.md) | 设计 Token 与组件系统规格 |
 | [`PLUGIN.md`](docs/PLUGIN.md) | 配置型插件与未来 WASM 边界 |
+| [`PLUGIN-AUTHORING.md`](docs/PLUGIN-AUTHORING.md) | 插件编写指南与可安装范例 |
 | [`JOBS.md`](docs/JOBS.md) | 后台任务、Outbox 与重试 |
 | [`STORAGE.md`](docs/STORAGE.md) | 本地/S3 附件和媒体处理 |
 | [`OPERATIONS.md`](docs/OPERATIONS.md) | 部署、升级、备份与恢复 |
@@ -74,6 +82,8 @@ Caddy
 | [`RETENTION-PRIVACY.md`](docs/RETENTION-PRIVACY.md) | 数据保留、导出、注销和第三方隐私 |
 | [`TERMINOLOGY.md`](docs/TERMINOLOGY.md) | 统一业务术语 |
 | [`TESTING.md`](docs/TESTING.md) | 三数据库与安全验收矩阵 |
+| [`FIXTURES.md`](docs/FIXTURES.md) | 测试 Fixture 与可控性约定 |
+| [`CI-LAYERS.md`](docs/CI-LAYERS.md) | CI 四层分层与最小复现命令 |
 
 ## 原型
 
@@ -81,21 +91,32 @@ Caddy
 
 - 纯 HTML + CSS + 原生 JavaScript，无构建步骤、无依赖安装。
 - `js/mock.js` 提供全部演示数据，原型不访问真实后端。
-- 图标通过 CDN 加载 Lucide，离线环境下图标不显示，功能不受影响。
+- 图标为内联 SVG 图标表（提取自 lucide-static，由 `assets/chaos.js` 注入 `[data-icon]` 占位符），无 CDN 依赖，离线环境图标正常显示。
 
 原型仅用于设计验证，不是生产代码；正式前端按 `docs/FRONTEND.md` 以 SvelteKit 实现。
 
+## 微信小程序
+
+[`miniprogram/`](miniprogram/) 是社区论坛的微信小程序端（原生小程序，无构建步骤、无第三方依赖），
+对接后端 `/api/v1` REST API：认证（邮箱/用户名 + 密码，含 MFA 两步）、板块/帖子/楼层评论/搜索、
+发帖/编辑/收藏/点赞、每日签到与等级经验、成就、积分商城与装扮、设备会话管理。
+认证复用后端既有的**会话 Cookie + CSRF**机制（`M02-SESSION-07/08/09`）；
+生产部署需将后端 HTTPS 域名登记为小程序 request 合法域名，并在
+`BBLBB__ALLOWED_ORIGINS` 放行 `https://servicewechat.com`（小程序运行时 Referer 来源）。
+详见 [`miniprogram/README.md`](miniprogram/README.md)（含本地联调脚本 `miniprogram/dev/start-all.sh`
+与全链路冒烟测试 `miniprogram/dev/smoke-test.js`）。
+
 ## 当前状态
 
-已交付基线（v0.5 冻结，commit `5e17fa3`）：
+v0.5 需求基线冻结于 2026-08-04（commit `5e17fa3`）；M0–M17 主体已完成，M18 原型功能对齐收尾中（23/30 叶子任务完成）：
 
-- Rust/axum 后端：`/healthz`、`/readyz`、请求 ID、Problem 边界、OpenAPI JSON，以及基于数据库的认证闭环（注册/邮箱验证/登录/登出/找回密码）；数据库支持 SQLite 与 MySQL/MariaDB，启动默认**不**自动迁移（需 `BBLBB__AUTO_MIGRATE=true` 或 `--migrate` 才应用迁移，见 [`backend/README.md`](backend/README.md)）；其余领域路由已按契约挂载，未实现操作返回 501
-- SvelteKit 2 / Svelte 5 / adapter-node 骨架和同源健康 API client
-- SQLite / MySQL / MariaDB 初始 users/session 骨架迁移
-- GitHub Actions CI：文档与 OpenAPI（含路线图/覆盖校验）、Rust、前端、原型和三数据库基础检查
-- 66 路由高保真原型和 22 条后台路由
-- OpenAPI 3.1 契约：133 paths、172 operations、172 唯一 operationId
-- 87 个工作包、783 个叶子任务的执行册
+- Rust/axum 后端：认证闭环（注册/邮箱验证/登录/登出/找回密码/MFA/CSRF）、内容与楼层回复、板块与标签、举报/审核/处罚/申诉、通知、附件与下载计费、积分商城与装扮、活跃等级、搜索、AI Gateway、视频嵌入、OIDC、公开市场、主题与插件，以及社交/个人域（关注、收藏、私信、成就、API 密钥、改密、OAuth 授权管理、积分流水、付费内容解锁、站点统计与 RSS/Atom）——**全部 223 个契约 operation 已实现**（194 verified + 29 implemented，逐项登记见 [`todo/OPENAPI-COVERAGE.md`](todo/OPENAPI-COVERAGE.md)）；数据库支持 SQLite 与 MySQL/MariaDB，启动默认**不**自动迁移（需 `BBLBB__AUTO_MIGRATE=true` 或 `--migrate` 才应用迁移，见 [`backend/README.md`](backend/README.md)）
+- SvelteKit 2 / Svelte 5 / adapter-node 前端：覆盖原型全站 IA（首页/发现/板块/标签/帖子/搜索/私信/收藏/成就/商城/市场/账单/设置/申诉/API 密钥与 29 个管理后台页面，共 69 个页面路由），SSR + 无 JS 降级可访问
+- 微信小程序端（见上文）
+- GitHub Actions CI：文档与 OpenAPI（含路线图/覆盖校验）、Rust（sccache 缓存）、前端、原型和三数据库基础检查
+- 58 路由高保真原型（34 前台 + 24 后台管理）
+- OpenAPI 3.1 契约：172 paths、223 operations、223 唯一 operationId
+- 102 个工作包、819 个叶子任务的执行册（M0–M17：765 完成 + 24 阻塞；M18 进行中 23/30）
 
 ### 开发命令
 

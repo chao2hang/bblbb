@@ -20,4 +20,13 @@ describe('Icon（SVG 命名空间保持）', () => {
     const { container } = render(Icon, { name: 'no-such-icon' });
     expect(container.querySelector('path')).toBeFalsy();
   });
+
+  // 回归：admin 插件页「刷新」按钮与 admin 侧栏「市场与交易」曾引用
+  // allowlist 之外的图标名（rotate-cw / shopping-cart），静默渲染为空白。
+  it.each(['rotate-cw', 'shopping-cart'])('%s 渲染为非空 SVG 元素', (name) => {
+    const { container } = render(Icon, { name, size: 16 });
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
+    expect(svg!.querySelector('path, circle, rect, line, polyline, polygon')).toBeTruthy();
+  });
 });

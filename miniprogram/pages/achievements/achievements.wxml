@@ -1,0 +1,39 @@
+<view class="page">
+  <view class="container">
+    <view class="row-between ach-head" wx:if="{{state === 'ready'}}">
+      <text class="title">成就</text>
+      <text class="text-2">已点亮 {{unlockedCount}} / {{achievements.length}}</text>
+    </view>
+
+    <view wx:if="{{state === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+    <empty-state
+      wx:elif="{{state === 'error'}}"
+      state="error"
+      text="加载失败"
+      hint="{{error}}"
+      actionText="重试"
+      bind:action="onRetry"
+    />
+
+    <block wx:else>
+      <view
+        class="card ach-item {{item.unlocked ? '' : 'ach-locked'}}"
+        wx:for="{{achievements}}"
+        wx:key="code"
+      >
+        <view class="row gap-20">
+          <view class="ach-icon">{{item.unlocked ? '🏅' : '🔒'}}</view>
+          <view class="col flex-1">
+            <view class="row gap-12">
+              <text class="ach-name">{{item.name}}</text>
+              <text class="badge badge-gray ach-cat">{{item.category || ''}}</text>
+            </view>
+            <view class="text-3 ach-desc">{{item.description}}</view>
+            <view class="text-2 ach-reward" wx:if="{{item.rewardText}}">{{item.rewardText}}</view>
+            <view class="text-3" wx:if="{{item.unlockedText}}">达成于 {{item.unlockedText}}</view>
+          </view>
+        </view>
+      </view>
+    </block>
+  </view>
+</view>

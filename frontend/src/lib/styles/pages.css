@@ -1082,7 +1082,7 @@ body {
 .page-wrapper { overflow-x: clip; }
 .page-content { padding-top: var(--space-8); }
 
-/* 站点外壳（M00-FRONTEND-01）：跳过链接 + 页脚 */
+/* 站点外壳（M00-FRONTEND-01）：跳过链接。原型无站点页脚，site-footer 已移除。 */
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -1098,19 +1098,6 @@ body {
 .skip-link:focus {
   left: var(--space-2);
   top: var(--space-2);
-}
-.site-footer {
-  margin-top: var(--space-10);
-  padding: var(--space-5) 0;
-  border-top: var(--border-default);
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-}
-.site-footer-inner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 .home-header {
@@ -1457,50 +1444,6 @@ body {
 .tag { border-radius: var(--radius-full); }
 
 /* ---- Screenshot-driven density fixes ---- */
-.articles-page-card {
-  overflow: hidden;
-  border: var(--border-default);
-}
-
-.articles-page-card .card-body {
-  padding: var(--space-5);
-  background: var(--color-bg-card);
-}
-
-.articles-page-card .filter-bar {
-  background: var(--color-bg-card);
-  border-bottom: var(--border-default);
-}
-
-.articles-page-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
-  gap: var(--space-5);
-  margin-bottom: 0;
-}
-
-.articles-page-grid .article-card {
-  min-width: 0;
-  border: var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-card);
-  box-shadow: none;
-}
-
-.articles-page-grid .article-card:hover {
-  border-color: var(--color-border-strong);
-  box-shadow: none;
-}
-
-.articles-page-grid .article-card-cover {
-  border-bottom: var(--border-default);
-}
-
-@media (max-width: 640px) {
-  .articles-page-card .card-body { padding: var(--space-4); }
-  .articles-page-grid { gap: var(--space-4); }
-}
-
 .file-picker {
   min-width: 0;
   height: 38px;
@@ -1550,10 +1493,6 @@ body {
   font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (max-width: 640px) {
-  .articles-page-grid { grid-template-columns: 1fr; }
 }
 
 .admin-dashboard-header {

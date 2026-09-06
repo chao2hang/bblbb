@@ -74,6 +74,11 @@ pub struct SearchRequest {
     pub depth: usize,
     /// keyset：上一页最后一条 `(indexed_at, doc_id)`。
     pub after: Option<(i64, String)>,
+    /// 精确标签过滤（GAP-FIX 筛选补齐）：路由层把 `tag=` 参数解析为
+    /// 标签名（tags 表按 slug 或 name 命中）后传入；None = 不过滤。
+    /// 匹配按 tags_json 的 JSON 数组字符串 `"name"` 形式 LIKE 实现
+    /// （tags_json 存的是标签名数组，见 index_job::load_post_tags）。
+    pub tag: Option<String>,
 }
 
 impl SearchRequest {
@@ -114,6 +119,7 @@ impl SearchRequest {
             limit,
             depth,
             after,
+            tag: None,
         })
     }
 }
@@ -244,6 +250,15 @@ pub async fn execute_public_search(
     let mysql_query = build_mysql_boolean_query(&req.tokens);
     let fetch_limit = req.limit + 1;
     let (after_at, after_id) = req.after.clone().unwrap_or((i64::MAX, String::new()));
+    // 精确标签过滤：`%"name"%` 匹配 JSON 数组内的整串标签名（引号界定，
+    // 前缀标签不会误命中）；`!` 为转义符（SQLite/MySQL 语法一致）。
+    let tag_pattern = req.tag.as_ref().map(|name| {
+        let escaped = name
+            .replace('!', "!!")
+            .replace('%', "!%")
+            .replace('_', "!_");
+        format!("%\"{escaped}\"%")
+    });
 
     let mut rows: Vec<IndexedDoc> = match pool {
         Either::Left(p) => {
@@ -252,12 +267,15 @@ pub async fn execute_public_search(
                         sd.author_id, sd.tags_json, sd.source_revision, sd.policy_revision, sd.indexed_at
                  FROM search_documents sd
                  WHERE sd.rowid IN (SELECT rowid FROM search_fts WHERE search_fts MATCH ?)
+                   AND (? IS NULL OR sd.tags_json LIKE ? ESCAPE '!')
                    AND (sd.indexed_at < ? OR (sd.indexed_at = ? AND sd.doc_id < ?))
                  ORDER BY sd.indexed_at DESC, sd.doc_id DESC
                  LIMIT ?",
             );
             q = q
                 .bind(&fts_query)
+                .bind(&tag_pattern)
+                .bind(&tag_pattern)
                 .bind(after_at)
                 .bind(after_at)
                 .bind(&after_id)
@@ -271,12 +289,15 @@ pub async fn execute_public_search(
                         sd.author_id, sd.tags_json, sd.source_revision, sd.policy_revision, sd.indexed_at
                  FROM search_documents sd
                  WHERE MATCH(sd.title, sd.body) AGAINST (? IN BOOLEAN MODE)
+                   AND (? IS NULL OR sd.tags_json LIKE ? ESCAPE '!')
                    AND (sd.indexed_at < ? OR (sd.indexed_at = ? AND sd.doc_id < ?))
                  ORDER BY sd.indexed_at DESC, sd.doc_id DESC
                  LIMIT ?",
             );
             q = q
                 .bind(&mysql_query)
+                .bind(&tag_pattern)
+                .bind(&tag_pattern)
                 .bind(after_at)
                 .bind(after_at)
                 .bind(&after_id)

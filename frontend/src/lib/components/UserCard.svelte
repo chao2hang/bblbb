@@ -16,11 +16,10 @@
   import UserHoverCard from './UserHoverCard.svelte';
   import type { PublicProfile } from '$lib/api/client';
 
-  /** 触发卡只允许公开投影字段（严格 allowlist，杜绝私有字段流入浮层）。 */
-  export type UserCardUser = Pick<
-    PublicProfile,
-    'username' | 'display_name' | 'level' | 'bio' | 'signature'
-  >;
+  /** 触发卡只允许公开投影字段（严格 allowlist，杜绝私有字段流入浮层）。
+   *  level/bio/signature 可缺省：列表/搜索行只有部分公开投影。 */
+  export type UserCardUser = Pick<PublicProfile, 'username' | 'display_name'> &
+    Partial<Pick<PublicProfile, 'level' | 'bio' | 'signature'>>;
 
   /** 窄屏断点，与 prototype/app.css 及 components.css 一致。 */
   export const NARROW_QUERY = '(max-width: 640px)';
@@ -30,6 +29,7 @@
     children,
     href,
     label,
+    class: klass = '',
     closeDelay = 250
   }: {
     user: UserCardUser;
@@ -39,6 +39,8 @@
     href?: string;
     /** 覆盖可访问标签（默认「查看 … 的个人资料」）。 */
     label?: string;
+    /** 追加到触发链接的额外 class（如复用既有链接样式）。 */
+    class?: string;
     /** 离开触发/浮层后的关闭延迟（毫秒）。 */
     closeDelay?: number;
   } = $props();
@@ -46,6 +48,9 @@
   const profileUrl = $derived(href ?? `/users/${user.username}`);
   const displayName = $derived(user.display_name || user.username);
   const accessibleLabel = $derived(label ?? `查看 ${displayName} 的个人资料`);
+  const triggerClass = $derived(
+    klass ? `author-hover-trigger ${klass}` : 'author-hover-trigger'
+  );
 
   let open = $state(false);
   let narrow = $state(false);
@@ -197,7 +202,7 @@
 <a
   bind:this={trigger}
   href={profileUrl}
-  class="author-hover-trigger"
+  class={triggerClass}
   aria-label={accessibleLabel}
   onmouseenter={openCard}
   onmouseleave={scheduleClose}

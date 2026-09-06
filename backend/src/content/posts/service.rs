@@ -17,6 +17,7 @@ use crate::content::posts::command::CreatePostCommand;
 use crate::content::posts::publish::{publish_preflight, PublishBlocked, PublishPreflightInput};
 use crate::content::repository::{get_post, load_post_content};
 use crate::db::DatabasePool;
+use crate::domain::posts::AccessPolicy;
 use crate::moderation::risk::policy::RiskInput;
 use crate::moderation::risk::service::{self as risk_service, RiskError, AI_SUGGEST_DEADLINE};
 use crate::search::index_job::enqueue_index_job;
@@ -112,17 +113,32 @@ fn generate_slug(title: &str, post_id: &str) -> String {
     format!("{base}-{}", &post_id[..post_id.len().min(8)])
 }
 
-/// 组装发布预检输入（createPost 路径：策略明细字段随 M04-VISIBILITY 落地，
-/// level/paid 在当前契约下无明细 → 预检按结构校验拦截，安全 fail-closed）。
+/// 组装发布预检输入（createPost 路径）。
+///
+/// GAP-FIX 付费解锁：paid 策略的权威定价是 `posts.price_coin`（0061 列，
+/// 路由层已按 1-1000 校验并落库），路由发布后同步创建含
+/// currency_id/amount 明细的 content_access_policies 行（见
+/// routes/posts.rs `apply_post_extras`）。预检在策略行创建之前执行，
+/// 因此 paid 在这里提供**结构性占位明细**（coin + 正数 amount）以通过
+/// [`crate::content::model::ContentAccessPolicy::validate`] 的结构校验
+/// （kind 合法 + currency/amount 存在且为正）——真实定价不经过本函数。
+/// level 等其余策略仍无明细，结构校验照旧 fail-closed。
 fn preflight_input(author_id: &str, cmd: &CreatePostCommand) -> PublishPreflightInput {
+    // paid：结构占位（currency=coin、amount=1——任意正数均可通过校验）。
+    let paid_detail = matches!(cmd.access_policy, AccessPolicy::Paid).then(|| {
+        (
+            Some(crate::economy::ledger::service::CURRENCY_COIN.to_string()),
+            Some(1),
+        )
+    });
     PublishPreflightInput {
         author_id: author_id.to_string(),
         board_id: cmd.board_id.to_string(),
         visibility_level: cmd.visibility_level,
         access_policy: cmd.access_policy.as_str().to_string(),
         min_level: None,
-        currency_id: None,
-        amount: None,
+        currency_id: paid_detail.as_ref().and_then(|(c, _)| c.clone()),
+        amount: paid_detail.as_ref().and_then(|(_, a)| *a),
         attachment_ids: Vec::new(),
     }
 }

@@ -71,7 +71,7 @@
             </div>
             <Button text="使用恢复码" variant="ghost" size="sm" type="button" onclick={toggleRecovery} />
           {/if}
-          <Button text="验证并登录" variant="primary" size="lg" type="submit" />
+          <Button text="验证并登录" variant="primary" size="lg" type="submit" block />
           <p class="auth-hint">验证码有误？请重试；验证码每 30 秒更新。</p>
         </form>
       {:else}
@@ -110,7 +110,7 @@
             </label>
             <a href="/password-reset" class="text-link" style="font-size:var(--text-sm);">忘记密码？</a>
           </div>
-          <Button text="登录" variant="primary" size="lg" type="submit" />
+          <Button text="登录" variant="primary" size="lg" type="submit" block />
         </form>
       {/if}
     </div>

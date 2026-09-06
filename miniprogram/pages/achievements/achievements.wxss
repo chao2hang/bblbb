@@ -1,0 +1,35 @@
+.ach-head {
+  padding: 16rpx 0 24rpx;
+}
+
+.ach-item {
+  padding: 24rpx 28rpx;
+}
+
+.ach-locked {
+  opacity: 0.62;
+}
+
+.ach-icon {
+  font-size: 44rpx;
+}
+
+.ach-name {
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.ach-cat {
+  font-size: 18rpx;
+  padding: 4rpx 10rpx;
+}
+
+.ach-desc {
+  margin-top: 4rpx;
+}
+
+.ach-reward {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: var(--gold);
+}

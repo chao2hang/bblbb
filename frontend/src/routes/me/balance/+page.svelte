@@ -7,6 +7,7 @@
   import { newClientRequestId } from '$lib/api/client';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { activityLevelNumber, activityXp } from '$lib/api/types';
   import type { BalanceActionData, BalancePageData } from './+page.server';
 
   let { data, form }: { data: BalancePageData; form?: BalanceActionData | null } = $props();
@@ -20,7 +21,14 @@
 
   const coinBalance = $derived((summary?.balances ?? []).find((b) => b.currency === 'coin'));
   const expBalance = $derived((summary?.balances ?? []).find((b) => b.currency === 'exp'));
-  const xp = $derived(summary?.xp ?? 0);
+  // 后端 level 为对象、经验在 experience.balance（见 ActivitySummary 注释）。
+  const lvlNum = $derived(summary ? activityLevelNumber(summary.level) : null);
+  const lvlName = $derived(
+    summary && typeof summary.level === 'object' && summary.level && 'name' in summary.level
+      ? (summary.level.name ?? null)
+      : (summary?.level_name ?? null)
+  );
+  const xp = $derived(summary ? activityXp(summary) : 0);
   const xpToNext = $derived(summary?.xp_to_next ?? null);
   const todayEarned = $derived(summary?.today_earned ?? form?.todayEarned ?? []);
   const streak = $derived(summary?.streak_days ?? form?.streakDays ?? 0);
@@ -41,13 +49,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/me" class="breadcrumb-link">我的主页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">我的积分</span>
-  </nav>
 
   {#if error}
     <p class="input-hint is-error" role="alert">{error}</p>
@@ -62,11 +63,11 @@
         <div class="card" style="margin-bottom:var(--space-4);">
           <div class="card-header">
             <span class="card-title">等级与经验</span>
-            <span class="badge badge-level">LV.{summary.level}</span>
+            {#if lvlNum !== null}<span class="badge badge-level">LV.{lvlNum}</span>{/if}
           </div>
           <div class="card-body">
-            {#if summary.level_name}
-              <p class="text-secondary">{summary.level_name}</p>
+            {#if lvlName && lvlName !== `L${lvlNum}`}
+              <p class="text-secondary">{lvlName}</p>
             {/if}
             <div style="display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-2);">
               <Icon name="trending-up" size={20} />

@@ -1,0 +1,17 @@
+{
+  "desc": "BBLBB 论坛内容页允许被微信索引（帖子/板块为公开内容）",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "pages/post/post"
+    },
+    {
+      "action": "allow",
+      "page": "pages/board/board"
+    },
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

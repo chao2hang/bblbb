@@ -1,0 +1,24 @@
+.ss-tip {
+  font-size: 24rpx;
+  color: var(--ink-2);
+  padding: 22rpx 28rpx;
+}
+
+.ss-item {
+  padding: 24rpx 28rpx;
+}
+
+.ss-icon {
+  font-size: 40rpx;
+}
+
+.ss-ua {
+  font-size: 27rpx;
+  font-weight: 600;
+  max-width: 400rpx;
+}
+
+.ss-empty {
+  text-align: center;
+  padding: 60rpx 0;
+}

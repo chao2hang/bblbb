@@ -76,6 +76,10 @@ pub fn router() -> Router<AppState> {
 struct NotificationListQuery {
     #[serde(default)]
     unread_only: Option<bool>,
+    /// 类型过滤（GAP-FIX 筛选补齐）：映射 notifications.type 列
+    /// （system/reply/mention/reaction/moderation/badge/digest）。
+    #[serde(default)]
+    category: Option<String>,
     #[serde(default = "default_limit")]
     limit: i64,
     /// 分页游标（接口契约保留字段，游标分页待实现）
@@ -107,6 +111,7 @@ async fn list_notifications(
         &user.id,
         query.limit,
         unread_filter,
+        query.category.as_deref().filter(|s| !s.is_empty()),
         query.cursor.as_deref(),
     )
     .await

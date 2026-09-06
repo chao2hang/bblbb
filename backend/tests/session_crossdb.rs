@@ -82,7 +82,10 @@ async fn sqlite_session_crossdb_behavior() {
 async fn mysql_session_crossdb_behavior() {
     let url = std::env::var("BBLBB_TEST_MYSQL_URL").expect("BBLBB_TEST_MYSQL_URL 未设置");
     let pool = create_pool(&url).await.unwrap();
-    let files = read_migration_files(&migrations_dir("mysql")).unwrap();
+    let files = read_migration_files(&migrations_dir(
+        common::mysql_family_migrations_dir(&pool).await,
+    ))
+    .unwrap();
     run_migrations(&pool, &files).await.unwrap();
     let app = build_router(AppConfig::default(), Some(pool.clone()));
     let email = insert_user(&pool, "mysql_user").await;

@@ -1,0 +1,63 @@
+{
+  "personas": {
+    "alice": {
+      "username": "alice",
+      "email": "alice@e2e.example",
+      "password": "E2e-test-pass-123!",
+      "session": "tjesYjB8W6gLxi0QD_gfHqAOzWTZVvnf",
+      "persona": "member",
+      "user_id": "01a06aa9-06dc-7992-9d8e-f803f725373d",
+      "hidden_post_id": "01a06aa9-0e35-7ff1-b80c-56503eba4000"
+    },
+    "bob": {
+      "username": "bob",
+      "email": "bob@e2e.example",
+      "password": "E2e-test-pass-123!",
+      "session": "OwMfJbFcTqxWW5LRsACceYeUNR3aD94x",
+      "persona": "unverified",
+      "user_id": "01a06aa9-0919-7b41-9d5a-15ce74cae59a"
+    },
+    "carol": {
+      "username": "carol",
+      "email": "carol@e2e.example",
+      "password": "E2e-test-pass-123!",
+      "session": "SRERUG0JwotVN0KzmLPszQskDs0qoT0x",
+      "persona": "muted",
+      "user_id": "01a06aa9-0b6c-72e1-b9e3-baaae6e9a2a6"
+    },
+    "dave": {
+      "username": "dave",
+      "email": "dave@e2e.example",
+      "password": null,
+      "persona": "banned",
+      "session": "iaUtLgN3WPfpx5viIkWwszOzly1Pa-Dy",
+      "user_id": "6f3949af-0b41-4563-85d4-ef7d9fcd3413"
+    },
+    "mod": {
+      "username": "mod",
+      "email": "mod@e2e.example",
+      "password": null,
+      "persona": "moderator",
+      "session": "BIgtZTRFoKCVZzhC_CeKHhSaVzo8JeDh",
+      "user_id": "75fc10b1-204d-4904-8ca9-0f590d56fd0e"
+    },
+    "admin": {
+      "username": "admin",
+      "email": "admin@e2e.example",
+      "password": null,
+      "persona": "admin",
+      "session": "j1LLg9hIiczOVsfT9SKB7jKy2Hw2GQtR",
+      "user_id": "fcc787d5-e368-413b-b889-8ca57ceba51d"
+    },
+    "cooldown": {
+      "username": "cooldown",
+      "email": "cooldown@e2e.example",
+      "password": null,
+      "persona": "cooldown",
+      "session": "saspzXSpnKH__a3nUm0e2bMy16hwFdE2",
+      "user_id": "07d986dc-19f6-4c82-83aa-c3597f2e8391"
+    }
+  },
+  "backend": "http://127.0.0.1:8091",
+  "password": "E2e-test-pass-123!"
+}

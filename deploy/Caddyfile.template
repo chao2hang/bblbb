@@ -51,6 +51,11 @@ community.example.com {
 		request_body {
 			max_size 10MB
 		}
+		# 覆盖（而非透传/追加）客户端可伪造的转发头：
+		# backend 限流按 XFF 末跳取值，本代理覆盖后末跳即真实客户端 IP，
+		# 客户端自报的首跳无法再伪造限流键（SECURITY.md §16）
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
 	}
 
 	# ── 前端 SSR ────────────────────────────────────────────
@@ -58,6 +63,9 @@ community.example.com {
 		request_body {
 			max_size 10MB
 		}
+		# 同上：覆盖可伪造的转发头
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
 	}
 
 	# ── 记录访问日志（不含 Cookie/Authorization，见日志脱敏策略）──

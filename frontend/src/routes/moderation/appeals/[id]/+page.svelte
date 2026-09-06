@@ -26,13 +26,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/moderation/appeals" class="breadcrumb-link">申诉</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">详情</span>
-  </nav>
 
   {#if withdrawn}
     <div class="card" role="status" data-testid="appeal-withdrawn">

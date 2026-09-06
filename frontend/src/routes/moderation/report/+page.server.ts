@@ -11,15 +11,21 @@ export interface ReportPageData {
   message?: string | null;
   requestId?: string | null;
   submitted?: { id: string; status: string } | null;
+  /** GAP-FIX 内容消费增强：?post={id} 预填目标（帖子详情「举报」入口带参）。 */
+  prefill?: { target_type: string; target_id: string } | null;
 }
 
-export const load: PageServerLoad = async ({ cookies, request }): Promise<ReportPageData> => {
+export const load: PageServerLoad = async ({ cookies, request, url }): Promise<ReportPageData> => {
   const requestId = request.headers.get('x-request-id');
   const me = await getAuthed<unknown>(cookies, '/api/v1/me', requestId);
   if (!me.ok && me.status === 401) throw redirect(303, '/login');
   const result = await getAuthed<{ items: ReportItem[] }>(cookies, '/api/v1/reports', requestId);
   const items = result.ok ? result.data.items : [];
-  return { items, submitted: null } satisfies ReportPageData;
+  // ?post={id} 预填（帖子详情「举报」入口）：目标类型固定 post，ID 校验
+  // 仅去空白（存在性由后端提交时裁决，M05-UI-05 不在前端猜测）。
+  const postParam = url.searchParams.get('post')?.trim();
+  const prefill = postParam ? { target_type: 'post', target_id: postParam } : null;
+  return { items, submitted: null, prefill } satisfies ReportPageData;
 };
 
 export const actions: Actions = {

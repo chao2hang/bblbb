@@ -557,6 +557,23 @@ html[data-theme="dark"] textarea:focus {
   margin: 0 auto !important;
   padding: 20px 0 88px !important;
 }
+/* Auth pages must not inherit the generic content column (.app-page), which
+   left the 430px login card hugging the left edge with half the screen empty.
+   Restore the full-height centering owned by .login-page (style.css).
+   ≥768px chrome: 60px header + 20px layout margin above, 20px margin +
+   64px bottom nav below; ≤767px has no desktop header. */
+#page-login.app-page.login-page {
+  min-height: calc(100vh - 164px) !important;
+  padding: 0 !important;
+  /* 背景改由 body 层铺满整个视口（见下方 body:has 规则），
+     内容列（.app-page max-width 1180px）只负责居中卡片，避免渐变背景只覆盖中间一列。 */
+  background: transparent;
+}
+/* 登录路由可见时（独立页与 SPA 挂载均命中），把径向渐变背景提到 body 上，
+   覆盖完整视口；其他路由时 #page-login 处于 [hidden]，body 恢复纯色页面背景。 */
+body:has(#page-login:not([hidden])) {
+  background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--color-brand) 10%, transparent), transparent 38%), var(--color-bg-page) !important;
+}
 .app-route-head {
   display: flex !important;
   align-items: flex-end !important;
@@ -699,6 +716,7 @@ html[data-theme="dark"] textarea:focus {
   #page-admin .admin-batch-bar { z-index: 10060 !important; }
   .desktop-header { display: none !important; }
   .app-page { width: 100% !important; padding: 20px 0 calc(48px + env(safe-area-inset-bottom)) !important; }
+  #page-login.app-page.login-page { min-height: calc(100vh - 104px - env(safe-area-inset-bottom)) !important; padding: 28px 16px 16px !important; }
   .app-route-head { display: block !important; margin: 0 0 12px !important; padding: 14px 16px !important; background: var(--color-bg-card) !important; }
   .app-route-head__actions { margin-top: 12px !important; }
   .app-route-head__actions .btn { flex: 1 1 auto !important; }

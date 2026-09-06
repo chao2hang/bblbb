@@ -1,17 +1,24 @@
-// M03-UI-07：管理板块页——列表（后端裁决）+ 新建板块表单。
-// 列表接口当前为 501（M13-ADMIN 落地）；创建接口已实现（board.manage
-// 权限门 + reason 审计，M03-BOARDS-05），表单在权限通过时可用。
-import { fail, isRedirect, redirect } from '@sveltejs/kit';
+// M03-UI-07：管理板块页——列表（后端裁决）+ 新建板块表单 + 编辑/置顶
+// （PATCH /admin/boards/{id}，If-Match 版本 + reason 审计；视觉对齐
+// M17-GAPFIX-06：补原型「可见性/发帖策略/状态」列与「编辑/置顶」行操作）。
+import { fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPost, getAuthed } from '$lib/api/server';
+import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { adminListState, type AdminLoadState } from '$lib/admin';
 import type { Board } from '$lib/api/types';
 
 export interface AdminBoardsPageData {
   loadState: AdminLoadState<Board>;
   created?: boolean;
+  updated?: boolean;
   message?: string;
   requestId?: string | null;
+}
+
+/** 重取板块列表（action 失败/成功后回填，避免类型分叉与陈旧列表）。 */
+async function reloadBoards(cookies: Cookies, requestId: string | null): Promise<AdminLoadState<Board>> {
+  const result = await getAuthed<{ items: Board[] }>(cookies, '/api/v1/admin/boards', requestId);
+  return adminListState(result);
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
@@ -54,6 +61,61 @@ export const actions: Actions = {
     } catch (e) {
       if (isRedirect(e)) throw e;
       return fail(503, { loadState: { state: 'error', message: '保存失败，请稍后重试' } } satisfies AdminBoardsPageData);
+    }
+  },
+
+  /** 编辑/置顶（sort_order=0）：PATCH /admin/boards/{id}，If-Match 乐观锁。 */
+  update: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const reason = String(form.get('reason') ?? '').trim();
+    const id = String(form.get('id') ?? '').trim();
+    const version = Number(form.get('version') ?? 0);
+    if (!id) return fail(422, { loadState: await reloadBoards(cookies, null), message: '缺少板块标识' } satisfies AdminBoardsPageData);
+    if (!Number.isInteger(version) || version < 1) {
+      return fail(409, { loadState: await reloadBoards(cookies, null), message: '版本缺失或无效，请刷新后重试' } satisfies AdminBoardsPageData);
+    }
+    if (!reason) return fail(422, { loadState: await reloadBoards(cookies, null), message: '操作原因必填（写入审计日志）' } satisfies AdminBoardsPageData);
+
+    // 仅携带出现且非空的字段（PATCH 缺省 = 保持原值）。
+    const body: Record<string, unknown> = { reason };
+    const name = String(form.get('name') ?? '').trim();
+    if (name) body.name = name;
+    const description = String(form.get('description') ?? '').trim();
+    if (description) body.description = description;
+    const visibility = String(form.get('visibility') ?? '').trim();
+    if (visibility) body.visibility = visibility;
+    const postingMode = String(form.get('posting_mode') ?? '').trim();
+    if (postingMode) body.posting_mode = postingMode;
+    const sortOrderRaw = String(form.get('sort_order') ?? '').trim();
+    if (sortOrderRaw !== '') {
+      const sortOrder = Number(sortOrderRaw);
+      if (!Number.isInteger(sortOrder) || sortOrder < 0) {
+        return fail(422, { loadState: await reloadBoards(cookies, null), message: '排序需为非负整数（置顶填 0）' } satisfies AdminBoardsPageData);
+      }
+      body.sort_order = sortOrder;
+    }
+    const isActiveRaw = String(form.get('is_active') ?? '').trim();
+    if (isActiveRaw === 'on' || isActiveRaw === 'true') body.is_active = true;
+    if (isActiveRaw === 'false') body.is_active = false;
+
+    try {
+      const result = await authedPatch<unknown>(
+        cookies,
+        `/api/v1/admin/boards/${encodeURIComponent(id)}`,
+        body,
+        { 'If-Match': String(version) },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { loadState: await reloadBoards(cookies, request.headers.get('x-request-id')), message: '板块已更新' } satisfies AdminBoardsPageData;
+      }
+      if (result.status === 409) {
+        return fail(409, { loadState: await reloadBoards(cookies, request.headers.get('x-request-id')), message: `版本冲突：${result.message}，请刷新后重试` } satisfies AdminBoardsPageData);
+      }
+      return fail(result.status, { loadState: await reloadBoards(cookies, request.headers.get('x-request-id')), message: result.message, requestId: result.requestId } satisfies AdminBoardsPageData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { loadState: await reloadBoards(cookies, null), message: '保存失败，请稍后重试' } satisfies AdminBoardsPageData);
     }
   }
 };

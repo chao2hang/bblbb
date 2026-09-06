@@ -190,11 +190,16 @@ pub async fn create_notification(
 ///
 /// 游标为通知 id（UUIDv7，字典序即时间序）；返回 `limit` 条更新的通知，
 /// `has_more` 表示还有更早的。
+///
+/// `category`：按通知类型（`notifications.type` 列）过滤——GAP-FIX 筛选
+/// 参数 `GET /api/v1/notifications?category=`，取值即 type 枚举
+/// （system/reply/mention/reaction/moderation/badge/digest）；None = 不过滤。
 pub async fn list_notifications(
     pool: &DatabasePool,
     user_id: &str,
     limit: i64,
     unread_only: bool,
+    category: Option<&str>,
     cursor: Option<&str>,
 ) -> Result<(Vec<Notification>, bool), NotifyError> {
     let limit = limit.clamp(1, 50);
@@ -211,11 +216,17 @@ pub async fn list_notifications(
                  FROM notifications WHERE user_id = ?"
             };
             let mut sql = base.to_string();
+            if category.is_some() {
+                sql.push_str(" AND type = ?");
+            }
             if cursor.is_some() {
                 sql.push_str(" AND id < ?");
             }
             sql.push_str(" ORDER BY id DESC LIMIT ?");
             let mut q = sqlx::query_as::<_, NotificationRow>(&sql).bind(user_id);
+            if let Some(c) = category {
+                q = q.bind(c);
+            }
             if let Some(c) = cursor {
                 q = q.bind(c);
             }
@@ -232,11 +243,17 @@ pub async fn list_notifications(
                  FROM notifications WHERE user_id = ?"
             };
             let mut sql = base.to_string();
+            if category.is_some() {
+                sql.push_str(" AND type = ?");
+            }
             if cursor.is_some() {
                 sql.push_str(" AND id < ?");
             }
             sql.push_str(" ORDER BY id DESC LIMIT ?");
             let mut q = sqlx::query_as::<_, NotificationRow>(&sql).bind(user_id);
+            if let Some(c) = category {
+                q = q.bind(c);
+            }
             if let Some(c) = cursor {
                 q = q.bind(c);
             }

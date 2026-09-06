@@ -20,6 +20,29 @@ use bblbb_backend::{
     outbox::now_millis,
 };
 
+/// 按 BBLBB_TEST_MYSQL_URL 指向的实际引擎选择迁移目录（mysql / mariadb）。
+///
+/// 两套迁移存在引擎差异（utf8mb4_0900_as_cs 仅 MySQL 8 支持，MariaDB 10.11
+/// 用 utf8mb4_general_ci），CI mysql-family matrix 在两种引擎上都会跑这些
+/// 测试，因此按 `SELECT VERSION()` 探测而非硬编码目录。
+#[allow(dead_code)] // 共享测试工具：并非每个引用 common 的测试二进制都使用
+pub async fn mysql_family_migrations_dir(pool: &DatabasePool) -> &'static str {
+    match pool {
+        sqlx::Either::Right(p) => {
+            let version: String = sqlx::query_scalar("SELECT VERSION()")
+                .fetch_one(p)
+                .await
+                .expect("SELECT VERSION() must succeed");
+            if version.contains("MariaDB") {
+                "mariadb"
+            } else {
+                "mysql"
+            }
+        }
+        sqlx::Either::Left(_) => "mysql",
+    }
+}
+
 /// 测试 TOTP 加密密钥（与各 mfa 测试文件保持一致）。
 #[allow(dead_code)] // 共享测试工具：并非每个引用 common 的测试二进制都使用
 pub const TEST_TOTP_ENC_KEY: &[u8] = b"test-encryption-key-material";

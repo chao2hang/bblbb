@@ -39,9 +39,11 @@
       var summaryLabel = publishPage.querySelector('label[for="publish-summary"]'); if (summaryLabel) summaryLabel.textContent = '摘要';
     }
     var contentPage = body.querySelector('#page-articles');
+    /* 原型仅保留标题与操作，移除解释性导语、提示和实现说明。 */
+    Array.prototype.forEach.call(body.querySelectorAll('.app-route-head p, .app-route-intro, .app-notice, .app-field-help, .app-field-hint, .login-demo-hint, .app-admin-side__foot, .app-promo'), function (node) { node.remove(); });
     if (contentPage) {
       var contentTitle = contentPage.querySelector('h1'); if (contentTitle) contentTitle.textContent = '内容';
-      var contentLede = contentPage.querySelector('.app-route-head p'); if (contentLede) contentLede.textContent = '浏览社区中的全部内容';
+      var contentLede = contentPage.querySelector('.app-route-head p'); if (contentLede) contentLede.remove();
       Array.prototype.forEach.call(contentPage.querySelectorAll('[data-go-publish]'), function (button) { button.textContent = '发布内容'; });
       Array.prototype.forEach.call(contentPage.querySelectorAll('.sbadge'), function (badge) { if (badge.textContent.trim() === '文章') badge.textContent = '内容'; });
     }
@@ -51,7 +53,7 @@
       var topicBadge = topicPage.querySelector('.topic-meta .sbadge'); if (topicBadge) topicBadge.textContent = '内容';
     }
     var boardPublish = body.querySelector('#page-board [data-go-publish]'); if (boardPublish) boardPublish.textContent = '发布内容';
-    var tagLede = body.querySelector('#page-tag .app-route-head p'); if (tagLede) tagLede.textContent = '聚合所有包含该标签的内容';
+    var tagLede = body.querySelector('#page-tag .app-route-head p'); if (tagLede) tagLede.remove();
     var userTabs = body.querySelector('#page-me [data-user-tab="posts"]'); if (userTabs) userTabs.textContent = '内容';
     var userTopics = body.querySelector('#page-me [data-user-tab="topics"]'); if (userTopics) userTopics.remove();
     /* 顶栏/导航的内联 onclick 依赖引擎全局函数；独立页面先给空实现（SPA 中引擎随后覆盖） */

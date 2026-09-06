@@ -1,0 +1,43 @@
+<view class="page">
+  <view class="container">
+    <view wx:if="{{state === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+
+    <empty-state
+      wx:elif="{{state === 'error'}}"
+      state="error"
+      text="加载失败"
+      hint="{{error}}"
+      actionText="重试"
+      bind:action="onRetry"
+    />
+
+    <block wx:else>
+      <view class="ss-tip card">
+        每个已登录设备都会在此列出。撤销后该设备立即失效。
+      </view>
+
+      <view class="card ss-item" wx:for="{{sessions}}" wx:key="id">
+        <view class="row gap-16">
+          <text class="ss-icon">💻</text>
+          <view class="col flex-1">
+            <view class="ss-ua ellipsis">{{item.ua}}</view>
+            <view class="text-3">登录于 {{item.createdText}} · 最近活跃 {{item.lastSeenText}}</view>
+            <view class="text-3">有效期至 {{item.expiresText}}</view>
+          </view>
+          <button
+            class="btn btn-danger btn-sm"
+            loading="{{busyId === item.id}}"
+            data-id="{{item.id}}"
+            bindtap="onRevokeTap"
+          >撤销</button>
+        </view>
+      </view>
+
+      <view wx:if="{{!sessions.length}}" class="ss-empty">
+        <text class="text-3">暂无设备会话</text>
+      </view>
+
+      <button class="btn btn-danger btn-block mt-32" bindtap="onRevokeAllTap">全部登出</button>
+    </block>
+  </view>
+</view>

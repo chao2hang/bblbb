@@ -2,6 +2,7 @@
   版本冲突（409）提示刷新；退款要求 reason 必填；后端裁决 403/501/5xx 状态。
 -->
 <script lang="ts">
+  import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import { adminStateLabel } from '$lib/admin';
   import { productKindLabel, productStatusLabel } from '$lib/api/client';
@@ -11,6 +12,20 @@
   import type { AdminShopPageData } from './+page.server';
 
   let { data, form }: { data: AdminShopPageData; form?: { message?: string } | null } = $props();
+
+  /** 退款策略本地化（配置行展示用；表单 option 已是中文）。 */
+  function refundPolicyLabel(policy: string): string {
+    switch (policy) {
+      case 'non_refundable':
+        return '不可退款';
+      case 'compensation_only':
+        return '仅补偿';
+      case 'refundable':
+        return '支持退款';
+      default:
+        return policy;
+    }
+  }
 
   const products = $derived(data.products);
   const orders = $derived(data.orders);
@@ -38,35 +53,34 @@
   }
 </script>
 
+<svelte:head>
+  <title>商城管理 — BBLBB</title>
+</svelte:head>
+
+<PageHeader title="商城管理" />
+
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/admin" class="breadcrumb-link">管理后台</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">商城管理</span>
-  </nav>
 
   {#if message}
     <p class="input-hint is-error" role="alert">{message}</p>
   {/if}
 
   {#if config.state === 'ok'}
-    <div class="card" style="margin-bottom:var(--space-4);">
+    <div class="app-card" style="margin-bottom:var(--space-4);">
       <div class="card-body" style="display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center;">
         <span class="badge {config.data.enabled === false ? 'badge-warning' : 'badge-success'}">
           {config.data.enabled === false ? '商城停用' : '商城启用'}
         </span>
         <span class="text-secondary" style="font-size:var(--text-sm);">
-          结算货币 {config.data.currency_id ?? 'coin'.toUpperCase()} · 默认退款策略 {config.data.default_refund_policy ?? 'non_refundable'}
+          结算货币 {(config.data.currency_id ?? 'coin').toUpperCase()} · 默认退款策略 {refundPolicyLabel(config.data.default_refund_policy ?? 'non_refundable')}
         </span>
       </div>
     </div>
   {/if}
 
-  <div class="card" style="margin-bottom:var(--space-4);">
-    <div class="card-header"><span class="card-title">新建商品</span></div>
-    <div class="card-body">
+  <div class="app-card" style="margin-bottom:var(--space-4);">
+    <div class="app-card__head"><h2>新建商品</h2></div>
+    <div class="app-card__body">
       <form method="POST" action="?/create" use:enhance>
         <div class="admin-form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-2);">
           <div class="input-wrapper">
@@ -135,8 +149,8 @@
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:var(--space-4);">
-    <div class="card-header"><span class="card-title">商品（{products.state === 'ok' ? products.items.length : '—'}）</span></div>
+  <div class="app-card" style="margin-bottom:var(--space-4);">
+    <div class="app-card__head"><h2>商品（{products.state === 'ok' ? products.items.length : '—'}）</h2></div>
     <div class="card-body" style="padding:0;">
       {#if products.state !== 'ok'}
         <p class="input-hint is-error" role="alert" style="padding:var(--space-4);">
@@ -229,8 +243,8 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-header"><span class="card-title">订单（{orders.state === 'ok' ? orders.items.length : '—'}）</span></div>
+  <div class="app-card">
+    <div class="app-card__head"><h2>订单（{orders.state === 'ok' ? orders.items.length : '—'}）</h2></div>
     <div class="card-body" style="padding:0;">
       {#if orders.state !== 'ok'}
         <p class="input-hint is-error" role="alert" style="padding:var(--space-4);">

@@ -223,6 +223,9 @@ async fn admin_user_json(pool: &crate::db::DatabasePool, row: &sqlx::sqlite::Sql
     let roles = admin_roles_for_user(pool, &user_id)
         .await
         .unwrap_or_default();
+    // 余额（视觉对齐 M17-GAPFIX-07：B币/经验列；point_accounts 实时余额，
+    // 无账户 = 0）。
+    let (coin_balance, exp_balance) = admin_user_balances(pool, &user_id).await;
     json!({
         "id": row.get::<String,_>("id"),
         "username": row.get::<String,_>("username_normalized"),
@@ -232,6 +235,8 @@ async fn admin_user_json(pool: &crate::db::DatabasePool, row: &sqlx::sqlite::Sql
         "display_name": row.get::<Option<String>,_>("display_name"),
         "level": row.get::<i64,_>("level"),
         "roles": roles,
+        "coin_balance": coin_balance,
+        "exp_balance": exp_balance,
         "created_at": row.get::<i64,_>("created_at"),
         "updated_at": row.get::<i64,_>("updated_at"),
         "last_login_at": row.get::<Option<i64>,_>("last_login_at"),
@@ -239,6 +244,39 @@ async fn admin_user_json(pool: &crate::db::DatabasePool, row: &sqlx::sqlite::Sql
         "deleted_at": row.get::<Option<i64>,_>("deleted_at"),
         "version": row.get::<i64,_>("version"),
     })
+}
+
+/// 用户 B币/经验实时余额（point_accounts × currencies.code；无账户 = 0）。
+async fn admin_user_balances(pool: &crate::db::DatabasePool, user_id: &str) -> (i64, i64) {
+    let sql = "SELECT c.code AS code, COALESCE(pa.balance, 0) AS balance
+         FROM currencies c
+         LEFT JOIN point_accounts pa ON pa.currency_id = c.id AND pa.user_id = ?";
+    let rows = match pool {
+        Either::Left(p) => {
+            sqlx::query_as::<_, (String, i64)>(sql)
+                .bind(user_id)
+                .fetch_all(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_as::<_, (String, i64)>(sql)
+                .bind(user_id)
+                .fetch_all(p)
+                .await
+        }
+    };
+    let mut coin = 0i64;
+    let mut exp = 0i64;
+    if let Ok(rows) = rows {
+        for (code, balance) in rows {
+            match code.as_str() {
+                "coin" => coin = balance,
+                "exp" => exp = balance,
+                _ => {}
+            }
+        }
+    }
+    (coin, exp)
 }
 
 async fn admin_user_json_mysql(
@@ -249,6 +287,7 @@ async fn admin_user_json_mysql(
     let roles = admin_roles_for_user(pool, &user_id)
         .await
         .unwrap_or_default();
+    let (coin_balance, exp_balance) = admin_user_balances(pool, &user_id).await;
     json!({
         "id": row.get::<String,_>("id"),
         "username": row.get::<String,_>("username_normalized"),
@@ -258,6 +297,8 @@ async fn admin_user_json_mysql(
         "display_name": row.get::<Option<String>,_>("display_name"),
         "level": row.get::<i64,_>("level"),
         "roles": roles,
+        "coin_balance": coin_balance,
+        "exp_balance": exp_balance,
         "created_at": row.get::<i64,_>("created_at"),
         "updated_at": row.get::<i64,_>("updated_at"),
         "last_login_at": row.get::<Option<i64>,_>("last_login_at"),
@@ -310,6 +351,48 @@ async fn list_admin_users(
         .and_then(|v| v.parse::<i64>().ok())
         .unwrap_or(30)
         .clamp(1, 200);
+    // 筛选参数（GAP-FIX 筛选补齐）：q（用户名/邮箱模糊）、status（精确）、
+    // level（精确）。q 使用 like_escape + ESCAPE '!'（SQLite/MySQL 一致）。
+    let q_pattern = params
+        .get("q")
+        .map(|raw| raw.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            let escaped = s.replace('!', "!!").replace('%', "!%").replace('_', "!_");
+            format!("%{escaped}%")
+        });
+    // status 值域即 users.status CHECK（0001）。
+    let status_filter = params
+        .get("status")
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    if let Some(status) = status_filter.as_deref() {
+        if ![
+            "pending",
+            "active",
+            "restricted",
+            "banned",
+            "pending_delete",
+            "deleted",
+        ]
+        .contains(&status)
+        {
+            return Err(AppError::bad_request(
+                "status must be one of pending|active|restricted|banned|pending_delete|deleted",
+                request_id,
+                None,
+            ));
+        }
+    }
+    // level 是经验等级整数（users.level，0001 INTEGER）。
+    let level_filter = params.get("level").and_then(|v| v.parse::<i64>().ok());
+    if level_filter.is_some() && level_filter.unwrap() < 0 {
+        return Err(AppError::bad_request(
+            "level must be a non-negative integer",
+            request_id,
+            None,
+        ));
+    }
     let mut items = Vec::new();
     let mut next_cursor: Option<i64> = None;
     match pool {
@@ -317,10 +400,20 @@ async fn list_admin_users(
             let rows = sqlx::query(
                 "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
                  FROM users WHERE deleted_at IS NULL AND (? IS NULL OR created_at < ?)
+                   AND (? IS NULL OR username_normalized LIKE ? ESCAPE '!' OR email_normalized LIKE ? ESCAPE '!')
+                   AND (? IS NULL OR status = ?)
+                   AND (? IS NULL OR level = ?)
                  ORDER BY created_at DESC LIMIT ?",
             )
             .bind(after)
             .bind(after)
+            .bind(&q_pattern)
+            .bind(&q_pattern)
+            .bind(&q_pattern)
+            .bind(&status_filter)
+            .bind(&status_filter)
+            .bind(level_filter)
+            .bind(level_filter)
             .bind(limit + 1)
             .fetch_all(p)
             .await
@@ -337,10 +430,20 @@ async fn list_admin_users(
             let rows = sqlx::query(
                 "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
                  FROM users WHERE deleted_at IS NULL AND (? IS NULL OR created_at < ?)
+                   AND (? IS NULL OR username_normalized LIKE ? ESCAPE '!' OR email_normalized LIKE ? ESCAPE '!')
+                   AND (? IS NULL OR status = ?)
+                   AND (? IS NULL OR level = ?)
                  ORDER BY created_at DESC LIMIT ?",
             )
             .bind(after)
             .bind(after)
+            .bind(&q_pattern)
+            .bind(&q_pattern)
+            .bind(&q_pattern)
+            .bind(&status_filter)
+            .bind(&status_filter)
+            .bind(level_filter)
+            .bind(level_filter)
             .bind(limit + 1)
             .fetch_all(p)
             .await
@@ -638,6 +741,11 @@ async fn update_admin_user(
             request_id,
         ));
     }
+    // 纵深防御（M02-SESSION-06）：封禁立即撤销全部会话——与 resolve_session
+    // 的实时状态检查互为冗余，任一机制失效时另一机制兜底
+    if status.as_deref() == Some("banned") {
+        let _ = crate::auth::session::revoke_all_sessions(pool, &id, "admin_user_ban").await;
+    }
     let _ = crate::auth::session::mark_step_up(pool, &token).await;
     let _ = crate::audit::AuditEntry::user_action(&user.id, "admin.user.update")
         .with_target("user", &id)
@@ -741,7 +849,15 @@ async fn list_admin_roles(
             }
         }
     }
-    Ok(Json(json!({ "items": items })))
+    // 权限目录（视觉对齐 M17-GAPFIX-07）：前端网格渲染全部可勾选权限。
+    let mut all_permissions: Vec<String> = crate::authz::PERMISSION_REGISTRY
+        .iter()
+        .map(|p| p.name.to_string())
+        .collect();
+    all_permissions.sort();
+    Ok(Json(
+        json!({ "items": items, "all_permissions": all_permissions }),
+    ))
 }
 
 /// POST /api/v1/admin/roles — 创建自定义角色（reason + recent-auth + 审计；
@@ -1155,10 +1271,13 @@ async fn update_admin_role(
         .await;
     get_admin_role(State(state), auth, Path(id)).await
 }
-/// GET /api/v1/admin/boards — 全部板块（board.manage；M03-BOARDS-05 管理投影）。
+/// GET /api/v1/admin/boards — 全部板块（board.manage；M03-BOARDS-05 管理投影；
+/// GAP-FIX 筛选补齐：q=name/slug 模糊）。板块为全站有限集合（数十量级），
+/// q 过滤在 SQL 完成（LIKE + ESCAPE '!'，SQLite/MySQL 一致）。
 async fn list_admin_boards(
     State(state): State<AppState>,
     auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "listAdminBoards";
     let user = auth.require_auth(request_id)?;
@@ -1177,12 +1296,28 @@ async fn list_admin_boards(
         ));
     }
 
+    let q_pattern = params
+        .get("q")
+        .map(|raw| raw.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            let escaped = s.replace('!', "!!").replace('%', "!%").replace('_', "!_");
+            format!("%{escaped}%")
+        });
+
+    // post_count（视觉对齐 M17-GAPFIX-07）：published 且未删帖子数（相关子查询）。
     let items: Vec<Value> = match pool {
         Either::Left(p) => {
             let rows = sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
-                 FROM boards ORDER BY sort_order ASC, name ASC",
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
+                 FROM boards
+                 WHERE (? IS NULL OR name LIKE ? ESCAPE '!' OR slug LIKE ? ESCAPE '!')
+                 ORDER BY sort_order ASC, name ASC",
             )
+            .bind(&q_pattern)
+            .bind(&q_pattern)
+            .bind(&q_pattern)
             .fetch_all(p)
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -1190,15 +1325,58 @@ async fn list_admin_boards(
         }
         Either::Right(p) => {
             let rows = sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
-                 FROM boards ORDER BY sort_order ASC, name ASC",
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
+                 FROM boards
+                 WHERE (? IS NULL OR name LIKE ? ESCAPE '!' OR slug LIKE ? ESCAPE '!')
+                 ORDER BY sort_order ASC, name ASC",
             )
+            .bind(&q_pattern)
+            .bind(&q_pattern)
+            .bind(&q_pattern)
             .fetch_all(p)
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?;
             rows.iter().map(board_admin_row_json_mysql).collect()
         }
     };
+
+    // 版主（视觉对齐 M17-GAPFIX-07）：board_role_assignments × users，按板块聚合。
+    let moderators_sql = "SELECT bra.board_id AS board_id, u.username_normalized AS username
+             FROM board_role_assignments bra
+             JOIN users u ON u.id = bra.user_id
+             ORDER BY u.username_normalized";
+    let mod_rows: Vec<(String, String)> = match pool {
+        Either::Left(p) => sqlx::query_as(moderators_sql)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_as(moderators_sql)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    let mut mods_by_board: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for (board_id, username) in mod_rows {
+        mods_by_board.entry(board_id).or_default().push(username);
+    }
+    let items: Vec<Value> = items
+        .into_iter()
+        .map(|mut item| {
+            if let Some(obj) = item.as_object_mut() {
+                let id = obj
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                let mods = mods_by_board.remove(&id).unwrap_or_default();
+                obj.insert("moderators".to_string(), json!(mods));
+            }
+            item
+        })
+        .collect();
+
     Ok(Json(json!({ "items": items })))
 }
 /// POST /api/v1/admin/boards — 创建板块（权限门 + 校验 + 审计，M03-BOARDS-05）
@@ -1369,7 +1547,8 @@ async fn get_admin_board(
     let row = match pool {
         Either::Left(p) => {
             sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
                  FROM boards WHERE id = ?",
             )
             .bind(&id)
@@ -1380,7 +1559,8 @@ async fn get_admin_board(
         }
         Either::Right(p) => {
             sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at
+                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
                  FROM boards WHERE id = ?",
             )
             .bind(&id)
@@ -1407,6 +1587,7 @@ fn board_admin_row_json(r: &sqlx::sqlite::SqliteRow) -> Value {
         "visibility": r.get::<String,_>("visibility"),
         "posting_mode": r.get::<String,_>("posting_mode"),
         "is_active": r.get::<i64,_>("is_active") != 0,
+        "post_count": r.get::<i64,_>("post_count"),
         "version": r.get::<i64,_>("updated_at"),
         "created_at": r.get::<i64,_>("created_at"),
         "updated_at": r.get::<i64,_>("updated_at"),
@@ -1424,15 +1605,26 @@ fn board_admin_row_json_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
         "visibility": r.get::<String,_>("visibility"),
         "posting_mode": r.get::<String,_>("posting_mode"),
         "is_active": r.get::<i64,_>("is_active") != 0,
+        "post_count": r.get::<i64,_>("post_count"),
         "version": r.get::<i64,_>("updated_at"),
         "created_at": r.get::<i64,_>("created_at"),
         "updated_at": r.get::<i64,_>("updated_at"),
     })
 }
-/// GET /api/v1/admin/tags — 全部标签（含禁用状态，M03-BOARDS-06）
+/// GET /api/v1/admin/tags — 标签列表（含禁用状态，M03-BOARDS-06；GAP-FIX
+/// 筛选补齐：q=name/slug 模糊、status=active|disabled|merged）。
+///
+/// status 映射（0061 新增 tags.status 列，语义与标签合并工作流对齐）：
+/// - active：is_active=1 且 status IS NULL（正常启用）；
+/// - disabled：is_active=0（既有停用开关）；
+/// - merged：status='merged'（已被合并进其他标签）。
+///
+/// 直接 SQL 读取（不再走 load_all_tags 全量缓存投影）：需要读取 0061 新增
+/// status 列且数据量级为全站标签（有限规模，LIMIT 上限 200）。
 async fn list_admin_tags(
     State(state): State<AppState>,
     auth: AuthSession,
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "listAdminTags";
     let user = auth.require_auth(request_id)?;
@@ -1451,24 +1643,97 @@ async fn list_admin_tags(
         ));
     }
 
-    let tags = crate::tags::load_all_tags(pool)
-        .await
-        .map_err(|e| AppError::internal(e, request_id))?;
-    let items: Vec<Value> = tags
-        .iter()
-        .map(|t| {
-            json!({
-                "id": t.id,
-                "slug": t.slug,
-                "name": t.name,
-                "description": t.description,
-                "color": t.color,
-                "group_id": t.group_id,
-                "usage_count": t.usage_count,
-                "is_active": t.is_active != 0,
-            })
-        })
-        .collect();
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(200)
+        .clamp(1, 200);
+    let q_pattern = params
+        .get("q")
+        .map(|raw| raw.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            let escaped = s.replace('!', "!!").replace('%', "!%").replace('_', "!_");
+            format!("%{escaped}%")
+        });
+    let status_sql: &str = match params
+        .get("status")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        Some("active") => "AND t.is_active = 1 AND t.status IS NULL",
+        Some("disabled") => "AND t.is_active = 0",
+        Some("merged") => "AND t.status = 'merged'",
+        Some(other) => {
+            return Err(AppError::bad_request(
+                format!("status must be one of active|disabled|merged, got: {other}"),
+                request_id,
+                None,
+            ))
+        }
+        None => "",
+    };
+
+    let sql = format!(
+        "SELECT t.id, t.slug, t.name, t.description, t.color, t.group_id, t.usage_count, t.is_active, t.status
+         FROM tags t
+         WHERE (? IS NULL OR t.name LIKE ? ESCAPE '!' OR t.slug LIKE ? ESCAPE '!')
+         {status_sql}
+         ORDER BY t.usage_count DESC, t.name ASC
+         LIMIT ?"
+    );
+    let items: Vec<Value> = match pool {
+        Either::Left(p) => {
+            let rows = sqlx::query(&sql)
+                .bind(&q_pattern)
+                .bind(&q_pattern)
+                .bind(&q_pattern)
+                .bind(limit)
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            rows.iter()
+                .map(|r| {
+                    json!({
+                        "id": r.get::<String,_>("id"),
+                        "slug": r.get::<String,_>("slug"),
+                        "name": r.get::<String,_>("name"),
+                        "description": r.get::<String,_>("description"),
+                        "color": r.get::<String,_>("color"),
+                        "group_id": r.get::<Option<String>,_>("group_id"),
+                        "usage_count": r.get::<i64,_>("usage_count"),
+                        "is_active": r.get::<i64,_>("is_active") != 0,
+                        "status": r.get::<Option<String>,_>("status"),
+                    })
+                })
+                .collect()
+        }
+        Either::Right(p) => {
+            let rows = sqlx::query(&sql)
+                .bind(&q_pattern)
+                .bind(&q_pattern)
+                .bind(&q_pattern)
+                .bind(limit)
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            rows.iter()
+                .map(|r| {
+                    json!({
+                        "id": r.get::<String,_>("id"),
+                        "slug": r.get::<String,_>("slug"),
+                        "name": r.get::<String,_>("name"),
+                        "description": r.get::<String,_>("description"),
+                        "color": r.get::<String,_>("color"),
+                        "group_id": r.get::<Option<String>,_>("group_id"),
+                        "usage_count": r.get::<i64,_>("usage_count"),
+                        "is_active": r.get::<i64,_>("is_active") != 0,
+                        "status": r.get::<Option<String>,_>("status"),
+                    })
+                })
+                .collect()
+        }
+    };
     Ok(Json(json!({ "items": items })))
 }
 /// POST /api/v1/admin/tags — 创建标签（唯一性 + 审计，M03-BOARDS-07）
@@ -1682,6 +1947,108 @@ async fn get_admin_ai_config(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     require_admin(pool, &user.id, request_id).await?;
+    let config = ai_admin_config_json(pool, request_id).await?;
+    Ok(Json(config))
+}
+
+/// 站点级 AI 配置行（0061 ai_site_config 单行表）。
+///
+/// 存储方案说明（GAP-FIX AI 契约修复）：0052 的 ai_providers 只有 Provider
+/// 行级配置（version 是 Provider 自己的版本），没有站点级聚合。为承载
+/// GET/PATCH /api/v1/admin/ai/config 顶层 version 与 enabled/data_mode/
+/// flags/budgets，选择 0061 新增的单行表 `ai_site_config`（固定列 + JSON
+/// 文本）——三方言结构等价、无方言特定类型，且 version 乐观并发直接复用
+/// 行级 UPDATE 守卫（与 site_settings 同一模式）。
+#[derive(sqlx::FromRow, Clone)]
+struct AiSiteConfigRow {
+    enabled: i64,
+    data_mode: String,
+    flags_json: String,
+    budgets_json: String,
+    version: i64,
+    updated_at: i64,
+}
+
+/// 读取站点级 AI 配置单行（迁移种子保证存在）。
+async fn load_ai_site_config(
+    pool: &crate::db::DatabasePool,
+    request_id: &str,
+) -> Result<AiSiteConfigRow, AppError> {
+    let sql = "SELECT enabled, data_mode, flags_json, budgets_json, version, updated_at
+               FROM ai_site_config WHERE id = 'singleton'";
+    let row = match pool {
+        sqlx::Either::Left(p) => {
+            sqlx::query_as::<_, AiSiteConfigRow>(sql)
+                .fetch_optional(p)
+                .await
+        }
+        sqlx::Either::Right(p) => {
+            sqlx::query_as::<_, AiSiteConfigRow>(sql)
+                .fetch_optional(p)
+                .await
+        }
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    row.ok_or_else(|| {
+        AppError::internal(
+            "ai_site_config singleton row missing (run migrations)",
+            request_id,
+        )
+    })
+}
+
+/// AI 用途 flags 的已知键与默认值（关）。
+const AI_FLAG_KEYS: [&str; 4] = ["formatting", "seo", "tagging", "moderation"];
+/// AI 预算的已知键（默认 null = 未配置）。
+const AI_BUDGET_KEYS: [&str; 4] = [
+    "per_user_daily_tokens",
+    "per_user_daily_usd",
+    "site_daily_tokens",
+    "site_daily_usd",
+];
+
+/// 站点级 AI 配置 JSON（已知键补全默认值；未知键原样保留）。
+fn ai_site_config_section(row: &AiSiteConfigRow) -> Value {
+    let mut flags = json!({});
+    for key in AI_FLAG_KEYS {
+        flags[key] = json!(false);
+    }
+    if let Ok(stored) = serde_json::from_str::<Value>(&row.flags_json) {
+        if let Some(map) = stored.as_object() {
+            for (k, v) in map {
+                if let Some(b) = v.as_bool() {
+                    flags[k] = json!(b);
+                }
+            }
+        }
+    }
+    let mut budgets = json!({});
+    for key in AI_BUDGET_KEYS {
+        budgets[key] = Value::Null;
+    }
+    if let Ok(stored) = serde_json::from_str::<Value>(&row.budgets_json) {
+        if let Some(map) = stored.as_object() {
+            for (k, v) in map {
+                if v.is_null() || v.is_number() {
+                    budgets[k] = v.clone();
+                }
+            }
+        }
+    }
+    json!({
+        "enabled": row.enabled != 0,
+        "data_mode": row.data_mode,
+        "flags": flags,
+        "budgets": budgets,
+    })
+}
+
+/// GET/PATCH /api/v1/admin/ai/config 的完整响应（站点级配置 + Provider 列表）。
+async fn ai_admin_config_json(
+    pool: &crate::db::DatabasePool,
+    request_id: &str,
+) -> Result<Value, AppError> {
+    let site = load_ai_site_config(pool, request_id).await?;
     let items: Vec<Value> = match pool {
         sqlx::Either::Left(p) => sqlx::query(
             "SELECT id, name, adapter_type, base_url, default_model, status, secret_configured, data_mode, timeout_ms, max_input_tokens, max_output_tokens, max_concurrency, version, created_at, updated_at
@@ -1704,7 +2071,18 @@ async fn get_admin_ai_config(
         .map(ai_provider_config_row_mysql)
         .collect(),
     };
-    Ok(Json(json!({ "providers": items })))
+    let mut section = ai_site_config_section(&site);
+    Ok(json!({
+        "version": site.version,
+        "updated_at": site.updated_at,
+        "purposes": ["formatting", "seo", "tagging", "moderation"],
+        "providers": items,
+        // 站点级字段平铺到顶层（前端 pickConfig 读取顶层键）。
+        "enabled": section["enabled"].clone(),
+        "data_mode": section["data_mode"].clone(),
+        "flags": section["flags"].take(),
+        "budgets": section["budgets"].take(),
+    }))
 }
 
 fn ai_provider_config_row(r: &sqlx::sqlite::SqliteRow) -> Value {
@@ -1712,8 +2090,10 @@ fn ai_provider_config_row(r: &sqlx::sqlite::SqliteRow) -> Value {
         "id": r.get::<String,_>("id"),
         "name": r.get::<String,_>("name"),
         "adapter_type": r.get::<String,_>("adapter_type"),
+        "api_type": r.get::<String,_>("adapter_type"),
         "base_url": r.get::<String,_>("base_url"),
         "default_model": r.get::<String,_>("default_model"),
+        "model": r.get::<String,_>("default_model"),
         "status": r.get::<String,_>("status"),
         "secret_configured": r.get::<i64,_>("secret_configured") != 0,
         "data_mode": r.get::<String,_>("data_mode"),
@@ -1732,8 +2112,10 @@ fn ai_provider_config_row_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
         "id": r.get::<String,_>("id"),
         "name": r.get::<String,_>("name"),
         "adapter_type": r.get::<String,_>("adapter_type"),
+        "api_type": r.get::<String,_>("adapter_type"),
         "base_url": r.get::<String,_>("base_url"),
         "default_model": r.get::<String,_>("default_model"),
+        "model": r.get::<String,_>("default_model"),
         "status": r.get::<String,_>("status"),
         "secret_configured": r.get::<i64,_>("secret_configured") != 0,
         "data_mode": r.get::<String,_>("data_mode"),
@@ -1747,10 +2129,18 @@ fn ai_provider_config_row_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
     })
 }
 
-/// PATCH /api/v1/admin/ai/config — 新建/更新 Provider（admin.manage + reason + 审计）。
+/// PATCH /api/v1/admin/ai/config — 站点级配置 + Provider upsert（admin.manage
+/// + reason + 审计；GAP-FIX AI 契约修复）。
+///
+/// 与前端 admin/ai 页面 save action 对齐：body 携带 enabled/data_mode/
+/// flags/budgets/expected_version/reason，If-Match 头为当前顶层 version
+/// （优先头，缺省回落 body.expected_version；与 ai_site_config.version 比较，
+/// 不符 409）。Provider upsert 保持兼容：body 同时携带 name + base_url 时
+/// 执行原有 upsert（SQLite ON CONFLICT / MySQL ON DUPLICATE KEY）。
 async fn update_ai_config(
     State(state): State<AppState>,
     auth: crate::auth::session::AuthSession,
+    headers: HeaderMap,
     axum::Json(body): axum::Json<Value>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "patch_admin_ai_config";
@@ -1761,98 +2151,255 @@ async fn update_ai_config(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     require_admin(pool, &user.id, request_id).await?;
     let reason = required_reason(&body, request_id)?;
-    let name = body
-        .get("name")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::bad_request("name required", request_id, None))?
-        .trim()
-        .to_string();
-    if name.is_empty() || name.len() > 120 {
-        return Err(AppError::bad_request("invalid name", request_id, None));
-    }
-    let base_url = body
-        .get("base_url")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::bad_request("base_url required", request_id, None))?
-        .to_string();
-    let default_model = body
-        .get("default_model")
-        .and_then(Value::as_str)
-        .unwrap_or("gpt-4o-mini")
-        .to_string();
-    let adapter_type = body
-        .get("adapter_type")
-        .and_then(Value::as_str)
-        .unwrap_or("openai_compatible")
-        .to_string();
-    let data_mode = body
-        .get("data_mode")
-        .and_then(Value::as_str)
-        .unwrap_or("redacted")
-        .to_string();
-    let status = body
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("disabled")
-        .to_string();
-    let now = crate::ai::consent::now();
-    let provider_id = uuid::Uuid::now_v7().to_string();
-    let affected = match pool {
-        sqlx::Either::Left(p) => {
-            sqlx::query(
-                "INSERT INTO ai_providers
-                     (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
-                 ON CONFLICT(name) DO UPDATE SET base_url = excluded.base_url, default_model = excluded.default_model,
-                     status = excluded.status, data_mode = excluded.data_mode, updated_at = excluded.updated_at",
-            )
-            .bind(&provider_id)
-            .bind(&name)
-            .bind(&adapter_type)
-            .bind(&base_url)
-            .bind(&default_model)
-            .bind(&status)
-            .bind(&data_mode)
-            .bind(now)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?
-            .rows_affected()
+
+    // 版本门：If-Match 头优先，回落 body.expected_version（前端两者都发）。
+    let expected_version = match headers
+        .get("if-match")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim().trim_matches('"').parse::<i64>())
+    {
+        Some(Ok(v)) => Some(v),
+        Some(Err(_)) => {
+            return Err(AppError::bad_request(
+                "If-Match must be the current version integer",
+                request_id,
+                None,
+            ))
         }
-        sqlx::Either::Right(p) => {
-            sqlx::query(
-                "INSERT INTO ai_providers
-                     (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE base_url = VALUES(base_url), default_model = VALUES(default_model),
-                     status = VALUES(status), data_mode = VALUES(data_mode), updated_at = VALUES(updated_at)",
-            )
-            .bind(&provider_id)
-            .bind(&name)
-            .bind(&adapter_type)
-            .bind(&base_url)
-            .bind(&default_model)
-            .bind(&status)
-            .bind(&data_mode)
-            .bind(now)
-            .bind(now)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?
-            .rows_affected()
-        }
+        None => body.get("expected_version").and_then(Value::as_i64),
     };
+    let Some(expected_version) = expected_version else {
+        return Err(AppError::bad_request(
+            "If-Match header or expected_version is required",
+            request_id,
+            None,
+        ));
+    };
+    if expected_version < 1 {
+        return Err(AppError::bad_request(
+            "expected_version must be >= 1",
+            request_id,
+            None,
+        ));
+    }
+
+    let current = load_ai_site_config(pool, request_id).await?;
+    if expected_version != current.version {
+        return Err(AppError::conflict(
+            "ai config version mismatch (reload and retry)",
+            request_id,
+        ));
+    }
+
+    // ── 站点级部分更新（缺省字段保持原值）──
+    let mut enabled = current.enabled;
+    let mut data_mode = current.data_mode.clone();
+    let mut flags_json = current.flags_json.clone();
+    let mut budgets_json = current.budgets_json.clone();
+    let mut changed: Vec<String> = Vec::new();
+
+    if let Some(v) = body.get("enabled").and_then(Value::as_bool) {
+        let v = v as i64;
+        if enabled != v {
+            enabled = v;
+            changed.push("enabled".to_string());
+        }
+    }
+    if let Some(v) = body.get("data_mode").and_then(Value::as_str) {
+        let v = v.trim().to_string();
+        if !["disabled", "metadata_only", "redacted", "full_with_consent"].contains(&v.as_str()) {
+            return Err(AppError::bad_request(
+                "data_mode must be one of disabled|metadata_only|redacted|full_with_consent",
+                request_id,
+                None,
+            ));
+        }
+        if data_mode != v {
+            data_mode = v;
+            changed.push("data_mode".to_string());
+        }
+    }
+    // flags：对象，值必须全为布尔（已知 4 键，未知键原样透传存储）。
+    if let Some(v) = body.get("flags") {
+        let Some(map) = v.as_object() else {
+            return Err(AppError::bad_request(
+                "flags must be an object of booleans",
+                request_id,
+                None,
+            ));
+        };
+        if map.values().any(|x| !x.is_boolean()) {
+            return Err(AppError::bad_request(
+                "flags must be an object of booleans",
+                request_id,
+                None,
+            ));
+        }
+        let encoded = serde_json::to_string(&Value::Object(map.clone()))
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        if flags_json != encoded {
+            flags_json = encoded;
+            changed.push("flags".to_string());
+        }
+    }
+    // budgets：对象，值必须为数字或 null（已知 4 键）。
+    if let Some(v) = body.get("budgets") {
+        let Some(map) = v.as_object() else {
+            return Err(AppError::bad_request(
+                "budgets must be an object of numbers or null",
+                request_id,
+                None,
+            ));
+        };
+        if map.values().any(|x| !x.is_null() && !x.is_number()) {
+            return Err(AppError::bad_request(
+                "budgets must be an object of numbers or null",
+                request_id,
+                None,
+            ));
+        }
+        let encoded = serde_json::to_string(&Value::Object(map.clone()))
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        if budgets_json != encoded {
+            budgets_json = encoded;
+            changed.push("budgets".to_string());
+        }
+    }
+
+    // 全列 UPDATE + version 乐观锁（0 行受影响 = 并发冲突 → 409）。
+    let now = crate::ai::consent::now();
+    let update_site = "UPDATE ai_site_config
+        SET enabled = ?, data_mode = ?, flags_json = ?, budgets_json = ?,
+            version = version + 1, updated_at = ?
+        WHERE id = 'singleton' AND version = ?";
+    let affected = match pool {
+        sqlx::Either::Left(p) => sqlx::query(update_site)
+            .bind(enabled)
+            .bind(&data_mode)
+            .bind(&flags_json)
+            .bind(&budgets_json)
+            .bind(now)
+            .bind(expected_version)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .rows_affected(),
+        sqlx::Either::Right(p) => sqlx::query(update_site)
+            .bind(enabled)
+            .bind(&data_mode)
+            .bind(&flags_json)
+            .bind(&budgets_json)
+            .bind(now)
+            .bind(expected_version)
+            .execute(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .rows_affected(),
+    };
+    if affected == 0 {
+        return Err(AppError::conflict(
+            "ai config version mismatch (reload and retry)",
+            request_id,
+        ));
+    }
+
+    // ── Provider upsert（兼容既有调用：body 带 name+base_url 时执行）──
+    let mut provider_upserted: Option<Value> = None;
+    if let (Some(name), Some(base_url)) = (
+        body.get("name").and_then(Value::as_str),
+        body.get("base_url").and_then(Value::as_str),
+    ) {
+        let name = name.trim().to_string();
+        let base_url = base_url.to_string();
+        if !name.is_empty() && name.len() <= 120 {
+            let default_model = body
+                .get("default_model")
+                .and_then(Value::as_str)
+                .unwrap_or("gpt-4o-mini")
+                .to_string();
+            let adapter_type = body
+                .get("adapter_type")
+                .and_then(Value::as_str)
+                .unwrap_or("openai_compatible")
+                .to_string();
+            let provider_data_mode = body
+                .get("data_mode")
+                .and_then(Value::as_str)
+                .unwrap_or("redacted")
+                .to_string();
+            let status = body
+                .get("status")
+                .and_then(Value::as_str)
+                .unwrap_or("disabled")
+                .to_string();
+            let provider_id = uuid::Uuid::now_v7().to_string();
+            let affected = match pool {
+                sqlx::Either::Left(p) => {
+                    sqlx::query(
+                        "INSERT INTO ai_providers
+                             (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
+                         ON CONFLICT(name) DO UPDATE SET base_url = excluded.base_url, default_model = excluded.default_model,
+                             status = excluded.status, data_mode = excluded.data_mode, updated_at = excluded.updated_at",
+                    )
+                    .bind(&provider_id)
+                    .bind(&name)
+                    .bind(&adapter_type)
+                    .bind(&base_url)
+                    .bind(&default_model)
+                    .bind(&status)
+                    .bind(&provider_data_mode)
+                    .bind(now)
+                    .bind(now)
+                    .execute(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                    .rows_affected()
+                }
+                sqlx::Either::Right(p) => {
+                    sqlx::query(
+                        "INSERT INTO ai_providers
+                             (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE base_url = VALUES(base_url), default_model = VALUES(default_model),
+                             status = VALUES(status), data_mode = VALUES(data_mode), updated_at = VALUES(updated_at)",
+                    )
+                    .bind(&provider_id)
+                    .bind(&name)
+                    .bind(&adapter_type)
+                    .bind(&base_url)
+                    .bind(&default_model)
+                    .bind(&status)
+                    .bind(&provider_data_mode)
+                    .bind(now)
+                    .bind(now)
+                    .execute(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                    .rows_affected()
+                }
+            };
+            provider_upserted =
+                Some(json!({ "provider": name, "upserted": affected, "status": status }));
+            changed.push("provider".to_string());
+        }
+    }
+
     AuditEntry::user_action(&user.id, "ai.config.update")
-        .with_target("ai_provider", &name)
+        .with_target("ai_site_config", "singleton")
         .with_reason(&reason)
         .with_policy_version(crate::authz::decision::AUTHZ_POLICY_VERSION)
+        .with_metadata(json!({ "changed": changed }))
         .record(pool)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-    Ok(Json(
-        json!({ "provider": name, "upserted": affected, "status": status }),
-    ))
+
+    // 响应与 GET 同形（前端 PATCH 后直接用返回的配置刷新视图）。
+    let mut config = ai_admin_config_json(pool, request_id).await?;
+    if let Some(provider) = provider_upserted {
+        config["provider_upsert"] = provider;
+    }
+    Ok(Json(config))
 }
 
 /// POST /api/v1/admin/ai/providers/test — 固定脱敏探针（不接收用户正文）。

@@ -1,11 +1,13 @@
 <script lang="ts">
   // M03-UI-06：板块总览 SSR——板块树（父级 + 子板块分组）、空状态、
   // 权限提示（members/restricted/hidden 可见性徽标）。
-  import BoardCard from '$lib/components/BoardCard.svelte';
+  // 原型对齐：prototype/pages/boards.html
+  // - 统一 .app-route-head（COMMUNITY / BOARDS）
+  // - .app-toolbar 工具条（发布讨论）
+  // - .app-board-grid 3 列高密度卡片网格
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { boardVisuals } from '$lib/board-visuals';
-  // M14-SEO-01：板块总览统一 SEO。
   import Seo from '$lib/components/Seo.svelte';
   import type { Board } from '$lib/api/types';
   import type { BoardsPageData } from './+page.server';
@@ -43,78 +45,119 @@
       return acc;
     }, new Map<string, number>())
   );
+  const hasSubBoards = $derived([...childCount.values()].some((c) => c > 0));
 </script>
 
 <Seo
-  title="板块总览"
-  description="BBLBB 全部公开板块"
+  title="板块 · BBLBB 社区"
+  description="按兴趣进入社区的不同讨论空间"
   og={{ type: 'website', siteName: 'BBLBB' }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'BBLBB 板块总览'
+    name: 'BBLBB 板块'
   }}
 />
 
-<div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">板块总览</span>
-  </nav>
-
-  {#if error && boards.length === 0}
-    <p class="input-hint is-error" role="alert">{error}</p>
-  {/if}
-
-  {#if boards.length === 0 && !error}
-    <EmptyState icon="message-square" title="暂无板块" desc="社区还没有板块" />
-  {:else}
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">全部板块</span>
-        <span class="text-secondary" style="font-size:var(--text-sm);">共 {boards.length} 个板块</span>
+<div class="container app-page">
+  <section class="page app-page app-route-boards" id="page-boards">
+    <div class="app-route-head">
+      <div class="app-route-head__copy">
+        <span class="app-kicker">COMMUNITY / BOARDS</span>
+        <h1 tabindex="-1">板块</h1>
+        <p>按兴趣进入社区的不同讨论空间</p>
       </div>
-      <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-5);">
-        {#each roots as board}
-          {@const rootVisuals = boardVisuals(board.slug)}
-          {@const hint = visibilityHint(board)}
-          <section aria-label={board.name}>
-            <div class="board-tree-root" style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-3);">
-              <h2 class="board-tree-title" style="margin:0;font-size:var(--text-lg);">
-                <a href="/boards/{board.slug}" style="text-decoration:none;color:inherit;">{board.name}</a>
+    </div>
+
+    <div class="app-toolbar" style="margin-bottom:14px">
+      <a href="/editor" class="btn primary">发布讨论</a>
+    </div>
+
+    {#if error && boards.length === 0}
+      <p class="input-hint is-error" role="alert">{error}</p>
+    {/if}
+
+    {#if boards.length === 0 && !error}
+      <EmptyState icon="message-square" title="暂无板块" desc="社区还没有板块" />
+    {:else if hasSubBoards}
+      <!-- 存在层级子板块时：按父板块分组展示 -->
+      <div style="display:flex;flex-direction:column;gap:24px;">
+        {#each roots as root (root.id)}
+          {@const kids = childrenOf.get(root.id) ?? []}
+          {@const rootVisuals = boardVisuals(root.slug)}
+          {@const hint = visibilityHint(root)}
+          {@const kCount = childCount.get(root.id) ?? 0}
+          <section aria-label={root.name}>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <h2 style="margin:0;font-size:18px;font-weight:600;font-family:var(--font-family-serif);">
+                <a href="/boards/{root.slug}" style="text-decoration:none;color:inherit;">{root.name}</a>
               </h2>
-              {#if childCount.get(board.id)}
-                <span class="badge badge-neutral">{childCount.get(board.id)} 个子板块</span>
+              {#if kCount > 0}
+                <span class="badge badge-neutral">{kCount} 个子板块</span>
               {/if}
               {#if hint}
-                <span class="badge {hint.tone}" title={hint.label}><Icon name={hint.icon} size={12} /> {hint.label}</span>
+                <span class="badge {hint.tone}" title={hint.label}>
+                  <Icon name={hint.icon} size={12} /> {hint.label}
+                </span>
               {/if}
             </div>
-            <div class="boards-grid">
-              <BoardCard
-                slug={board.slug}
-                name={board.name}
-                description={board.description ?? ''}
-                post_count={board.post_count}
-                icon={rootVisuals.icon}
-                color={rootVisuals.color}
-              />
-              {#each childrenOf.get(board.id) ?? [] as child}
+
+            <div class="app-board-grid">
+              <!-- 根板块自身卡片 -->
+              <a class="app-board-card" href="/boards/{root.slug}">
+                <span class="app-board-card__icon">
+                  <Icon name={rootVisuals.icon || 'workflow'} size={18} />
+                </span>
+                <h3>{root.name}</h3>
+                <p>{root.description || '深入记录工程实践与技术取舍。'}</p>
+                <div class="app-board-card__meta">
+                  <span>{root.post_count ?? 0} 个主题</span>
+                </div>
+              </a>
+
+              <!-- 子板块卡片 -->
+              {#each kids as child (child.id)}
                 {@const childVisuals = boardVisuals(child.slug)}
-                <BoardCard
-                  slug={child.slug}
-                  name={child.name}
-                  description={child.description ?? ''}
-                  post_count={child.post_count}
-                  icon={childVisuals.icon}
-                  color={childVisuals.color}
-                />
+                {@const childHint = visibilityHint(child)}
+                <a class="app-board-card" href="/boards/{child.slug}">
+                  <span class="app-board-card__icon">
+                    <Icon name={childVisuals.icon || 'workflow'} size={18} />
+                  </span>
+                  <h3>{child.name}</h3>
+                  <p>{child.description || '暂无描述'}</p>
+                  <div class="app-board-card__meta">
+                    <span>{child.post_count ?? 0} 个主题</span>
+                    {#if childHint}
+                      <span>· {childHint.label}</span>
+                    {/if}
+                  </div>
+                </a>
               {/each}
             </div>
           </section>
         {/each}
       </div>
-    </div>
-  {/if}
+    {:else}
+      <!-- 平铺模式（全部为一级板块）：1:1 对齐原型 3 列网格 -->
+      <div class="app-board-grid">
+        {#each boards as board (board.id)}
+          {@const visuals = boardVisuals(board.slug)}
+          {@const hint = visibilityHint(board)}
+          <a class="app-board-card" href="/boards/{board.slug}">
+            <span class="app-board-card__icon">
+              <Icon name={visuals.icon || 'workflow'} size={18} />
+            </span>
+            <h3>{board.name}</h3>
+            <p>{board.description || '按兴趣进入社区的不同讨论空间。'}</p>
+            <div class="app-board-card__meta">
+              <span>{board.post_count ?? 0} 个主题</span>
+              {#if hint}
+                <span>· {hint.label}</span>
+              {/if}
+            </div>
+          </a>
+        {/each}
+      </div>
+    {/if}
+  </section>
 </div>

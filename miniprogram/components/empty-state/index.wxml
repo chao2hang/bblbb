@@ -1,0 +1,18 @@
+<view class="es">
+  <!-- 加载中 -->
+  <view wx:if="{{state === 'loading'}}" class="loading-center">
+    <view class="spin"></view>
+  </view>
+
+  <!-- 空 / 错误 -->
+  <view wx:else class="es-body">
+    <view class="es-emoji">{{emoji || (state === 'error' ? '⚠️' : '📭')}}</view>
+    <view class="es-text">{{text}}</view>
+    <view class="es-hint" wx:if="{{hint}}">{{hint}}</view>
+    <button
+      wx:if="{{actionText}}"
+      class="btn btn-ghost btn-sm es-action"
+      bindtap="onAction"
+    >{{actionText}}</button>
+  </view>
+</view>

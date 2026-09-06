@@ -1,0 +1,54 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/board/board",
+    "pages/post/post",
+    "pages/create/create",
+    "pages/search/search",
+    "pages/profile/profile",
+    "pages/login/login",
+    "pages/register/register",
+    "pages/forgot/forgot",
+    "pages/profile-edit/profile-edit",
+    "pages/sessions/sessions",
+    "pages/favorites/favorites",
+    "pages/user/user",
+    "pages/shop/shop",
+    "pages/achievements/achievements",
+    "pages/transactions/transactions"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F5F3EE",
+    "navigationBarTitleText": "BBLBB",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F5F3EE",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": false
+  },
+  "tabBar": {
+    "color": "#9A938A",
+    "selectedColor": "#E45735",
+    "backgroundColor": "#FBFAF7",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/create/create",
+        "text": "发帖"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "networkTimeout": {
+    "request": 15000
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

@@ -186,9 +186,20 @@ async fn seed_lock_table(pool: &sqlx::MySqlPool, table: &str) {
     .unwrap();
 }
 
+/// 提取 MySQL 原生错误码（如 1205 锁等待超时、1213 死锁）。
+///
+/// 注意：trait 方法 `DatabaseError::code()` 返回的是 SQLSTATE（"HY000"/
+/// "40001"），不是原生错误号——必须 downcast 到 `MySqlDatabaseError` 取
+/// `number()`（本测试历史上从未在真实 MySQL 上运行过，此差异直到三库迁移
+/// 修复后才暴露）。
 fn mysql_error_code(err: &sqlx::Error) -> Option<String> {
     match err {
-        sqlx::Error::Database(db) => db.code().map(|c| c.to_string()),
+        sqlx::Error::Database(db) => {
+            let e = db
+                .try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>()?
+                .number();
+            Some(e.to_string())
+        }
         _ => None,
     }
 }

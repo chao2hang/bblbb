@@ -18,9 +18,8 @@
   let deletingId = $state<string | null>(null);
   let actionError = $state('');
 
-  function typeLabel(d: Draft): string {
-    return d.type === 'article' ? '文章' : '讨论';
-  }
+  // 原型对齐：文章/讨论类型已合并，草稿统一展示「内容」。
+  const typeLabel = '内容';
 
   async function handleDelete(d: Draft) {
     if (!window.confirm(`确定删除草稿「${d.title}」吗？删除后不可恢复。`)) return;
@@ -45,13 +44,6 @@
 </svelte:head>
 
 <div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/me" class="breadcrumb-link">我的主页</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">我的草稿</span>
-  </nav>
 
   <div class="card">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
@@ -78,7 +70,7 @@
                   {draft.title}
                 </div>
                 <div class="text-secondary" style="font-size:var(--text-sm);margin-top:2px;">
-                  <span class="badge badge-neutral">{typeLabel(draft)}</span>
+                  <span class="badge badge-neutral">{typeLabel}</span>
                   <span style="margin:0 var(--space-1);">·</span>
                   {charCount(draft.markdown)} 字
                   <span style="margin:0 var(--space-1);">·</span>

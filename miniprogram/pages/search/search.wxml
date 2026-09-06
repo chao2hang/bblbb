@@ -1,0 +1,62 @@
+<view class="page">
+  <view class="sr-bar">
+    <input
+      class="input sr-input"
+      focus="{{focus}}"
+      value="{{keyword}}"
+      bindinput="onInput"
+      bindconfirm="onConfirm"
+      confirm-type="search"
+      placeholder="搜索帖子、用户、板块…"
+      placeholder-class="ph"
+    />
+    <text class="sr-clear" wx:if="{{keyword}}" bindtap="onClear">✕</text>
+  </view>
+
+  <view class="container sr-body">
+    <!-- 未搜索 -->
+    <view wx:if="{{state === 'idle'}}" class="sr-idle">
+      <text class="text-3">输入关键词，全站搜索</text>
+    </view>
+
+    <view wx:elif="{{state === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+
+    <empty-state
+      wx:elif="{{state === 'error'}}"
+      state="error"
+      text="搜索失败"
+      hint="{{error}}"
+      actionText="重试"
+      bind:action="onRetry"
+    />
+
+    <block wx:else>
+      <view wx:if="{{!items.length}}" class="sr-idle">
+        <text class="text-3">没有找到「{{keyword}}」相关内容</text>
+      </view>
+
+      <view
+        class="card sr-item"
+        wx:for="{{items}}"
+        wx:key="id"
+        data-item="{{item}}"
+        bindtap="onItemTap"
+      >
+        <view class="row gap-12">
+          <text class="badge sr-type {{item.type}}">{{item.typeLabel}}</text>
+          <text class="sr-title ellipsis">{{item.title}}</text>
+        </view>
+        <view class="sr-excerpt ellipsis-2" wx:if="{{item.highlightHtml || item.excerpt}}">
+          {{item.highlightHtml || item.excerpt}}
+        </view>
+      </view>
+
+      <load-more
+        wx:if="{{items.length}}"
+        hasMore="{{hasMore}}"
+        loading="{{loadingMore}}"
+        bind:retry="onLoadMoreRetry"
+      />
+    </block>
+  </view>
+</view>

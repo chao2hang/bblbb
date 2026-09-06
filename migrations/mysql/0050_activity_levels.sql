@@ -13,9 +13,9 @@
 --   never alter visibility/moderation/ordering or cash value.
 
 CREATE TABLE level_schemes (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     name VARCHAR(64) NOT NULL,
-    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     is_active TINYINT NOT NULL DEFAULT 0,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
@@ -26,13 +26,13 @@ CREATE TABLE level_schemes (
 CREATE INDEX level_schemes_active_idx ON level_schemes (is_active, name);
 
 CREATE TABLE levels (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    scheme_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    scheme_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     name VARCHAR(64) NOT NULL,
     threshold BIGINT NOT NULL,
     sort_order INT NOT NULL,
-    icon VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    color VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    icon VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    color VARCHAR(32) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
     benefits_json TEXT NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
@@ -46,9 +46,9 @@ CREATE TABLE levels (
 CREATE INDEX levels_sort_idx ON levels (scheme_id, sort_order);
 
 CREATE TABLE user_levels (
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    scheme_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    level_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    scheme_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    level_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     computed_from_balance BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     PRIMARY KEY (user_id, scheme_id),
@@ -60,11 +60,11 @@ CREATE TABLE user_levels (
 CREATE INDEX user_levels_level_idx ON user_levels (scheme_id, level_id);
 
 CREATE TABLE level_events (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    scheme_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    from_level_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    to_level_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    scheme_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    from_level_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL,
+    to_level_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     reason VARCHAR(64) NOT NULL,
     created_at BIGINT NOT NULL,
     PRIMARY KEY (id),
@@ -78,9 +78,9 @@ CREATE INDEX level_events_user_created_idx ON level_events (user_id, created_at)
 CREATE INDEX level_events_scheme_idx ON level_events (scheme_id, to_level_id);
 
 CREATE TABLE activity_rules (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     kind VARCHAR(16) NOT NULL,
-    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    currency_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     amount BIGINT NOT NULL,
     daily_limit INT NULL,
     cooldown_seconds BIGINT NULL,
@@ -98,12 +98,12 @@ CREATE TABLE activity_rules (
 CREATE INDEX activity_rules_kind_enabled_idx ON activity_rules (kind, is_enabled, version);
 
 CREATE TABLE activity_claims (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    rule_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    activity_day VARCHAR(10) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    deduplication_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    point_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    rule_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    activity_day VARCHAR(10) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    deduplication_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+    point_operation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'granted',
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
@@ -119,7 +119,7 @@ CREATE INDEX activity_claims_user_day_idx ON activity_claims (user_id, activity_
 CREATE INDEX activity_claims_rule_day_idx ON activity_claims (rule_id, activity_day);
 
 CREATE TABLE user_reactions (
-    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     target_type VARCHAR(32) NOT NULL,
     target_id VARCHAR(64) NOT NULL,
     reaction VARCHAR(32) NOT NULL,

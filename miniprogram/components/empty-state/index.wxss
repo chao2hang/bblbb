@@ -1,0 +1,32 @@
+.es {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320rpx;
+}
+
+.es-body {
+  text-align: center;
+  padding: 60rpx 40rpx;
+}
+
+.es-emoji {
+  font-size: 80rpx;
+  margin-bottom: 24rpx;
+}
+
+.es-text {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.es-hint {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: var(--ink-3);
+}
+
+.es-action {
+  margin-top: 32rpx;
+}

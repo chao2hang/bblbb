@@ -4,6 +4,7 @@
   import Tag from './ui/Tag.svelte';
   import Avatar from './ui/Avatar.svelte';
   import EmptyState from './ui/EmptyState.svelte';
+  import UserCard from './UserCard.svelte';
   import { formatCount, formatRelative, escapeHtml } from '$lib/utils';
   import { boardVisuals } from '$lib/board-visuals';
 
@@ -14,6 +15,10 @@
     board_name?: string | null;
     author_name?: string | null;
     author_id?: string | null;
+    /** 嵌套作者投影（GET /posts、GET /boards/{slug}/posts）。 */
+    author?: { id?: string; username?: string | null } | null;
+    /** 平面作者用户名投影（搜索等）。 */
+    author_username?: string | null;
     reply_count?: number;
     view_count?: number;
     created_at?: number;
@@ -28,6 +33,11 @@
     emptyTitle = '暂无帖子',
     emptyDesc = '成为第一个发帖的人吧！'
   }: { posts: PostRowData[]; emptyTitle?: string; emptyDesc?: string } = $props();
+
+  /** 行内可用的作者用户名（嵌套投影优先；无则退回平面投影）。 */
+  function authorUsername(post: PostRowData): string | null {
+    return post.author?.username ?? post.author_username ?? null;
+  }
 </script>
 
 {#if !posts || posts.length === 0}
@@ -60,7 +70,15 @@
           </div>
         </div>
         <div class="post-row-posters" role="cell">
-          {#if post.author_name}
+          {#if authorUsername(post)}
+            {@const username = authorUsername(post)!}
+            <!-- 全局壳·UserHoverCard 接线：有作者用户名投影时挂 hover 卡
+                 （键盘 focus 可弹、窄屏点击出底部卡，见 UserCard）。 -->
+            <UserCard
+              user={{ username, display_name: post.author_name ?? null }}
+              label="查看 {post.author_name || username} 的个人资料"
+            />
+          {:else if post.author_name}
             <span class="author-hover-trigger" aria-label="查看 {post.author_name} 的个人资料">
               <Avatar name={post.author_name} size="xs" />
             </span>

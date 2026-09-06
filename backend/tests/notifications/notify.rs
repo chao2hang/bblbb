@@ -270,15 +270,16 @@ async fn list_cursor_and_read_flows() {
     }
 
     // 分页：limit=2 → has_more
-    let (page1, has_more) = notify::list_notifications(&pool, &user, 2, false, None)
+    let (page1, has_more) = notify::list_notifications(&pool, &user, 2, false, None, None)
         .await
         .unwrap();
     assert_eq!(page1.len(), 2);
     assert!(has_more);
     let cursor = page1.last().unwrap().id.clone();
-    let (page2, has_more2) = notify::list_notifications(&pool, &user, 2, false, Some(&cursor))
-        .await
-        .unwrap();
+    let (page2, has_more2) =
+        notify::list_notifications(&pool, &user, 2, false, None, Some(&cursor))
+            .await
+            .unwrap();
     assert_eq!(page2.len(), 2);
     assert!(has_more2);
     // 翻页不重复
@@ -401,7 +402,7 @@ async fn permission_recheck_hides_unavailable_content() {
     )
     .await
     .unwrap();
-    let (items, _) = notify::list_notifications(&pool, &user, 10, false, None)
+    let (items, _) = notify::list_notifications(&pool, &user, 10, false, None, None)
         .await
         .unwrap();
     let projected = notify::project_list(&pool, items).await.unwrap();
@@ -411,7 +412,7 @@ async fn permission_recheck_hides_unavailable_content() {
 
     // 隐藏后：只显示安全失效状态，不泄漏标题/正文/链接
     set_post_status(&pool, &post, "hidden").await;
-    let (items, _) = notify::list_notifications(&pool, &user, 10, false, None)
+    let (items, _) = notify::list_notifications(&pool, &user, 10, false, None, None)
         .await
         .unwrap();
     let projected = notify::project_list(&pool, items).await.unwrap();
@@ -422,7 +423,7 @@ async fn permission_recheck_hides_unavailable_content() {
 
     // 恢复后恢复正常
     set_post_status(&pool, &post, "published").await;
-    let (items, _) = notify::list_notifications(&pool, &user, 10, false, None)
+    let (items, _) = notify::list_notifications(&pool, &user, 10, false, None, None)
         .await
         .unwrap();
     let projected = notify::project_list(&pool, items).await.unwrap();

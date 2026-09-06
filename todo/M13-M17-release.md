@@ -403,6 +403,19 @@
 - [!] `M17-LEGAL-05` `[30m]` 核对 AI 训练爬虫默认拒绝、作者退出索引/摘要和管理员优先级说明。 阻塞：原因=需核对 AI 训练爬虫默认拒绝/作者退出索引/管理员优先级说明（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=说明核对完成
 - [!] `M17-LEGAL-06` `[45m]` 由运营/安全/法律负责人签署发布批准或记录阻塞项，未签署不得上线。 阻塞：原因=需运营/安全/法律负责人签署发布批准（人类审批）；负责人=platform/product-legal；复查日期=2026-09-07；解除条件=签署发布批准
 
+## M17-GAPFIX：原型差距补齐（社交/经济/管理域）
+
+**元数据：** `P1` · `owner=platform/fullstack` · `risk=medium` · `depends=M16-RELEASE-TEST` · `blocked=none`
+**目标文件：** `backend/src/routes/`、`migrations/{sqlite,mysql,mariadb}/006{0,1,2}_*.sql`、`frontend/src/routes/`、`openapi/openapi.yaml`
+**验收：** check-route-coverage/write-contract/error-codes/client-compat/permission-matrix 全绿（契约 222 操作）；cargo clippy --workspace -- -D warnings 零告警；frontend npm run check 零错误；前后端测试全部通过。
+
+- [x] `M17-GAPFIX-01` `[60m]` 实现社交域后端（收藏/关注/私信/成就/API 密钥，迁移 0060）并注册路由。 证据：files=backend/src/routes/{favorites,follows,conversations,achievements,apikeys}.rs、migrations/*/0060_social.sql；commands=cargo test --test favorites_follows --test conversations（12/12 通过）；contract=GET/POST/DELETE /api/v1/{posts/{id}/favorite,users/{username}/follow,boards/{slug}/follow,conversations*,me/{favorites,following,achievements,api-keys}}；commit=工作区（用户直接指令实施）；review=none
+- [x] `M17-GAPFIX-02` `[60m]` 实现管理域 A 后端（统计/BI/审计读取/系统设置/帖子管理/广播/角色分配/筛选补齐/AI 契约修复，迁移 0061）。 证据：files=backend/src/routes/admin_ext.rs、migrations/*/0061_admin_ext.sql；commands=cargo test --test admin_ext --test migration_equivalence（11/11 通过）；contract=DOCUMENTED_NON_CONTRACT 登记（docs/OPERATIONS.md §19.8）；commit=工作区；review=none
+- [x] `M17-GAPFIX-03` `[60m]` 实现经济与个人域后端（积分流水/调整/等级规则/处罚/改密/OAuth 授权/附件管理/下载交易/标签合并/付费解锁，迁移 0062）。 证据：files=backend/src/routes/economy_ext.rs、migrations/*/0062_economy_ext.sql；commands=cargo test --test economy_ext --test migration_equivalence（15/15 通过）；contract=GET/POST /api/v1/{me/{point-transactions,sanctions,password,oauth-grants},posts/{id}/unlock}；commit=工作区；review=none
+- [x] `M17-GAPFIX-04` `[60m]` 前端补齐全部缺失页面与交互（全局壳/私信/收藏/成就/API 密钥/发现/文章/标签聚合/市场/账单/7 个管理页/帖子互动/编辑器增强/账号页）。 证据：files=frontend/src/routes/{messages,favorites,achievements,apikeys,discover,articles,tags/[slug],marketplace,me/billing,admin/*}；commands=npm run check（0 错误）+ vitest（597/597）；contract=none；commit=工作区；review=none
+- [x] `M17-GAPFIX-05` `[60m]` 契约冻结新基准 222 操作并全量治理。 证据：files=openapi/openapi.yaml、scripts/{sync-operation-coverage,check-openapi,check-roadmap,check-route-coverage}.rb、todo/M13-M17-release.md；commands=ruby scripts/check-route-coverage.rb && check-write-contract.rb && check-error-codes.rb && check-client-compat.rb && check-permission-matrix.rb && check-openapi.rb && check-roadmap.rb；contract=193→222；commit=工作区；review=none
+- [x] `M17-GAPFIX-06` `[60m]` 管理台系统设置页原型对齐（配置建议/脏标记/内联校验/状态行计数/导出卡 + 公开源 public_source 全栈，迁移 0063；附带修正 reason 必填与前端 maxlength 超 后端上限问题）。 证据：files=migrations/*/0063_admin_settings_public_source.sql、backend/src/routes/admin_ext.rs、backend/tests/admin_ext.rs、frontend/src/routes/admin/settings/+page.{svelte,server.ts}、frontend/src/lib/api/types.ts、frontend/src/lib/testing/ssr/admin-settings-nojs.test.ts；commands=cargo test --test admin_ext --test migration_equivalence（12/12 通过）+ npx vitest run src/lib/testing/ssr/admin-settings-nojs.test.ts（6/6 通过）+ npm run check（0 错误）；contract=DOCUMENTED_NON_CONTRACT（docs/OPERATIONS.md §19.8，settings 字段集扩展 public_source）；commit=工作区；review=none
+
 ## M17-LAUNCH：正式上线与观察窗口
 
 **元数据：** `P0` · `owner=platform/release-manager` · `risk=critical` · `depends=M17-FLAGS,M17-LEGAL,M17-SMOKE` · `blocked=external(生产执行)`
@@ -426,5 +439,5 @@
 - 默认主题通过 Playwright、axe/WCAG 2.2 AA、键盘、移动端、减少动效和无 JS 关键路径。
 - 生产 release 可重复构建、Caddy/systemd 权限正确、优雅停机和回滚可演练。
 - SQLite、MySQL、MariaDB、附件、OIDC key 和账本均完成真实恢复验证。
-- RC 报告包含 173 operations、所有 P0/P1、上一版 client 兼容、性能、隐私和人工验收证据。
+- RC 报告包含 222 operations、所有 P0/P1、上一版 client 兼容、性能、隐私和人工验收证据。
 - 法律/运营批准、默认 Flag 策略、专项启用记录和发布后观察窗口完整。

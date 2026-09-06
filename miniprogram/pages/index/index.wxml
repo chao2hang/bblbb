@@ -1,0 +1,66 @@
+<view class="page index-page">
+  <!-- 搜索入口 -->
+  <view class="search-bar" bindtap="onSearchTap">
+    <text class="search-icon">🔍</text>
+    <text class="search-ph">搜索帖子…</text>
+  </view>
+
+  <!-- 板块导航 -->
+  <scroll-view class="board-scroll" scroll-x enable-flex>
+    <view
+      class="board-chip {{activeBoard && activeBoard.slug === item.slug ? 'board-chip-on' : ''}}"
+      wx:for="{{boards}}"
+      wx:key="slug"
+      data-board="{{item}}"
+      bindtap="onBoardTap"
+    >{{item.name}}</view>
+  </scroll-view>
+
+  <!-- 排序 tabs（仅全站模式） -->
+  <view class="sort-tabs" wx:if="{{!activeBoard}}">
+    <view
+      class="sort-tab {{sortTab === 'latest' ? 'sort-tab-on' : ''}}"
+      data-tab="latest"
+      bindtap="onSortTab"
+    >最新</view>
+    <view
+      class="sort-tab {{sortTab === 'popular' ? 'sort-tab-on' : ''}}"
+      data-tab="popular"
+      bindtap="onSortTab"
+    >热门</view>
+  </view>
+
+  <view class="index-list container">
+    <!-- 首屏加载中 -->
+    <view wx:if="{{loadState === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+
+    <!-- 加载失败 -->
+    <empty-state
+      wx:elif="{{loadState === 'error'}}"
+      state="error"
+      text="加载失败"
+      hint="{{loadError}}"
+      actionText="点击重试"
+      bind:action="onRetry"
+    />
+
+    <!-- 列表 -->
+    <block wx:else>
+      <post-card
+        wx:for="{{items}}"
+        wx:key="id"
+        post="{{item}}"
+        bind:tap="onPostTap"
+      />
+      <view wx:if="{{!items.length}}" class="index-empty">
+        <text class="text-3">{{activeBoard ? '该板块还没有帖子' : '还没有帖子，去发布第一帖吧'}}</text>
+      </view>
+      <load-more
+        wx:if="{{items.length}}"
+        hasMore="{{hasMore}}"
+        loading="{{loadingMore}}"
+        bind:retry="onLoadMoreRetry"
+      />
+    </block>
+  </view>
+</view>

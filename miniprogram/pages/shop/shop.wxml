@@ -1,0 +1,88 @@
+<view class="page">
+  <!-- 余额条 -->
+  <view class="sh-balance" wx:if="{{coinBalance !== null}}">
+    <text class="text-3">我的金币</text>
+    <text class="sh-balance-num">{{coinBalance}}</text>
+  </view>
+
+  <!-- tabs -->
+  <view class="sh-tabs">
+    <view class="sh-tab {{tab === 'products' ? 'on' : ''}}" data-tab="products" bindtap="switchTab">商品</view>
+    <view class="sh-tab {{tab === 'mine' ? 'on' : ''}}" data-tab="mine" bindtap="switchTab">我的装扮</view>
+  </view>
+
+  <view class="container">
+    <!-- 商品 -->
+    <block wx:if="{{tab === 'products'}}">
+      <view wx:if="{{productsState === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+      <empty-state
+        wx:elif="{{productsState === 'error'}}"
+        state="error"
+        text="加载失败"
+        hint="{{productsError}}"
+        actionText="重试"
+        bind:action="onRetryProducts"
+      />
+      <block wx:else>
+        <view wx:if="{{!products.length}}" class="sh-empty"><text class="text-3">暂无可售商品</text></view>
+        <view class="card sh-item" wx:for="{{products}}" wx:key="id">
+          <view class="row gap-20">
+            <view class="sh-icon">{{item.icon_token || '🎁'}}</view>
+            <view class="col flex-1">
+              <view class="sh-title">{{item.title}}</view>
+              <view class="text-3 sh-desc" wx:if="{{item.description_safe}}">{{item.description_safe}}</view>
+              <view class="row gap-16 mt-16">
+                <text class="badge badge-gold">{{item.priceText}}</text>
+                <text class="text-3" wx:if="{{item.stock_remaining !== null && item.stock_remaining !== undefined}}">
+                  库存 {{item.stock_remaining === -1 ? '不限' : item.stock_remaining}}
+                </text>
+                <text class="text-3" wx:if="{{item.required_level > 1}}">Lv{{item.required_level}} 起</text>
+              </view>
+            </view>
+            <button
+              class="btn btn-primary btn-sm"
+              loading="{{buyingId === item.id}}"
+              data-product="{{item}}"
+              bindtap="onBuyTap"
+            >购买</button>
+          </view>
+        </view>
+      </block>
+    </block>
+
+    <!-- 我的装扮 -->
+    <block wx:else>
+      <view wx:if="{{entState === 'loading'}}" class="loading-center"><view class="spin"></view></view>
+      <empty-state
+        wx:elif="{{entState === 'error'}}"
+        state="error"
+        text="加载失败"
+        hint="{{entError}}"
+        actionText="重试"
+        bind:action="onRetryEnt"
+      />
+      <block wx:else>
+        <view wx:if="{{!entitlements.length}}" class="sh-empty"><text class="text-3">还没有装扮权益</text></view>
+        <view class="card sh-item" wx:for="{{entitlements}}" wx:key="id">
+          <view class="row gap-20">
+            <view class="sh-icon">{{item.icon_token || item.product_icon_token || '🎀'}}</view>
+            <view class="col flex-1">
+              <view class="sh-title">{{item.title || item.product_title || item.kind || '装扮权益'}}</view>
+              <view class="text-3">
+                状态：{{item.equipped ? '已装备' : (item.status || '未装备')}}
+              </view>
+            </view>
+            <button
+              wx:if="{{item.kind && (item.kind.indexOf('frame') > -1 || item.kind.indexOf('decoration') > -1 || item.kind.indexOf('badge') > -1 || item.kind.indexOf('effect') > -1 || item.kind.indexOf('prefix') > -1 || item.kind.indexOf('color') > -1)}}"
+              class="btn {{item.equipped ? 'btn-ghost' : 'btn-primary'}} btn-sm"
+              loading="{{equippingId === item.id}}"
+              data-id="{{item.id}}"
+              data-equipped="{{item.equipped}}"
+              bindtap="onEquipTap"
+            >{{item.equipped ? '卸下' : '装备'}}</button>
+          </view>
+        </view>
+      </block>
+    </block>
+  </view>
+</view>

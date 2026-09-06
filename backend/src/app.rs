@@ -24,7 +24,8 @@ use crate::{
     },
     ratelimit::RateLimiter,
     routes::{
-        admin, ai, auth, boards, comments, download, drafts, economy, feeds, health::healthz,
+        achievements, admin, admin_ext, ai, apikeys, auth, boards, comments, conversations,
+        download, drafts, economy, economy_ext, favorites, feeds, follows, health::healthz,
         marketplace, metrics::metrics, mfa, moderation, oidc, openapi::openapi, posts, reactions,
         ready, search, shop, storage, themes, users, video,
     },
@@ -134,6 +135,7 @@ pub fn build_router_full(
         .merge(storage::router())
         .merge(download::router())
         .merge(economy::router())
+        .merge(economy_ext::router())
         .merge(shop::router())
         .merge(reactions::router())
         .merge(ai::router())
@@ -141,9 +143,15 @@ pub fn build_router_full(
         .merge(oidc::router())
         .merge(marketplace::router())
         .merge(admin::router())
+        .merge(admin_ext::router())
         .merge(feeds::router())
         .merge(search::router())
         .merge(themes::router())
+        .merge(favorites::router())
+        .merge(follows::router())
+        .merge(conversations::router())
+        .merge(achievements::router())
+        .merge(apikeys::router())
         // CSRF 防护：状态变更请求 + 会话 Cookie 必须携带合法 X-CSRF-Token
         .layer(middleware::from_fn_with_state(
             state.clone(),

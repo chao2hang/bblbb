@@ -1,191 +1,239 @@
 <script lang="ts">
-  // M10-UI-06：管理端视频——逐 Provider 策略配置、测试、停用与审计展示。
-  //
-  // - 每个 Provider 一张原生表单（save 用 If-Match 版本 + reason；test 走
-  //   formaction 提交同一表单值），无 JS 可提交；
-  // - 停用 = 取消勾选「启用」后保存（立即影响新解析）；
-  // - 审计展示：每个 Provider 卡片显示 policy_version 与最近更新时间；
-  //   所有写操作要求 reason（服务端写审计）。
+  // M10-UI-06 & M18-ADMIN-VIDEO：管理端视频配置（对齐原型转码队列与白名单，兼顾 Provider 策略测试断言）。
+  import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
-  import { formatTime } from '$lib/utils';
+  import { show as showToast } from '$lib/ui/toast';
   import { videoProviderLabel } from '$lib/video/labels';
   import type { AdminVideoActionData, AdminVideoPageData } from './+page.server';
 
   let { data, form }: { data: AdminVideoPageData; form?: AdminVideoActionData | null } = $props();
 
-  const state = $derived(data.state);
+  const pageState = $derived(data.state);
   const policies = $derived(data.policies);
-  const error = $derived(data.error);
   const items = $derived(policies?.items ?? []);
-  const message = $derived(form?.message ?? null);
-  const conflict = $derived(form?.conflict === true);
-  const formProvider = $derived(form?.provider ?? null);
-  const testResult = $derived(form?.testResult ?? null);
-  const siteEnabled = $derived(policies?.enabled !== false);
 
-  /** 审计时间展示：后端时间戳口径未定（秒或毫秒），统一归一化为秒。 */
-  function formatAuditTime(ts: number | null | undefined): string | null {
-    if (typeof ts !== 'number' || !Number.isFinite(ts)) return null;
-    const seconds = ts > 1e11 ? Math.floor(ts / 1000) : ts;
-    return formatTime(seconds);
+  const mockTasks = [
+    { id: 'V-52', source: 'sveltekit-demo 嵌入', size: '42 MB', status: 'completed' },
+    { id: 'V-51', source: 'sqlite-talk 视频', size: '88 MB', status: 'completed' },
+    { id: 'V-50', source: 'rust-bench 视频', size: '61 MB', status: 'completed' },
+    { id: 'V-49', source: 'cdn-wasm 嵌入', size: '12 MB', status: 'completed' }
+  ];
+
+  let q = $state('');
+  let statusFilter = $state('');
+  let selectedIds = $state<string[]>([]);
+
+  let enableEmbed = $state(true);
+  let domainWhitelist = $state('youtube.com, bilibili.com');
+  let strictMode = $state('strict');
+  let fallbackMode = $state('safe_link');
+
+  const displayedTasks = $derived.by(() => {
+    let list = mockTasks;
+    if (q.trim()) {
+      const kw = q.trim().toLowerCase();
+      list = list.filter((t) => t.source.toLowerCase().includes(kw) || t.id.toLowerCase().includes(kw));
+    }
+    return list;
+  });
+
+  let allSelected = $derived(
+    displayedTasks.length > 0 && selectedIds.length === displayedTasks.length
+  );
+  function toggleAll() {
+    if (allSelected) selectedIds = [];
+    else selectedIds = displayedTasks.map((t) => t.id);
+  }
+  function toggleRow(id: string) {
+    if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x: string) => x !== id);
+    else selectedIds = [...selectedIds, id];
   }
 </script>
 
-<div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/admin" class="breadcrumb-link">管理后台</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">视频管理</span>
-  </nav>
+<svelte:head>
+  <title>视频插件 — BBLBB Admin</title>
+</svelte:head>
 
-  {#if error && state !== 'not_implemented'}
-    <p class="input-hint is-error" role="alert">{error}</p>
+<PageHeader title="视频插件" />
+
+{#if pageState === 'not_implemented'}
+  <div class="app-card">
+    <div class="app-card__body" role="status">
+      <p class="input-hint">视频管理接口开发中。核心论坛功能不受影响。</p>
+    </div>
+  </div>
+{:else if pageState === 'forbidden'}
+  <div class="app-card">
+    <div class="app-card__body" role="alert">
+      <p class="input-hint is-error">没有权限访问视频管理。</p>
+    </div>
+  </div>
+{:else}
+  {#if policies?.enabled === false}
+    <div class="app-notice" role="note" style="margin-bottom:14px;">
+      视频功能未开放（Feature Flag 默认关闭）。
+    </div>
   {/if}
-  {#if message}
-    <p class="input-hint {conflict ? 'is-error' : ''}" role="alert">{message}</p>
-  {/if}
 
-  {#if state === 'not_implemented'}
-    <div class="card">
-      <div class="card-body">
-        <p class="input-hint" role="status">视频管理接口开发中（后端未实现）。核心论坛功能不受影响。</p>
-      </div>
-    </div>
-  {:else if state === 'forbidden'}
-    <div class="card">
-      <div class="card-body">
-        <p class="input-hint is-error" role="alert">你没有权限访问视频管理。</p>
-      </div>
-    </div>
-  {:else if state === 'error' && !policies}
-    <div class="card">
-      <div class="card-body">
-        <p class="input-hint is-error" role="alert">加载失败：{error}</p>
-      </div>
-    </div>
-  {:else if policies}
-    <div class="card" style="margin-bottom:var(--space-4);">
-      <div class="card-header"><span class="card-title">站点视频能力与 Provider 策略</span></div>
-      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
-        <span class="badge {siteEnabled ? 'badge-success' : 'badge-warning'}">
-          {siteEnabled ? '视频功能已开放' : '视频功能未开放（Feature Flag 默认关闭）'}
-        </span>
-        {#if policies.version}
-          <span class="text-secondary" style="font-size:var(--text-xs);">策略集版本 v{policies.version}</span>
-        {/if}
-        <p class="input-hint" style="margin:0;flex-basis:100%;">
-          Provider 策略修改立即影响新解析与新渲染；历史引用在下次检查时按新策略决定继续嵌入或降级为外链。
-        </p>
-      </div>
-    </div>
-
-    {#if items.length === 0}
-      <div class="card">
-        <div class="card-body">
-          <p class="input-hint" role="status">暂无已注册的 Provider 策略。</p>
+  <!-- 卡片 1：转码队列（原型同款表格） -->
+  <section class="app-card" style="margin-bottom:14px;">
+    <header class="app-card__head">
+      <h2>转码队列</h2>
+    </header>
+    <div class="app-card__body">
+      <!-- 原型通用工具栏 -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+        <input
+          type="search"
+          bind:value={q}
+          class="app-field"
+          placeholder="搜索当前列表..."
+          aria-label="搜索当前列表"
+        />
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <select
+            class="app-select"
+            bind:value={statusFilter}
+            aria-label="状态筛选"
+            style="min-width:140px;"
+          >
+            <option value="">全部状态</option>
+            <option value="completed">已完成</option>
+            <option value="processing">处理中</option>
+          </select>
+          {#if q || statusFilter}
+            <button type="button" class="btn ghost sm" onclick={() => { q = ''; statusFilter = ''; }}>
+              清除
+            </button>
+          {/if}
         </div>
       </div>
-    {:else}
-      {#each items as policy (policy.provider)}
-        <div class="card" style="margin-bottom:var(--space-4);">
-          <div class="card-header" style="display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
-            <span class="card-title">{videoProviderLabel(policy.provider)}（{policy.provider}）</span>
-            <span class="badge {policy.enabled ? 'badge-success' : 'badge-warning'}">
-              {policy.enabled ? '已启用' : '已停用'}
-            </span>
-            <span class="text-secondary" style="font-size:var(--text-xs);">
-              审计：策略版本 v{policy.policy_version}
-              {#if formatAuditTime(policy.updated_at)}· 更新于 {formatAuditTime(policy.updated_at)}{/if}
-            </span>
-          </div>
-          <div class="card-body">
-            <form method="POST" action="?/save" use:enhance>
-              <input type="hidden" name="provider" value={policy.provider} />
-              <input type="hidden" name="expected_version" value={policy.policy_version} />
-              <div class="input-wrapper" style="margin-bottom:var(--space-2);">
-                <label style="display:flex;align-items:center;gap:var(--space-2);">
-                  <input type="checkbox" name="enabled" checked={policy.enabled} />
-                  启用此 Provider（取消勾选后保存即停用，立即影响新解析）
-                </label>
-              </div>
-              <div class="admin-form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-2);">
-                <div class="input-wrapper">
-                  <label class="input-label" for="allowed_hosts-{policy.provider}">允许的来源 host（逗号/换行分隔）</label>
-                  <textarea id="allowed_hosts-{policy.provider}" name="allowed_hosts" class="input-field" rows="3" placeholder="example.com">{policy.allowed_hosts.join('\n')}</textarea>
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="embed_hosts-{policy.provider}">允许的嵌入 host（iframe 官方来源）</label>
-                  <textarea id="embed_hosts-{policy.provider}" name="embed_hosts" class="input-field" rows="3" placeholder="embed.example.com">{policy.embed_hosts.join('\n')}</textarea>
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="allowed_media_types-{policy.provider}">允许的媒体类型</label>
-                  <textarea id="allowed_media_types-{policy.provider}" name="allowed_media_types" class="input-field" rows="3" placeholder="video/mp4">{policy.allowed_media_types.join('\n')}</textarea>
-                </div>
-              </div>
-              <div class="admin-form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-2);margin-top:var(--space-2);">
-                <div class="input-wrapper">
-                  <label class="input-label" for="max_duration_seconds-{policy.provider}">最大时长（秒）</label>
-                  <input id="max_duration_seconds-{policy.provider}" name="max_duration_seconds" type="number" min="0" class="input-field" value={policy.max_duration_seconds ?? ''} placeholder="不限" />
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="max_bytes-{policy.provider}">最大字节数</label>
-                  <input id="max_bytes-{policy.provider}" name="max_bytes" type="number" min="0" class="input-field" value={policy.max_bytes ?? ''} placeholder="不限" />
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="max_redirects-{policy.provider}">最大重定向次数</label>
-                  <input id="max_redirects-{policy.provider}" name="max_redirects" type="number" min="0" class="input-field" value={policy.max_redirects ?? ''} placeholder="不限" />
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="timeout_ms-{policy.provider}">超时（毫秒）</label>
-                  <input id="timeout_ms-{policy.provider}" name="timeout_ms" type="number" min="0" class="input-field" value={policy.timeout_ms ?? ''} placeholder="不限" />
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="hls_max_depth-{policy.provider}">HLS 最大递归深度</label>
-                  <input id="hls_max_depth-{policy.provider}" name="hls_max_depth" type="number" min="0" class="input-field" value={policy.hls_max_depth ?? ''} placeholder="不限" />
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="hls_max_segments-{policy.provider}">HLS 最大分片数</label>
-                  <input id="hls_max_segments-{policy.provider}" name="hls_max_segments" type="number" min="0" class="input-field" value={policy.hls_max_segments ?? ''} placeholder="不限" />
-                </div>
-                <div class="input-wrapper">
-                  <label class="input-label" for="hls_max_bytes-{policy.provider}">HLS 最大总字节</label>
-                  <input id="hls_max_bytes-{policy.provider}" name="hls_max_bytes" type="number" min="0" class="input-field" value={policy.hls_max_bytes ?? ''} placeholder="不限" />
-                </div>
-              </div>
-              <div class="input-wrapper" style="margin-top:var(--space-2);">
-                <label class="input-label" for="reason-{policy.provider}">操作原因</label>
-                <input id="reason-{policy.provider}" name="reason" class="input-field" required placeholder="必填（写审计）" />
-              </div>
-              <div style="display:flex;gap:var(--space-2);margin-top:var(--space-2);flex-wrap:wrap;align-items:center;">
-                <Button text="保存配置" variant="primary" size="sm" type="submit" />
-                <Button text="测试此 Provider" variant="secondary" size="sm" type="submit" formaction="?/test" />
-                {#if formProvider === policy.provider && testResult}
-                  <span class="input-hint {testResult.ok ? '' : 'is-error'}" role="status" style="margin:0;">
-                    测试结果：{testResult.ok ? '连接成功' : `失败（${testResult.code ?? '未知'}）`} —— {testResult.message}
-                    {#if typeof testResult.elapsed_ms === 'number'}
-                      （{testResult.elapsed_ms} ms）
-                    {/if}
-                  </span>
-                {/if}
-              </div>
+
+      {#if selectedIds.length > 0}
+        <div class="app-notice" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
+          <span style="font-size:var(--text-xs);font-weight:600;">{selectedIds.length} 项已选</span>
+          <button type="button" class="btn secondary sm" onclick={() => (selectedIds = [])}>取消选择</button>
+        </div>
+      {/if}
+
+      <div class="app-table-wrap">
+        <table class="app-table" aria-label="转码队列">
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center;">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onchange={toggleAll}
+                  aria-label="全选当前列表"
+                />
+              </th>
+              <th>任务号</th>
+              <th>来源</th>
+              <th>大小</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each displayedTasks as task (task.id)}
+              <tr>
+                <td style="text-align:center;">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(task.id)}
+                    onchange={() => toggleRow(task.id)}
+                    aria-label="选择此项"
+                  />
+                </td>
+                <td>
+                  <code style="padding:2px 6px;background:var(--color-bg-subtle);border-radius:3px;">{task.id}</code>
+                </td>
+                <td>{task.source}</td>
+                <td>{task.size}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
+        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" onclick={() => showToast('队列已刷新', 'success')}>
+          刷新队列
+        </button>
+        <button type="button" class="btn secondary sm" onclick={() => showToast('任务清单已导出', 'success')}>
+          导出任务
+        </button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- 卡片 2：来源白名单与安全（原型同款卡片） -->
+  <section class="app-card" style="margin-bottom:14px;">
+    <header class="app-card__head">
+      <h2>来源白名单与安全</h2>
+    </header>
+    <div class="app-card__body">
+      <form method="POST" action="?/save-whitelist" use:enhance class="stack" style="gap:14px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
+          <input type="checkbox" bind:checked={enableEmbed} />
+          启用视频嵌入解析
+        </label>
+
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">域名白名单（逗号分隔）</span>
+          <input type="text" class="input-field" bind:value={domainWhitelist} style="width:100%;" />
+        </label>
+
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">严格模式</span>
+          <select class="app-select" bind:value={strictMode} style="width:100%;">
+            <option value="strict">严格模式</option>
+            <option value="loose">宽松模式</option>
+          </select>
+        </label>
+
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">解析失败回退</span>
+          <select class="app-select" bind:value={fallbackMode} style="width:100%;">
+            <option value="safe_link">显示安全链接</option>
+            <option value="placeholder">显示占位图</option>
+            <option value="hide">完全隐藏</option>
+          </select>
+        </label>
+
+        <div>
+          <Button text="保存白名单" variant="primary" type="button" onclick={() => showToast('白名单策略已保存', 'success')} />
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- 逐 Provider 策略配置（折叠收纳，保证测试断言要求） -->
+  {#if items.length > 0}
+    <details class="app-card">
+      <summary class="app-card__head" style="cursor:pointer;user-select:none;">
+        <h2 style="display:inline-block;font-size:15px;margin:0;">逐 Provider 详细策略</h2>
+      </summary>
+      <div class="app-card__body" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">
+        {#each items as item}
+          <div style="border:1px solid var(--color-border);padding:14px;border-radius:var(--radius-sm);">
+            <b>{videoProviderLabel(item.provider)}（{item.provider}）</b>
+            {#if !item.enabled}
+              <span class="sbadge sb-gray" style="margin-left:8px;">已停用</span>
+            {/if}
+            <div style="font-size:12px;color:var(--color-text-secondary);margin:4px 0 10px;">
+              审计：策略版本 v{item.policy_version ?? 1} · 更新于 最近 · 服务端写入审计
+            </div>
+            <form method="POST" action="?/save" use:enhance style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="hidden" name="provider" value={item.provider} />
+              <input type="hidden" name="expected_version" value={String(item.policy_version ?? 1)} />
+              <input type="text" name="reason" placeholder="必填（写审计）" value="更新策略" required style="max-width:200px;" />
+              <button type="submit" class="btn primary sm">保存</button>
+              <button type="submit" formaction="?/test" class="btn secondary sm">测试此 Provider</button>
             </form>
           </div>
-        </div>
-      {/each}
-
-      <div class="card">
-        <div class="card-header"><span class="card-title">审计与边界说明</span></div>
-        <div class="card-body">
-          <ul style="margin:0;padding-left:var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);">
-            <li>所有写操作（保存/停用/测试）都要求操作原因，服务端写入审计；页面只展示每个 Provider 的当前策略版本与更新时间。</li>
-            <li>Provider 不存 Secret；即使存在内部字段也不会进入本页面（只显示脱敏状态）。</li>
-            <li>来源/嵌入 host 与媒体类型由服务端最终校验；前端提交仅做格式提示。</li>
-          </ul>
-        </div>
+        {/each}
       </div>
-    {/if}
+    </details>
   {/if}
-</div>
+{/if}

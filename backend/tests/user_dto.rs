@@ -41,6 +41,11 @@ fn sample_public_profile() -> PublicProfile {
         cover_attachment_id: Some("00000000-0000-7000-8000-000000000098".to_string()),
         signature: Some("个性签名".to_string()),
         created_at: 1_700_000_000_000,
+        // GAP-FIX 社交域公开统计
+        post_count: 12,
+        followers: 34,
+        following: 5,
+        is_following: false,
     }
 }
 
@@ -59,6 +64,11 @@ fn public_profile_is_strict_allowlist() {
         "cover_attachment_id",
         "signature",
         "created_at",
+        // GAP-FIX 社交域公开统计
+        "post_count",
+        "followers",
+        "following",
+        "is_following",
     ];
     expected.sort();
     assert_eq!(

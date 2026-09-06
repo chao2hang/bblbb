@@ -20,21 +20,23 @@
   <link rel="canonical" href={canonical} />
 </svelte:head>
 
-<div class="container page-content">
-  <nav class="breadcrumb" aria-label="面包屑">
-    <a href="/" class="breadcrumb-link">首页</a>
-    <span class="breadcrumb-sep">/</span>
-    <a href="/settings" class="breadcrumb-link">账号设置</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">隐私与索引</span>
-  </nav>
+<div class="container page-content app-settings-page">
+  <div class="app-route-head">
+    <div class="app-route-head__copy">
+      <span class="app-kicker">ACCOUNT / PRIVACY</span>
+      <h1 tabindex="-1">隐私设置</h1>
+      <p>控制公开资料、搜索引擎与 AI 摘要的索引边界</p>
+    </div>
+  </div>
 
-  <div class="settings-layout">
-    <nav class="settings-nav" aria-label="设置导航">
-      <a href="/settings" class="settings-nav-item">基本资料</a>
-      <a href="/me" class="settings-nav-item">我的主页</a>
-      <a href="/notifications" class="settings-nav-item">通知</a>
-      <a href="/settings/privacy" class="settings-nav-item is-active">隐私与索引</a>
+  <div class="app-settings-layout">
+    <nav class="app-settings-nav" aria-label="设置导航">
+      <a href="/settings"><span aria-hidden="true">◈</span>个人资料</a>
+      <a href="/settings#settings-security"><span aria-hidden="true">◇</span>账号安全</a>
+      <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
+      <a href="/notifications"><span aria-hidden="true">◌</span>通知设置</a>
+      <a href="/settings#settings-oauth"><span aria-hidden="true">⌁</span>OAuth 授权</a>
+      <a href="/settings/privacy" class="is-active"><span aria-hidden="true">□</span>隐私设置</a>
     </nav>
 
     <div class="settings-content">
@@ -81,7 +83,7 @@
           <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
             <ul style="margin:0;padding-left:var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);">
               <li>搜索结果页默认输出 <code>noindex,follow,noarchive</code>（不会被收录），但带 canonical 与 OpenGraph 供分享预览。</li>
-              <li>完全公开且未被排除的文章会输出 canonical、OpenGraph、Twitter Card 与结构化数据（JSON-LD）。</li>
+              <li>完全公开且未被排除的内容会输出 canonical、OpenGraph、Twitter Card 与结构化数据（JSON-LD）。</li>
               <li>robots.txt、页面 meta 与 <code>X-Robots-Tag</code> 按当前配置动态生成，并随管理员策略变更在配置传播窗口内更新。</li>
             </ul>
           </div>

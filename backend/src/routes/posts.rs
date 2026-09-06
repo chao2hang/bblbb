@@ -69,6 +69,18 @@ struct CreatePostRequest {
     #[serde(default)]
     visibility_level: Option<u32>,
     access_policy: String,
+    /// 付费定价（金币；access_policy=paid 时必填 1-1000，否则 422）。
+    /// 存 posts.price_coin（0061 列）。
+    #[serde(default)]
+    price_coin: Option<u32>,
+    /// 作者手写摘要（≤300 字符；文章类型才有意义）。存 posts.summary
+    /// （0062 列；与 post_contents.excerpt 自动摘录语义不同）。
+    #[serde(default)]
+    summary: Option<String>,
+    /// 标签（slug 或名称，≤8 个、每个 1-32 字符）。写入 post_tags 关联
+    /// （0003 既有表，与 GET /posts 的 tag= 筛选同源）。
+    #[serde(default)]
+    tags: Option<Vec<String>>,
     #[serde(default)]
     scheduled_at: Option<i64>,
     client_request_id: String,
@@ -113,8 +125,20 @@ struct ListPostsQuery {
     /// 作者过滤（作者列表投影，M04-POSTS-07）。
     #[serde(default)]
     author_id: Option<String>,
+    /// 作者用户名过滤（username_normalized 精确匹配；GAP-FIX 筛选补齐）。
+    #[serde(default)]
+    author_username: Option<String>,
+    /// 排序/过滤：latest（默认）| popular（浏览量）| featured（精华过滤）|
+    /// unanswered（无回复过滤）| following（已关注用户，M18-HOME-01 原型对齐）。
     #[serde(default)]
     sort: Option<String>,
+    /// 类型过滤（query 参数 `type`）：article | topic——topic 映射既有
+    /// post_type='discussion'（0032 CHECK 值域 article/discussion）。
+    #[serde(default, rename = "type")]
+    type_filter: Option<String>,
+    /// 标签过滤（tags.slug 精确匹配，post_tags 关联）。
+    #[serde(default)]
+    tag: Option<String>,
     /// keyset 游标：上一页最后一条 created_at（毫秒）。
     #[serde(default)]
     after: Option<String>,
@@ -161,6 +185,73 @@ async fn create_post(
         .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
     let hash = crate::idempotency::request_hash(&body);
 
+    // GAP-FIX 付费解锁/摘要/标签字段校验（服务端权威）。
+    // price_coin：paid 必填 1-1000（422 invalid_price_coin），非 paid 禁带
+    // （付费定价只对 paid 策略有意义，避免双源歧义）。
+    match req.price_coin {
+        Some(p) if req.access_policy == "paid" => {
+            if !(1..=1000).contains(&p) {
+                return Err(AppError::with_code(
+                    axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                    "invalid_price_coin",
+                    "Unprocessable Entity",
+                    "price_coin must be between 1 and 1000",
+                    request_id,
+                ));
+            }
+        }
+        Some(_) => {
+            return Err(AppError::with_code(
+                axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                "invalid_price_coin",
+                "Unprocessable Entity",
+                "price_coin is only allowed for paid access policy",
+                request_id,
+            ));
+        }
+        None if req.access_policy == "paid" => {
+            return Err(AppError::with_code(
+                axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                "invalid_price_coin",
+                "Unprocessable Entity",
+                "price_coin is required for paid access policy",
+                request_id,
+            ));
+        }
+        None => {}
+    }
+    // summary：≤300 字符（trim 后可空；空串按未提供处理）。
+    if let Some(summary) = req.summary.as_deref() {
+        let trimmed = summary.trim();
+        if trimmed.chars().count() > 300 {
+            return Err(AppError::bad_request(
+                "summary must be at most 300 characters",
+                request_id,
+                None,
+            ));
+        }
+    }
+    // tags：≤8 个，每个 1-32 字符（trim 后；空项直接拒绝，避免静默丢数据）。
+    if let Some(tags) = req.tags.as_deref() {
+        if tags.len() > 8 {
+            return Err(AppError::bad_request(
+                "tags must contain at most 8 items",
+                request_id,
+                None,
+            ));
+        }
+        for tag in tags {
+            let len = tag.trim().chars().count();
+            if len == 0 || len > 32 {
+                return Err(AppError::bad_request(
+                    "each tag must be 1-32 characters",
+                    request_id,
+                    None,
+                ));
+            }
+        }
+    }
+
     let level: Option<i64> = match pool {
         Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
             .bind(&user.id)
@@ -174,6 +265,14 @@ async fn create_post(
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
     };
     let author_level = level.unwrap_or(1).clamp(1, u32::MAX as i64) as u32;
+
+    // GAP-FIX extras 输入（CreatePostInput 构造会 move req 字段，先取出）。
+    let extras = PostExtras {
+        access_policy: req.access_policy.clone(),
+        price_coin: req.price_coin,
+        summary: req.summary.clone(),
+        tags: req.tags.clone(),
+    };
 
     let cmd = validate_post_create(
         CreatePostInput {
@@ -212,10 +311,30 @@ async fn create_post(
             let _ = crate::idempotency::complete(pool, &record_id, &published.post.id)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-            Ok((
-                StatusCode::CREATED,
-                Json(post_created_json(&published.post)),
-            ))
+            // GAP-FIX 付费解锁/摘要/标签落库（发布事务外的补充写：均为
+            // 新增可选字段，失败即整体 5xx——帖子行已建，幂等重放会返回
+            // 原帖 id，重试同一请求不会再走 Created 分支，因此这里失败必须
+            // 显式报错而不是静默丢弃定价/标签）。
+            let linked_tags =
+                apply_post_extras(pool, &published.post.id, &extras, &user.id, request_id).await?;
+            // 成就钩子（best-effort）：post_count 类成就；失败只 warn 不阻断。
+            if let Err(e) = crate::achievements::evaluate(pool, &user.id).await {
+                tracing::warn!(user_id = %user.id, error = %e, "achievement evaluate failed (post)");
+            }
+            let mut body = post_created_json(&published.post);
+            if let Some(obj) = body.as_object_mut() {
+                obj.insert("price_coin".to_string(), serde_json::json!(req.price_coin));
+                obj.insert(
+                    "summary".to_string(),
+                    serde_json::json!(req
+                        .summary
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())),
+                );
+                obj.insert("tags".to_string(), serde_json::json!(linked_tags));
+            }
+            Ok((StatusCode::CREATED, Json(body)))
         }
         crate::idempotency::IdempotencyOutcome::Replay { response_reference } => {
             // 同 key+摘要重放：返回原帖（按引用读取）
@@ -269,6 +388,220 @@ async fn get_post_by_id(
         .map_err(|e| AppError::internal(e.to_string(), request_id))
 }
 
+/// GAP-FIX：CreatePostRequest 的扩展字段（发布事务外的补充写输入）。
+struct PostExtras {
+    access_policy: String,
+    price_coin: Option<u32>,
+    summary: Option<String>,
+    tags: Option<Vec<String>>,
+}
+
+/// GAP-FIX：发布后补充写入 price_coin/summary/标签关联与 paid 策略行。
+///
+/// - posts.price_coin（0061）/ posts.summary（0062）直接 UPDATE；
+/// - access_policy=paid 时创建 content_access_policies 行（kind='paid'，
+///   currency=coin，amount=price_coin）并回填 posts.access_policy_id——
+///   可见性评估（GET /posts/{id} 走 pol.kind）与解锁 grant
+///   （content_access_grants.policy_id NOT NULL）都依赖该行；
+/// - tags 写入 post_tags 关联并 bump tags.usage_count（详见
+///   [`link_post_tags`]）；
+/// - 标签写入后重入索引 Job（best-effort：发布事务内的首次入队在标签
+///   关联建立之前，search_documents.tags_json 以本次重建为准；索引 Job
+///   幂等合并，重复入队无副作用）。
+///
+/// 失败语义：均为新增可选字段的补充写——失败返回 5xx 而不是静默丢弃
+/// （帖子行已建，幂等重放返回原帖 id；调用方需要知道定价/标签是否落库）。
+async fn apply_post_extras(
+    pool: &DatabasePool,
+    post_id: &str,
+    extras: &PostExtras,
+    author_id: &str,
+    request_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let now = now_millis();
+    let price = extras.price_coin.map(i64::from);
+    let summary = extras
+        .summary
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
+    // 1) 定价与摘要。
+    let update_sql = "UPDATE posts SET price_coin = ?, summary = ? WHERE id = ?";
+    match pool {
+        Either::Left(p) => sqlx::query(update_sql)
+            .bind(price)
+            .bind(summary)
+            .bind(post_id)
+            .execute(p)
+            .await
+            .map(|_| ())
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query(update_sql)
+            .bind(price)
+            .bind(summary)
+            .bind(post_id)
+            .execute(p)
+            .await
+            .map(|_| ())
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+
+    // 2) paid 策略行（可见性评估 + 解锁 grant 的外键来源）。
+    if extras.access_policy == "paid" {
+        let policy_id = uuid::Uuid::now_v7().to_string();
+        let currency = crate::economy::ledger::service::CURRENCY_COIN;
+        let insert_policy = "INSERT INTO content_access_policies
+             (id, kind, min_level, currency_id, amount, reply_grant_persists, policy_version, created_by, created_at)
+             VALUES (?, 'paid', NULL, ?, ?, 0, 1, ?, ?)";
+        let inserted = match pool {
+            Either::Left(p) => sqlx::query(insert_policy)
+                .bind(&policy_id)
+                .bind(currency)
+                .bind(price)
+                .bind(author_id)
+                .bind(now)
+                .execute(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                .rows_affected(),
+            Either::Right(p) => sqlx::query(insert_policy)
+                .bind(&policy_id)
+                .bind(currency)
+                .bind(price)
+                .bind(author_id)
+                .bind(now)
+                .execute(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                .rows_affected(),
+        };
+        if inserted == 0 {
+            return Err(AppError::internal(
+                "failed to create paid access policy row",
+                request_id,
+            ));
+        }
+        let link_sql = "UPDATE posts SET access_policy_id = ? WHERE id = ?";
+        match pool {
+            Either::Left(p) => sqlx::query(link_sql)
+                .bind(&policy_id)
+                .bind(post_id)
+                .execute(p)
+                .await
+                .map(|_| ())
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            Either::Right(p) => sqlx::query(link_sql)
+                .bind(&policy_id)
+                .bind(post_id)
+                .execute(p)
+                .await
+                .map(|_| ())
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        };
+    }
+
+    // 3) 标签关联。
+    let linked = link_post_tags(pool, post_id, extras.tags.as_deref(), now, request_id).await?;
+
+    // 4) 索引重建（best-effort）。
+    if !linked.is_empty() {
+        let _ = crate::search::index_job::enqueue_index_job(pool, "post", post_id).await;
+    }
+    Ok(linked)
+}
+
+/// 解析并写入帖子标签关联（GAP-FIX：CreatePostRequest.tags）。
+///
+/// 输入为标签 slug 或名称（解析口径与 GET /search?tag= 一致：slug 或
+/// name 匹配）。只链接存在、启用（is_active=1）且未合并（status IS NULL）
+/// 的标签——**未知标签跳过**（标签创建是 tag.manage 管理操作，普通用户
+/// 只能选用现有标签；返回值回显实际链接的标签名，前端可据此提示）。
+/// 输入去重后写 post_tags（复合主键冲突幂等跳过）并 bump usage_count。
+async fn link_post_tags(
+    pool: &DatabasePool,
+    post_id: &str,
+    tags: Option<&[String]>,
+    now: i64,
+    request_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let Some(tags) = tags else {
+        return Ok(Vec::new());
+    };
+    let mut linked_ids: Vec<String> = Vec::new();
+    let mut linked_names: Vec<String> = Vec::new();
+    for raw in tags {
+        let tag = raw.trim();
+        if tag.is_empty() {
+            continue;
+        }
+        let row: Option<(String, String)> = match pool {
+            Either::Left(p) => sqlx::query_as(
+                "SELECT id, name FROM tags
+                     WHERE is_active = 1 AND status IS NULL AND (slug = ? OR name = ?) LIMIT 1",
+            )
+            .bind(tag)
+            .bind(tag)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            Either::Right(p) => sqlx::query_as(
+                "SELECT id, name FROM tags
+                     WHERE is_active = 1 AND status IS NULL AND (slug = ? OR name = ?) LIMIT 1",
+            )
+            .bind(tag)
+            .bind(tag)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        };
+        let Some((tag_id, name)) = row else {
+            continue;
+        };
+        if linked_ids.contains(&tag_id) {
+            continue;
+        }
+        let insert_sql =
+            "INSERT OR IGNORE INTO post_tags (post_id, tag_id, created_at) VALUES (?, ?, ?)";
+        let bump_sql = "UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?";
+        match pool {
+            Either::Left(p) => {
+                sqlx::query(insert_sql)
+                    .bind(post_id)
+                    .bind(&tag_id)
+                    .bind(now)
+                    .execute(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                sqlx::query(bump_sql)
+                    .bind(&tag_id)
+                    .execute(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            }
+            Either::Right(p) => {
+                sqlx::query(
+                    "INSERT IGNORE INTO post_tags (post_id, tag_id, created_at) VALUES (?, ?, ?)",
+                )
+                .bind(post_id)
+                .bind(&tag_id)
+                .bind(now)
+                .execute(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                sqlx::query(bump_sql)
+                    .bind(&tag_id)
+                    .execute(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            }
+        }
+        linked_ids.push(tag_id);
+        linked_names.push(name);
+    }
+    Ok(linked_names)
+}
+
 /// 发布错误 → Problem detail（预检阻断 → 409/403，其余 400/404/500）。
 ///
 /// M04-VISIBILITY-03/04：`VisibilityExceedsLevel` 稳定映射为 422
@@ -295,9 +628,11 @@ fn map_publish_error(err: PublishError) -> AppError {
 ///
 /// keyset 分页：`after` = 上一页最后一条 `created_at`（毫秒，`created_at DESC,
 /// id DESC` 排序）；返回 `PostPage{items, page{next_cursor, has_more}}`。
-/// 可选项：`board_id`、`author_id`（作者列表）、`sort`（latest/popular）。
+/// 可选项：`board_id`、`author_id`/`author_username`（作者列表）、`sort`
+/// （latest/popular/featured/unanswered）、`type`（article/topic）、`tag`（slug）。
 async fn list_posts(
     State(state): State<AppState>,
+    auth: AuthSession,
     Query(query): Query<ListPostsQuery>,
 ) -> Result<Response, AppError> {
     let request_id = "list_posts";
@@ -313,18 +648,40 @@ async fn list_posts(
             AppError::bad_request("after must be an integer cursor", request_id, None)
         })?),
     };
-    let author_id = query.author_id.as_deref().filter(|s| !s.is_empty());
-
-    let (rows, has_more) = list_posts_page(
-        pool,
-        query.board_id.as_deref(),
-        author_id,
-        query.sort.as_deref(),
+    // 类型映射：topic → discussion（既有 post_type 值域）。
+    let post_type = match query.type_filter.as_deref().filter(|s| !s.is_empty()) {
+        Some("article") => Some("article".to_string()),
+        Some("topic") => Some("discussion".to_string()),
+        Some(other) => {
+            return Err(AppError::bad_request(
+                format!("type must be article or topic, got: {other}"),
+                request_id,
+                None,
+            ))
+        }
+        None => None,
+    };
+    let is_following = query.sort.as_deref() == Some("following");
+    let viewer_id = auth.user.as_ref().map(|u| u.id.clone());
+    let empty_results = is_following && viewer_id.is_none();
+    let filter = PostsFilter {
+        board_id: query.board_id.filter(|s| !s.is_empty()),
+        author_id: query.author_id.filter(|s| !s.is_empty()),
+        author_username: query.author_username.filter(|s| !s.is_empty()),
+        tag_slug: query.tag.filter(|s| !s.is_empty()),
+        post_type,
+        // featured/unanswered/following 实为过滤条件（排序仍按 latest 键序，保证
+        // created_at keyset 游标一致）；popular 维持既有浏览量排序。
+        featured_only: query.sort.as_deref() == Some("featured"),
+        unanswered_only: query.sort.as_deref() == Some("unanswered"),
+        popular: query.sort.as_deref() == Some("popular"),
+        following_user_id: if is_following { viewer_id } else { None },
+        empty_results,
         after,
         limit,
-        request_id,
-    )
-    .await?;
+    };
+
+    let (rows, has_more) = list_posts_page(pool, &filter, request_id).await?;
 
     let items: Vec<Value> = rows.iter().map(post_summary_json).collect();
     let next_cursor = if has_more {
@@ -356,7 +713,15 @@ struct PostListRow {
     updated_at: i64,
     last_reply_at: Option<i64>,
     pinned_at: Option<i64>,
+    /// 0003 既有布尔列（is_pinned 的同义列，见 0061 迁移注释）。
+    pinned: i64,
+    /// 精选时间戳（is_featured = featured_at IS NOT NULL）。
+    featured_at: Option<i64>,
     author_name: Option<String>,
+    /// 作者手写摘要（列表卡片展示；与前端首页线程卡对齐，见 posts 表同名列）。
+    summary: Option<String>,
+    /// 点赞计数（M18-HOME-01，原型帖子卡 ♥ 计数）。
+    like_count: i64,
 }
 
 fn post_summary_json(p: &PostListRow) -> Value {
@@ -367,69 +732,127 @@ fn post_summary_json(p: &PostListRow) -> Value {
         "post_type": p.post_type,
         "title": p.title,
         "status": p.status,
+        "summary": p.summary,
         "reply_count": p.reply_count,
         "view_count": p.view_count,
+        "like_count": p.like_count,
         "pinned_at": p.pinned_at,
+        "is_pinned": p.pinned != 0,
+        "is_featured": p.featured_at.is_some(),
         "created_at": p.created_at,
         "updated_at": p.updated_at,
         "last_reply_at": p.last_reply_at,
     })
 }
 
-/// keyset 分页查询（published 帖子；cursor=created_at）。
-async fn list_posts_page(
-    pool: &DatabasePool,
-    board_id: Option<&str>,
-    author_id: Option<&str>,
-    sort: Option<&str>,
+/// 帖子列表过滤参数（GAP-FIX 筛选补齐：sort/type/tag/author_username）。
+struct PostsFilter {
+    board_id: Option<String>,
+    author_id: Option<String>,
+    author_username: Option<String>,
+    tag_slug: Option<String>,
+    post_type: Option<String>,
+    featured_only: bool,
+    unanswered_only: bool,
+    popular: bool,
+    /// 关注过滤：当前登录用户的 id（未登录时 empty_results 恒为 true）。
+    following_user_id: Option<String>,
+    empty_results: bool,
     after: Option<i64>,
     limit: i64,
+}
+
+/// keyset 分页查询（published 帖子；cursor=created_at）。
+///
+/// 过滤说明：
+/// - featured：featured_at 非空（精选标记，同义列见 0061 迁移注释）；
+/// - unanswered：reply_count = 0（无回复缓存列，即无评论——既有列的最佳
+///   近似：posts.reply_count 由评论路径维护）；
+/// - tag：post_tags × tags.slug 精确关联（EXISTS 子查询，三方言一致）；
+/// - author_username：users.username_normalized 精确匹配。
+async fn list_posts_page(
+    pool: &DatabasePool,
+    f: &PostsFilter,
     request_id: &'static str,
 ) -> Result<(Vec<PostListRow>, bool), AppError> {
-    let order = match sort {
-        Some("popular") => "p.view_count DESC, p.reply_count DESC, p.id DESC",
-        _ => "p.created_at DESC, p.id DESC",
+    if f.empty_results {
+        return Ok((Vec::new(), false));
+    }
+    let order = if f.popular {
+        "p.view_count DESC, p.reply_count DESC, p.id DESC"
+    } else {
+        "p.created_at DESC, p.id DESC"
     };
-    let sql = format!(
+    let mut sql = String::from(
         "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
                 p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
-                p.pinned_at, u.username_normalized as author_name
+                p.pinned_at, p.pinned, p.featured_at, u.username_normalized as author_name,
+                p.summary,
+                (SELECT COUNT(*) FROM post_reactions pr WHERE pr.post_id = p.id AND pr.reaction = 'like') AS like_count
          FROM posts p
          LEFT JOIN users u ON u.id = p.author_id
          WHERE p.status = 'published' AND p.deleted_at IS NULL
            AND (? IS NULL OR p.board_id = ?)
            AND (? IS NULL OR p.author_id = ?)
-           AND (? IS NULL OR p.created_at < ?)
-         ORDER BY {} LIMIT ?",
-        order
+           AND (? IS NULL OR p.author_id = (SELECT id FROM users WHERE username_normalized = ?))
+           AND (? IS NULL OR p.post_type = ?)
+           AND (? IS NULL OR EXISTS (
+                SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                WHERE pt.post_id = p.id AND t.slug = ?))
+           AND (? IS NULL OR p.author_id IN (SELECT followee_id FROM user_follows WHERE follower_id = ?))
+           AND (? IS NULL OR p.created_at < ?)",
     );
-    let fetch_limit = limit + 1;
+    if f.featured_only {
+        sql.push_str(" AND p.featured_at IS NOT NULL");
+    }
+    if f.unanswered_only {
+        sql.push_str(" AND p.reply_count = 0");
+    }
+    sql.push_str(&format!(" ORDER BY {order} LIMIT ?"));
+
+    let fetch_limit = f.limit + 1;
     let rows: Vec<PostListRow> = match pool {
         Either::Left(p) => sqlx::query_as::<_, PostListRow>(&sql)
-            .bind(board_id)
-            .bind(board_id)
-            .bind(author_id)
-            .bind(author_id)
-            .bind(after)
-            .bind(after)
+            .bind(&f.board_id)
+            .bind(&f.board_id)
+            .bind(&f.author_id)
+            .bind(&f.author_id)
+            .bind(&f.author_username)
+            .bind(&f.author_username)
+            .bind(&f.post_type)
+            .bind(&f.post_type)
+            .bind(&f.tag_slug)
+            .bind(&f.tag_slug)
+            .bind(&f.following_user_id)
+            .bind(&f.following_user_id)
+            .bind(f.after)
+            .bind(f.after)
             .bind(fetch_limit)
             .fetch_all(p)
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
         Either::Right(p) => sqlx::query_as::<_, PostListRow>(&sql)
-            .bind(board_id)
-            .bind(board_id)
-            .bind(author_id)
-            .bind(author_id)
-            .bind(after)
-            .bind(after)
+            .bind(&f.board_id)
+            .bind(&f.board_id)
+            .bind(&f.author_id)
+            .bind(&f.author_id)
+            .bind(&f.author_username)
+            .bind(&f.author_username)
+            .bind(&f.post_type)
+            .bind(&f.post_type)
+            .bind(&f.tag_slug)
+            .bind(&f.tag_slug)
+            .bind(&f.following_user_id)
+            .bind(&f.following_user_id)
+            .bind(f.after)
+            .bind(f.after)
             .bind(fetch_limit)
             .fetch_all(p)
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
     };
-    let has_more = rows.len() as i64 > limit;
-    let rows = rows.into_iter().take(limit as usize).collect();
+    let has_more = rows.len() as i64 > f.limit;
+    let rows = rows.into_iter().take(f.limit as usize).collect();
     Ok((rows, has_more))
 }
 
@@ -606,6 +1029,37 @@ async fn get_post(
     };
     let mut body = project_post(fields, grant, author_level);
 
+    // 收藏聚合（GAP-FIX 社交域）：favorite_count 子查询计数 +
+    // viewer_favorited（登录时 EXISTS 判定，匿名恒 false）。
+    let favorite_count = load_post_favorite_count(pool, &id, request_id).await?;
+    let viewer_favorited = match auth.user.as_ref() {
+        Some(u) => {
+            let exists: Option<i64> = match pool {
+                Either::Left(p) => {
+                    sqlx::query_scalar("SELECT 1 FROM favorites WHERE post_id = ? AND user_id = ?")
+                        .bind(&id)
+                        .bind(&u.id)
+                        .fetch_optional(p)
+                        .await
+                }
+                Either::Right(p) => {
+                    sqlx::query_scalar("SELECT 1 FROM favorites WHERE post_id = ? AND user_id = ?")
+                        .bind(&id)
+                        .bind(&u.id)
+                        .fetch_optional(p)
+                        .await
+                }
+            }
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            exists == Some(1)
+        }
+        None => false,
+    };
+    if let Some(map) = body.as_object_mut() {
+        map.insert("favorite_count".into(), json!(favorite_count));
+        map.insert("viewer_favorited".into(), json!(viewer_favorited));
+    }
+
     // M05-RISK-06：作者查看自己待审帖子 → 投影安全审核状态（只含类别）。
     if is_pending_author_view {
         let reason_category = load_pending_reason_category(pool, &id, request_id).await;
@@ -706,6 +1160,30 @@ async fn load_pending_reason_category(
     };
     let _ = request_id;
     row
+}
+
+/// 帖子收藏计数（详情聚合；GAP-FIX 社交域）。
+async fn load_post_favorite_count(
+    pool: &DatabasePool,
+    post_id: &str,
+    request_id: &'static str,
+) -> Result<i64, AppError> {
+    let count: i64 = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT COUNT(*) FROM favorites WHERE post_id = ?")
+                .bind(post_id)
+                .fetch_one(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar("SELECT COUNT(*) FROM favorites WHERE post_id = ?")
+                .bind(post_id)
+                .fetch_one(p)
+                .await
+        }
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok(count)
 }
 
 /// 读取帖子作者与状态（revisions 可见性判定用）。
@@ -1334,6 +1812,10 @@ async fn create_comment(
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?
                 .ok_or_else(|| AppError::internal("comment not found after insert", request_id))?;
+            // 成就钩子（best-effort）：comment_count 类成就；失败只 warn。
+            if let Err(e) = crate::achievements::evaluate(pool, &user.id).await {
+                tracing::warn!(user_id = %user.id, error = %e, "achievement evaluate failed (comment)");
+            }
             let mut resp_body = comment_json(&projection);
             resp_body["floor"] = json!(created.floor);
             Ok(private_no_store_response(
@@ -1396,7 +1878,28 @@ async fn toggle_reaction(
     match crate::reactions::service::add_reaction(pool, &user.id, "post", &id, reaction, false)
         .await
     {
-        Ok(summary) => Ok(Json(summary)),
+        Ok(summary) => {
+            // 成就钩子（best-effort）：reaction_received 类成就按**帖子作者**
+            // 判定（被赞方）；失败只 warn。
+            let author: Option<String> = match pool {
+                Either::Left(p) => sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ?")
+                    .bind(&id)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+                Either::Right(p) => sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ?")
+                    .bind(&id)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            };
+            if let Some(author_id) = author {
+                if let Err(e) = crate::achievements::evaluate(pool, &author_id).await {
+                    tracing::warn!(user_id = %author_id, error = %e, "achievement evaluate failed (reaction)");
+                }
+            }
+            Ok(Json(summary))
+        }
         Err(crate::reactions::ReactionError::AlreadyExists) => {
             crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, reaction)
                 .await
