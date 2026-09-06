@@ -1,15 +1,14 @@
 <script lang="ts">
-  // 全局壳·移动端底部导航（≤768px）——照 prototype BOTTOM_NAV 的结构：
-  // nav.bottom-nav + 5 项（首页 / 板块 / 发布（凸起 FAB）/ 消息 / 我的）。
-  // 当前路由高亮用 aria-current="page"；发布项是凸起 FAB 按钮。
-  // >768px 隐藏（桌面主导航在 Navbar）。
+  // 全局壳·移动端底部导航（≤768px）——严格对齐 prototype BOTTOM_NAV 结构：
+  // 恒定 5 项：首页 / 发现 / 凸起 FAB (+) / 消息 / 我的。
+  // 未登录时点击受限项由服务端 303 → /login?next= 拦截跳转，保持布局结构高保真不塌陷。
   import { page } from '$app/state';
   import Icon from './ui/Icon.svelte';
 
   let {
     user
   }: {
-    /** 会话投影（仅用存在性判断登录态；由 +layout.svelte 提供）。 */
+    /** 会话投影（由 +layout.svelte 提供）。 */
     user: { username: string; display_name?: string | null; level?: number; roles?: string[] } | null;
   } = $props();
 
@@ -20,36 +19,30 @@
     return path === href || path.startsWith(href + '/');
   }
 
-  /** 底部 tab 项（发布 FAB 在模板中单独渲染，保持中间位）。
-   *  authOnly 项仅登录展示：未登录不显示「消息」（私有路由仍由服务端
-   *  401 → /login 强制）；「我的」保留为登录入口（同原型 guest 行为）。 */
-  const tabs: { label: string; href: string; icon: string; authOnly?: boolean }[] = [
+  const leftTabs = [
     { label: '首页', href: '/', icon: 'house' },
-    // 对齐原型 BOTTOM_NAV（prototype/assets/page-chrome.js）：第二项为
-    // 「发现」（罗盘图标）。板块入口在首页分类栏与桌面导航，不在底部导航。
-    { label: '发现', href: '/discover', icon: 'compass' },
-    { label: '消息', href: '/messages', icon: 'mail', authOnly: true },
-    { label: '我的', href: '/me', icon: 'user' }
+    { label: '发现', href: '/discover', icon: 'compass' }
   ];
 
-  const visibleTabs = $derived(tabs.filter((t) => user || !t.authOnly));
+  const rightTabs = [
+    { label: '消息', href: '/messages', icon: 'mail' },
+    { label: '我的', href: '/me', icon: 'user' }
+  ];
 </script>
 
 <nav class="bottom-nav" aria-label="移动端底部导航">
-  {#each visibleTabs.slice(0, 2) as tab (tab.href)}
+  {#each leftTabs as tab (tab.href)}
     <a href={tab.href} class="bottom-nav-item" aria-current={isActive(tab.href) ? 'page' : undefined}>
       <Icon name={tab.icon} size={22} />
       <span>{tab.label}</span>
     </a>
   {/each}
 
-  {#if user}
-    <a href="/editor" class="bottom-nav-fab" aria-label="发布" aria-current={isActive('/editor') ? 'page' : undefined}>
-      <Icon name="plus" size={26} />
-    </a>
-  {/if}
+  <a href="/editor" class="bottom-nav-fab" aria-label="发布内容" aria-current={isActive('/editor') ? 'page' : undefined}>
+    <Icon name="plus" size={26} />
+  </a>
 
-  {#each visibleTabs.slice(2) as tab (tab.href)}
+  {#each rightTabs as tab (tab.href)}
     <a href={tab.href} class="bottom-nav-item" aria-current={isActive(tab.href) ? 'page' : undefined}>
       <Icon name={tab.icon} size={22} />
       <span>{tab.label}</span>

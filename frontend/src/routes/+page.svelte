@@ -42,6 +42,7 @@
   let extraPages = $state<PostRow[]>([]);
   let loadedCursor = $state<string | null | undefined>(undefined);
   let loadingMore = $state(false);
+  let showMobileCategories = $state(false);
 
   const posts = $derived<PostRow[]>([...data.posts, ...extraPages]);
   const cursor = $derived(loadedCursor === undefined ? data.nextCursor : loadedCursor);
@@ -154,10 +155,43 @@
     <!-- 中栏：信息流（原型 section.feed） -->
     <section class="feed" aria-label="最新讨论">
       <div class="mobile-categories" aria-label="移动端分类">
-        <button type="button" class="active">全部</button>
-        <button type="button">默认分类</button>
-        <button type="button" class="list" aria-label="全部分类"><Icon name="menu" size={18} /></button>
+        <a href="/" class="mobile-cat-btn {data.sort === '' ? 'active' : ''}">全部</a>
+        {#if boards.length > 0}
+          <a href="/boards/{boards[0].slug}" class="mobile-cat-btn">{boards[0].name}</a>
+        {/if}
+        <button
+          type="button"
+          class="list"
+          aria-label="全部分类"
+          aria-expanded={showMobileCategories}
+          onclick={() => (showMobileCategories = !showMobileCategories)}
+        >
+          <Icon name={showMobileCategories ? 'x' : 'menu'} size={18} />
+        </button>
       </div>
+
+      {#if showMobileCategories}
+        <div class="mobile-category-drawer" role="dialog" aria-label="全部分类列表">
+          <div class="mobile-category-drawer__header">
+            <span>全部分类</span>
+            <button type="button" class="close-btn" onclick={() => (showMobileCategories = false)} aria-label="关闭分类">
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+          <div class="mobile-category-drawer__list">
+            <a href="/" class="mobile-category-drawer__item {data.sort === '' ? 'active' : ''}" onclick={() => (showMobileCategories = false)}>
+              <b>全部</b>
+              <em>{formatCount(totalPosts)}</em>
+            </a>
+            {#each boards as board (board.id)}
+              <a href="/boards/{board.slug}" class="mobile-category-drawer__item" onclick={() => (showMobileCategories = false)}>
+                <b>{board.name}</b>
+                <em>{formatCount(board.post_count)}</em>
+              </a>
+            {/each}
+          </div>
+        </div>
+      {/if}
       <div class="feed-toolbar">
         <nav class="filters" aria-label="帖子筛选">
           {#each sortTabs as tab (tab.value)}
@@ -220,6 +254,10 @@
                     : '暂无帖子'}
             </div>
             <p class="empty-state-desc">成为第一个发帖的人吧！</p>
+            <a class="empty-state-cta" href="/editor">
+              <Icon name="plus" size={15} />
+              <span>发布第一篇内容</span>
+            </a>
           </div>
         {/if}
       </div>
@@ -644,6 +682,24 @@
     line-height: 1.8;
   }
 
+  .empty-state-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 8px 18px;
+    border-radius: var(--radius-sm);
+    background: var(--color-brand);
+    color: #fff;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    transition: background var(--duration-fast);
+  }
+  .empty-state-cta:hover {
+    background: var(--color-brand-hover);
+  }
+
   .mobile-hero,
   .mobile-categories {
     display: none;
@@ -654,29 +710,187 @@
     .right-rail { display: none; }
   }
   @media (max-width: 767px) {
-    .container { padding-inline: 10px !important; }
+    .container { padding-inline: 0 !important; }
     .mobile-hero {
       position: relative;
       display: block;
       height: 154px;
-      padding: 14px 16px 0;
+      padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 0;
       box-sizing: border-box;
       background: var(--color-brand);
       color: #fff;
     }
-    .mobile-logo { padding-top: 42px; text-align: center; font-size: 33px; font-weight: 800; font-style: italic; line-height: 32px; letter-spacing: -2px; }
-    .mobile-doc-link, .mobile-search-link { position: absolute; top: 9px; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px; padding: 0 8px; border: 1px solid rgb(255 255 255 / 32%); border-radius: 999px; background: rgb(255 255 255 / 10%); color: #fff; text-decoration: none; }
-    .mobile-doc-link { left: 8px; gap: 4px; font-size: 11px; }
-    .mobile-search-link { right: 58px; top: 14px; min-width: 34px; width: 34px; height: 34px; padding: 0; }
-    .hero-stats { display: flex; justify-content: space-between; margin-top: 19px; }
-    .hero-stats button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: #dfe9ff; font: 16px inherit; }
-    .hero-stats b { font-weight: 400; }
+    .mobile-logo {
+      position: absolute !important;
+      top: calc(54px + env(safe-area-inset-top, 0px)) !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: auto !important;
+      height: 32px !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      line-height: 32px !important;
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      font-family: var(--font-family-serif);
+      letter-spacing: 0.12em;
+      color: #fff;
+    }
+    .mobile-doc-link {
+      position: absolute;
+      top: calc(14px + env(safe-area-inset-top, 0px));
+      left: 16px;
+      min-width: 0;
+      height: 40px;
+      padding: 0 11px;
+      border: 1px solid rgba(255, 255, 255, 0.36);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+    }
+    .mobile-search-link {
+      position: absolute;
+      top: calc(14px + env(safe-area-inset-top, 0px));
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.36);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hero-stats {
+      position: absolute !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: auto !important;
+      height: 58px !important;
+      margin: 0 !important;
+      padding: 0 8px !important;
+      box-sizing: border-box !important;
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      align-items: center !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
+    }
+    .hero-stats button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .hero-stats button + button {
+      border-left: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .hero-stats b {
+      color: #fff;
+      font-weight: 700;
+    }
     .proto-home { grid-template-columns: minmax(0, 1fr); padding: 0; gap: 0; }
     .category-card { display: none; }
-    .mobile-categories { display: flex; align-items: stretch; height: 52px; padding: 0 12px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-card); gap: 18px; }
-    .mobile-categories button { min-width: 0; padding: 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-text-secondary); font-size: 14px; }
-    .mobile-categories button.active { color: var(--color-brand); font-weight: 600; border-bottom-color: var(--color-brand); }
-    .mobile-categories button.list { min-width: 44px; margin-left: auto; }
+    .mobile-categories {
+      display: flex;
+      align-items: stretch;
+      height: 52px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-bg-card);
+      gap: 12px;
+    }
+    .mobile-cat-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 14px;
+      border-bottom: 2px solid transparent;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .mobile-cat-btn.active {
+      color: var(--color-brand);
+      font-weight: 600;
+      border-bottom-color: var(--color-brand);
+    }
+    .mobile-categories .list {
+      min-width: 44px;
+      margin-left: auto;
+      border: 0;
+      background: transparent;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+    .mobile-category-drawer {
+      background: var(--color-bg-card);
+      border-bottom: var(--border-default);
+      box-shadow: var(--shadow-dropdown);
+      padding: 12px 16px 16px;
+    }
+    .mobile-category-drawer__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+    }
+    .mobile-category-drawer__header .close-btn {
+      border: 0;
+      background: transparent;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+      padding: 4px;
+      display: grid;
+      place-items: center;
+    }
+    .mobile-category-drawer__list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .mobile-category-drawer__item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--color-bg-page);
+      border: var(--border-default);
+      border-radius: 2px;
+      text-decoration: none;
+      color: var(--color-text-primary);
+      font-size: 14px;
+    }
+    .mobile-category-drawer__item.active {
+      border-color: var(--color-brand);
+      color: var(--color-brand);
+      font-weight: 600;
+    }
+    .mobile-category-drawer__item em {
+      font-style: normal;
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+    }
     .feed-toolbar { position: sticky; top: 0; z-index: 14; height: 52px; min-height: 52px; padding: 6px 12px; border-top: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: var(--color-bg-card); }
     .filters { gap: 6px; overflow-x: auto; }
     .filter-btn { min-height: 38px; padding: 0 11px; font-size: 14px; }
@@ -688,7 +902,5 @@
     .thread-footer { gap: 12px; }
     .thread-footer span:first-child { max-width: 42vw; }
     .mobile-hero { display: block !important; }
-    .mobile-logo { position: absolute !important; top: 56px !important; left: 0 !important; right: 0 !important; width: auto !important; height: 32px !important; margin: 0 !important; padding: 0 !important; line-height: 32px !important; }
-    .hero-stats { position: absolute !important; left: 16px !important; right: 16px !important; bottom: 0 !important; width: auto !important; height: 58px !important; margin: 0 !important; padding: 0 !important; display: flex !important; align-items: center !important; }
   }
 </style>
