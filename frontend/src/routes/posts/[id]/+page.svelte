@@ -808,25 +808,38 @@
 
           <!-- 原型对齐：主题功能按钮位于侧栏作者卡（.topic-actions--side 2×2）。 -->
           <div class="topic-actions topic-actions--side">
-            <Button
-              text={favBusy ? '处理中…' : favorited ? '已收藏' : '收藏'}
-              variant={favorited ? 'secondary' : 'ghost'}
-              size="sm"
-              icon="bookmark"
-              onclick={toggleFavorite}
-              disabled={favBusy}
-            />
-            <button
-              type="button"
-              class="btn ghost btn-ghost sm topic-like-btn {postLike.active ? 'is-active' : ''}"
-              aria-pressed={postLike.active}
-              aria-label={postLike.active ? '取消点赞' : '点赞'}
-              disabled={postLikeBusy}
-              onclick={togglePostLike}
-            >
-              <Icon name="thumbs-up" size={14} />
-              <span>{postLike.active ? '已赞' : '赞'}{postLike.count > 0 ? ` ${formatCount(postLike.count)}` : ''}</span>
-            </button>
+            {#if authed || user}
+              <Button
+                text={favBusy ? '处理中…' : favorited ? '已收藏' : '收藏'}
+                variant={favorited ? 'secondary' : 'ghost'}
+                size="sm"
+                icon="bookmark"
+                onclick={toggleFavorite}
+                disabled={favBusy}
+              />
+              <button
+                type="button"
+                class="btn ghost btn-ghost sm topic-like-btn {postLike.active ? 'is-active' : ''}"
+                aria-pressed={postLike.active}
+                aria-label={postLike.active ? '取消点赞' : '点赞'}
+                disabled={postLikeBusy}
+                onclick={togglePostLike}
+              >
+                <Icon name="thumbs-up" size={14} />
+                <span>{postLike.active ? '已赞' : '赞'}{postLike.count > 0 ? ` ${formatCount(postLike.count)}` : ''}</span>
+              </button>
+            {:else}
+              <!-- 匿名：收藏/点赞是登录操作，不渲染按钮，展示登录引导
+                   （?next= 登录后回跳本帖）。 -->
+              <a
+                href="/login?next={encodeURIComponent(`/posts/${post.id}`)}"
+                class="btn btn-ghost btn-sm"
+                style="text-decoration:none;"
+              >
+                <Icon name="bookmark" size={14} />
+                <span>登录后可收藏 / 点赞</span>
+              </a>
+            {/if}
             <Button text="分享" variant="ghost" size="sm" icon="share-2" onclick={copyShare} />
             <Button
               text="举报"

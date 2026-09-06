@@ -153,7 +153,9 @@ async function safeGet<T>(
 export const load: PageServerLoad = async ({ params, cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
   const id = params.id;
-  const authed = cookies.get(SESSION_COOKIE) !== null;
+  // 注意：cookies.get 缺失时返回 undefined（非 null），必须真值判断——
+  // 此前 `!== null` 恒真，导致匿名也渲染回复表单/点赞按钮。
+  const authed = Boolean(cookies.get(SESSION_COOKIE));
   const result = await getAuthed<unknown>(
     cookies,
     `/api/v1/posts/${encodeURIComponent(id)}`,

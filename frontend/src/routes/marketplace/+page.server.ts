@@ -11,7 +11,7 @@
 // 401 → redirect /login。
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getAuthed } from '$lib/api/server';
+import { getAuthed, SESSION_COOKIE } from '$lib/api/server';
 import type { MarketplacePurchaseView } from '$lib/api/types';
 
 /** 摘要表展示的最大行数（全量见 /marketplace/purchases）。 */
@@ -26,6 +26,12 @@ export interface MarketplacePageData {
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
+  // 匿名前置门：无会话 Cookie 直接 303 跳登录，不依赖 API 401——
+  // 后端功能关闭（feature_disabled）时在鉴权前就返回 409，匿名会看到
+  // 错误态页面而非登录跳转。
+  if (!cookies.get(SESSION_COOKIE)) {
+    throw redirect(303, `/login?next=${encodeURIComponent('/marketplace')}`);
+  }
   const requestId = request.headers.get('x-request-id');
   const result = await getAuthed<{ purchases?: MarketplacePurchaseView[] }>(
     cookies,

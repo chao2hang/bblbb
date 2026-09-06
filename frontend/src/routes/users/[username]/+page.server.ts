@@ -8,18 +8,21 @@
 //   置空，不泄漏状态），页面按公开投影渲染降级态；
 // - 返回类型仅 PUBLIC_PROFILE allowlist 九字段（$lib/api/types PublicProfile）。
 // - GAP-FIX 社交域：follow / unfollow actions（POST/DELETE
-//   /api/v1/users/{username}/follow，follows.rs BE-1 已落地）；load 本身
-//   返回形状保持 { user }（load.test.ts 契约），社交统计
+//   /api/v1/users/{username}/follow，follows.rs BE-1 已落地）；load 返回
+//   { user, authed }（authed = 请求方是否带会话 Cookie，关注按钮门控用，
+//   真实鉴权由后端裁决），社交统计
 //   post_count/followers/following/is_following 由后端 PublicProfile 附带。
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getAuthed } from '$lib/api/server';
+import { getAuthed, SESSION_COOKIE } from '$lib/api/server';
 import { followUser, unfollowUser } from '$lib/api/client';
 import { problemMessage, type Problem } from '$lib/errors';
 import type { PublicProfile } from '$lib/api/types';
 
 export interface UserPageData {
   user: PublicProfile;
+  /** 请求方是否带会话 Cookie（匿名 → 页面渲染登录引导而非关注表单）。 */
+  authed: boolean;
 }
 
 export interface UserFollowActionData {
@@ -32,13 +35,16 @@ export interface UserFollowActionData {
 export const load: PageServerLoad = async ({ params, cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
   const username = params.username;
+  // 关注是登录操作：无会话 Cookie → 页面渲染登录引导而非关注表单
+  // （真值判断：cookies.get 缺失返回 undefined，非 null，`!== null` 恒真）。
+  const authed = Boolean(cookies.get(SESSION_COOKIE));
   const result = await getAuthed<PublicProfile>(
     cookies,
     `/api/v1/users/${encodeURIComponent(username)}`,
     requestId
   );
   if (result.ok) {
-    return { user: result.data } satisfies UserPageData;
+    return { user: result.data, authed } satisfies UserPageData;
   }
   if (result.status === 404) {
     throw error(404, '用户不存在或已注销');
@@ -63,7 +69,9 @@ export const actions: Actions = {
       await followUser(fetch, username);
     } catch (e) {
       const p = asProblem(e);
-      if (p?.status === 401) throw redirect(303, '/login');
+      if (p?.status === 401) {
+        throw redirect(303, `/login?next=${encodeURIComponent(`/users/${username}`)}`);
+      }
       const status = typeof p?.status === 'number' && p.status >= 400 && p.status <= 599 ? p.status : 503;
       return fail(status, {
         following: false,
@@ -83,7 +91,9 @@ export const actions: Actions = {
       await unfollowUser(fetch, username);
     } catch (e) {
       const p = asProblem(e);
-      if (p?.status === 401) throw redirect(303, '/login');
+      if (p?.status === 401) {
+        throw redirect(303, `/login?next=${encodeURIComponent(`/users/${username}`)}`);
+      }
       const status = typeof p?.status === 'number' && p.status >= 400 && p.status <= 599 ? p.status : 503;
       return fail(status, {
         following: true,
