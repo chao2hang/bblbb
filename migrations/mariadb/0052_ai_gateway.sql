@@ -1,9 +1,3 @@
--- BBLBB AI Gateway schema (M09-SCHEMA, MariaDB)
---
--- ai_providers（Provider 与用途策略/预算）、ai_consents（逐次同意，
--- (user,provider,purpose) 唯一）、ai_tasks（异步任务幂等 + 状态机）、
--- ai_suggestions（schema_version + base_revision 防旧覆盖新）。
--- Secret 不落库（仅 secret_configured + secret_ref）。
 
 CREATE TABLE ai_providers (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,

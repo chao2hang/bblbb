@@ -1,4 +1,3 @@
--- BBLBB seed data: initial boards
 
 INSERT INTO boards (id, slug, name, description, sort_order, post_count, is_active, created_at, updated_at)
 VALUES

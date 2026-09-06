@@ -1,12 +1,3 @@
--- BBLBB boards and board-scoped roles migration (MySQL)
--- 1) boards gains parent_id (soft self-reference hierarchy; ALTER cannot carry
---    an FK, see SCHEMA.md), visibility (public/members/restricted/hidden) and
---    posting_mode (normal/approval/readonly/closed);
--- 2) board_roles: roles enabled for a board (composite PK (board_id, role_id),
---    cascade on board/role delete);
--- 3) board_role_assignments: board role grants with expiry (UNIQUE(board_id,
---    user_id, role_id), expires_at NULL = permanent, cascade on board/user/role
---    delete).
 
 ALTER TABLE boards ADD COLUMN parent_id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NULL;
 ALTER TABLE boards ADD COLUMN visibility VARCHAR(16) NOT NULL DEFAULT 'public';

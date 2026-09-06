@@ -1,4 +1,3 @@
--- BBLBB jobs 表 + outbox 扩展（M01-JOBS-01）
 
 ALTER TABLE outbox_events
     ADD COLUMN payload_version INT NOT NULL DEFAULT 1,

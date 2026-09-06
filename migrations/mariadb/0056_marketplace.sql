@@ -1,25 +1,3 @@
--- BBLBB third-party Marketplace schema (M12-SCHEMA, MariaDB)
---
--- Platform-hosted bilateral in-site ledger (docs/MARKETPLACE-ACCOUNTING.md).
--- Table-for-table equivalent to migrations/sqlite/0056_marketplace.sql:
--- - marketplace_clients: Marketplace app registration (points at the OAuth
---   confidential client; secret hash only; webhook URL + redirect URI JSON;
---   versioned approval history; status includes emergency_disabled).
--- - client_scopes: per-app x per-scope approvals (pending/approved/disabled,
---   limits JSON, version, effective_at, approval/revoke audit).
--- - marketplace_merchant_accounts: merchant available/pending/frozen balance,
---   UNIQUE (client_id, currency_id); all balances non-negative.
--- - offers + offer_versions: server-registered offer snapshots (amount/currency/
---   stock/platform fee/recipient client all saved by BBLBB; versioned history).
--- - checkout_intents: short-TTL, one-shot, user-bound checkout snapshot;
---   UNIQUE (client_id, merchant_order_id) and UNIQUE (idempotency scope,key).
--- - purchases: committed purchase facts; UNIQUE intent; amount/fee/net snapshot;
---   point_operation_id + merchant_operation_id link the immutable ledger.
--- - refunds: append-only refund requests/processing; cumulative cap enforced
---   by service under lock.
--- - webhook_deliveries: post-commit delivery records (HMAC signing, backoff,
---   dead-letter).
--- - reconciliation_records: incremental reconciliation records + diff classes.
 
 CREATE TABLE marketplace_clients (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,

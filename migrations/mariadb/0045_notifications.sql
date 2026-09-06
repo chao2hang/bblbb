@@ -1,18 +1,3 @@
--- BBLBB notifications extension and preferences (M05-SCHEMA-05, MariaDB)
---
--- notifications extension (table created in 0004, extended via ALTER):
--- template_key template key; resource_type/resource_id polymorphic resource
--- reference (open strings, so notification references are not blocked by an
--- enum); delivery_dedup_key delivery dedup key -- at most one notification
--- per (user_id, delivery_dedup_key) (NULL does not dedup, consistent across
--- engines); category notification category
--- activity/moderation/system/security/digest (orthogonal to the legacy type
--- enum; security_kind still marks the concrete security event).
---
--- notification_preferences: one row per (user_id, category) (PRIMARY KEY),
--- channel switches email/in_app/push; "security notifications cannot be
--- fully disabled by normal preferences" is CHECK-enforced -- category =
--- 'security' keeps at least one channel enabled.
 
 ALTER TABLE notifications
     ADD COLUMN template_key VARCHAR(64) NULL,

@@ -1,8 +1,3 @@
--- BBLBB seed data normalization (M01-DB-08)
--- 修复 0005 种子的跨库表示违约（不改写 0005 本身，保持不可变迁移）：
---   1. board id 归一化为合法 UUID v7（36 字符小写、时间有序、ASCII 二进制排序）；
---   2. created_at/updated_at 从 Unix 秒修正为 Unix 毫秒（BIGINT 毫秒契约）。
--- 0005 的种子尚无任何外键引用，重设 id 是安全的。
 
 UPDATE boards SET
     id = '01911fd5-f000-7561-a2a5-3dd6434157f0',

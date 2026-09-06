@@ -1,8 +1,3 @@
--- BBLBB Video plugin schema (M10-VIDEO, MariaDB)
---
--- video_embeds：resolve→create 绑定 target；状态机 pending/ready/blocked/error/removed；
--- resolution_id 一次性短效；policy_version 版本化。Source 只存 hash + 官方 URL。
--- video_provider_policies：direct/hls/xigua 每 Provider 策略，版本化。
 
 CREATE TABLE video_embeds (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci PRIMARY KEY NOT NULL,

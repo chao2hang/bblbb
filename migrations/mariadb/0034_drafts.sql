@@ -1,16 +1,3 @@
--- BBLBB drafts data model (M04-SCHEMA-03, MariaDB)
---
--- drafts: standalone draft resource (OpenAPI Draft, separate from posts) —
--- owner, optional board, article/discussion type, title, Markdown body,
--- visibility level / access policy, scheduled publish time, optimistic
--- version, soft delete.
---
--- Indexes: owner cursor list (owner_id, deleted_at, updated_at) and scheduled
--- publish job scan (scheduled_at).
---
--- Constraints: board is NULLable (drafts may be created without a board);
--- board delete sets draft board to NULL (does not cascade); owner delete
--- cascades.
 
 CREATE TABLE drafts (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,

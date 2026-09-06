@@ -1,17 +1,3 @@
--- BBLBB content access grants (M04-VISIBILITY-05/06, MariaDB)
---
--- content_access_grants: per-user access grants to posts/comments —
--- 1) after_reply (M04-VISIBILITY-05): a reply grant is written after the user
---    posts a valid visible reply in the topic (reply_grant_persists rule from
---    the frozen spec decides whether it survives deletion/penalty);
--- 2) paid (M04-VISIBILITY-06): a purchase grant is written by M7 after ledger
---    debit succeeds (this milestone only READS grants; debit/grant creation is
---    atomic in M7);
--- 3) moderator/import: explicit admin viewing and data migration.
---
--- Constraints: exactly one of post_id/comment_id (normalized via
--- grant_target_key to avoid cross-DB NULL uniqueness differences); at most one
--- grant per (user_id, grant_target_key), so duplicate requests never double-charge.
 
 CREATE TABLE content_access_grants (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,

@@ -1,0 +1,51 @@
+name: bblbb
+services:
+  migrate:
+    image: bblbb:github-main
+    command: ["migrate"]
+    env_file: .env
+    volumes:
+      - ./uploads:/app/uploads
+    networks: [default, shared-net]
+    restart: "no"
+  backend:
+    image: bblbb:github-main
+    command: ["backend"]
+    env_file: .env
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [default, shared-net]
+    restart: unless-stopped
+  worker:
+    image: bblbb:github-main
+    command: ["worker"]
+    env_file: .env
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [default, shared-net]
+    restart: unless-stopped
+  frontend:
+    image: bblbb:github-main
+    command: ["frontend"]
+    environment:
+      INTERNAL_API_ORIGIN: http://backend:8080
+      PORT: "3000"
+      HOST: 0.0.0.0
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [default]
+    restart: unless-stopped
+networks:
+  shared-net:
+    external: true

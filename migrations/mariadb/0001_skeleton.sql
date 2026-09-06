@@ -1,4 +1,3 @@
--- BBLBB schema skeleton only, targeting MariaDB 10.11+. Expand via new migrations.
 CREATE TABLE users (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
     username_normalized VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
