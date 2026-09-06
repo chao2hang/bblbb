@@ -1,19 +1,3 @@
--- BBLBB risk review status & policies (M05-RISK-01/03/08/09, MariaDB)
---
--- posts.review_status: 'none' normal publish flow; 'pending_review' high-risk
--- content awaiting human review (written atomically at publish time:
--- status='draft' + review_status='pending_review', so it never enters the
--- public projection — public queries filter by status='published'/'hidden').
---
--- risk_policies: versioned risk policy (M05-RISK-01/08). Each admin update
--- appends (id, version+1); UNIQUE(id, version) provides concurrent version
--- control (only one concurrent writer per version wins); reason is required
--- and written to audit (M05-RISK-08). thresholds_json holds thresholds and
--- rule parameters only — never internal data.
---
--- risk_evaluations: risk metrics (M05-RISK-09) — only verdict/reason
--- category/latency/policy version, NEVER the body text; reviewed_at for
--- queue duration (reviewed_at - created_at), false_positive for feedback.
 
 ALTER TABLE posts ADD COLUMN review_status VARCHAR(16) NOT NULL DEFAULT 'none'
     CHECK (review_status IN ('none', 'pending_review'));

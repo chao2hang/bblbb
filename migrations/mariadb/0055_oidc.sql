@@ -1,8 +1,3 @@
--- BBLBB OIDC Provider schema (M11-OIDC, MariaDB)
---
--- oauth_clients / oauth_consents / oauth_authorization_codes /
--- oauth_token_families + oauth_tokens / oauth_signing_keys / oauth_interactions。
--- 高熵 code/token 只存 hash；scope/redirect/client type 封闭约束；密钥加密保存。
 
 CREATE TABLE oauth_clients (
     id VARCHAR(36) PRIMARY KEY NOT NULL,

@@ -1,23 +1,3 @@
--- BBLBB moderation cases and reports (M05-SCHEMA-01/06, MariaDB)
---
--- reports: polymorphic target (target_type + target_id, no single FK),
--- closed reason_code enum; status open/triaged/investigating/resolved/
--- rejected/reopened/withdrawn (withdrawn is reports-only, not cases).
---
--- Dedup (M05-SCHEMA-06): report_dedup_key normalizes (reporter_id,
--- target_type, target_id, reason_code) into one column (same technique as
--- 0040 grant_target_key, avoiding cross-DB NULL uniqueness differences);
--- the dedup window is anchored -- dedup_until is the end of the current
--- anchored window (computed with REPORT_DEDUP_WINDOW_MS in the model layer),
--- at most one row per key per window, enforced by UNIQUE(report_dedup_key,
--- dedup_until); in-window duplicates are rejected at model level when
--- dedup_until > now.
---
--- moderation_cases: cases aggregate reports into a single moderation thread;
--- state machine in STATE-MACHINES.md section 3; priority low/normal/high/urgent.
--- case_reports: many-to-many reports <-> cases (reports may be merged).
--- case_assignments: append-only assignment history (release records released_at).
--- moderation_notes: internal notes (body never exposed via public API).
 
 CREATE TABLE reports (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

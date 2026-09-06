@@ -1,16 +1,3 @@
--- BBLBB sanctions (M05-SCHEMA-03, MariaDB)
---
--- sanctions: warning/rate_limit/mute/board_mute/ban. board_mute requires
--- board_id; other kinds refuse a board scope (CHECK-enforced, identical
--- across engines). ends_at NULL = permanent (warning/ban are usually
--- permanent); when set it must be later than starts_at. status advances
--- scheduled/active/expired over time at model level; revoked requires
--- revoked_at and revoked_by (CHECK-enforced).
---
--- sanction_reversals: append-only immutable reversal records -- at most one
--- per sanction (UNIQUE(sanction_id)); the reversal evidence chain (who, when,
--- why) can never be overwritten. sanctions.revoked_at/revoked_by/
--- revoke_reason mirror the current state for query convenience.
 
 CREATE TABLE sanctions (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

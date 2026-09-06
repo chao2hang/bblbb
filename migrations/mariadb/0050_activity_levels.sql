@@ -1,16 +1,3 @@
--- BBLBB levels + activity + reactions (M07-LEVELS/M07-SHOP, MariaDB)
---
--- level_schemes/levels: versioned experience thresholds; (scheme_id, threshold)
---   and (scheme_id, sort_order) unique. Currency drives exp source account.
--- user_levels: rebuildable (user_id, scheme_id) composite-PK cache, computed
---   from the exp balance — never the source of truth for rewards.
--- level_events: append-only promotion/demotion journal (reason + created_at).
--- activity_rules: check_in/task/reaction/post/comment/leaderboard reward rules
---   with daily limit, cooldown and conditions_json.
--- activity_claims: deduplicated per (rule_id, user_id, deduplication_key),
---   activity_day in user timezone; point_operation_id unique.
--- user_reactions: (user_id, target_type, target_id, reaction) unique; reactions
---   never alter visibility/moderation/ordering or cash value.
 
 CREATE TABLE level_schemes (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

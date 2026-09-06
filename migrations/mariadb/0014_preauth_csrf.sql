@@ -1,7 +1,3 @@
--- BBLBB 匿名预认证 CSRF 状态（M02-SESSION-08）
--- 为 register/login/verify-email/resend-verification/password-reset 等
--- 预认证写端点提供服务端可回溯校验的 CSRF 状态，防止 login CSRF
--- （SECURITY.md §4：匿名登录/注册流程使用独立的预认证 CSRF Cookie/状态）。
 
 CREATE TABLE preauth_csrf_tokens (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

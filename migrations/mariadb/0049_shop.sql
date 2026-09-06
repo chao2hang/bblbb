@@ -1,16 +1,3 @@
--- BBLBB internal shop + entitlements (M07-SHOP-SCHEMA, MariaDB)
---
--- shop_products: versioned catalog with kind (cosmetic_nickname/.../utility),
---   status (draft/pending_review/published/disabled/retired), price snapshot
---   currency + unit_price, inventory (quantity_limit/stock_remaining), level gate
---   (required_level), sale window, validity and refund policy.
--- shop_orders: server-side price/currency snapshot + (user_id, idempotency_key)
---   UNIQUE for no double-charge replay; point_operation_id links the immutable
---   ledger operation.
--- user_entitlements: owned/equipped/expired/revoked/consumed state machine,
---   quantity + remaining_quantity for reaction packs, valid window.
--- user_presentations: per-user wardrobe projection; all ids reference the user's
---   own valid entitlements (service-enforced, server-side safe tokens only).
 
 CREATE TABLE shop_products (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

@@ -1,12 +1,3 @@
--- BBLBB RBAC data model migration (MySQL)
--- 1) roles: global roles (system roles with is_system=1 are not deletable;
---    roles do not store a permission JSON to avoid a dual source of truth);
--- 2) permissions: permission reference table (name maps to OpenAPI
---    x-permission / the permission matrix);
--- 3) role_permissions: role-permission mapping (composite PK, cascade on
---    role/permission delete);
--- 4) user_roles: global role assignments (composite PK, granted_by/expires_at;
---    board-scoped assignments live in M03-SCHEMA-04 board_role_assignments).
 
 CREATE TABLE roles (
     id VARCHAR(36) NOT NULL PRIMARY KEY,

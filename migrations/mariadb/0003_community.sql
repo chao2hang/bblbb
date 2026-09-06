@@ -1,5 +1,3 @@
--- BBLBB community migration: boards, posts, comments, tags (MariaDB 10.11)
--- Identical to MySQL 8.0 schema
 
 CREATE TABLE boards (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

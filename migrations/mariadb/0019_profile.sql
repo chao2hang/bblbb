@@ -1,9 +1,3 @@
--- BBLBB user profile, privacy, preferences, level cache and profile revision migration (MySQL)
--- 1) users gains profile fields and the level cache (level is a rebuildable cache;
---    the true source is the M7 experience ledger);
--- 2) user_preferences: display preferences (timezone/locale/theme/notification JSON);
--- 3) user_privacy: privacy settings (email/profile visibility, most restrictive by default);
--- 4) profile_revisions: one revision row per profile change (actor and changes JSON).
 
 ALTER TABLE users ADD COLUMN level BIGINT NOT NULL DEFAULT 1;
 ALTER TABLE users ADD COLUMN level_updated_at BIGINT NULL;

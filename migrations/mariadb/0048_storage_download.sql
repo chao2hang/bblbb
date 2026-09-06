@@ -1,19 +1,3 @@
--- BBLBB storage + download (M06-SCHEMA, MariaDB)
---
--- attachments: owner/backend/object_key/size/hash/media metadata/status/
---   revision/retention. status pending/processing/ready/quarantined/deleted.
---   quota_bytes_charged records the bytes that count against the owner quota
---   (variant/recompute drift guard). S3 signed-url expires_at is a transient
---   response/audit attribute, never stored as attachment lifetime.
--- attachment_links: polymorphic stable references (avatar/cover/post/...).
--- user_quota_counters + quota_policy_revisions: reserved/charged/released bytes
---   and versioned per-level policy.
--- download_billing_policies: site/board/attachment scope, mode disabled/free/
---   fixed/inherit/forced_free/forced_paid, price + limits + version.
--- download_authorizations: per (user, attachment) authorization; charged_amount
---   + currency snapshot; URL re-signed per request, never stored.
--- download_idempotency_records: (scope, user_id, idempotency_key) UNIQUE for
---   replay/no-double-charge.
 
 CREATE TABLE attachments (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

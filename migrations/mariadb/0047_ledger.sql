@@ -1,16 +1,3 @@
--- BBLBB ledger core (M07-LEDGER-01/02, MariaDB)
---
--- currencies: point currencies (exp/coin), integer-only, kind
---   experience/spendable/reputation, allow_negative off by default.
--- point_accounts: (user_id, currency_id) composite PK; balance/frozen_balance
---   never negative (CHECK), version for optimistic concurrency.
--- point_operations: immutable operation log; (idempotency_scope,
---   idempotency_key) UNIQUE for replay, request_hash detects same-key
---   different-payload conflicts; kind award/consume/shop_purchase/transfer/
---   freeze/unfreeze/adjust/reversal; reverses_operation_id links reversals.
--- point_transactions: append-only ledger rows; delta_balance/delta_frozen with
---   balance_after/frozen_after snapshots (initial + sum(delta) = balance).
--- point_balance_snapshots: point-in-time balance snapshots for accounting.
 
 CREATE TABLE currencies (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

@@ -1,5 +1,3 @@
--- BBLBB identity migration: email verification and password reset tokens (MariaDB)
--- Same as MySQL migration
 
 ALTER TABLE users
     ADD COLUMN email_verified TINYINT NOT NULL DEFAULT 0,

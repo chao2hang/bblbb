@@ -1,15 +1,3 @@
--- BBLBB appeals (M05-SCHEMA-04, MariaDB)
---
--- appeals: appeals against sanctions (sanction_id) -- at most one per
--- sanction (UNIQUE(sanction_id); a rejected appeal cannot be re-filed, only
--- a new sanction opens a new appeal); status
--- submitted/reviewing/upheld/partially_upheld/rejected/withdrawn.
---
--- appeal_decisions: decision records (appendable) -- reviewer_id is the
--- reviewer; conflict_of_interest is the conflict-of-interest field: non-NULL
--- means the reviewer has a conflict (e.g. the reviewer issued the sanction);
--- model layer validates the reviewer is not the appellant and a conflict
--- declaration carries a reason. Append-only; decisions are never overwritten.
 
 CREATE TABLE appeals (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

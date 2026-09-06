@@ -1,15 +1,3 @@
--- BBLBB moderation actions and revision history (M05-SCHEMA-02, MariaDB)
---
--- moderation_actions: one-shot moderation actions on cases/content --
--- closed action enum, polymorphic target (target_type + target_id);
--- append-only, rows are immutable (corrections go to
--- moderation_action_revisions, never UPDATE the action row).
---
--- moderation_action_revisions: immutable append-only snapshots -- each
--- revision is unique per (action_id, revision) and revision strictly
--- increases (model-layer validation); snapshot_json is the full action row
--- snapshot at revision time (carries correction semantics); change_reason
--- records why.
 
 CREATE TABLE moderation_actions (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

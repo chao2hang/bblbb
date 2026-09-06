@@ -1,15 +1,3 @@
--- BBLBB post contents and revisions data model (M04-SCHEMA-02, MariaDB)
---
--- 1) post_contents: current post body (1:1 with posts) — original Markdown,
---    backend-cleaned public HTML, renderer version (M04-MARKDOWN-05 upgrade
---    triggers re-render), safe excerpt (public, never truncated from hidden
---    body, M04-MARKDOWN-06);
--- 2) post_revisions: immutable revision snapshots (edit history,
---    M04-POSTS-08) — body and restricted-body snapshots, renderer version,
---    change_reason, the post.version this snapshot represents, created_at.
---
--- Constraints: post_contents is 1:1 with posts (post_id PK + cascade delete);
--- revisions are UNIQUE (post_id, version); restricted-body columns are NULLable.
 
 CREATE TABLE post_contents (
     post_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

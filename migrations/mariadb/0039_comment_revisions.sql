@@ -1,11 +1,3 @@
--- BBLBB comment revision snapshots (M04-COMMENTS-05, MariaDB)
---
--- comment_revisions: immutable revision snapshots (edit history) — body and
--- cleaned-HTML snapshots, renderer version, change_reason, the comment.version
--- this snapshot represents, created_at.
---
--- Constraints: revisions are UNIQUE (comment_id, version); cascade delete with
--- the comment; edited body is rendered/sanitized at write time (M04-COMMENTS-05).
 
 CREATE TABLE comment_revisions (
     id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

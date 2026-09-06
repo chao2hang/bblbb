@@ -1,6 +1,4 @@
--- BBLBB notifications and reactions migration (MariaDB)
 
--- 通知表
 CREATE TABLE notifications (
     id VARCHAR(36) NOT NULL PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL,
@@ -18,7 +16,6 @@ CREATE TABLE notifications (
 CREATE INDEX notifications_user_id_idx ON notifications (user_id);
 CREATE INDEX notifications_user_unread_idx ON notifications (user_id, is_read);
 
--- 帖子反应表
 CREATE TABLE post_reactions (
     post_id VARCHAR(36) NOT NULL,
     user_id VARCHAR(36) NOT NULL,
@@ -32,7 +29,6 @@ CREATE TABLE post_reactions (
 CREATE INDEX post_reactions_post_idx ON post_reactions (post_id);
 CREATE INDEX post_reactions_user_idx ON post_reactions (user_id);
 
--- 评论反应表
 CREATE TABLE comment_reactions (
     comment_id VARCHAR(36) NOT NULL,
     user_id VARCHAR(36) NOT NULL,
@@ -46,7 +42,6 @@ CREATE TABLE comment_reactions (
 CREATE INDEX comment_reactions_comment_idx ON comment_reactions (comment_id);
 CREATE INDEX comment_reactions_user_idx ON comment_reactions (user_id);
 
--- 审计日志表
 CREATE TABLE audit_logs (
     id VARCHAR(36) NOT NULL PRIMARY KEY,
     actor_id VARCHAR(36) NULL,
@@ -63,7 +58,6 @@ CREATE INDEX audit_logs_actor_idx ON audit_logs (actor_id);
 CREATE INDEX audit_logs_target_idx ON audit_logs (target_type, target_id);
 CREATE INDEX audit_logs_created_at_idx ON audit_logs (created_at);
 
--- 事务性发件箱表
 CREATE TABLE outbox_events (
     id VARCHAR(36) NOT NULL PRIMARY KEY,
     event_type VARCHAR(50) NOT NULL,

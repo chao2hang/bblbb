@@ -1,13 +1,3 @@
--- BBLBB Themes & config plugin schema (M13-THEME / M13-PLUGIN, MariaDB)
---
--- themes：数据型主题（closed token schema，不保存 CSS/JS/HTML/SVG/远程资源）。
--- theme_revisions：主题 Token 每次变更追加一条修订（revision 单调递增，
---   SSR/浏览器/缓存/用户偏好共享同一 revision）。
--- plugins：v1 配置型插件（manifest 版本化；capabilities/settings schema 封闭
---   白名单；安装默认 disabled）。
--- plugin_call_metrics：插件调用摘要（ok/error/timeout/repeat/stale/skipped +
---   policy_revision），异步记录，不阻塞核心论坛。
--- plugin_data：插件自身命名空间数据（配额由服务层校验）。
 
 CREATE TABLE themes (
     name VARCHAR(64) PRIMARY KEY NOT NULL,

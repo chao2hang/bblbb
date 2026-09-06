@@ -1,10 +1,3 @@
--- BBLBB search index storage (M03-SEARCH-STORE-02)
--- search_documents: index document metadata (regular table, structure equivalent
--- across engines; rowid BIGINT AUTO_INCREMENT maps to the SQLite FTS5
--- external-content rowid, doc_id is the logical source id).
--- The FULLTEXT index on (title, body) is added in 0031 (MySQL 8) / 0032
--- (MariaDB 10.11) — docs/SEARCH.md §7. search_documents rows are maintained
--- by the index Jobs (M03-SEARCH-STORE-06); InnoDB FULLTEXT updates natively.
 
 CREATE TABLE search_documents (
     rowid BIGINT AUTO_INCREMENT NOT NULL,
