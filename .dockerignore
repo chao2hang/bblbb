@@ -1,0 +1,6 @@
+# backend/.cargo/config.toml 的 target-dir 重定向（/data/cargo-target/bblbb）
+# 是本地开发专用（避免 debug 产物打爆根分区）。若进入镜像，backend-build
+# 的 cargo build 会把二进制写到 /data/cargo-target/bblbb/release/，
+# runtime COPY /src/backend/target/release/* 找不到文件（PR #4 合并后
+# 首次真实重编译即触发）。CI 的干净 checkout 不受影响，本地构建同理。
+backend/.cargo
