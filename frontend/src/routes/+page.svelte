@@ -235,9 +235,9 @@
 
     <!-- 右栏：推荐位（原型 aside.right-rail） -->
     <aside class="right-rail">
-      {#if data.popular.length > 0}
-        <section class="recommend" aria-label="推荐内容">
-          <h2>推荐内容</h2>
+      <section class="recommend" aria-label="推荐内容">
+        <h2>推荐内容</h2>
+        {#if data.popular.length > 0}
           {#each data.popular as p, i (p.id)}
             <div class="recommend-item">
               <span class="rank">{String(i + 1).padStart(2, '0')}</span>
@@ -247,8 +247,34 @@
               </div>
             </div>
           {/each}
-        </section>
-      {/if}
+        {:else}
+          <div class="recommend-empty">
+            <p>暂无热门推荐</p>
+            <small>发布新讨论后将在此展示</small>
+          </div>
+        {/if}
+      </section>
+
+      <section class="stats-card community-service" aria-label="社区服务">
+        <h2>社区服务</h2>
+        <nav class="service-links" aria-label="快捷入口">
+          <a href="/editor">
+            <span class="service-links__icon"><Icon name="edit-3" size={16} /></span>
+            <span><b>发布内容</b><small>分享观点与创作</small></span>
+            <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
+          </a>
+          <a href="/boards">
+            <span class="service-links__icon"><Icon name="layout-dashboard" size={16} /></span>
+            <span><b>浏览板块</b><small>发现感兴趣的讨论</small></span>
+            <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
+          </a>
+          <a href="/achievements">
+            <span class="service-links__icon"><Icon name="trophy" size={16} /></span>
+            <span><b>成就墙</b><small>查看成长与勋章</small></span>
+            <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
+          </a>
+        </nav>
+      </section>
 
       <footer class="rail-foot">© 2026<br />Powered By BBLBB Community</footer>
     </aside>
@@ -537,6 +563,81 @@
     margin-top: 4px;
     font-size: var(--text-xs);
   }
+  .recommend-empty {
+    padding: 18px 8px;
+    text-align: center;
+  }
+  .recommend-empty p {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .recommend-empty small {
+    display: block;
+    margin-top: 4px;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .community-service {
+    background: var(--color-bg-card);
+    border: var(--border-default);
+    border-radius: 0;
+    padding: 16px;
+  }
+  .community-service h2 {
+    font-size: 17px;
+    margin: 0 0 12px;
+    color: var(--color-text-primary);
+  }
+  .service-links {
+    display: flex;
+    flex-direction: column;
+  }
+  .service-links a {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 14px;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 0;
+    border-bottom: var(--border-default);
+    color: inherit;
+    text-decoration: none;
+  }
+  .service-links a:last-child {
+    border-bottom: 0;
+  }
+  .service-links a:hover b {
+    color: var(--color-brand);
+  }
+  .service-links__icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 2px;
+    background: var(--color-bg-page);
+    color: var(--color-text-secondary);
+  }
+  .service-links a:hover .service-links__icon {
+    background: var(--color-brand-soft);
+    color: var(--color-brand);
+  }
+  .service-links b {
+    color: var(--color-text-primary);
+    font-size: 13px;
+    display: block;
+  }
+  .service-links small {
+    color: var(--color-text-tertiary);
+    font-size: 11px;
+    display: block;
+    margin-top: 2px;
+  }
+  .service-links__arrow {
+    color: var(--color-text-tertiary);
+  }
+
   .rail-foot {
     color: var(--color-text-secondary);
     font-size: var(--text-xs);
