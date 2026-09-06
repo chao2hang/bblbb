@@ -27,14 +27,12 @@
   <title>注册 — BBLBB</title>
 </svelte:head>
 
-<div class="auth-wrapper">
-  <div class="auth-card">
-    <div class="auth-header">
-      <div class="auth-logo">BBLBB</div>
-      <div class="auth-title">创建账号</div>
-      <div class="auth-subtitle">加入我们，开启你的社区之旅</div>
-    </div>
-    <div class="auth-body">
+<div class="login-page auth-wrapper" id="page-register">
+  <section class="login-shell">
+    <div class="login-card auth-card">
+      <p class="login-eyebrow">JOIN BBLBB</p>
+      <h1 tabindex="-1">创建账号</h1>
+      <div class="auth-body">
       {#if form?.ok}
         <div class="empty-state">
           <div class="empty-state-title">注册成功</div>
@@ -131,8 +129,9 @@
         </form>
       {/if}
     </div>
-    <div class="auth-footer">
-      已有账号？<a href="/login">立即登录</a>
+      <p class="login-signup">
+        已有账号？ <a href="/login">立即登录</a>
+      </p>
     </div>
-  </div>
+  </section>
 </div>

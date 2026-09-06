@@ -126,22 +126,43 @@
   {/if}
 
   {#if user}
-    <div class="card profile-page-card">
-      <div class="profile-cover" role="img" aria-label="个人资料背景"></div>
-      <div class="profile-header">
-        <div class="profile-avatar">
-          <Avatar name={user.display_name || user.username} size="xl" />
+    <section class="app-profile">
+      <Avatar name={user.display_name || user.username} size="xl" />
+      <div class="app-profile__body">
+        <h2>
+          {user.display_name || user.username}
+          <span class="badge badge-level">LV.{user.level}</span>
+        </h2>
+        {#if user.bio}
+          <p>{user.bio}</p>
+        {:else}
+          <p class="text-secondary">@{user.username}</p>
+        {/if}
+        <div class="app-profile__meta">
+          <span><b>@{user.username}</b></span>
+          <span>{user.email}</span>
         </div>
-        <div class="profile-info">
-          <div class="profile-name">
-            {user.display_name || user.username}
-            <span class="badge badge-level">LV.{user.level}</span>
-          </div>
-          <p class="profile-bio">@ {user.username}</p>
-        </div>
-        <div class="profile-actions">
-          <Button text="编辑资料" variant="secondary" size="sm" icon="edit-3" href="/settings" />
-        </div>
+      </div>
+      <div class="app-profile__actions">
+        <Button text="编辑资料" variant="secondary" size="sm" icon="edit-3" href="/settings" />
+      </div>
+    </section>
+
+    <div class="app-account-cards" style="margin-top:14px;">
+      <div class="app-account-card">
+        <small>经验</small>
+        <strong>{activityXp(activity)}</strong>
+        <span>LV.{user.level} · 成长进度</span>
+      </div>
+      <div class="app-account-card">
+        <small>B币</small>
+        <strong>{coinBalance?.amount ?? 0}</strong>
+        <span>可用于商城与内容解锁</span>
+      </div>
+      <div class="app-account-card">
+        <small>身份</small>
+        <strong>{user.roles.length > 0 ? roleLabel(user.roles[0]) : '成员'}</strong>
+        <span>{statusLabel[user.status] ?? user.status}</span>
       </div>
     </div>
 

@@ -198,54 +198,52 @@
   {:else if problem}
     <ProblemState {problem} desc="用户可能已注销或不存在" />
   {:else if user}
-    <div class="card profile-page-card">
-      <ProfileCover class="profile-cover" label="个人资料背景" />
-      <div class="profile-header">
-        <div class="profile-avatar">
-          <Avatar name={user.display_name || user.username} size="xl" />
-        </div>
-        <div class="profile-info">
-          <div class="profile-name">
-            {user.display_name || user.username}
-            <span class="badge badge-level">LV.{user.level}</span>
-          </div>
-          <p class="profile-bio">@ {user.username}</p>
-          <!-- GAP-FIX 社交统计行：post_count/followers/following（BE-1 已随
-               PublicProfile 返回；字段缺失（旧后端/降级投影）时整行跳过，
-               不显示误导性的 0）。 -->
-          {#if typeof user.post_count === 'number'}
-            <p class="profile-stats text-secondary" style="margin:var(--space-1) 0 0;font-size:var(--text-sm);display:flex;gap:var(--space-3);flex-wrap:wrap;">
-              <span>帖子 <strong style="font-variant-numeric:tabular-nums;">{formatCount(user.post_count)}</strong></span>
-              <span>粉丝 <strong style="font-variant-numeric:tabular-nums;">{formatCount(user.followers ?? null)}</strong></span>
-              <span>关注 <strong style="font-variant-numeric:tabular-nums;">{formatCount(user.following ?? null)}</strong></span>
-              {#if user.created_at}
-                <span>加入于 {formatRelative(toSeconds(user.created_at))}</span>
-              {/if}
-            </p>
-          {/if}
-        </div>
-        <div class="profile-actions">
-          {#if isOwner}
-            <!-- 本人页：编辑资料入口（客户端 getMe 识别）。 -->
-            <a class="btn btn-secondary btn-sm" href="/settings">编辑资料</a>
-          {:else if authed}
-            {#if user.is_following}
-              <form method="POST" action="?/unfollow" use:enhance={followEnhance('已取消关注')}>
-                <button type="submit" class="btn btn-ghost btn-sm">已关注 · 取消</button>
-              </form>
-            {:else}
-              <form method="POST" action="?/follow" use:enhance={followEnhance('已关注')}>
-                <button type="submit" class="btn btn-primary btn-sm">+ 关注</button>
-              </form>
+    <section class="app-profile">
+      <Avatar name={user.display_name || user.username} size="xl" />
+      <div class="app-profile__body">
+        <h2>
+          {user.display_name || user.username}
+          <span class="badge badge-level">LV.{user.level}</span>
+        </h2>
+        <p class="profile-bio">@ {user.username}</p>
+        {#if user.bio}
+          <p class="profile-bio-text">{user.bio}</p>
+        {/if}
+        {#if user.signature}
+          <p class="profile-sig" style="color:var(--color-text-tertiary);font-size:12px;margin-top:4px;">{user.signature}</p>
+        {/if}
+        {#if typeof user.post_count === 'number'}
+          <div class="app-profile__meta">
+            <span><b>{formatCount(user.post_count)}</b> 帖子</span>
+            <span><b>{formatCount(user.followers ?? null)}</b> 关注者</span>
+            <span><b>{formatCount(user.following ?? null)}</b> 正在关注</span>
+            {#if user.created_at}
+              <span>加入于 {formatRelative(toSeconds(user.created_at))}</span>
             {/if}
-          {:else}
-            <!-- 匿名：关注是登录操作，不渲染表单，展示登录引导
-                 （?next= 登录后回跳本人页；后端 401 兜底不变）。 -->
-            <a class="btn btn-primary btn-sm" href="/login?next={encodeURIComponent(`/users/${username}`)}">登录后关注</a>
-          {/if}
-        </div>
+          </div>
+        {/if}
       </div>
-    </div>
+      <div class="app-profile__actions">
+        {#if isOwner}
+          <!-- 本人页：编辑资料入口（客户端 getMe 识别）。 -->
+          <a class="btn secondary sm" href="/settings">编辑资料</a>
+        {:else if authed}
+          {#if user.is_following}
+            <form method="POST" action="?/unfollow" use:enhance={followEnhance('已取消关注')}>
+              <button type="submit" class="btn ghost sm">已关注 · 取消</button>
+            </form>
+          {:else}
+            <form method="POST" action="?/follow" use:enhance={followEnhance('已关注')}>
+              <button type="submit" class="btn primary sm">+ 关注</button>
+            </form>
+          {/if}
+        {:else}
+          <!-- 匿名：关注是登录操作，不渲染表单，展示登录引导
+               （?next= 登录后回跳本人页；后端 401 兜底不变）。 -->
+          <a class="btn primary sm" href="/login?next={encodeURIComponent(`/users/${username}`)}">登录后关注</a>
+        {/if}
+      </div>
+    </section>
 
     <!-- 内容 tabs（?tab=，无 JS 下为普通链接导航）。 -->
     <nav class="tabs-nav" aria-label="内容分类" style="display:flex;gap:var(--space-1);margin-top:var(--space-5);border-bottom:var(--border-default);flex-wrap:wrap;">

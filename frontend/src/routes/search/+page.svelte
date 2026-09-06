@@ -104,9 +104,10 @@
 
       {#if !searched}
         <div class="app-card">
-          <div class="app-card__body">
-            <p class="text-secondary">输入关键词搜索公开帖子、用户、板块与标签。搜索只索引明确允许的公开内容，隐藏/受限正文不会出现在结果中。</p>
-            <p class="input-hint" style="margin:0;">搜索结果默认不被搜索引擎索引（noindex），不会承诺替代服务端访问控制。</p>
+          <div class="app-empty">
+            <Icon name="search" size={32} />
+            <b>输入关键词搜索公开帖子</b>
+            <span>输入关键词即可开始全站搜索帖子、用户或标签</span>
           </div>
         </div>
       {:else if invalid}
