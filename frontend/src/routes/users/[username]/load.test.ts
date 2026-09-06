@@ -5,7 +5,8 @@ import { load, type UserPageData } from './+page.server';
 import { getAuthed } from '$lib/api/server';
 
 vi.mock('$lib/api/server', () => ({
-  getAuthed: vi.fn()
+  getAuthed: vi.fn(),
+  SESSION_COOKIE: '__Host-bblbb_session'
 }));
 
 const getAuthedMock = getAuthed as unknown as ReturnType<typeof vi.fn>;
@@ -22,12 +23,16 @@ const publicProfile = {
   created_at: 1700000000000
 };
 
-function loadEvent(username: string, requestId: string | null = null) {
+function loadEvent(
+  username: string,
+  requestId: string | null = null,
+  session: string | null = null
+) {
   const headers = new Headers();
   if (requestId) headers.set('x-request-id', requestId);
   return {
     params: { username },
-    cookies: { get: vi.fn(() => null) },
+    cookies: { get: vi.fn(() => session) },
     request: { headers }
   } as unknown as Parameters<typeof load>[0];
 }
@@ -40,10 +45,16 @@ describe('M03-UI-01 用户主页 SSR load', () => {
   it('成功 → 返回公开投影（转发 X-Request-ID）', async () => {
     getAuthedMock.mockResolvedValueOnce({ ok: true, data: publicProfile });
     const data = (await load(loadEvent('alice', 'req-1'))) as UserPageData;
-    expect(data).toEqual({ user: publicProfile });
+    expect(data).toEqual({ user: publicProfile, authed: false });
     const [cookies, path, requestId] = getAuthedMock.mock.calls[0];
     expect(path).toBe('/api/v1/users/alice');
     expect(requestId).toBe('req-1');
+  });
+
+  it('会话 Cookie 存在 → authed=true（关注按钮门控数据）', async () => {
+    getAuthedMock.mockResolvedValueOnce({ ok: true, data: publicProfile });
+    const data = (await load(loadEvent('alice', null, 'sess-1'))) as UserPageData;
+    expect(data.authed).toBe(true);
   });
 
   it('404（不存在/已注销/匿名化）→ 抛 404（不泄漏存在性）', async () => {

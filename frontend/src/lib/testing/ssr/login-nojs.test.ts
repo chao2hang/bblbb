@@ -1,9 +1,18 @@
 // M02-UX-03：登录页无 JS 基线——SSR 输出原生 form[method=POST]，
 // 启用 TOTP 的账号第二步表单（challenge_token 隐藏域 + 验证码输入）也
 // 是无 JS 可提交的原生表单；认证裁决始终在后端。
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import LoginPage from '../../../routes/login/+page.svelte';
+
+// 登录页的回跳目标（next 隐藏域）读取 $app/state page.url.searchParams；
+// 隔离渲染需提供假 page（含 searchParams）。
+vi.mock('$app/state', () => ({
+  page: {
+    url: { pathname: '/login', searchParams: new URLSearchParams() },
+    data: {}
+  }
+}));
 
 describe('无 JS：登录页（M02-UX-03）', () => {
   it('密码步：SSR 输出原生 form[method=POST] + 字段', () => {

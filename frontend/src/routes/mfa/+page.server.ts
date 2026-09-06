@@ -24,12 +24,13 @@ export interface MfaActionData {
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
   const session = cookies.get(SESSION_COOKIE);
-  if (!session) throw redirect(303, '/login?returnTo=/mfa');
+  // login action 只识别 ?next=（returnTo 为无效参数，此前跳登录后无法回跳）。
+  if (!session) throw redirect(303, `/login?next=${encodeURIComponent('/mfa')}`);
 
   const requestId = request.headers.get('x-request-id');
   const meResult = await getAuthed<User>(cookies, '/api/v1/me', requestId);
   if (!meResult.ok) {
-    if (meResult.status === 401) throw redirect(303, '/login?returnTo=/mfa');
+    if (meResult.status === 401) throw redirect(303, `/login?next=${encodeURIComponent('/mfa')}`);
     return { user: null, error: meResult.message } satisfies MfaPageData;
   }
   return { user: meResult.data, error: null } satisfies MfaPageData;

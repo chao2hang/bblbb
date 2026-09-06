@@ -20,9 +20,13 @@ export interface LoginActionData {
   requestId?: string | null;
 }
 
-function nextUrl(url: URL): string {
-  const next = url.searchParams.get('next');
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+// `next` 优先取表单隐藏字段：表单 action="?/login" 会替换整个查询串，
+// POST 时 URL 上的 ?next= 丢失（隐藏 input 由页面从当前 URL 读出并回填）。
+// 校验保持开放重定向安全：仅本站相对路径（/ 开头且非 //）。
+function nextUrl(url: URL, formData?: FormData): string {
+  const fromForm = formData ? String(formData.get('next') ?? '').trim() : '';
+  const next = fromForm || url.searchParams.get('next') || '';
+  return next.startsWith('/') && !next.startsWith('//') ? next : '/';
 }
 
 export const actions: Actions = {
@@ -40,7 +44,7 @@ export const actions: Actions = {
         { identifier, password, remember },
         request.headers.get('x-request-id')
       );
-      if (result.kind === 'ok') throw redirect(303, nextUrl(url));
+      if (result.kind === 'ok') throw redirect(303, nextUrl(url, form));
       if (result.kind === 'mfa') {
         return {
           mfa_required: true,
@@ -77,7 +81,7 @@ export const actions: Actions = {
         },
         request.headers.get('x-request-id')
       );
-      if (result.ok) throw redirect(303, nextUrl(url));
+      if (result.ok) throw redirect(303, nextUrl(url, form));
       return fail(result.status, {
         message: result.message,
         requestId: result.requestId

@@ -143,20 +143,28 @@
               </div>
 
               <div style="display:flex;gap:8px;align-items:center;padding:8px 0;">
-                <form
-                  method="POST"
-                  action={data.following ? '?/unfollow' : '?/follow'}
-                  use:enhance={followEnhance}
-                  style="display:inline-flex;"
-                >
-                  <button
-                    type="submit"
-                    class="btn {data.following ? 'secondary' : 'ghost'} sm"
+                {#if data.authed}
+                  <form
+                    method="POST"
+                    action={data.following ? '?/unfollow' : '?/follow'}
+                    use:enhance={followEnhance}
+                    style="display:inline-flex;"
                   >
-                    <Icon name={data.following ? 'check' : 'plus'} size={14} />
-                    {data.following ? '已关注' : '关注板块'}
-                  </button>
-                </form>
+                    <button
+                      type="submit"
+                      class="btn {data.following ? 'secondary' : 'ghost'} sm"
+                    >
+                      <Icon name={data.following ? 'check' : 'plus'} size={14} />
+                      {data.following ? '已关注' : '关注板块'}
+                    </button>
+                  </form>
+                {:else}
+                  <!-- 匿名：关注是登录操作，渲染登录引导（?next= 回跳本板块）。 -->
+                  <a href="/login?next={encodeURIComponent(`/boards/${data.board?.slug ?? ''}`)}" class="btn ghost sm">
+                    <Icon name="log-in" size={14} />
+                    登录后关注
+                  </a>
+                {/if}
                 <a href="/editor" class="btn primary sm">
                   发布讨论
                 </a>

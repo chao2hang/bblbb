@@ -62,6 +62,10 @@
   // 本人视角（客户端识别：getMe 对比用户名）→ 显示「编辑资料」而非关注按钮。
   let isOwner = $state(false);
 
+  // 登录态（load 投影 authed，SSR 即知；测试隔离渲染可缺省 → false）：
+  // 关注是会话操作，匿名渲染登录引导而非关注表单。
+  const authed = $derived((data as { authed?: boolean }).authed === true);
+
   onMount(async () => {
     if (data.user) {
       loading = false;
@@ -224,14 +228,20 @@
           {#if isOwner}
             <!-- 本人页：编辑资料入口（客户端 getMe 识别）。 -->
             <a class="btn btn-secondary btn-sm" href="/settings">编辑资料</a>
-          {:else if user.is_following}
-            <form method="POST" action="?/unfollow" use:enhance={followEnhance('已取消关注')}>
-              <button type="submit" class="btn btn-ghost btn-sm">已关注 · 取消</button>
-            </form>
+          {:else if authed}
+            {#if user.is_following}
+              <form method="POST" action="?/unfollow" use:enhance={followEnhance('已取消关注')}>
+                <button type="submit" class="btn btn-ghost btn-sm">已关注 · 取消</button>
+              </form>
+            {:else}
+              <form method="POST" action="?/follow" use:enhance={followEnhance('已关注')}>
+                <button type="submit" class="btn btn-primary btn-sm">+ 关注</button>
+              </form>
+            {/if}
           {:else}
-            <form method="POST" action="?/follow" use:enhance={followEnhance('已关注')}>
-              <button type="submit" class="btn btn-primary btn-sm">+ 关注</button>
-            </form>
+            <!-- 匿名：关注是登录操作，不渲染表单，展示登录引导
+                 （?next= 登录后回跳本人页；后端 401 兜底不变）。 -->
+            <a class="btn btn-primary btn-sm" href="/login?next={encodeURIComponent(`/users/${username}`)}">登录后关注</a>
           {/if}
         </div>
       </div>

@@ -19,9 +19,10 @@ import ConfirmResetPage from '../../../routes/password-reset/confirm/+page.svelt
 import MePage from '../../../routes/me/+page.svelte';
 import RootLayout from '../../../routes/+layout.svelte';
 
-// Navbar 的 isActive 读取 $app/state page.url.pathname；隔离渲染需提供假 page。
+// Navbar 的 isActive 读取 $app/state page.url.pathname；登录页回跳目标
+// （next 隐藏域）读取 page.url.searchParams——隔离渲染需提供假 page。
 vi.mock('$app/state', () => ({
-  page: { url: { pathname: '/' }, data: {} }
+  page: { url: { pathname: '/', searchParams: new URLSearchParams() }, data: {} }
 }));
 
 const user = {

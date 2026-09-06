@@ -6,6 +6,7 @@
   //   6 位验证码（或切换到恢复码）；
   // - 失败提示统一（后端 401 不泄漏账号是否存在/密码是否正确）。
   import { enhance } from '$app/forms';
+  import { page } from '$app/state';
   import Button from '$lib/components/ui/Button.svelte';
   import type { LoginActionData } from './+page.server';
 
@@ -16,6 +17,14 @@
   const topMessage = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
+
+  // 登录后回跳目标（?next=，仅本站相对路径）：表单 action="?/xxx" 会替换
+  // 整个查询串，POST 时 URL 上的 next 丢失，故经隐藏字段携带（action 端
+  // 同规则校验，开放重定向安全）。
+  const nextParam = $derived.by(() => {
+    const n = page.url.searchParams.get('next') ?? '';
+    return n.startsWith('/') && !n.startsWith('//') ? n : '';
+  });
 
   function toggleRecovery() {
     useRecovery = !useRecovery;
@@ -40,6 +49,7 @@
             <p class="input-hint is-error" role="alert">{topMessage}</p>
           {/if}
           <input type="hidden" name="challenge_token" value={form?.challenge_token ?? ''} />
+          <input type="hidden" name="next" value={nextParam} />
           <p class="auth-hint">该账号启用了两步验证。请输入身份验证器中的 6 位验证码。</p>
           {#if useRecovery}
             <div class="input-wrapper">
@@ -81,6 +91,7 @@
           {#if topMessage}
             <p class="input-hint is-error" role="alert">{topMessage}</p>
           {/if}
+          <input type="hidden" name="next" value={nextParam} />
           <div class="input-wrapper">
             <label class="input-label" for="login-identifier">用户名或邮箱</label>
             <input

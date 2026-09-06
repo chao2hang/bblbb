@@ -27,6 +27,8 @@ export interface BoardDetailData {
   q: string;
   /** viewer 是否已关注该板块（匿名/拉取失败 → false）。 */
   following: boolean;
+  /** 请求方是否带会话 Cookie（关注按钮门控；真实鉴权由后端裁决）。 */
+  authed: boolean;
   /** 侧栏热门标签（全站 usage 排序前 10；无按板块过滤端点，注释顶置说明）。 */
   tags: Tag[];
 }
@@ -39,6 +41,9 @@ export interface BoardFollowActionData {
 export const load: PageServerLoad = async ({ params, cookies, request, url }) => {
   const requestId = request.headers.get('x-request-id');
   const slug = params.slug;
+  // 关注板块是登录操作：无会话 Cookie → 页面渲染登录引导而非关注表单
+  // （真值判断：cookies.get 缺失返回 undefined，非 null，`!== null` 恒真）。
+  const authed = Boolean(cookies.get(SESSION_COOKIE));
   // M18-BOARD-01：latest（默认）| hot | featured | unanswered 透传后端。
   const rawSort = url.searchParams.get('sort');
   const sort =
@@ -63,6 +68,7 @@ export const load: PageServerLoad = async ({ params, cookies, request, url }) =>
       sort,
       q,
       following: false,
+      authed,
       tags: []
     } satisfies BoardDetailData;
   }
@@ -77,8 +83,9 @@ export const load: PageServerLoad = async ({ params, cookies, request, url }) =>
 
   // viewer 关注态：GET /me/following 返回 {users, boards}（slug 列表）。
   // 匿名（无会话 Cookie）直接 false，不打无谓请求。
+  // 注意真值判断：cookies.get 缺失返回 undefined（非 null），`!== null` 恒真。
   let following = false;
-  if (cookies.get(SESSION_COOKIE) !== null) {
+  if (cookies.get(SESSION_COOKIE)) {
     try {
       const me = await getAuthed<{ boards?: string[] }>(cookies, '/api/v1/me/following', requestId);
       if (me.ok && Array.isArray(me.data.boards)) {
@@ -111,6 +118,7 @@ export const load: PageServerLoad = async ({ params, cookies, request, url }) =>
     sort,
     q,
     following,
+    authed,
     tags
   } satisfies BoardDetailData;
 };
@@ -126,7 +134,9 @@ export const actions: Actions = {
       request.headers.get('x-request-id')
     );
     if (result.ok) return { ok: true, message: '已关注该板块' } satisfies BoardFollowActionData;
-    if (result.status === 401) throw redirect(303, '/login');
+    if (result.status === 401) {
+      throw redirect(303, `/login?next=${encodeURIComponent(`/boards/${slug}`)}`);
+    }
     return fail(result.status, {
       ok: false,
       message: result.message
@@ -141,7 +151,9 @@ export const actions: Actions = {
       request.headers.get('x-request-id')
     );
     if (result.ok) return { ok: true, message: '已取消关注' } satisfies BoardFollowActionData;
-    if (result.status === 401) throw redirect(303, '/login');
+    if (result.status === 401) {
+      throw redirect(303, `/login?next=${encodeURIComponent(`/boards/${slug}`)}`);
+    }
     return fail(result.status, {
       ok: false,
       message: result.message

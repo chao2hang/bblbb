@@ -69,7 +69,7 @@ describe('M03-UI-06 板块详情 SSR', () => {
     const board: Board = { ...rootBoard, visibility: 'members', posting_mode: 'readonly', post_count: 7 };
     const { body } = render(BoardDetailPage, {
       // GAP-FIX 板块页增强：sort/following/tags fixture（缺省 = 默认态）；q 为 M18-BOARD 筛选词。
-      props: { data: { board, posts: [post], error: null, sort: 'latest', q: '', following: false, tags: [] } }
+      props: { data: { board, posts: [post], error: null, sort: 'latest', q: '', following: false, authed: true, tags: [] } }
     });
     expect(body).toContain('技术分享');
     expect(body).toContain('7</strong>');
@@ -80,7 +80,7 @@ describe('M03-UI-06 板块详情 SSR', () => {
 
   it('无帖子 → 空状态可读', () => {
     const { body } = render(BoardDetailPage, {
-      props: { data: { board: rootBoard, posts: [], error: null, sort: 'latest', q: '', following: false, tags: [] } }
+      props: { data: { board: rootBoard, posts: [], error: null, sort: 'latest', q: '', following: false, authed: true, tags: [] } }
     });
     expect(body).toContain('暂无帖子');
   });

@@ -42,7 +42,7 @@ const adversarialProfile = {
 
 describe('M03-UI-01 用户主页 SSR 守卫', () => {
   it('SSR 渲染公开投影，对抗性响应不进入 HTML', () => {
-    const { body } = render(UserPage, { props: { data: { user: adversarialProfile } } });
+    const { body } = render(UserPage, { props: { data: { user: adversarialProfile, authed: true } } });
     expect(body).toContain('爱丽丝');
     expect(body).toContain('@ alice');
     expect(body).toContain('LV.7');
@@ -68,7 +68,7 @@ describe('M03-UI-01 用户主页 SSR 守卫', () => {
       avatar_attachment_id: null,
       cover_attachment_id: null
     };
-    const { body } = render(UserPage, { props: { data: { user: degraded } } });
+    const { body } = render(UserPage, { props: { data: { user: degraded, authed: true } } });
     // 公开字段仍渲染。
     expect(body).toContain('爱丽丝');
     expect(body).toContain('@ alice');
