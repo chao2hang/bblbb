@@ -15,6 +15,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 
 FROM rust:1-bookworm AS backend-build
 WORKDIR /src/backend
+# 纵深防御：CARGO_TARGET_DIR 环境变量优先于 .cargo/config.toml 的
+# build.target-dir，保证产物始终落在 /src/backend/target（.dockerignore
+# 已排除 backend/.cargo，这里兜底未来 context 变化）。
+ENV CARGO_TARGET_DIR=/src/backend/target
 COPY --from=backend-deps /usr/local/cargo /usr/local/cargo
 COPY --from=backend-deps /src/backend/Cargo.toml /src/backend/Cargo.lock ./
 COPY --from=backend-deps /src/backend/target ./target
