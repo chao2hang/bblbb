@@ -67,6 +67,8 @@ pub const FONT_FAMILY_ALLOWLIST: &[&str] = &[
 pub const DENSITY_ALLOWLIST: &[&str] = &["compact", "comfortable", "relaxed"];
 /// 阴影预设。
 pub const SHADOW_ALLOWLIST: &[&str] = &["none", "sm", "md", "lg"];
+/// 已编译的页面结构预设。数据型主题只能选择安全的注册布局，不能注入任意 HTML/CSS/JS。
+pub const LAYOUT_MODE_ALLOWLIST: &[&str] = &["classic", "sidebar", "wide"];
 
 /// 危险内容特征：任何 token 字符串值命中即拒绝（CSS/HTML/JS/SVG/远程资源）。
 const DANGEROUS_PATTERNS: &[&str] = &[
