@@ -1,14 +1,15 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
-// 远程测试支持（env 门控，默认不影响本地 dev）：
+// 远程测试与本地 HTTPS 支持：
 // 后端会话/CSRF cookie 是 __Host- 前缀（强制 Secure，M02-SESSION-02），
 // 非 localhost 的明文 http 无法存储该 cookie（浏览器与 curl 均拒绝），
-// 远程浏览器必须经 https 访问。设 BBLBB_DEV_TLS_CERT/BBLBB_DEV_TLS_KEY
-// 指向自签证书即可启用 https（配合 --host 监听 0.0.0.0）。
-const tlsCert = process.env.BBLBB_DEV_TLS_CERT;
-const tlsKey = process.env.BBLBB_DEV_TLS_KEY;
+// 远程或非 localhost 访问必须经 https。若存在 dev/certs 证书或环境变量，自动开启 https。
+const defaultCert = '../dev/certs/dev.crt';
+const defaultKey = '../dev/certs/dev.key';
+const tlsCert = process.env.BBLBB_DEV_TLS_CERT ?? (existsSync(defaultCert) ? defaultCert : undefined);
+const tlsKey = process.env.BBLBB_DEV_TLS_KEY ?? (existsSync(defaultKey) ? defaultKey : undefined);
 
 // 自签名证书环境下，允许 Node.js SSR 内部请求信任该证书
 if (tlsCert && tlsKey && process.env.NODE_TLS_REJECT_UNAUTHORIZED === undefined) {

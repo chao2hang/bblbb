@@ -10,6 +10,8 @@
 !.env.example
 *.pem
 *.key
+*.crt
+/dev/certs/
 
 # Rust
 /backend/target/
