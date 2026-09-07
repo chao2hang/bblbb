@@ -14,6 +14,13 @@ on:
 permissions:
   contents: read
 
+# AGENTS.md §3.1：backend/.cargo/config.toml 把 target-dir 固定为开发机路径
+# /data/cargo-target/bblbb（保护根分区）；CI runner 无权创建 /data。
+# Cargo 环境变量优先于 config 文件，CI 统一覆盖为工作区可写路径，
+# 本地开发行为不受影响（见 ci.yml 同名说明，AGENTS.md §3.4）。
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
 jobs:
   pr-suite:
     name: PR suite (reuse ci.yml)
@@ -88,6 +95,13 @@ jobs:
             ~/.cargo/git
           key: cargo-deps-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-deps-${{ runner.os }}-
+      # AGENTS.md §3.4：CI target-dir 缓存（配合 workflow 级 CARGO_TARGET_DIR 覆盖）
+      - name: Cache cargo target dir
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: cargo-target-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-target-${{ runner.os }}-
       - name: Run M16 fault/step-injection tests
         env:
           RUSTC_WRAPPER: sccache

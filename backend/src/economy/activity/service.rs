@@ -302,17 +302,29 @@ fn build_config_from_rule(rule: &ActivityRuleRow) -> ActivityConfig {
     let check_in_enabled = obj
         .get("check_in_enabled")
         .and_then(Value::as_bool)
-        .or_else(|| obj.get("check_in").and_then(|c| c.get("enabled")).and_then(Value::as_bool))
+        .or_else(|| {
+            obj.get("check_in")
+                .and_then(|c| c.get("enabled"))
+                .and_then(Value::as_bool)
+        })
         .unwrap_or(true);
     let auto_check_in_enabled = obj
         .get("auto_check_in_enabled")
         .and_then(Value::as_bool)
-        .or_else(|| obj.get("check_in").and_then(|c| c.get("auto_enabled")).and_then(Value::as_bool))
+        .or_else(|| {
+            obj.get("check_in")
+                .and_then(|c| c.get("auto_enabled"))
+                .and_then(Value::as_bool)
+        })
         .unwrap_or(true);
     let day_reset_hour = obj
         .get("day_reset_hour")
         .and_then(Value::as_i64)
-        .or_else(|| obj.get("check_in").and_then(|c| c.get("day_reset_hour")).and_then(Value::as_i64))
+        .or_else(|| {
+            obj.get("check_in")
+                .and_then(|c| c.get("day_reset_hour"))
+                .and_then(Value::as_i64)
+        })
         .unwrap_or(0)
         .clamp(0, 23);
     let rewards_enabled = obj
@@ -895,7 +907,7 @@ pub async fn claim_check_in(
 ) -> Result<CheckInOutcome, ActivityError> {
     let config = ensure_default_activity_config(pool, now).await?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3_600_000;
     let activity_day = activity_day_for(tz.offset_secs, effective_now);
 
     let mut earned: Vec<RewardValue> = Vec::new();
@@ -1012,7 +1024,7 @@ pub async fn claim_reaction_reward(
         .await?
         .ok_or_else(|| ActivityError::NotEligible("no reaction rule configured".to_string()))?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3_600_000;
     let activity_day = activity_day_for(tz.offset_secs, effective_now);
     let dedup_key = format!("{user_id}:{target_type}:{target_id}:{reaction}");
     claim_rule(pool, &rule, user_id, &activity_day, &dedup_key, now).await
@@ -1037,7 +1049,7 @@ pub async fn claim_content_reward(
         .await?
         .ok_or_else(|| ActivityError::NotEligible(format!("no {kind} rule configured")))?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3_600_000;
     let activity_day = activity_day_for(tz.offset_secs, effective_now);
     let dedup_key = format!("{user_id}:{kind}:{target_id}");
     claim_rule(pool, &rule, user_id, &activity_day, &dedup_key, now).await
@@ -1156,7 +1168,7 @@ pub async fn activity_summary(
 ) -> Result<Value, ActivityError> {
     let config = ensure_default_activity_config(pool, now).await?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3_600_000;
     let activity_day = activity_day_for(tz.offset_secs, effective_now);
 
     // 等级新鲜度：以 exp 余额重建缓存（幂等，缓存失效不改账本与历史）。

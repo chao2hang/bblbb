@@ -1020,7 +1020,7 @@ async fn oauth_grants_list_and_revoke() {
             .bind(&client_row_id)
             .bind(&member_id)
             .bind(now - 4000)
-            .bind(now + 3600_000)
+            .bind(now + 3_600_000)
             .bind(now - 1000)
             .execute(p)
             .await
@@ -1309,7 +1309,7 @@ async fn download_billing_transactions_projection() {
             .bind(&att)
             .bind(&member_id)
             .bind(now - 50)
-            .bind(now + 3600_000)
+            .bind(now + 3_600_000)
             .bind(now)
             .execute(p)
             .await
@@ -1473,9 +1473,10 @@ async fn paid_post_create_price_validation_and_unlock_flow() {
     let app = app_with(pool.clone());
     let (_admin_id, admin_session, admin_csrf) = admin_ctx(&app, &pool).await;
 
-    // 预置两个标签（CreatePostRequest.tags 只接受已存在的标签）。
-    let tag_a = insert_tag(&pool, "闲聊").await;
-    let tag_b = insert_tag(&pool, "指南").await;
+    // 预置两个标签（CreatePostRequest.tags 只接受已存在的标签；ID 后续断言不用，
+    // 下划线前缀标记有意未用，-D warnings 下不触发 unused_variables）。
+    let _tag_a = insert_tag(&pool, "闲聊").await;
+    let _tag_b = insert_tag(&pool, "指南").await;
 
     // 作者 + 两个买家。
     let (author_id, _au, author_session, author_csrf) = member_ctx(&app, &pool, "au").await;
