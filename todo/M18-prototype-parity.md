@@ -110,6 +110,7 @@
 **验收：** 独立 MFA 页与原型 `#mfa` 一致：启用状态/二维码（TOTP secret）/验证启用/停用/恢复码列表；复用现有 MFA 端点。
 
 - [x] `M18-MFA-01` `P1` `[45m]` 前端新增独立两步验证页（路由 + 页面组件），含启用流程（secret 展示/验证码确认）、停用确认、恢复码生成/展示；/me 的 MFA 卡保留并链接到该页。证据：files=frontend/src/routes/mfa/+page.server.ts,frontend/src/routes/mfa/+page.svelte,frontend/tests/visual/mobile-compare.mjs；commands=npm run check 0 错误；截图验证当前状态卡片、停用与恢复码按钮完整可用；contract=复用后端既有 MFA 端点；commit=wip-prototype-parity；review=none
+  补证（验收缺口修复：注册二维码，2026-09）：files=frontend/src/routes/mfa/+page.server.ts,frontend/src/routes/mfa/+page.svelte,frontend/src/routes/me/+page.server.ts,frontend/src/routes/me/+page.svelte,frontend/src/lib/mfa/otpauth-qr.ts,frontend/src/lib/mfa/otpauth-qr.test.ts,frontend/src/types/qrcode-browser.d.ts,frontend/src/lib/testing/ssr/mfa-nojs.test.ts,frontend/src/lib/testing/ssr/me-nojs.test.ts,frontend/src/routes/me/action.test.ts；commands=frontend `npx vitest run` 92 文件 616 用例全过（含新增 mfa-nojs/otpauth-qr 用例）、`npm run check` 0 错误、`ruby scripts/check-html-sinks.rb` 通过、`npm run build` 通过；contract=none（二维码为服务端由后端返回的 otpauth_uri 生成 SVG data URL，qrcode lib/browser 纯字符串渲染，无 {@html}，SSR/无 JS 可直接扫码；生成失败降级手工录入密钥）；commit=wip-prototype-parity；review=none
 
 ## M18-EDITOR：编辑器对齐
 

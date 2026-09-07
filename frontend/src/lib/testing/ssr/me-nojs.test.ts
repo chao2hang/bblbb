@@ -145,18 +145,47 @@ describe('无 JS：/me 页 MFA 管理（M02-UX-06）', () => {
     expect(body).not.toContain('?/mfa-enroll');
   });
 
-  it('enroll-challenge：SSR 输出密钥 + ?/mfa-confirm（code 输入）与 ?/mfa-cancel', () => {
+  it('enroll-challenge：SSR 输出二维码 + 密钥 + ?/mfa-confirm（code 输入）与 ?/mfa-cancel', () => {
     const { body } = render(MePage, {
       props: {
         data: { user: { ...user, mfa_enabled: false }, sessions: [], currentSessionId: null, error: null },
-        form: { mfa: { kind: 'enroll-challenge', otpauth_uri: 'otpauth://totp/BBLBB:alice@example.com', secret_base32: 'JBSWY3DPEHPK3PXP' } }
+        form: {
+          mfa: {
+            kind: 'enroll-challenge',
+            otpauth_uri: 'otpauth://totp/BBLBB:alice@example.com',
+            secret_base32: 'JBSWY3DPEHPK3PXP',
+            qr_data_url: 'data:image/svg+xml;base64,TESTQR'
+          }
+        }
       }
     });
+    // M18-MFA-01：二维码以 <img data-URL> 输出（SSR/无 JS 可直接扫码）
+    expect(body).toContain('data:image/svg+xml;base64,TESTQR');
+    expect(body).toMatch(/<img[^>]*alt="两步验证注册二维码/);
+    // 无 JS 降级：密钥与 otpauth 链接仍可见（details 折叠不影响 SSR 输出）
     expect(body).toContain('JBSWY3DPEHPK3PXP');
     expect(body).toContain('otpauth://totp/');
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-confirm"/);
     expect(body).toContain('name="code"');
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/mfa-cancel"/);
+  });
+
+  it('enroll-challenge 无二维码（qr_data_url 缺失）→ 降级提示，不输出 <img>', () => {
+    const { body } = render(MePage, {
+      props: {
+        data: { user: { ...user, mfa_enabled: false }, sessions: [], currentSessionId: null, error: null },
+        form: {
+          mfa: {
+            kind: 'enroll-challenge',
+            otpauth_uri: 'otpauth://totp/BBLBB:alice@example.com',
+            secret_base32: 'JBSWY3DPEHPK3PXP'
+          }
+        }
+      }
+    });
+    expect(body).toContain('二维码生成失败');
+    expect(body).toContain('JBSWY3DPEHPK3PXP');
+    expect(body).not.toMatch(/<img[^>]*otp-qr/);
   });
 
   it('recovery-codes：SSR 一次展示恢复码并提示只显示一次', () => {
