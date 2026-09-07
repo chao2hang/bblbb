@@ -24,6 +24,8 @@
   import { PROFILE_TEXT_LIMITS } from '$lib/profile';
   import { show } from '$lib/ui/toast';
   import { formatRelative } from '$lib/utils';
+  import { readPreference, applyTheme, type ThemePreference } from '$lib/theme';
+  import { applyThemeTokens, clearThemeTokens, type ActiveThemeView } from '$lib/theme/projection';
   import type { OAuthGrantItem } from '$lib/api/types';
   import type { SettingsFormResult, SettingsPageData } from './+page.server';
 
@@ -43,15 +45,129 @@
 
   const limit = PROFILE_TEXT_LIMITS;
   let activeTab = $state('profile');
+  let currentMode = $state<ThemePreference>('system');
+  let activeThemeId = $state('default');
+
+  const THEMES_LIST = [
+    {
+      id: 'default',
+      name: 'BBLBB 经典赤墨 (原版默认)',
+      desc: '经典暖珊瑚红点缀与米白宣纸底色',
+      bg: 'linear-gradient(135deg, #f5f3ed 0%, #b23e2a 50%, #fffefb 100%)',
+      tokens: {
+        'color.background': '#f5f3ed',
+        'color.surface': '#fffefb',
+        'color.text': '#17211f',
+        'color.muted': '#53605b',
+        'color.accent': '#b23e2a',
+        'color.border': '#d9d6cc'
+      }
+    },
+    {
+      id: 'chinese-elegance',
+      name: '水墨青石 (中国风)',
+      desc: '典雅含蓄的书卷水墨素雅与青石灰蓝',
+      bg: 'linear-gradient(135deg, #f5f3ee 0%, #5a6c7d 50%, #fbfaf7 100%)',
+      tokens: {
+        'color.background': '#f5f3ee',
+        'color.surface': '#fbfaf7',
+        'color.text': '#1f1d1a',
+        'color.muted': '#6b6b6b',
+        'color.accent': '#5a6c7d',
+        'color.border': '#e4e1d7'
+      }
+    },
+    {
+      id: 'midnight',
+      name: '暗夜极光',
+      desc: '深蓝灰与天蓝点缀的沉浸暗色',
+      bg: 'linear-gradient(135deg, #0f172a 0%, #38bdf8 50%, #1e293b 100%)',
+      tokens: {
+        'color.background': '#0f172a',
+        'color.surface': '#1e293b',
+        'color.text': '#e2e8f0',
+        'color.muted': '#94a3b8',
+        'color.accent': '#38bdf8',
+        'color.border': '#334155'
+      }
+    },
+    {
+      id: 'paper',
+      name: '复古羊皮纸',
+      desc: '温暖柔和的书卷复古质感',
+      bg: 'linear-gradient(135deg, #faf6ef 0%, #b23e2a 50%, #ffffff 100%)',
+      tokens: {
+        'color.background': '#faf6ef',
+        'color.surface': '#ffffff',
+        'color.text': '#2c2c2c',
+        'color.muted': '#736b5e',
+        'color.accent': '#b23e2a',
+        'color.border': '#e4dcce'
+      }
+    },
+    {
+      id: 'forest',
+      name: '翡翠森林',
+      desc: '清新自然的墨绿与薄荷翡翠色',
+      bg: 'linear-gradient(135deg, #f0f5f2 0%, #0f756c 50%, #ffffff 100%)',
+      tokens: {
+        'color.background': '#f0f5f2',
+        'color.surface': '#ffffff',
+        'color.text': '#132a21',
+        'color.muted': '#516f63',
+        'color.accent': '#0f756c',
+        'color.border': '#cfe0d8'
+      }
+    },
+    {
+      id: 'cyberpunk',
+      name: '赛博霓虹',
+      desc: '深紫暗夜与高亮粉紫霓虹碰撞',
+      bg: 'linear-gradient(135deg, #181126 0%, #ec4899 50%, #241b35 100%)',
+      tokens: {
+        'color.background': '#181126',
+        'color.surface': '#241b35',
+        'color.text': '#f3f0f7',
+        'color.muted': '#9d93b3',
+        'color.accent': '#ec4899',
+        'color.border': '#3b2d56'
+      }
+    }
+  ];
 
   onMount(() => {
+    currentMode = readPreference();
+    if (typeof document !== 'undefined') {
+      activeThemeId = document.documentElement.dataset.theme || 'default';
+    }
     const hash = window.location.hash.replace(/^#settings-/, '');
-    if (['profile', 'security', 'oauth', 'privacy'].includes(hash)) activeTab = hash;
+    if (['profile', 'appearance', 'security', 'oauth', 'privacy'].includes(hash)) activeTab = hash;
   });
 
   function selectTab(tab: string): void {
     activeTab = tab;
     if (typeof window !== 'undefined') window.history.replaceState(null, '', `#settings-${tab}`);
+  }
+
+  function setDisplayMode(mode: ThemePreference) {
+    currentMode = mode;
+    applyTheme(mode);
+    show(`已切换为${mode === 'light' ? '浅色模式' : mode === 'dark' ? '深色模式' : '跟随系统'}`, 'success');
+  }
+
+  function selectTheme(themeItem: { id: string; name: string; tokens?: Record<string, unknown> }) {
+    activeThemeId = themeItem.id;
+    if (themeItem.id === 'default' || themeItem.id === 'bblbb-classic') {
+      clearThemeTokens();
+    } else {
+      applyThemeTokens({
+        name: themeItem.id,
+        revision: 1,
+        tokens: themeItem.tokens ?? {},
+        source: 'user_preference'
+      });
+    }
+    show(`已应用「${themeItem.name}」主题`, 'success');
   }
 
   /** 资料可见性当前值（契约 Me.profile_visible_to；缺省 everyone）。 */
@@ -89,6 +205,7 @@
   <div class="app-settings-layout">
     <nav class="app-settings-nav" aria-label="设置导航">
       <button type="button" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}><span aria-hidden="true">◈</span>个人资料</button>
+      <button type="button" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}><span aria-hidden="true">◐</span>外观与主题</button>
       <button type="button" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}><span aria-hidden="true">◇</span>账号安全</button>
       <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
       <a href="/notifications"><span aria-hidden="true">◌</span>通知设置</a>
@@ -224,6 +341,93 @@
             </div>
           </div>
         </form>
+
+        <!-- 外观与主题设置面板 -->
+        <section
+          class="card settings-panel settings-panel-appearance"
+          class:is-active={activeTab === 'appearance'}
+          aria-label="外观与主题"
+        >
+          <div class="card-header">
+            <span class="card-title">外观与色彩偏好</span>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-5, 20px);">
+            <!-- 色彩模式切换 -->
+            <div>
+              <strong style="font-size:14px;display:block;margin-bottom:8px;">显示模式</strong>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
+                <button
+                  type="button"
+                  class="app-card"
+                  style="border:2px solid {currentMode === 'light' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
+                  onclick={() => setDisplayMode('light')}
+                >
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:14px;">☀️ 浅色模式</strong>
+                    {#if currentMode === 'light'}<span class="sbadge sb-primary">生效中</span>{/if}
+                  </div>
+                  <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">温润宣纸米白质感底色，字迹舒适分明，不眩光。</p>
+                </button>
+
+                <button
+                  type="button"
+                  class="app-card"
+                  style="border:2px solid {currentMode === 'dark' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
+                  onclick={() => setDisplayMode('dark')}
+                >
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:14px;">🌙 深色模式</strong>
+                    {#if currentMode === 'dark'}<span class="sbadge sb-primary">生效中</span>{/if}
+                  </div>
+                  <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">高对比纯黑夜色底色，弱光环境阅读柔和护眼。</p>
+                </button>
+
+                <button
+                  type="button"
+                  class="app-card"
+                  style="border:2px solid {currentMode === 'system' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
+                  onclick={() => setDisplayMode('system')}
+                >
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:14px;">💻 跟随系统</strong>
+                    {#if currentMode === 'system'}<span class="sbadge sb-primary">生效中</span>{/if}
+                  </div>
+                  <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">自动同步操作系统与浏览器的深浅色外观偏好。</p>
+                </button>
+              </div>
+            </div>
+
+            <!-- 社区主题风格选择 -->
+            <div>
+              <strong style="font-size:14px;display:block;margin-bottom:4px;">社区主题风格</strong>
+              <p class="text-secondary" style="font-size:12px;margin:0 0 12px 0;">选择你喜爱的全站设计配色，切换后全站按钮、卡片、底色与文字将同步调整。</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));gap:12px;">
+                {#each THEMES_LIST as t}
+                  <div
+                    class="app-card"
+                    style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--color-bg-card);"
+                  >
+                    <div style="height:48px;border-radius:var(--radius-sm);background:{t.bg};"></div>
+                    <div>
+                      <strong style="font-size:13px;">{t.name}</strong>
+                      <p class="text-secondary" style="font-size:11px;margin:2px 0 0 0;line-height:1.3;">{t.desc}</p>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:4px;">
+                      <button
+                        type="button"
+                        class="btn sm {activeThemeId === t.id ? 'ghost' : 'secondary'}"
+                        disabled={activeThemeId === t.id}
+                        onclick={() => selectTheme(t)}
+                      >
+                        {activeThemeId === t.id ? '当前生效' : '应用'}
+                      </button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          </div>
+        </section>
 
         <!-- GAP-FIX 修改密码：POST /me/password（security 区）。TODO(BE-2)：
              后端端点尚未注册，当前提交返回失败提示；落地后成功即撤销其他会话。 -->

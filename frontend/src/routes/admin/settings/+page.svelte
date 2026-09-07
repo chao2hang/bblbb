@@ -351,6 +351,18 @@
     </div>
   {/if}
 
+  <!-- 全站主题与外观管理快捷指引 -->
+  <aside class="app-card" style="margin-bottom:14px;background:var(--color-bg-card);border:1px solid var(--color-border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-radius:var(--radius-md);">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <Icon name="palette" size={18} />
+      <div>
+        <strong style="font-size:14px;">全站设计主题与配色外观</strong>
+        <p class="text-secondary" style="font-size:12px;margin:2px 0 0 0;">全站默认主题切换、官方配色包安装、Token 微调与全局实时预览请前往「主题管理」模块。</p>
+      </div>
+    </div>
+    <a href="/admin/themes" class="btn sm secondary">前往主题管理 →</a>
+  </aside>
+
   <!-- 功能开关（原型 app-check 列表 + data-sys-advisory 配置建议） -->
   <section class="app-card">
     <header class="app-card__head"><h2>功能开关</h2></header>
