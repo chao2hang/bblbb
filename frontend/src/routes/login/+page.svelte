@@ -10,9 +10,15 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { resolveSiteCopy, pageTitle, type SiteCopyView } from '$lib/site/copy';
   import type { LoginActionData } from './+page.server';
 
-  let { form }: { form?: LoginActionData } = $props();
+  // data 可选：隔离渲染（vitest）只传 form；运行时恒有（layout 注入 site）。
+  let { data, form }: { data?: { site?: SiteCopyView | null }; form?: LoginActionData } = $props();
+
+  // 全站文案（0065）：登录页眉题/标题/说明来自后台系统设置（layout 注入；
+  // 隔离渲染/后端不可达时解析内置兜底）。
+  const site = $derived<SiteCopyView>(data?.site ?? resolveSiteCopy(null));
 
   const mfaStep = $derived(form?.mfa_required === true);
   let useRecovery = $state(false);
@@ -41,7 +47,7 @@
 </script>
 
 <svelte:head>
-  <title>登录 — BBLBB</title>
+  <title>{pageTitle('登录', site.siteName)}</title>
 </svelte:head>
 
 <div class="login-page auth-wrapper" id="page-login">
@@ -55,12 +61,12 @@
             </div>
             <p class="login-eyebrow">TWO-FACTOR AUTH</p>
           {:else}
-            <p class="login-eyebrow">WELCOME BACK</p>
+            <p class="login-eyebrow">{site.loginEyebrow}</p>
           {/if}
         </div>
-        <h1 tabindex="-1">{mfaStep ? '安全验证' : '登录 BBLBB'}</h1>
+        <h1 tabindex="-1">{mfaStep ? '安全验证' : site.loginTitle}</h1>
         <p class="login-subtitle">
-          {mfaStep ? '该账号已启用两步验证保护，请输入 6 位动态验证码。' : '探索思想与灵感的中文社区空间'}
+          {mfaStep ? '该账号已启用两步验证保护，请输入 6 位动态验证码。' : site.loginSubtitle}
         </p>
       </div>
 
