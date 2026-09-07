@@ -1020,7 +1020,7 @@ async fn oauth_grants_list_and_revoke() {
             .bind(&client_row_id)
             .bind(&member_id)
             .bind(now - 4000)
-            .bind(now + 3600_000)
+            .bind(now + 3_600_000)
             .bind(now - 1000)
             .execute(p)
             .await
@@ -1309,7 +1309,7 @@ async fn download_billing_transactions_projection() {
             .bind(&att)
             .bind(&member_id)
             .bind(now - 50)
-            .bind(now + 3600_000)
+            .bind(now + 3_600_000)
             .bind(now)
             .execute(p)
             .await
