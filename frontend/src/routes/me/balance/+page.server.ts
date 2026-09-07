@@ -47,7 +47,7 @@ export const actions: Actions = {
       }>(
         cookies,
         '/api/v1/activity/visit',
-        { client_request_id: clientRequestId },
+        { client_request_id: clientRequestId, path: '/me/balance', manual: true },
         request.headers.get('x-request-id'),
         { 'Idempotency-Key': clientRequestId }
       );

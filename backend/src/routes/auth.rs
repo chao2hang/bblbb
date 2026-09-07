@@ -462,6 +462,13 @@ async fn login(
                 .await
                 .unwrap_or(false);
             let roles = effective_global_roles(pool, &outcome.user_id).await;
+
+            // 登录后自动签到（若配置开启）：
+            if let Ok(cfg) = crate::economy::activity::service::get_activity_config(pool).await {
+                if cfg.check_in_enabled && cfg.auto_check_in_enabled && cfg.rewards_enabled {
+                    let _ = crate::economy::activity::service::claim_check_in(pool, &outcome.user_id, crate::outbox::now_millis()).await;
+                }
+            }
             let me = Me {
                 id: outcome.user_id,
                 username: outcome.username,
@@ -567,6 +574,13 @@ async fn login_mfa(
             let cookie = build_session_cookie(&completed.session_token);
             // 第二步完成时 TOTP 必然已启用（mfa_required 由 has_confirmed_totp 判定）
             let roles = effective_global_roles(pool, &completed.user_id).await;
+
+            // 登录后自动签到（若配置开启）：
+            if let Ok(cfg) = crate::economy::activity::service::get_activity_config(pool).await {
+                if cfg.check_in_enabled && cfg.auto_check_in_enabled && cfg.rewards_enabled {
+                    let _ = crate::economy::activity::service::claim_check_in(pool, &completed.user_id, crate::outbox::now_millis()).await;
+                }
+            }
             let me = Me {
                 id: completed.user_id,
                 username: completed.username,

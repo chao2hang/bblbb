@@ -17,7 +17,7 @@
   const message = $derived(form?.message ?? null);
   const retryAfter = $derived(form?.retryAfterSecs ?? null);
 
-  const idempotencyKey = $state(newClientRequestId());
+  let idempotencyKey = $state(newClientRequestId());
 
   const coinBalance = $derived((summary?.balances ?? []).find((b) => b.currency === 'coin'));
   const expBalance = $derived((summary?.balances ?? []).find((b) => b.currency === 'exp'));
@@ -32,7 +32,9 @@
   const xpToNext = $derived(summary?.xp_to_next ?? null);
   const todayEarned = $derived(summary?.today_earned ?? form?.todayEarned ?? []);
   const streak = $derived(summary?.streak_days ?? form?.streakDays ?? 0);
-  const checkedIn = $derived(summary?.checked_in_today ?? false);
+  const checkedIn = $derived(summary?.checked_in_today ?? form?.ok ?? false);
+  const checkInEnabled = $derived(summary?.check_in_enabled !== false);
+  const autoCheckInEnabled = $derived(summary?.auto_check_in_enabled !== false);
 
   function pct(current: number, total: number | null | undefined): number {
     if (!total || total <= 0) return 0;
@@ -54,7 +56,7 @@
     <p class="input-hint is-error" role="alert">{error}</p>
   {/if}
   {#if message}
-    <p class="input-hint is-error" role="alert">{message}</p>
+    <p class="input-hint {form?.ok ? 'is-success' : 'is-error'}" style={form?.ok ? 'color:var(--color-success);font-weight:500;' : ''} role="alert">{message}</p>
   {/if}
 
   {#if summary}
@@ -133,31 +135,51 @@
           <div class="card-header"><span class="card-title">签到</span></div>
           <div class="card-body">
             <p class="auth-hint">
-              每日首次有效页面访问会自动签到；这里也可以手动领取。
+              {#if !checkInEnabled}
+                全站签到功能目前暂未开放。
+              {:else if autoCheckInEnabled}
+                每日首次访问或登录社区会自动签到；这里也可以手动领取。
+              {:else}
+                当前为手动签到模式，请点击下方按钮完成今日签到。
+              {/if}
             </p>
             <p>
-              <span class="badge {checkedIn ? 'badge-success' : 'badge-warning'}">
-                {checkedIn ? '今日已签到' : '今日未签到'}
-              </span>
-              <span class="text-secondary" style="margin-left:var(--space-2);font-size:var(--text-sm);">
-                连续签到 {streak} 天
-              </span>
+              {#if !checkInEnabled}
+                <span class="badge badge-neutral">签到未开启</span>
+              {:else}
+                <span class="badge {checkedIn ? 'badge-success' : 'badge-warning'}">
+                  {checkedIn ? '今日已签到' : '今日未签到'}
+                </span>
+                <span class="text-secondary" style="margin-left:var(--space-2);font-size:var(--text-sm);">
+                  连续签到 {streak} 天
+                </span>
+              {/if}
             </p>
             {#if retryAfter}
               <p class="input-hint is-error" role="alert">操作过于频繁，请约 {retryAfter} 秒后再试。</p>
             {/if}
-            <form method="POST" action="?/visit" use:enhance style="margin-top:var(--space-3);">
+            <form
+              method="POST"
+              action="?/visit"
+              use:enhance={() => {
+                return async ({ update }) => {
+                  idempotencyKey = newClientRequestId();
+                  await update();
+                };
+              }}
+              style="margin-top:var(--space-3);"
+            >
               <input type="hidden" name="client_request_id" value={idempotencyKey} />
               <Button
-                text={checkedIn ? '今日已签到' : '立即签到'}
-                variant={checkedIn ? 'secondary' : 'primary'}
+                text={!checkInEnabled ? '签到未开启' : checkedIn ? '今日已签到' : '立即签到'}
+                variant={!checkInEnabled || checkedIn ? 'secondary' : 'primary'}
                 size="md"
                 type="submit"
-                disabled={checkedIn}
+                disabled={!checkInEnabled || checkedIn}
               />
             </form>
             <p class="input-hint" style="margin-top:var(--space-2);">
-              签到奖励按你的时区自然日计算，重复打开页面不会重复发放。
+              签到奖励按设定的每日重置时间结算，重复操作不会重复发放。
             </p>
           </div>
         </div>

@@ -715,6 +715,10 @@ export interface ActivitySummary {
   xp?: number;
   /** 距下一级所需经验；null = 已满级。 */
   xp_to_next?: number | null;
+  /** 签到功能是否开启。 */
+  check_in_enabled?: boolean;
+  /** 登录/访问自动签到是否开启。 */
+  auto_check_in_enabled?: boolean;
   /** 本自然日是否已签到（自动领取）。 */
   checked_in_today: boolean;
   /** 连续签到天数。 */
@@ -841,10 +845,30 @@ export interface ShopConfig {
 
 /** 活跃配置（GET /admin/activity/config）。 */
 export interface ActivityConfig {
-  /** 自动签到（每日首次有效页面访问）是否开启。 */
+  /** 站点基准时区。 */
+  site_timezone?: string;
+  /** 签到功能总开关。 */
   check_in_enabled: boolean;
+  /** 登录/访问自动签到是否开启。 */
+  auto_check_in_enabled?: boolean;
+  /** 每日新一天起始时间（0..=23）。 */
+  day_reset_hour?: number;
   /** 签到奖励（exp/coin）。 */
   check_in_reward?: Money;
+  /** 签到奖励币种 */
+  check_in_currency?: string;
+  /** 每日签到上限。 */
+  check_in_daily_limit?: number;
+  /** 全站奖励开关。 */
+  rewards_enabled?: boolean;
+  check_in?: {
+    enabled?: boolean;
+    auto_enabled?: boolean;
+    day_reset_hour?: number;
+    amount?: number;
+    currency?: string;
+    daily_limit?: number;
+  };
   /** 连续签到奖励规则（JSON 简化展示）。 */
   streak_bonus_enabled?: boolean;
   /** 经验货币。 */
