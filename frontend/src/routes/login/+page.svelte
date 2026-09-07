@@ -55,9 +55,6 @@
             </div>
             <p class="login-eyebrow">TWO-FACTOR AUTH</p>
           {:else}
-            <div class="login-hero-badge" aria-hidden="true">
-              <span class="badge-char">墨</span>
-            </div>
             <p class="login-eyebrow">WELCOME BACK</p>
           {/if}
         </div>
@@ -220,13 +217,6 @@
     color: var(--color-brand);
     border: 1px solid color-mix(in srgb, var(--color-brand) 22%, transparent);
     flex-shrink: 0;
-  }
-
-  .badge-char {
-    font-family: var(--font-family-serif, serif);
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1;
   }
 
   .login-eyebrow {
@@ -482,10 +472,6 @@
     .login-hero-badge {
       width: 24px;
       height: 24px;
-    }
-
-    .badge-char {
-      font-size: 13px;
     }
 
     .login-card h1 {
