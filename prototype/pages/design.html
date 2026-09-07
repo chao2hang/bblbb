@@ -39,6 +39,7 @@
     <button type="button" data-design-target="design-radius" onclick="designJump('design-radius')">圆角</button>
     <button type="button" data-design-target="design-button" onclick="designJump('design-button')">按钮组件</button>
     <button type="button" data-design-target="design-status" onclick="designJump('design-status')">标签状态</button>
+    <button type="button" data-design-target="design-progress" onclick="designJump('design-progress')">转场加载条</button>
     <button type="button" data-design-target="design-layout" onclick="designJump('design-layout')">布局与响应式</button>
     <button type="button" data-design-target="design-states" onclick="designJump('design-states')">状态与无障碍</button>
     <button type="button" data-design-target="design-checklist" onclick="designJump('design-checklist')">开发检查清单</button>
@@ -159,6 +160,22 @@
 </div>
 </div>
 
+<div class="ds-section" id="design-progress" data-component="route-progress">
+    <h2>组件规范 · 页面转场加载条</h2>
+    <p class="desc">路由切换时在顶栏下方显示 2px 细线进度条，给出“页面切换中”的即时反馈。纯黑白灰（不占用品牌色），亮 / 暗主题自动适配。由 <code>assets/page-chrome.js</code> 提供 <code>window.__routeProgress</code>，路由引擎在 <code>route()</code> 起止处调用。</p>
+    <div class="demo-label">Live demo · 点击下方按钮触发（切换主题可验证双模式配色）</div>
+    <div class="demo-row">
+      <button class="btn primary sm" type="button" onclick="designProgressDemo()">触发加载条</button>
+      <button class="btn ghost sm" type="button" onclick="toggleTheme()">切换亮 / 暗主题</button>
+    </div>
+    <div class="design-rule-grid">
+      <div class="design-rule"><b>位置与层级</b><span>fixed，桌面 top:60px（顶栏下缘）、移动端 top:0；高 2px；z-index 低于弹层；pointer-events:none，不拦截交互。</span></div>
+      <div class="design-rule"><b>配色（黑白灰）</b><span>亮色 fill #1A1A1A / track rgba(0,0,0,.05)；暗色 fill #E8E8E8 / track rgba(255,255,255,.06)；一律引用 <code>--route-progress-*</code> Token，禁止硬编码。</span></div>
+      <div class="design-rule"><b>时长节奏</b><span>开始 0→72%（500ms ease-out）→ 最短显示 450ms → 完成补至 100%（240ms）→ 淡出 340ms；运行中重复 start 不重置。</span></div>
+      <div class="design-rule"><b>降级与触发点</b><span>prefers-reduced-motion：不做横向位移，直接满宽并仅淡入淡出。触发点：route() 开始/结束、启动拉取页面片段（page-loader）、独立页站内跳转；守卫拦截时 cancel 直接淡出。</span></div>
+    </div>
+</div>
+
 <div class="ds-section" id="design-layout">
     <h2>布局与响应式</h2>
     <p class="desc">页面骨架先按容器、主内容与侧栏拆分，再为移动端定义收缩策略；不要只靠缩放解决小屏问题。</p>
@@ -199,6 +216,7 @@
       <label class="design-check"><input type="checkbox">按钮与图标具备键盘操作和 aria-label</label>
       <label class="design-check"><input type="checkbox">空、错、无权限、加载状态均有可恢复提示</label>
       <label class="design-check"><input type="checkbox">亮色与暗色主题均已检查对比度和可读性</label>
+      <label class="design-check"><input type="checkbox">页面转场加载条为黑白灰 Token，亮/暗主题与 reduced-motion 均已检查</label>
       <label class="design-check"><input type="checkbox">已对照 docs/PROTOTYPE-UI.md 与 docs/DESIGN-TOKENS.md</label>
 </div>
     <p class="ds-note">事实来源：<code>docs/PROTOTYPE-UI.md</code>（视觉与组件规格）和 <code>docs/DESIGN-TOKENS.md</code>（Token、圆角硬规则）。主题实现统一使用 <code>html[data-theme="dark"]</code>；若页面实现与文档冲突，先修正文档或提交设计决策，不要在单个页面留下例外。</p>

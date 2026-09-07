@@ -148,22 +148,81 @@ async fn update_activity_config(
     let reason = require_reason(&body, request_id)?;
     require_recent_auth(pool, &headers, state.config.step_up_window_secs, request_id).await?;
 
-    let check_in = body.get("check_in").unwrap_or(&Value::Null);
+    let changes = body.get("changes").unwrap_or(&Value::Null);
+    let check_in = body
+        .get("check_in")
+        .or_else(|| changes.get("check_in"))
+        .unwrap_or(&Value::Null);
+
+    let site_timezone = body
+        .get("site_timezone")
+        .or_else(|| changes.get("site_timezone"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
+    let check_in_enabled = body
+        .get("check_in_enabled")
+        .or_else(|| changes.get("check_in_enabled"))
+        .or_else(|| check_in.get("enabled"))
+        .and_then(Value::as_bool);
+
+    let auto_check_in_enabled = body
+        .get("auto_check_in_enabled")
+        .or_else(|| changes.get("auto_check_in_enabled"))
+        .or_else(|| check_in.get("auto_enabled"))
+        .and_then(Value::as_bool);
+
+    let day_reset_hour = body
+        .get("day_reset_hour")
+        .or_else(|| changes.get("day_reset_hour"))
+        .or_else(|| check_in.get("day_reset_hour"))
+        .and_then(Value::as_i64);
+
+    let check_in_amount = body
+        .get("check_in_amount")
+        .or_else(|| changes.get("check_in_amount"))
+        .and_then(Value::as_i64)
+        .or_else(|| check_in.get("amount").and_then(Value::as_i64))
+        .or_else(|| {
+            changes
+                .get("check_in_reward")
+                .and_then(|r| r.get("amount"))
+                .and_then(Value::as_i64)
+        });
+
+    let check_in_currency = body
+        .get("check_in_currency")
+        .or_else(|| changes.get("check_in_currency"))
+        .and_then(Value::as_str)
+        .or_else(|| check_in.get("currency").and_then(Value::as_str))
+        .or_else(|| {
+            changes
+                .get("check_in_reward")
+                .and_then(|r| r.get("currency"))
+                .and_then(Value::as_str)
+        })
+        .map(str::to_string);
+
+    let check_in_daily_limit = body
+        .get("check_in_daily_limit")
+        .or_else(|| changes.get("check_in_daily_limit"))
+        .and_then(Value::as_i64)
+        .or_else(|| check_in.get("daily_limit").and_then(Value::as_i64));
+
+    let rewards_enabled = body
+        .get("rewards_enabled")
+        .or_else(|| changes.get("rewards_enabled"))
+        .and_then(Value::as_bool);
+
     let input = ActivityConfigUpdate {
-        site_timezone: body
-            .get("site_timezone")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        check_in_enabled: body.get("check_in_enabled").and_then(Value::as_bool),
-        check_in_amount: body
-            .get("check_in_amount")
-            .and_then(Value::as_i64)
-            .or_else(|| check_in.get("amount").and_then(Value::as_i64)),
-        check_in_daily_limit: body
-            .get("check_in_daily_limit")
-            .and_then(Value::as_i64)
-            .or_else(|| check_in.get("daily_limit").and_then(Value::as_i64)),
-        rewards_enabled: body.get("rewards_enabled").and_then(Value::as_bool),
+        site_timezone,
+        check_in_enabled,
+        auto_check_in_enabled,
+        day_reset_hour,
+        check_in_amount,
+        check_in_currency,
+        check_in_daily_limit,
+        rewards_enabled,
         reason,
     };
     let config = activity_service::update_activity_config(pool, &user.id, &input, now_millis())

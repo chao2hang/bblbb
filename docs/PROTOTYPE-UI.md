@@ -46,6 +46,9 @@
 | --color-focus-ring | rgba(0,136,204,0.35) | focus 外发光环 |
 | --color-visited | #6E6E6E | 已访问题目（Discourse 列表特性） |
 | --color-highlight-soft | #FFFFCC | 引用高亮底（备用） |
+| --route-progress-track | rgba(0,0,0,0.05) | 页面转场加载条轨道（黑白灰，不占用品牌色） |
+| --route-progress-fill | #1A1A1A | 页面转场加载条填充（近黑） |
+| --route-progress-glow | rgba(0,0,0,0.15) | 页面转场加载条辉光 |
 
 ## 2.2 色彩 Token（暗色映射）
 
@@ -75,6 +78,9 @@
 | --color-focus-ring | rgba(72,176,221,0.45) | focus 环 |
 | --color-visited | #8A8A8A | 已访问题目 |
 | --color-highlight-soft | #4A4A2A | 引用高亮底 |
+| --route-progress-track | rgba(255,255,255,0.06) | 转场加载条轨道（暗色） |
+| --route-progress-fill | #E8E8E8 | 转场加载条填充（近白，暗色） |
+| --route-progress-glow | rgba(255,255,255,0.12) | 转场加载条辉光（暗色） |
 
 ## 2.3 字体与字号阶梯
 
@@ -232,6 +238,7 @@
 |Toast|顶部居中浮层：高 40px，白底 1px 边框 8px 圆角 \-\-shadow\-pop，左语义图标 16px \+ 13px 文字，宽度自适应内容|success / warning / danger / info 四型对应语义色图标；停留 3000ms 上滑淡出；多条纵向堆叠间距 8px，最多 3 条|
 |Skeleton|占位块：\-\-color\-bg\-subtle 底 4px 圆角，1200ms 呼吸透明度动画（1→0\.5→1）|列表页按 PostCard 形状渲染 5 行骨架；详情页标题条 \+ 3 段文字条 \+ 侧栏卡骨架；禁止用整页 spinner 替代|
 |状态页（Loading / Error / 403 / 404 / 429）|页面级居中：大图标 48px \+ 状态码 28px semibold（错误类）\+ 标题 16px \+ 说明 14px 次要文字 \+ 操作按钮|403「没有访问权限」→ secondary「返回首页」\+ ghost「登录」；404「页面不存在」→ primary「返回首页」；429「操作过于频繁，请稍后再试」→ 显示倒计时秒数，结束自动恢复；Error「出错了」→ primary「重试」。触发条件见产品规格第 5 节|
+|RouteProgress（页面转场加载条）|顶栏下方 fixed 细线：桌面 top 60px、移动 top 0，高 2px，pointer-events none，z-index 低于弹层|纯黑白灰 Token（\-\-route-progress\-\*），亮/暗主题自动适配；路由开始时 0→72%（500ms ease-out），最短显示 450ms，完成后补至 100%（240ms）再淡出 340ms；运行中重复 start 不重置；prefers-reduced-motion 不做横向位移，仅淡入淡出。触发点：hash 路由切换、启动拉取页面片段、独立页站内跳转；守卫拦截时 cancel 直接淡出|
 
 # 五、图标与无障碍
 

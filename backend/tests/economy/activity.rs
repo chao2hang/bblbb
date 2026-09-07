@@ -695,7 +695,10 @@ async fn admin_config_update_versions_and_audits() {
         &admin,
         &ActivityConfigUpdate {
             check_in_enabled: Some(false),
-            reason: "临时关闭签到".to_string(),
+            auto_check_in_enabled: Some(false),
+            day_reset_hour: Some(4),
+            check_in_currency: Some("coin".to_string()),
+            reason: "临时关闭签到并调整跨天时间为4点".to_string(),
             ..ActivityConfigUpdate::default()
         },
         now + 2000,
@@ -704,6 +707,9 @@ async fn admin_config_update_versions_and_audits() {
     .unwrap();
     assert_eq!(v3.version, 3);
     assert!(!v3.check_in_enabled);
+    assert!(!v3.auto_check_in_enabled);
+    assert_eq!(v3.day_reset_hour, 4);
+    assert_eq!(v3.check_in_currency, "coin");
 
     // 审计：两次 config_update 均落库（reason/effective_role/policy）。
     type AuditRow = (String, Option<String>, Option<String>, Option<String>);

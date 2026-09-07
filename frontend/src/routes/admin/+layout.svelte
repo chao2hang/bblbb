@@ -41,7 +41,7 @@
         { label: '积分与货币', href: '/admin/points', icon: 'coins' },
         { label: '等级管理', href: '/admin/levels', icon: 'award' },
         { label: '商城管理', href: '/admin/shop', icon: 'shopping-bag' },
-        { label: '活跃管理', href: '/admin/activity', icon: 'activity' },
+        { label: '签到与活跃', href: '/admin/activity', icon: 'activity' },
         { label: '市场与交易', href: '/admin/marketplace', icon: 'shopping-cart' },
         { label: '下载计费', href: '/admin/download-billing', icon: 'download' }
       ]

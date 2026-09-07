@@ -881,12 +881,13 @@ export async function getActivitySummary(fetchFn: typeof fetch): Promise<Activit
  *  前端也可显式触发领取。返回 ActivityVisitResult（契约）。 */
 export async function recordVisit(
   fetchFn: typeof fetch,
-  clientRequestId: string
+  clientRequestId: string,
+  path = '/me/balance'
 ): Promise<{ checked_in_today: boolean; streak_days: number; today_earned: Money[]; point_operation_id?: string }> {
   return request(fetchFn, '/activity/visit', {
     method: 'POST',
     headers: idemHeaders(clientRequestId),
-    body: JSON.stringify({ client_request_id: clientRequestId })
+    body: JSON.stringify({ client_request_id: clientRequestId, path, manual: true })
   });
 }
 

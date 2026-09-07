@@ -30,7 +30,8 @@ use crate::economy::activity::checkin::{
     TIMEZONE_VERSION,
 };
 use crate::economy::ledger::service::{
-    apply_operation, get_account, reversal, LedgerCommand, LedgerError, LedgerKind, CURRENCY_EXP,
+    apply_operation, get_account, reversal, LedgerCommand, LedgerError, LedgerKind, CURRENCY_COIN,
+    CURRENCY_EXP,
 };
 use crate::economy::levels;
 use crate::events::types::ACTIVITY_CLAIMED;
@@ -131,7 +132,10 @@ pub struct ActivityConfig {
     pub site_timezone: String,
     pub timezone_version: String,
     pub check_in_enabled: bool,
+    pub auto_check_in_enabled: bool,
+    pub day_reset_hour: i64,
     pub check_in_amount: i64,
+    pub check_in_currency: String,
     pub check_in_daily_limit: i64,
     pub rewards_enabled: bool,
     pub version: i64,
@@ -144,9 +148,15 @@ impl ActivityConfig {
             "timezone_version": self.timezone_version,
             "check_in": {
                 "enabled": self.check_in_enabled,
+                "auto_enabled": self.auto_check_in_enabled,
+                "day_reset_hour": self.day_reset_hour,
                 "amount": self.check_in_amount,
+                "currency": self.check_in_currency,
                 "daily_limit": self.check_in_daily_limit,
             },
+            "check_in_enabled": self.check_in_enabled,
+            "auto_check_in_enabled": self.auto_check_in_enabled,
+            "day_reset_hour": self.day_reset_hour,
             "rewards_enabled": self.rewards_enabled,
             "version": self.version,
         })
@@ -180,7 +190,10 @@ pub struct CheckInOutcome {
 pub struct ActivityConfigUpdate {
     pub site_timezone: Option<String>,
     pub check_in_enabled: Option<bool>,
+    pub auto_check_in_enabled: Option<bool>,
+    pub day_reset_hour: Option<i64>,
     pub check_in_amount: Option<i64>,
+    pub check_in_currency: Option<String>,
     pub check_in_daily_limit: Option<i64>,
     pub rewards_enabled: Option<bool>,
     pub reason: String,
@@ -289,16 +302,36 @@ fn build_config_from_rule(rule: &ActivityRuleRow) -> ActivityConfig {
     let check_in_enabled = obj
         .get("check_in_enabled")
         .and_then(Value::as_bool)
+        .or_else(|| obj.get("check_in").and_then(|c| c.get("enabled")).and_then(Value::as_bool))
         .unwrap_or(true);
+    let auto_check_in_enabled = obj
+        .get("auto_check_in_enabled")
+        .and_then(Value::as_bool)
+        .or_else(|| obj.get("check_in").and_then(|c| c.get("auto_enabled")).and_then(Value::as_bool))
+        .unwrap_or(true);
+    let day_reset_hour = obj
+        .get("day_reset_hour")
+        .and_then(Value::as_i64)
+        .or_else(|| obj.get("check_in").and_then(|c| c.get("day_reset_hour")).and_then(Value::as_i64))
+        .unwrap_or(0)
+        .clamp(0, 23);
     let rewards_enabled = obj
         .get("rewards_enabled")
         .and_then(Value::as_bool)
         .unwrap_or(true);
+    let check_in_currency = if rule.currency_id == CURRENCY_COIN || rule.currency_id == "coin" {
+        "coin".to_string()
+    } else {
+        "exp".to_string()
+    };
     ActivityConfig {
         site_timezone,
         timezone_version: TIMEZONE_VERSION.to_string(),
         check_in_enabled,
+        auto_check_in_enabled,
+        day_reset_hour,
         check_in_amount: rule.amount,
+        check_in_currency,
         check_in_daily_limit: rule.daily_limit.unwrap_or(1),
         rewards_enabled,
         version: rule.version,
@@ -330,6 +363,8 @@ pub async fn ensure_default_activity_config(
         "site_timezone": DEFAULT_SITE_TIMEZONE,
         "timezone_version": TIMEZONE_VERSION,
         "check_in_enabled": true,
+        "auto_check_in_enabled": true,
+        "day_reset_hour": 0,
         "rewards_enabled": true,
     });
     let conditions_str =
@@ -860,7 +895,8 @@ pub async fn claim_check_in(
 ) -> Result<CheckInOutcome, ActivityError> {
     let config = ensure_default_activity_config(pool, now).await?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let activity_day = activity_day_for(tz.offset_secs, now);
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let activity_day = activity_day_for(tz.offset_secs, effective_now);
 
     let mut earned: Vec<RewardValue> = Vec::new();
     let mut first_operation: Option<String> = None;
@@ -976,7 +1012,8 @@ pub async fn claim_reaction_reward(
         .await?
         .ok_or_else(|| ActivityError::NotEligible("no reaction rule configured".to_string()))?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let activity_day = activity_day_for(tz.offset_secs, now);
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let activity_day = activity_day_for(tz.offset_secs, effective_now);
     let dedup_key = format!("{user_id}:{target_type}:{target_id}:{reaction}");
     claim_rule(pool, &rule, user_id, &activity_day, &dedup_key, now).await
 }
@@ -1000,7 +1037,8 @@ pub async fn claim_content_reward(
         .await?
         .ok_or_else(|| ActivityError::NotEligible(format!("no {kind} rule configured")))?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let activity_day = activity_day_for(tz.offset_secs, now);
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let activity_day = activity_day_for(tz.offset_secs, effective_now);
     let dedup_key = format!("{user_id}:{kind}:{target_id}");
     claim_rule(pool, &rule, user_id, &activity_day, &dedup_key, now).await
 }
@@ -1118,7 +1156,8 @@ pub async fn activity_summary(
 ) -> Result<Value, ActivityError> {
     let config = ensure_default_activity_config(pool, now).await?;
     let tz = resolve_user_timezone(pool, user_id, &config.site_timezone).await?;
-    let activity_day = activity_day_for(tz.offset_secs, now);
+    let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3600_000;
+    let activity_day = activity_day_for(tz.offset_secs, effective_now);
 
     // 等级新鲜度：以 exp 余额重建缓存（幂等，缓存失效不改账本与历史）。
     let _ = levels::recompute_level(pool, user_id, "activity.summary", now).await;
@@ -1136,6 +1175,8 @@ pub async fn activity_summary(
     Ok(json!({
         "activity_day": activity_day,
         "checked_in_today": checked_in_today,
+        "check_in_enabled": config.check_in_enabled,
+        "auto_check_in_enabled": config.auto_check_in_enabled,
         "streak_days": streak,
         "level": level,
         "experience": {
@@ -1145,6 +1186,9 @@ pub async fn activity_summary(
         "config": {
             "site_timezone": config.site_timezone,
             "timezone_version": TIMEZONE_VERSION,
+            "check_in_enabled": config.check_in_enabled,
+            "auto_check_in_enabled": config.auto_check_in_enabled,
+            "day_reset_hour": config.day_reset_hour,
         },
         "timezone": tz.to_value(),
     }))
@@ -1445,6 +1489,13 @@ pub async fn update_activity_config(
             ));
         }
     }
+    if let Some(reset_hour) = input.day_reset_hour {
+        if !(0..=23).contains(&reset_hour) {
+            return Err(ActivityError::Invalid(
+                "day_reset_hour must be between 0 and 23".to_string(),
+            ));
+        }
+    }
 
     let config = get_activity_config(pool).await?;
     let new_conditions = json!({
@@ -1452,6 +1503,8 @@ pub async fn update_activity_config(
         "site_timezone": input.site_timezone.clone().unwrap_or_else(|| config.site_timezone.clone()),
         "timezone_version": TIMEZONE_VERSION,
         "check_in_enabled": input.check_in_enabled.unwrap_or(config.check_in_enabled),
+        "auto_check_in_enabled": input.auto_check_in_enabled.unwrap_or(config.auto_check_in_enabled),
+        "day_reset_hour": input.day_reset_hour.unwrap_or(config.day_reset_hour).clamp(0, 23),
         "rewards_enabled": input.rewards_enabled.unwrap_or(config.rewards_enabled),
     });
     let new_conditions_str = serde_json::to_string(&new_conditions)
@@ -1461,18 +1514,24 @@ pub async fn update_activity_config(
         .check_in_daily_limit
         .unwrap_or(config.check_in_daily_limit);
     let new_version = config.version + 1;
-    let rule_id = get_config_rule(pool)
+    let rule = get_config_rule(pool)
         .await?
-        .ok_or_else(|| ActivityError::NotFound("activity config not initialized".to_string()))?
-        .id;
+        .ok_or_else(|| ActivityError::NotFound("activity config not initialized".to_string()))?;
+    let rule_id = rule.id;
+    let new_currency_id = match input.check_in_currency.as_deref() {
+        Some("coin") => CURRENCY_COIN.to_string(),
+        Some("exp") => CURRENCY_EXP.to_string(),
+        _ => rule.currency_id,
+    };
 
     match pool {
         Either::Left(p) => {
             let mut tx = p.begin().await?;
             sqlx::query(
-                "UPDATE activity_rules SET amount = ?, daily_limit = ?, conditions_json = ?, version = ?, updated_at = ?
+                "UPDATE activity_rules SET currency_id = ?, amount = ?, daily_limit = ?, conditions_json = ?, version = ?, updated_at = ?
                  WHERE id = ?",
             )
+            .bind(&new_currency_id)
             .bind(new_amount)
             .bind(new_daily_limit)
             .bind(&new_conditions_str)
@@ -1497,9 +1556,10 @@ pub async fn update_activity_config(
         Either::Right(p) => {
             let mut tx = p.begin().await?;
             sqlx::query(
-                "UPDATE activity_rules SET amount = ?, daily_limit = ?, conditions_json = ?, version = ?, updated_at = ?
+                "UPDATE activity_rules SET currency_id = ?, amount = ?, daily_limit = ?, conditions_json = ?, version = ?, updated_at = ?
                  WHERE id = ?",
             )
+            .bind(&new_currency_id)
             .bind(new_amount)
             .bind(new_daily_limit)
             .bind(&new_conditions_str)

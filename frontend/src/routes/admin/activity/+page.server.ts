@@ -44,21 +44,32 @@ export const actions: Actions = {
       return fail(422, { message: '操作原因必填' } satisfies AdminActivityActionData);
     }
     const changes: Record<string, unknown> = {
-      check_in_enabled: form.get('check_in_enabled') === 'on'
+      check_in_enabled: form.get('check_in_enabled') === 'on',
+      auto_check_in_enabled: form.get('auto_check_in_enabled') === 'on',
+      rewards_enabled: form.get('rewards_enabled') === 'on',
+      site_timezone: String(form.get('site_timezone') ?? 'Asia/Shanghai').trim(),
+      day_reset_hour: Number(form.get('day_reset_hour') ?? 0)
     };
     const amountRaw = String(form.get('check_in_amount') ?? '').trim();
+    const currency = String(form.get('check_in_currency') ?? 'coin').trim().toLowerCase();
     if (amountRaw !== '') {
-      changes.check_in_reward = { currency: 'coin', amount: Number(amountRaw) } satisfies Money;
+      changes.check_in_amount = Number(amountRaw);
+      changes.check_in_currency = currency;
+      changes.check_in_reward = { currency, amount: Number(amountRaw) } satisfies Money;
+    }
+    const limitRaw = String(form.get('check_in_daily_limit') ?? '').trim();
+    if (limitRaw !== '') {
+      changes.check_in_daily_limit = Number(limitRaw);
     }
     try {
       const result = await authedPatch<ActivityConfig>(
         cookies,
         '/api/v1/admin/activity/config',
-        { expected_version: expectedVersion, reason, changes },
+        { expected_version: expectedVersion, reason, ...changes, changes },
         { 'If-Match': String(expectedVersion) },
         request.headers.get('x-request-id')
       );
-      if (result.ok) return { message: '活跃配置已保存' } satisfies AdminActivityActionData;
+      if (result.ok) return { message: '签到与活跃配置已保存' } satisfies AdminActivityActionData;
       if (result.status === 409) {
         return fail(409, { message: `版本冲突：${result.message}` } satisfies AdminActivityActionData);
       }

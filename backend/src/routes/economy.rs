@@ -23,7 +23,7 @@ use crate::{
     authz::enforce::authorize_action,
     economy::activity::{
         checkin::{validate_visit, VisitContext, VisitRejection},
-        service::{activity_summary, claim_check_in, ActivityError},
+        service::{self as activity_service, activity_summary, claim_check_in, ActivityError},
     },
     error::AppError,
     outbox::now_millis,
@@ -132,11 +132,13 @@ async fn record_visit(
     }
 
     // 访问校验（M07-LEVELS-03）。
-    let path = body
+    let raw_path = body
         .get("path")
         .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("/me/balance");
+
     let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
     let sec_purpose = headers.get("sec-purpose").and_then(|v| v.to_str().ok());
     let purpose = headers
@@ -145,7 +147,7 @@ async fn record_visit(
         .or_else(|| headers.get("x-purpose").and_then(|v| v.to_str().ok()));
     let sec_fetch_dest = headers.get("sec-fetch-dest").and_then(|v| v.to_str().ok());
     let ctx = VisitContext {
-        path: &path,
+        path: raw_path,
         user_agent,
         sec_purpose,
         purpose,
@@ -153,6 +155,38 @@ async fn record_visit(
     };
     if let Err(rej) = validate_visit(&ctx) {
         return Err(visit_rejection_error(rej, request_id));
+    }
+
+    let is_explicit_claim = raw_path == "/me/balance"
+        || raw_path == "/activity"
+        || body.get("manual").and_then(Value::as_bool).unwrap_or(false);
+
+    let config = activity_service::ensure_default_activity_config(pool, now)
+        .await
+        .map_err(|e| map_activity_error(e, request_id))?;
+
+    if !config.check_in_enabled {
+        return Err(AppError::bad_request("签到功能暂未开启", request_id, None));
+    }
+
+    if !config.auto_check_in_enabled && !is_explicit_claim {
+        let summary = activity_service::activity_summary(pool, &user.id, now)
+            .await
+            .map_err(|e| map_activity_error(e, request_id))?;
+        let body = json!({
+            "checked_in_today": summary.get("checked_in_today").and_then(Value::as_bool).unwrap_or(false),
+            "streak_days": summary.get("streak_days").and_then(Value::as_i64).unwrap_or(0),
+            "today_earned": [],
+            "point_operation_id": null,
+            "activity_day": summary.get("activity_day"),
+            "timezone": summary.get("timezone"),
+        });
+        let mut resp = (StatusCode::OK, Json(body)).into_response();
+        resp.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        );
+        return Ok(resp);
     }
 
     // 签到领取（幂等 + 账本 + 等级重建）。
