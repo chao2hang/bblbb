@@ -5,6 +5,10 @@
 (function () {
   'use strict';
 
+  /* 启动转场：片段拉取 + 引擎加载期间显示加载条（page-chrome.js 提供 __routeProgress），
+   * 首次 route() 完成渲染后由引擎调用 done() 收尾 */
+  if (window.__routeProgress) window.__routeProgress.start();
+
   var FRAGMENTS = [
     ['home', '/pages/home.html'],
     ['discover', '/pages/discover.html'],

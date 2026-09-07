@@ -3559,6 +3559,8 @@
     qa('[data-batch-bar]').forEach(function (bar) { bar.remove(); });
     TPL_TOKEN += 1; /* 使未完成的异步模板挂载过期 */
     if (profileCard) profileCard.classList.remove('is-visible');
+    var rp = window.__routeProgress; /* 转场加载条：路由开始（page-chrome.js 提供） */
+    if (rp) rp.start();
     var raw = location.hash || '#home';
     var parsed = routeKey(raw);
     if (!allowedBase(parsed.base)) {
@@ -3576,6 +3578,7 @@
       });
       q('[data-sys-stay]').addEventListener('click', function () { window.__sysSettingsGuard = true; closeModal(); history.replaceState(null, '', '#admin-settings'); });
       q('[data-sys-leave]').addEventListener('click', function () { closeModal(); route(); });
+      if (rp) rp.cancel(); /* 路由被守卫拦截，转场未发生，直接淡出 */
       return;
     }
     updateUserChrome();
@@ -3584,6 +3587,7 @@
     decorateProfileTriggers(document.querySelector('.page:not([hidden])') || document);
     window.scrollTo(0, 0);
     window.requestAnimationFrame(function () { var page = q('.page:not([hidden])'); var heading = page && q('h1', page); if (heading) { if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); } });
+    if (rp) rp.done(); /* 转场完成：补满后淡出 */
   }
   function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
   window.addEventListener('beforeunload', function (event) { if (window.__sysSettingsGuard) { event.preventDefault(); event.returnValue = ''; } });

@@ -7,6 +7,94 @@
   var HEADER = "  <header class=\"desktop-header\">\n    <a class=\"wordmark\" href=\"#home\"><b>BBLBB</b></a>\n    <form class=\"search\" id=\"header-search-form\" role=\"search\"><svg class=\"ic ic-16\"><use href=\"#i-search\"/></svg><input id=\"header-search-input\" placeholder=\"搜索\" aria-label=\"搜索\" autocomplete=\"off\"></form>\n<nav class=\"desktop-nav\">\n      <a data-route href=\"#home\" class=\"active\"><svg class=\"ic\"><use href=\"#i-house\"/></svg>首页</a>\n      <a data-route href=\"#discover\"><svg class=\"ic\"><use href=\"#i-compass\"/></svg>发现</a>\n      <a data-route href=\"#messages\" style=\"position:relative\"><svg class=\"ic\"><use href=\"#i-mail\"/></svg>消息<em class=\"nav-dot\"></em></a>\n<div class=\"drop-wrap\">\n        <button class=\"nav-more-btn\" onclick=\"toggleDrop(event,'dd-more')\" aria-haspopup=\"menu\" aria-expanded=\"false\">更多<svg class=\"ic ic-14\"><use href=\"#i-chevron-down\"/></svg></button>\n<div class=\"dropdown dd-right\" id=\"dd-more\" role=\"menu\" aria-label=\"更多导航\">\n          <button class=\"dd-item\" onclick=\"closeDrops();go('#search')\"><svg class=\"ic\"><use href=\"#i-search\"/></svg>搜索</button><button class=\"dd-item\" onclick=\"closeDrops();go('#loading')\"><svg class=\"ic\"><use href=\"#i-refresh\"/></svg>加载页预览</button>\n          <button class=\"dd-item\" data-auth-required onclick=\"closeDrops();go('#shop')\"><svg class=\"ic\"><use href=\"#i-coins\"/></svg>商城与积分</button>\n          <button class=\"dd-item\" onclick=\"closeDrops();go('#achievements')\"><svg class=\"ic\"><use href=\"#i-trophy\"/></svg>成就墙</button>\n          <button class=\"dd-item\" onclick=\"closeDrops();go('#articles')\"><svg class=\"ic\"><use href=\"#i-book-open\"/></svg>文章</button>\n          <button class=\"dd-item\" data-auth-required onclick=\"closeDrops();go('#notifications')\"><svg class=\"ic\"><use href=\"#i-bell\"/></svg>通知中心</button>\n          <button class=\"dd-item\" data-auth-required onclick=\"closeDrops();go('#billing')\"><svg class=\"ic\"><use href=\"#i-download\"/></svg>下载账单</button>\n          <hr><button class=\"dd-item\" data-auth-required onclick=\"closeDrops();go('#admin')\"><svg class=\"ic\"><use href=\"#i-shield\"/></svg>管理后台</button>\n          <button class=\"dd-item\" onclick=\"closeDrops();go('#design')\"><svg class=\"ic\"><use href=\"#i-palette\"/></svg>原型标准文档</button>\n</div>\n</div>\n      <button class=\"theme-toggle\" onclick=\"toggleTheme()\" title=\"日间 / 夜间切换\" aria-label=\"切换主题\"><svg class=\"ic icon-sun\"><use href=\"#i-sun\"/></svg><svg class=\"ic icon-moon\"><use href=\"#i-moon\"/></svg></button>\n<div class=\"drop-wrap\">\n        <button class=\"icon-btn\" onclick=\"toggleDrop(event,'dd-bell')\" title=\"通知\" aria-label=\"通知\" aria-haspopup=\"menu\" aria-expanded=\"false\"><svg class=\"ic\"><use href=\"#i-bell\"/></svg><em class=\"badge\" id=\"bell-badge\">2</em></button>\n<div class=\"dropdown dd-right\" id=\"dd-bell\" role=\"menu\">\n<div class=\"dd-head\">通知<b id=\"dd-bell-count\">· 2 条未读</b><button type=\"button\" onclick=\"markAllRead()\">全部已读</button></div>\n          <button class=\"dd-item\" role=\"menuitem\" data-guest-hide onclick=\"closeDrops();go('#notifications')\"><svg class=\"ic heart-c\"><use href=\"#i-heart\"/></svg><span>Lin 赞了你的回复<small>12 分钟前</small></span></button>\n          <button class=\"dd-item\" role=\"menuitem\" data-guest-hide onclick=\"closeDrops();go('#notifications')\"><svg class=\"ic\"><use href=\"#i-comment\"/></svg><span>Mark 评论了你的帖子<small>1 小时前</small></span></button>\n          <button class=\"dd-item\" role=\"menuitem\" onclick=\"closeDrops();go('#notifications')\"><svg class=\"ic warn-c\"><use href=\"#i-tag\"/></svg><span>系统：社区规范已更新<small>昨天</small></span></button>\n</div>\n</div>\n<div class=\"drop-wrap\">\n        <button class=\"user-chip\" id=\"user-chip\" onclick=\"toggleDrop(event,'dd-user')\" aria-haspopup=\"menu\" aria-expanded=\"false\"><span class=\"avatar-sm\" id=\"header-avatar\">A</span><span class=\"uname\" id=\"header-username\">admin</span><svg class=\"ic ic-14\"><use href=\"#i-chevron-down\"/></svg></button>\n<div class=\"dropdown dd-right\" id=\"dd-user\" role=\"menu\" aria-label=\"用户菜单\">\n          <button class=\"dd-item\" role=\"menuitem\" data-auth-required onclick=\"closeDrops();go('#me')\"><svg class=\"ic\"><use href=\"#i-user\"/></svg>个人主页</button>\n          <button class=\"dd-item\" role=\"menuitem\" data-auth-required onclick=\"closeDrops();go('#me');switchTab('fav')\"><svg class=\"ic\"><use href=\"#i-bookmark\"/></svg>我的收藏</button>\n          <button class=\"dd-item\" role=\"menuitem\" data-auth-required onclick=\"closeDrops();openPublish()\"><svg class=\"ic\"><use href=\"#i-edit\"/></svg>发布内容</button>\n          <button class=\"dd-item\" role=\"menuitem\" data-auth-required onclick=\"closeDrops();go('#me');switchTab('set')\"><svg class=\"ic\"><use href=\"#i-settings\"/></svg>设置</button>\n          <hr><button class=\"dd-item\" role=\"menuitem\" data-auth-action=\"login\" onclick=\"closeDrops();go('#login')\"><svg class=\"ic\"><use href=\"#i-user\"/></svg>登录</button><button class=\"dd-item danger\" role=\"menuitem\" data-auth-action=\"logout\" onclick=\"logout()\"><svg class=\"ic\"><use href=\"#i-log-out\"/></svg>退出登录</button>\n</div>\n</div>\n</nav>\n</header>";
   var BOTTOM_NAV = "<nav class=\"bottom-nav\">\n    <a data-route href=\"#home\" class=\"active\"><svg class=\"ic\"><use href=\"#i-house\"/></svg><span>首页</span></a>\n    <a data-route href=\"#discover\"><svg class=\"ic\"><use href=\"#i-compass\"/></svg><span>发现</span></a>\n    <button onclick=\"openPublish()\" aria-label=\"发布\"><svg class=\"ic ic-fab\"><use href=\"#i-plus\"/></svg></button>\n    <a data-route href=\"#messages\"><svg class=\"ic\"><use href=\"#i-mail\"/></svg><span>消息</span></a>\n    <a data-route href=\"#me\" aria-label=\"登录\"><svg class=\"ic\"><use href=\"#i-user\"/></svg><span>我的</span></a>\n</nav>";
   var TOAST = "<div id=\"toast\" role=\"status\" aria-live=\"polite\"></div>";
+  var PROGRESS = '<div class="route-progress" id="route-progress" aria-hidden="true"><i></i></div>';
+
+  /* —— 页面转场加载条（黑白灰，亮/暗主题自适应）——
+   * start()：路由开始，细线从 0 拉升到 72%；
+   * done()：路由渲染完成，补到 100% 后淡出（最短显示 RP_MIN_RUN，保证快速路由可感知）；
+   * cancel()：路由被守卫拦截等情形，直接淡出；
+   * 运行中重复 start() 不重置；prefers-reduced-motion 时不做横向位移，仅淡入淡出。 */
+  var RP_MIN_RUN = 450, RP_RAMP_MS = 500, RP_DONE_MS = 240, RP_FADE_MS = 340;
+  var rpState = 'idle', rpTimers = [], rpStartedAt = 0;
+  function rpClearTimers() { rpTimers.forEach(function (t) { clearTimeout(t); }); rpTimers = []; }
+  function rpReduced() { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
+  function rpEl() {
+    var el = document.getElementById('route-progress');
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'route-progress'; el.id = 'route-progress'; el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<i></i>';
+    var header = document.querySelector('.app-shell .desktop-header') || document.querySelector('.desktop-header');
+    if (header && header.parentNode) header.parentNode.insertBefore(el, header.nextSibling);
+    else (document.body || document.documentElement).insertBefore(el, null);
+    return el;
+  }
+  function rpFadeOut(el, after) {
+    el.classList.remove('is-active');
+    rpTimers.push(setTimeout(function () {
+      var fill = el.firstChild;
+      if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; }
+      rpState = 'idle';
+      after();
+    }, RP_FADE_MS));
+  }
+  function rpStart() {
+    if (rpState === 'running') return;
+    var el = rpEl(); if (!el) return;
+    var fill = el.firstChild;
+    rpClearTimers();
+    rpState = 'running'; rpStartedAt = Date.now();
+    el.classList.add('is-active');
+    if (!fill) return;
+    if (rpReduced()) { fill.style.transition = 'none'; fill.style.width = '100%'; return; }
+    fill.style.transition = 'none'; fill.style.width = '0%';
+    void fill.offsetWidth;
+    fill.style.transition = 'width ' + RP_RAMP_MS + 'ms cubic-bezier(0.25,0.8,0.35,1)';
+    fill.style.width = '72%';
+  }
+  function rpDone() {
+    if (rpState === 'idle') return;
+    var el = rpEl(); if (!el) { rpState = 'idle'; return; }
+    var fill = el.firstChild;
+    rpClearTimers();
+    rpState = 'finishing';
+    if (fill) {
+      if (!rpReduced()) fill.style.transition = 'width ' + RP_DONE_MS + 'ms ease-out';
+      fill.style.width = '100%';
+    }
+    var wait = Math.max(0, RP_MIN_RUN - (Date.now() - rpStartedAt)) + RP_DONE_MS;
+    rpTimers.push(setTimeout(function () { rpFadeOut(el, function () {}); }, wait));
+  }
+  function rpCancel() {
+    if (rpState === 'idle') return;
+    var el = rpEl(); if (!el) { rpState = 'idle'; return; }
+    rpClearTimers();
+    rpState = 'finishing';
+    rpFadeOut(el, function () {});
+  }
+  window.__routeProgress = { start: rpStart, done: rpDone, cancel: rpCancel };
+  /* 设计文档页的演示入口（触发一次完整的 start→done 时序） */
+  window.designProgressDemo = function () { rpStart(); rpTimers.push(setTimeout(rpDone, 1100)); };
+  /* 设计文档页交互：章节锚点、复制清单、标签示例（此前缺失，点击会抛 ReferenceError） */
+  window.designJump = window.designJump || function (id) {
+    var target = document.getElementById(id);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    Array.prototype.forEach.call(document.querySelectorAll('.design-doc-nav [data-design-target]'), function (btn) {
+      btn.classList.toggle('is-active', btn.getAttribute('data-design-target') === id);
+    });
+  };
+  window.copyDesignChecklist = window.copyDesignChecklist || function (button) {
+    var items = Array.prototype.map.call(document.querySelectorAll('#design-checklist .design-check'), function (label) { return '- ' + label.textContent.replace(/\s+/g, ' ').trim(); });
+    if (!items.length) return;
+    var text = items.join('\n');
+    var restore = function () { if (button && button.dataset.copyText) button.innerHTML = button.dataset.copyText; };
+    if (!button) return;
+    var markDone = function () { button.dataset.copyText = button.innerHTML; button.textContent = '已复制 ✓'; setTimeout(restore, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(markDone, markDone); }
+    else { try { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); markDone(); } catch (e) { restore(); } }
+  };
+  window.pickTagDemo = window.pickTagDemo || function (button) { button.classList.toggle('is-picked'); };
 
   function mount() {
     var body = document.body;
@@ -25,6 +113,12 @@
     }
     if (shell) {
       shell.insertAdjacentHTML('afterbegin', HEADER);
+      var headerEl = shell.firstElementChild;
+      var barEl = document.getElementById('route-progress'); /* 启动期 rpEl() 可能已创建（page-loader 先于 mount 触发 start） */
+      if (headerEl && headerEl.classList.contains('desktop-header')) {
+        if (barEl) headerEl.insertAdjacentElement('afterend', barEl);
+        else headerEl.insertAdjacentHTML('afterend', PROGRESS);
+      } else if (!barEl) shell.insertAdjacentHTML('afterbegin', PROGRESS);
       shell.insertAdjacentHTML('beforeend', BOTTOM_NAV);
       var contentNav = shell.querySelector('.desktop-nav button[onclick*="#articles"]');
       if (contentNav) Array.prototype.forEach.call(contentNav.childNodes, function (node) { if (node.nodeType === 3 && node.textContent.trim()) node.textContent = '内容'; });
@@ -66,7 +160,7 @@
         var anchor = target && target.closest ? target.closest('a[href^="#"]') : null;
         if (!anchor) return;
         var href = anchor.getAttribute('href') || '';
-        if (href.length > 1) { event.preventDefault(); location.href = '../index.html' + href; }
+        if (href.length > 1) { event.preventDefault(); if (window.__routeProgress) window.__routeProgress.start(); location.href = '../index.html' + href; }
       });
     }
   }

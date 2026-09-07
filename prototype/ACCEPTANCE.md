@@ -4,6 +4,8 @@
 
 ## 0. 当前 Mock 运行时（2026-08-29）
 
+> **状态注记（2026-09-06 复验）**：自单入口 Hash SPA 替换（commit abb4bda）起，`prototype/index.html` 不再加载 `assets/mock-runtime.js` / `assets/mock-runtime.css`（git 历史中该入口从未引用此层；当前仅引擎的重置逻辑清理其 localStorage key）。`verify-mock-runtime.mjs` 对当前入口不可复现（干净树同样卡在 `#messages` 的 `[data-message-fail]` 超时，与 2026-09-06 转场加载条改动无关，A/B 已验证）。本节 29/29 结论为当时入口仍加载 mock 层的历史证据，不应视为当前入口证据。
+
 - 当前活动入口为 `prototype/index.html`，追加加载 `assets/mock-runtime.js` 与 `assets/mock-runtime.css`；该层用 `localStorage` key `bblbb:mock-runtime:v1` 保存演示状态，并同步既有原型守卫状态。
 - 本层覆盖登录、内容发布/草稿/附件、评论解锁、付费解锁、通知已读、消息失败、MFA、下载账单、商城、收藏、账户设置、申诉、结算/API 密钥，以及 AI/视频/主题/插件/存储/市场/举报/积分/审计后台流程。
 - 执行 `node prototype/verify-mock-runtime.mjs`：29/29 通过、0 浏览器错误；证据 `prototype/.verify/mock-2026-08-29-00-26-45/report.json`。
@@ -117,7 +119,8 @@
 - [x] 1440：自动路由回归无横向溢出、重叠；信息密度仍需人工视觉签核。
 - [x] 1024、768：自动路由回归无横向溢出；侧栏/筛选视觉仍需人工签核。
 - [x] 390：自动路由回归无横向溢出；聊天、回复、发布、Modal 热区仍需人工/无障碍签核。
-- [x] 自动覆盖 1440/1024/768/390 的亮/暗路由回归且无 JS 错误；最近基础报告见 prototype/.verify/spa-2026-08-28-13-19-05/，深度报告见 prototype/.verify/spa-2026-08-28-14-26-23/；人工视觉/无障碍签核仍未完成。
+- [x] 自动覆盖 1440/1024/768/390 的亮/暗路由回归且无 JS 错误；最近基础报告见 prototype/.verify/spa-2026-09-06-23-32-47/（182/182，含转场加载条上线后回归），深度报告见 prototype/.verify/spa-2026-08-28-14-26-23/；人工视觉/无障碍签核仍未完成。
+- [x] 页面转场加载条（RouteProgress，2026-09-06 新增）：顶栏下缘 fixed 2px 细线，纯黑白灰 Token（--route-progress-*：亮 #1A1A1A / 暗 #E8E8E8，轨道近透明），亮/暗主题自动适配；hash 路由开始 0→72%（500ms）、最短显示 450ms、完成补 100%（240ms）淡出（340ms）、运行中重复 start 不重置、守卫拦截 cancel 直接淡出、prefers-reduced-motion 无横向位移；触发点覆盖 SPA route() 起止、启动拉取页面片段、独立页站内跳转（跳转前 start）。证据：prototype/.verify/progress-bar/（light-mid / dark-mid / mobile-dark-mid 截图，含 2 倍放大条带）+ 专项脚本 16/16 通过、0 console/page 错误（2026-09-06，1440/390 视口、亮暗双主题）；全量回归 182/182 见上一条报告。
 - [ ] 颜色、边框、阴影、圆角、字号、间距使用 UI 语义 Token；组件适用状态覆盖 normal/hover/focus/disabled/loading/error。
 - [ ] 键盘完成九条关键路径，无陷阱；focus 顺序正确；图标按钮有 aria-label/可见文本。
 - [ ] 页面标题、label、role=alert/aria-live、aria-checked、aria-selected 正确；动态状态可读。
