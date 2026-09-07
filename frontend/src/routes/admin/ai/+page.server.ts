@@ -178,6 +178,10 @@ function buildConfigChanges(form: FormData): Record<string, unknown> {
   // 渠道 upsert（后端约定：body 同时携带 name + base_url 时执行
   // ai_providers 插入/更新；status 值域 enabled/disabled）。不传 data_mode，
   // 避免与站点级 data_mode 同键冲突（渠道侧取后端默认 redacted）。
+  const providerId = String(form.get('provider_id') ?? '').trim();
+  if (providerId) changes.id = providerId;
+  const deleteProviderId = String(form.get('delete_provider_id') ?? '').trim();
+  if (deleteProviderId) changes.delete_provider_id = deleteProviderId;
   const providerName = String(form.get('provider_name') ?? '').trim();
   const providerBaseUrl = String(form.get('provider_base_url') ?? '').trim();
   if (providerName && providerBaseUrl) {
@@ -189,6 +193,8 @@ function buildConfigChanges(form: FormData): Record<string, unknown> {
     if (adapterType) changes.adapter_type = adapterType;
     const providerStatus = String(form.get('provider_status') ?? '').trim();
     if (providerStatus) changes.status = providerStatus;
+    const providerApiKey = String(form.get('provider_api_key') ?? '').trim();
+    if (providerApiKey) changes.api_key = providerApiKey;
   }
   return changes;
 }
@@ -225,9 +231,108 @@ export const actions: Actions = {
       return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminAiActionData);
     }
   },
+  saveProvider: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const reason = String(form.get('reason') ?? '配置 AI 模型渠道').trim();
+    const expectedVersion = Number(form.get('expected_version') ?? 0);
+    const providerId = String(form.get('provider_id') ?? '').trim();
+    const providerName = String(form.get('provider_name') ?? '').trim();
+    const providerBaseUrl = String(form.get('provider_base_url') ?? '').trim();
+    const defaultModel = String(form.get('provider_default_model') ?? '').trim();
+    const adapterType = String(form.get('provider_adapter_type') ?? 'openai_compatible').trim();
+    const providerStatus = String(form.get('provider_status') ?? 'enabled').trim();
+    const providerApiKey = String(form.get('provider_api_key') ?? '').trim();
+
+    if (!providerName) {
+      return fail(422, { message: '渠道名称必填' } satisfies AdminAiActionData);
+    }
+    if (!providerBaseUrl) {
+      return fail(422, { message: 'Base URL 必填' } satisfies AdminAiActionData);
+    }
+    if (!reason) {
+      return fail(422, { message: '操作原因必填（写审计）' } satisfies AdminAiActionData);
+    }
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      return fail(422, { message: '配置版本缺失或无效，请刷新后重试' } satisfies AdminAiActionData);
+    }
+
+    const payload: Record<string, unknown> = {
+      name: providerName,
+      base_url: providerBaseUrl,
+      default_model: defaultModel || 'gpt-4o-mini',
+      adapter_type: adapterType,
+      status: providerStatus,
+      expected_version: expectedVersion,
+      reason
+    };
+    if (providerId) payload.id = providerId;
+    if (providerApiKey) payload.api_key = providerApiKey;
+
+    try {
+      const result = await authedPatch<AiAdminConfig>(
+        cookies,
+        '/api/v1/admin/ai/config',
+        payload,
+        { 'If-Match': String(expectedVersion) },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { ok: true, message: `渠道「${providerName}」已保存` } satisfies AdminAiActionData;
+      }
+      if (result.status === 409) {
+        return fail(409, { conflict: true, message: `版本冲突：${result.message}` } satisfies AdminAiActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminAiActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '保存渠道失败，请稍后重试' } satisfies AdminAiActionData);
+    }
+  },
+  deleteProvider: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const providerId = String(form.get('provider_id') ?? '').trim();
+    const reason = String(form.get('reason') ?? '删除 AI 模型渠道').trim();
+    const expectedVersion = Number(form.get('expected_version') ?? 0);
+
+    if (!providerId) {
+      return fail(422, { message: '缺少渠道标识' } satisfies AdminAiActionData);
+    }
+    if (!reason) {
+      return fail(422, { message: '操作原因必填（写审计）' } satisfies AdminAiActionData);
+    }
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      return fail(422, { message: '配置版本缺失或无效，请刷新后重试' } satisfies AdminAiActionData);
+    }
+
+    try {
+      const result = await authedPatch<AiAdminConfig>(
+        cookies,
+        '/api/v1/admin/ai/config',
+        {
+          delete_provider_id: providerId,
+          expected_version: expectedVersion,
+          reason
+        },
+        { 'If-Match': String(expectedVersion) },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { ok: true, message: '渠道已成功删除' } satisfies AdminAiActionData;
+      }
+      if (result.status === 409) {
+        return fail(409, { conflict: true, message: `版本冲突：${result.message}` } satisfies AdminAiActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminAiActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '删除渠道失败，请稍后重试' } satisfies AdminAiActionData);
+    }
+  },
   test: async ({ request, cookies }) => {
     const form = await request.formData();
+    const baseUrl = String(form.get('base_url') ?? form.get('provider_base_url') ?? '').trim();
     const candidate: Record<string, unknown> = {
+      base_url: baseUrl || 'https://api.openai.com/v1',
       data_mode: String(form.get('data_mode') ?? '').trim(),
       flags: {
         formatting: boolForm(form, 'flag_formatting'),

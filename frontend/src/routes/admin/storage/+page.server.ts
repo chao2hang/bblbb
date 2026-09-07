@@ -61,8 +61,13 @@ function buildPatch(form: FormData, current: StorageConfig | null): Record<strin
   set('s3_bucket', String(form.get('s3_bucket') ?? '').trim() || null);
   set('s3_path_style', boolForm(form, 's3_path_style'));
   set('s3_presigned_uploads', boolForm(form, 's3_presigned_uploads'));
+  set('s3_public_base_url', String(form.get('s3_public_base_url') ?? '').trim() || null);
   set('signed_url_ttl_seconds', numOrNull(form.get('signed_url_ttl_seconds')));
-  set('upload_max_bytes', numOrNull(form.get('upload_max_bytes')));
+  const maxSizeMb = numOrNull(form.get('max_size_mb'));
+  const uploadMaxBytes = numOrNull(form.get('upload_max_bytes')) ?? (maxSizeMb ? Math.round(maxSizeMb * 1048576) : undefined);
+  set('upload_max_bytes', uploadMaxBytes);
+  const accessKey = String(form.get('s3_access_key_id') ?? '').trim();
+  if (accessKey) set('s3_access_key_id', accessKey, true);
   const secret = String(form.get('s3_secret_access_key') ?? '').trim();
   if (secret) set('s3_secret_access_key', secret, true);
   return patch;
@@ -118,8 +123,12 @@ export const actions: Actions = {
       s3_region: String(form.get('s3_region') ?? '').trim() || null,
       s3_bucket: String(form.get('s3_bucket') ?? '').trim() || null,
       s3_path_style: boolForm(form, 's3_path_style') ?? false,
-      signed_url_ttl_seconds: numOrNull(form.get('signed_url_ttl_seconds'))
+      s3_public_base_url: String(form.get('s3_public_base_url') ?? '').trim() || null,
+      signed_url_ttl_seconds: numOrNull(form.get('signed_url_ttl_seconds')),
+      reason: String(form.get('reason') ?? '').trim() || '测试存储连接'
     };
+    const accessKey = String(form.get('s3_access_key_id') ?? '').trim();
+    if (accessKey) candidate.s3_access_key_id = accessKey;
     const secret = String(form.get('s3_secret_access_key') ?? '').trim();
     if (secret) candidate.s3_secret_access_key = secret;
     try {

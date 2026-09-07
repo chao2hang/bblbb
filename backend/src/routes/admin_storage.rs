@@ -185,15 +185,25 @@ async fn update_storage_config(
     Ok(Json(config).into_response())
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Deserialize, Default)]
+#[allow(dead_code)]
 struct StorageConfigUpdate {
     backend: Option<String>,
+    #[serde(alias = "s3_path_style")]
     path_style: Option<bool>,
     s3_endpoint: Option<String>,
     s3_region: Option<String>,
+    #[serde(alias = "s3_bucket")]
     bucket: Option<String>,
     signed_url_ttl_seconds: Option<u64>,
+    #[serde(alias = "local_root")]
+    local_path: Option<String>,
+    s3_access_key_id: Option<String>,
+    s3_secret_access_key: Option<String>,
+    s3_public_base_url: Option<String>,
+    upload_max_bytes: Option<i64>,
+    expected_version: Option<i64>,
+    reason: Option<String>,
 }
 
 /// 校验管理端提交的存储配置（不持久化；M06-QUOTA-11）。
@@ -261,23 +271,37 @@ fn validate_storage_config_update(
 /// 脱敏配置投影（不返回 access/secret/session token）。
 fn storage_config_json(config: &AppConfig) -> Value {
     let s3_configured = config.storage_backend == "s3" && !config.s3_bucket.is_empty();
+    let secret_is_set = s3_configured && !config.s3_secret_access_key.is_empty();
+    let local_path_str = config.storage_dir.display().to_string();
     json!({
         "backend": if s3_configured { "s3" } else { "local" },
+        "source": "env",
+        "version": 1,
         "configured": true,
-        "local_root": config.storage_dir.display().to_string(),
+        "local_root": local_path_str,
+        "local_path": local_path_str,
         "path_style": config.s3_path_style,
+        "s3_path_style": config.s3_path_style,
         "region": if s3_configured { json!(config.s3_region) } else { Value::Null },
+        "s3_region": if s3_configured { json!(config.s3_region) } else { Value::Null },
         "endpoint": if s3_configured && !config.s3_endpoint.is_empty() {
             json!(endpoint_host(&config.s3_endpoint))
         } else {
             Value::Null
         },
+        "s3_endpoint": if s3_configured && !config.s3_endpoint.is_empty() {
+            json!(config.s3_endpoint)
+        } else {
+            Value::Null
+        },
         "bucket": if s3_configured { json!(config.s3_bucket) } else { Value::Null },
+        "s3_bucket": if s3_configured { json!(config.s3_bucket) } else { Value::Null },
         "signed_url_ttl_seconds": PRESIGN_TTL_SECS,
         "managed_by": "deployment",
+        "secret_configured": secret_is_set,
         "credentials": json!({
             "access_key_id_configured": s3_configured && !config.s3_access_key_id.is_empty(),
-            "secret_configured": s3_configured && !config.s3_secret_access_key.is_empty(),
+            "secret_configured": secret_is_set,
         }),
     })
 }
@@ -312,7 +336,13 @@ async fn test_storage(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
     require_admin(pool, &user.id, request_id).await?;
-    let reason = required_reason(&body, request_id)?;
+    let reason = body
+        .get("reason")
+        .and_then(Value::as_str)
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("test storage connection")
+        .to_string();
     require_step_up(pool, &headers, state.config.step_up_window_secs, request_id).await?;
 
     AuditEntry::user_action(&user.id, "admin.storage_test")

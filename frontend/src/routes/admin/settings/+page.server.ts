@@ -57,6 +57,16 @@ export const actions: Actions = {
     const apiRateLimit = Number(form.get('api_rate_limit') ?? NaN);
     const reason = String(form.get('reason') ?? '').trim();
 
+    // SMTP 设置字段
+    const smtpEnabled = form.has('smtp_enabled');
+    const smtpHost = String(form.get('smtp_host') ?? '').trim();
+    const smtpPort = Number(form.get('smtp_port') ?? 587);
+    const smtpUser = String(form.get('smtp_user') ?? '').trim();
+    const smtpPass = form.get('smtp_pass');
+    const smtpFromEmail = String(form.get('smtp_from_email') ?? '').trim();
+    const smtpFromName = String(form.get('smtp_from_name') ?? '').trim();
+    const smtpEncryption = String(form.get('smtp_encryption') ?? 'starttls').trim();
+
     // 校验语义与原型 sysValidate 一致（后端另有同语义硬校验兜底）。
     if (!siteName) return fail(422, { message: '站点名称必填' });
     if (!defaultLang) return fail(422, { message: '默认语言必填' });
@@ -65,6 +75,15 @@ export const actions: Actions = {
     }
     if (!Number.isInteger(apiRateLimit) || apiRateLimit < 1 || apiRateLimit > 10000) {
       return fail(422, { message: 'API 限流需为 1 - 10000 的整数' });
+    }
+    if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+      return fail(422, { message: 'SMTP 端口需为 1 - 65535 的整数' });
+    }
+    if (smtpFromEmail && (!smtpFromEmail.includes('@') || /\s/.test(smtpFromEmail))) {
+      return fail(422, { message: '发件人邮箱格式不正确' });
+    }
+    if (!['none', 'starttls', 'tls'].includes(smtpEncryption)) {
+      return fail(422, { message: 'SMTP 加密模式需为 none, starttls 或 tls' });
     }
     // 管理写操作必填原因（后端 required_reason 同策略，缺失必 400）。
     if (!reason) return fail(422, { message: '操作原因必填（写入审计日志）' });
@@ -79,8 +98,19 @@ export const actions: Actions = {
       default_lang: defaultLang,
       public_source: publicSource,
       api_rate_limit: apiRateLimit,
+      smtp_enabled: smtpEnabled,
+      smtp_host: smtpHost,
+      smtp_port: smtpPort,
+      smtp_user: smtpUser,
+      smtp_from_email: smtpFromEmail,
+      smtp_from_name: smtpFromName,
+      smtp_encryption: smtpEncryption,
       reason
     };
+
+    if (typeof smtpPass === 'string' && smtpPass.length > 0) {
+      patch.smtp_pass = smtpPass;
+    }
 
     try {
       const result = await authedPatch<AdminSettingsResult>(

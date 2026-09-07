@@ -644,6 +644,177 @@ async fn admin_settings_public_source_validation() {
     cleanup(&dir);
 }
 
+/// 0064 SMTP 配置：GET 脱敏回读（密码不外泄）；PATCH 校验（端口/加密/邮箱）；密码持久化与按需保留。
+#[tokio::test]
+async fn admin_settings_smtp_configuration_and_masking() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (_admin_id, session, csrf) = admin_ctx(&app, &pool).await;
+
+    // 1) 初始状态：未启用，默认端口 587，密码未配置，绝不泄露明文密码
+    let (status, body) = authed(
+        &app,
+        "GET",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let s = &body["settings"];
+    assert!(!s["smtp_enabled"].as_bool().unwrap());
+    assert_eq!(s["smtp_port"].as_i64().unwrap(), 587);
+    assert_eq!(s["smtp_encryption"].as_str().unwrap(), "starttls");
+    assert!(!s["smtp_pass_configured"].as_bool().unwrap());
+    assert!(
+        s.get("smtp_pass").is_none(),
+        "GET 返回绝不得包含 smtp_pass 字段"
+    );
+
+    // 2) 校验测试：非法端口 (0 或 >65535) → 400
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({ "settings": { "smtp_port": 70000 }, "reason": "测试端口超限" }),
+        &[("if-match", "1")],
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "端口 >65535 必须 400: {body}"
+    );
+
+    // 3) 校验测试：非法加密方式 → 400
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({ "settings": { "smtp_encryption": "invalid_mode" }, "reason": "测试加密方式" }),
+        &[("if-match", "1")],
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "未知加密模式必须 400: {body}"
+    );
+
+    // 4) 校验测试：非法发件人邮箱 → 400
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({ "settings": { "smtp_from_email": "not-an-email" }, "reason": "测试邮箱" }),
+        &[("if-match", "1")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "非法邮箱必须 400: {body}");
+
+    // 5) 合法配置更新 + 设置密码 → 200 + 密码脱敏为 pass_configured=true
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({
+            "settings": {
+                "smtp_enabled": true,
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 465,
+                "smtp_user": "notify@example.com",
+                "smtp_pass": "secret_auth_code_xyz",
+                "smtp_from_email": "noreply@example.com",
+                "smtp_from_name": "BBLBB Community",
+                "smtp_encryption": "tls"
+            },
+            "reason": "配置生产 SMTP 发信服务"
+        }),
+        &[("if-match", "1")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "合法更新必须 200: {body}");
+    assert_eq!(body["version"].as_i64().unwrap(), 2);
+    let s = &body["settings"];
+    assert!(s["smtp_enabled"].as_bool().unwrap());
+    assert_eq!(s["smtp_host"].as_str().unwrap(), "smtp.example.com");
+    assert_eq!(s["smtp_port"].as_i64().unwrap(), 465);
+    assert_eq!(s["smtp_user"].as_str().unwrap(), "notify@example.com");
+    assert_eq!(
+        s["smtp_from_email"].as_str().unwrap(),
+        "noreply@example.com"
+    );
+    assert_eq!(s["smtp_from_name"].as_str().unwrap(), "BBLBB Community");
+    assert_eq!(s["smtp_encryption"].as_str().unwrap(), "tls");
+    assert!(
+        s["smtp_pass_configured"].as_bool().unwrap(),
+        "密码必须标记已配置"
+    );
+    assert!(s.get("smtp_pass").is_none(), "PATCH 返回绝不得泄露明文密码");
+
+    // 6) 从 DB 辅助函数直接验证持久化的 SMTP 配置
+    let db_conf = bblbb_backend::email::service::load_smtp_config_from_db(&pool)
+        .await
+        .expect("load smtp from db")
+        .expect("singleton exists");
+    assert!(db_conf.enabled);
+    assert_eq!(db_conf.host, "smtp.example.com");
+    assert_eq!(db_conf.port, 465);
+    assert_eq!(db_conf.user, "notify@example.com");
+    assert_eq!(db_conf.pass, "secret_auth_code_xyz");
+    assert_eq!(db_conf.from_email, "noreply@example.com");
+    assert_eq!(db_conf.from_name, "BBLBB Community");
+    assert_eq!(db_conf.encryption, "tls");
+
+    // 7) 再次 PATCH 其它字段（缺 smtp_pass）→ 原密码保留，不被清空
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({
+            "settings": {
+                "smtp_port": 587,
+                "smtp_encryption": "starttls"
+            },
+            "reason": "切换到 STARTTLS 端口"
+        }),
+        &[("if-match", "2")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["version"].as_i64().unwrap(), 3);
+    assert!(
+        body["settings"]["smtp_pass_configured"].as_bool().unwrap(),
+        "未传密码时原密码应保持"
+    );
+
+    let db_conf2 = bblbb_backend::email::service::load_smtp_config_from_db(&pool)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        db_conf2.pass, "secret_auth_code_xyz",
+        "数据库中的密码值保持不变"
+    );
+    assert_eq!(db_conf2.port, 587);
+    assert_eq!(db_conf2.encryption, "starttls");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
 // ───────────────────── 帖子管理 ─────────────────────
 
 #[tokio::test]
@@ -1372,6 +1543,116 @@ async fn public_stats_anonymous_and_cached() {
         0,
         "隐藏帖不得计入公开统计: {body}"
     );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn admin_ai_provider_add_update_delete() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (_admin_id, session, csrf) = admin_ctx(&app, &pool).await;
+
+    // 1. GET /api/v1/admin/ai/config
+    let (status, body) = authed(
+        &app,
+        "GET",
+        "/api/v1/admin/ai/config",
+        &session,
+        &csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let version = body["version"].as_i64().expect("version integer");
+
+    // 2. Add provider via PATCH /api/v1/admin/ai/config
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/ai/config",
+        &session,
+        &csrf,
+        json!({
+            "name": "新模型渠道",
+            "base_url": "https://api.openai.com/v1",
+            "adapter_type": "openai_compatible",
+            "default_model": "gpt-4o",
+            "status": "enabled",
+            "api_key": "sk-test-secret-key",
+            "expected_version": version,
+            "reason": "添加新测试渠道"
+        }),
+        &[("if-match", &format!("\"{version}\""))],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "添加渠道必须 200: {body}");
+    let providers = body["providers"].as_array().expect("providers list");
+    let added = providers
+        .iter()
+        .find(|p| p["name"] == "新模型渠道")
+        .expect("added provider must exist");
+    assert_eq!(added["base_url"], "https://api.openai.com/v1");
+    assert_eq!(added["secret_configured"], true);
+    let provider_id = added["id"].as_str().expect("provider id").to_string();
+    let new_version = body["version"].as_i64().expect("new version");
+
+    // 3. Update provider
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/ai/config",
+        &session,
+        &csrf,
+        json!({
+            "id": provider_id,
+            "name": "新模型渠道",
+            "base_url": "https://api.deepseek.com/v1",
+            "default_model": "deepseek-chat",
+            "status": "disabled",
+            "expected_version": new_version,
+            "reason": "更新渠道配置"
+        }),
+        &[("if-match", &format!("\"{new_version}\""))],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "更新渠道必须 200: {body}");
+    let updated = body["providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == provider_id.as_str())
+        .expect("updated provider must exist");
+    assert_eq!(updated["base_url"], "https://api.deepseek.com/v1");
+    assert_eq!(updated["default_model"], "deepseek-chat");
+    assert_eq!(updated["status"], "disabled");
+    assert_eq!(updated["secret_configured"], true); // secret retained
+    let final_version = body["version"].as_i64().expect("final version");
+
+    // 4. Delete provider
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/ai/config",
+        &session,
+        &csrf,
+        json!({
+            "delete_provider_id": provider_id,
+            "expected_version": final_version,
+            "reason": "删除测试渠道"
+        }),
+        &[("if-match", &format!("\"{final_version}\""))],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "删除渠道必须 200: {body}");
+    let remaining = body["providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == provider_id.as_str());
+    assert!(remaining.is_none(), "deleted provider must not exist");
 
     close_pool(&pool).await;
     cleanup(&dir);

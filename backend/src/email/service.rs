@@ -52,6 +52,52 @@ pub trait EmailSender: Send + Sync {
     fn send(&self, to: &str, subject: &str, body: &str) -> Result<(), ProviderError>;
 }
 
+/// 数据库中的 SMTP 配置（0064 site_settings 扩展）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DbSmtpConfig {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub pass: String,
+    pub from_email: String,
+    pub from_name: String,
+    pub encryption: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct DbSmtpRow {
+    smtp_enabled: i64,
+    smtp_host: String,
+    smtp_port: i64,
+    smtp_user: String,
+    smtp_pass: String,
+    smtp_from_email: String,
+    smtp_from_name: String,
+    smtp_encryption: String,
+}
+
+/// 从 site_settings 读取当前数据库中的 SMTP 配置。
+pub async fn load_smtp_config_from_db(
+    pool: &DatabasePool,
+) -> Result<Option<DbSmtpConfig>, sqlx::Error> {
+    let sql = "SELECT smtp_enabled, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_email, smtp_from_name, smtp_encryption FROM site_settings WHERE id = 'singleton'";
+    let row: Option<DbSmtpRow> = match pool {
+        Either::Left(p) => sqlx::query_as(sql).fetch_optional(p).await?,
+        Either::Right(p) => sqlx::query_as(sql).fetch_optional(p).await?,
+    };
+    Ok(row.map(|r| DbSmtpConfig {
+        enabled: r.smtp_enabled != 0,
+        host: r.smtp_host,
+        port: r.smtp_port.clamp(1, 65535) as u16,
+        user: r.smtp_user,
+        pass: r.smtp_pass,
+        from_email: r.smtp_from_email,
+        from_name: r.smtp_from_name,
+        encryption: r.smtp_encryption,
+    }))
+}
+
 /// 记录式发件器（测试断言调用参数；可选失败脚本）。
 #[derive(Debug, Default)]
 pub struct RecordingSender {

@@ -10,8 +10,11 @@
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import LoadFailureState from '$lib/components/LoadFailureState.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import { isTransientProblem } from '$lib/errors';
+  import { announceTransientProblem } from '$lib/ui/problem-toast';
   import { show } from '$lib/ui/toast';
   import { formatTime } from '$lib/utils';
   import type { ApiKeysActionData, ApiKeysPageData } from './+page.server';
@@ -26,6 +29,13 @@
 
   const actionMessage = $derived(form?.message ?? null);
   const createdKey = $derived(form?.created ?? null);
+
+  // 瞬态服务端错误（5xx/429）→ 全局 Toast 提示 + 页面只留「加载失败·重试」
+  // 占位（产品约定：不整页展示错误态）；持续性错误仍走 ProblemState。
+  $effect(() => {
+    void data.problem;
+    announceTransientProblem(data.problem);
+  });
 
   /** 后端时间戳为毫秒（M01-DB-08），formatTime 口径为秒。 */
   function toSeconds(ts: number | null | undefined): number | null {
@@ -60,7 +70,9 @@
     </div>
   </div>
 
-  {#if data.problem}
+  {#if data.problem && isTransientProblem(data.problem)}
+    <LoadFailureState onretry={() => void invalidateAll()} />
+  {:else if data.problem}
     <ProblemState problem={data.problem} />
   {:else}
     <!-- 创建表单 -->

@@ -109,6 +109,27 @@ export function applyThemeTokens(theme: ActiveThemeView, root?: HTMLElement): vo
   }
   el.dataset.theme = /^[a-z0-9-]{1,64}$/.test(theme.name) ? theme.name : 'default';
   el.dataset.themeRevision = String(theme.revision ?? 1);
+  el.dataset.themeCustom = 'true';
+}
+
+/** 激活主题全局预览（将 Token 注入 root 并标记 preview）。 */
+export function previewThemeTokens(theme: ActiveThemeView, root?: HTMLElement): void {
+  const el = root ?? (typeof document !== 'undefined' ? document.documentElement : undefined);
+  if (!el) return;
+  applyThemeTokens(theme, el);
+  el.dataset.themePreview = 'true';
+}
+
+/** 清理已注入的 Token CSS 变量与 preview/custom 标记，恢复默认。 */
+export function clearThemeTokens(root?: HTMLElement): void {
+  const el = root ?? (typeof document !== 'undefined' ? document.documentElement : undefined);
+  if (!el) return;
+  for (const key of THEME_TOKEN_KEYS) {
+    const cssVar = TOKEN_CSS_VAR[key];
+    el.style.removeProperty(cssVar);
+  }
+  delete el.dataset.themePreview;
+  delete el.dataset.themeCustom;
 }
 
 /** 是否启用减少动效：用户偏好数据 `motion.reduced` 或系统 prefers-reduced-motion。 */

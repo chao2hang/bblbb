@@ -22,13 +22,17 @@ const config: StorageConfig = {
 };
 
 describe('M06-UI-06/07 存储管理 SSR', () => {
-  it('渲染脱敏配置：Secret 只显示掩码，绝不出现在 DOM', () => {
+  it('渲染脱敏配置：Secret 只显示掩码，绝不出现在 DOM，且支持 S3 路径与密钥输入', () => {
     const { body } = render(AdminStorage, {
       props: { data: { config, loadError: null }, form: null }
     });
     expect(body).toContain('••••••••••');
     expect(body).toContain('S3 兼容');
     expect(body).not.toContain('s3_secret_access_key" value=');
+    expect(body).toContain('name="s3_access_key_id"');
+    expect(body).toContain('name="s3_secret_access_key"');
+    expect(body).toContain('name="s3_public_base_url"');
+    expect(body).toContain('name="reason"');
   });
 
   it('env 来源字段禁用（只读），显示来源徽标', () => {

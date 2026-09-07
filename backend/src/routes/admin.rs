@@ -2303,25 +2303,111 @@ async fn update_ai_config(
         ));
     }
 
-    // ── Provider upsert（兼容既有调用：body 带 name+base_url 时执行）──
+    // ── Provider delete（支持按 id 或 name 删除渠道）──
+    let mut provider_deleted: Option<Value> = None;
+    let delete_id = body
+        .get("delete_provider_id")
+        .or_else(|| body.get("delete_provider"))
+        .and_then(Value::as_str);
+    if let Some(del_id) = delete_id {
+        let del_id = del_id.trim();
+        if !del_id.is_empty() {
+            let task_count: i64 = match pool {
+                sqlx::Either::Left(p) => {
+                    sqlx::query_scalar(
+                        "SELECT COUNT(*) FROM ai_tasks WHERE provider_id = ? OR provider_id IN (SELECT id FROM ai_providers WHERE name = ?)",
+                    )
+                    .bind(del_id)
+                    .bind(del_id)
+                    .fetch_one(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                }
+                sqlx::Either::Right(p) => {
+                    sqlx::query_scalar(
+                        "SELECT COUNT(*) FROM ai_tasks WHERE provider_id = ? OR provider_id IN (SELECT id FROM ai_providers WHERE name = ?)",
+                    )
+                    .bind(del_id)
+                    .bind(del_id)
+                    .fetch_one(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                }
+            };
+            if task_count > 0 {
+                return Err(AppError::bad_request(
+                    "该渠道存在关联的任务记录，无法直接删除，请将其状态设为停用",
+                    request_id,
+                    None,
+                ));
+            }
+            // 清理可能存在的 consents 关联
+            match pool {
+                sqlx::Either::Left(p) => {
+                    let _ = sqlx::query("DELETE FROM ai_consents WHERE provider_id = ? OR provider_id IN (SELECT id FROM ai_providers WHERE name = ?)")
+                        .bind(del_id)
+                        .bind(del_id)
+                        .execute(p)
+                        .await;
+                }
+                sqlx::Either::Right(p) => {
+                    let _ = sqlx::query("DELETE FROM ai_consents WHERE provider_id = ? OR provider_id IN (SELECT id FROM ai_providers WHERE name = ?)")
+                        .bind(del_id)
+                        .bind(del_id)
+                        .execute(p)
+                        .await;
+                }
+            };
+            let affected = match pool {
+                sqlx::Either::Left(p) => {
+                    sqlx::query("DELETE FROM ai_providers WHERE id = ? OR name = ?")
+                        .bind(del_id)
+                        .bind(del_id)
+                        .execute(p)
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                        .rows_affected()
+                }
+                sqlx::Either::Right(p) => {
+                    sqlx::query("DELETE FROM ai_providers WHERE id = ? OR name = ?")
+                        .bind(del_id)
+                        .bind(del_id)
+                        .execute(p)
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                        .rows_affected()
+                }
+            };
+            provider_deleted = Some(json!({ "id": del_id, "deleted": affected }));
+            changed.push("provider_delete".to_string());
+        }
+    }
+
+    // ── Provider upsert / update（兼容既有调用：body 带 name+base_url 时执行）──
     let mut provider_upserted: Option<Value> = None;
     if let (Some(name), Some(base_url)) = (
         body.get("name").and_then(Value::as_str),
         body.get("base_url").and_then(Value::as_str),
     ) {
         let name = name.trim().to_string();
-        let base_url = base_url.to_string();
-        if !name.is_empty() && name.len() <= 120 {
+        let base_url = base_url.trim().to_string();
+        if !name.is_empty() && name.len() <= 120 && !base_url.is_empty() {
             let default_model = body
                 .get("default_model")
                 .and_then(Value::as_str)
                 .unwrap_or("gpt-4o-mini")
+                .trim()
                 .to_string();
-            let adapter_type = body
+            let raw_adapter = body
                 .get("adapter_type")
                 .and_then(Value::as_str)
-                .unwrap_or("openai_compatible")
-                .to_string();
+                .unwrap_or("openai_compatible");
+            let adapter_type = match raw_adapter {
+                "anthropic" => "anthropic",
+                "custom" => "custom",
+                _ => "openai_compatible",
+            }
+            .to_string();
             let provider_data_mode = body
                 .get("data_mode")
                 .and_then(Value::as_str)
@@ -2330,53 +2416,113 @@ async fn update_ai_config(
             let status = body
                 .get("status")
                 .and_then(Value::as_str)
-                .unwrap_or("disabled")
+                .map(|s| match s {
+                    "enabled" => "enabled",
+                    _ => "disabled",
+                })
+                .unwrap_or("enabled")
                 .to_string();
-            let provider_id = uuid::Uuid::now_v7().to_string();
-            let affected = match pool {
-                sqlx::Either::Left(p) => {
-                    sqlx::query(
-                        "INSERT INTO ai_providers
-                             (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
-                         ON CONFLICT(name) DO UPDATE SET base_url = excluded.base_url, default_model = excluded.default_model,
-                             status = excluded.status, data_mode = excluded.data_mode, updated_at = excluded.updated_at",
-                    )
-                    .bind(&provider_id)
-                    .bind(&name)
-                    .bind(&adapter_type)
-                    .bind(&base_url)
-                    .bind(&default_model)
-                    .bind(&status)
-                    .bind(&provider_data_mode)
-                    .bind(now)
-                    .bind(now)
-                    .execute(p)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
-                    .rows_affected()
+            let has_secret = body
+                .get("api_key")
+                .or_else(|| body.get("secret"))
+                .and_then(Value::as_str)
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+            let secret_val: i64 = if has_secret { 1 } else { 0 };
+
+            let target_id = body
+                .get("id")
+                .or_else(|| body.get("provider_id"))
+                .and_then(Value::as_str)
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+
+            let affected = match target_id {
+                Some(ref pid) => {
+                    let update_sql = "UPDATE ai_providers
+                         SET name = ?, adapter_type = ?, base_url = ?, default_model = ?, status = ?,
+                             secret_configured = CASE WHEN ? = 1 THEN 1 ELSE secret_configured END,
+                             data_mode = ?, updated_at = ?
+                         WHERE id = ?";
+                    match pool {
+                        sqlx::Either::Left(p) => sqlx::query(update_sql)
+                            .bind(&name)
+                            .bind(&adapter_type)
+                            .bind(&base_url)
+                            .bind(&default_model)
+                            .bind(&status)
+                            .bind(secret_val)
+                            .bind(&provider_data_mode)
+                            .bind(now)
+                            .bind(pid)
+                            .execute(p)
+                            .await
+                            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                            .rows_affected(),
+                        sqlx::Either::Right(p) => sqlx::query(update_sql)
+                            .bind(&name)
+                            .bind(&adapter_type)
+                            .bind(&base_url)
+                            .bind(&default_model)
+                            .bind(&status)
+                            .bind(secret_val)
+                            .bind(&provider_data_mode)
+                            .bind(now)
+                            .bind(pid)
+                            .execute(p)
+                            .await
+                            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                            .rows_affected(),
+                    }
                 }
-                sqlx::Either::Right(p) => {
-                    sqlx::query(
-                        "INSERT INTO ai_providers
-                             (id, name, adapter_type, base_url, api_type, default_model, status, data_mode, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE base_url = VALUES(base_url), default_model = VALUES(default_model),
-                             status = VALUES(status), data_mode = VALUES(data_mode), updated_at = VALUES(updated_at)",
-                    )
-                    .bind(&provider_id)
-                    .bind(&name)
-                    .bind(&adapter_type)
-                    .bind(&base_url)
-                    .bind(&default_model)
-                    .bind(&status)
-                    .bind(&provider_data_mode)
-                    .bind(now)
-                    .bind(now)
-                    .execute(p)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
-                    .rows_affected()
+                None => {
+                    let provider_id = uuid::Uuid::now_v7().to_string();
+                    match pool {
+                        sqlx::Either::Left(p) => sqlx::query(
+                            "INSERT INTO ai_providers
+                                 (id, name, adapter_type, base_url, api_type, default_model, status, secret_configured, data_mode, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?, ?)
+                             ON CONFLICT(name) DO UPDATE SET base_url = excluded.base_url, default_model = excluded.default_model,
+                                 status = excluded.status, secret_configured = CASE WHEN excluded.secret_configured = 1 THEN 1 ELSE ai_providers.secret_configured END,
+                                 data_mode = excluded.data_mode, updated_at = excluded.updated_at",
+                        )
+                        .bind(&provider_id)
+                        .bind(&name)
+                        .bind(&adapter_type)
+                        .bind(&base_url)
+                        .bind(&default_model)
+                        .bind(&status)
+                        .bind(secret_val)
+                        .bind(&provider_data_mode)
+                        .bind(now)
+                        .bind(now)
+                        .execute(p)
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                        .rows_affected(),
+                        sqlx::Either::Right(p) => sqlx::query(
+                            "INSERT INTO ai_providers
+                                 (id, name, adapter_type, base_url, api_type, default_model, status, secret_configured, data_mode, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE base_url = VALUES(base_url), default_model = VALUES(default_model),
+                                 status = VALUES(status), secret_configured = CASE WHEN VALUES(secret_configured) = 1 THEN 1 ELSE ai_providers.secret_configured END,
+                                 data_mode = VALUES(data_mode), updated_at = VALUES(updated_at)",
+                        )
+                        .bind(&provider_id)
+                        .bind(&name)
+                        .bind(&adapter_type)
+                        .bind(&base_url)
+                        .bind(&default_model)
+                        .bind(&status)
+                        .bind(secret_val)
+                        .bind(&provider_data_mode)
+                        .bind(now)
+                        .bind(now)
+                        .execute(p)
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                        .rows_affected(),
+                    }
                 }
             };
             provider_upserted =
@@ -2398,6 +2544,9 @@ async fn update_ai_config(
     let mut config = ai_admin_config_json(pool, request_id).await?;
     if let Some(provider) = provider_upserted {
         config["provider_upsert"] = provider;
+    }
+    if let Some(deleted) = provider_deleted {
+        config["provider_deleted"] = deleted;
     }
     Ok(Json(config))
 }

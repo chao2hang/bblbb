@@ -888,7 +888,7 @@ async fn list_audit_logs(
 
 // ─── 系统设置 ────────────────────────────────────────────────────────────────
 
-/// site_settings 单行投影（0061 迁移结构；public_source 由 0063 添加）。
+/// site_settings 单行投影（0061 迁移结构；public_source 由 0063 添加；SMTP 由 0064 添加）。
 #[derive(sqlx::FromRow, Clone)]
 struct SiteSettingsRow {
     open_registration: i64,
@@ -902,6 +902,14 @@ struct SiteSettingsRow {
     api_rate_limit: Option<i64>,
     version: i64,
     updated_at: i64,
+    smtp_enabled: i64,
+    smtp_host: String,
+    smtp_port: i64,
+    smtp_user: String,
+    smtp_pass: String,
+    smtp_from_email: String,
+    smtp_from_name: String,
+    smtp_encryption: String,
 }
 
 /// 设置 JSON 投影（settings 字段集）。
@@ -916,6 +924,14 @@ fn settings_json(r: &SiteSettingsRow) -> Value {
         "default_lang": r.default_lang,
         "public_source": r.public_source,
         "api_rate_limit": r.api_rate_limit,
+        "smtp_enabled": r.smtp_enabled != 0,
+        "smtp_host": r.smtp_host,
+        "smtp_port": r.smtp_port,
+        "smtp_user": r.smtp_user,
+        "smtp_pass_configured": !r.smtp_pass.is_empty(),
+        "smtp_from_email": r.smtp_from_email,
+        "smtp_from_name": r.smtp_from_name,
+        "smtp_encryption": r.smtp_encryption,
     })
 }
 
@@ -926,7 +942,9 @@ async fn load_site_settings(
 ) -> Result<SiteSettingsRow, AppError> {
     let sql = "SELECT open_registration, email_verification, anonymous_replies, public_rss,
                       maintenance_mode, site_name, default_lang, public_source,
-                      api_rate_limit, version, updated_at
+                      api_rate_limit, version, updated_at,
+                      smtp_enabled, smtp_host, smtp_port, smtp_user, smtp_pass,
+                      smtp_from_email, smtp_from_name, smtp_encryption
                FROM site_settings WHERE id = 'singleton'";
     let row = match pool {
         Either::Left(p) => {
@@ -1122,11 +1140,140 @@ async fn update_admin_settings(
         }
     }
 
+    // SMTP 设置（0064 新增）
+    if let Some(v) = flat.get("smtp_enabled").and_then(Value::as_bool) {
+        let v = v as i64;
+        if next.smtp_enabled != v {
+            next.smtp_enabled = v;
+            changed.push("smtp_enabled".to_string());
+        }
+    }
+    if let Some(v) = flat.get("smtp_host") {
+        let host = v
+            .as_str()
+            .map(str::trim)
+            .ok_or_else(|| AppError::bad_request("smtp_host must be a string", request_id, None))?;
+        if host.chars().count() > 255 {
+            return Err(AppError::bad_request(
+                "smtp_host must be at most 255 characters",
+                request_id,
+                None,
+            ));
+        }
+        if next.smtp_host != host {
+            next.smtp_host = host.to_string();
+            changed.push("smtp_host".to_string());
+        }
+    }
+    if let Some(v) = flat.get("smtp_port") {
+        let port = v.as_i64().ok_or_else(|| {
+            AppError::bad_request("smtp_port must be an integer", request_id, None)
+        })?;
+        if !(1..=65535).contains(&port) {
+            return Err(AppError::bad_request(
+                "smtp_port must be between 1 and 65535",
+                request_id,
+                None,
+            ));
+        }
+        if next.smtp_port != port {
+            next.smtp_port = port;
+            changed.push("smtp_port".to_string());
+        }
+    }
+    if let Some(v) = flat.get("smtp_user") {
+        let user = v
+            .as_str()
+            .map(str::trim)
+            .ok_or_else(|| AppError::bad_request("smtp_user must be a string", request_id, None))?;
+        if user.chars().count() > 255 {
+            return Err(AppError::bad_request(
+                "smtp_user must be at most 255 characters",
+                request_id,
+                None,
+            ));
+        }
+        if next.smtp_user != user {
+            next.smtp_user = user.to_string();
+            changed.push("smtp_user".to_string());
+        }
+    }
+    // smtp_pass: 敏感凭据。若传非 null 字符串则更新密码（空字符串允许清空密码）；缺字段或 null 保持原值。
+    if let Some(v) = flat.get("smtp_pass") {
+        if !v.is_null() {
+            let pass = v.as_str().ok_or_else(|| {
+                AppError::bad_request("smtp_pass must be a string or null", request_id, None)
+            })?;
+            if next.smtp_pass != pass {
+                next.smtp_pass = pass.to_string();
+                changed.push("smtp_pass".to_string());
+            }
+        }
+    }
+    if let Some(v) = flat.get("smtp_from_email") {
+        let email = v.as_str().map(str::trim).ok_or_else(|| {
+            AppError::bad_request("smtp_from_email must be a string", request_id, None)
+        })?;
+        if email.chars().count() > 255 {
+            return Err(AppError::bad_request(
+                "smtp_from_email must be at most 255 characters",
+                request_id,
+                None,
+            ));
+        }
+        if !email.is_empty() && (!email.contains('@') || email.contains(char::is_whitespace)) {
+            return Err(AppError::bad_request(
+                "smtp_from_email must be a valid email address",
+                request_id,
+                None,
+            ));
+        }
+        if next.smtp_from_email != email {
+            next.smtp_from_email = email.to_string();
+            changed.push("smtp_from_email".to_string());
+        }
+    }
+    if let Some(v) = flat.get("smtp_from_name") {
+        let name = v.as_str().map(str::trim).ok_or_else(|| {
+            AppError::bad_request("smtp_from_name must be a string", request_id, None)
+        })?;
+        if name.chars().count() > 255 {
+            return Err(AppError::bad_request(
+                "smtp_from_name must be at most 255 characters",
+                request_id,
+                None,
+            ));
+        }
+        if next.smtp_from_name != name {
+            next.smtp_from_name = name.to_string();
+            changed.push("smtp_from_name".to_string());
+        }
+    }
+    if let Some(v) = flat.get("smtp_encryption") {
+        let enc = v.as_str().map(str::trim).ok_or_else(|| {
+            AppError::bad_request("smtp_encryption must be a string", request_id, None)
+        })?;
+        let lower = enc.to_ascii_lowercase();
+        if !["none", "starttls", "tls"].contains(&lower.as_str()) {
+            return Err(AppError::bad_request(
+                "smtp_encryption must be 'none', 'starttls', or 'tls'",
+                request_id,
+                None,
+            ));
+        }
+        if next.smtp_encryption != lower {
+            next.smtp_encryption = lower;
+            changed.push("smtp_encryption".to_string());
+        }
+    }
+
     // 全列 UPDATE + version 乐观锁（0 行受影响 = 并发冲突 → 409）。
     let sql = "UPDATE site_settings
         SET open_registration = ?, email_verification = ?, anonymous_replies = ?, public_rss = ?,
             maintenance_mode = ?, site_name = ?, default_lang = ?, public_source = ?,
-            api_rate_limit = ?, version = version + 1, updated_at = ?
+            api_rate_limit = ?, smtp_enabled = ?, smtp_host = ?, smtp_port = ?,
+            smtp_user = ?, smtp_pass = ?, smtp_from_email = ?, smtp_from_name = ?,
+            smtp_encryption = ?, version = version + 1, updated_at = ?
         WHERE id = 'singleton' AND version = ?";
     let now = now_millis();
     let affected = match pool {
@@ -1140,6 +1287,14 @@ async fn update_admin_settings(
             .bind(&next.default_lang)
             .bind(&next.public_source)
             .bind(next.api_rate_limit)
+            .bind(next.smtp_enabled)
+            .bind(&next.smtp_host)
+            .bind(next.smtp_port)
+            .bind(&next.smtp_user)
+            .bind(&next.smtp_pass)
+            .bind(&next.smtp_from_email)
+            .bind(&next.smtp_from_name)
+            .bind(&next.smtp_encryption)
             .bind(now)
             .bind(if_match)
             .execute(p)
@@ -1156,6 +1311,14 @@ async fn update_admin_settings(
             .bind(&next.default_lang)
             .bind(&next.public_source)
             .bind(next.api_rate_limit)
+            .bind(next.smtp_enabled)
+            .bind(&next.smtp_host)
+            .bind(next.smtp_port)
+            .bind(&next.smtp_user)
+            .bind(&next.smtp_pass)
+            .bind(&next.smtp_from_email)
+            .bind(&next.smtp_from_name)
+            .bind(&next.smtp_encryption)
             .bind(now)
             .bind(if_match)
             .execute(p)

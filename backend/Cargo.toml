@@ -3,6 +3,7 @@ name = "bblbb-backend"
 version = "0.1.0"
 edition = "2021"
 publish = false
+default-run = "bblbb-backend"
 
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }

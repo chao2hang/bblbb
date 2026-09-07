@@ -48,14 +48,13 @@
   ];
 
   /** 可校验字段键（lang 无业务校验，仅占位以统一错误盒结构）。 */
-  type FieldKey = 'siteName' | 'lang' | 'source' | 'rateLimit' | 'reason';
-  const FIELD_KEYS: FieldKey[] = ['siteName', 'lang', 'source', 'rateLimit', 'reason'];
+  type FieldKey = 'siteName' | 'lang' | 'source' | 'rateLimit';
+  const FIELD_KEYS: FieldKey[] = ['siteName', 'lang', 'source', 'rateLimit'];
   const FIELD_ELEMENT_ID: Record<FieldKey, string> = {
     siteName: 'set-site-name',
     lang: 'set-default-lang',
     source: 'set-public-source',
-    rateLimit: 'set-rate-limit',
-    reason: 'set-reason'
+    rateLimit: 'set-rate-limit'
   };
 
   const message = $derived(form?.message ?? null);
@@ -76,7 +75,16 @@
       siteName: s?.site_name ?? '',
       defaultLang: s?.default_lang ?? 'zh-CN',
       publicSource: s?.public_source ?? '',
-      rateLimit: Number(s?.api_rate_limit ?? 0)
+      rateLimit: Number(s?.api_rate_limit ?? 0),
+      smtpEnabled: Boolean(s?.smtp_enabled),
+      smtpHost: s?.smtp_host ?? '',
+      smtpPort: Number(s?.smtp_port ?? 587),
+      smtpUser: s?.smtp_user ?? '',
+      smtpPass: '',
+      smtpPassConfigured: Boolean(s?.smtp_pass_configured),
+      smtpFromEmail: s?.smtp_from_email ?? '',
+      smtpFromName: s?.smtp_from_name ?? '',
+      smtpEncryption: s?.smtp_encryption ?? 'starttls'
     };
   }
 
@@ -86,13 +94,20 @@
   let defaultLang = $state(init.defaultLang);
   let publicSource = $state(init.publicSource);
   let rateLimit = $state<number>(init.rateLimit);
-  let reason = $state('');
+  let smtpEnabled = $state(init.smtpEnabled);
+  let smtpHost = $state(init.smtpHost);
+  let smtpPort = $state<number>(init.smtpPort);
+  let smtpUser = $state(init.smtpUser);
+  let smtpPass = $state('');
+  let smtpPassConfigured = $state(init.smtpPassConfigured);
+  let smtpFromEmail = $state(init.smtpFromEmail);
+  let smtpFromName = $state(init.smtpFromName);
+  let smtpEncryption = $state(init.smtpEncryption);
   let errors = $state<Record<FieldKey, string>>({
     siteName: '',
     lang: '',
     source: '',
-    rateLimit: '',
-    reason: ''
+    rateLimit: ''
   });
   let saving = $state(false);
   /** 本次会话最近一次成功保存时间（状态行「最近保存于 …」用）。 */
@@ -113,8 +128,16 @@
     defaultLang = s.default_lang ?? 'zh-CN';
     publicSource = s.public_source ?? '';
     rateLimit = Number(s.api_rate_limit ?? 0);
-    reason = '';
-    errors = { siteName: '', lang: '', source: '', rateLimit: '', reason: '' };
+    smtpEnabled = Boolean(s.smtp_enabled);
+    smtpHost = s.smtp_host ?? '';
+    smtpPort = Number(s.smtp_port ?? 587);
+    smtpUser = s.smtp_user ?? '';
+    smtpPass = '';
+    smtpPassConfigured = Boolean(s.smtp_pass_configured);
+    smtpFromEmail = s.smtp_from_email ?? '';
+    smtpFromName = s.smtp_from_name ?? '';
+    smtpEncryption = s.smtp_encryption ?? 'starttls';
+    errors = { siteName: '', lang: '', source: '', rateLimit: '' };
   });
 
   // 已保存快照（脏检查 + 恢复默认的目标值）。
@@ -130,11 +153,18 @@
       site_name: s.site_name ?? '',
       default_lang: s.default_lang ?? 'zh-CN',
       public_source: s.public_source ?? '',
-      api_rate_limit: Number(s.api_rate_limit ?? 0)
+      api_rate_limit: Number(s.api_rate_limit ?? 0),
+      smtp_enabled: Boolean(s.smtp_enabled),
+      smtp_host: s.smtp_host ?? '',
+      smtp_port: Number(s.smtp_port ?? 587),
+      smtp_user: s.smtp_user ?? '',
+      smtp_from_email: s.smtp_from_email ?? '',
+      smtp_from_name: s.smtp_from_name ?? '',
+      smtp_encryption: s.smtp_encryption ?? 'starttls'
     };
   });
 
-  /** 与已保存配置的差异字段数（reason 视为一项：必填且随保存提交）。 */
+  /** 与已保存配置的差异字段数。 */
   const changedCount = $derived.by(() => {
     const s = saved;
     if (!s) return 0;
@@ -144,7 +174,14 @@
     if (defaultLang !== s.default_lang) n += 1;
     if (publicSource !== s.public_source) n += 1;
     if (Number(rateLimit) !== s.api_rate_limit) n += 1;
-    if (reason.trim() !== '') n += 1;
+    if (smtpEnabled !== s.smtp_enabled) n += 1;
+    if (smtpHost !== s.smtp_host) n += 1;
+    if (Number(smtpPort) !== s.smtp_port) n += 1;
+    if (smtpUser !== s.smtp_user) n += 1;
+    if (smtpPass !== '') n += 1;
+    if (smtpFromEmail !== s.smtp_from_email) n += 1;
+    if (smtpFromName !== s.smtp_from_name) n += 1;
+    if (smtpEncryption !== s.smtp_encryption) n += 1;
     return n;
   });
   const dirty = $derived(changedCount > 0);
@@ -155,8 +192,7 @@
       siteName: '',
       lang: '',
       source: '',
-      rateLimit: '',
-      reason: ''
+      rateLimit: ''
     };
     if (!siteName.trim()) errs.siteName = '站点名称不能为空';
     else if ([...siteName.trim()].length > 40) errs.siteName = '站点名称不能超过 40 个字符';
@@ -174,7 +210,6 @@
     ) {
       errs.rateLimit = '限流需为 1 - 10000 的整数';
     }
-    if (!reason.trim()) errs.reason = '请填写操作原因';
     return errs;
   }
 
@@ -209,8 +244,15 @@
     defaultLang = s.default_lang;
     publicSource = s.public_source;
     rateLimit = s.api_rate_limit;
-    reason = '';
-    errors = { siteName: '', lang: '', source: '', rateLimit: '', reason: '' };
+    smtpEnabled = s.smtp_enabled;
+    smtpHost = s.smtp_host;
+    smtpPort = s.smtp_port;
+    smtpUser = s.smtp_user;
+    smtpPass = '';
+    smtpFromEmail = s.smtp_from_email;
+    smtpFromName = s.smtp_from_name;
+    smtpEncryption = s.smtp_encryption;
+    errors = { siteName: '', lang: '', source: '', rateLimit: '' };
     showToast('已恢复为当前已保存配置', 'info');
   }
 
@@ -224,7 +266,15 @@
         site_name: siteName,
         default_lang: defaultLang,
         public_source: publicSource,
-        api_rate_limit: Number(rateLimit)
+        api_rate_limit: Number(rateLimit),
+        smtp_enabled: smtpEnabled,
+        smtp_host: smtpHost,
+        smtp_port: Number(smtpPort),
+        smtp_user: smtpUser,
+        smtp_pass_configured: smtpPassConfigured || Boolean(smtpPass),
+        smtp_from_email: smtpFromEmail,
+        smtp_from_name: smtpFromName,
+        smtp_encryption: smtpEncryption
       }
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -376,6 +426,11 @@
         }}
       >
         <input type="hidden" name="version" value={String(data.version)} />
+        {#each SWITCHES as sw (sw.key)}
+          {#if switches[sw.key]}
+            <input type="hidden" name={sw.key} value="on" />
+          {/if}
+        {/each}
 
         <div class="adm-form-grid">
           <div class="app-form-field" class:is-dirty={saved !== null && siteName !== saved.site_name}>
@@ -438,6 +493,123 @@
               oninput={onEdit}
             />
             {#if errors.rateLimit}<p class="app-field-error" role="alert">{errors.rateLimit}</p>{/if}
+          </div>
+        </div>
+
+        <!-- SMTP 邮件发件配置 -->
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--color-border);">
+          <h3 style="margin:0 0 12px 0;font-size:15px;display:flex;align-items:center;gap:8px;">
+            <Icon name="mail" size={16} />
+            SMTP 邮件发件配置
+          </h3>
+          <p class="app-field-help" style="margin-bottom:14px;">
+            配置数据库中持久化的 SMTP 发件服务参数，供系统发送注册验证邮件及安全通知。
+          </p>
+
+          <div style="margin-bottom:14px;">
+            <label class="app-check" style="margin:0;display:inline-flex;align-items:center;gap:8px;">
+              <input type="checkbox" name="smtp_enabled" bind:checked={smtpEnabled} oninput={onEdit} />
+              <span><b>启用 SMTP 邮件服务</b><span class="app-field-help">关闭时邮件任务在数据库任务队列中处于待发送/跳过状态</span></span>
+            </label>
+          </div>
+
+          <div class="adm-form-grid">
+            <div class="app-form-field" class:is-dirty={saved !== null && smtpHost !== saved.smtp_host}>
+              <label class="app-field-label" for="set-smtp-host">SMTP 服务器主机</label>
+              <input
+                id="set-smtp-host"
+                name="smtp_host"
+                class="app-field"
+                placeholder="smtp.example.com"
+                bind:value={smtpHost}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && Number(smtpPort) !== saved.smtp_port}>
+              <label class="app-field-label" for="set-smtp-port">SMTP 端口</label>
+              <input
+                id="set-smtp-port"
+                name="smtp_port"
+                type="number"
+                min="1"
+                max="65535"
+                class="app-field"
+                placeholder="587"
+                bind:value={smtpPort}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && smtpUser !== saved.smtp_user}>
+              <label class="app-field-label" for="set-smtp-user">SMTP 认证用户名</label>
+              <input
+                id="set-smtp-user"
+                name="smtp_user"
+                class="app-field"
+                placeholder="user@example.com"
+                bind:value={smtpUser}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={smtpPass !== ''}>
+              <label class="app-field-label" for="set-smtp-pass">
+                SMTP 密码 / 授权码
+                {#if smtpPassConfigured}
+                  <span class="badge success sm" style="margin-left:6px;font-size:11px;">已配置</span>
+                {/if}
+              </label>
+              <input
+                id="set-smtp-pass"
+                name="smtp_pass"
+                type="password"
+                class="app-field"
+                placeholder={smtpPassConfigured ? '已配置，留空表示保持原密码' : '请输入 SMTP 授权码/密码'}
+                bind:value={smtpPass}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && smtpFromEmail !== saved.smtp_from_email}>
+              <label class="app-field-label" for="set-smtp-from-email">发件人邮箱</label>
+              <input
+                id="set-smtp-from-email"
+                name="smtp_from_email"
+                type="email"
+                class="app-field"
+                placeholder="noreply@example.com"
+                bind:value={smtpFromEmail}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && smtpFromName !== saved.smtp_from_name}>
+              <label class="app-field-label" for="set-smtp-from-name">发件人显示名称</label>
+              <input
+                id="set-smtp-from-name"
+                name="smtp_from_name"
+                class="app-field"
+                placeholder="BBLBB 社区"
+                bind:value={smtpFromName}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && smtpEncryption !== saved.smtp_encryption}>
+              <label class="app-field-label" for="set-smtp-encryption">加密模式</label>
+              <select
+                id="set-smtp-encryption"
+                name="smtp_encryption"
+                class="app-select"
+                bind:value={smtpEncryption}
+                onchange={onEdit}
+              >
+                <option value="starttls">STARTTLS（推荐，常用端口 587）</option>
+                <option value="tls">SSL / TLS（常用端口 465）</option>
+                <option value="none">无加密（明文）</option>
+              </select>
+            </div>
           </div>
           <input type="hidden" name="reason" value="系统设置更新" />
         </div>

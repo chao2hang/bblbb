@@ -9,7 +9,7 @@
 // - 主题预览：Token 只在 SSR/浏览器端用 applyThemeTokens 应用安全投影。
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPatch, authedPost, authedPut, getAuthed } from '$lib/api/server';
+import { authedDeleteBody, authedPatch, authedPost, authedPut, getAuthed } from '$lib/api/server';
 import { pickActiveTheme, fallbackDefaultTheme } from '$lib/theme/projection';
 
 export interface AdminThemeItem {
@@ -61,7 +61,26 @@ export const load: PageServerLoad = async ({ cookies, request }): Promise<AdminT
     }
     return { state: 'error', themes: null, error: result.message, preview: null };
   }
-  const themes = Array.isArray(result.data.themes) ? result.data.themes : [];
+  const rawThemes = Array.isArray(result.data.themes) ? result.data.themes : [];
+  const themes = [...rawThemes];
+  // 若未上传自定义 default，则补充内置 default 主题（系统始终具备安全基准主题）
+  if (!themes.some((t) => t.name === 'default')) {
+    const hasActiveDefault = themes.some((t) => t.is_default && t.status === 'active');
+    themes.unshift({
+      name: 'default',
+      display_name: '默认主题 (内置)',
+      kind: 'data',
+      schema_version: 1,
+      version: '1.0.0',
+      supports: '>=1.0 <2.0',
+      status: 'active',
+      is_default: !hasActiveDefault,
+      revision: 1,
+      tokens: fallbackDefaultTheme().tokens,
+      created_by: 'system',
+      updated_at: 0
+    });
+  }
   // 预览 = 站点默认或第一个 active 主题；没有则内置 default。
   const active = themes.find((t) => t.is_default && t.status === 'active') ?? themes[0];
   const picked = active ? pickActiveTheme(active) : null;
@@ -82,7 +101,7 @@ export const actions: Actions = {
     const reason = String(form.get('reason') ?? '').trim();
     const name = String(form.get('name') ?? '').trim();
     const displayName = String(form.get('display_name') ?? name).trim();
-    const tokensRaw = String(form.get('tokens_json') ?? '');
+    const tokensRaw = String(form.get('tokens_json') ?? form.get('tokens') ?? '');
     if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
     if (!/^[a-z0-9-]{1,64}$/.test(name)) {
       return fail(422, { message: '主题名必须是小写字母/数字/连字符（<=64）' });
@@ -141,7 +160,7 @@ export const actions: Actions = {
     const name = String(form.get('name') ?? '').trim();
     const reason = String(form.get('reason') ?? '').trim();
     const revision = Number(form.get('revision') ?? 0);
-    const tokensRaw = String(form.get('tokens_json') ?? '');
+    const tokensRaw = String(form.get('tokens_json') ?? form.get('tokens') ?? '');
     if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
     let tokens: Record<string, unknown>;
     try {
@@ -168,6 +187,24 @@ export const actions: Actions = {
       return fail(result.status, { message: result.message, requestId: result.requestId });
     } catch {
       return fail(503, { message: '保存失败，请稍后重试' });
+    }
+  },
+  delete: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const { name, reason } = readThemeForm(form);
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
+    if (!name) return fail(422, { message: '主题名缺失' });
+    try {
+      const result = await authedDeleteBody<{ deleted: string }>(
+        cookies,
+        `/api/v1/admin/themes/${encodeURIComponent(name)}`,
+        { reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) return { message: `主题 ${name} 已成功删除` };
+      return fail(result.status, { message: result.message, requestId: result.requestId });
+    } catch {
+      return fail(503, { message: '删除失败，请稍后重试' });
     }
   }
 };

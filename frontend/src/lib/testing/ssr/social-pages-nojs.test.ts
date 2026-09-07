@@ -98,7 +98,7 @@ describe('GAP-FIX /messages SSR', () => {
     expect(body).toContain('去关注的人那里打个招呼');
   });
 
-  it('失败态：Problem 渲染', () => {
+  it('失败态（瞬态 503）：页面只留「加载失败·重试」占位，不整页渲染错误态', () => {
     const { body } = render(Messages, {
       props: {
         data: {
@@ -114,7 +114,31 @@ describe('GAP-FIX /messages SSR', () => {
         }
       }
     });
-    expect(body).toContain('服务暂不可用');
+    // 瞬态服务端错误（5xx/429）→ 全局 Toast 提示（有 JS 时弹，含请求号）；
+    // 页面（含无 JS 基线）只留中性占位 + 重试入口，错误细节不进页面主体。
+    expect(body).toContain('加载失败');
+    expect(body).toContain('重试');
+    expect(body).not.toContain('服务暂不可用');
+  });
+
+  it('失败态（持续性 403）：仍整页渲染 ProblemState', () => {
+    const { body } = render(Messages, {
+      props: {
+        data: {
+          conversations: [],
+          conversationId: null,
+          conversation: null,
+          messages: [],
+          problem: { status: 403, code: 'forbidden' },
+          error: '你没有权限执行此操作',
+          threadProblem: null,
+          threadError: null,
+          clientRequestId: 'csr-test-000000000008'
+        }
+      }
+    });
+    expect(body).toContain('没有权限');
+    expect(body).toContain('你没有权限执行此操作');
   });
 });
 
@@ -163,6 +187,24 @@ describe('GAP-FIX /favorites SSR', () => {
     });
     expect(body).toContain('还没有收藏');
     expect(body).toContain('去首页逛逛');
+  });
+
+  it('失败态（瞬态 500）：只留「加载失败·重试」占位，不整页渲染错误态', () => {
+    const { body } = render(Favorites, {
+      props: {
+        data: {
+          ...base,
+          items: [],
+          nextCursor: null,
+          hasMore: false,
+          problem: { status: 500, code: 'internal_error' },
+          error: '服务器开小差了，请稍后重试'
+        }
+      }
+    });
+    expect(body).toContain('加载失败');
+    expect(body).toContain('重试');
+    expect(body).not.toContain('服务器开小差了');
   });
 });
 

@@ -1583,6 +1583,15 @@ export interface AdminSettingsResult {
     default_lang: string;
     public_source: string;
     api_rate_limit: number;
+    smtp_enabled?: boolean;
+    smtp_host?: string;
+    smtp_port?: number;
+    smtp_user?: string;
+    smtp_pass?: string;
+    smtp_pass_configured?: boolean;
+    smtp_from_email?: string;
+    smtp_from_name?: string;
+    smtp_encryption?: string;
   };
   version: number;
 }

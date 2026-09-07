@@ -6,6 +6,7 @@ import {
   postStatusNotice,
   fieldError,
   problemMessage,
+  isTransientProblem,
   type Problem
 } from '$lib/errors';
 
@@ -94,5 +95,32 @@ describe('M04-UI-02/08 fieldError：服务端字段错误映射', () => {
   it('未列出的字段 → null', () => {
     expect(fieldError(problem, 'unknown_field')).toBeNull();
     expect(fieldError(null, 'title')).toBeNull();
+  });
+});
+
+describe('瞬态服务端错误判定（5xx/429 → Toast，不整页展示）', () => {
+  it('500/502/503/504 → 瞬态（internal_error 等服务器错误）', () => {
+    expect(isTransientProblem({ status: 500, code: 'internal_error' })).toBe(true);
+    expect(isTransientProblem({ status: 502 })).toBe(true);
+    expect(isTransientProblem({ status: 503, code: 'service_unavailable' })).toBe(true);
+    expect(isTransientProblem({ status: 504 })).toBe(true);
+  });
+
+  it('429（限流）→ 瞬态', () => {
+    expect(isTransientProblem({ status: 429, code: 'rate_limited' })).toBe(true);
+  });
+
+  it('401/403/404/409/422 等持续性错误 → 非瞬态（仍整页 ProblemState）', () => {
+    expect(isTransientProblem({ status: 401, code: 'authentication_required' })).toBe(false);
+    expect(isTransientProblem({ status: 403, code: 'forbidden' })).toBe(false);
+    expect(isTransientProblem({ status: 404, code: 'not_found' })).toBe(false);
+    expect(isTransientProblem({ status: 409, code: 'version_conflict' })).toBe(false);
+    expect(isTransientProblem({ status: 422, code: 'validation_failed' })).toBe(false);
+  });
+
+  it('无 status / null / undefined → 非瞬态', () => {
+    expect(isTransientProblem({})).toBe(false);
+    expect(isTransientProblem(null)).toBe(false);
+    expect(isTransientProblem(undefined)).toBe(false);
   });
 });

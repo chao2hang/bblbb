@@ -21,6 +21,12 @@
   }
 
   let activeTab = $state<'local' | 's3'>('local');
+
+  $effect(() => {
+    if (data.config?.backend === 's3') {
+      activeTab = 's3';
+    }
+  });
 </script>
 
 <svelte:head>
@@ -112,39 +118,155 @@
       <input type="hidden" name="managed_fields" value={(config?.managed_fields ?? []).join(',')} />
       <input type="hidden" name="backend" value={activeTab} />
 
-      <label>
-        <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">存储路径</span>
-        <input type="text" name="local_path" class="input-field" value={config?.local_path ?? '/data/bblbb/uploads'} disabled={managed('local_path')} style="width:100%;" />
-      </label>
+      <!-- 本地磁盘面板 -->
+      <div style={activeTab === 'local' ? 'display:flex;flex-direction:column;gap:12px;' : 'display:none;'}>
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">本地存储路径</span>
+          <input
+            type="text"
+            name="local_path"
+            class="input-field"
+            value={config?.local_path ?? '/data/bblbb/uploads'}
+            disabled={managed('local_path')}
+            style="width:100%;"
+          />
+          <span class="text-secondary" style="font-size:12px;margin-top:4px;display:block;">本地磁盘对象存储根目录，后端进程需具备读写权限。</span>
+        </label>
 
-      <label>
-        <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">单文件上限（MB）</span>
-        <input type="number" name="max_size_mb" class="input-field" value={Math.round((config?.upload_max_bytes ?? 20971520) / 1048576)} style="width:100%;" />
-      </label>
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">单文件上限（MB）</span>
+          <input
+            type="number"
+            name="max_size_mb"
+            class="input-field"
+            value={Math.round((config?.upload_max_bytes ?? 20971520) / 1048576)}
+            style="width:100%;"
+          />
+        </label>
+      </div>
 
-      <!-- S3 兼容字段（保证 SSR 测试断言存在，同时在界面按 tab 或收纳区可用） -->
+      <!-- S3 兼容字段（路径、密钥与服务端点） -->
       <div style={activeTab === 's3' ? 'display:flex;flex-direction:column;gap:12px;' : 'display:none;'}>
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">S3 Endpoint</span>
-          <input type="text" name="s3_endpoint" class="input-field" value={config?.s3_endpoint ?? ''} style="width:100%;" />
+          <input
+            type="text"
+            name="s3_endpoint"
+            class="input-field"
+            placeholder="https://s3.amazonaws.com 或 MinIO/OSS/COS 域名"
+            value={config?.s3_endpoint ?? ''}
+            disabled={managed('s3_endpoint')}
+            style="width:100%;"
+          />
         </label>
+
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">Bucket</span>
-          <input type="text" name="s3_bucket" class="input-field" value={config?.s3_bucket ?? ''} style="width:100%;" />
+          <input
+            type="text"
+            name="s3_bucket"
+            class="input-field"
+            placeholder="例如 bblbb-attachments"
+            value={config?.s3_bucket ?? ''}
+            disabled={managed('s3_bucket')}
+            style="width:100%;"
+          />
         </label>
+
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">访问路径 / 公网基准 URL</span>
+          <input
+            type="text"
+            name="s3_public_base_url"
+            class="input-field"
+            placeholder="https://cdn.example.com/uploads（留空默认使用 Endpoint 地址）"
+            value={config?.s3_public_base_url ?? ''}
+            disabled={managed('s3_public_base_url')}
+            style="width:100%;"
+          />
+          <span class="text-secondary" style="font-size:12px;margin-top:4px;display:block;">可配置 CDN 或反向代理的公网访问路径；留空时默认使用 Endpoint 地址。</span>
+        </label>
+
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">AccessKey ID（访问密钥）</span>
+          <input
+            type="text"
+            name="s3_access_key_id"
+            class="input-field"
+            placeholder="输入 AccessKey ID（留空保持不变）"
+            disabled={managed('s3_access_key_id')}
+            style="width:100%;"
+          />
+        </label>
+
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">Secret AccessKey（私有密钥）</span>
+          <input
+            type="password"
+            name="s3_secret_access_key"
+            class="input-field"
+            placeholder={config?.secret_configured ? '••••••••••（已配置，留空表示保持不变）' : '输入 Secret AccessKey'}
+            autocomplete="new-password"
+            disabled={managed('s3_secret_access_key')}
+            style="width:100%;"
+          />
+          <span class="text-secondary" style="font-size:12px;margin-top:4px;display:block;">已配置的 Secret 不回显；留空表示保持不变。</span>
+        </label>
+
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">Region</span>
-          <input type="text" name="s3_region" class="input-field" value={config?.s3_region ?? ''} disabled={managed('s3_region')} style="width:100%;" />
+          <input
+            type="text"
+            name="s3_region"
+            class="input-field"
+            placeholder="例如 ap-southeast-1 或 auto"
+            value={config?.s3_region ?? ''}
+            disabled={managed('s3_region')}
+            style="width:100%;"
+          />
         </label>
+
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
           <input type="checkbox" name="s3_path_style" checked={config?.s3_path_style ?? false} />
           <span>path-style 地址模式</span>
         </label>
+
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">签名 URL TTL（秒）</span>
-          <input type="number" name="signed_url_ttl_seconds" class="input-field" value={config?.signed_url_ttl_seconds ?? 300} style="width:100%;" />
+          <input
+            type="number"
+            name="signed_url_ttl_seconds"
+            class="input-field"
+            value={config?.signed_url_ttl_seconds ?? 300}
+            style="width:100%;"
+          />
+        </label>
+
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">单文件上限（MB）</span>
+          <input
+            type="number"
+            name="max_size_mb"
+            class="input-field"
+            value={Math.round((config?.upload_max_bytes ?? 20971520) / 1048576)}
+            style="width:100%;"
+          />
         </label>
       </div>
+
+      <label style="margin-top:4px;">
+        <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">
+          操作原因 <span class="text-secondary" style="font-weight:normal;">(必填，写入管理审计日志)</span>
+        </span>
+        <input
+          type="text"
+          name="reason"
+          class="input-field"
+          required
+          placeholder="例如：配置并验证 S3 存储桶凭据与路径"
+          style="width:100%;"
+        />
+      </label>
 
       <div style="display:flex;gap:10px;margin-top:10px;">
         <button

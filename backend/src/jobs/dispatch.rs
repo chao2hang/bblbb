@@ -35,14 +35,49 @@ pub async fn dispatch_job(pool: &DatabasePool, job: ClaimedJob) -> JobOutcome {
         }
         "account_deletion" => crate::users::deletion::handle_account_deletion(pool, &job).await,
         "email.deliver" => {
-            // 生产 SMTP 客户端尚未接入（M05-NOTIFY 交付了 enqueue/重试/死信/
-            // 日志脱敏与 trait 抽象，生产 SMTP 客户端待接入）。返回临时失败：
-            // 按退避重试，达到 max_attempts 后进入 dead-letter，可被
-            // `bblbb_jobs_dead` 指标与告警发现，绝不静默丢弃。
-            tracing::warn!(job_id = %job.id, "email.deliver job: SMTP sender not configured in worker mode");
-            JobOutcome::Failed {
-                class: RetryClass::Transient,
-                error: "email sender not configured in worker mode".to_owned(),
+            // 从数据库读取 SMTP 发信配置
+            let smtp_conf = match crate::email::service::load_smtp_config_from_db(pool).await {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!(job_id = %job.id, error = %e, "email.deliver job: failed to read smtp config from db");
+                    None
+                }
+            };
+
+            let (enabled, host_set) = match &smtp_conf {
+                Some(conf) => (conf.enabled, !conf.host.is_empty()),
+                None => (false, false),
+            };
+
+            if !enabled {
+                tracing::warn!(job_id = %job.id, "email.deliver job: SMTP is disabled in database site settings");
+                JobOutcome::Failed {
+                    class: RetryClass::Transient,
+                    error: "SMTP is disabled in database site settings".to_owned(),
+                }
+            } else if !host_set {
+                tracing::warn!(job_id = %job.id, "email.deliver job: SMTP host is not configured in database site settings");
+                JobOutcome::Failed {
+                    class: RetryClass::Transient,
+                    error: "SMTP host is empty in database site settings".to_owned(),
+                }
+            } else {
+                let conf = smtp_conf.as_ref().unwrap();
+                tracing::warn!(
+                    job_id = %job.id,
+                    host = %conf.host,
+                    port = conf.port,
+                    "email.deliver job: SMTP enabled in DB ({}:{}), network sender awaiting client transport",
+                    conf.host,
+                    conf.port
+                );
+                JobOutcome::Failed {
+                    class: RetryClass::Transient,
+                    error: format!(
+                        "SMTP configured for {}:{} but network transport is not initialized",
+                        conf.host, conf.port
+                    ),
+                }
             }
         }
         other => {

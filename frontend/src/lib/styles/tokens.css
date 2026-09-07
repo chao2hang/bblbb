@@ -237,3 +237,20 @@ html.dark {
     --shadow-header: 0 1px 0 rgba(1, 4, 9, 0.6), 0 5px 20px rgba(1, 4, 9, 0.22);
   }
 }
+
+/* ============================================================
+   主题 Token 投影映射：当处于主题预览或应用数据型主题时，
+   将安全的 --bb-* 自定义属性映射到全局语义变量。
+   ============================================================ */
+:root[data-theme-preview="true"],
+:root[data-theme-custom="true"],
+.theme-preview-scope {
+  --color-bg-page: var(--bb-color-background, #F5F3ED);
+  --color-bg-card: var(--bb-color-surface, #FFFEFB);
+  --color-text-primary: var(--bb-color-text, #17211F);
+  --color-text-secondary: var(--bb-color-muted, #53605B);
+  --color-brand: var(--bb-color-accent, #B23E2A);
+  --color-border: var(--bb-color-border, #D9D6CC);
+  --font-family-base: var(--bb-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --font-family-mono: var(--bb-font-mono, "SF Mono", monospace);
+}
