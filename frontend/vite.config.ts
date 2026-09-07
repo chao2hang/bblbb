@@ -10,6 +10,11 @@ import { defineConfig } from 'vite';
 const tlsCert = process.env.BBLBB_DEV_TLS_CERT;
 const tlsKey = process.env.BBLBB_DEV_TLS_KEY;
 
+// 自签名证书环境下，允许 Node.js SSR 内部请求信任该证书
+if (tlsCert && tlsKey && process.env.NODE_TLS_REJECT_UNAUTHORIZED === undefined) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 // /api 代理目标可用 E2E_API_TARGET 覆盖（视觉检测等多实例并行时避免与
 // 8080 上的既有后端冲突）；默认不变。
 const apiTarget = process.env.E2E_API_TARGET ?? 'http://127.0.0.1:8080';
