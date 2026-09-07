@@ -270,3 +270,8 @@ v1 目标为 WCAG 2.2 AA：
   axe 基线（serious/critical = P0）报告 artifact `tests/a11y/axe-report.json`；
   无 JS 浏览器跑公开阅读/注册/登录退化；记录 browser/viewport/locale/commit 于
   `tests/a11y/records.json`。详见 [`TESTING.md`](TESTING.md) §23。
+- **`__Host-` Cookie 与开发环境 HTTPS 规范（M02-SESSION-02 / M14-DEV-HTTPS）**：
+  - 会话与 CSRF Cookie 采用 `__Host-session` 与 `__Host-bblbb_csrf`，按标准必须携带 `Secure` 属性；
+  - **网络限制**：现代浏览器仅对 `localhost` 允许在 HTTP 下存储带 `Secure` 的 Cookie；通过 IP 地址（如 `10.10.10.10`、`192.168.*`）或非 localhost 域名访问时，明文 HTTP 会直接**静默丢弃 Cookie**，导致登录态无法建立；
+  - **开发环境支持**：`vite.config.ts` 自动检测 `dev/certs/dev.crt` 与 `dev/certs/dev.key`（或环境变量 `BBLBB_DEV_TLS_CERT`/`BBLBB_DEV_TLS_KEY`），命中时默认以 HTTPS 模式启动，并配置 Node.js SSR 内部请求信任开发自签证书；
+  - **启动命令**：前端 `npm run dev -- --host 0.0.0.0 --port 5173`（自动 HTTPS 监听）；后端 `BBLBB__BIND_ADDRESS=0.0.0.0:8080 cargo run`。

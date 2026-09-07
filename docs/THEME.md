@@ -10,11 +10,17 @@
   路由 `GET /api/v1/themes/active`、`GET/PUT /api/v1/me/preferences/theme`
   （If-Match revision + `private, no-store`）、`/api/v1/admin/themes*`
   （上传/默认/设置/删除，admin.manage + reason + recent-auth + 审计）。
+- **全站生效与实时预览（M13-THEME-08 / M18-ADMIN-THEMES）**：
+  - 根布局（`+layout.server.ts`）并行获取活跃主题并注入数据树；
+  - 根布局（`+layout.svelte`）监听活跃主题，自动调用 `applyThemeTokens()` 并设置 `data-theme-custom="true"`；
+  - 全局样式最后覆盖层（`chinese-elegance.css`）将 `data-theme-custom` 与 `data-theme-preview` 映射为高优先级 CSS 变量，确保背景、卡片、导航栏、侧边栏、按钮完全响应主题色彩变换；
+  - 管理后台提供悬浮全局实时预览条、UI 组件库效果展示弹窗（Showcase）及安全退出预览机制；
+  - 官方预置库完整收录 BBLBB 原生默认配色（经典赤墨与水墨青石），基准 Token 与品牌色一致。
 - **封闭 Token schema**：14 个已知 key（颜色/字体/圆角/密度/阴影/动效）；
   值级校验拒绝 CSS、HTML、JS、SVG、远程资源与任意 style 字符串；未知 key
   拒绝；资产路径只允许相对路径（无 `..`/绝对路径/URL）。
-- **Fallback**：主题不存在/不兼容/停用/损坏 → 回退内置 `default`（revision=1）
-  并记录非敏感告警；损坏主题自动标记 `corrupt`。
+- **Fallback 与重置机制**：主题不存在/不兼容/停用/损坏 → 回退内置 `default`（revision=1）
+  并记录非敏感告警；损坏主题自动标记 `corrupt`；设为默认目标为 `default` 时自动取消所有自定义主题的 `is_default` 标记。
 - **revision 一致性**：`themes.revision` 单调递增，SSR/浏览器/缓存/用户偏好
   共享同一 revision；主题变更即失效旧 ETag/偏好 If-Match。
 - **上传隔离态**：数据包上传 → disabled；管理员显式“设为默认”激活。
@@ -172,3 +178,48 @@ DELETE /api/v1/admin/themes/{name}               # 不能删除当前默认/内�
 - 可按用户保存已安装主题偏好。
 - 不支持在线安装 Svelte 代码。
 - 不支持主题自定义路由。
+
+## 10. 全站生效链路与前端设计系统桥接（M13-THEME-08 / M18-ADMIN-THEMES）
+
+### 10.1 全站生效链路（Root Layout + API）
+
+1. **服务端加载（SSR）**：`frontend/src/routes/+layout.server.ts` 在服务端并行调用 `GET /api/v1/themes/active`，将当前生效主题数据（用户偏好优先，站点默认次之，内置 `default` 兜底）注入根布局数据树（`data.activeTheme`）。
+2. **客户端投影（Hydration）**：`frontend/src/routes/+layout.svelte` 在浏览器端监听 `data.activeTheme` 变更，通过 `$lib/theme/projection.ts` 的 `applyThemeTokens()` 函数把安全 Token 写入 `document.documentElement` 的 CSS 自定义属性（`--bb-*`），并设置 `dataset.themeCustom = 'true'`。
+3. **安全过滤**：所有 Token 值在客户端应用前由 `safeTokenValue()` 进行白名单与特征校验，拒绝任何包含 `<`、`>`、`url(`、`@import` 等异常字符，确保 XSS 与外部资源隔离。
+
+### 10.2 全局实时预览与退出机制
+
+1. **管理后台实时预览**：在 `/admin/themes` 点击任何主题的「预览」，客户端调用 `previewThemeTokens(theme)`，将 Token 直接注入当前页面的 `document.documentElement`，并标记 `data-theme-preview="true"`。
+2. **悬浮状态条与 Showcase**：页面顶部浮现全局预览横条，支持一键打开「组件库效果展示 Showcase」查看真实导航栏、帖子卡片、按钮与排版渲染；支持一键「设为站点默认」或「退出预览」。
+3. **安全恢复**：点击「退出预览」或页面销毁时，系统调用 `clearThemeTokens()`，并精准恢复当前站点默认活跃主题，绝不残留未保存的临时色彩。
+
+### 10.3 官方原生默认配色与预置主题库
+
+系统预置库不仅提供视觉扩展主题，更完整收录了 BBLBB 的官方原生默认配色，确保管理员随时可查看、预览及切回原版：
+
+| 主题代号 | 主题名称 | 色彩基调 | 特征 |
+|---|---|---|---|
+| `default` / `bblbb-classic` | **BBLBB 经典赤墨（原版默认）** | 背景 `#f5f3ed`、卡片 `#fffefb`、文字 `#17211f`、强调色 `#b23e2a`（暖珊瑚红） | 官方原生基准视觉，底蕴沉稳，对比舒适 |
+| `chinese-elegance` | **水墨青石（中国风）** | 背景 `#f5f3ee`、卡片 `#fbfaf7`、文字 `#1f1d1a`、强调色 `#5a6c7d`（青石蓝） | 典雅素雅的宣纸水墨质感与青石灰蓝点缀 |
+| `midnight` | **暗夜极光** | 背景 `#0f172a`、卡片 `#1e293b`、文字 `#e2e8f0`、强调色 `#38bdf8`（天蓝） | 深蓝灰暗色主题，护眼沉浸 |
+| `paper` | **复古羊皮纸** | 背景 `#faf6ef`、卡片 `#ffffff`、文字 `#2c2c2c`、强调色 `#b23e2a` | 温暖复古书卷质感 |
+| `forest` | **翡翠森林** | 背景 `#f0f5f2`、卡片 `#ffffff`、文字 `#132a21`、强调色 `#0f756c`（墨绿） | 清新自然的森林与薄荷翡翠色系 |
+| `cyberpunk` | **赛博霓虹** | 背景 `#181126`、卡片 `#241b35`、文字 `#f3f0f7`、强调色 `#ec4899`（霓虹粉） | 深紫暗夜与高饱和潮酷碰撞 |
+
+### 10.4 CSS 变量最高优先级级联覆盖
+
+前端设计系统的终极覆盖层（`chinese-elegance.css`）在文件末尾定义了终极选择器：
+```css
+:root[data-theme-custom="true"],
+:root[data-theme-preview="true"],
+html[data-theme-custom="true"],
+html[data-theme-preview="true"] {
+  --color-bg-page: var(--bb-color-background) !important;
+  --color-bg-card: var(--bb-color-surface) !important;
+  --color-text-primary: var(--bb-color-text) !important;
+  --color-text-secondary: var(--bb-color-muted) !important;
+  --color-brand: var(--bb-color-accent) !important;
+  --color-border: var(--bb-color-border) !important;
+}
+```
+结合对 `body`、`.app-card`、`.app-navbar`、`.app-side`、`.btn.primary` 的变量映射，保证主题激活时全站每个角落均能彻底、一致地响应色彩变换。
