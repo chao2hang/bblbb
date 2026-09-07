@@ -1,3 +1,48 @@
+## v1.0.0-rc.5 — 2026-09-07（MFA 注册二维码与 /me 页排版重构）
+
+> 基线 commit `f7fbe8c`（feat/prototype-pages）。rc.4（含其文档 + 测试
+> 交付）之后的增量：纯前端变更，无新增迁移（仍为 `1..63`）、无契约变化
+> （223 operations 不变）、无后端变更；发布顺序仅前端（`frontend` 重新
+> 构建部署即可）。
+
+### M18-MFA-01 验收缺口修复：注册二维码
+
+- TOTP 注册流程原先只展示 Base32 密钥与 otpauth 链接，与验收标准
+  「二维码（TOTP secret）」不符。现由服务端（`+page.server.ts`）从后端
+  返回的 `otpauth_uri` 生成二维码 SVG data URL（新增依赖 `qrcode`，走
+  `lib/browser` 纯字符串渲染，无 canvas 依赖），页面以 `<img>` 渲染——
+  不使用 `{@html}`（M04-MARKDOWN-08 HTML sink 政策，
+  `check-html-sinks.rb` 保持通过），SSR/无 JS 基线即渲染二维码，
+  手机可直接扫码。
+- 注册流程改为两步结构：① 认证器扫描二维码 ② 输入 6 位动态验证码
+  确认；密钥录入降级为 `<details>` 折叠项（可选中 secret + otpauth
+  链接），二维码生成失败（返回 null）自动显示手工录入提示。
+- `/mfa` 独立页与 `/me` 的 MFA 卡同步落地；新增
+  `frontend/src/lib/mfa/otpauth-qr.ts`（含单测）与
+  `frontend/src/types/qrcode-browser.d.ts`（qrcode 最小类型声明）。
+
+### /me 页排版重构
+
+- 账号卡下方新增 app-toolbar 快捷导航（对齐原型 me.html）：两步验证
+  （`/mfa`）、登录设备（页内锚点 `#sessions`）、通知设置、OAuth
+  授权；安全卡增加 `scroll-margin-top` 锚点滚定位。
+- 主栏归组：账号信息 + 登录设备管理 + 两步验证（MFA）；侧栏保留账户
+  卡 + 快捷操作 + 快捷入口。
+- 快捷入口图标化（2×3 图标网格，原 `icon` 字段定义了但未渲染）；
+  快捷操作去掉与「编辑资料」重复的「账号设置」按钮；操作错误提示从
+  设备卡/MFA 卡两处收敛为页顶展示一次。
+
+### 验证
+
+- 前端 `npx vitest run` → 92 文件 616 用例全过（新增
+  `otpauth-qr.test.ts`、`mfa-nojs.test.ts`，更新 `me-nojs.test.ts` /
+  `action.test.ts` 断言二维码输出与降级）
+- `npm run check`（svelte-check）→ 0 错误
+- `ruby scripts/check-html-sinks.rb` → 通过（新代码无 `{@html}`）
+- `npm run build` → 通过（SSR 包正确外部化 `qrcode/lib/browser`）
+
+---
+
 ## v1.0.0-rc.4 — 2026-09-05（插件编写指南与文档↔代码一致性测试）
 
 > 基线 commit `d234486`（feat/prototype-pages）。rc.3 之后的增量：纯文档 +
