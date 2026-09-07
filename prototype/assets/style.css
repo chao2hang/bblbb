@@ -53,7 +53,7 @@ html[data-theme="dark"]{
   --qr-dark:#E8ECF2;--toast-bg:#33405A;--backdrop:rgba(15,19,26,.45);--wordmark:#E8E8E8
 }
 html{scrollbar-gutter:stable}@supports not (scrollbar-gutter:stable){html{overflow-y:scroll}}
-*{box-sizing:border-box}[hidden]{display:none!important}.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}[hidden]{display:none!important}.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 body{margin:0;background:var(--color-bg-page);color:var(--color-text-primary);font:var(--text-base)/22px var(--font-family-base)}
 :focus-visible{outline:2px solid var(--color-brand);outline-offset:2px}
 button{font:inherit}

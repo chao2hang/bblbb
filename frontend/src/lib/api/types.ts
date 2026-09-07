@@ -1707,5 +1707,9 @@ export interface BroadcastItem {
   title: string;
   body: string;
   target_count: number;
+  target_type?: string;
+  sender_username?: string;
+  recalled?: boolean;
+  recalled_at?: number | null;
   created_at: number;
 }

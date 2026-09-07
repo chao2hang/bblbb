@@ -2,6 +2,7 @@
   // M18-ADMIN-DOWNLOAD-BILLING：下载计费管理页（对齐原型 #admin-download-billing）。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminDownloadBillingActionData, AdminDownloadBillingPageData } from './+page.server';
 
@@ -9,18 +10,33 @@
 
   const message = $derived(form?.message ?? null);
 
-  const mockRecords = [
-    { id: 'DL-8822', filename: 'architecture.pdf', user: 'Alice', size: '2.4 MB' },
-    { id: 'DL-8821', filename: 'demo.zip', user: 'Mark', size: '8.1 MB' },
-    { id: 'DL-8820', filename: 'cover.webp', user: 'Nina', size: '0.6 MB' }
+  const fallbackRecords = [
+    { id: 'DL-8822', filename: 'architecture.pdf', user: 'Alice', size: '10 积分', created_at: 0 },
+    { id: 'DL-8821', filename: 'demo.zip', user: 'Mark', size: '20 积分', created_at: 0 },
+    { id: 'DL-8820', filename: 'cover.webp', user: 'Nina', size: '5 积分', created_at: 0 }
   ];
+
+  const recordsList = $derived.by(() => {
+    const raw = data.transactions?.items;
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.map((r) => ({
+        id: r.id,
+        filename: r.filename,
+        user: r.username,
+        size: `${r.amount} 积分`,
+        created_at: r.created_at
+      }));
+    }
+    return fallbackRecords;
+  });
 
   let q = $state('');
   let statusFilter = $state('');
   let selectedIds = $state<string[]>([]);
+  let refreshing = $state(false);
 
   const displayedRecords = $derived.by(() => {
-    let list = mockRecords;
+    let list = recordsList;
     if (q.trim()) {
       const kw = q.trim().toLowerCase();
       list = list.filter((r) => r.filename.toLowerCase().includes(kw) || r.user.toLowerCase().includes(kw) || r.id.toLowerCase().includes(kw));
@@ -39,6 +55,29 @@
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
     else selectedIds = [...selectedIds, id];
   }
+
+  async function refreshRecords() {
+    refreshing = true;
+    try {
+      await invalidateAll();
+      showToast('下载记录已刷新', 'success');
+    } catch {
+      showToast('刷新失败，请重试', 'danger');
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  function exportBilling() {
+    const blob = new Blob([JSON.stringify(displayedRecords, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `download-billing-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('账单记录已导出为 JSON', 'success');
+  }
 </script>
 
 <svelte:head>
@@ -54,11 +93,13 @@
   </header>
   <div class="app-card__body">
     {#if message}
-      <div class="alert alert-info" role="status" style="margin-bottom:12px;">{message}</div>
+      <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
+        {message}
+      </div>
     {/if}
     <form method="POST" action="?/save" use:enhance style="display:flex;flex-direction:column;gap:14px;max-width:560px;">
       <input type="hidden" name="mode" value="fixed" />
-      <input type="hidden" name="reason" value="更新计费策略" />
+      <input type="hidden" name="reason" value="管理员在后台更新下载计费策略" />
 
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
         <input type="checkbox" name="is_enabled" checked={data.config?.is_enabled ?? true} />
@@ -154,7 +195,7 @@
             <th>单号</th>
             <th>文件</th>
             <th>用户</th>
-            <th>大小</th>
+            <th>扣费金额</th>
           </tr>
         </thead>
         <tbody>
@@ -173,7 +214,7 @@
               </td>
               <td>{record.filename}</td>
               <td>{record.user}</td>
-              <td>{record.size}</td>
+              <td><b>{record.size}</b></td>
             </tr>
           {/each}
         </tbody>
@@ -181,11 +222,11 @@
     </div>
 
     <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
-      <button type="button" class="btn secondary sm" onclick={() => showToast('账单已导出', 'success')}>
+      <button type="button" class="btn secondary sm" onclick={exportBilling}>
         导出账单
       </button>
-      <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" onclick={() => showToast('记录已刷新', 'success')}>
-        刷新记录
+      <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" disabled={refreshing} onclick={refreshRecords}>
+        {refreshing ? '刷新中…' : '刷新记录'}
       </button>
     </footer>
   </div>

@@ -2,6 +2,7 @@
   // M10-UI-06 & M18-ADMIN-VIDEO：管理端视频配置（对齐原型转码队列与白名单，兼顾 Provider 策略测试断言）。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import { show as showToast } from '$lib/ui/toast';
   import { videoProviderLabel } from '$lib/video/labels';
@@ -23,9 +24,10 @@
   let q = $state('');
   let statusFilter = $state('');
   let selectedIds = $state<string[]>([]);
+  let refreshing = $state(false);
 
   let enableEmbed = $state(true);
-  let domainWhitelist = $state('youtube.com, bilibili.com');
+  let domainWhitelist = $state('youtube.com, bilibili.com, v.qq.com, youku.com');
   let strictMode = $state('strict');
   let fallbackMode = $state('safe_link');
 
@@ -48,6 +50,29 @@
   function toggleRow(id: string) {
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x: string) => x !== id);
     else selectedIds = [...selectedIds, id];
+  }
+
+  async function handleRefreshQueue() {
+    refreshing = true;
+    try {
+      await invalidateAll();
+      showToast('转码队列状态已刷新', 'success');
+    } catch {
+      showToast('刷新失败', 'danger');
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  function exportTasks() {
+    const blob = new Blob([JSON.stringify(displayedTasks, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `video-tasks-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('任务清单已导出为 JSON', 'success');
   }
 </script>
 
@@ -76,6 +101,12 @@
     </div>
   {/if}
 
+  {#if form?.message}
+    <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
+      {form.message}
+    </div>
+  {/if}
+
   <!-- 卡片 1：转码队列（原型同款表格） -->
   <section class="app-card" style="margin-bottom:14px;">
     <header class="app-card__head">
@@ -100,7 +131,8 @@
           >
             <option value="">全部状态</option>
             <option value="completed">已完成</option>
-            <option value="processing">处理中</option>
+            <option value="processing">转码中</option>
+            <option value="failed">失败</option>
           </select>
           {#if q || statusFilter}
             <button type="button" class="btn ghost sm" onclick={() => { q = ''; statusFilter = ''; }}>
@@ -118,7 +150,7 @@
       {/if}
 
       <div class="app-table-wrap">
-        <table class="app-table" aria-label="转码队列">
+        <table class="app-table" aria-label="转码任务列表">
           <thead>
             <tr>
               <th style="width:40px;text-align:center;">
@@ -129,9 +161,10 @@
                   aria-label="全选当前列表"
                 />
               </th>
-              <th>任务号</th>
-              <th>来源</th>
-              <th>大小</th>
+              <th>任务 ID</th>
+              <th>视频来源</th>
+              <th>文件大小</th>
+              <th>状态</th>
             </tr>
           </thead>
           <tbody>
@@ -150,6 +183,11 @@
                 </td>
                 <td>{task.source}</td>
                 <td>{task.size}</td>
+                <td>
+                  <span class="sbadge {task.status === 'completed' ? 'sb-success' : task.status === 'processing' ? 'sb-warning' : 'sb-gray'}">
+                    {task.status === 'completed' ? '已转码' : task.status === 'processing' ? '处理中' : '排队中'}
+                  </span>
+                </td>
               </tr>
             {/each}
           </tbody>
@@ -157,10 +195,10 @@
       </div>
 
       <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
-        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" onclick={() => showToast('队列已刷新', 'success')}>
-          刷新队列
+        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" disabled={refreshing} onclick={handleRefreshQueue}>
+          {refreshing ? '刷新中…' : '刷新队列'}
         </button>
-        <button type="button" class="btn secondary sm" onclick={() => showToast('任务清单已导出', 'success')}>
+        <button type="button" class="btn secondary sm" onclick={exportTasks}>
           导出任务
         </button>
       </footer>
@@ -181,13 +219,13 @@
 
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">域名白名单（逗号分隔）</span>
-          <input type="text" class="input-field" bind:value={domainWhitelist} style="width:100%;" />
+          <input type="text" name="domain_whitelist" class="input-field" bind:value={domainWhitelist} style="width:100%;" />
         </label>
 
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">严格模式</span>
           <select class="app-select" bind:value={strictMode} style="width:100%;">
-            <option value="strict">严格模式</option>
+            <option value="strict">严格模式（仅允许完全匹配白名单）</option>
             <option value="loose">宽松模式</option>
           </select>
         </label>
@@ -202,7 +240,7 @@
         </label>
 
         <div>
-          <Button text="保存白名单" variant="primary" type="button" onclick={() => showToast('白名单策略已保存', 'success')} />
+          <button type="submit" class="btn primary">保存白名单</button>
         </div>
       </form>
     </div>

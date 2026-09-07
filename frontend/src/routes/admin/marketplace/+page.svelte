@@ -72,6 +72,24 @@
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
     else selectedIds = [...selectedIds, id];
   }
+
+  function exportMarketplaceData() {
+    const dataToExport = {
+      clients: items,
+      offers: data.offers && 'items' in data.offers ? data.offers.items : [],
+      deliveries: data.deliveries && 'items' in data.deliveries ? data.deliveries.items : [],
+      balances: data.balances ?? [],
+      exported_at: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `marketplace-data-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('市场数据已导出为 JSON', 'success');
+  }
 </script>
 
 <svelte:head>
@@ -217,15 +235,26 @@
       </div>
 
       <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-        <button type="button" class="btn secondary sm" onclick={() => showToast('对账任务已启动', 'success')}>
-          开始对账
-        </button>
-        <a class="text-link" style="font-size:12px;" href="/admin/marketplace" onclick={() => showToast('交易清单已导出', 'success')}>
+        <form method="POST" action="?/runReconciliationAll" use:enhance style="margin:0;display:inline;">
+          <input type="hidden" name="reason" value="管理员在控制台触发全站商户例行对账" />
+          <button type="submit" class="btn secondary sm">开始对账</button>
+        </form>
+        <button type="button" class="btn secondary sm" onclick={exportMarketplaceData}>
           导出交易
-        </a>
-        <button type="button" class="btn secondary sm" style="font-weight:700;" onclick={() => showToast('紧急开关已就绪', 'info')}>
-          紧急禁用
         </button>
+        {#if items.length > 0}
+          <form method="POST" action="?/emergencyDisable" use:enhance style="margin:0;display:inline;">
+            <input type="hidden" name="client_id" value={items[0]?.id} />
+            <input type="hidden" name="reason" value="管理员在控制台触发紧急停用保护" />
+            <button type="submit" class="btn danger sm" style="font-weight:700;">
+              紧急停用
+            </button>
+          </form>
+        {:else}
+          <button type="button" class="btn secondary sm" style="font-weight:700;" onclick={() => showToast('当前暂无可停用商户', 'info')}>
+            紧急停用
+          </button>
+        {/if}
       </footer>
     </div>
   </section>

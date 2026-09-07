@@ -256,6 +256,14 @@
     showToast('已恢复为当前已保存配置', 'info');
   }
 
+  function resetLocalSettings() {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('bblbb-theme');
+    }
+    restoreDefaults();
+    showToast('已重置未保存表单，并刷新至已持久化配置', 'success');
+  }
+
   /** 导出当前表单配置为 JSON（含未保存更改；原型 data-sys-export 的生产落地）。 */
   function exportConfig() {
     const payload = {
@@ -679,8 +687,8 @@
         <button type="button" class="text-link" style="font-size:13px;background:none;border:none;cursor:pointer;" onclick={exportConfig}>
           导出当前配置
         </button>
-        <button type="button" class="btn secondary sm" onclick={() => showToast('本地演示数据已重置', 'success')}>
-          重置演示数据
+        <button type="button" class="btn secondary sm" onclick={resetLocalSettings}>
+          重置并清本地缓存
         </button>
       </div>
     </div>

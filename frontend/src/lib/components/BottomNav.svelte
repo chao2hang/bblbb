@@ -28,8 +28,19 @@
     { label: '消息', href: '/messages', icon: 'mail' },
     { label: '我的', href: '/me', icon: 'user' }
   ];
+
+  // 独立认证流程（登录/注册/密码重置/邮箱验证）在手机端为单页流，不展示底部导航
+  const isAuthPage = $derived(
+    path === '/login' ||
+    path.startsWith('/login/') ||
+    path === '/register' ||
+    path.startsWith('/register/') ||
+    path.startsWith('/password-reset') ||
+    path.startsWith('/verify-email')
+  );
 </script>
 
+{#if !isAuthPage}
 <nav class="bottom-nav" aria-label="移动端底部导航">
   {#each leftTabs as tab (tab.href)}
     <a href={tab.href} class="bottom-nav-item" aria-current={isActive(tab.href) ? 'page' : undefined}>
@@ -49,6 +60,7 @@
     </a>
   {/each}
 </nav>
+{/if}
 
 <style>
   /* 原型 chinese-elegance：.bottom-nav 为不透明卡片底 + 1px 实上边 +
@@ -130,6 +142,11 @@
   @media (max-width: 767px) {
     .bottom-nav {
       display: flex;
+    }
+    :global(body:has(#page-login)) .bottom-nav,
+    :global(body:has(#page-register)) .bottom-nav,
+    :global(body:has(.auth-wrapper)) .bottom-nav {
+      display: none !important;
     }
   }
 

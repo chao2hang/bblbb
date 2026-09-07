@@ -6,6 +6,7 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 * {
@@ -148,7 +149,6 @@ samp {
 :focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 /* ---- Scrollbar (subtle, WebKit) ---- */
