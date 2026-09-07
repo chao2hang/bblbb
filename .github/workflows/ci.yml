@@ -67,6 +67,11 @@ jobs:
   rust:
     name: Rust checks
     runs-on: ubuntu-latest
+    env:
+      # sccache 默认缓存上限 10GiB，runner 总磁盘仅 14GB：clippy 阶段即可写满
+      # 导致后续 cargo test codegen 阶段 No space left on device。压到 4GiB
+      # 仍保留跨 run 命中收益（AGENTS.md §3.4，仅改缓存容量，不删缓存步骤）。
+      SCCACHE_CACHE_SIZE: 4GiB
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -104,7 +109,7 @@ jobs:
           path: target
           key: cargo-target-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-target-${{ runner.os }}-
-      - name: Check Rust workspace
+      - name: Check Rust workspace (fmt + clippy)
         if: ${{ hashFiles('Cargo.toml') != '' }}
         env:
           RUSTC_WRAPPER: sccache
@@ -112,8 +117,35 @@ jobs:
         run: |
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets --all-features -- -D warnings
-          cargo test --workspace --all-features
-      - name: Check Rust backend
+      # 与 backend 变体相同：分批复用 rlib，限制磁盘占用（见 [profile.test]）。
+      - name: Test Rust workspace (chunked for bounded disk)
+        if: ${{ hashFiles('Cargo.toml') != '' }}
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_IDLE_TIMEOUT: "0"
+        run: |
+          set -euo pipefail
+          mapfile -t TESTS < <(cargo metadata --format-version 1 --no-deps -q | jq -r '.workspace_members[] as $w | .packages[] | select(.id == $w) | .targets[] | select(.kind | index("test")) | .name')
+          total=${#TESTS[@]}
+          chunk=40
+          i=0
+          while [ "$i" -lt "$total" ]; do
+            args=()
+            batch=()
+            for ((k = i; k < i + chunk && k < total; k++)); do
+              args+=(--test "${TESTS[k]}")
+              batch+=("${TESTS[k]}")
+            done
+            echo "::group::test batch ($(($i + 1))..$((i + ${#batch[@]}))/$total)"
+            cargo test "${args[@]}" --all-features
+            for t in "${batch[@]}"; do
+              find "${CARGO_TARGET_DIR:-target}/debug/deps" -maxdepth 1 -type f -executable -name "${t}-*" -size +1M -delete
+            done
+            echo "::endgroup::"
+            i=$((i + chunk))
+          done
+          cargo test --lib --bins --all-features
+      - name: Check Rust backend (fmt + clippy)
         if: ${{ hashFiles('Cargo.toml') == '' && hashFiles('backend/Cargo.toml') != '' }}
         working-directory: backend
         env:
@@ -122,7 +154,39 @@ jobs:
         run: |
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets --all-features -- -D warnings
-          cargo test --workspace --all-features
+      # runner 14GB 磁盘装不下 clippy rmeta + rlib + 148 个测试可执行文件
+      # （每个静态链接整棵依赖树，见 Cargo.toml [profile.test] 注释）。
+      # 测试 target 分 4 批运行，每批结束删除本批可执行文件（rlib/rmeta
+      # 共享保留，下一批复用），lib/bins 单元测试单独跑。
+      - name: Test Rust workspace (chunked for bounded disk)
+        if: ${{ hashFiles('Cargo.toml') == '' && hashFiles('backend/Cargo.toml') != '' }}
+        working-directory: backend
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_IDLE_TIMEOUT: "0"
+        run: |
+          set -euo pipefail
+          mapfile -t TESTS < <(cargo metadata --format-version 1 --no-deps -q | jq -r '.workspace_members[] as $w | .packages[] | select(.id == $w) | .targets[] | select(.kind | index("test")) | .name')
+          total=${#TESTS[@]}
+          chunk=40
+          i=0
+          while [ "$i" -lt "$total" ]; do
+            args=()
+            batch=()
+            for ((k = i; k < i + chunk && k < total; k++)); do
+              args+=(--test "${TESTS[k]}")
+              batch+=("${TESTS[k]}")
+            done
+            echo "::group::test batch ($(($i + 1))..$((i + ${#batch[@]}))/$total)"
+            cargo test "${args[@]}" --all-features
+            # 只删本批测试可执行文件（按 target 名精确匹配，保留 rlib/rmeta/.so）
+            for t in "${batch[@]}"; do
+              find "${CARGO_TARGET_DIR:-target}/debug/deps" -maxdepth 1 -type f -executable -name "${t}-*" -size +1M -delete
+            done
+            echo "::endgroup::"
+            i=$((i + chunk))
+          done
+          cargo test --lib --bins --all-features
       - name: Note absent Rust project
         if: ${{ hashFiles('Cargo.toml', 'backend/Cargo.toml') == '' }}
         run: echo 'Rust project is not present yet; checks will activate when Cargo.toml is added.'

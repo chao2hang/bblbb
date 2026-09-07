@@ -190,3 +190,11 @@ path = "tests/economy/step_injection.rs"
 [profile.dev]
 # 只保留行号表，不生成完整 DWARF；测试二进制体积可缩 5-10 倍，backtrace 仍可用
 debug = 1
+
+[profile.test]
+# CI（GitHub runner 14GB 磁盘）上 cargo test --workspace --all-features 会全量
+# codegen 148 个测试可执行文件，每个静态链接整棵依赖树（实测 ~175MB/个，
+# 合计 ~33GB），叠加 clippy rmeta/rlib 后超出磁盘。strip debuginfo 将单个
+# 可执行文件缩到 ~1/2-1/3（backtrace 符号保留、行号丢失；测试断言自带
+# 消息，可接受）。本地（/data 共享目录）不受影响，产物同步变小。
+strip = "debuginfo"

@@ -317,14 +317,8 @@ async fn admin_settings_get_patch_optimistic_lock() {
     assert_eq!(status, StatusCode::OK, "GET 设置必须 200: {body}");
     assert_eq!(body["version"].as_i64().unwrap(), 1);
     // 0061 种子默认值：open_registration=1 / anonymous_replies=0。
-    assert_eq!(
-        body["settings"]["open_registration"].as_bool().unwrap(),
-        true
-    );
-    assert_eq!(
-        body["settings"]["anonymous_replies"].as_bool().unwrap(),
-        false
-    );
+    assert!(body["settings"]["open_registration"].as_bool().unwrap());
+    assert!(!body["settings"]["anonymous_replies"].as_bool().unwrap());
     assert_eq!(body["settings"]["site_name"].as_str().unwrap(), "BBLBB");
     // 0063 种子默认值：public_source = 原型默认公开源。
     assert_eq!(
@@ -399,9 +393,8 @@ async fn admin_settings_get_patch_optimistic_lock() {
     .await;
     assert_eq!(status, StatusCode::OK, "PATCH 设置必须 200: {body}");
     assert_eq!(body["version"].as_i64().unwrap(), 2, "版本必须 +1: {body}");
-    assert_eq!(
-        body["settings"]["open_registration"].as_bool().unwrap(),
-        false,
+    assert!(
+        !body["settings"]["open_registration"].as_bool().unwrap(),
         "设置必须生效: {body}"
     );
     assert_eq!(
@@ -440,10 +433,7 @@ async fn admin_settings_get_patch_optimistic_lock() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["version"].as_i64().unwrap(), 2);
-    assert_eq!(
-        body["settings"]["open_registration"].as_bool().unwrap(),
-        false
-    );
+    assert!(!body["settings"]["open_registration"].as_bool().unwrap());
     let audit = count(
         &pool,
         "SELECT COUNT(*) FROM audit_logs WHERE action = 'admin.settings.update'",
@@ -713,11 +703,7 @@ async fn admin_posts_list_and_actions_flow() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "feature 必须 200: {body}");
-    assert_eq!(
-        body["is_featured"].as_bool().unwrap(),
-        true,
-        "精华标记: {body}"
-    );
+    assert!(body["is_featured"].as_bool().unwrap(), "精华标记: {body}");
 
     // pin → is_pinned=true（pinned 列）。
     let (status, body) = authed(
@@ -731,11 +717,7 @@ async fn admin_posts_list_and_actions_flow() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "pin 必须 200: {body}");
-    assert_eq!(
-        body["is_pinned"].as_bool().unwrap(),
-        true,
-        "置顶标记: {body}"
-    );
+    assert!(body["is_pinned"].as_bool().unwrap(), "置顶标记: {body}");
 
     // hide → status=hidden。
     let (status, body) = authed(
@@ -1110,9 +1092,8 @@ async fn audit_logs_keyset_pagination() {
     assert_eq!(status, StatusCode::OK, "审计列表必须 200: {body}");
     let page1 = body["items"].as_array().unwrap().clone();
     assert_eq!(page1.len(), 2, "limit=2 必须返回 2 条: {body}");
-    assert_eq!(
-        body["next_cursor"].as_str().unwrap_or("").is_empty(),
-        false,
+    assert!(
+        !body["next_cursor"].as_str().unwrap_or("").is_empty(),
         "必须有下一页游标"
     );
     let cursor1 = body["next_cursor"].as_str().unwrap().to_string();
