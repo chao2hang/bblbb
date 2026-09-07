@@ -1,3 +1,81 @@
+## v1.0.0-rc.6 — 2026-09-07（CI 管线修复：runner 构建环境、clippy 1.98 适配与磁盘占用限制）
+
+> 基线 commit `16b4e59`（main）。rc.5 之后的增量：**无任何运行时行为
+> 变化**——无新增迁移（仍为 `1..63`）、无契约变化（223 operations
+> 不变）、无前端变更；本次交付全部是 CI 管线与构建配置修复。目标：
+> 结束自 PR #8 起 CI 全红的状态，让 main 首次通过完整 CI（已达成，
+> main run 34084293347 全 6 job 绿）。无独立发布要求；若出包，随 rc.5/
+> rc.3 内容一并沿用既有顺序（后端迁移 → backend → worker → frontend）。
+
+### CI 构建环境（PR #14）
+
+- `backend/.cargo/config.toml` 按 AGENTS.md §3.1 把 target-dir 固定为
+  开发机路径 `/data/cargo-target/bblbb`，GitHub runner 无权创建 `/data`
+  → `Permission denied`。ci / nightly / release-rc 增加 workflow 级
+  `CARGO_TARGET_DIR=${{ github.workspace }}/target`（Cargo 环境变量
+  优先于 config 文件，已验证）+ 各 cargo job 的 target-dir 缓存
+  （key 覆盖 `Cargo.lock`）；既有 sccache / registry / git 缓存步骤
+  全部保留（AGENTS.md §3.4），本地开发行为不受影响。
+- 跨库迁移测试（MySQL 8 / MariaDB 10.11）：workflow 用 `mysql` CLI
+  直灌迁移 SQL（不写 `schema_migrations` 状态表），测试二进制再用
+  应用内置 `run_migrations`（按状态表判断 pending）重复建表 →
+  `1050 Table 'users' already exists`。新增「Reset schema」步骤
+  （skeleton 校验后 `DROP/CREATE SCHEMA bblbb`），首个测试二进制
+  自建 schema 并写入状态表，后续二进制幂等跳过（6 个测试二进制均
+  已逐一核对为幂等模式）。
+- `cargo fmt --check` 既有违规 3 文件 6 处（economy/activity/
+  service.rs、plugins/mod.rs、routes/auth.rs）——纯换行修复。
+
+### clippy 1.98 适配（PR #14 / #15）
+
+CI 的 `dtolnay/rust-toolchain@stable` 漂移到 1.98.0（本地 1.97.1），
+`-D warnings` 下暴露既有代码问题：
+
+- `result_large_err` ×347：AppError（axum 统一错误枚举，含 sqlx
+  错误等大值变体）≥160B。逐点 Box 化需改全部路由签名，crate 级
+  `#![allow(clippy::result_large_err)]`（`lib.rs`，注释说明理由；
+  1.97 下该 allow 为无害冗余，两种工具链一致）。
+- `inconsistent_digit_grouping` ×6：`3600_000`（4|3 分组）→
+  `3_600_000`（economy/activity/service.rs ×4、tests/economy_ext.rs
+  ×2）。
+- `unused_variables` ×2：tests/economy_ext.rs 预置标签 `tag_a/
+  tag_b` → `_tag_a/_tag_b`（6e0e0a1 引入；本地 check 目标不含
+  `--all-targets` 故从未暴露）。
+- `bool_assert_comparison` ×7：tests/admin_ext.rs 的
+  `assert_eq!(bool, true/false)` → `assert!`/`assert!(!)`（保留
+  自定义消息；本地实跑 10 passed 验证语义不变）。
+
+### runner 磁盘占用限制（PR #15）
+
+`cargo test --workspace --all-features` 全量 codegen 148 个测试可
+执行文件（每个静态链接整棵依赖树，实测 ~175MB/个、合计 ~33GB），
+叠加 clippy rmeta/rlib 与 sccache 默认 10GiB 缓存后超出 runner
+14GB 磁盘。三处配合（均加性，不删任何缓存步骤）：
+
+- `backend/Cargo.toml` `[profile.test] strip = "debuginfo"`：测试
+  可执行文件缩到 ~1/2-1/3（backtrace 符号保留；仅影响 `cargo
+  test`，release 构建与本地开发不受影响）。
+- ci.yml rust job：Check 步骤拆为 fmt+clippy 与测试两步；测试按
+  `cargo metadata` 的 target 清单分 4 批（40/批）运行，每批结束按
+  target 名精确删除本批可执行文件（rlib/rmeta 共享保留、.so 不碰），
+  lib/bins 单元测试单独跑。
+- `SCCACHE_CACHE_SIZE: 4GiB`（ci rust job + nightly fault-injection）。
+
+### 验证
+
+- **main CI run 34084293347 全 6 job 绿**（Rust checks 20m20s：
+  fmt → clippy 1.98 → 分 4 批 148 个测试 target 全 passed；MySQL 8 /
+  MariaDB 10.11 / SQLite 迁移、前端、契约全过）——CI 自 PR #8 起
+  首次全绿
+- PR #15 run 34083003294（commit 9c7a940）全 6 job 绿
+- 本地 `cargo clippy --workspace --all-targets --all-features -- -D
+  warnings` exit 0；`cargo test --workspace --all-features` exit 0
+  （160+ target 全过）；`cargo fmt --check` 干净
+- 本地 chunk 机制演练：3 target/2 批全 passed，批后可执行文件确认
+  删除；ci/nightly YAML 解析通过；Cargo.toml `cargo metadata` 有效
+
+---
+
 ## v1.0.0-rc.5 — 2026-09-07（MFA 注册二维码与 /me 页排版重构）
 
 > 基线 commit `f7fbe8c`（feat/prototype-pages）。rc.4（含其文档 + 测试
