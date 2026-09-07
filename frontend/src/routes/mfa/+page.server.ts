@@ -3,10 +3,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedDelete, authedPost, getAuthed, SESSION_COOKIE } from '$lib/api/server';
+import { otpauthQrDataUrl } from '$lib/mfa/otpauth-qr';
 import type { User } from '$lib/api/types';
 
 export type MfaStep =
-  | { kind: 'enroll-challenge'; otpauth_uri: string; secret_base32: string }
+  | { kind: 'enroll-challenge'; otpauth_uri: string; secret_base32: string; qr_data_url: string | null }
   | { kind: 'enroll-confirmed' }
   | { kind: 'recovery-codes'; codes: string[] }
   | { kind: 'disabled' };
@@ -46,11 +47,15 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
+        // M18-MFA-01：注册二维码由服务端从 otpauth_uri 生成（SVG data URL，
+        // 页面 <img> 渲染，SSR/无 JS 可直接扫码）；失败 null → 页面手工录入降级。
+        const qrDataUrl = await otpauthQrDataUrl(result.data.otpauth_uri);
         return {
           mfa: {
             kind: 'enroll-challenge',
             otpauth_uri: result.data.otpauth_uri,
-            secret_base32: result.data.secret_base32
+            secret_base32: result.data.secret_base32,
+            qr_data_url: qrDataUrl
           }
         } satisfies MfaActionData;
       }

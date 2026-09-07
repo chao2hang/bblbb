@@ -133,17 +133,18 @@ describe('logoutall action（退出全部设备）', () => {
 });
 
 describe('mfa-enroll / mfa-confirm / mfa-cancel（TOTP enrollment）', () => {
-  it('enroll 成功 → enroll-challenge（含 otpauth + secret）', async () => {
+  it('enroll 成功 → enroll-challenge（含 otpauth + secret + 二维码 data URL）', async () => {
     authedPostMock.mockResolvedValueOnce({
       ok: true,
       data: { otpauth_uri: 'otpauth://totp/BBLBB:alice@example.com', secret_base32: 'JBSWY3DP' }
     });
     const result = (await actions['mfa-enroll'](actionEvent({}))) as MeActionData;
-    expect(result.mfa).toEqual({
-      kind: 'enroll-challenge',
-      otpauth_uri: 'otpauth://totp/BBLBB:alice@example.com',
-      secret_base32: 'JBSWY3DP'
-    });
+    expect(result.mfa?.kind).toBe('enroll-challenge');
+    if (result.mfa?.kind !== 'enroll-challenge') throw new Error('unreachable');
+    expect(result.mfa.otpauth_uri).toBe('otpauth://totp/BBLBB:alice@example.com');
+    expect(result.mfa.secret_base32).toBe('JBSWY3DP');
+    // M18-MFA-01：服务端生成注册二维码（SVG data URL），页面 <img> 渲染
+    expect(result.mfa.qr_data_url).toMatch(/^data:image\/svg\+xml;base64,/);
     const [cookies, path] = authedPostMock.mock.calls[0];
     expect(path).toBe('/api/v1/auth/mfa/enroll');
     expect(cookies.get).toBeTypeOf('function');

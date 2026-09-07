@@ -7,12 +7,16 @@
   //   渐进增强）；
   // - 当前设备按 last_seen_at 最大标记（后端每次请求滑动更新）；
   // - GAP-FIX 既有页面增强：账户卡（经验/B币/签到，GET /activity/summary
-  //   失败时整卡隐藏）、快捷入口行（收藏/积分明细/我的帖子/私信/API 密钥/
-  //   下载账单）、我的处罚区块（GET /me/sanctions，后端端点落地前恒空；
+  //   失败时整卡隐藏）、我的处罚区块（GET /me/sanctions，后端端点落地前恒空；
   //   有记录时显示类型/原因/时间 + 去申诉入口）。
+  // - 排版重构（2026-09）：账号卡下方增加 app-toolbar 快捷导航（对齐原型
+  //   me.html 的工具条：两步验证/登录设备/通知设置/OAuth 授权）；主栏收纳
+  //   账号信息 + 登录设备管理（#sessions）+ 两步验证（#mfa，M18-MFA-01
+  //   注册二维码）；侧栏为账户卡 + 快捷操作（去重）+ 图标化快捷入口。
   import { enhance } from '$app/forms';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import { formatRelative } from '$lib/utils';
   import { activityLevelNumber, activityXp } from '$lib/api/types';
   import type { MeActionData, MePageData } from './+page.server';
@@ -32,12 +36,8 @@
   );
   const mfaStep = $derived(form?.mfa);
 
-  /** 快捷入口（M18-IA-01 对齐原型：账号安全/登录设备/通知设置/OAuth授权 + 业务入口）。 */
+  /** 侧栏图标化快捷入口（页面级导航改由 app-toolbar 承担，此处只留业务入口）。 */
   const quickLinks = [
-    { href: '/settings#settings-security', icon: 'shield', label: '账号安全' },
-    { href: '#sessions', icon: 'smartphone', label: '登录设备' },
-    { href: '/notifications', icon: 'bell', label: '通知设置' },
-    { href: '/settings#settings-oauth', icon: 'key', label: 'OAuth 授权' },
     { href: '/favorites', icon: 'star', label: '我的收藏' },
     { href: '/me/balance', icon: 'coins', label: '积分明细' },
     { href: '/messages', icon: 'mail', label: '私信' },
@@ -166,6 +166,19 @@
       </div>
     </div>
 
+    {#if topMessage}
+      <p class="input-hint is-error" role="alert" style="margin-top:var(--space-4);">{topMessage}</p>
+    {/if}
+
+    <!-- 快捷导航工具条（原型 me.html app-toolbar 对齐）：页面内锚点 + 安全/
+         通知/授权页直达，替代原先深埋侧栏的低可见性文字链接。 -->
+    <div class="app-toolbar" style="margin-top:14px;margin-bottom:0;" role="navigation" aria-label="快捷导航">
+      <Button text="两步验证" variant="secondary" size="sm" icon="shield" href="/mfa" />
+      <Button text="登录设备" variant="secondary" size="sm" icon="smartphone" href="#sessions" />
+      <Button text="通知设置" variant="secondary" size="sm" icon="bell" href="/notifications" />
+      <Button text="OAuth 授权" variant="secondary" size="sm" icon="key" href="/settings#settings-oauth" />
+    </div>
+
     <div class="content-grid" style="margin-top:var(--space-5);">
       <div class="main-col">
         <div class="card">
@@ -202,10 +215,201 @@
             </dl>
           </div>
         </div>
+
+        <!-- 登录设备管理（#sessions：工具条锚点目标） -->
+        <div class="card" id="sessions">
+          <div class="card-header">
+            <span class="card-title">登录设备管理</span>
+            <span class="text-secondary" style="font-size:var(--text-sm);">共 {sessions.length} 台设备</span>
+          </div>
+          <div class="card-body">
+            {#if sessions.length === 0}
+              <p class="auth-hint">暂无登录设备。</p>
+            {:else}
+              <ul class="session-list" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);">
+                {#each sessions as session (session.id)}
+                  <li class="session-item" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-md);">
+                    <div style="min-width:0;">
+                      <div style="display:flex;align-items:center;gap:var(--space-2);">
+                        <span class="badge badge-neutral">{deviceLabel(session.user_agent)}</span>
+                        {#if session.id === currentId}
+                          <span class="badge badge-success">当前设备</span>
+                        {/if}
+                      </div>
+                      {#if session.user_agent}
+                        <p class="text-secondary" style="font-size:var(--text-sm);margin:var(--space-1) 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px;">{session.user_agent}</p>
+                      {/if}
+                      <p class="text-secondary" style="font-size:var(--text-xs);margin:var(--space-1) 0 0;">
+                        最近活跃 {formatTs(session.last_seen_at)} · 登录于 {formatTs(session.created_at)} · 过期于 {formatTs(session.absolute_expires_at)}
+                      </p>
+                    </div>
+                    <div style="flex-shrink:0;">
+                      {#if session.id === currentId}
+                        <span class="text-secondary" style="font-size:var(--text-sm);">当前设备不可撤销</span>
+                      {:else}
+                        <form method="POST" action="?/revoke" use:enhance>
+                          <input type="hidden" name="session_id" value={session.id} />
+                          <Button text="撤销" variant="ghost" size="sm" type="submit" />
+                        </form>
+                      {/if}
+                    </div>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+            <div style="margin-top:var(--space-3);display:flex;justify-content:flex-end;">
+              <form method="POST" action="?/logoutall" use:enhance>
+                <Button text="退出全部设备" variant="danger" size="sm" type="submit" />
+              </form>
+            </div>
+            <p class="auth-hint" style="margin-top:var(--space-2);">
+              撤销设备后，该设备上的登录将立即失效；退出全部设备会把当前设备也一并退出。
+            </p>
+          </div>
+        </div>
+
+        <!-- 两步验证（#mfa：工具条直达 /mfa 独立页；本卡提供同页管理） -->
+        <div class="card" id="mfa">
+          <div class="card-header"><span class="card-title">两步验证（MFA）</span></div>
+          <div class="card-body">
+            {#if mfaStep?.kind === 'enroll-challenge'}
+              <!-- M18-MFA-01：注册二维码（服务端生成的 SVG data URL，<img>
+                   渲染，SSR/无 JS 可直接扫码）+ 手工录入降级。 -->
+              <div class="mfa-enroll">
+                <div class="mfa-enroll__qr">
+                  <p class="mfa-enroll__step"><span class="mfa-enroll__num">1</span>用认证器扫描二维码</p>
+                  {#if mfaStep.qr_data_url}
+                    <img
+                      class="otp-qr"
+                      src={mfaStep.qr_data_url}
+                      alt="两步验证注册二维码（用认证器 App 扫描添加）"
+                      width="180"
+                      height="180"
+                    />
+                  {:else}
+                    <p class="auth-hint" role="alert">二维码生成失败，请使用下方密钥手工添加。</p>
+                  {/if}
+                  <details class="mfa-manual">
+                    <summary>无法扫码？手工录入密钥</summary>
+                    <label class="input-label" for="mfa-secret">密钥（Base32）</label>
+                    <input
+                      type="text"
+                      class="input-field"
+                      id="mfa-secret"
+                      value={mfaStep.secret_base32}
+                      readonly
+                    />
+                    <p class="auth-hint mfa-manual__uri">{mfaStep.otpauth_uri}</p>
+                  </details>
+                </div>
+                <div class="mfa-enroll__confirm">
+                  <p class="mfa-enroll__step"><span class="mfa-enroll__num">2</span>输入 6 位动态验证码完成启用</p>
+                  <p class="auth-hint">扫码后，在认证器中找到本账号，输入当前 6 位动态验证码。</p>
+                  <form method="POST" action="?/mfa-confirm" use:enhance novalidate>
+                    <div class="input-wrapper">
+                      <label class="input-label" for="mfa-code">6 位验证码</label>
+                      <input
+                        type="text"
+                        class="input-field"
+                        id="mfa-code"
+                        name="code"
+                        placeholder="6 位验证码"
+                        inputmode="numeric"
+                        pattern="[0-9]{6}"
+                        maxlength="6"
+                        autocomplete="one-time-code"
+                      />
+                    </div>
+                    <div style="margin-top:var(--space-3);">
+                      <Button text="完成启用" variant="primary" size="sm" type="submit" />
+                    </div>
+                  </form>
+                  <form method="POST" action="?/mfa-cancel" use:enhance style="margin-top:var(--space-2);">
+                    <Button text="取消" variant="ghost" size="sm" type="submit" />
+                  </form>
+                </div>
+              </div>
+            {:else if mfaStep?.kind === 'enroll-confirmed'}
+              <p class="input-hint" role="status">两步验证已启用。建议立即生成恢复码并妥善保存（只显示一次）。</p>
+              <form method="POST" action="?/mfa-recovery" use:enhance>
+                <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
+              </form>
+            {:else if mfaStep?.kind === 'recovery-codes'}
+              <p class="input-hint" role="status">以下恢复码<b>只显示这一次</b>，请立即抄写或保存到安全的地方；遗失后只能通过重新生成恢复。</p>
+              <ul style="list-style:none;margin:var(--space-2) 0;padding:0;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:var(--space-2);">
+                {#each mfaStep.codes as code}
+                  <li style="font-family:monospace;padding:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);text-align:center;">{code}</li>
+                {/each}
+              </ul>
+              <div style="display:flex;gap:var(--space-2);align-items:center;">
+                <a class="btn btn-primary btn-sm" href="/me">我已保存</a>
+              </div>
+            {:else if mfaStep?.kind === 'disabled'}
+              <p class="input-hint" role="status">两步验证已停用，账号恢复仅凭密码登录。</p>
+              <form method="POST" action="?/mfa-enroll" use:enhance>
+                <Button text="重新启用两步验证" variant="primary" size="sm" type="submit" />
+              </form>
+            {:else if mfaStep?.kind === 'step-up'}
+              <p class="auth-hint">出于安全考虑，此操作需要重新输入密码确认身份（近期已认证则可直接执行）。</p>
+              <form method="POST" action="?/re-auth" use:enhance novalidate>
+                <input type="hidden" name="intent" value={mfaStep.intent} />
+                <div class="input-wrapper">
+                  <label class="input-label" for="reauth-password">密码</label>
+                  <input
+                    type="password"
+                    class="input-field"
+                    id="reauth-password"
+                    name="password"
+                    placeholder="输入当前密码"
+                    autocomplete="current-password"
+                  />
+                </div>
+                <Button text="验证身份" variant="primary" size="sm" type="submit" />
+              </form>
+            {:else if mfaStep?.kind === 'reauth-done'}
+              <p class="input-hint" role="status">身份已验证，请再次点击原操作完成。</p>
+              {#if mfaStep.intent === 'disable'}
+                <form method="POST" action="?/mfa-disable" use:enhance>
+                  <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
+                </form>
+              {:else}
+                <form method="POST" action="?/mfa-recovery" use:enhance>
+                  <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
+                </form>
+              {/if}
+            {:else}
+              <div class="mfa-status-row">
+                <div>
+                  {#if user.mfa_enabled}
+                    <span class="badge badge-success">已启用</span>
+                    <span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">登录时需要输入身份验证器验证码</span>
+                  {:else}
+                    <span class="badge badge-neutral">未启用</span>
+                    <span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">开启后登录时需要输入身份验证器验证码，安全性更高</span>
+                  {/if}
+                </div>
+                <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
+                  {#if user.mfa_enabled}
+                    <form method="POST" action="?/mfa-recovery" use:enhance>
+                      <Button text="生成新恢复码" variant="secondary" size="sm" type="submit" />
+                    </form>
+                    <form method="POST" action="?/mfa-disable" use:enhance>
+                      <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
+                    </form>
+                  {:else}
+                    <form method="POST" action="?/mfa-enroll" use:enhance>
+                      <Button text="启用两步验证" variant="primary" size="sm" type="submit" />
+                    </form>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          </div>
+        </div>
       </div>
       <div class="side-col">
-        <!-- GAP-FIX 账户卡：经验 / B币（GET /activity/summary；失败/缺失时
-             整卡隐藏，不阻塞页面）。贡献统计暂无后端端点，不展示。 -->
+        <!-- GAP-FIX 账户卡：经验 / B币 / 签到（GET /activity/summary；失败/缺失时
+             整卡隐藏，不阻塞页面）。 -->
         {#if activity}
           {@const lvlNum = activityLevelNumber(activity.level)}
           {@const lvlName =
@@ -244,30 +448,25 @@
           <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
             <Button text="发布新帖" variant="primary" size="sm" icon="pen-line" href="/editor" />
             <Button text="编辑资料" variant="secondary" size="sm" icon="edit-3" href="/settings" />
-            <Button text="账号设置" variant="secondary" size="sm" icon="settings" href="/settings" />
           </div>
         </div>
 
-        <!-- GAP-FIX 快捷入口行：收藏/积分明细/我的帖子/私信/API 密钥/下载账单。 -->
+        <!-- 图标化快捷入口（业务页直达；页面内导航由上方工具条承担）。 -->
         <div class="card">
           <div class="card-header"><span class="card-title">快捷入口</span></div>
-          <div class="card-body" style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:var(--space-2);">
-            {#each quickLinks as link (link.href)}
-              <a
-                href={link.href}
-                class="btn btn-ghost btn-sm"
-                style="justify-content:flex-start;gap:var(--space-2);"
-              >
-                {link.label}
+          <div class="card-body">
+            <div class="quick-grid">
+              {#each quickLinks as link (link.href)}
+                <a href={link.href} class="quick-link">
+                  <Icon name={link.icon} size={15} />
+                  <span>{link.label}</span>
+                </a>
+              {/each}
+              <a href="/users/{encodeURIComponent(user.username)}?tab=posts" class="quick-link">
+                <Icon name="list" size={15} />
+                <span>我的帖子</span>
               </a>
-            {/each}
-            <a
-              href="/users/{encodeURIComponent(user.username)}?tab=posts"
-              class="btn btn-ghost btn-sm"
-              style="justify-content:flex-start;gap:var(--space-2);"
-            >
-              我的帖子
-            </a>
+            </div>
           </div>
         </div>
       </div>
@@ -275,7 +474,7 @@
 
     {#if sanctions.length > 0}
       <!-- GAP-FIX 我的处罚：listMySanctions（load 取 GET /me/sanctions；后端
-           端点落地前恒空，此卡不渲染）。 -->
+         端点落地前恒空，此卡不渲染）。 -->
       <div class="card" style="margin-top:var(--space-5);border-color:var(--color-warning);">
         <div class="card-header">
           <span class="card-title">我的处罚记录</span>
@@ -305,172 +504,113 @@
         </div>
       </div>
     {/if}
-
-    <div class="card" style="margin-top:var(--space-5);">
-      <div class="card-header">
-        <span class="card-title">登录设备管理</span>
-        <span class="text-secondary" style="font-size:var(--text-sm);">共 {sessions.length} 台设备</span>
-      </div>
-      <div class="card-body">
-        {#if topMessage}
-          <p class="input-hint is-error" role="alert">{topMessage}</p>
-        {/if}
-        {#if sessions.length === 0}
-          <p class="auth-hint">暂无登录设备。</p>
-        {:else}
-          <ul class="session-list" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);">
-            {#each sessions as session (session.id)}
-              <li class="session-item" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-md);">
-                <div style="min-width:0;">
-                  <div style="display:flex;align-items:center;gap:var(--space-2);">
-                    <span class="badge badge-neutral">{deviceLabel(session.user_agent)}</span>
-                    {#if session.id === currentId}
-                      <span class="badge badge-success">当前设备</span>
-                    {/if}
-                  </div>
-                  {#if session.user_agent}
-                    <p class="text-secondary" style="font-size:var(--text-sm);margin:var(--space-1) 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px;">{session.user_agent}</p>
-                  {/if}
-                  <p class="text-secondary" style="font-size:var(--text-xs);margin:var(--space-1) 0 0;">
-                    最近活跃 {formatTs(session.last_seen_at)} · 登录于 {formatTs(session.created_at)} · 过期于 {formatTs(session.absolute_expires_at)}
-                  </p>
-                </div>
-                <div style="flex-shrink:0;">
-                  {#if session.id === currentId}
-                    <span class="text-secondary" style="font-size:var(--text-sm);">当前设备不可撤销</span>
-                  {:else}
-                    <form method="POST" action="?/revoke" use:enhance>
-                      <input type="hidden" name="session_id" value={session.id} />
-                      <Button text="撤销" variant="ghost" size="sm" type="submit" />
-                    </form>
-                  {/if}
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-        <div style="margin-top:var(--space-3);display:flex;justify-content:flex-end;">
-          <form method="POST" action="?/logoutall" use:enhance>
-            <Button text="退出全部设备" variant="danger" size="sm" type="submit" />
-          </form>
-        </div>
-        <p class="auth-hint" style="margin-top:var(--space-2);">
-          撤销设备后，该设备上的登录将立即失效；退出全部设备会把当前设备也一并退出。
-        </p>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:var(--space-5);">
-      <div class="card-header"><span class="card-title">两步验证（MFA）</span></div>
-      <div class="card-body">
-        {#if topMessage}
-          <p class="input-hint is-error" role="alert">{topMessage}</p>
-        {/if}
-
-        {#if mfaStep?.kind === 'enroll-challenge'}
-          <div class="input-wrapper">
-            <label class="input-label" for="mfa-secret">密钥</label>
-            <input
-              type="text"
-              class="input-field"
-              id="mfa-secret"
-              value={mfaStep.secret_base32}
-              readonly
-            />
-          </div>
-          <p class="auth-hint">在身份验证器（如 Google Authenticator / 1Password）中添加账号，然后输入当前 6 位验证码完成启用。</p>
-          <p class="auth-hint" style="word-break:break-all;">{mfaStep.otpauth_uri}</p>
-          <form method="POST" action="?/mfa-confirm" use:enhance novalidate>
-            <div class="input-wrapper">
-              <label class="input-label" for="mfa-code">6 位验证码</label>
-              <input
-                type="text"
-                class="input-field"
-                id="mfa-code"
-                name="code"
-                placeholder="6 位验证码"
-                inputmode="numeric"
-                pattern="[0-9]{6}"
-                maxlength="6"
-                autocomplete="one-time-code"
-              />
-            </div>
-            <Button text="完成启用" variant="primary" size="sm" type="submit" />
-          </form>
-          <form method="POST" action="?/mfa-cancel" use:enhance style="margin-top:var(--space-2);">
-            <Button text="取消" variant="ghost" size="sm" type="submit" />
-          </form>
-        {:else if mfaStep?.kind === 'enroll-confirmed'}
-          <p class="input-hint" role="status">两步验证已启用。建议立即生成恢复码并妥善保存（只显示一次）。</p>
-          <form method="POST" action="?/mfa-recovery" use:enhance>
-            <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
-          </form>
-        {:else if mfaStep?.kind === 'recovery-codes'}
-          <p class="input-hint" role="status">以下恢复码<b>只显示这一次</b>，请立即抄写或保存到安全的地方；遗失后只能通过重新生成恢复。</p>
-          <ul style="list-style:none;margin:var(--space-2) 0;padding:0;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:var(--space-2);">
-            {#each mfaStep.codes as code}
-              <li style="font-family:monospace;padding:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);text-align:center;">{code}</li>
-            {/each}
-          </ul>
-          <div style="display:flex;gap:var(--space-2);align-items:center;">
-            <a class="btn btn-primary btn-sm" href="/me">我已保存</a>
-          </div>
-        {:else if mfaStep?.kind === 'disabled'}
-          <p class="input-hint" role="status">两步验证已停用，账号恢复仅凭密码登录。</p>
-          <form method="POST" action="?/mfa-enroll" use:enhance>
-            <Button text="重新启用两步验证" variant="primary" size="sm" type="submit" />
-          </form>
-        {:else if mfaStep?.kind === 'step-up'}
-          <p class="auth-hint">出于安全考虑，此操作需要重新输入密码确认身份（近期已认证则可直接执行）。</p>
-          <form method="POST" action="?/re-auth" use:enhance novalidate>
-            <input type="hidden" name="intent" value={mfaStep.intent} />
-            <div class="input-wrapper">
-              <label class="input-label" for="reauth-password">密码</label>
-              <input
-                type="password"
-                class="input-field"
-                id="reauth-password"
-                name="password"
-                placeholder="输入当前密码"
-                autocomplete="current-password"
-              />
-            </div>
-            <Button text="验证身份" variant="primary" size="sm" type="submit" />
-          </form>
-        {:else if mfaStep?.kind === 'reauth-done'}
-          <p class="input-hint" role="status">身份已验证，请再次点击原操作完成。</p>
-          {#if mfaStep.intent === 'disable'}
-            <form method="POST" action="?/mfa-disable" use:enhance>
-              <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
-            </form>
-          {:else}
-            <form method="POST" action="?/mfa-recovery" use:enhance>
-              <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
-            </form>
-          {/if}
-        {:else}
-          {#if user.mfa_enabled}
-            <p><span class="badge badge-success">已启用</span><span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">登录时需要输入身份验证器验证码</span></p>
-            <div style="display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-2);">
-              <form method="POST" action="?/mfa-recovery" use:enhance>
-                <Button text="生成新恢复码" variant="secondary" size="sm" type="submit" />
-              </form>
-              <form method="POST" action="?/mfa-disable" use:enhance>
-                <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
-              </form>
-            </div>
-          {:else}
-            <p><span class="badge badge-neutral">未启用</span><span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">开启后登录时需要输入身份验证器验证码，安全性更高</span></p>
-            <div style="margin-top:var(--space-2);">
-              <form method="POST" action="?/mfa-enroll" use:enhance>
-                <Button text="启用两步验证" variant="primary" size="sm" type="submit" />
-              </form>
-            </div>
-          {/if}
-        {/if}
-      </div>
-    </div>
   {:else if !error}
     <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
   {/if}
 </div>
+
+<style>
+  /* MFA 注册：扫码（QR）+ 确认码 双栏；窄屏折行为上下堆叠。 */
+  .mfa-enroll {
+    display: flex;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+  }
+  .mfa-enroll__qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+  }
+  .mfa-enroll__confirm {
+    flex: 1 1 240px;
+    min-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .mfa-enroll__step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: 600;
+  }
+  .mfa-enroll__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-brand);
+    color: #fff;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .otp-qr {
+    width: 180px;
+    height: 180px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .mfa-manual {
+    width: 100%;
+    max-width: 220px;
+    font-size: var(--text-sm);
+  }
+  .mfa-manual summary {
+    cursor: pointer;
+    color: var(--color-brand);
+    user-select: none;
+  }
+  .mfa-manual .input-field {
+    margin-top: var(--space-2);
+  }
+  .mfa-manual__uri {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-xs);
+    word-break: break-all;
+  }
+  .mfa-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  /* 侧栏图标化快捷入口 */
+  .quick-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .quick-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 10px 11px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+  .quick-link:hover {
+    border-color: var(--color-brand);
+    color: var(--color-brand);
+    background: var(--color-bg-subtle);
+  }
+  /* 工具条锚点滚定位时不被顶栏遮挡 */
+  #sessions,
+  #mfa {
+    scroll-margin-top: var(--space-6, 24px);
+  }
+</style>

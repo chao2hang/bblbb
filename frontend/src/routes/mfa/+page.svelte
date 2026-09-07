@@ -49,39 +49,59 @@
           <Button text="立即开启两步验证" variant="primary" type="submit" />
         </form>
       {:else if mfaStep?.kind === 'enroll-challenge'}
-        <div style="background:var(--color-bg-subtle, rgba(0,0,0,0.03));padding:var(--space-4);border-radius:var(--radius-md);display:flex;flex-direction:column;gap:var(--space-3);">
-          <strong style="font-size:var(--text-base);">1. 扫描二维码或录入密钥</strong>
-          <p class="text-secondary" style="margin:0;font-size:var(--text-sm);">
-            在认证器中手工录入以下密钥（Base32）：
-          </p>
-          <code style="font-size:var(--text-base);letter-spacing:1px;padding:var(--space-2);background:var(--color-bg-card);border:var(--border-default);border-radius:var(--radius-sm);user-select:all;word-break:break-all;">
-            {mfaStep.secret_base32}
-          </code>
-          <p class="text-tertiary" style="margin:0;font-size:var(--text-xs);word-break:break-all;">
-            otpauth 链接：{mfaStep.otpauth_uri}
-          </p>
+        <div class="mfa-steps">
+          <div class="mfa-steps__item">
+            <p class="mfa-steps__title"><span class="mfa-steps__num">1</span>用手机认证器扫描二维码</p>
+            <p class="text-secondary" style="margin:0 0 var(--space-3);font-size:var(--text-sm);">
+              打开 Google Authenticator / 1Password / Microsoft Authenticator，选择「扫描二维码」添加账号。
+            </p>
+            <div class="otp-qr-wrap">
+              {#if mfaStep.qr_data_url}
+                <img
+                  class="otp-qr"
+                  src={mfaStep.qr_data_url}
+                  alt="两步验证注册二维码（用认证器 App 扫描添加）"
+                  width="220"
+                  height="220"
+                />
+              {:else}
+                <p class="auth-hint" role="alert">二维码生成失败，请使用下方密钥手工添加。</p>
+              {/if}
+            </div>
+            <details class="mfa-manual">
+              <summary>无法扫码？手工录入密钥</summary>
+              <p class="text-secondary" style="margin:var(--space-2) 0 var(--space-2);font-size:var(--text-sm);">
+                在认证器中手工录入以下密钥（Base32）：
+              </p>
+              <code class="mfa-manual__secret">{mfaStep.secret_base32}</code>
+              <p class="text-tertiary mfa-manual__uri">otpauth 链接：{mfaStep.otpauth_uri}</p>
+            </details>
+          </div>
+
+          <form method="POST" action="?/confirm" use:enhance class="mfa-steps__item">
+            <p class="mfa-steps__title"><span class="mfa-steps__num">2</span>输入 6 位动态验证码确认</p>
+            <p class="text-secondary" style="margin:0 0 var(--space-3);font-size:var(--text-sm);">
+              扫码后，认证器会为该账号生成 6 位动态验证码（每 30 秒刷新），输入下方完成启用。
+            </p>
+            <div class="mfa-confirm-row">
+              <input
+                type="text"
+                name="code"
+                class="input-field"
+                placeholder="000000"
+                maxlength="6"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                required
+                autocomplete="one-time-code"
+                aria-label="6 位动态验证码"
+              />
+              <Button text="验证并启用" variant="primary" type="submit" />
+            </div>
+          </form>
         </div>
 
-        <form method="POST" action="?/confirm" use:enhance style="display:flex;flex-direction:column;gap:var(--space-3);">
-          <strong style="font-size:var(--text-base);">2. 输入 6 位动态验证码确认</strong>
-          <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
-            <input
-              type="text"
-              name="code"
-              class="input-field"
-              placeholder="000000"
-              maxlength="6"
-              inputmode="numeric"
-              pattern="[0-9]{6}"
-              required
-              style="width:140px;font-size:var(--text-lg);letter-spacing:3px;text-align:center;"
-              aria-label="6 位动态验证码"
-            />
-            <Button text="验证并启用" variant="primary" type="submit" />
-          </div>
-        </form>
-
-        <form method="POST" action="?/cancel" use:enhance>
+        <form method="POST" action="?/cancel" use:enhance style="margin-top:var(--space-4);">
           <Button text="取消设置" variant="ghost" size="sm" type="submit" />
         </form>
       {:else if mfaStep?.kind === 'enroll-confirmed'}
@@ -123,3 +143,92 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* M18-MFA-01：enroll 两步流程（扫码 + 确认码）布局 */
+  .mfa-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+  .mfa-steps__item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background: var(--color-bg-subtle);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+  }
+  .mfa-steps__title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-base);
+  }
+  .mfa-steps__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--color-brand);
+    color: var(--color-on-brand, #fff);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .otp-qr-wrap {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-3) 0 var(--space-2);
+  }
+  .otp-qr {
+    width: 220px;
+    height: 220px;
+    padding: 10px;
+    background: #fff;
+    border: var(--border-default, 1px solid var(--color-border));
+    border-radius: var(--radius-md);
+  }
+  .mfa-manual {
+    width: 100%;
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+  }
+  .mfa-manual summary {
+    cursor: pointer;
+    color: var(--color-brand);
+    user-select: none;
+  }
+  .mfa-manual__secret {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-card);
+    border: var(--border-default, 1px solid var(--color-border));
+    border-radius: var(--radius-sm);
+    font-size: var(--text-base);
+    letter-spacing: 1px;
+    user-select: all;
+    word-break: break-all;
+  }
+  .mfa-manual__uri {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-xs);
+    word-break: break-all;
+  }
+  .mfa-confirm-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .mfa-confirm-row .input-field {
+    width: 150px;
+    font-size: var(--text-lg);
+    letter-spacing: 3px;
+    text-align: center;
+  }
+</style>
