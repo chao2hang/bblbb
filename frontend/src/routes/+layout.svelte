@@ -16,6 +16,7 @@
   import ToastHost from '$lib/components/ui/ToastHost.svelte';
   import NoJsNotice from '$lib/components/ui/NoJsNotice.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { applyThemeTokens, clearThemeTokens, type ActiveThemeView } from '$lib/theme/projection';
   import type { LayoutData } from './$types';
   import type { Snippet } from 'svelte';
 
@@ -34,6 +35,21 @@
 
   const unread = $derived(unreadOverride ?? data?.notifications?.unreadCount ?? 0);
   const recentNotifications = $derived(recentOverride ?? data?.notifications?.recent ?? []);
+  const activeTheme = $derived<ActiveThemeView | null>(data?.activeTheme ?? null);
+
+  // 全站生效主题 Token 动态应用
+  $effect(() => {
+    if (typeof document !== 'undefined') {
+      if (document.documentElement.dataset.themePreview === 'true') {
+        return;
+      }
+      if (activeTheme && activeTheme.name !== 'default') {
+        applyThemeTokens(activeTheme);
+      } else {
+        clearThemeTokens();
+      }
+    }
+  });
 
   // 会话态在客户端导航后保持同步（M14-A11Y/ROUTES 修复 + 导航防闪烁）。
   //

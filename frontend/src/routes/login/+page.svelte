@@ -8,6 +8,8 @@
   import { enhance } from '$app/forms';
   import { page } from '$app/state';
   import Button from '$lib/components/ui/Button.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
+  import { show as showToast } from '$lib/ui/toast';
   import type { LoginActionData } from './+page.server';
 
   let { form }: { form?: LoginActionData } = $props();
@@ -17,6 +19,12 @@
   const topMessage = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
+
+  $effect(() => {
+    if (form?.message) {
+      showToast(topMessage ?? form.message, 'danger');
+    }
+  });
 
   // 登录后回跳目标（?next=，仅本站相对路径）：表单 action="?/xxx" 会替换
   // 整个查询串，POST 时 URL 上的 next 丢失，故经隐藏字段携带（action 端
@@ -41,11 +49,14 @@
       <p class="login-eyebrow">WELCOME BACK</p>
       <h1 tabindex="-1">登录 BBLBB</h1>
       <div class="auth-body">
+        {#if topMessage}
+          <div class="auth-alert" role="alert">
+            <Icon name="alert-triangle" size={16} class="auth-alert-icon" />
+            <span class="auth-alert-text">{topMessage}</span>
+          </div>
+        {/if}
         {#if mfaStep}
           <form method="POST" action="?/mfa" use:enhance novalidate>
-            {#if topMessage}
-              <p class="input-hint is-error" role="alert">{topMessage}</p>
-            {/if}
             <input type="hidden" name="challenge_token" value={form?.challenge_token ?? ''} />
             <input type="hidden" name="next" value={nextParam} />
             <p class="auth-hint">该账号启用了两步验证。请输入身份验证器中的 6 位验证码。</p>
@@ -86,9 +97,6 @@
           <!-- M14-A11Y-08 修复：显式 action="?/login" —— 页面无 default action，
                缺省 POST（无 JS 退化）会 404；指定命名 action 后无 JS 表单可提交。 -->
           <form method="POST" action="?/login" use:enhance novalidate>
-            {#if topMessage}
-              <p class="input-hint is-error" role="alert">{topMessage}</p>
-            {/if}
             <input type="hidden" name="next" value={nextParam} />
             <div class="input-wrapper">
               <label class="input-label" for="login-identifier">用户名或邮箱</label>
@@ -129,3 +137,30 @@
     </div>
   </section>
 </div>
+
+<style>
+  .auth-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2, 8px);
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    margin-bottom: var(--space-4, 16px);
+    background: var(--color-danger-soft, rgba(239, 68, 68, 0.08));
+    border: 1px solid var(--color-danger-border, rgba(239, 68, 68, 0.25));
+    border-radius: var(--radius-md, 8px);
+    color: var(--color-danger, #ef4444);
+    font-size: var(--text-sm, 14px);
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  :global(.auth-alert-icon) {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--color-danger, #ef4444);
+  }
+
+  .auth-alert-text {
+    flex: 1;
+  }
+</style>

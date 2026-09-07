@@ -3427,3 +3427,78 @@ body:has(#page-login:not([hidden])) {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ============================================================
+   数据型主题 Token 统一映射（终极层覆盖）
+   当启用自定义数据型主题、或处于主题预览时生效
+   ============================================================ */
+:root[data-theme-custom="true"],
+:root[data-theme-preview="true"],
+html[data-theme-custom="true"],
+html[data-theme-preview="true"],
+html[data-theme="midnight"],
+html[data-theme="paper"],
+html[data-theme="forest"],
+html[data-theme="cyberpunk"],
+.theme-preview-scope {
+  --color-bg-page: var(--bb-color-background) !important;
+  --color-bg-card: var(--bb-color-surface) !important;
+  --color-bg-subtle: color-mix(in srgb, var(--bb-color-surface) 80%, var(--bb-color-background)) !important;
+  --color-bg-hover: color-mix(in srgb, var(--bb-color-surface) 60%, var(--bb-color-background)) !important;
+  --color-text-primary: var(--bb-color-text) !important;
+  --color-text-secondary: var(--bb-color-muted) !important;
+  --color-brand: var(--bb-color-accent) !important;
+  --color-brand-hover: color-mix(in srgb, var(--bb-color-accent) 85%, #ffffff) !important;
+  --color-brand-pressed: color-mix(in srgb, var(--bb-color-accent) 80%, #000000) !important;
+  --color-brand-soft: color-mix(in srgb, var(--bb-color-accent) 15%, var(--bb-color-surface)) !important;
+  --color-border: var(--bb-color-border) !important;
+  --color-border-strong: color-mix(in srgb, var(--bb-color-border) 80%, var(--bb-color-text)) !important;
+  --border-default: 1px solid var(--bb-color-border) !important;
+  --border-thin: 0.5px solid var(--bb-color-border) !important;
+  --font-family-base: var(--bb-font-body, "Noto Sans SC", sans-serif) !important;
+  --font-family-mono: var(--bb-font-mono, "SF Mono", monospace) !important;
+}
+
+html[data-theme-custom="true"] body,
+html[data-theme-preview="true"] body {
+  background: var(--bb-color-background) !important;
+  color: var(--bb-color-text) !important;
+}
+
+html[data-theme-custom="true"] .app-navbar,
+html[data-theme-preview="true"] .app-navbar,
+.theme-preview-scope .app-navbar {
+  background: var(--bb-color-surface) !important;
+  border-bottom: 1px solid var(--bb-color-border) !important;
+}
+
+html[data-theme-custom="true"] .app-navbar a,
+html[data-theme-preview="true"] .app-navbar a,
+.theme-preview-scope .app-navbar a {
+  color: var(--bb-color-text) !important;
+}
+
+html[data-theme-custom="true"] .app-side,
+html[data-theme-preview="true"] .app-side,
+.theme-preview-scope .app-side,
+html[data-theme-custom="true"] .app-admin-side,
+html[data-theme-preview="true"] .app-admin-side,
+.theme-preview-scope .app-admin-side {
+  background: var(--bb-color-surface) !important;
+  border-color: var(--bb-color-border) !important;
+}
+
+html[data-theme-custom="true"] .app-card,
+html[data-theme-preview="true"] .app-card,
+.theme-preview-scope .app-card {
+  background: var(--bb-color-surface) !important;
+  border-color: var(--bb-color-border) !important;
+}
+
+html[data-theme-custom="true"] .btn.primary,
+html[data-theme-preview="true"] .btn.primary,
+.theme-preview-scope .btn.primary {
+  background: var(--bb-color-accent) !important;
+  border-color: var(--bb-color-accent) !important;
+  color: #ffffff !important;
+}

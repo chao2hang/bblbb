@@ -1041,6 +1041,41 @@ pub async fn set_default_theme(
     actor: &str,
     reason: &str,
 ) -> Result<Theme, ThemeError> {
+    let now = crate::outbox::now_millis();
+    if name == DEFAULT_THEME_NAME && load_theme_by_name(pool, name).await?.is_none() {
+        match pool {
+            Either::Left(p) => {
+                sqlx::query("UPDATE themes SET is_default = 0, updated_at = ?")
+                    .bind(now)
+                    .execute(p)
+                    .await
+                    .map_err(|e| ThemeError::Corrupt(crate::error::sanitize(&e.to_string())))?;
+            }
+            Either::Right(p) => {
+                sqlx::query("UPDATE themes SET is_default = 0, updated_at = ?")
+                    .bind(now)
+                    .execute(p)
+                    .await
+                    .map_err(|e| ThemeError::Corrupt(crate::error::sanitize(&e.to_string())))?;
+            }
+        }
+        let _ = AuditNote::set_default(actor, reason, now, pool).await;
+        return Ok(Theme {
+            name: DEFAULT_THEME_NAME.to_string(),
+            display_name: "默认主题 (内置)".to_string(),
+            kind: "data".to_string(),
+            schema_version: THEME_SCHEMA_VERSION,
+            version: "1.0.0".to_string(),
+            supports: CORE_THEME_RANGE.to_string(),
+            status: "active".to_string(),
+            is_default: true,
+            revision: 1,
+            tokens: default_tokens(),
+            created_by: "system".to_string(),
+            created_at: 0,
+            updated_at: now,
+        });
+    }
     // 读取（不要求已 active——上传即 disabled 隔离态），但要求 token 可校验、
     // 兼容性满足核心 range。
     let theme = load_theme_by_name(pool, name)
@@ -1052,7 +1087,6 @@ pub async fn set_default_theme(
         )));
     }
     validate_tokens(&theme.tokens)?;
-    let now = crate::outbox::now_millis();
     match pool {
         Either::Left(p) => {
             sqlx::query("UPDATE themes SET is_default = 0, updated_at = ?")

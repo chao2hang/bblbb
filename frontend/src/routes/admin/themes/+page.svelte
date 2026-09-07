@@ -9,6 +9,7 @@
   import { show as showToast } from '$lib/ui/toast';
   import {
     THEME_TOKEN_KEYS,
+    applyThemeTokens,
     previewThemeTokens,
     clearThemeTokens,
     fallbackDefaultTheme,
@@ -157,6 +158,15 @@
     return typeof val === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(val) ? val : fallback;
   }
 
+  function toThemeView(theme: AdminThemeItem): ActiveThemeView {
+    return {
+      name: theme.name,
+      revision: theme.revision,
+      tokens: theme.tokens,
+      source: theme.is_default ? 'site_default' : 'user_preference'
+    };
+  }
+
   // 当前全局预览的主题
   let previewTheme = $state<AdminThemeItem | null>(null);
 
@@ -187,6 +197,9 @@
   function stopPreview() {
     previewTheme = null;
     clearThemeTokens();
+    if (activeTheme && activeTheme.name !== 'default') {
+      applyThemeTokens(toThemeView(activeTheme));
+    }
     showToast('已退出主题预览，恢复当前默认', 'info');
   }
 
@@ -799,7 +812,27 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
       <header class="app-card__head">
         <h2 id="default-title" style="margin:0;font-size:16px;">设为站点默认主题</h2>
       </header>
-      <form method="POST" action="?/set-default" use:enhance class="app-card__body stack" style="gap:12px;">
+      <form
+        method="POST"
+        action="?/set-default"
+        use:enhance={() => {
+          const target = setDefaultTheme;
+          return async ({ result, update }) => {
+            await update();
+            if (result.type === 'success' && target) {
+              setDefaultTheme = null;
+              if (target.name !== 'default') {
+                applyThemeTokens(toThemeView(target));
+              } else {
+                clearThemeTokens();
+              }
+              showToast(`已成功将「${target.display_name}」设为站点默认并应用`, 'success');
+            }
+          };
+        }}
+        class="app-card__body stack"
+        style="gap:12px;"
+      >
         <input type="hidden" name="name" value={setDefaultTheme.name} />
         <p style="font-size:13px;line-height:1.5;margin:0;">
           确定将主题<strong>「{setDefaultTheme.display_name}」</strong>设为站点默认主题吗？该操作将激活此主题并对全站未设置个人偏好的用户生效。
