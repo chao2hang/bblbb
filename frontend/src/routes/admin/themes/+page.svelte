@@ -23,8 +23,50 @@
   const rawThemes = $derived(data.themes ?? []);
   const conflict = $derived(form?.conflict === true);
 
-  // 4 套官方高质量预置主题包
+  // 官方高质量预置主题包（收录原版官方默认配色与各风格主题）
   const PRESET_THEMES = [
+    {
+      name: 'bblbb-classic',
+      display_name: 'BBLBB 经典赤墨 (原版默认)',
+      desc: 'BBLBB 官方原生品牌视觉：暖珊瑚红与米白宣纸基底',
+      tokens: {
+        'color.background': '#f5f3ed',
+        'color.surface': '#fffefb',
+        'color.text': '#17211f',
+        'color.muted': '#53605b',
+        'color.accent': '#b23e2a',
+        'color.border': '#d9d6cc',
+        'font.body': 'system-ui',
+        'font.mono': 'ui-monospace',
+        'radius.control': '0.375rem',
+        'radius.card': '0.5rem',
+        'space.density': 'comfortable',
+        'shadow.card': 'sm',
+        'motion.duration': '150ms',
+        'motion.reduced': false
+      }
+    },
+    {
+      name: 'chinese-elegance',
+      display_name: '水墨青石 (中国风)',
+      desc: '典雅含蓄的书卷水墨素雅质感与青石灰蓝点缀',
+      tokens: {
+        'color.background': '#f5f3ee',
+        'color.surface': '#fbfaf7',
+        'color.text': '#1f1d1a',
+        'color.muted': '#6b6b6b',
+        'color.accent': '#5a6c7d',
+        'color.border': '#e4e1d7',
+        'font.body': 'Noto Sans SC',
+        'font.mono': 'monospace',
+        'radius.control': '0.125rem',
+        'radius.card': '0.125rem',
+        'space.density': 'comfortable',
+        'shadow.card': 'none',
+        'motion.duration': '150ms',
+        'motion.reduced': false
+      }
+    },
     {
       name: 'midnight',
       display_name: '暗夜极光',
@@ -143,10 +185,10 @@
   function safeBg(tokens: Record<string, unknown> | null | undefined, name: string): string {
     const bg = typeof tokens?.['color.background'] === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(tokens['color.background'])
       ? tokens['color.background']
-      : (name === 'midnight' ? '#0f172a' : '#1b3a4b');
+      : (name === 'midnight' ? '#0f172a' : '#f5f3ed');
     const accent = typeof tokens?.['color.accent'] === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(tokens['color.accent'])
       ? tokens['color.accent']
-      : '#2563eb';
+      : '#b23e2a';
     const surface = typeof tokens?.['color.surface'] === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(tokens['color.surface'])
       ? tokens['color.surface']
       : '#ffffff';
