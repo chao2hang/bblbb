@@ -1467,8 +1467,7 @@ mod tests {
         // 必须通过封闭 schema 校验（含危险内容扫描）。范例漂移时本测试
         // 失败，防止文档与实现脱节。
         let guide = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../docs/PLUGIN-AUTHORING.md"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/PLUGIN-AUTHORING.md"),
         )
         .expect("docs/PLUGIN-AUTHORING.md must exist next to backend/");
         let mut manifests = 0usize;

@@ -302,17 +302,29 @@ fn build_config_from_rule(rule: &ActivityRuleRow) -> ActivityConfig {
     let check_in_enabled = obj
         .get("check_in_enabled")
         .and_then(Value::as_bool)
-        .or_else(|| obj.get("check_in").and_then(|c| c.get("enabled")).and_then(Value::as_bool))
+        .or_else(|| {
+            obj.get("check_in")
+                .and_then(|c| c.get("enabled"))
+                .and_then(Value::as_bool)
+        })
         .unwrap_or(true);
     let auto_check_in_enabled = obj
         .get("auto_check_in_enabled")
         .and_then(Value::as_bool)
-        .or_else(|| obj.get("check_in").and_then(|c| c.get("auto_enabled")).and_then(Value::as_bool))
+        .or_else(|| {
+            obj.get("check_in")
+                .and_then(|c| c.get("auto_enabled"))
+                .and_then(Value::as_bool)
+        })
         .unwrap_or(true);
     let day_reset_hour = obj
         .get("day_reset_hour")
         .and_then(Value::as_i64)
-        .or_else(|| obj.get("check_in").and_then(|c| c.get("day_reset_hour")).and_then(Value::as_i64))
+        .or_else(|| {
+            obj.get("check_in")
+                .and_then(|c| c.get("day_reset_hour"))
+                .and_then(Value::as_i64)
+        })
         .unwrap_or(0)
         .clamp(0, 23);
     let rewards_enabled = obj

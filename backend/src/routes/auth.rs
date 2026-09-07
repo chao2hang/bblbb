@@ -466,7 +466,12 @@ async fn login(
             // 登录后自动签到（若配置开启）：
             if let Ok(cfg) = crate::economy::activity::service::get_activity_config(pool).await {
                 if cfg.check_in_enabled && cfg.auto_check_in_enabled && cfg.rewards_enabled {
-                    let _ = crate::economy::activity::service::claim_check_in(pool, &outcome.user_id, crate::outbox::now_millis()).await;
+                    let _ = crate::economy::activity::service::claim_check_in(
+                        pool,
+                        &outcome.user_id,
+                        crate::outbox::now_millis(),
+                    )
+                    .await;
                 }
             }
             let me = Me {
@@ -578,7 +583,12 @@ async fn login_mfa(
             // 登录后自动签到（若配置开启）：
             if let Ok(cfg) = crate::economy::activity::service::get_activity_config(pool).await {
                 if cfg.check_in_enabled && cfg.auto_check_in_enabled && cfg.rewards_enabled {
-                    let _ = crate::economy::activity::service::claim_check_in(pool, &completed.user_id, crate::outbox::now_millis()).await;
+                    let _ = crate::economy::activity::service::claim_check_in(
+                        pool,
+                        &completed.user_id,
+                        crate::outbox::now_millis(),
+                    )
+                    .await;
                 }
             }
             let me = Me {

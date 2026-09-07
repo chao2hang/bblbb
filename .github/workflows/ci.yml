@@ -220,6 +220,18 @@ jobs:
           mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root bblbb \
             --execute='SELECT 1 FROM users LIMIT 0; SELECT 1 FROM user_sessions LIMIT 0;'
 
+      # 上一步用 mysql CLI 直灌 SQL（不写 schema_migrations 状态表）；跨库测试
+      # 二进制改用应用内置 run_migrations（按状态表判断 pending）再建 schema，
+      # 残留表会触发 1050 Table already exists。重置为空库让测试自建 schema；
+      # 首个测试二进制应用后写入状态表，后续二进制幂等跳过。
+      - name: Reset schema for cross-database test binaries
+        env:
+          MYSQL_PWD: root
+        run: |
+          set -euo pipefail
+          mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root \
+            --execute='DROP SCHEMA bblbb; CREATE SCHEMA bblbb;'
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       # AGENTS.md §3.4：跨库测试编译缓存
