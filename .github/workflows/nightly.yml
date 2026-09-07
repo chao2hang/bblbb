@@ -106,6 +106,9 @@ jobs:
         env:
           RUSTC_WRAPPER: sccache
           SCCACHE_IDLE_TIMEOUT: "0"
+          # 与 ci.yml 一致：sccache 默认 10GiB 上限在 14GB runner 上与恢复的
+          # target 缓存叠加易触发 No space left on device。
+          SCCACHE_CACHE_SIZE: 4GiB
         working-directory: backend
         run: |
           cargo test --test storage_adapter --all-features
