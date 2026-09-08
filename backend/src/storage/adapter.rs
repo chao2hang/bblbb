@@ -683,19 +683,21 @@ impl StorageAdapter for S3Adapter {
 
 /// 存储服务门面：按后端分发适配器，路由与域服务经此调用。
 pub struct StorageService {
-    local: LocalAdapter,
-    s3: Option<S3Adapter>,
-    default_backend: StorageBackend,
+    local: std::sync::Arc<tokio::sync::RwLock<LocalAdapter>>,
+    s3: std::sync::Arc<tokio::sync::RwLock<Option<S3Adapter>>>,
+    default_backend: std::sync::Arc<tokio::sync::RwLock<StorageBackend>>,
+    local_root_path: std::sync::Arc<tokio::sync::RwLock<PathBuf>>,
 }
 
 impl StorageService {
     /// 仅本地后端（同步构造；测试与纯本地部署用，免 S3 配置）。
     pub fn local_only(root: PathBuf) -> Result<Self, StorageError> {
-        let local = LocalAdapter::new(root)?;
+        let local = LocalAdapter::new(root.clone())?;
         Ok(Self {
-            local,
-            s3: None,
-            default_backend: StorageBackend::Local,
+            local: std::sync::Arc::new(tokio::sync::RwLock::new(local)),
+            s3: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            default_backend: std::sync::Arc::new(tokio::sync::RwLock::new(StorageBackend::Local)),
+            local_root_path: std::sync::Arc::new(tokio::sync::RwLock::new(root)),
         })
     }
 
@@ -707,28 +709,354 @@ impl StorageService {
         };
         let default_backend = cfg.default_backend();
         Ok(Self {
-            local,
-            s3,
-            default_backend,
+            local: std::sync::Arc::new(tokio::sync::RwLock::new(local)),
+            s3: std::sync::Arc::new(tokio::sync::RwLock::new(s3)),
+            default_backend: std::sync::Arc::new(tokio::sync::RwLock::new(default_backend)),
+            local_root_path: std::sync::Arc::new(tokio::sync::RwLock::new(cfg.local_root.clone())),
         })
     }
 
-    pub fn default_backend(&self) -> StorageBackend {
-        self.default_backend
+    /// 热重载存储配置（在线修改即刻生效，无需重启进程）。
+    pub async fn reload(&self, cfg: &StorageConfig) -> Result<(), StorageError> {
+        let new_local = LocalAdapter::new(cfg.local_root.clone())?;
+        let new_s3 = match &cfg.s3 {
+            Some(s3) => Some(S3Adapter::new(s3).await?),
+            None => None,
+        };
+        let new_backend = cfg.default_backend();
+
+        *self.local.write().await = new_local;
+        *self.s3.write().await = new_s3;
+        *self.default_backend.write().await = new_backend;
+        *self.local_root_path.write().await = cfg.local_root.clone();
+        Ok(())
     }
 
-    pub fn adapter(&self, backend: StorageBackend) -> Result<&dyn StorageAdapter, StorageError> {
-        match backend {
-            StorageBackend::Local => Ok(&self.local),
-            StorageBackend::S3 => self
-                .s3
-                .as_ref()
-                .map(|a| a as &dyn StorageAdapter)
-                .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string())),
+    pub fn default_backend(&self) -> StorageBackend {
+        if let Ok(guard) = self.default_backend.try_read() {
+            *guard
+        } else {
+            StorageBackend::Local
         }
     }
 
-    pub fn local_root(&self) -> &Path {
-        self.local.root()
+    pub fn adapter(&self, backend: StorageBackend) -> Result<DynamicAdapter, StorageError> {
+        match backend {
+            StorageBackend::Local => Ok(DynamicAdapter::Local(self.local.clone())),
+            StorageBackend::S3 => {
+                if let Ok(guard) = self.s3.try_read() {
+                    if guard.is_none() {
+                        return Err(StorageError::Invalid("s3 backend not configured".to_string()));
+                    }
+                }
+                Ok(DynamicAdapter::S3(self.s3.clone()))
+            }
+        }
+    }
+
+    pub fn local_root(&self) -> PathBuf {
+        if let Ok(guard) = self.local_root_path.try_read() {
+            guard.clone()
+        } else {
+            PathBuf::from("/tmp")
+        }
+    }
+}
+
+/// 动态并发存储适配器转发包装器
+pub enum DynamicAdapter {
+    Local(std::sync::Arc<tokio::sync::RwLock<LocalAdapter>>),
+    S3(std::sync::Arc<tokio::sync::RwLock<Option<S3Adapter>>>),
+}
+
+impl DynamicAdapter {
+    pub fn supports_presign(&self) -> bool {
+        match self {
+            DynamicAdapter::Local(_) => false,
+            DynamicAdapter::S3(_) => true,
+        }
+    }
+
+    pub async fn head_object(&self, key: &str) -> Result<ObjectHead, StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.head_object(key).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .head_object(key)
+                    .await
+            }
+        }
+    }
+
+    pub async fn read_object(&self, key: &str) -> Result<Vec<u8>, StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.read_object(key).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .read_object(key)
+                    .await
+            }
+        }
+    }
+
+    pub async fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.read_range(key, start, len).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .read_range(key, start, len)
+                    .await
+            }
+        }
+    }
+
+    pub async fn write_object(&self, key: &str, data: &[u8], content_type: Option<&str>) -> Result<(), StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.write_object(key, data, content_type).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .write_object(key, data, content_type)
+                    .await
+            }
+        }
+    }
+
+    pub async fn delete_object(&self, key: &str) -> Result<(), StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.delete_object(key).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .delete_object(key)
+                    .await
+            }
+        }
+    }
+
+    pub async fn copy_object(&self, from_key: &str, to_key: &str) -> Result<(), StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.copy_object(from_key, to_key).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .copy_object(from_key, to_key)
+                    .await
+            }
+        }
+    }
+
+    pub async fn list_objects(&self, prefix: &str) -> Result<Vec<String>, StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.list_objects(prefix).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .list_objects(prefix)
+                    .await
+            }
+        }
+    }
+
+    pub async fn presign_upload(
+        &self,
+        key: &str,
+        content_type: &str,
+        ttl_secs: u64,
+    ) -> Result<PresignedUrl, StorageError> {
+        match self {
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local presign upload not supported".into())),
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .presign_upload(key, content_type, ttl_secs)
+                    .await
+            }
+        }
+    }
+
+    pub async fn presign_download(&self, key: &str, ttl_secs: u64) -> Result<PresignedUrl, StorageError> {
+        match self {
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local presign download not supported".into())),
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .presign_download(key, ttl_secs)
+                    .await
+            }
+        }
+    }
+
+    pub async fn begin_multipart(&self, key: &str, content_type: &str) -> Result<String, StorageError> {
+        match self {
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .begin_multipart(key, content_type)
+                    .await
+            }
+        }
+    }
+
+    pub async fn upload_part(
+        &self,
+        key: &str,
+        upload_id: &str,
+        part_number: i32,
+        data: &[u8],
+    ) -> Result<String, StorageError> {
+        match self {
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .upload_part(key, upload_id, part_number, data)
+                    .await
+            }
+        }
+    }
+
+    pub async fn complete_multipart(
+        &self,
+        key: &str,
+        upload_id: &str,
+        parts: &[(i32, String)],
+    ) -> Result<(), StorageError> {
+        match self {
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .complete_multipart(key, upload_id, parts)
+                    .await
+            }
+        }
+    }
+
+    pub async fn abort_multipart(&self, key: &str, upload_id: &str) -> Result<(), StorageError> {
+        match self {
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .abort_multipart(key, upload_id)
+                    .await
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl StorageAdapter for DynamicAdapter {
+    fn backend(&self) -> StorageBackend {
+        match self {
+            DynamicAdapter::Local(_) => StorageBackend::Local,
+            DynamicAdapter::S3(_) => StorageBackend::S3,
+        }
+    }
+
+    fn supports_presign(&self) -> bool {
+        match self {
+            DynamicAdapter::Local(_) => false,
+            DynamicAdapter::S3(_) => true,
+        }
+    }
+
+    async fn head_object(&self, key: &str) -> Result<ObjectHead, StorageError> {
+        self.head_object(key).await
+    }
+
+    async fn read_object(&self, key: &str) -> Result<Vec<u8>, StorageError> {
+        self.read_object(key).await
+    }
+
+    async fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, StorageError> {
+        self.read_range(key, start, len).await
+    }
+
+    async fn write_object(&self, key: &str, data: &[u8], content_type: Option<&str>) -> Result<(), StorageError> {
+        self.write_object(key, data, content_type).await
+    }
+
+    async fn delete_object(&self, key: &str) -> Result<(), StorageError> {
+        self.delete_object(key).await
+    }
+
+    async fn copy_object(&self, from_key: &str, to_key: &str) -> Result<(), StorageError> {
+        self.copy_object(from_key, to_key).await
+    }
+
+    async fn list_objects(&self, prefix: &str) -> Result<Vec<String>, StorageError> {
+        self.list_objects(prefix).await
+    }
+
+    async fn presign_upload(
+        &self,
+        key: &str,
+        content_type: &str,
+        ttl_secs: u64,
+    ) -> Result<PresignedUrl, StorageError> {
+        self.presign_upload(key, content_type, ttl_secs).await
+    }
+
+    async fn presign_download(&self, key: &str, ttl_secs: u64) -> Result<PresignedUrl, StorageError> {
+        self.presign_download(key, ttl_secs).await
+    }
+
+    async fn begin_multipart(&self, key: &str, content_type: &str) -> Result<String, StorageError> {
+        self.begin_multipart(key, content_type).await
+    }
+
+    async fn upload_part(
+        &self,
+        key: &str,
+        upload_id: &str,
+        part_number: i32,
+        data: &[u8],
+    ) -> Result<String, StorageError> {
+        self.upload_part(key, upload_id, part_number, data).await
+    }
+
+    async fn complete_multipart(
+        &self,
+        key: &str,
+        upload_id: &str,
+        parts: &[(i32, String)],
+    ) -> Result<(), StorageError> {
+        self.complete_multipart(key, upload_id, parts).await
+    }
+
+    async fn abort_multipart(&self, key: &str, upload_id: &str) -> Result<(), StorageError> {
+        self.abort_multipart(key, upload_id).await
     }
 }

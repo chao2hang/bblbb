@@ -119,11 +119,9 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        // 部署由环境变量管理（managed_by=deployment）：PATCH 只做校验 + 审计
-        // 意图（M06-ADAPTER-03），必须如实告知生效路径，不得声称“已保存生效”。
         const message =
-          result.data.managed_by === 'deployment'
-            ? '配置已通过校验并记录审计。当前部署由环境变量管理：请设置 BBLBB__STORAGE_BACKEND / BBLBB__S3_* 环境变量并重启后端生效。'
+          result.data.managed_by === 'database'
+            ? '存储配置已保存并立即热生效（已更新数据库与服务实例，无需重启进程）。'
             : '存储配置已保存（只影响新上传/新签发 URL）';
         return { message, messageKind: 'success' } satisfies AdminStorageActionData;
       }

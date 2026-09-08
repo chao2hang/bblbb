@@ -106,18 +106,17 @@ describe('M06-UI-06/07 存储管理 SSR', () => {
     expect(body).toContain('重新验证');
   });
 
-  it('保存成功（env 管理）→ 成功态提示生效路径（BBLBB__ 环境变量 + 重启）', () => {
+  it('保存成功 → 成功态提示（在线热生效）', () => {
     const { body } = render(AdminStorage, {
       props: {
         data: { config, loadError: null },
         form: {
-          message: '配置已通过校验并记录审计。当前部署由环境变量管理：请设置 BBLBB__STORAGE_BACKEND / BBLBB__S3_* 环境变量并重启后端生效。',
+          message: '存储配置已保存并立即热生效（已更新数据库与服务实例，无需重启进程）。',
           messageKind: 'success'
         }
       }
     });
-    expect(body).toContain('已通过校验');
-    expect(body).toContain('BBLBB__S3_*');
+    expect(body).toContain('已保存并立即热生效');
     expect(body).not.toContain('role="alert"');
   });
 

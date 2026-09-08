@@ -17,6 +17,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::Either;
 
 use crate::{
     app::AppState,
@@ -118,6 +119,65 @@ fn session_token_from_headers(headers: &HeaderMap) -> Option<String> {
 
 // ────────────────────────── 存储配置（脱敏）──────────────────────────────
 
+#[derive(sqlx::FromRow, Clone)]
+pub struct StorageSettingsRow {
+    pub storage_backend: String,
+    pub storage_local_path: String,
+    pub storage_upload_max_bytes: i64,
+    pub storage_s3_endpoint: String,
+    pub storage_s3_region: String,
+    pub storage_s3_bucket: String,
+    pub storage_s3_access_key_id: String,
+    pub storage_s3_secret_access_key: String,
+    pub storage_s3_path_style: i64,
+    pub storage_s3_public_base_url: String,
+    pub storage_s3_signed_url_ttl: i64,
+}
+
+pub async fn load_storage_settings(
+    pool: &crate::db::DatabasePool,
+) -> Result<Option<StorageSettingsRow>, sqlx::Error> {
+    let sql = "SELECT storage_backend, storage_local_path, storage_upload_max_bytes,
+                      storage_s3_endpoint, storage_s3_region, storage_s3_bucket,
+                      storage_s3_access_key_id, storage_s3_secret_access_key,
+                      storage_s3_path_style, storage_s3_public_base_url,
+                      storage_s3_signed_url_ttl
+               FROM site_settings WHERE id = 'singleton'";
+    match pool {
+        Either::Left(p) => sqlx::query_as::<_, StorageSettingsRow>(sql).fetch_optional(p).await,
+        Either::Right(p) => sqlx::query_as::<_, StorageSettingsRow>(sql).fetch_optional(p).await,
+    }
+}
+
+/// 将数据库存储配置转为 StorageConfig
+pub fn build_storage_config_from_db(
+    app_config: &AppConfig,
+    row: &StorageSettingsRow,
+) -> crate::storage::StorageConfig {
+    let s3 = if row.storage_backend == "s3" && !row.storage_s3_bucket.is_empty() {
+        Some(crate::storage::S3Config {
+            bucket: row.storage_s3_bucket.clone(),
+            region: if row.storage_s3_region.is_empty() { "us-east-1".to_string() } else { row.storage_s3_region.clone() },
+            endpoint: if row.storage_s3_endpoint.is_empty() { None } else { Some(row.storage_s3_endpoint.clone()) },
+            path_style: row.storage_s3_path_style != 0,
+            access_key_id: if row.storage_s3_access_key_id.is_empty() { None } else { Some(row.storage_s3_access_key_id.clone()) },
+            secret_access_key: if row.storage_s3_secret_access_key.is_empty() { None } else { Some(row.storage_s3_secret_access_key.clone()) },
+            session_token: None,
+        })
+    } else {
+        None
+    };
+    let local_root = if !row.storage_local_path.is_empty() {
+        std::path::PathBuf::from(&row.storage_local_path)
+    } else {
+        app_config.storage_dir.clone()
+    };
+    crate::storage::StorageConfig {
+        local_root,
+        s3,
+    }
+}
+
 /// GET /api/v1/admin/storage/config — 脱敏配置（backend/path_style/TTL；
 /// **不返回 Secret**，M06-ADAPTER-03/09）。
 async fn get_storage_config(
@@ -131,14 +191,12 @@ async fn get_storage_config(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     require_admin(pool, &user.id, request_id).await?;
-    Ok(Json(storage_config_json(&state.config)).into_response())
+
+    let db_row = load_storage_settings(pool).await.unwrap_or(None);
+    Ok(Json(storage_config_json(&state.config, db_row.as_ref())).into_response())
 }
 
-/// PATCH /api/v1/admin/storage/config — 校验并保存（TOTP step-up + reason + 审计）。
-///
-/// 当前存储配置由部署环境变量管理（M06-ADAPTER-03：配置单一事实来源）；
-/// 本端点对提交值做完整校验并记录审计意图，实际生效需要重启并以
-/// 环境变量为准（返回 `managed_by: "deployment"`）。
+/// PATCH /api/v1/admin/storage/config — 在线保存存储配置并热重载（写入数据库即刻生效）。
 async fn update_storage_config(
     State(state): State<AppState>,
     auth: AuthSession,
@@ -153,7 +211,7 @@ async fn update_storage_config(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
     require_admin(pool, &user.id, request_id).await?;
-    // 契约要求 If-Match（版本由部署配置持有；此处仅验证存在）
+    // 契约要求 If-Match
     headers
         .get("if-match")
         .and_then(|v| v.to_str().ok())
@@ -163,10 +221,116 @@ async fn update_storage_config(
 
     let update: StorageConfigUpdate = serde_json::from_value(body)
         .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
-    // 开发/测试环境允许 http:// endpoint（内网 MinIO 等）；生产仅 https。
     validate_storage_config_update(&update, !state.config.is_production(), request_id)?;
 
-    // 审计（with_reason + with_policy_version；不记录 Secret 值）
+    // 1. 读取当前数据库配置
+    let current_row = load_storage_settings(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .unwrap_or_else(|| StorageSettingsRow {
+            storage_backend: "local".into(),
+            storage_local_path: "".into(),
+            storage_upload_max_bytes: 20971520,
+            storage_s3_endpoint: "".into(),
+            storage_s3_region: "us-east-1".into(),
+            storage_s3_bucket: "".into(),
+            storage_s3_access_key_id: "".into(),
+            storage_s3_secret_access_key: "".into(),
+            storage_s3_path_style: 0,
+            storage_s3_public_base_url: "".into(),
+            storage_s3_signed_url_ttl: 300,
+        });
+
+    // 2. 合并更新
+    let new_backend = update.backend.unwrap_or(current_row.storage_backend);
+    let new_local_path = update.local_path.unwrap_or(current_row.storage_local_path);
+    let new_max_bytes = update.upload_max_bytes.unwrap_or(current_row.storage_upload_max_bytes);
+    let new_s3_endpoint = update.s3_endpoint.unwrap_or(current_row.storage_s3_endpoint);
+    let new_s3_region = update.s3_region.unwrap_or(current_row.storage_s3_region);
+    let new_s3_bucket = update.bucket.unwrap_or(current_row.storage_s3_bucket);
+    let new_s3_ak = update.s3_access_key_id.filter(|s| !s.is_empty()).unwrap_or(current_row.storage_s3_access_key_id);
+    let new_s3_sk = update.s3_secret_access_key.filter(|s| !s.is_empty()).unwrap_or(current_row.storage_s3_secret_access_key);
+    let new_s3_path_style = update.path_style.map(|b| if b { 1i64 } else { 0i64 }).unwrap_or(current_row.storage_s3_path_style);
+    let new_s3_public_url = update.s3_public_base_url.unwrap_or(current_row.storage_s3_public_base_url);
+    let new_s3_ttl = update.signed_url_ttl_seconds.map(|t| t as i64).unwrap_or(current_row.storage_s3_signed_url_ttl);
+
+    let updated_row = StorageSettingsRow {
+        storage_backend: new_backend.clone(),
+        storage_local_path: new_local_path.clone(),
+        storage_upload_max_bytes: new_max_bytes,
+        storage_s3_endpoint: new_s3_endpoint.clone(),
+        storage_s3_region: new_s3_region.clone(),
+        storage_s3_bucket: new_s3_bucket.clone(),
+        storage_s3_access_key_id: new_s3_ak.clone(),
+        storage_s3_secret_access_key: new_s3_sk.clone(),
+        storage_s3_path_style: new_s3_path_style,
+        storage_s3_public_base_url: new_s3_public_url.clone(),
+        storage_s3_signed_url_ttl: new_s3_ttl,
+    };
+
+    // 3. 持久化到 site_settings
+    let update_sql = "UPDATE site_settings SET
+        storage_backend = ?,
+        storage_local_path = ?,
+        storage_upload_max_bytes = ?,
+        storage_s3_endpoint = ?,
+        storage_s3_region = ?,
+        storage_s3_bucket = ?,
+        storage_s3_access_key_id = ?,
+        storage_s3_secret_access_key = ?,
+        storage_s3_path_style = ?,
+        storage_s3_public_base_url = ?,
+        storage_s3_signed_url_ttl = ?
+        WHERE id = 'singleton'";
+
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(update_sql)
+                .bind(&new_backend)
+                .bind(&new_local_path)
+                .bind(new_max_bytes)
+                .bind(&new_s3_endpoint)
+                .bind(&new_s3_region)
+                .bind(&new_s3_bucket)
+                .bind(&new_s3_ak)
+                .bind(&new_s3_sk)
+                .bind(new_s3_path_style)
+                .bind(&new_s3_public_url)
+                .bind(new_s3_ttl)
+                .execute(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        }
+        Either::Right(p) => {
+            sqlx::query(update_sql)
+                .bind(&new_backend)
+                .bind(&new_local_path)
+                .bind(new_max_bytes)
+                .bind(&new_s3_endpoint)
+                .bind(&new_s3_region)
+                .bind(&new_s3_bucket)
+                .bind(&new_s3_ak)
+                .bind(&new_s3_sk)
+                .bind(new_s3_path_style)
+                .bind(&new_s3_public_url)
+                .bind(new_s3_ttl)
+                .execute(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        }
+    }
+
+    // 4. 热重载内存中的 StorageService
+    if let Some(storage) = &state.storage {
+        let storage_cfg = build_storage_config_from_db(&state.config, &updated_row);
+        if let Err(e) = storage.reload(&storage_cfg).await {
+            tracing::error!(error = %e, "热重载存储服务异常");
+        } else {
+            tracing::info!(backend = %new_backend, "在线存储配置已热重载生效");
+        }
+    }
+
+    // 5. 审计日志
     AuditEntry::user_action(&user.id, "admin.storage_config_update")
         .with_target("config", "storage")
         .with_effective_role("administrator")
@@ -176,14 +340,7 @@ async fn update_storage_config(
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    let mut config = storage_config_json(&state.config);
-    if let Some(map) = config.as_object_mut() {
-        map.insert("managed_by".into(), json!("deployment"));
-        map.insert(
-            "note".into(),
-            json!("validated; apply after restart via deployment environment"),
-        );
-    }
+    let config = storage_config_json(&state.config, Some(&updated_row));
     Ok(Json(config).into_response())
 }
 
@@ -283,42 +440,85 @@ fn validate_endpoint_scheme(
     Ok(())
 }
 
-/// 脱敏配置投影（不返回 access/secret/session token）。
-fn storage_config_json(config: &AppConfig) -> Value {
-    let s3_configured = config.storage_backend == "s3" && !config.s3_bucket.is_empty();
-    let secret_is_set = s3_configured && !config.s3_secret_access_key.is_empty();
-    let local_path_str = config.storage_dir.display().to_string();
-    json!({
-        "backend": if s3_configured { "s3" } else { "local" },
-        "source": "env",
-        "version": 1,
-        "configured": true,
-        "local_root": local_path_str,
-        "local_path": local_path_str,
-        "path_style": config.s3_path_style,
-        "s3_path_style": config.s3_path_style,
-        "region": if s3_configured { json!(config.s3_region) } else { Value::Null },
-        "s3_region": if s3_configured { json!(config.s3_region) } else { Value::Null },
-        "endpoint": if s3_configured && !config.s3_endpoint.is_empty() {
-            json!(endpoint_host(&config.s3_endpoint))
+/// 脱敏配置投影（优先数据库在线配置，回退环境变量；不返回 access/secret/session token）。
+fn storage_config_json(config: &AppConfig, db_row: Option<&StorageSettingsRow>) -> Value {
+    if let Some(row) = db_row {
+        let is_s3 = row.storage_backend == "s3" && !row.storage_s3_bucket.is_empty();
+        let secret_is_set = !row.storage_s3_secret_access_key.is_empty();
+        let local_path_str = if !row.storage_local_path.is_empty() {
+            row.storage_local_path.clone()
         } else {
-            Value::Null
-        },
-        "s3_endpoint": if s3_configured && !config.s3_endpoint.is_empty() {
-            json!(config.s3_endpoint)
-        } else {
-            Value::Null
-        },
-        "bucket": if s3_configured { json!(config.s3_bucket) } else { Value::Null },
-        "s3_bucket": if s3_configured { json!(config.s3_bucket) } else { Value::Null },
-        "signed_url_ttl_seconds": PRESIGN_TTL_SECS,
-        "managed_by": "deployment",
-        "secret_configured": secret_is_set,
-        "credentials": json!({
-            "access_key_id_configured": s3_configured && !config.s3_access_key_id.is_empty(),
+            config.storage_dir.display().to_string()
+        };
+        json!({
+            "backend": if is_s3 { "s3" } else { "local" },
+            "source": "database",
+            "version": 1,
+            "configured": true,
+            "local_root": local_path_str,
+            "local_path": local_path_str,
+            "path_style": row.storage_s3_path_style != 0,
+            "s3_path_style": row.storage_s3_path_style != 0,
+            "region": if is_s3 { json!(row.storage_s3_region) } else { Value::Null },
+            "s3_region": if is_s3 { json!(row.storage_s3_region) } else { Value::Null },
+            "endpoint": if is_s3 && !row.storage_s3_endpoint.is_empty() {
+                json!(endpoint_host(&row.storage_s3_endpoint))
+            } else {
+                Value::Null
+            },
+            "s3_endpoint": if is_s3 && !row.storage_s3_endpoint.is_empty() {
+                json!(row.storage_s3_endpoint)
+            } else {
+                Value::Null
+            },
+            "bucket": if is_s3 { json!(row.storage_s3_bucket) } else { Value::Null },
+            "s3_bucket": if is_s3 { json!(row.storage_s3_bucket) } else { Value::Null },
+            "s3_public_base_url": if !row.storage_s3_public_base_url.is_empty() { json!(row.storage_s3_public_base_url) } else { Value::Null },
+            "upload_max_bytes": row.storage_upload_max_bytes,
+            "signed_url_ttl_seconds": row.storage_s3_signed_url_ttl,
+            "managed_by": "database",
             "secret_configured": secret_is_set,
-        }),
-    })
+            "credentials": json!({
+                "access_key_id_configured": is_s3 && !row.storage_s3_access_key_id.is_empty(),
+                "secret_configured": secret_is_set,
+            }),
+        })
+    } else {
+        let s3_configured = config.storage_backend == "s3" && !config.s3_bucket.is_empty();
+        let secret_is_set = s3_configured && !config.s3_secret_access_key.is_empty();
+        let local_path_str = config.storage_dir.display().to_string();
+        json!({
+            "backend": if s3_configured { "s3" } else { "local" },
+            "source": "env",
+            "version": 1,
+            "configured": true,
+            "local_root": local_path_str,
+            "local_path": local_path_str,
+            "path_style": config.s3_path_style,
+            "s3_path_style": config.s3_path_style,
+            "region": if s3_configured { json!(config.s3_region) } else { Value::Null },
+            "s3_region": if s3_configured { json!(config.s3_region) } else { Value::Null },
+            "endpoint": if s3_configured && !config.s3_endpoint.is_empty() {
+                json!(endpoint_host(&config.s3_endpoint))
+            } else {
+                Value::Null
+            },
+            "s3_endpoint": if s3_configured && !config.s3_endpoint.is_empty() {
+                json!(config.s3_endpoint)
+            } else {
+                Value::Null
+            },
+            "bucket": if s3_configured { json!(config.s3_bucket) } else { Value::Null },
+            "s3_bucket": if s3_configured { json!(config.s3_bucket) } else { Value::Null },
+            "signed_url_ttl_seconds": PRESIGN_TTL_SECS,
+            "managed_by": "deployment",
+            "secret_configured": secret_is_set,
+            "credentials": json!({
+                "access_key_id_configured": s3_configured && !config.s3_access_key_id.is_empty(),
+                "secret_configured": secret_is_set,
+            }),
+        })
+    }
 }
 
 /// 提取 endpoint 主机（脱敏：不显示完整 URL 路径/凭据）。
