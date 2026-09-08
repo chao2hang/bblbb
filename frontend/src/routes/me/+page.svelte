@@ -139,7 +139,6 @@
         {/if}
         <div class="app-profile__meta">
           <span><b>@{user.username}</b></span>
-          <span>{user.email}</span>
         </div>
       </div>
       <div class="app-profile__actions">
@@ -168,18 +167,6 @@
           <div class="card-body">
             <dl class="profile-about-list">
               <div class="profile-about-item"><dt>用户名</dt><dd>{user.username}</dd></div>
-              <div class="profile-about-item"><dt>邮箱</dt><dd>{user.email}</dd></div>
-              <div class="profile-about-item">
-                <dt>邮箱验证</dt>
-                <dd>
-                  {#if user.email_verified}
-                    <span class="badge badge-success">已验证</span>
-                  {:else}
-                    <span class="badge badge-warning">未验证</span>
-                    <a href="/verify-email" style="margin-left:var(--space-2);">去验证</a>
-                  {/if}
-                </dd>
-              </div>
               <div class="profile-about-item">
                 <dt>账号状态</dt>
                 <dd><span class="badge {statusBadge(user.status)}">{statusLabel[user.status] ?? user.status}</span></dd>
