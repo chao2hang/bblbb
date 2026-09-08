@@ -28,19 +28,31 @@
   // 初始 Tab 跟随当前生效后端（SSR 即确定，无需 effect）。
   let activeTab = $state<'local' | 's3'>(untrack(() => data.config?.backend === 's3' ? 's3' : 'local'));
 
-  // 表单草稿：组件挂载时从脱敏配置播种一次。提交成功后的 invalidateAll
-  // 不会改动草稿——否则 load 重跑会把 S3 字段重置为环境值，表现为
-  // “保存/测试后刚填的配置被清空”。
-  let draft = $state(untrack(() => ({
-    local_path: config?.local_path ?? '/data/bblbb/uploads',
-    max_size_mb: Math.round((config?.upload_max_bytes ?? 20971520) / 1048576),
-    s3_endpoint: config?.s3_endpoint ?? '',
-    s3_bucket: config?.s3_bucket ?? '',
-    s3_public_base_url: config?.s3_public_base_url ?? '',
-    s3_region: config?.s3_region ?? '',
-    s3_path_style: config?.s3_path_style ?? false,
-    signed_url_ttl_seconds: config?.signed_url_ttl_seconds ?? 300
-  })));
+  // 表单草稿：响应式跟随 data.config 变化，支持页面刷新与配置热加载
+  let draft = $state({
+    local_path: data.config?.local_path ?? '/data/bblbb/uploads',
+    max_size_mb: Math.round((data.config?.upload_max_bytes ?? 20971520) / 1048576),
+    s3_endpoint: data.config?.s3_endpoint ?? '',
+    s3_bucket: data.config?.s3_bucket ?? '',
+    s3_public_base_url: data.config?.s3_public_base_url ?? '',
+    s3_region: data.config?.s3_region ?? '',
+    s3_path_style: data.config?.s3_path_style ?? false,
+    signed_url_ttl_seconds: data.config?.signed_url_ttl_seconds ?? 300
+  });
+
+  $effect(() => {
+    if (data.config) {
+      activeTab = data.config.backend === 's3' ? 's3' : 'local';
+      draft.local_path = data.config.local_path ?? '/data/bblbb/uploads';
+      draft.max_size_mb = Math.round((data.config.upload_max_bytes ?? 20971520) / 1048576);
+      draft.s3_endpoint = data.config.s3_endpoint ?? '';
+      draft.s3_bucket = data.config.s3_bucket ?? '';
+      draft.s3_public_base_url = data.config.s3_public_base_url ?? '';
+      draft.s3_region = data.config.s3_region ?? '';
+      draft.s3_path_style = data.config.s3_path_style ?? false;
+      draft.signed_url_ttl_seconds = data.config.signed_url_ttl_seconds ?? 300;
+    }
+  });
 
   let reauthLoading = $state(false);
   let reauthCancelled = $state(false);
@@ -208,8 +220,11 @@
     </div>
 
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12px;">
-      <span class="badge {config?.source === 'env' ? 'badge-warning' : 'badge-success'}">
-        {config?.source === 'env' ? '部署环境（只读）' : '后台数据库'}
+      <span class="badge {config?.source === 'env' ? 'badge-neutral' : 'badge-success'}">
+        {config?.backend === 's3' ? 'S3 实时运行中（全站生效）' : '本地存储运行中（全站生效）'}
+      </span>
+      <span class="badge {config?.source === 'database' ? 'badge-primary' : 'badge-neutral'}">
+        {config?.source === 'database' ? '来源：后台在线配置' : '来源：部署环境变量'}
       </span>
       <span class="text-secondary">Secret 状态：{maskSecret()}</span>
     </div>
