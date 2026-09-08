@@ -18,7 +18,6 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
-  import Card from '$lib/components/ui/Card.svelte';
   import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -709,7 +708,7 @@
           </div>
         </div>
 
-        <Card>
+        <div class="card settings-panel settings-panel-profile" class:is-active={activeTab === 'profile'}>
           <div class="card-header"><span class="card-title">当前公开投影</span></div>
           <div class="card-body">
             <dl class="profile-about-list">
@@ -720,9 +719,9 @@
             </dl>
             <p class="input-hint">保存后主页与资料卡将按此公开投影展示（版本 v{user.version}）。</p>
           </div>
-        </Card>
+        </div>
 
-        <div class="card" style="margin-top:var(--space-4);">
+        <div class="card settings-panel settings-panel-profile" class:is-active={activeTab === 'profile'} style="margin-top:var(--space-4);">
           <div class="card-header"><span class="card-title">账号信息</span></div>
           <div class="card-body">
             <dl class="profile-about-list">
