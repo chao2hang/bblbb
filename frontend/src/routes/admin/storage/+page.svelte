@@ -45,9 +45,17 @@
   let reauthCancelled = $state(false);
   let reauthError = $state<string | null>(null);
 
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红，测试连接附诊断详情）；
+  // 顶部内联横幅仅保留为无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
+
   // 提交后保留用户输入：默认 enhance 会在成功后 reset 表单（清掉刚填的
-  // S3 凭据/路径）；这里改为 update({ reset: false })，仅应用 action 结果。
-  function preserveInput() {
+  // S3 凭据/路径）；这里改为 update({ reset: false })，仅应用 action 结果；
+  // 结果同时用全局 Toast 提示（产品约定：提醒用浮窗，不占页面主体）。
+  function storageFormEnhance() {
     return async ({
       result,
       update
@@ -56,10 +64,23 @@
       update: (opts?: { reset?: boolean }) => Promise<void>;
     }) => {
       if (result.type === 'success' || result.type === 'failure') {
-        await update({ reset: false });
-      } else {
-        await update();
+        const d = result.data as AdminStorageActionData | null;
+        if (d?.testResult) {
+          const tr = d.testResult;
+          const summary = `${tr.ok ? '连接成功' : '连接失败'} · 后端 ${tr.backend ?? '—'} · 耗时 ${tr.elapsed_ms ?? 0}ms`;
+          const tips =
+            !tr.ok && (tr.message.includes('dispatch failure') || tr.message.includes('dns/tls'))
+              ? '\n排查建议：检查 Endpoint 地址/端口可达性、本地 MinIO 是否启动、path-style 勾选、http(s) 协议。'
+              : '';
+          const detail = tr.message
+            ? `${tr.message}${tr.error_class && tr.error_class !== 'ok' ? `（${tr.error_class}）` : ''}${tips}`
+            : tips || undefined;
+          showToast(summary, tr.ok ? 'success' : 'danger', 6500, detail);
+        } else if (d?.message) {
+          showToast(d.message, d.messageKind === 'success' ? 'success' : 'danger');
+        }
       }
+      await update({ reset: false });
     };
   }
 </script>
@@ -73,7 +94,7 @@
 {#if loadError}
   <p class="input-hint has-error" role="alert">{loadError}</p>
 {/if}
-{#if message}
+{#if message && !hasJs}
   <p
     class="input-hint {messageKind === 'success' ? '' : 'has-error'}"
     role={messageKind === 'success' ? 'status' : 'alert'}
@@ -83,7 +104,7 @@
   </p>
 {/if}
 
-{#if testResult}
+{#if testResult && !hasJs}
   <div
     class="input-hint {testResult.ok ? '' : 'has-error'}"
     role="status"
@@ -94,6 +115,11 @@
       <div class="text-secondary" style="font-size:12px;margin-top:4px;">
         {testResult.message}{#if testResult.error_class && testResult.error_class !== 'ok'}（{testResult.error_class}）{/if}
       </div>
+      {#if testResult.message.includes('dispatch failure') || testResult.message.includes('dns/tls')}
+        <div class="app-muted" style="font-size:11px;margin-top:6px;line-height:1.4;color:var(--color-text-secondary);">
+          排查建议：无法建立到 S3 Endpoint 的网络连接。请检查：1) Endpoint 地址与端口是否正确且可达；2) 本地 MinIO 服务是否已启动；3) MinIO 或兼容对象存储请尝试勾选「path-style 地址模式」；4) 协议是否应为 http:// 或 https://。
+        </div>
+      {/if}
     {/if}
   </div>
 {/if}
@@ -124,7 +150,7 @@
           return async ({ result, update }) => {
             reauthLoading = false;
             if (result.type === 'success') {
-              showToast('身份重新验证成功，请继续保存设置或测试连接', 'success');
+              showToast((result.data as { message?: string } | null)?.message ?? '身份重新验证成功，请继续保存设置或测试连接', 'success');
             } else if (result.type === 'failure') {
               reauthError = (result.data as any)?.message ?? '密码验证失败，请重试';
             }
@@ -227,7 +253,7 @@
       </button>
     </div>
 
-    <form method="POST" action="?/save" use:enhance={preserveInput} class="stack" style="gap:14px;">
+    <form method="POST" action="?/save" use:enhance={storageFormEnhance()} class="stack" style="gap:14px;">
       <input type="hidden" name="expected_version" value={config?.version ?? 1} />
       <input type="hidden" name="managed_fields" value={(config?.managed_fields ?? []).join(',')} />
       <input type="hidden" name="backend" value={activeTab} />
