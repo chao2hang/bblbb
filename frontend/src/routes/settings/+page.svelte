@@ -877,11 +877,35 @@
   }
 
   .np-check {
-    width: 16px;
-    height: 16px;
+    /* 隐藏原生 checkbox，用伪元素自绘以保证深/浅色模式下 on/off 区分度 */
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
     margin: 0;
-    accent-color: var(--color-brand);
+    border: 1.5px solid var(--color-border-strong, #555);
+    border-radius: 3px;
+    background: transparent;
     cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .np-check:checked {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+  }
+
+  .np-check:checked::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 5px;
+    width: 5px;
+    height: 9px;
+    border: solid var(--on-brand, #fff);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
   }
 
   .np-check:focus-visible {
