@@ -808,7 +808,6 @@
 
   .np-body {
     padding: 0;
-    overflow: hidden;
   }
 
   .np-body .form-error {
@@ -820,7 +819,6 @@
     grid-template-columns: minmax(0, 1fr) repeat(3, 64px);
     align-items: center;
     gap: var(--space-3);
-    margin-inline: calc(-1 * var(--space-5));
     padding: var(--space-3) var(--space-5);
     transition: background-color var(--duration-fast) var(--ease-out);
   }
