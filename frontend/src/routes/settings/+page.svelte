@@ -294,13 +294,27 @@
 
   <div class="app-settings-layout">
     <nav class="app-settings-nav" aria-label="设置导航">
-      <button type="button" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}><span aria-hidden="true">◈</span>个人资料</button>
-      <button type="button" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}><span aria-hidden="true">◐</span>外观与主题</button>
-      <button type="button" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}><span aria-hidden="true">◇</span>账号安全</button>
-      <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
-      <button type="button" class:is-active={activeTab === 'notifications'} onclick={() => selectTab('notifications')}><span aria-hidden="true">◌</span>通知设置</button>
-      <button type="button" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}><span aria-hidden="true">⌁</span>OAuth 授权</button>
-      <a href="/settings/privacy"><span aria-hidden="true">□</span>隐私设置</a>
+      <button type="button" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="user" size={14} /></span>个人资料
+      </button>
+      <button type="button" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="palette" size={14} /></span>外观与主题
+      </button>
+      <button type="button" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="shield" size={14} /></span>账号安全
+      </button>
+      <a href="/me#sessions">
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="monitor" size={14} /></span>登录设备
+      </a>
+      <button type="button" class:is-active={activeTab === 'notifications'} onclick={() => selectTab('notifications')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="bell" size={14} /></span>通知设置
+      </button>
+      <button type="button" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="key" size={14} /></span>OAuth 授权
+      </button>
+      <a href="/settings/privacy">
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="eye-off" size={14} /></span>隐私设置
+      </a>
     </nav>
 
     <div class="settings-content">
@@ -794,6 +808,7 @@
 
   .np-body {
     padding: 0;
+    overflow: hidden;
   }
 
   .np-body .form-error {
@@ -940,5 +955,25 @@
     .np-row {
       transition: none;
     }
+  }
+
+  /* 设置侧栏 Lucide 图标——与文字基线对齐，颜色随 hover/active 切换 */
+  :global(.app-settings-nav .app-settings-nav__icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: currentColor;
+    opacity: 0.85;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  :global(.app-settings-nav button:hover .app-settings-nav__icon),
+  :global(.app-settings-nav button.is-active .app-settings-nav__icon),
+  :global(.app-settings-nav a:hover .app-settings-nav__icon),
+  :global(.app-settings-nav a.is-active .app-settings-nav__icon) {
+    opacity: 1;
   }
 </style>
