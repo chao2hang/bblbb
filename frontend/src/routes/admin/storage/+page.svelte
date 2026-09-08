@@ -5,6 +5,7 @@
   import { enhance } from '$app/forms';
   import type { ActionResult } from '@sveltejs/kit';
   import Button from '$lib/components/ui/Button.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminStorageActionData, AdminStoragePageData } from './+page.server';
 
@@ -52,17 +53,23 @@
     hasJs = true;
   });
 
+  // 新一轮 step-up 请求（新 form 实例）到达时重置取消标记，
+  // 避免上一次「取消」永久压制弹窗；取消本身不改 form，不会触发重开。
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
+  });
+
   // 提交后保留用户输入：默认 enhance 会在成功后 reset 表单（清掉刚填的
   // S3 凭据/路径）；这里改为 update({ reset: false })，仅应用 action 结果；
   // 结果同时用全局 Toast 提示（产品约定：提醒用浮窗，不占页面主体）。
   function storageFormEnhance() {
-    return async ({
+    return (_e: unknown) => async ({
       result,
       update
     }: {
       result: ActionResult;
       update: (opts?: { reset?: boolean }) => Promise<void>;
-    }) => {
+    }): Promise<void> => {
       if (result.type === 'success' || result.type === 'failure') {
         const d = result.data as AdminStorageActionData | null;
         if (d?.testResult) {
@@ -125,60 +132,55 @@
 {/if}
 
 <!-- step-up 重新验证（M02-MFA-07）：save/test 命中 403 step_up_required 时展示 -->
-{#if form?.stepUpRequired && !reauthCancelled}
-  <section class="app-card" style="margin-bottom:14px;border-left:3px solid var(--color-warning);">
-    <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:center;">
-      <h2>需要重新验证身份</h2>
-      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
-    </header>
-    <div class="app-card__body">
-      <p class="text-secondary" style="font-size:12px;margin:0 0 10px;line-height:1.6;">
-        存储配置的保存与测试属于高风险管理操作，要求近期重新认证（登录已超过有效期）。
-        输入当前账号密码完成重新验证后，将保留当前表单并可继续保存。
-      </p>
-      {#if reauthError}
-        <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
-          {reauthError}
-        </div>
-      {/if}
-      <form
-        method="POST"
-        action="?/reauth"
-        use:enhance={() => {
-          reauthLoading = true;
-          reauthError = null;
-          return async ({ result, update }) => {
-            reauthLoading = false;
-            if (result.type === 'success') {
-              showToast((result.data as { message?: string } | null)?.message ?? '身份重新验证成功，请继续保存设置或测试连接', 'success');
-            } else if (result.type === 'failure') {
-              reauthError = (result.data as any)?.message ?? '密码验证失败，请重试';
-            }
-            await update({ reset: false });
-          };
-        }}
-        class="stack"
-        style="gap:10px;"
-      >
-        <label>
-          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">当前密码</span>
-          <input
-            type="password"
-            name="password"
-            class="input-field"
-            required
-            autocomplete="current-password"
-            style="width:100%;"
-          />
-        </label>
-        <div style="display:flex;gap:10px;align-items:center;">
-          <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
-          <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
-        </div>
-      </form>
+<!-- step-up 重新验证（M02-MFA-07）：save/test 命中 403 step_up_required 时弹窗（模态）。
+     无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="存储配置的保存与测试属于高风险管理操作，要求近期重新认证（登录已超过有效期）。输入当前账号密码完成重新验证后，将保留当前表单并可继续保存。"
+  onclose={() => (reauthCancelled = true)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
     </div>
-  </section>
-{/if}
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'success') {
+          showToast((result.data as { message?: string } | null)?.message ?? '身份重新验证成功，请继续保存设置或测试连接', 'success');
+        } else if (result.type === 'failure') {
+          reauthError = (result.data as any)?.message ?? '密码验证失败，请重试';
+        }
+        await update({ reset: false });
+      };
+    }}
+    class="stack"
+    style="gap:10px;"
+  >
+    <label>
+      <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">当前密码</span>
+      <input
+        type="password"
+        name="password"
+        class="input-field"
+        required
+        autocomplete="current-password"
+        style="width:100%;"
+      />
+    </label>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
+    </div>
+  </form>
+</Dialog>
 
 <!-- 卡片 1：当前后端（原型 2x2 大字统计卡 + 状态徽标与掩码） -->
 <section class="app-card" style="margin-bottom:14px;">
@@ -253,7 +255,8 @@
       </button>
     </div>
 
-    <form method="POST" action="?/save" use:enhance={storageFormEnhance()} class="stack" style="gap:14px;">
+    <!-- 宽屏拉满后限宽表单，避免输入框拉伸过长（云控制台表单惯例 640–860px） -->
+    <form method="POST" action="?/save" use:enhance={storageFormEnhance()} class="stack" style="gap:14px;max-width:760px;">
       <input type="hidden" name="expected_version" value={config?.version ?? 1} />
       <input type="hidden" name="managed_fields" value={(config?.managed_fields ?? []).join(',')} />
       <input type="hidden" name="backend" value={activeTab} />

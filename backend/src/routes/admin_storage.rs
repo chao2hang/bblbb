@@ -228,17 +228,9 @@ fn validate_storage_config_update(
         }
         if backend == "s3" {
             let bucket = update.bucket.as_deref().unwrap_or("");
-            let region = update.s3_region.as_deref().unwrap_or("");
             if bucket.is_empty() {
                 return Err(AppError::bad_request(
                     "bucket is required for s3 backend",
-                    request_id,
-                    None,
-                ));
-            }
-            if region.is_empty() {
-                return Err(AppError::bad_request(
-                    "s3_region is required for s3 backend",
                     request_id,
                     None,
                 ));

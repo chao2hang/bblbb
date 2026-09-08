@@ -64,7 +64,7 @@ function buildPatch(form: FormData, current: StorageConfig | null): Record<strin
   set('backend', form.get('backend') ? String(form.get('backend')) : undefined);
   set('local_path', String(form.get('local_path') ?? '').trim() || null);
   set('s3_endpoint', String(form.get('s3_endpoint') ?? '').trim() || null);
-  set('s3_region', String(form.get('s3_region') ?? '').trim() || null);
+  set('s3_region', String(form.get('s3_region') ?? '').trim() || 'us-east-1');
   set('s3_bucket', String(form.get('s3_bucket') ?? '').trim() || null);
   set('s3_path_style', boolForm(form, 's3_path_style'));
   set('s3_presigned_uploads', boolForm(form, 's3_presigned_uploads'));
@@ -129,7 +129,7 @@ export const actions: Actions = {
       }
       if (result.code === 'step_up_required') {
         return fail(403, {
-          message: '此操作需要重新验证身份（登录已超过有效期），请在下方输入密码重新验证后重试',
+          message: '此操作需要重新验证身份（登录已超过有效期），请输入密码重新验证后重试',
           messageKind: 'error',
           stepUpRequired: true,
           requestId: result.requestId
@@ -142,8 +142,9 @@ export const actions: Actions = {
           requestId: result.requestId
         } satisfies AdminStorageActionData);
       }
+      const detailedMsg = result.message || '保存失败，请检查请求参数';
       return fail(result.status, {
-        message: result.message,
+        message: detailedMsg,
         messageKind: 'error',
         requestId: result.requestId
       } satisfies AdminStorageActionData);
@@ -184,7 +185,7 @@ export const actions: Actions = {
       }
       if (result.code === 'step_up_required') {
         return fail(403, {
-          message: '此操作需要重新验证身份（登录已超过有效期），请在下方输入密码重新验证后重试',
+          message: '此操作需要重新验证身份（登录已超过有效期），请输入密码重新验证后重试',
           messageKind: 'error',
           stepUpRequired: true,
           requestId: result.requestId,
