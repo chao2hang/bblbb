@@ -37,7 +37,7 @@
   );
   const mfaStep = $derived(form?.mfa);
 
-  /** 侧栏图标化快捷入口（页面级导航改由 app-toolbar 承担，此处只留业务入口）。 */
+  /** 侧栏图标化快捷入口。 */
   const quickLinks = [
     { href: '/favorites', icon: 'star', label: '我的收藏' },
     { href: '/me/balance', icon: 'coins', label: '积分明细' },
@@ -113,7 +113,6 @@
   <PageTitle title="我的" />
 
 <div class="container page-content">
-  <!-- 原型对齐（prototype/pages/me.html）：app-route-head 仅 h1「我的」，无面包屑。 -->
   <div class="app-route-head">
     <div class="app-route-head__copy">
       <h1 tabindex="-1">我的</h1>
@@ -125,6 +124,7 @@
   {/if}
 
   {#if user}
+    <!-- 个人资料卡：头像 + 基本信息 + 快捷导航 -->
     <section class="app-profile">
       <Avatar name={user.display_name || user.username} size="xl" />
       <div class="app-profile__body">
@@ -147,39 +147,22 @@
       </div>
     </section>
 
-    <div class="app-account-cards" style="margin-top:14px;">
-      <div class="app-account-card">
-        <small>经验</small>
-        <strong>{activityXp(activity)}</strong>
-        <span>LV.{user.level} · 成长进度</span>
-      </div>
-      <div class="app-account-card">
-        <small>B币</small>
-        <strong>{coinBalance?.amount ?? 0}</strong>
-        <span>可用于商城与内容解锁</span>
-      </div>
-      <div class="app-account-card">
-        <small>身份</small>
-        <strong>{user.roles.length > 0 ? roleLabel(user.roles[0]) : '成员'}</strong>
-        <span>{statusLabel[user.status] ?? user.status}</span>
-      </div>
-    </div>
+    <!-- 快捷导航（紧贴资料卡下方，简洁行内链接） -->
+    <nav class="me-nav" aria-label="快捷导航">
+      <a href="/mfa"><Icon name="shield" size={14} />两步验证</a>
+      <a href="#sessions"><Icon name="smartphone" size={14} />登录设备</a>
+      <a href="/settings#settings-notifications"><Icon name="bell" size={14} />通知设置</a>
+      <a href="/settings#settings-oauth"><Icon name="key" size={14} />OAuth 授权</a>
+      <a href="/settings"><Icon name="settings" size={14} />账号设置</a>
+    </nav>
 
     {#if topMessage}
       <p class="input-hint is-error" role="alert" style="margin-top:var(--space-4);">{topMessage}</p>
     {/if}
 
-    <!-- 快捷导航工具条（原型 me.html app-toolbar 对齐）：页面内锚点 + 安全/
-         通知/授权页直达，替代原先深埋侧栏的低可见性文字链接。 -->
-    <div class="app-toolbar" style="margin-top:14px;margin-bottom:0;" role="navigation" aria-label="快捷导航">
-      <Button text="两步验证" variant="secondary" size="sm" icon="shield" href="/mfa" />
-      <Button text="登录设备" variant="secondary" size="sm" icon="smartphone" href="#sessions" />
-      <Button text="通知设置" variant="secondary" size="sm" icon="bell" href="/settings#settings-notifications" />
-      <Button text="OAuth 授权" variant="secondary" size="sm" icon="key" href="/settings#settings-oauth" />
-    </div>
-
-    <div class="content-grid" style="margin-top:var(--space-5);">
+    <div class="content-grid" style="margin-top:var(--space-4);">
       <div class="main-col">
+        <!-- 账号信息 -->
         <div class="card">
           <div class="card-header"><span class="card-title">账号信息</span></div>
           <div class="card-body">
@@ -215,7 +198,7 @@
           </div>
         </div>
 
-        <!-- 登录设备管理（#sessions：工具条锚点目标） -->
+        <!-- 登录设备管理 -->
         <div class="card" id="sessions">
           <div class="card-header">
             <span class="card-title">登录设备管理</span>
@@ -267,7 +250,7 @@
           </div>
         </div>
 
-        <!-- 两步验证（#mfa：工具条直达 /mfa 独立页；本卡提供同页管理） -->
+        <!-- 两步验证 -->
         <div class="card" id="mfa">
           <div class="card-header"><span class="card-title">两步验证（MFA）</span></div>
           <div class="card-body">
@@ -407,8 +390,7 @@
         </div>
       </div>
       <div class="side-col">
-        <!-- GAP-FIX 账户卡：经验 / B币 / 签到（GET /activity/summary；失败/缺失时
-             整卡隐藏，不阻塞页面）。 -->
+        <!-- 账户卡：经验 / B币 / 签到 + 快捷操作（合并） -->
         {#if activity}
           {@const lvlNum = activityLevelNumber(activity.level)}
           {@const lvlName =
@@ -437,20 +419,15 @@
                 <span class="text-secondary" style="font-size:var(--text-sm);">连续签到</span>
                 <span style="font-variant-numeric:tabular-nums;">{activity.streak_days} 天{activity.checked_in_today ? '（今日已签）' : ''}</span>
               </div>
-              <a class="btn btn-secondary btn-sm" href="/me/balance" style="text-align:center;">签到 / 积分明细</a>
+              <div style="display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-1);padding-top:var(--space-3);border-top:var(--border-default);">
+                <Button text="发布新帖" variant="primary" size="sm" icon="pen-line" href="/editor" />
+                <a class="btn btn-secondary btn-sm" href="/me/balance" style="text-align:center;">签到 / 积分明细</a>
+              </div>
             </div>
           </div>
         {/if}
 
-        <div class="card">
-          <div class="card-header"><span class="card-title">快捷操作</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
-            <Button text="发布新帖" variant="primary" size="sm" icon="pen-line" href="/editor" />
-            <Button text="编辑资料" variant="secondary" size="sm" icon="edit-3" href="/settings" />
-          </div>
-        </div>
-
-        <!-- 图标化快捷入口（业务页直达；页面内导航由上方工具条承担）。 -->
+        <!-- 快捷入口 -->
         <div class="card">
           <div class="card-header"><span class="card-title">快捷入口</span></div>
           <div class="card-body">
@@ -604,6 +581,30 @@
   }
   .quick-link:hover {
     border-color: var(--color-brand);
+    color: var(--color-brand);
+    background: var(--color-bg-subtle);
+  }
+  /* 快捷导航条：紧贴资料卡下方，行内图标链接 */
+  .me-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+    padding: var(--space-2) 0;
+    flex-wrap: wrap;
+  }
+  .me-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transition: color 0.15s, background 0.15s;
+  }
+  .me-nav a:hover {
     color: var(--color-brand);
     background: var(--color-bg-subtle);
   }
