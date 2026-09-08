@@ -384,7 +384,14 @@ async fn admin_settings_get_patch_optimistic_lock() {
             "settings": {
                 "open_registration": false,
                 "site_name": "BBLBB 测试站",
-                "public_source": "https://settings.example.com"
+                "public_source": "https://settings.example.com",
+                "site_description": "测试站描述",
+                "login_eyebrow": "HELLO",
+                "login_title": "登录测试站",
+                "login_subtitle": "测试登录说明",
+                "register_eyebrow": "JOIN US",
+                "register_title": "加入测试站",
+                "register_subtitle": "测试注册说明"
             },
             "reason": "关闭注册并改名"
         }),
@@ -405,6 +412,27 @@ async fn admin_settings_get_patch_optimistic_lock() {
     assert_eq!(
         body["settings"]["site_name"].as_str().unwrap(),
         "BBLBB 测试站"
+    );
+    // 0065 站点文案：PATCH 后回读一致（trim 后落库）。
+    assert_eq!(
+        body["settings"]["site_description"].as_str().unwrap(),
+        "测试站描述"
+    );
+    assert_eq!(
+        body["settings"]["login_title"].as_str().unwrap(),
+        "登录测试站"
+    );
+    assert_eq!(
+        body["settings"]["login_subtitle"].as_str().unwrap(),
+        "测试登录说明"
+    );
+    assert_eq!(
+        body["settings"]["register_eyebrow"].as_str().unwrap(),
+        "JOIN US"
+    );
+    assert_eq!(
+        body["settings"]["register_title"].as_str().unwrap(),
+        "加入测试站"
     );
 
     // 旧版本重放 → 409（乐观锁把门）。
@@ -441,6 +469,101 @@ async fn admin_settings_get_patch_optimistic_lock() {
     )
     .await;
     assert_eq!(audit, 1, "设置更新必须写审计");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// 0065 站点公开信息（GET /api/v1/site）：匿名可读、只含公开投影字段
+/// （不含 SMTP/注册开关）、空文案 = 前端兜底语义原样透传、private no-store。
+#[tokio::test]
+async fn public_site_projection_anonymous() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (_admin_id, session, csrf) = admin_ctx(&app, &pool).await;
+
+    // 匿名 GET → 200：0061/0065 种子默认值。
+    let (status, body, cache_control) = anon_get(&app, "/api/v1/site").await;
+    assert_eq!(status, StatusCode::OK, "匿名必须 200: {body}");
+    assert_eq!(body["site_name"].as_str().unwrap(), "BBLBB");
+    assert_eq!(
+        body["site_description"].as_str().unwrap(),
+        "",
+        "空文案原样透传（前端兜底）"
+    );
+    assert_eq!(body["login_title"].as_str().unwrap(), "");
+    assert_eq!(body["register_subtitle"].as_str().unwrap(), "");
+    assert!(!body["maintenance_mode"].as_bool().unwrap());
+    assert!(body["version"].is_i64());
+    assert_eq!(
+        cache_control, "private, no-store",
+        "公开站点信息禁止共享缓存"
+    );
+    // 公开投影不得泄漏 SMTP / 注册开关等运营字段。
+    for key in [
+        "smtp_host",
+        "smtp_pass",
+        "smtp_enabled",
+        "open_registration",
+        "email_verification",
+        "public_source",
+        "api_rate_limit",
+    ] {
+        assert!(body.get(key).is_none(), "公开投影不得包含 {key}: {body}");
+    }
+
+    // 管理台改文案 → 匿名立即读到新值（空串 = 兜底语义保留）。
+    let (status, _body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({
+            "settings": {
+                "site_name": "开源论坛",
+                "site_description": "一个开源的论坛程序",
+                "login_title": "欢迎回来",
+                "login_subtitle": "登录以继续"
+            },
+            "reason": "全站文案统一"
+        }),
+        &[("if-match", "1")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, body, _cc) = anon_get(&app, "/api/v1/site").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["site_name"].as_str().unwrap(), "开源论坛");
+    assert_eq!(
+        body["site_description"].as_str().unwrap(),
+        "一个开源的论坛程序"
+    );
+    assert_eq!(body["login_title"].as_str().unwrap(), "欢迎回来");
+    assert_eq!(body["login_subtitle"].as_str().unwrap(), "登录以继续");
+    // 未改的字段保持空串兜底语义。
+    assert_eq!(body["register_title"].as_str().unwrap(), "");
+
+    // 超长文案 → 400（login_title 上限 100 字符）。
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({
+            "settings": { "login_title": "标".repeat(101) },
+            "reason": "超长文案"
+        }),
+        &[("if-match", "2")],
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "超长站点文案必须 400: {body}"
+    );
 
     close_pool(&pool).await;
     cleanup(&dir);
@@ -810,6 +933,90 @@ async fn admin_settings_smtp_configuration_and_masking() {
     );
     assert_eq!(db_conf2.port, 587);
     assert_eq!(db_conf2.encryption, "starttls");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// 0066 第三方 OAuth 配置：GET 脱敏回读（Secret 不外泄）；PATCH 更新；Secret 持久化与按需保留。
+#[tokio::test]
+async fn admin_settings_oauth_configuration_and_masking() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (_admin_id, session, csrf) = admin_ctx(&app, &pool).await;
+
+    // 1) 初始状态：未启用，Secret 未配置，绝不泄露明文 Secret
+    let (status, body) = authed(
+        &app,
+        "GET",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let s = &body["settings"];
+    assert!(!s["google_auth_enabled"].as_bool().unwrap());
+    assert!(!s["google_client_secret_configured"].as_bool().unwrap());
+    assert!(s.get("google_client_secret").is_none());
+    assert!(!s["github_auth_enabled"].as_bool().unwrap());
+    assert!(!s["github_client_secret_configured"].as_bool().unwrap());
+    assert!(s.get("github_client_secret").is_none());
+
+    // 2) 更新 OAuth 配置与 Client Secret
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({
+            "settings": {
+                "google_auth_enabled": true,
+                "google_client_id": "google-client-id-123",
+                "google_client_secret": "google-secret-456",
+                "github_auth_enabled": true,
+                "github_client_id": "github-client-id-789",
+                "github_client_secret": "github-secret-abc"
+            },
+            "reason": "配置 Google 和 GitHub 登录"
+        }),
+        &[("if-match", "1")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "PATCH OAuth 配置必须 200: {body}");
+    let s = &body["settings"];
+    assert!(s["google_auth_enabled"].as_bool().unwrap());
+    assert_eq!(s["google_client_id"].as_str().unwrap(), "google-client-id-123");
+    assert!(s["google_client_secret_configured"].as_bool().unwrap());
+    assert!(s.get("google_client_secret").is_none(), "PATCH 返回绝不泄露 Secret");
+    assert!(s["github_auth_enabled"].as_bool().unwrap());
+    assert_eq!(s["github_client_id"].as_str().unwrap(), "github-client-id-789");
+    assert!(s["github_client_secret_configured"].as_bool().unwrap());
+    assert!(s.get("github_client_secret").is_none(), "PATCH 返回绝不泄露 Secret");
+
+    // 3) 再次 PATCH 其它字段（缺 secret 字段）→ 原 Secret 保留，不被清空
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        "/api/v1/admin/settings",
+        &session,
+        &csrf,
+        json!({
+            "settings": {
+                "site_name": "New BBLBB"
+            },
+            "reason": "修改站点名称"
+        }),
+        &[("if-match", "2")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let s = &body["settings"];
+    assert!(s["google_client_secret_configured"].as_bool().unwrap());
+    assert!(s["github_client_secret_configured"].as_bool().unwrap());
 
     close_pool(&pool).await;
     cleanup(&dir);

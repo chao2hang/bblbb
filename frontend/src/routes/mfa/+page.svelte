@@ -4,6 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { MfaActionData, MfaPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: MfaPageData; form?: MfaActionData | null } = $props();
 
@@ -12,9 +13,7 @@
   let isEnabled = $derived(user?.mfa_enabled === true && mfaStep?.kind !== 'disabled');
 </script>
 
-<svelte:head>
-  <title>两步验证 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="两步验证" />
 
 <div class="container page-content">
   <div class="app-route-head">

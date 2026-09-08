@@ -25,6 +25,7 @@
     AchievementsPageData,
     AchievementCard
   } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: {
     data: AchievementsPageData;
@@ -106,9 +107,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>成就墙 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="成就墙" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/achievements.html）：仅 sr-only h1，无可见页头、无面包屑。 -->

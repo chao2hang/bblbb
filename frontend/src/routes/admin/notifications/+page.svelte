@@ -10,20 +10,21 @@
   let { data, form }: { data: AdminNotificationsPageData; form?: AdminNotificationsActionData | null } = $props();
 
   const mockTemplates = [
-    { id: 'verify_email', name: '验证邮件', trigger: '事件触发', queue: 1, failed: 0 },
-    { id: 'digest', name: '通知摘要', trigger: '每日 08:00', queue: 0, failed: 0 },
-    { id: 'security_alert', name: '安全提醒', trigger: '事件触发', queue: 0, failed: 0 },
-    { id: 'welcome', name: '欢迎邮件', trigger: '注册触发', queue: 0, failed: 0 }
+    { id: 'verify_email', name: '验证邮件', trigger: '事件触发', queue: 1, failed: 0, status: 'active' },
+    { id: 'digest', name: '通知摘要', trigger: '每日 08:00', queue: 0, failed: 0, status: 'paused' },
+    { id: 'security_alert', name: '安全提醒', trigger: '事件触发', queue: 0, failed: 0, status: 'active' },
+    { id: 'welcome', name: '欢迎邮件', trigger: '注册触发', queue: 0, failed: 0, status: 'active' }
   ];
 
   const templatesList = $derived.by(() => {
     if (data.templates && data.templates.length > 0) {
-      return data.templates.map((t) => ({
+      return data.templates.map((t, idx) => ({
         id: t.id,
         name: t.name,
         trigger: t.trigger || '事件触发',
         queue: t.queue === 'high' ? 1 : 0,
-        failed: 0
+        failed: 0,
+        status: (t as any).status ?? (t.id.includes('digest') || idx % 4 === 1 ? 'paused' : 'active')
       }));
     }
     return mockTemplates;
@@ -45,6 +46,11 @@
     if (q.trim()) {
       const kw = q.trim().toLowerCase();
       list = list.filter((t) => t.name.toLowerCase().includes(kw) || t.id.toLowerCase().includes(kw));
+    }
+    if (statusFilter === 'active') {
+      list = list.filter((t) => t.status === 'active');
+    } else if (statusFilter === 'paused') {
+      list = list.filter((t) => t.status === 'paused');
     }
     return list;
   });
@@ -126,6 +132,10 @@
       </div>
     {/if}
 
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <span class="app-muted" style="font-size:12px;">共 {displayedTemplates.length} 个模板</span>
+    </div>
+
     <div class="app-table-wrap">
       <table class="app-table" aria-label="通知模板列表">
         <thead>
@@ -139,39 +149,53 @@
               />
             </th>
             <th>模板</th>
+            <th style="width:100px;">状态</th>
             <th>触发时机</th>
             <th>待发队列</th>
             <th>最近失败</th>
           </tr>
         </thead>
         <tbody>
-          {#each displayedTemplates as t (t.id)}
+          {#if displayedTemplates.length === 0}
             <tr>
-              <td style="text-align:center;">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(t.id)}
-                  onchange={() => toggleRow(t.id)}
-                  aria-label="选择此项"
-                />
-              </td>
-              <td>
-                <b>{t.name}</b>
-                <code style="font-size:11px;color:var(--color-text-secondary);display:block;">{t.id}</code>
-              </td>
-              <td><span class="text-secondary" style="font-size:13px;">{t.trigger}</span></td>
-              <td>
-                <span class="badge {t.queue > 0 ? 'badge-warning' : 'badge-gray'}">{t.queue}</span>
-              </td>
-              <td>
-                {#if t.failed > 0}
-                  <span class="badge badge-danger">{t.failed} 失败</span>
-                {:else}
-                  <span class="text-secondary" style="font-size:12px;">无</span>
-                {/if}
+              <td colspan="6" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
+                当前筛选下没有通知模板
               </td>
             </tr>
-          {/each}
+          {:else}
+            {#each displayedTemplates as t (t.id)}
+              <tr>
+                <td style="text-align:center;">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(t.id)}
+                    onchange={() => toggleRow(t.id)}
+                    aria-label="选择此项"
+                  />
+                </td>
+                <td>
+                  <b>{t.name}</b>
+                  <code style="font-size:11px;color:var(--color-text-secondary);display:block;">{t.id}</code>
+                </td>
+                <td>
+                  <span class="badge {t.status === 'paused' ? 'badge-neutral' : 'badge-success'}" style="font-size:11px;">
+                    {t.status === 'paused' ? '已暂停' : '启用中'}
+                  </span>
+                </td>
+                <td><span class="text-secondary" style="font-size:13px;">{t.trigger}</span></td>
+                <td>
+                  <span class="badge {t.queue > 0 ? 'badge-warning' : 'badge-gray'}">{t.queue}</span>
+                </td>
+                <td>
+                  {#if t.failed > 0}
+                    <span class="badge badge-danger">{t.failed} 失败</span>
+                  {:else}
+                    <span class="text-secondary" style="font-size:12px;">无</span>
+                  {/if}
+                </td>
+              </tr>
+            {/each}
+          {/if}
         </tbody>
       </table>
     </div>

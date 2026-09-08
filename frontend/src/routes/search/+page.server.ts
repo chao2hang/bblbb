@@ -14,11 +14,12 @@ import type { PageServerLoad } from './$types';
 
 export interface SearchPageData {
   q: string;
+  tag?: string | null;
   limit: number;
   after: string | null;
   /** 查询校验错误（超长/非法 cursor）；null = 无。 */
   invalid: string | null;
-  /** 是否已执行过搜索（q 非空）。 */
+  /** 是否已执行过搜索（q 或 tag 非空）。 */
   searched: boolean;
   results: SearchResultView[];
   nextCursor: string | null;
@@ -30,16 +31,19 @@ export interface SearchPageData {
 
 export const load: PageServerLoad = async ({ url, cookies, request }): Promise<SearchPageData> => {
   const requestId = request.headers.get('x-request-id');
+  const rawTag = url.searchParams.get('tag');
+  const tag = rawTag && rawTag.trim() ? rawTag.trim() : null;
   const normalized = normalizeSearchQuery({
     q: url.searchParams.get('q'),
     limit: url.searchParams.get('limit'),
     after: url.searchParams.get('after')
   });
 
-  if (!normalized.q) {
+  if (!normalized.q && !tag) {
     // 引导态：未搜索。noindex 由页面 meta 保证；不发起请求。
     return {
       q: '',
+      tag: null,
       limit: SEARCH_LIMIT_DEFAULT,
       after: null,
       invalid: null,
@@ -57,6 +61,7 @@ export const load: PageServerLoad = async ({ url, cookies, request }): Promise<S
     // 校验失败：不调用 API（防滥用/超长查询），直接给出提示。
     return {
       q: normalized.q,
+      tag,
       limit: normalized.limit,
       after: null,
       invalid: normalized.invalid,
@@ -70,7 +75,9 @@ export const load: PageServerLoad = async ({ url, cookies, request }): Promise<S
     } satisfies SearchPageData;
   }
 
-  const params = new URLSearchParams({ q: normalized.q, limit: String(normalized.limit) });
+  const effectiveQ = normalized.q || tag || '*';
+  const params = new URLSearchParams({ q: effectiveQ, limit: String(normalized.limit) });
+  if (tag) params.set('tag', tag);
   if (normalized.after) params.set('after', normalized.after);
   const result = await getAuthed<unknown>(
     cookies,
@@ -83,6 +90,7 @@ export const load: PageServerLoad = async ({ url, cookies, request }): Promise<S
       // M08-CRAWL-06：要求一次性挑战（未启用时后端不返回此码）。
       return {
         q: normalized.q,
+        tag,
         limit: normalized.limit,
         after: normalized.after,
         invalid: null,
@@ -98,6 +106,7 @@ export const load: PageServerLoad = async ({ url, cookies, request }): Promise<S
     if (result.status === 429) {
       return {
         q: normalized.q,
+        tag,
         limit: normalized.limit,
         after: normalized.after,
         invalid: null,
@@ -112,6 +121,7 @@ export const load: PageServerLoad = async ({ url, cookies, request }): Promise<S
     }
     return {
       q: normalized.q,
+      tag,
       limit: normalized.limit,
       after: normalized.after,
       invalid: null,
@@ -125,9 +135,10 @@ export const load: PageServerLoad = async ({ url, cookies, request }): Promise<S
     } satisfies SearchPageData;
   }
 
-  const page = normalizeSearchPage(result.data, normalized.q);
+  const page = normalizeSearchPage(result.data, normalized.q || tag || '');
   return {
     q: normalized.q,
+    tag,
     limit: normalized.limit,
     after: normalized.after,
     invalid: null,

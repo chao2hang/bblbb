@@ -10,8 +10,12 @@
   import { boardVisuals } from '$lib/board-visuals';
   import { formatCount, formatRelative } from '$lib/utils';
   import type { DiscoverPageData } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
-  let { data }: { data: DiscoverPageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: DiscoverPageData & { site?: SiteCopyView | null } } = $props();
+
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const tags = $derived(data.tags);
   const posts = $derived(data.posts);
@@ -22,13 +26,13 @@
 </script>
 
 <Seo
-  title="发现 · BBLBB 社区"
-  description="发现 BBLBB 社区里的热门内容与活跃成员"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  title="发现"
+  description={`发现${site.siteName}里的热门内容与活跃成员`}
+  og={{ type: 'website' }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'BBLBB 发现'
+    name: `发现 · ${site.siteName}`
   }}
 />
 
@@ -177,7 +181,7 @@
       </section>
 
       <footer class="rail-foot">
-        © 2026<br />Powered By BBLBB Community
+        © {new Date().getFullYear()}<br />Powered By {site.siteName}
       </footer>
     </aside>
   </div>

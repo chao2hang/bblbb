@@ -13,9 +13,13 @@
   import { show } from '$lib/ui/toast';
   import { formatCount, formatRelative } from '$lib/utils';
   import Seo from '$lib/components/Seo.svelte';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
   import type { HomePageData, HomeSort } from './+page.server';
 
-  let { data }: { data: HomePageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: HomePageData & { site?: SiteCopyView | null } } = $props();
+
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const boards = $derived(data.boards);
   const totalPosts = $derived(
@@ -114,13 +118,13 @@
 
 <Seo
   title="社区论坛"
-  description="BBLBB 社区论坛：板块、标签与最新讨论"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  description={site.siteDescription}
+  og={{ type: 'website', siteName: site.siteName }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'BBLBB 社区论坛',
-    description: '自由讨论、友善交流的社区论坛'
+    name: site.siteName,
+    description: site.siteDescription
   }}
 />
 
@@ -131,7 +135,7 @@
   <div class="mobile-hero">
     <a class="mobile-doc-link" href="/" aria-label="打开社区规范"><Icon name="book-open" size={14} /><span>规范</span></a>
     <a class="mobile-search-link" href="/search" aria-label="搜索帖子、用户或标签"><Icon name="search" size={16} /></a>
-    <div class="mobile-logo">BBLBB</div>
+    <div class="mobile-logo">{site.siteName}</div>
     <div class="hero-stats">
       <button type="button">成员 <b>{formatCount(data.stats?.members ?? 128)}</b></button>
       <button type="button">内容 <b>{formatCount(totalPosts)}</b></button>
@@ -314,7 +318,7 @@
         </nav>
       </section>
 
-      <footer class="rail-foot">© 2026<br />Powered By BBLBB Community</footer>
+      <footer class="rail-foot">© {new Date().getFullYear()}<br />Powered By {site.siteName}</footer>
     </aside>
   </div>
 </div>

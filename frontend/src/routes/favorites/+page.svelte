@@ -20,6 +20,7 @@
   import { formatCount, formatRelative } from '$lib/utils';
   import { boardVisuals } from '$lib/board-visuals';
   import type { FavoritesActionData, FavoritesPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: FavoritesPageData; form?: FavoritesActionData | null } = $props();
 
@@ -77,9 +78,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>我的收藏 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="我的收藏" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/favorites.html）：app-route-head，无面包屑。 -->

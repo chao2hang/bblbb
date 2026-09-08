@@ -8,11 +8,19 @@
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
   import type { PasswordResetConfirmData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
   let {
     data,
     form
-  }: { data: { token: string | null }; form?: PasswordResetConfirmData } = $props();
+  }: {
+    data: { token: string | null } & { site?: SiteCopyView | null };
+    form?: PasswordResetConfirmData;
+  } = $props();
+
+  // 全站文案（0065）：站点名来自后台系统设置（layout 注入；隔离渲染时兜底）。
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const passwordError = $derived(form?.fieldErrors?.password ?? null);
   const confirmError = $derived(form?.fieldErrors?.confirm ?? null);
@@ -21,14 +29,12 @@
   );
 </script>
 
-<svelte:head>
-  <title>重置密码 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="重置密码" />
 
 <div class="auth-wrapper">
   <div class="auth-card">
     <div class="auth-header">
-      <div class="auth-logo">BBLBB</div>
+      <div class="auth-logo">{site.siteName}</div>
       <div class="auth-title">设置新密码</div>
       <div class="auth-subtitle">链接一次有效，30 分钟后过期</div>
     </div>

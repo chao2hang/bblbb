@@ -6,9 +6,14 @@
   //   账号是否存在）；429 按 Retry-After 提示稍后再试。
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
+  import { resolveSiteCopy, pageTitle, type SiteCopyView } from '$lib/site/copy';
   import type { PasswordResetRequestData } from './+page.server';
 
-  let { form }: { form?: PasswordResetRequestData } = $props();
+  // data 可选：隔离渲染（vitest）只传 form；运行时恒有（layout 注入 site）。
+  let { data, form }: { data?: { site?: SiteCopyView | null }; form?: PasswordResetRequestData } = $props();
+
+  // 全站文案（0065）：站点名来自后台系统设置（layout 注入；隔离渲染时兜底）。
+  const site = $derived<SiteCopyView>(data?.site ?? resolveSiteCopy(null));
 
   const topMessage = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
@@ -17,13 +22,13 @@
 </script>
 
 <svelte:head>
-  <title>忘记密码 — BBLBB</title>
+  <title>{pageTitle('忘记密码', site.siteName)}</title>
 </svelte:head>
 
 <div class="auth-wrapper">
   <div class="auth-card">
     <div class="auth-header">
-      <div class="auth-logo">BBLBB</div>
+      <div class="auth-logo">{site.siteName}</div>
       <div class="auth-title">找回密码</div>
       <div class="auth-subtitle">输入注册邮箱，我们将发送重置链接</div>
     </div>

@@ -31,14 +31,25 @@
   let attachments = $state<Attachment[]>([]);
   let loading = $state(true);
   let error = $state('');
+  let isTimeout = $state(false);
   /** 预览重载计数器（图片失效时剔除缓存重新请求 content 端点）。 */
   let bust = $state(0);
 
-  onMount(async () => {
+  async function loadAttachments() {
+    loading = true;
+    error = '';
+    isTimeout = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     try {
-      const result = await listMyAttachments(fetchFn);
-      // 本人附件端点语义上即 owner=self（后端裁决），投影仅需 status=ready
-      // 过滤；不在此处再做 owner 匹配（端点保证）。
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          isTimeout = true;
+          reject(new Error('TIMEOUT'));
+        }, 8000);
+      });
+      const fetchPromise = listMyAttachments(fetchFn);
+      const result = await Promise.race([fetchPromise, timeoutPromise]);
+      if (timer) clearTimeout(timer);
       attachments = result.items.filter((a) => a.status === 'ready');
       if (accept) {
         const types = accept.split(',').map((t) => t.trim().toLowerCase());
@@ -49,11 +60,20 @@
           })
         );
       }
-    } catch {
-      error = '附件列表暂不可用';
+    } catch (err: any) {
+      if (timer) clearTimeout(timer);
+      if (err?.message === 'TIMEOUT' || isTimeout) {
+        error = '加载附件超时，请检查网络连接或稍后重试';
+      } else {
+        error = '附件服务暂不可用或个人存储容量未就绪';
+      }
     } finally {
       loading = false;
     }
+  }
+
+  onMount(() => {
+    loadAttachments();
   });
 
   function pick(a: Attachment) {
@@ -73,9 +93,17 @@
 
 <div class="picker">
   {#if loading}
-    <p class="input-hint" role="status">加载附件…</p>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+      <p class="input-hint" role="status" style="margin:0;">加载附件…</p>
+    </div>
   {:else if error}
-    <p class="input-hint is-error" role="alert">{error}</p>
+    <div class="alert alert-danger" role="alert" style="padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div>
+        <p class="input-hint is-error" style="margin:0;font-weight:600;">{error}</p>
+        <span class="app-muted" style="font-size:11px;">存储后端或配额限制可能导致附件列表加载异常</span>
+      </div>
+      <button type="button" class="btn secondary sm" onclick={loadAttachments}>重试加载</button>
+    </div>
   {:else if attachments.length === 0}
     <p class="input-hint">还没有可用的附件，请先上传。</p>
   {:else}

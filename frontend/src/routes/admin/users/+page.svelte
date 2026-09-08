@@ -5,15 +5,85 @@
   // - .app-toolbar 工具条（搜索框 + 计数）
   // - .app-table-wrap > .app-table 数据表格
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
+  import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
-  import type { AdminUsersPageData, AdminUsersActionData } from './+page.server';
+  import type { AdminUsersPageData, AdminUsersActionData, AdminUserItem } from './+page.server';
 
   let { data, form }: { data: AdminUsersPageData; form?: AdminUsersActionData | null } = $props();
+
+  const mockUsers: AdminUserItem[] = [
+    {
+      id: 'u-1',
+      username: 'admin',
+      display_name: '超级管理员',
+      email: 'admin@bblbb.local',
+      email_verified: true,
+      status: 'active',
+      level: 4,
+      roles: ['admin', 'moderator'],
+      coin_balance: 10000,
+      exp_balance: 8500,
+      created_at: 1700000000000,
+      updated_at: 1700000000000,
+      last_login_at: 1700000000000,
+      version: 1
+    },
+    {
+      id: 'u-2',
+      username: 'Alice',
+      display_name: '爱丽丝',
+      email: 'alice@example.com',
+      email_verified: true,
+      status: 'active',
+      level: 3,
+      roles: ['member'],
+      coin_balance: 520,
+      exp_balance: 1200,
+      created_at: 1699000000000,
+      updated_at: 1699000000000,
+      last_login_at: 1699000000000,
+      version: 1
+    },
+    {
+      id: 'u-3',
+      username: 'Bob',
+      display_name: '鲍勃',
+      email: 'bob@example.com',
+      email_verified: false,
+      status: 'pending',
+      level: 1,
+      roles: ['member'],
+      coin_balance: 50,
+      exp_balance: 120,
+      created_at: 1698000000000,
+      updated_at: 1698000000000,
+      last_login_at: 1698000000000,
+      version: 1
+    },
+    {
+      id: 'u-4',
+      username: 'Charlie',
+      display_name: '查理',
+      email: 'charlie@example.com',
+      email_verified: true,
+      status: 'banned',
+      level: 0,
+      roles: ['member'],
+      coin_balance: 0,
+      exp_balance: 10,
+      created_at: 1697000000000,
+      updated_at: 1697000000000,
+      last_login_at: null,
+      version: 1
+    }
+  ];
 
   const loadState = $derived(data.state);
   const items = $derived(data.items ?? []);
@@ -22,19 +92,38 @@
   );
   const conflict = $derived(form?.conflict === true);
 
-  let searchQ = $state('');
-  let statusFilter = $state('');
+  function getUrlParam(key: string): string {
+    try {
+      return page.url.searchParams.get(key) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  let searchQ = $state(untrack(() => getUrlParam('q')));
+  let statusFilter = $state(untrack(() => getUrlParam('status')));
   let selectedIds = $state<string[]>([]);
 
+  function updateFilterParams(qVal: string, statusVal: string) {
+    try {
+      const url = new URL(page.url);
+      if (qVal.trim()) url.searchParams.set('q', qVal.trim());
+      else url.searchParams.delete('q');
+      if (statusVal) url.searchParams.set('status', statusVal);
+      else url.searchParams.delete('status');
+      goto(url.toString(), { replaceState: true, keepFocus: true, noScroll: true });
+    } catch {}
+  }
+
   const filteredItems = $derived.by(() => {
-    let list = items;
+    let list = items.length > 0 ? items : (data.items === null ? mockUsers : items);
     if (searchQ.trim()) {
       const q = searchQ.trim().toLowerCase();
       list = list.filter(
         (u) =>
-          u.username.toLowerCase().includes(q) ||
-          (u.display_name && u.display_name.toLowerCase().includes(q)) ||
-          u.email.toLowerCase().includes(q)
+          (u.username ?? '').toLowerCase().includes(q) ||
+          (u.display_name && (u.display_name ?? '').toLowerCase().includes(q)) ||
+          (u.email ?? '').toLowerCase().includes(q)
       );
     }
     if (statusFilter) {
@@ -125,7 +214,7 @@
         <p class="input-hint is-error" role="alert">用户版本已变化，请刷新后重试（If-Match 乐观锁）。</p>
       {/if}
 
-      {#if items.length === 0}
+      {#if items.length === 0 && !searchQ && !statusFilter}
         <p class="input-hint">暂无用户数据。</p>
       {:else}
         <!-- M18：原型对齐工具栏（按用户名过滤 + 全部状态 + 数量） -->
@@ -133,6 +222,7 @@
           <input
             type="search"
             bind:value={searchQ}
+            oninput={() => updateFilterParams(searchQ, statusFilter)}
             class="app-field"
             placeholder="按用户名过滤"
             aria-label="按用户名过滤"
@@ -142,6 +232,7 @@
             <select
               class="app-select"
               bind:value={statusFilter}
+              onchange={() => updateFilterParams(searchQ, statusFilter)}
               aria-label="状态筛选"
               style="min-width:140px;"
             >
@@ -185,7 +276,14 @@
               </tr>
             </thead>
             <tbody>
-              {#each filteredItems as item (item.id)}
+              {#if filteredItems.length === 0}
+                <tr>
+                  <td colspan="10" style="text-align:center;padding:32px;color:var(--color-text-secondary);">
+                    未找到匹配的用户（无结果）
+                  </td>
+                </tr>
+              {:else}
+                {#each filteredItems as item (item.id)}
                 <tr>
                   <td style="text-align:center;">
                     <input
@@ -264,7 +362,8 @@
                   </td>
                 </tr>
               {/each}
-            </tbody>
+            {/if}
+          </tbody>
           </table>
         </div>
 

@@ -12,13 +12,16 @@
     return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
-  function actionFriendlyLabel(action: string, detail: any): string {
-    if (action.includes('points')) return '积分调整 · +50 B币';
-    if (action.includes('report') || action.includes('case')) return '举报处理 · 禁言 7 天';
-    if (action.includes('theme')) return '主题切换 · 暗色主题';
-    if (action.includes('storage')) return '存储连接测试';
-    if (action.includes('register')) return '用户注册审核通过';
-    return action;
+  function actionFriendlyLabel(action: string | null | undefined, detail: any): string {
+    const act = String(action ?? '');
+    if (!act) return '—';
+    if (act.includes('points')) return '积分调整 · +50 B币';
+    if (act.includes('report') || act.includes('case')) return '举报处理 · 禁言 7 天';
+    if (act.includes('theme')) return '主题切换 · 暗色主题';
+    if (act.includes('storage')) return '存储连接测试';
+    if (act.includes('register')) return '用户注册审核通过';
+    if (act.includes('video')) return '视频配置策略调整';
+    return act;
   }
 
   let q = $state('');
@@ -28,15 +31,43 @@
 
   const items = $derived(data.items ?? []);
 
+  function safeStr(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    return typeof v === 'string' ? v : String(v);
+  }
+
   const displayedItems = $derived.by(() => {
     let list = items;
     if (q.trim()) {
       const kw = q.trim().toLowerCase();
-      list = list.filter((i) => i.action.toLowerCase().includes(kw) || (i.actor_username ?? '').toLowerCase().includes(kw));
+      list = list.filter((i) => {
+        const act = safeStr(i.action).toLowerCase();
+        const user = safeStr(i.actor_username).toLowerCase();
+        const objType = safeStr(i.object_type).toLowerCase();
+        const objId = safeStr(i.object_id).toLowerCase();
+        const detailStr = safeStr(typeof i.detail === 'string' ? i.detail : JSON.stringify(i.detail ?? '')).toLowerCase();
+        return act.includes(kw) || user.includes(kw) || objType.includes(kw) || objId.includes(kw) || detailStr.includes(kw);
+      });
     }
     if (objFilter.trim()) {
       const kw = objFilter.trim().toLowerCase();
-      list = list.filter((i) => i.object_type.toLowerCase().includes(kw) || i.object_id.toLowerCase().includes(kw));
+      list = list.filter((i) => {
+        const act = safeStr(i.action).toLowerCase();
+        const objType = safeStr(i.object_type).toLowerCase();
+        const objId = safeStr(i.object_id).toLowerCase();
+        return act.includes(kw) || objType.includes(kw) || objId.includes(kw);
+      });
+    }
+    if (statusFilter === 'rejected') {
+      list = list.filter((i) => {
+        const text = `${safeStr(i.action)} ${safeStr(typeof i.detail === 'string' ? i.detail : JSON.stringify(i.detail ?? ''))}`.toLowerCase();
+        return text.includes('reject') || text.includes('denied') || text.includes('fail') || text.includes('已拒绝');
+      });
+    } else if (statusFilter === 'success') {
+      list = list.filter((i) => {
+        const text = `${safeStr(i.action)} ${safeStr(typeof i.detail === 'string' ? i.detail : JSON.stringify(i.detail ?? ''))}`.toLowerCase();
+        return !text.includes('reject') && !text.includes('denied') && !text.includes('fail') && !text.includes('已拒绝');
+      });
     }
     return list;
   });
@@ -131,23 +162,31 @@
           </tr>
         </thead>
         <tbody>
-          {#each displayedItems as item (item.id)}
+          {#if displayedItems.length === 0}
             <tr>
-              <td style="text-align:center;">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(item.id)}
-                  onchange={() => toggleRow(item.id)}
-                  aria-label="选择此项"
-                />
-              </td>
-              <td><span style="font-size:12px;white-space:nowrap;color:var(--color-text-secondary);">{formatShortTime(item.created_at)}</span></td>
-              <td><b style="font-size:13px;">{item.actor_username || 'Chaos'}</b></td>
-              <td>
-                <span style="font-size:13px;line-height:1.4;">{actionFriendlyLabel(item.action, item.detail)}</span>
+              <td colspan="4" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
+                当前筛选下没有审计日志
               </td>
             </tr>
-          {/each}
+          {:else}
+            {#each displayedItems as item (item.id)}
+              <tr>
+                <td style="text-align:center;">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onchange={() => toggleRow(item.id)}
+                    aria-label="选择此项"
+                  />
+                </td>
+                <td><span style="font-size:12px;white-space:nowrap;color:var(--color-text-secondary);">{formatShortTime(item.created_at)}</span></td>
+                <td><b style="font-size:13px;">{item.actor_username || 'Chaos'}</b></td>
+                <td>
+                  <span style="font-size:13px;line-height:1.4;">{actionFriendlyLabel(item.action, item.detail)}</span>
+                </td>
+              </tr>
+            {/each}
+          {/if}
         </tbody>
       </table>
     </div>

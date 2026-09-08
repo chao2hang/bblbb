@@ -81,6 +81,19 @@ describe('M13-UI-06 管理主题 SSR', () => {
     expect(body).toContain('value="2"');
   });
 
+  it('官方预置包：日/夜双模式徽章 + 夜间色板进入安装表单（v1.1）', () => {
+    const { body } = render(AdminThemesPage, { props: { data: okData, form: null } });
+    // 6 个官方预置包均带「日/夜」双模式徽章与昼夜分区预览（日间/夜间标注）
+    expect(body).toContain('日/夜');
+    expect(body).toContain('日间');
+    expect(body).toContain('夜间');
+    // 一键安装表单携带夜间变体 token（bblbb-classic 官方夜板强调色）
+    expect(body).toContain('color.background.dark');
+    expect(body).toContain('#f27759');
+    // 旧主题（无夜间色板）如实标注「仅日间」，不谎称双模式
+    expect(body).toContain('仅日间');
+  });
+
   it('409 版本冲突 → 提示刷新', () => {
     const { body } = render(AdminThemesPage, {
       props: {

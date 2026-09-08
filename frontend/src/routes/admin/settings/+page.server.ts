@@ -57,6 +57,15 @@ export const actions: Actions = {
     const apiRateLimit = Number(form.get('api_rate_limit') ?? NaN);
     const reason = String(form.get('reason') ?? '').trim();
 
+    // 站点文案（0065；空串 = 前端内置通用文案兜底）。
+    const siteDescription = String(form.get('site_description') ?? '').trim();
+    const loginEyebrow = String(form.get('login_eyebrow') ?? '').trim();
+    const loginTitle = String(form.get('login_title') ?? '').trim();
+    const loginSubtitle = String(form.get('login_subtitle') ?? '').trim();
+    const registerEyebrow = String(form.get('register_eyebrow') ?? '').trim();
+    const registerTitle = String(form.get('register_title') ?? '').trim();
+    const registerSubtitle = String(form.get('register_subtitle') ?? '').trim();
+
     // SMTP 设置字段
     const smtpEnabled = form.has('smtp_enabled');
     const smtpHost = String(form.get('smtp_host') ?? '').trim();
@@ -66,6 +75,15 @@ export const actions: Actions = {
     const smtpFromEmail = String(form.get('smtp_from_email') ?? '').trim();
     const smtpFromName = String(form.get('smtp_from_name') ?? '').trim();
     const smtpEncryption = String(form.get('smtp_encryption') ?? 'starttls').trim();
+
+    // 第三方 OAuth 登录设置字段
+    const googleAuthEnabled = form.has('google_auth_enabled');
+    const googleClientId = String(form.get('google_client_id') ?? '').trim();
+    const googleClientSecret = form.get('google_client_secret');
+
+    const githubAuthEnabled = form.has('github_auth_enabled');
+    const githubClientId = String(form.get('github_client_id') ?? '').trim();
+    const githubClientSecret = form.get('github_client_secret');
 
     // 校验语义与原型 sysValidate 一致（后端另有同语义硬校验兜底）。
     if (!siteName) return fail(422, { message: '站点名称必填' });
@@ -85,6 +103,21 @@ export const actions: Actions = {
     if (!['none', 'starttls', 'tls'].includes(smtpEncryption)) {
       return fail(422, { message: 'SMTP 加密模式需为 none, starttls 或 tls' });
     }
+    // 站点文案长度上限与后端 PATCH 校验一致（maxlength 双保险）。
+    const copyLimits: Array<[string, string, number]> = [
+      ['站点描述', siteDescription, 200],
+      ['登录页眉题', loginEyebrow, 60],
+      ['登录页标题', loginTitle, 100],
+      ['登录页说明', loginSubtitle, 200],
+      ['注册页眉题', registerEyebrow, 60],
+      ['注册页标题', registerTitle, 100],
+      ['注册页说明', registerSubtitle, 200]
+    ];
+    for (const [label, value, max] of copyLimits) {
+      if ([...value].length > max) {
+        return fail(422, { message: `${label}不能超过 ${max} 个字符` });
+      }
+    }
     // 管理写操作必填原因（后端 required_reason 同策略，缺失必 400）。
     if (!reason) return fail(422, { message: '操作原因必填（写入审计日志）' });
 
@@ -98,6 +131,13 @@ export const actions: Actions = {
       default_lang: defaultLang,
       public_source: publicSource,
       api_rate_limit: apiRateLimit,
+      site_description: siteDescription,
+      login_eyebrow: loginEyebrow,
+      login_title: loginTitle,
+      login_subtitle: loginSubtitle,
+      register_eyebrow: registerEyebrow,
+      register_title: registerTitle,
+      register_subtitle: registerSubtitle,
       smtp_enabled: smtpEnabled,
       smtp_host: smtpHost,
       smtp_port: smtpPort,
@@ -105,11 +145,21 @@ export const actions: Actions = {
       smtp_from_email: smtpFromEmail,
       smtp_from_name: smtpFromName,
       smtp_encryption: smtpEncryption,
+      google_auth_enabled: googleAuthEnabled,
+      google_client_id: googleClientId,
+      github_auth_enabled: githubAuthEnabled,
+      github_client_id: githubClientId,
       reason
     };
 
     if (typeof smtpPass === 'string' && smtpPass.length > 0) {
       patch.smtp_pass = smtpPass;
+    }
+    if (typeof googleClientSecret === 'string' && googleClientSecret.length > 0) {
+      patch.google_client_secret = googleClientSecret;
+    }
+    if (typeof githubClientSecret === 'string' && githubClientSecret.length > 0) {
+      patch.github_client_secret = githubClientSecret;
     }
 
     try {

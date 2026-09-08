@@ -81,6 +81,7 @@ function pickProvider(raw: unknown): AiAdminProviderConfig | null {
   if (typeof p.api_type === 'string') out.api_type = p.api_type;
   if (typeof p.base_url === 'string') out.base_url = p.base_url;
   if (typeof p.model === 'string') out.model = p.model;
+  if (typeof p.status === 'string') out.status = p.status;
   if (typeof p.secret_configured === 'boolean') out.secret_configured = p.secret_configured;
   if (typeof p.available === 'boolean') out.available = p.available;
   if (Array.isArray(p.purposes)) {

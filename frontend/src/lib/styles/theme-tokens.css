@@ -1,0 +1,130 @@
+/* ============================================================
+   数据型主题 Token 全量映射层（theme-tokens.css）
+   ------------------------------------------------------------
+   数据型主题 `--bb-*` → 全局设计系统语义变量的**唯一映射点**
+   （取代 tokens.css 与 chinese-elegance.css 的旧局部映射块）。
+
+   区块 A（日间解析）：--bb-active-* ← 日间 Token（回退内置日色板）；
+   区块 B（夜间解析）：html.dark（日夜模式暗色态）下 --bb-active-*
+     ← 夜间 `color.*.dark` Token（缺失回退日间值，再回退内置夜色板）；
+   区块 C（语义映射，日/夜共用）：6 个核心色 + color-mix 派生语义色
+     + 字体 + 圆角（radius.control→sm/md、radius.card→lg/xl）
+     + 间距密度（--bb-density-scale 缩放 --space-*）
+     + 三级阴影（--bb-shadow-*）+ 动效时长（--duration-*）；
+   区块 D（减少动效）：data-motion-reduced → 时长强制 0。
+
+   派生安全变量（--bb-density-scale / --bb-shadow-* / --bb-motion-duration /
+   --bb-*-dark）由 projection.ts 从**代码内封闭映射**生成，绝不承载用户
+   原始输入；本层只做 var()/color-mix()/calc() 的纯函数式消费。
+
+   加载顺序：chinese-elegance.css 之后（压过其旧映射与组件 !important 的
+   变量基线）、theme-layout.css（结构层）之前。
+   ============================================================ */
+
+/* ---------- 区块 A：日间解析（站点亮色模式） ---------- */
+:root[data-theme-custom="true"],
+:root[data-theme-preview="true"],
+.theme-preview-scope {
+  --bb-active-background: var(--bb-color-background, #F5F3ED);
+  --bb-active-surface: var(--bb-color-surface, #FFFEFB);
+  --bb-active-text: var(--bb-color-text, #17211F);
+  --bb-active-muted: var(--bb-color-muted, #53605B);
+  --bb-active-accent: var(--bb-color-accent, #B23E2A);
+  --bb-active-border: var(--bb-color-border, #D9D6CC);
+  --bb-active-overlay: color-mix(in srgb, var(--bb-color-text, #17211F) 52%, transparent);
+}
+
+/* ---------- 区块 B：夜间解析（站点暗色模式 html.dark） ----------
+   优先级：主题夜间变体 → 主题日间值（旧主题零迁移回退）→ 内置官方夜色板。 */
+html.dark[data-theme-custom="true"],
+html.dark[data-theme-preview="true"],
+html.dark .theme-preview-scope {
+  --bb-active-background: var(--bb-color-background-dark, var(--bb-color-background, #101B19));
+  --bb-active-surface: var(--bb-color-surface-dark, var(--bb-color-surface, #172522));
+  --bb-active-text: var(--bb-color-text-dark, var(--bb-color-text, #F5F3EA));
+  --bb-active-muted: var(--bb-color-muted-dark, var(--bb-color-muted, #B5C0BA));
+  --bb-active-accent: var(--bb-color-accent-dark, var(--bb-color-accent, #F27759));
+  --bb-active-border: var(--bb-color-border-dark, var(--bb-color-border, #30433E));
+  --bb-active-overlay: rgba(1, 9, 8, 0.68);
+}
+
+/* ---------- 区块 C：语义映射（日/夜共用，消费 --bb-active-*） ---------- */
+:root[data-theme-custom="true"],
+:root[data-theme-preview="true"],
+.theme-preview-scope {
+  /* 背景 */
+  --color-bg-page: var(--bb-active-background) !important;
+  --color-bg-card: var(--bb-active-surface) !important;
+  --color-bg-subtle: color-mix(in srgb, var(--bb-active-surface) 80%, var(--bb-active-background)) !important;
+  --color-bg-inset: color-mix(in srgb, var(--bb-active-surface) 55%, var(--bb-active-background)) !important;
+  --color-bg-hover: color-mix(in srgb, var(--bb-active-surface) 60%, var(--bb-active-background)) !important;
+  --color-surface-hover: color-mix(in srgb, var(--bb-active-accent) 8%, var(--bb-active-surface)) !important;
+  --color-surface-selected: color-mix(in srgb, var(--bb-active-accent) 14%, var(--bb-active-surface)) !important;
+  --color-overlay: var(--bb-active-overlay) !important;
+
+  /* 文字（on-brand 取背景色：亮底深强调→白字，深底浅强调→深字，双模式自适应） */
+  --color-text-primary: var(--bb-active-text) !important;
+  --color-text-secondary: var(--bb-active-muted) !important;
+  --color-text-tertiary: color-mix(in srgb, var(--bb-active-muted) 82%, var(--bb-active-background)) !important;
+  --color-text-on-brand: var(--bb-active-background) !important;
+
+  /* 品牌色与派生态 */
+  --color-brand: var(--bb-active-accent) !important;
+  --color-brand-hover: color-mix(in srgb, var(--bb-active-accent) 85%, #FFFFFF) !important;
+  --color-brand-pressed: color-mix(in srgb, var(--bb-active-accent) 80%, #000000) !important;
+  --color-brand-soft: color-mix(in srgb, var(--bb-active-accent) 18%, var(--bb-active-surface)) !important;
+
+  /* 边框 */
+  --color-border: var(--bb-active-border) !important;
+  --color-border-muted: color-mix(in srgb, var(--bb-active-border) 60%, var(--bb-active-background)) !important;
+  --color-border-strong: color-mix(in srgb, var(--bb-active-border) 78%, var(--bb-active-text)) !important;
+  --border-default: 1px solid var(--bb-active-border) !important;
+  --border-input: 1px solid var(--color-border-strong) !important;
+  --border-strong: 1px solid var(--color-border-strong) !important;
+  --border-thin: 0.5px solid var(--bb-active-border) !important;
+
+  /* 状态辅助色（无独立 Token，从核心色派生，保持语义可读） */
+  --color-code-bg: color-mix(in srgb, var(--bb-active-text) 7%, var(--bb-active-surface)) !important;
+  --color-focus-ring: color-mix(in srgb, var(--bb-active-accent) 70%, transparent) !important;
+  --color-visited: var(--bb-active-muted) !important;
+  --color-highlight-soft: color-mix(in srgb, #FDE047 24%, var(--bb-active-surface)) !important;
+
+  /* 字体 */
+  --font-family-base: var(--bb-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif) !important;
+  --font-family-mono: var(--bb-font-mono, "SF Mono", "JetBrains Mono", ui-monospace, Consolas, monospace) !important;
+
+  /* 圆角：control → sm/md（按钮/输入/徽章），card → lg/xl（卡片/模态/面板） */
+  --radius-sm: var(--bb-radius-control, 5px) !important;
+  --radius-md: var(--bb-radius-control, 8px) !important;
+  --radius-lg: var(--bb-radius-card, 12px) !important;
+  --radius-xl: var(--bb-radius-card, 16px) !important;
+
+  /* 间距密度：--bb-density-scale 由 projection 从 closed 枚举派生（0.85/1/1.2） */
+  --space-1: calc(4px * var(--bb-density-scale, 1)) !important;
+  --space-2: calc(8px * var(--bb-density-scale, 1)) !important;
+  --space-3: calc(12px * var(--bb-density-scale, 1)) !important;
+  --space-4: calc(16px * var(--bb-density-scale, 1)) !important;
+  --space-5: calc(20px * var(--bb-density-scale, 1)) !important;
+  --space-6: calc(24px * var(--bb-density-scale, 1)) !important;
+  --space-8: calc(32px * var(--bb-density-scale, 1)) !important;
+  --space-10: calc(40px * var(--bb-density-scale, 1)) !important;
+  --space-12: calc(48px * var(--bb-density-scale, 1)) !important;
+  --space-16: calc(64px * var(--bb-density-scale, 1)) !important;
+
+  /* 三级阴影：--bb-shadow-* 由 projection 从 closed 预设派生 */
+  --shadow-control: var(--bb-shadow-control, 0 1px 2px rgba(23, 33, 31, 0.06)) !important;
+  --shadow-pop: var(--bb-shadow-pop, 0 14px 36px rgba(23, 33, 31, 0.11), 0 2px 8px rgba(23, 33, 31, 0.05)) !important;
+  --shadow-modal: var(--bb-shadow-modal, 0 28px 80px rgba(23, 33, 31, 0.22), 0 8px 24px rgba(23, 33, 31, 0.1)) !important;
+
+  /* 动效时长：主题单一速度驱动三档（未设主题时保持站点 fast/base/slow 层级） */
+  --duration-fast: var(--bb-motion-duration, 140ms) !important;
+  --duration-base: var(--bb-motion-duration, 220ms) !important;
+  --duration-slow: var(--bb-motion-duration, 320ms) !important;
+}
+
+/* ---------- 区块 D：减少动效（主题声明或系统偏好，projection 写属性） ---------- */
+:root[data-motion-reduced="true"] {
+  --duration-fast: 0ms !important;
+  --duration-base: 0ms !important;
+  --duration-slow: 0ms !important;
+}

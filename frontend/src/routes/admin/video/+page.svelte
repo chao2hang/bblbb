@@ -1,6 +1,7 @@
 <script lang="ts">
   // M10-UI-06 & M18-ADMIN-VIDEO：管理端视频配置（对齐原型转码队列与白名单，兼顾 Provider 策略测试断言）。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
+  import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
@@ -16,8 +17,8 @@
 
   const mockTasks = [
     { id: 'V-52', source: 'sveltekit-demo 嵌入', size: '42 MB', status: 'completed' },
-    { id: 'V-51', source: 'sqlite-talk 视频', size: '88 MB', status: 'completed' },
-    { id: 'V-50', source: 'rust-bench 视频', size: '61 MB', status: 'completed' },
+    { id: 'V-51', source: 'sqlite-talk 视频', size: '88 MB', status: 'processing' },
+    { id: 'V-50', source: 'rust-bench 视频', size: '61 MB', status: 'failed' },
     { id: 'V-49', source: 'cdn-wasm 嵌入', size: '12 MB', status: 'completed' }
   ];
 
@@ -26,16 +27,29 @@
   let selectedIds = $state<string[]>([]);
   let refreshing = $state(false);
 
-  let enableEmbed = $state(true);
-  let domainWhitelist = $state('youtube.com, bilibili.com, v.qq.com, youku.com');
-  let strictMode = $state('strict');
-  let fallbackMode = $state('safe_link');
+  let enableEmbed = $state(untrack(() => data.whitelistConfig?.enableEmbed ?? true));
+  let domainWhitelist = $state(untrack(() => data.whitelistConfig?.domainWhitelist ?? 'youtube.com, bilibili.com, v.qq.com, youku.com'));
+  let strictMode = $state(untrack(() => data.whitelistConfig?.strictMode ?? 'strict'));
+  let fallbackMode = $state(untrack(() => data.whitelistConfig?.fallbackMode ?? 'safe_link'));
+  let dismissedMessage = $state(false);
+
+  $effect(() => {
+    if (form?.whitelistConfig) {
+      enableEmbed = form.whitelistConfig.enableEmbed;
+      domainWhitelist = form.whitelistConfig.domainWhitelist;
+      strictMode = form.whitelistConfig.strictMode;
+      fallbackMode = form.whitelistConfig.fallbackMode;
+    }
+  });
 
   const displayedTasks = $derived.by(() => {
     let list = mockTasks;
     if (q.trim()) {
       const kw = q.trim().toLowerCase();
       list = list.filter((t) => t.source.toLowerCase().includes(kw) || t.id.toLowerCase().includes(kw));
+    }
+    if (statusFilter) {
+      list = list.filter((t) => t.status === statusFilter);
     }
     return list;
   });
@@ -168,28 +182,36 @@
             </tr>
           </thead>
           <tbody>
-            {#each displayedTasks as task (task.id)}
+            {#if displayedTasks.length === 0}
               <tr>
-                <td style="text-align:center;">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(task.id)}
-                    onchange={() => toggleRow(task.id)}
-                    aria-label="选择此项"
-                  />
-                </td>
-                <td>
-                  <code style="padding:2px 6px;background:var(--color-bg-subtle);border-radius:3px;">{task.id}</code>
-                </td>
-                <td>{task.source}</td>
-                <td>{task.size}</td>
-                <td>
-                  <span class="sbadge {task.status === 'completed' ? 'sb-success' : task.status === 'processing' ? 'sb-warning' : 'sb-gray'}">
-                    {task.status === 'completed' ? '已转码' : task.status === 'processing' ? '处理中' : '排队中'}
-                  </span>
+                <td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
+                  当前筛选下没有转码任务
                 </td>
               </tr>
-            {/each}
+            {:else}
+              {#each displayedTasks as task (task.id)}
+                <tr>
+                  <td style="text-align:center;">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(task.id)}
+                      onchange={() => toggleRow(task.id)}
+                      aria-label="选择此项"
+                    />
+                  </td>
+                  <td>
+                    <code style="padding:2px 6px;background:var(--color-bg-subtle);border-radius:3px;">{task.id}</code>
+                  </td>
+                  <td>{task.source}</td>
+                  <td>{task.size}</td>
+                  <td>
+                    <span class="sbadge {task.status === 'completed' ? 'sb-success' : task.status === 'processing' ? 'sb-warning' : task.status === 'failed' ? 'sb-danger' : 'sb-gray'}">
+                      {task.status === 'completed' ? '已转码' : task.status === 'processing' ? '转码中' : task.status === 'failed' ? '失败' : '排队中'}
+                    </span>
+                  </td>
+                </tr>
+              {/each}
+            {/if}
           </tbody>
         </table>
       </div>
@@ -211,9 +233,35 @@
       <h2>来源白名单与安全</h2>
     </header>
     <div class="app-card__body">
-      <form method="POST" action="?/save-whitelist" use:enhance class="stack" style="gap:14px;">
+      {#if form?.message && !dismissedMessage && form?.whitelistConfig !== undefined}
+        <div
+          class="alert {form?.message?.includes('不正确') || form?.message?.includes('失败') ? 'alert-danger' : 'alert-info'}"
+          role="status"
+          style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;display:flex;justify-content:space-between;align-items:center;"
+        >
+          <span>{form.message}</span>
+          <button type="button" class="btn ghost sm" onclick={() => (dismissedMessage = true)}>关闭</button>
+        </div>
+      {/if}
+      <form
+        method="POST"
+        action="?/save-whitelist"
+        use:enhance={() => {
+          dismissedMessage = false;
+          return async ({ result, update }) => {
+            await update();
+            if (result.type === 'success') {
+              showToast('视频白名单与安全配置已保存', 'success');
+            } else if (result.type === 'failure') {
+              showToast((result.data as any)?.message ?? '保存失败，请检查输入', 'danger');
+            }
+          };
+        }}
+        class="stack"
+        style="gap:14px;"
+      >
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
-          <input type="checkbox" bind:checked={enableEmbed} />
+          <input type="checkbox" name="enable_embed" bind:checked={enableEmbed} />
           启用视频嵌入解析
         </label>
 
@@ -224,7 +272,7 @@
 
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">严格模式</span>
-          <select class="app-select" bind:value={strictMode} style="width:100%;">
+          <select class="app-select" name="strict_mode" bind:value={strictMode} style="width:100%;">
             <option value="strict">严格模式（仅允许完全匹配白名单）</option>
             <option value="loose">宽松模式</option>
           </select>
@@ -232,7 +280,7 @@
 
         <label>
           <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">解析失败回退</span>
-          <select class="app-select" bind:value={fallbackMode} style="width:100%;">
+          <select class="app-select" name="fallback_mode" bind:value={fallbackMode} style="width:100%;">
             <option value="safe_link">显示安全链接</option>
             <option value="placeholder">显示占位图</option>
             <option value="hide">完全隐藏</option>
@@ -268,6 +316,7 @@
               <input type="text" name="reason" placeholder="必填（写审计）" value="更新策略" required style="max-width:200px;" />
               <button type="submit" class="btn primary sm">保存</button>
               <button type="submit" formaction="?/test" class="btn secondary sm">测试此 Provider</button>
+              <button type="submit" formaction="?/reset-default" class="btn ghost sm">恢复默认</button>
             </form>
           </div>
         {/each}

@@ -16,7 +16,7 @@
   import ToastHost from '$lib/components/ui/ToastHost.svelte';
   import NoJsNotice from '$lib/components/ui/NoJsNotice.svelte';
   import { show as showToast } from '$lib/ui/toast';
-  import { applyThemeTokens, clearThemeTokens, type ActiveThemeView } from '$lib/theme/projection';
+  import { applyThemeTokens, clearThemeTokens, resolveLayoutMode, type ActiveThemeView } from '$lib/theme/projection';
   import type { LayoutData } from './$types';
   import type { Snippet } from 'svelte';
 
@@ -36,6 +36,15 @@
   const unread = $derived(unreadOverride ?? data?.notifications?.unreadCount ?? 0);
   const recentNotifications = $derived(recentOverride ?? data?.notifications?.recent ?? []);
   const activeTheme = $derived<ActiveThemeView | null>(data?.activeTheme ?? null);
+
+  // 全站文案（0065）：站点名/描述来自后台系统设置，后端不可达时为内置兜底。
+  const siteName = $derived(data?.site?.siteName ?? 'BBLBB');
+  const siteDescription = $derived(data?.site?.siteDescription ?? '');
+
+  // 主题声明的页面结构预设（layout.mode → classic/sidebar/wide）。
+  // SSR 首帧即写入 .app-shell[data-theme-layout]，结构无闪烁；
+  // 浏览器端 applyThemeTokens/previewThemeTokens 在预览与切换时同步该属性。
+  const shellLayout = $derived(resolveLayoutMode(activeTheme?.tokens ?? null));
 
   // 全站生效主题 Token 动态应用
   $effect(() => {
@@ -118,29 +127,34 @@
 </script>
 
 <svelte:head>
-  <meta name="description" content="BBLBB 社区论坛" />
+  <meta name="description" content={siteDescription} />
 </svelte:head>
 
 <a class="skip-link" href="#main-content">跳转到主要内容</a>
 
 <NoJsNotice />
 
-<Navbar
-  user={user}
-  {unread}
-  notifications={recentNotifications}
-  onlogout={handleLogout}
-  onreadall={handleMarkAllRead}
-/>
+<!-- .app-shell：主题结构预设作用域（data-theme-layout 由服务端数据解析，
+     classic 为缺省；预览/切换由 projection 写入同一属性保持一致） -->
+<div class="app-shell" data-theme-layout={shellLayout}>
+  <Navbar
+    user={user}
+    siteName={siteName}
+    {unread}
+    notifications={recentNotifications}
+    onlogout={handleLogout}
+    onreadall={handleMarkAllRead}
+  />
 
-<div class="page-wrapper">
-  <main id="main-content" tabindex="-1">
-    {@render children()}
-  </main>
+  <div class="page-wrapper">
+    <main id="main-content" tabindex="-1">
+      {@render children()}
+    </main>
+  </div>
+  <!-- 原型无站点页脚（prototype/assets/page-chrome.js 仅注入顶栏/底部导航/Toast），
+       故不渲染 site-footer；移动端安全区余量由 .page-wrapper 自身的 padding 兜底。 -->
+
+  <!-- 全局壳：移动端底部导航（≤768px）+ 全局 Toast 容器 -->
+  <BottomNav user={user} />
 </div>
-<!-- 原型无站点页脚（prototype/assets/page-chrome.js 仅注入顶栏/底部导航/Toast），
-     故不渲染 site-footer；移动端安全区余量由 .page-wrapper 自身的 padding 兜底。 -->
-
-<!-- 全局壳：移动端底部导航（≤768px）+ 全局 Toast 容器 -->
-<BottomNav user={user} />
 <ToastHost />

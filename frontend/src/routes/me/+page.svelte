@@ -20,6 +20,7 @@
   import { formatRelative } from '$lib/utils';
   import { activityLevelNumber, activityXp } from '$lib/api/types';
   import type { MeActionData, MePageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: MePageData; form?: MeActionData } = $props();
 
@@ -109,9 +110,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>我的 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="我的" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/me.html）：app-route-head 仅 h1「我的」，无面包屑。 -->

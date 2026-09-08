@@ -52,6 +52,7 @@
   import VideoInsertPanel from '$lib/components/video/VideoInsertPanel.svelte';
   import { videoProviderLabel } from '$lib/video/labels';
   import { renderSafeMarkdown, charCount } from '$lib/utils';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   const MAX_TITLE_CHARS = 200;
   const MAX_MARKDOWN_CHARS = 50_000; // 后端 PostContent 权威上限（Unicode 字符）
@@ -527,9 +528,7 @@
   });
 </script>
 
-<svelte:head>
-  <title>发布内容 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="发布内容" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/publish.html）：位置导航用 topic-context + sr-only h1，不用 .breadcrumb。 -->

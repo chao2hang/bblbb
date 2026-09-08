@@ -11,10 +11,12 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { formatCount } from '$lib/utils';
   import { show } from '$lib/ui/toast';
+  import { tagSearchUrl } from '$lib/search';
   import Seo from '$lib/components/Seo.svelte';
   import type { BoardDetailData, BoardFollowActionData } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
-  let { data, form }: { data: BoardDetailData; form?: BoardFollowActionData | null } = $props();
+  let { data, form }: { data: BoardDetailData & { site?: SiteCopyView | null }; form?: BoardFollowActionData | null } = $props();
 
   const board = $derived(data.board);
   const posts = $derived(data.posts);
@@ -87,7 +89,7 @@
   title={board?.name ?? slug}
   description={board?.description ?? '板块：' + (board?.name ?? slug)}
   noindex={!indexable}
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  og={{ type: 'website' }}
   jsonLd={
     indexable
       ? {
@@ -234,7 +236,7 @@
               <div class="app-card__body">
                 <div class="app-tag-cloud">
                   {#each tags as tag (tag.id)}
-                    <a class="app-tag" href="/search?tag={tag.slug}">
+                    <a class="app-tag" href={tagSearchUrl(tag)}>
                       # {tag.name}
                     </a>
                   {/each}

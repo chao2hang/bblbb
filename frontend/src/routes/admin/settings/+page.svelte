@@ -76,6 +76,14 @@
       defaultLang: s?.default_lang ?? 'zh-CN',
       publicSource: s?.public_source ?? '',
       rateLimit: Number(s?.api_rate_limit ?? 0),
+      // 站点文案（0065；空串 = 前端内置通用文案兜底）。
+      siteDescription: s?.site_description ?? '',
+      loginEyebrow: s?.login_eyebrow ?? '',
+      loginTitle: s?.login_title ?? '',
+      loginSubtitle: s?.login_subtitle ?? '',
+      registerEyebrow: s?.register_eyebrow ?? '',
+      registerTitle: s?.register_title ?? '',
+      registerSubtitle: s?.register_subtitle ?? '',
       smtpEnabled: Boolean(s?.smtp_enabled),
       smtpHost: s?.smtp_host ?? '',
       smtpPort: Number(s?.smtp_port ?? 587),
@@ -84,7 +92,15 @@
       smtpPassConfigured: Boolean(s?.smtp_pass_configured),
       smtpFromEmail: s?.smtp_from_email ?? '',
       smtpFromName: s?.smtp_from_name ?? '',
-      smtpEncryption: s?.smtp_encryption ?? 'starttls'
+      smtpEncryption: s?.smtp_encryption ?? 'starttls',
+      googleAuthEnabled: Boolean(s?.google_auth_enabled),
+      googleClientId: s?.google_client_id ?? '',
+      googleClientSecret: '',
+      googleClientSecretConfigured: Boolean(s?.google_client_secret_configured),
+      githubAuthEnabled: Boolean(s?.github_auth_enabled),
+      githubClientId: s?.github_client_id ?? '',
+      githubClientSecret: '',
+      githubClientSecretConfigured: Boolean(s?.github_client_secret_configured)
     };
   }
 
@@ -94,6 +110,14 @@
   let defaultLang = $state(init.defaultLang);
   let publicSource = $state(init.publicSource);
   let rateLimit = $state<number>(init.rateLimit);
+  // 站点文案（0065）。
+  let siteDescription = $state(init.siteDescription);
+  let loginEyebrow = $state(init.loginEyebrow);
+  let loginTitle = $state(init.loginTitle);
+  let loginSubtitle = $state(init.loginSubtitle);
+  let registerEyebrow = $state(init.registerEyebrow);
+  let registerTitle = $state(init.registerTitle);
+  let registerSubtitle = $state(init.registerSubtitle);
   let smtpEnabled = $state(init.smtpEnabled);
   let smtpHost = $state(init.smtpHost);
   let smtpPort = $state<number>(init.smtpPort);
@@ -103,6 +127,14 @@
   let smtpFromEmail = $state(init.smtpFromEmail);
   let smtpFromName = $state(init.smtpFromName);
   let smtpEncryption = $state(init.smtpEncryption);
+  let googleAuthEnabled = $state(init.googleAuthEnabled);
+  let googleClientId = $state(init.googleClientId);
+  let googleClientSecret = $state('');
+  let googleClientSecretConfigured = $state(init.googleClientSecretConfigured);
+  let githubAuthEnabled = $state(init.githubAuthEnabled);
+  let githubClientId = $state(init.githubClientId);
+  let githubClientSecret = $state('');
+  let githubClientSecretConfigured = $state(init.githubClientSecretConfigured);
   let errors = $state<Record<FieldKey, string>>({
     siteName: '',
     lang: '',
@@ -110,6 +142,8 @@
     rateLimit: ''
   });
   let saving = $state(false);
+  let simulateFail = $state(false);
+  let simulatedError = $state<string | null>(null);
   /** 本次会话最近一次成功保存时间（状态行「最近保存于 …」用）。 */
   let lastSavedAt = $state<number | null>(null);
 
@@ -128,6 +162,13 @@
     defaultLang = s.default_lang ?? 'zh-CN';
     publicSource = s.public_source ?? '';
     rateLimit = Number(s.api_rate_limit ?? 0);
+    siteDescription = s.site_description ?? '';
+    loginEyebrow = s.login_eyebrow ?? '';
+    loginTitle = s.login_title ?? '';
+    loginSubtitle = s.login_subtitle ?? '';
+    registerEyebrow = s.register_eyebrow ?? '';
+    registerTitle = s.register_title ?? '';
+    registerSubtitle = s.register_subtitle ?? '';
     smtpEnabled = Boolean(s.smtp_enabled);
     smtpHost = s.smtp_host ?? '';
     smtpPort = Number(s.smtp_port ?? 587);
@@ -137,6 +178,14 @@
     smtpFromEmail = s.smtp_from_email ?? '';
     smtpFromName = s.smtp_from_name ?? '';
     smtpEncryption = s.smtp_encryption ?? 'starttls';
+    googleAuthEnabled = Boolean(s.google_auth_enabled);
+    googleClientId = s.google_client_id ?? '';
+    googleClientSecret = '';
+    googleClientSecretConfigured = Boolean(s.google_client_secret_configured);
+    githubAuthEnabled = Boolean(s.github_auth_enabled);
+    githubClientId = s.github_client_id ?? '';
+    githubClientSecret = '';
+    githubClientSecretConfigured = Boolean(s.github_client_secret_configured);
     errors = { siteName: '', lang: '', source: '', rateLimit: '' };
   });
 
@@ -154,13 +203,24 @@
       default_lang: s.default_lang ?? 'zh-CN',
       public_source: s.public_source ?? '',
       api_rate_limit: Number(s.api_rate_limit ?? 0),
+      site_description: s.site_description ?? '',
+      login_eyebrow: s.login_eyebrow ?? '',
+      login_title: s.login_title ?? '',
+      login_subtitle: s.login_subtitle ?? '',
+      register_eyebrow: s.register_eyebrow ?? '',
+      register_title: s.register_title ?? '',
+      register_subtitle: s.register_subtitle ?? '',
       smtp_enabled: Boolean(s.smtp_enabled),
       smtp_host: s.smtp_host ?? '',
       smtp_port: Number(s.smtp_port ?? 587),
       smtp_user: s.smtp_user ?? '',
       smtp_from_email: s.smtp_from_email ?? '',
       smtp_from_name: s.smtp_from_name ?? '',
-      smtp_encryption: s.smtp_encryption ?? 'starttls'
+      smtp_encryption: s.smtp_encryption ?? 'starttls',
+      google_auth_enabled: Boolean(s.google_auth_enabled),
+      google_client_id: s.google_client_id ?? '',
+      github_auth_enabled: Boolean(s.github_auth_enabled),
+      github_client_id: s.github_client_id ?? ''
     };
   });
 
@@ -174,6 +234,13 @@
     if (defaultLang !== s.default_lang) n += 1;
     if (publicSource !== s.public_source) n += 1;
     if (Number(rateLimit) !== s.api_rate_limit) n += 1;
+    if (siteDescription !== s.site_description) n += 1;
+    if (loginEyebrow !== s.login_eyebrow) n += 1;
+    if (loginTitle !== s.login_title) n += 1;
+    if (loginSubtitle !== s.login_subtitle) n += 1;
+    if (registerEyebrow !== s.register_eyebrow) n += 1;
+    if (registerTitle !== s.register_title) n += 1;
+    if (registerSubtitle !== s.register_subtitle) n += 1;
     if (smtpEnabled !== s.smtp_enabled) n += 1;
     if (smtpHost !== s.smtp_host) n += 1;
     if (Number(smtpPort) !== s.smtp_port) n += 1;
@@ -182,6 +249,12 @@
     if (smtpFromEmail !== s.smtp_from_email) n += 1;
     if (smtpFromName !== s.smtp_from_name) n += 1;
     if (smtpEncryption !== s.smtp_encryption) n += 1;
+    if (googleAuthEnabled !== s.google_auth_enabled) n += 1;
+    if (googleClientId !== s.google_client_id) n += 1;
+    if (googleClientSecret !== '') n += 1;
+    if (githubAuthEnabled !== s.github_auth_enabled) n += 1;
+    if (githubClientId !== s.github_client_id) n += 1;
+    if (githubClientSecret !== '') n += 1;
     return n;
   });
   const dirty = $derived(changedCount > 0);
@@ -244,6 +317,13 @@
     defaultLang = s.default_lang;
     publicSource = s.public_source;
     rateLimit = s.api_rate_limit;
+    siteDescription = s.site_description;
+    loginEyebrow = s.login_eyebrow;
+    loginTitle = s.login_title;
+    loginSubtitle = s.login_subtitle;
+    registerEyebrow = s.register_eyebrow;
+    registerTitle = s.register_title;
+    registerSubtitle = s.register_subtitle;
     smtpEnabled = s.smtp_enabled;
     smtpHost = s.smtp_host;
     smtpPort = s.smtp_port;
@@ -252,6 +332,12 @@
     smtpFromEmail = s.smtp_from_email;
     smtpFromName = s.smtp_from_name;
     smtpEncryption = s.smtp_encryption;
+    googleAuthEnabled = s.google_auth_enabled;
+    googleClientId = s.google_client_id;
+    googleClientSecret = '';
+    githubAuthEnabled = s.github_auth_enabled;
+    githubClientId = s.github_client_id;
+    githubClientSecret = '';
     errors = { siteName: '', lang: '', source: '', rateLimit: '' };
     showToast('已恢复为当前已保存配置', 'info');
   }
@@ -275,6 +361,13 @@
         default_lang: defaultLang,
         public_source: publicSource,
         api_rate_limit: Number(rateLimit),
+        site_description: siteDescription,
+        login_eyebrow: loginEyebrow,
+        login_title: loginTitle,
+        login_subtitle: loginSubtitle,
+        register_eyebrow: registerEyebrow,
+        register_title: registerTitle,
+        register_subtitle: registerSubtitle,
         smtp_enabled: smtpEnabled,
         smtp_host: smtpHost,
         smtp_port: Number(smtpPort),
@@ -282,7 +375,13 @@
         smtp_pass_configured: smtpPassConfigured || Boolean(smtpPass),
         smtp_from_email: smtpFromEmail,
         smtp_from_name: smtpFromName,
-        smtp_encryption: smtpEncryption
+        smtp_encryption: smtpEncryption,
+        google_auth_enabled: googleAuthEnabled,
+        google_client_id: googleClientId,
+        google_client_secret_configured: googleClientSecretConfigured || Boolean(googleClientSecret),
+        github_auth_enabled: githubAuthEnabled,
+        github_client_id: githubClientId,
+        github_client_secret_configured: githubClientSecretConfigured || Boolean(githubClientSecret)
       }
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -402,12 +501,17 @@
       <h2>站点信息</h2>
     </header>
     <div class="app-card__body">
-      {#if message}
+      {#if message || simulatedError}
         <div class="app-error" role={conflict ? 'alert' : 'status'} style="margin-bottom:14px;">
           <Icon name="alert-triangle" size={16} />
           <div>
             <b>{conflict ? '保存失败（版本冲突）' : '保存失败'}</b>
-            <span>{message}</span>
+            <span>{simulatedError || message}</span>
+            {#if simulatedError}
+              <div style="margin-top:6px;">
+                <button type="button" class="btn ghost sm" onclick={() => (simulatedError = null)}>关闭提示</button>
+              </div>
+            {/if}
             {#if conflict}
               <span>设置已被其他人修改（If-Match 乐观锁冲突）。请刷新页面获取最新版本后再保存。</span>
             {/if}
@@ -419,6 +523,20 @@
         method="POST"
         action="?/save"
         use:enhance={({ cancel }) => {
+          simulatedError = null;
+
+          // 模拟保存失败演示模式：拦截请求，不写服务端，给出失败反馈
+          if (simulateFail) {
+            cancel();
+            saving = true;
+            setTimeout(() => {
+              saving = false;
+              simulatedError = '服务超时（演示模拟）。你的更改未写入服务端，可修改后重试。';
+              showToast('保存失败 · 服务超时（模拟）', 'danger');
+            }, 600);
+            return async () => {};
+          }
+
           // 提交前集中校验（原型：toast + 聚焦第一处错误）。
           const errs = validate();
           errors = errs;
@@ -431,16 +549,18 @@
           }
           saving = true;
           return async ({ result, update }) => {
+            saving = false;
             if (result.type === 'success') {
               const payload = result.data as { message?: string } | undefined;
               lastSavedAt = Date.now();
-              saving = false;
               await update();
               showToast(payload?.message ?? '设置已保存', 'success');
-            } else {
-              saving = false;
-              // 失败横幅由 form prop 渲染（原型 .app-error），不再重复 toast。
+            } else if (result.type === 'failure') {
               await update();
+              showToast((result.data as any)?.message ?? '保存失败，请检查表单输入', 'danger');
+            } else {
+              await update();
+              showToast('保存失败，请稍后重试', 'danger');
             }
           };
         }}
@@ -513,6 +633,112 @@
               oninput={onEdit}
             />
             {#if errors.rateLimit}<p class="app-field-error" role="alert">{errors.rateLimit}</p>{/if}
+          </div>
+        </div>
+
+        <!-- 站点文案（0065 全站文案统一）：空值 = 前端内置通用文案兜底，
+             placeholder 提示对应兜底文案；长度由 input maxlength 与后端
+             同上限校验双保险，无需逐字段内联错误。 -->
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--color-border);">
+          <h3 style="margin:0 0 12px 0;font-size:15px;display:flex;align-items:center;gap:8px;">
+            <Icon name="file-text" size={16} />
+            站点文案（登录 / 注册页）
+          </h3>
+          <p class="app-field-help" style="margin-bottom:14px;">
+            全站前台文案统一在此配置；留空时使用内置通用文案（见各输入框占位提示），保存后立即对全站生效。
+          </p>
+
+          <div class="adm-form-grid">
+            <div class="app-form-field" class:is-dirty={saved !== null && siteDescription !== saved.site_description}>
+              <label class="app-field-label" for="set-site-description">站点描述</label>
+              <input
+                id="set-site-description"
+                name="site_description"
+                class="app-field"
+                maxlength="200"
+                placeholder="留空使用默认：「站点名称」社区论坛（SEO 描述与登录/注册说明兜底）"
+                bind:value={siteDescription}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && loginEyebrow !== saved.login_eyebrow}>
+              <label class="app-field-label" for="set-login-eyebrow">登录页眉题</label>
+              <input
+                id="set-login-eyebrow"
+                name="login_eyebrow"
+                class="app-field"
+                maxlength="60"
+                placeholder="留空默认 WELCOME BACK"
+                bind:value={loginEyebrow}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && loginTitle !== saved.login_title}>
+              <label class="app-field-label" for="set-login-title">登录页标题</label>
+              <input
+                id="set-login-title"
+                name="login_title"
+                class="app-field"
+                maxlength="100"
+                placeholder="留空默认：登录 站点名称"
+                bind:value={loginTitle}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && loginSubtitle !== saved.login_subtitle}>
+              <label class="app-field-label" for="set-login-subtitle">登录页说明</label>
+              <input
+                id="set-login-subtitle"
+                name="login_subtitle"
+                class="app-field"
+                maxlength="200"
+                placeholder="留空默认使用站点描述"
+                bind:value={loginSubtitle}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && registerEyebrow !== saved.register_eyebrow}>
+              <label class="app-field-label" for="set-register-eyebrow">注册页眉题</label>
+              <input
+                id="set-register-eyebrow"
+                name="register_eyebrow"
+                class="app-field"
+                maxlength="60"
+                placeholder="留空默认：JOIN 站点名称"
+                bind:value={registerEyebrow}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && registerTitle !== saved.register_title}>
+              <label class="app-field-label" for="set-register-title">注册页标题</label>
+              <input
+                id="set-register-title"
+                name="register_title"
+                class="app-field"
+                maxlength="100"
+                placeholder="留空默认：创建账号"
+                bind:value={registerTitle}
+                oninput={onEdit}
+              />
+            </div>
+
+            <div class="app-form-field" class:is-dirty={saved !== null && registerSubtitle !== saved.register_subtitle}>
+              <label class="app-field-label" for="set-register-subtitle">注册页说明</label>
+              <input
+                id="set-register-subtitle"
+                name="register_subtitle"
+                class="app-field"
+                maxlength="200"
+                placeholder="留空默认使用站点描述"
+                bind:value={registerSubtitle}
+                oninput={onEdit}
+              />
+            </div>
           </div>
         </div>
 
@@ -631,6 +857,103 @@
               </select>
             </div>
           </div>
+
+          <!-- 第三方登录 / OAuth 配置 (Google & GitHub) -->
+          <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--color-border);">
+            <h3 style="margin:0 0 12px 0;font-size:15px;display:flex;align-items:center;gap:8px;">
+              <Icon name="shield" size={16} />
+              第三方 OAuth 登录配置（Google / GitHub）
+            </h3>
+            <p class="app-field-help" style="margin-bottom:14px;">
+              配置 Google 与 GitHub OAuth 2.0 客户端参数。开启后，前台登录与注册页将提供对应的第三方登录入口。
+            </p>
+
+            <!-- Google 登录配置 -->
+            <div style="margin-bottom:16px;padding:12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-secondary, rgba(0,0,0,0.02));">
+              <div style="margin-bottom:10px;">
+                <label class="app-check" style="margin:0;display:inline-flex;align-items:center;gap:8px;">
+                  <input type="checkbox" name="google_auth_enabled" bind:checked={googleAuthEnabled} oninput={onEdit} />
+                  <span><b>启用 Google 账号登录</b><span class="app-field-help">开启后在前台展示 Google 快捷登录</span></span>
+                </label>
+              </div>
+              <div class="adm-form-grid">
+                <div class="app-form-field" class:is-dirty={saved !== null && googleClientId !== saved.google_client_id}>
+                  <label class="app-field-label" for="set-google-client-id">Google Client ID</label>
+                  <input
+                    id="set-google-client-id"
+                    name="google_client_id"
+                    class="app-field"
+                    placeholder="*.apps.googleusercontent.com"
+                    bind:value={googleClientId}
+                    oninput={onEdit}
+                  />
+                </div>
+                <div class="app-form-field" class:is-dirty={googleClientSecret !== ''}>
+                  <label class="app-field-label" for="set-google-client-secret">
+                    Google Client Secret
+                    {#if googleClientSecretConfigured}
+                      <span class="app-badge success" style="font-size:11px;margin-left:6px;">已配置</span>
+                    {/if}
+                  </label>
+                  <input
+                    id="set-google-client-secret"
+                    name="google_client_secret"
+                    type="password"
+                    class="app-field"
+                    placeholder={googleClientSecretConfigured ? '已配置，留空表示保持原 Secret' : '请输入 Google Client Secret'}
+                    bind:value={googleClientSecret}
+                    oninput={onEdit}
+                  />
+                </div>
+              </div>
+              <p class="app-field-help" style="margin:8px 0 0 0;font-size:12px;">
+                Google Cloud Console 回调 URI 需填写：<code>{(publicSource || 'https://example.com').replace(/\/$/, '')}/api/v1/auth/oauth/google/callback</code>
+              </p>
+            </div>
+
+            <!-- GitHub 登录配置 -->
+            <div style="margin-bottom:14px;padding:12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-secondary, rgba(0,0,0,0.02));">
+              <div style="margin-bottom:10px;">
+                <label class="app-check" style="margin:0;display:inline-flex;align-items:center;gap:8px;">
+                  <input type="checkbox" name="github_auth_enabled" bind:checked={githubAuthEnabled} oninput={onEdit} />
+                  <span><b>启用 GitHub 账号登录</b><span class="app-field-help">开启后在前台展示 GitHub 快捷登录</span></span>
+                </label>
+              </div>
+              <div class="adm-form-grid">
+                <div class="app-form-field" class:is-dirty={saved !== null && githubClientId !== saved.github_client_id}>
+                  <label class="app-field-label" for="set-github-client-id">GitHub Client ID</label>
+                  <input
+                    id="set-github-client-id"
+                    name="github_client_id"
+                    class="app-field"
+                    placeholder="Ov23li..."
+                    bind:value={githubClientId}
+                    oninput={onEdit}
+                  />
+                </div>
+                <div class="app-form-field" class:is-dirty={githubClientSecret !== ''}>
+                  <label class="app-field-label" for="set-github-client-secret">
+                    GitHub Client Secret
+                    {#if githubClientSecretConfigured}
+                      <span class="app-badge success" style="font-size:11px;margin-left:6px;">已配置</span>
+                    {/if}
+                  </label>
+                  <input
+                    id="set-github-client-secret"
+                    name="github_client_secret"
+                    type="password"
+                    class="app-field"
+                    placeholder={githubClientSecretConfigured ? '已配置，留空表示保持原 Secret' : '请输入 GitHub Client Secret'}
+                    bind:value={githubClientSecret}
+                    oninput={onEdit}
+                  />
+                </div>
+              </div>
+              <p class="app-field-help" style="margin:8px 0 0 0;font-size:12px;">
+                GitHub OAuth Apps Authorization callback URL 需填写：<code>{(publicSource || 'https://example.com').replace(/\/$/, '')}/api/v1/auth/oauth/github/callback</code>
+              </p>
+            </div>
+          </div>
           <input type="hidden" name="reason" value="系统设置更新" />
         </div>
 
@@ -675,7 +998,7 @@
 
       <div style="margin:12px 0;">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--color-text-secondary);">
-          <input type="checkbox" onchange={(e) => showToast(e.currentTarget.checked ? '已开启保存超时模拟' : '已恢复正常模式', 'info')} />
+          <input type="checkbox" bind:checked={simulateFail} onchange={(e) => showToast(e.currentTarget.checked ? '已开启保存超时模拟' : '已恢复正常模式', 'info')} />
           <span>模拟保存失败</span>
         </label>
         <span class="app-muted" style="font-size:11px;display:block;margin-top:2px;">

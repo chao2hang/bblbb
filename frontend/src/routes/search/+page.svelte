@@ -13,11 +13,13 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   // M14-SEO-01：搜索页统一 SEO（canonical + noindex + JSON-LD）。
   import Seo from '$lib/components/Seo.svelte';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
   import type { SearchPageData } from './+page.server';
 
-  let { data }: { data: SearchPageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: SearchPageData & { site?: SiteCopyView | null } } = $props();
 
-  const tagSlug = $derived(page.url.searchParams.get('tag') ?? '');
+  const tagSlug = $derived(data.tag || page.url.searchParams.get('tag') || '');
   const searched = $derived(data.searched);
   const results = $derived(data.results);
   const invalid = $derived(data.invalid);
@@ -30,16 +32,27 @@
   // 默认 noindex（FRONTEND.md §8；不承诺替代服务端边界）+ JSON-LD。
   const origin = $derived(page.url.origin);
   const canonical = $derived(
-    searched ? `${origin}${searchUrl(q, { limit: data.limit })}` : `${origin}/search`
+    searched ? `${origin}${searchUrl(q, { limit: data.limit, tag: tagSlug })}` : `${origin}/search`
   );
-  const pageTitle = $derived(searched ? `搜索「${q}」 — BBLBB` : '搜索 — BBLBB');
+  // 全站文案（0065）：站点名来自 layout data.site（后台系统设置）；标题
+  // 后缀由 Seo 统一追加，此处只给页面名。
+  const site = $derived(data.site ?? resolveSiteCopy(null));
+  const pageTitle = $derived(
+    searched
+      ? q
+        ? tagSlug
+          ? `搜索「${q}」· 标签：${tagSlug}`
+          : `搜索「${q}」`
+        : `标签「${tagSlug}」相关内容`
+      : '搜索'
+  );
   const pageDesc = $derived(
-    searched ? `搜索「${q}」的公开内容` : '搜索 BBLBB 的公开内容'
+    searched ? (q ? `搜索「${q}」的公开内容` : `查看标签「${tagSlug}」下的公开内容`) : `搜索${site.siteName}的公开内容`
   );
   const jsonLd = $derived.by(() => ({
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'BBLBB',
+    name: site.siteName,
     url: origin,
     potentialAction: {
       '@type': 'SearchAction',
@@ -64,7 +77,7 @@
   description={pageDesc}
   canonical={canonical}
   noindex
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  og={{ type: 'website', siteName: site.siteName }}
   jsonLd={jsonLd}
 />
 
@@ -79,6 +92,9 @@
     </div>
 
     <form class="app-toolbar" role="search" method="get" action="/search" style="margin-bottom:14px;">
+      {#if tagSlug}
+        <input type="hidden" name="tag" value={tagSlug} />
+      {/if}
       <label class="app-search" style="flex:1;">
         <Icon name="search" size={16} />
         <input

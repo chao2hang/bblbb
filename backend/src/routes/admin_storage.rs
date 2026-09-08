@@ -26,6 +26,7 @@ use crate::{
     authz::enforce::authorize_action,
     config::AppConfig,
     error::AppError,
+    storage::adapter::{S3Adapter, S3Config, StorageAdapter},
     storage::error::StorageError,
     storage::quota::{
         get_policy_for_level, get_policy_revisions, update_level_quota, PRESIGN_TTL_SECS,
@@ -162,7 +163,8 @@ async fn update_storage_config(
 
     let update: StorageConfigUpdate = serde_json::from_value(body)
         .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
-    validate_storage_config_update(&update, request_id)?;
+    // 开发/测试环境允许 http:// endpoint（内网 MinIO 等）；生产仅 https。
+    validate_storage_config_update(&update, !state.config.is_production(), request_id)?;
 
     // 审计（with_reason + with_policy_version；不记录 Secret 值）
     AuditEntry::user_action(&user.id, "admin.storage_config_update")
@@ -207,9 +209,13 @@ struct StorageConfigUpdate {
 }
 
 /// 校验管理端提交的存储配置（不持久化；M06-QUOTA-11）。
+///
+/// `allow_http_endpoint`：非生产环境允许 `http://` endpoint（内网 MinIO 等，
+/// 与 `BBLBB__S3_ENDPOINT` 环境变量行为一致）；生产仅 `https://`。
 #[allow(clippy::result_large_err)] // AppError 为统一错误类型（与 auth/session 同约定）
 fn validate_storage_config_update(
     update: &StorageConfigUpdate,
+    allow_http_endpoint: bool,
     request_id: &str,
 ) -> Result<(), AppError> {
     if let Some(backend) = &update.backend {
@@ -248,13 +254,7 @@ fn validate_storage_config_update(
         ));
     }
     if let Some(endpoint) = &update.s3_endpoint {
-        if !endpoint.is_empty() && !endpoint.starts_with("https://") {
-            return Err(AppError::bad_request(
-                "s3_endpoint must be https (development may override)",
-                request_id,
-                None,
-            ));
-        }
+        validate_endpoint_scheme(endpoint, allow_http_endpoint, request_id)?;
     }
     if let Some(ttl) = update.signed_url_ttl_seconds {
         if !(60..=3600).contains(&ttl) {
@@ -264,6 +264,29 @@ fn validate_storage_config_update(
                 None,
             ));
         }
+    }
+    Ok(())
+}
+
+/// endpoint 协议门：生产仅 `https://`；非生产额外允许 `http://`（内网网关）。
+#[allow(clippy::result_large_err)]
+fn validate_endpoint_scheme(
+    endpoint: &str,
+    allow_http_endpoint: bool,
+    request_id: &str,
+) -> Result<(), AppError> {
+    let endpoint = endpoint.trim();
+    if endpoint.is_empty() {
+        return Ok(());
+    }
+    let https = endpoint.starts_with("https://");
+    let http_dev = allow_http_endpoint && endpoint.starts_with("http://");
+    if !https && !http_dev {
+        return Err(AppError::bad_request(
+            "s3_endpoint must be https (http is allowed only outside production)",
+            request_id,
+            None,
+        ));
     }
     Ok(())
 }
@@ -320,8 +343,11 @@ fn endpoint_host(endpoint: &str) -> String {
 
 // ────────────────────────── 测试连接 ──────────────────────────────────────
 
-/// POST /api/v1/admin/storage/test — 测试连接（local 检查根目录可写；
-/// s3 尝试列出空前缀/head bucket）。返回脱敏结果与错误分类。
+/// POST /api/v1/admin/storage/test — 测试**候选或当前**配置（API.md §12.2）。
+///
+/// 请求体可携带候选配置（`backend`/`local_path`/`s3_*` 字段）；留空字段
+/// 回退到当前部署配置，因此 `{}` 即测试当前配置。探测使用专用前缀
+/// `.bblbb-probe-` 并立即清理（docs/API.md：只返回脱敏诊断，不回显凭证）。
 async fn test_storage(
     State(state): State<AppState>,
     auth: AuthSession,
@@ -354,14 +380,43 @@ async fn test_storage(
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    let result = run_storage_probe(&state.config).await;
+    let candidate: StorageTestRequest = serde_json::from_value(body)
+        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+    if let Some(endpoint) = candidate.s3_endpoint.as_deref() {
+        // 与 PATCH 校验一致：非生产允许 http://（内网 MinIO）
+        validate_endpoint_scheme(endpoint, !state.config.is_production(), request_id)?;
+    }
+
+    let started = std::time::Instant::now();
+    let result = run_storage_probe(&state.config, &candidate).await;
+    let elapsed_ms = started.elapsed().as_millis() as u64;
     Ok(Json(json!({
         "ok": result.ok,
         "backend": result.backend,
+        "message": result.detail,
         "detail": result.detail,
         "error_class": result.error_class,
+        "elapsed_ms": elapsed_ms,
     }))
     .into_response())
+}
+
+/// 测试连接请求（候选配置；空字段回退当前部署配置）。
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct StorageTestRequest {
+    backend: Option<String>,
+    local_path: Option<String>,
+    s3_endpoint: Option<String>,
+    s3_region: Option<String>,
+    #[serde(alias = "bucket")]
+    s3_bucket: Option<String>,
+    #[serde(alias = "path_style")]
+    s3_path_style: Option<bool>,
+    s3_access_key_id: Option<String>,
+    s3_secret_access_key: Option<String>,
+    #[allow(dead_code)] // 接受但探测不使用（与 StorageConfigUpdate 对齐）
+    reason: Option<String>,
 }
 
 /// 探测结果。
@@ -372,12 +427,131 @@ struct ProbeResult {
     error_class: &'static str,
 }
 
-/// 探测实现：local 写/读/删探针文件；s3 列出空前缀（bucket 可达）。
-async fn run_storage_probe(config: &AppConfig) -> ProbeResult {
+/// 探测实现：local 写/读/删探针文件；s3 写/head/删探针对象（专用前缀，
+/// 立即清理）。候选字段留空时回退当前部署配置。
+async fn run_storage_probe(config: &AppConfig, candidate: &StorageTestRequest) -> ProbeResult {
+    // 目标后端：候选指定优先；未指定 → 当前部署的生效后端。
+    let env_s3 = config.storage_backend == "s3" && !config.s3_bucket.is_empty();
+    let probe_s3 = match candidate.backend.as_deref().map(str::trim) {
+        Some("s3") => true,
+        Some("local") => false,
+        Some("") | None => env_s3,
+        Some(other) => {
+            return ProbeResult {
+                ok: false,
+                backend: if env_s3 { "s3" } else { "local" },
+                detail: format!("backend must be 'local' or 's3' (got '{other}')"),
+                error_class: "invalid",
+            };
+        }
+    };
+
+    if !probe_s3 {
+        // local：候选 local_path 优先，回退部署 storage_dir。
+        let root = candidate
+            .local_path
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| config.storage_dir.clone());
+        return run_local_probe(root).await;
+    }
+
+    // s3：空字段回退部署配置（Secret 留空 = 用当前已配置凭据）。
+    let fallback = |candidate_value: Option<&String>, env_value: &str| {
+        candidate_value
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| env_value.to_string())
+    };
+    let bucket = fallback(candidate.s3_bucket.as_ref(), &config.s3_bucket);
+    if bucket.is_empty() {
+        return ProbeResult {
+            ok: false,
+            backend: "s3",
+            detail: "bucket is required for s3 test".to_string(),
+            error_class: "invalid",
+        };
+    }
+    let region = {
+        let r = fallback(candidate.s3_region.as_ref(), &config.s3_region);
+        if r.is_empty() {
+            "auto".to_string()
+        } else {
+            r
+        }
+    };
+    let endpoint = {
+        let e = fallback(candidate.s3_endpoint.as_ref(), &config.s3_endpoint);
+        if e.is_empty() {
+            None
+        } else {
+            Some(e)
+        }
+    };
+    let s3_config = S3Config {
+        bucket,
+        region,
+        endpoint,
+        path_style: candidate.s3_path_style.unwrap_or(config.s3_path_style),
+        access_key_id: {
+            let v = fallback(candidate.s3_access_key_id.as_ref(), &config.s3_access_key_id);
+            if v.is_empty() { None } else { Some(v) }
+        },
+        secret_access_key: {
+            let v = fallback(
+                candidate.s3_secret_access_key.as_ref(),
+                &config.s3_secret_access_key,
+            );
+            if v.is_empty() { None } else { Some(v) }
+        },
+        session_token: None,
+    };
+
     let probe_key = format!(".bblbb-probe-{}", uuid::Uuid::now_v7());
     let payload = b"bblbb-storage-probe";
     let result: Result<(), StorageError> = async {
-        let storage = crate::storage::StorageService::local_only(config.storage_dir.clone())?;
+        let adapter = S3Adapter::new(&s3_config).await?;
+        adapter
+            .write_object(&probe_key, payload, Some("text/plain"))
+            .await?;
+        let head = adapter.head_object(&probe_key).await?;
+        let ok = head.exists && head.size_bytes == payload.len() as i64;
+        let _ = adapter.delete_object(&probe_key).await;
+        if ok {
+            Ok(())
+        } else {
+            Err(StorageError::Verification(
+                "probe object mismatch".to_string(),
+            ))
+        }
+    }
+    .await;
+
+    let backend = "s3";
+    match result {
+        Ok(()) => ProbeResult {
+            ok: true,
+            backend,
+            detail: format!("s3 bucket reachable (path_style={})", s3_config.path_style),
+            error_class: "ok",
+        },
+        Err(e) => ProbeResult {
+            ok: false,
+            backend,
+            detail: e.to_string(),
+            error_class: classify_storage_error(&e),
+        },
+    }
+}
+
+/// local 探测：写/校验/删探针文件（候选根目录必须可写）。
+async fn run_local_probe(root: std::path::PathBuf) -> ProbeResult {
+    let probe_key = format!(".bblbb-probe-{}", uuid::Uuid::now_v7());
+    let payload = b"bblbb-storage-probe";
+    let result: Result<(), StorageError> = async {
+        let storage = crate::storage::StorageService::local_only(root)?;
         let adapter = storage.adapter(crate::storage::StorageBackend::Local)?;
         adapter
             .write_object(&probe_key, payload, Some("text/plain"))
@@ -565,5 +739,118 @@ fn storage_quota_error(e: StorageError, request_id: &str) -> AppError {
         StorageError::NotFound(msg) => AppError::not_found(msg, request_id),
         StorageError::Db(msg) => AppError::internal(msg, request_id),
         other => AppError::internal(other.to_string(), request_id),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn update(backend: Option<&str>, endpoint: Option<&str>) -> StorageConfigUpdate {
+        StorageConfigUpdate {
+            backend: backend.map(str::to_string),
+            path_style: None,
+            s3_endpoint: endpoint.map(str::to_string),
+            s3_region: None,
+            bucket: None,
+            signed_url_ttl_seconds: None,
+            local_path: None,
+            s3_access_key_id: None,
+            s3_secret_access_key: None,
+            s3_public_base_url: None,
+            upload_max_bytes: None,
+            expected_version: None,
+            reason: None,
+        }
+    }
+
+    #[test]
+    fn endpoint_scheme_dev_allows_http_and_prod_requires_https() {
+        // 非生产：内网 MinIO 的 http endpoint 允许（与 BBLBB__S3_ENDPOINT 一致）
+        assert!(validate_endpoint_scheme("http://10.10.10.10:9000", true, "t").is_ok());
+        assert!(validate_endpoint_scheme("https://s3.example.com", true, "t").is_ok());
+        // 生产：仅 https
+        assert!(validate_endpoint_scheme("http://10.10.10.10:9000", false, "t").is_err());
+        assert!(validate_endpoint_scheme("https://s3.example.com", false, "t").is_ok());
+        // 无协议 / 其他协议一律拒绝；空串放行（= 使用默认 endpoint）
+        assert!(validate_endpoint_scheme("ftp://x", true, "t").is_err());
+        assert!(validate_endpoint_scheme("s3.example.com", true, "t").is_err());
+        assert!(validate_endpoint_scheme("", true, "t").is_ok());
+    }
+
+    #[test]
+    fn update_validation_dev_http_endpoint_passes() {
+        let mut u = update(Some("s3"), Some("http://10.10.10.10:9000"));
+        u.bucket = Some("bblbb".into());
+        u.s3_region = Some("auto".into());
+        assert!(
+            validate_storage_config_update(&u, true, "t").is_ok(),
+            "非生产环境必须允许 http:// 内网 endpoint"
+        );
+        assert!(
+            validate_storage_config_update(&u, false, "t").is_err(),
+            "生产环境必须拒绝 http:// endpoint"
+        );
+    }
+
+    #[test]
+    fn update_validation_s3_requires_bucket_and_region() {
+        let err = validate_storage_config_update(&update(Some("s3"), None), true, "t");
+        assert!(err.is_err());
+        let mut u = update(Some("s3"), None);
+        u.bucket = Some("bblbb".into());
+        let err = validate_storage_config_update(&u, true, "t");
+        assert!(err.is_err());
+        u.s3_region = Some("auto".into());
+        assert!(validate_storage_config_update(&u, true, "t").is_ok());
+    }
+
+    #[test]
+    fn test_request_parses_frontend_candidate_payload() {
+        // 前端 test action 的载荷形状：未知字段容忍、null 容忍、空 backend 容忍。
+        let payload = serde_json::json!({
+            "backend": "s3",
+            "local_path": null,
+            "s3_endpoint": "http://10.10.10.10:9000",
+            "s3_region": "auto",
+            "s3_bucket": "bblbb",
+            "s3_path_style": true,
+            "s3_public_base_url": null,
+            "signed_url_ttl_seconds": 300,
+            "reason": "测试存储连接"
+        });
+        let req: StorageTestRequest = serde_json::from_value(payload).expect("parse candidate");
+        assert_eq!(req.backend.as_deref(), Some("s3"));
+        assert_eq!(req.s3_bucket.as_deref(), Some("bblbb"));
+        assert_eq!(req.s3_path_style, Some(true));
+        // `{}`（测试当前配置）与未知字段载荷也必须可解析
+        let empty: StorageTestRequest = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(empty.backend.is_none());
+        let unknown: Result<StorageTestRequest, _> =
+            serde_json::from_value(serde_json::json!({ "probe": true }));
+        assert!(unknown.is_ok());
+    }
+
+    #[tokio::test]
+    async fn probe_backend_selection_falls_back_to_env() {
+        // 未指定 backend → 环境生效后端；未知值 → invalid（不落 500）。
+        let config = AppConfig::default(); // storage_backend=local
+        let unspecified: StorageTestRequest =
+            serde_json::from_value(serde_json::json!({ "backend": "" })).unwrap();
+        let result = run_storage_probe(&config, &unspecified).await;
+        assert_eq!(result.backend, "local");
+
+        let bogus: StorageTestRequest =
+            serde_json::from_value(serde_json::json!({ "backend": "ftp" })).unwrap();
+        let result = run_storage_probe(&config, &bogus).await;
+        assert!(!result.ok);
+        assert_eq!(result.error_class, "invalid");
+
+        // s3 候选但 bucket 缺失（环境也未配置）→ invalid 诊断，不 panic、不联网。
+        let no_bucket: StorageTestRequest =
+            serde_json::from_value(serde_json::json!({ "backend": "s3" })).unwrap();
+        let result = run_storage_probe(&config, &no_bucket).await;
+        assert!(!result.ok);
+        assert_eq!(result.error_class, "invalid");
     }
 }

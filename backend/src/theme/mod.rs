@@ -2,6 +2,8 @@
 //!
 //! 主题是**数据型安全 Token**（THEME.md §1.1/§2）：
 //! - 封闭 Token schema：只接受已知 token key，类型与取值范围在代码中冻结；
+//! - v1.1 增量扩展：6 个可选 `color.*.dark` key 承载夜间（暗色）配色变体，
+//!   与日间 key 同构（标准 hex），缺失时渲染回退日间值（旧主题包零迁移）；
 //! - 服务端 schema 校验拒绝 CSS/HTML/JS/SVG/远程资源/任意 style 字符串；
 //! - 主题不存在/不兼容/停用/损坏时回退内置 default 并记录非敏感告警；
 //! - `revision` 是主题 Token 的单调递增版本，SSR/浏览器/缓存/用户偏好共享
@@ -28,6 +30,11 @@ pub const CORE_THEME_RANGE: &str = ">=1.0 <2.0";
 pub const MAX_PACKAGE_BYTES: usize = 256 * 1024;
 
 /// 封闭 Token schema：所有允许的 token key。
+///
+/// v1 增量扩展（v1.1，纯新增、向后兼容）：6 个 `color.*.dark` 可选 key 承载
+/// **夜间（暗色）配色变体**。站点处于暗色模式（`html.dark`）时，前端投影层
+/// 优先使用 `.dark` 变体；缺失时回退日间值再回退内置暗色。旧主题包不含
+/// `.dark` key 时校验与渲染行为完全不变（key 可选，逐 key 校验）。
 pub const TOKEN_KEYS: &[&str] = &[
     "color.background",
     "color.surface",
@@ -35,11 +42,18 @@ pub const TOKEN_KEYS: &[&str] = &[
     "color.muted",
     "color.accent",
     "color.border",
+    "color.background.dark",
+    "color.surface.dark",
+    "color.text.dark",
+    "color.muted.dark",
+    "color.accent.dark",
+    "color.border.dark",
     "font.body",
     "font.mono",
     "radius.control",
     "radius.card",
     "space.density",
+    "layout.mode",
     "shadow.card",
     "motion.duration",
     "motion.reduced",
@@ -128,7 +142,11 @@ impl std::fmt::Display for ThemeError {
 
 impl std::error::Error for ThemeError {}
 
-/// 内置 default 主题 Token（BBLBB 默认亮色；数据型安全 Token）。
+/// 内置 default 主题 Token（BBLBB 官方日/夜双模式；数据型安全 Token）。
+///
+/// `.dark` 变体与前端 `tokens.css` 的 `html.dark` 官方暗色板一一对应
+/// （背景 #101B19 / 卡片 #172522 / 文字 #F5F3EA / 强调 #F27759 / 边框 #30433E），
+/// 保证内置默认与官方暗色模式完全一致。
 pub fn default_tokens() -> Value {
     json!({
         "color.background": "#f5f3ed",
@@ -137,11 +155,18 @@ pub fn default_tokens() -> Value {
         "color.muted": "#53605b",
         "color.accent": "#b23e2a",
         "color.border": "#d9d6cc",
+        "color.background.dark": "#101b19",
+        "color.surface.dark": "#172522",
+        "color.text.dark": "#f5f3ea",
+        "color.muted.dark": "#b5c0ba",
+        "color.accent.dark": "#f27759",
+        "color.border.dark": "#30433e",
         "font.body": "system-ui",
         "font.mono": "ui-monospace",
         "radius.control": "0.375rem",
         "radius.card": "0.5rem",
         "space.density": "comfortable",
+        "layout.mode": "classic",
         "shadow.card": "sm",
         "motion.duration": "150ms",
         "motion.reduced": false,
@@ -241,8 +266,19 @@ fn scan_dangerous(value: &str, key: &str) -> Result<(), ThemeError> {
 fn validate_token(key: &str, value: &Value) -> Result<(), ThemeError> {
     let bad = |msg: String| ThemeError::Invalid(msg);
     match key {
-        "color.background" | "color.surface" | "color.text" | "color.muted" | "color.accent"
-        | "color.border" => {
+        "color.background"
+        | "color.surface"
+        | "color.text"
+        | "color.muted"
+        | "color.accent"
+        | "color.border"
+        // 夜间（暗色）配色变体：与日间 key 完全同构的 hex 校验。
+        | "color.background.dark"
+        | "color.surface.dark"
+        | "color.text.dark"
+        | "color.muted.dark"
+        | "color.accent.dark"
+        | "color.border.dark" => {
             let s = value
                 .as_str()
                 .ok_or_else(|| bad(format!("token '{key}' must be a string")))?;
@@ -296,6 +332,17 @@ fn validate_token(key: &str, value: &Value) -> Result<(), ThemeError> {
             if !DENSITY_ALLOWLIST.contains(&s) {
                 return Err(bad(format!(
                     "token '{key}' must be one of compact|comfortable|relaxed"
+                )));
+            }
+        }
+        "layout.mode" => {
+            let s = value
+                .as_str()
+                .ok_or_else(|| bad(format!("token '{key}' must be a string")))?;
+            if !LAYOUT_MODE_ALLOWLIST.contains(&s) {
+                return Err(bad(format!(
+                    "token '{key}' must be one of {} (closed registry of compiled layout presets)",
+                    LAYOUT_MODE_ALLOWLIST.join("|")
                 )));
             }
         }
@@ -904,6 +951,89 @@ pub async fn list_themes(pool: &DatabasePool) -> Result<Vec<Theme>, ThemeError> 
     }
 }
 
+/// 幂等持久化内置 default 主题（启动种子，与 `seed_builtin_roles` 同类）：
+/// 若 `themes` 表尚无 `default` 行，写入内置 `default_tokens()`
+/// （status=active、revision=1，并追加 revision 1 修订记录）。
+///
+/// 语义：
+/// - 行已存在则立即返回、绝不改写（保留管理员 Token 编辑与 revision）；
+/// - 仅当站点当前没有生效默认主题（无 is_default=1 且 active 的行）时，
+///   新行才设为站点默认；绝不覆盖管理员显式「设为默认」的选择；
+/// - `main.rs` 启动期调用，保证管理后台「主题管理」始终有一条可编辑、
+///   可审计、带修订的默认主题记录（而非仅前端合成的回退占位）。
+pub async fn ensure_default_theme(pool: &DatabasePool) -> Result<(), ThemeError> {
+    if load_theme_by_name(pool, DEFAULT_THEME_NAME)
+        .await?
+        .is_some()
+    {
+        return Ok(());
+    }
+    let now = crate::outbox::now_millis();
+    let tokens_json = serde_json::to_string(&default_tokens())
+        .map_err(|e| ThemeError::Invalid(crate::error::sanitize(&e.to_string())))?;
+    // 站点已有生效默认主题 → 新行不抢默认；否则新行即为站点默认。
+    let is_default = i32::from(load_default_theme(pool).await?.is_none());
+    const DISPLAY_NAME: &str = "默认主题 (内置)";
+    let affected = match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT OR IGNORE INTO themes (name, display_name, kind, schema_version, version, supports, status, is_default, revision, tokens_json, asset_meta_json, created_by, created_at, updated_at)
+                 VALUES (?, ?, 'data', ?, ?, ?, 'active', ?, 1, ?, '{}', 'system', ?, ?)",
+            )
+            .bind(DEFAULT_THEME_NAME)
+            .bind(DISPLAY_NAME)
+            .bind(THEME_SCHEMA_VERSION)
+            .bind("1.0.0")
+            .bind(CORE_THEME_RANGE)
+            .bind(is_default)
+            .bind(&tokens_json)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| ThemeError::Corrupt(crate::error::sanitize(&e.to_string())))?
+            .rows_affected()
+        }
+        Either::Right(p) => {
+            sqlx::query(
+                "INSERT IGNORE INTO themes (name, display_name, kind, schema_version, version, supports, status, is_default, revision, tokens_json, asset_meta_json, created_by, created_at, updated_at)
+                 VALUES (?, ?, 'data', ?, ?, ?, 'active', ?, 1, ?, '{}', 'system', ?, ?)",
+            )
+            .bind(DEFAULT_THEME_NAME)
+            .bind(DISPLAY_NAME)
+            .bind(THEME_SCHEMA_VERSION)
+            .bind("1.0.0")
+            .bind(CORE_THEME_RANGE)
+            .bind(is_default)
+            .bind(&tokens_json)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .map_err(|e| ThemeError::Corrupt(crate::error::sanitize(&e.to_string())))?
+            .rows_affected()
+        }
+    };
+    if affected == 0 {
+        // 并发种子（极罕见）：行已被并发写入，按幂等成功处理。
+        return Ok(());
+    }
+    // 记录初始修订（revision 1），与上传路径一致。
+    let rev_id = uuid::Uuid::now_v7().to_string();
+    let _ = insert_revision(
+        pool,
+        &rev_id,
+        DEFAULT_THEME_NAME,
+        1,
+        &tokens_json,
+        "system",
+        "内置默认主题种子持久化",
+        now,
+    )
+    .await;
+    Ok(())
+}
+
 /// 管理员上传数据包（M13-THEME-06）：完整校验 → 插入（revision=1，
 /// status=disabled 隔离态）→ 返回主题。同名升级需先删除或进入冲突。
 pub async fn upload_theme_package(
@@ -1325,6 +1455,25 @@ mod tests {
     }
 
     #[test]
+    fn layout_mode_accepts_registered_presets_and_rejects_arbitrary_structures() {
+        // 已注册的结构预设（classic/sidebar/wide）均可通过封闭 schema。
+        for mode in LAYOUT_MODE_ALLOWLIST {
+            assert!(validate_tokens(&json!({ "layout.mode": mode })).is_ok());
+        }
+        // 默认主题携带 classic 布局。
+        assert_eq!(default_tokens()["layout.mode"], json!("classic"));
+        // 未注册布局 / 任意结构字符串 → 拒绝（主题不能注入任意 HTML/CSS/JS）。
+        assert!(validate_tokens(&json!({ "layout.mode": "masonry" })).is_err());
+        assert!(validate_tokens(&json!({ "layout.mode": "grid; position: fixed" })).is_err());
+        assert!(
+            validate_tokens(&json!({ "layout.mode": "</style><script>alert(1)</script>" }))
+                .is_err()
+        );
+        assert!(validate_tokens(&json!({ "layout.mode": "url(https://evil.example)" })).is_err());
+        assert!(validate_tokens(&json!({ "layout.mode": 42 })).is_err());
+    }
+
+    #[test]
     fn accepts_full_valid_token_set() {
         let tokens = default_tokens();
         let parsed = validate_tokens(&tokens).unwrap();
@@ -1393,5 +1542,77 @@ mod tests {
         assert!(!is_compatible(">=2.0"));
         assert!(!is_compatible("==0.5"));
         assert!(!is_compatible("banana"));
+    }
+
+    #[test]
+    fn dark_variant_tokens_use_same_hex_rules() {
+        // 全部 6 个夜间变体 key 均通过（与日间 key 同构的 hex 校验）
+        for key in [
+            "color.background.dark",
+            "color.surface.dark",
+            "color.text.dark",
+            "color.muted.dark",
+            "color.accent.dark",
+            "color.border.dark",
+        ] {
+            assert!(
+                validate_tokens(&json!({ key: "#0f172a" })).is_ok(),
+                "{key} should accept a standard hex color"
+            );
+        }
+        // 非 hex / CSS 注入 / 危险内容同样被拒绝
+        for key in ["color.background.dark", "color.accent.dark"] {
+            assert!(validate_tokens(&json!({ key: "red" })).is_err());
+            assert!(validate_tokens(&json!({ key: "#zzz" })).is_err());
+            assert!(validate_tokens(&json!({ key: "#fff; position: fixed" })).is_err());
+            assert!(
+                validate_tokens(&json!({ key: "url(https://evil.example/x.png)" })).is_err()
+            );
+            assert!(validate_tokens(&json!({ key: "<svg onload=alert(1)>" })).is_err());
+        }
+        // 未知变体 key 仍然拒绝（封闭 schema 不因 .dark 放宽）
+        assert!(validate_tokens(&json!({ "color.evil.dark": "#000" })).is_err());
+        // 日间 key 不受影响
+        assert!(validate_tokens(&json!({ "color.background": "#fff" })).is_ok());
+    }
+
+    #[test]
+    fn default_tokens_carry_official_dual_mode_palette() {
+        let tokens = default_tokens();
+        // 内置默认同时携带日/夜双模式（与前端 tokens.css html.dark 官方暗色板一致）
+        assert_eq!(tokens["color.background"], json!("#f5f3ed"));
+        assert_eq!(tokens["color.background.dark"], json!("#101b19"));
+        assert_eq!(tokens["color.accent"], json!("#b23e2a"));
+        assert_eq!(tokens["color.accent.dark"], json!("#f27759"));
+        // 双模式齐全：21 个 key 全量通过封闭 schema
+        let parsed = validate_tokens(&tokens).unwrap();
+        assert_eq!(parsed.len(), TOKEN_KEYS.len());
+        assert_eq!(TOKEN_KEYS.len(), 21);
+    }
+
+    #[test]
+    fn legacy_package_without_dark_keys_still_valid() {
+        // 旧 v1 主题包（无 .dark key）零迁移：逐 key 校验，缺失即回退
+        let legacy = json!({
+            "color.background": "#faf6ef",
+            "color.surface": "#ffffff",
+            "color.text": "#2c2c2c",
+            "color.muted": "#736b5e",
+            "color.accent": "#b23e2a",
+            "color.border": "#e4dcce",
+            "font.body": "serif",
+            "font.mono": "monospace",
+            "radius.control": "0.25rem",
+            "radius.card": "0.5rem",
+            "space.density": "comfortable",
+            "layout.mode": "wide",
+            "shadow.card": "sm",
+            "motion.duration": "150ms",
+            "motion.reduced": false,
+        });
+        let parsed = validate_tokens(&legacy).unwrap();
+        assert_eq!(parsed.len(), 15);
+        assert!(parsed.contains_key("color.background"));
+        assert!(!parsed.contains_key("color.background.dark"));
     }
 }

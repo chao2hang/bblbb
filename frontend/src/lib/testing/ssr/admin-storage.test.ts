@@ -73,6 +73,54 @@ describe('M06-UI-06/07 存储管理 SSR', () => {
     expect(body).toContain('12');
   });
 
+  it('测试失败 → 分类与脱敏诊断（error_class + 后端）渲染', () => {
+    const { body } = render(AdminStorage, {
+      props: {
+        data: { config, loadError: null },
+        form: {
+          testResult: {
+            ok: false,
+            message: 's3 auth failed',
+            backend: 's3',
+            error_class: 'auth',
+            elapsed_ms: 34
+          }
+        }
+      }
+    });
+    expect(body).toContain('连接失败');
+    expect(body).toContain('s3');
+    expect(body).toContain('auth');
+  });
+
+  it('step_up_required → 渲染重新验证表单（M02-MFA-07）', () => {
+    const { body } = render(AdminStorage, {
+      props: {
+        data: { config, loadError: null },
+        form: { message: '此操作需要重新验证身份', stepUpRequired: true, messageKind: 'error' }
+      }
+    });
+    expect(body).toContain('需要重新验证身份');
+    expect(body).toContain('name="password"');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/reauth"/);
+    expect(body).toContain('重新验证');
+  });
+
+  it('保存成功（env 管理）→ 成功态提示生效路径（BBLBB__ 环境变量 + 重启）', () => {
+    const { body } = render(AdminStorage, {
+      props: {
+        data: { config, loadError: null },
+        form: {
+          message: '配置已通过校验并记录审计。当前部署由环境变量管理：请设置 BBLBB__STORAGE_BACKEND / BBLBB__S3_* 环境变量并重启后端生效。',
+          messageKind: 'success'
+        }
+      }
+    });
+    expect(body).toContain('已通过校验');
+    expect(body).toContain('BBLBB__S3_*');
+    expect(body).not.toContain('role="alert"');
+  });
+
   it('load 错误 → 错误横幅', () => {
     const { body } = render(AdminStorage, {
       props: { data: { config: null, loadError: 'forbidden' }, form: null }

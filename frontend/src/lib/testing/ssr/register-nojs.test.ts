@@ -29,4 +29,30 @@ describe('无 JS：注册页服务端表单（M02-UX-01）', () => {
     const { body } = render(RegisterPage, { props: {} });
     expect(body).not.toContain('注册成功');
   });
+
+  it('启用第三方登录时渲染 Google 与 GitHub 快捷注册入口', () => {
+    const { body } = render(RegisterPage, {
+      props: {
+        data: {
+          site: {
+            siteName: 'BBLBB',
+            siteDescription: 'BBLBB 社区论坛',
+            loginEyebrow: 'WELCOME BACK',
+            loginTitle: '登录 BBLBB',
+            loginSubtitle: 'BBLBB 社区论坛',
+            registerEyebrow: 'JOIN BBLBB',
+            registerTitle: '创建账号',
+            registerSubtitle: 'BBLBB 社区论坛',
+            maintenanceMode: false,
+            googleLoginEnabled: true,
+            githubLoginEnabled: true,
+          }
+        }
+      }
+    });
+    expect(body).toContain('/api/v1/auth/oauth/google/start');
+    expect(body).toContain('/api/v1/auth/oauth/github/start');
+    expect(body).toContain('Google 快捷注册 / 登录');
+    expect(body).toContain('GitHub 快捷注册 / 登录');
+  });
 });

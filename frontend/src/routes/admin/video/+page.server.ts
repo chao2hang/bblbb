@@ -19,42 +19,73 @@ import type {
 
 export type AdminVideoLoadState = 'ok' | 'forbidden' | 'not_implemented' | 'error';
 
+export interface VideoWhitelistConfig {
+  enableEmbed: boolean;
+  domainWhitelist: string;
+  strictMode: string;
+  fallbackMode: string;
+}
+
 export interface AdminVideoPageData {
   state: AdminVideoLoadState;
   policies: VideoProviderPoliciesView | null;
   error: string | null;
   /** 表单幂等键（SSR 生成，hydration 稳定）。 */
   clientRequestId: string;
+  /** 视频白名单与安全配置（持久化存储）。 */
+  whitelistConfig?: VideoWhitelistConfig;
 }
 
 export interface AdminVideoActionData {
   message?: string;
+  error?: string;
   requestId?: string | null;
   conflict?: boolean;
   testResult?: VideoProviderTestResult | null;
   /** 本次操作针对的 Provider（用于把结果展示到对应卡片）。 */
   provider?: string | null;
+  whitelistConfig?: VideoWhitelistConfig | null;
 }
+
+const DEFAULT_WHITELIST_CONFIG: VideoWhitelistConfig = {
+  enableEmbed: true,
+  domainWhitelist: 'youtube.com, bilibili.com, v.qq.com, youku.com',
+  strictMode: 'strict',
+  fallbackMode: 'safe_link'
+};
 
 export const load: PageServerLoad = async ({ cookies, request }): Promise<AdminVideoPageData> => {
   const requestId = request.headers.get('x-request-id');
   const clientRequestId = newClientRequestId();
+
+  let whitelistConfig = { ...DEFAULT_WHITELIST_CONFIG };
+  const rawWhitelist = cookies.get('bblbb_admin_video_whitelist');
+  if (rawWhitelist) {
+    try {
+      const parsed = JSON.parse(rawWhitelist);
+      whitelistConfig = { ...whitelistConfig, ...parsed };
+    } catch {
+      // 忽略损坏的 cookie
+    }
+  }
+
   const result = await getAuthed<unknown>(cookies, '/api/v1/admin/video/policies', requestId);
   if (!result.ok) {
     if (result.status === 401) throw redirect(303, '/login');
     if (result.status === 403) {
-      return { state: 'forbidden', policies: null, error: result.message, clientRequestId } satisfies AdminVideoPageData;
+      return { state: 'forbidden', policies: null, error: result.message, clientRequestId, whitelistConfig } satisfies AdminVideoPageData;
     }
     if (result.status === 501) {
-      return { state: 'not_implemented', policies: null, error: result.message, clientRequestId } satisfies AdminVideoPageData;
+      return { state: 'not_implemented', policies: null, error: result.message, clientRequestId, whitelistConfig } satisfies AdminVideoPageData;
     }
-    return { state: 'error', policies: null, error: result.message, clientRequestId } satisfies AdminVideoPageData;
+    return { state: 'error', policies: null, error: result.message, clientRequestId, whitelistConfig } satisfies AdminVideoPageData;
   }
   return {
     state: 'ok',
     policies: pickVideoPolicies(result.data),
     error: null,
-    clientRequestId
+    clientRequestId,
+    whitelistConfig
   } satisfies AdminVideoPageData;
 };
 
@@ -210,6 +241,80 @@ export const actions: Actions = {
     } catch (e) {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '测试失败，请稍后重试', provider } satisfies AdminVideoActionData);
+    }
+  },
+  'save-whitelist': async ({ request, cookies }) => {
+    const form = await request.formData();
+    const enableEmbed = form.get('enable_embed') === 'on' || form.get('enable_embed') === 'true' || form.has('enable_embed');
+    const domainWhitelist = String(form.get('domain_whitelist') ?? '').trim();
+    const strictMode = String(form.get('strict_mode') ?? 'strict').trim();
+    const fallbackMode = String(form.get('fallback_mode') ?? 'safe_link').trim();
+
+    const domains = domainWhitelist
+      ? domainWhitelist.split(/[\n,]/).map((d) => d.trim()).filter(Boolean)
+      : [];
+
+    for (const d of domains) {
+      if (/[\s/\u0000]/.test(d) || d.includes('://')) {
+        return fail(422, {
+          message: `域名「${d}」格式不正确，不能包含空格、斜杠或协议前缀（请仅填写域名，如 example.com）`,
+          whitelistConfig: { enableEmbed, domainWhitelist, strictMode, fallbackMode }
+        } satisfies AdminVideoActionData);
+      }
+    }
+
+    const config: VideoWhitelistConfig = {
+      enableEmbed,
+      domainWhitelist,
+      strictMode,
+      fallbackMode
+    };
+
+    cookies.set('bblbb_admin_video_whitelist', JSON.stringify(config), {
+      path: '/admin/video',
+      maxAge: 60 * 60 * 24 * 30,
+      httpOnly: false
+    });
+
+    return {
+      message: '视频白名单与安全配置已保存',
+      whitelistConfig: config
+    } satisfies AdminVideoActionData;
+  },
+  'reset-default': async ({ request, cookies }) => {
+    const form = await request.formData();
+    const { provider, reason } = readCommon(form);
+    if (!isVideoProvider(provider)) {
+      return fail(422, { message: 'Provider 标识无效', provider } satisfies AdminVideoActionData);
+    }
+    const auditReason = reason || '恢复 Provider 默认策略';
+    try {
+      const curr = await getAuthed<{ policy: { version: number } }>(
+        cookies,
+        `/api/v1/admin/video/policies/${encodeURIComponent(provider)}`,
+        request.headers.get('x-request-id')
+      );
+      const version = curr.ok ? (curr.data?.policy?.version ?? 1) : 1;
+      const defaultChanges = {
+        enabled: true,
+        allow_hosts: (provider as string) === 'bilibili' ? ['bilibili.com'] : (provider as string) === 'youtube' ? ['youtube.com', 'youtu.be'] : [],
+        reason: auditReason,
+        expected_version: version
+      };
+      const result = await authedPatch(
+        cookies,
+        `/api/v1/admin/video/policies/${encodeURIComponent(provider)}`,
+        defaultChanges,
+        { 'If-Match': String(version) },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `Provider「${provider}」已恢复默认策略（写审计）`, provider } satisfies AdminVideoActionData;
+      }
+      return fail(result.status, { message: result.message, provider } satisfies AdminVideoActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '恢复默认策略失败，请稍后重试', provider } satisfies AdminVideoActionData);
     }
   }
 };

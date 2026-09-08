@@ -777,6 +777,10 @@ export interface StorageConfig {
   secret_configured: boolean;
   /** 由环境变量/Workload Identity 管理、不可在线修改的字段。 */
   managed_fields?: string[];
+  /** 管理方（`deployment` = 环境变量管理，在线修改只做校验与审计）。 */
+  managed_by?: string | null;
+  /** 保存（校验）后的说明（如 apply after restart via deployment environment）。 */
+  note?: string | null;
   version: number;
   updated_at?: number;
 }
@@ -806,6 +810,12 @@ export interface StorageTestResult {
   message: string;
   code?: string | null;
   elapsed_ms?: number | null;
+  /** 实际探测的后端（local/s3）。 */
+  backend?: 'local' | 's3' | null;
+  /** 脱敏诊断详情（与 message 同源）。 */
+  detail?: string | null;
+  /** 错误分类：ok/invalid/auth/forbidden/network/rate_limited/upstream/not_found/verification/internal。 */
+  error_class?: string | null;
 }
 
 /** 等级附件配额（GET /admin/levels/{id}/attachment-quota）。 */
@@ -1107,6 +1117,7 @@ export interface AiAdminProviderConfig {
   api_type?: string | null;
   base_url?: string | null;
   model?: string | null;
+  status?: string | null;
   secret_configured?: boolean;
   available?: boolean;
   purposes?: string[];
@@ -1592,7 +1603,40 @@ export interface AdminSettingsResult {
     smtp_from_email?: string;
     smtp_from_name?: string;
     smtp_encryption?: string;
+    /** 站点文案（0065；空串 = 前端内置通用文案兜底）。 */
+    site_description?: string;
+    login_eyebrow?: string;
+    login_title?: string;
+    login_subtitle?: string;
+    register_eyebrow?: string;
+    register_title?: string;
+    register_subtitle?: string;
+    /** 第三方 OAuth 登录配置（0066）。 */
+    google_auth_enabled?: boolean;
+    google_client_id?: string;
+    google_client_secret?: string;
+    google_client_secret_configured?: boolean;
+    github_auth_enabled?: boolean;
+    github_client_id?: string;
+    github_client_secret?: string;
+    github_client_secret_configured?: boolean;
   };
+  version: number;
+}
+
+/** 站点公开信息（GET /api/v1/site；匿名可读，0065 全站文案统一）。 */
+export interface SitePublicResult {
+  site_name: string;
+  site_description: string;
+  login_eyebrow: string;
+  login_title: string;
+  login_subtitle: string;
+  register_eyebrow: string;
+  register_title: string;
+  register_subtitle: string;
+  maintenance_mode: boolean;
+  google_login_enabled?: boolean;
+  github_login_enabled?: boolean;
   version: number;
 }
 

@@ -290,6 +290,30 @@ export async function getAuthed<T>(
   return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs, code };
 }
 
+/**
+ * GET 公开只读请求（不转发会话 Cookie）：用于匿名可读的公开端点
+ * （如 /api/v1/site 站点公开信息）。失败统一走 problem 解析。
+ */
+export async function getPublic<T>(
+  path: string,
+  requestId: string | null = null
+): Promise<{ ok: true; data: T } | ServerWriteFailure> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, { headers });
+  if (response.ok) return { ok: true, data: (await response.json()) as T };
+  const { message, requestId: rid, code } = await parseProblem(response);
+  return {
+    ok: false,
+    status: response.status,
+    message,
+    requestId: rid,
+    retryAfterSecs: null,
+    code
+  };
+}
+
 /** 获取会话绑定 CSRF token（GET /auth/csrf，携带会话 Cookie）。 */
 async function prepareSessionCsrf(
   cookies: Cookies,

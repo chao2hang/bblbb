@@ -30,6 +30,8 @@ export interface SeoTwitter {
 export interface SeoInput {
   title: string;
   description?: string;
+  /** 站点名（title 后缀与 og:site_name 兜底；缺省 = 内置程序名）。 */
+  siteName?: string;
   /** 绝对 canonical URL；缺省时由 Seo.svelte 用 page.url 派生。 */
   canonical?: string;
   /** 隐藏内容 / 非公开状态 → 输出 robots noindex。 */
@@ -41,7 +43,7 @@ export interface SeoInput {
 }
 
 export interface SeoMeta {
-  /** 已转义安全的标题文本（≤ 60 字符 + “ — BBLBB” 站点后缀）。 */
+  /** 已转义安全的标题文本（≤ 60 字符 + 站点后缀）。 */
   title: string;
   description: string | null;
   canonical: string | null;
@@ -61,6 +63,7 @@ export interface SeoMeta {
 
 const TITLE_MAX = 60;
 const DESCRIPTION_MAX = 160;
+/** 站点名兜底（SeoInput.siteName 缺省/为空时使用内置程序名）。 */
 const SITE_NAME = 'BBLBB';
 
 /** 只接受绝对 http(s) URL；其余（javascript:、data:、// 协议相对、相对路径）一律 null。 */
@@ -92,8 +95,11 @@ function sanitizeText(value: string | null | undefined, max: number): string | n
 export const ROBOTS_HIDDEN = 'noindex, noarchive, nofollow';
 
 export function buildSeo(input: SeoInput): SeoMeta {
-  const baseTitle = sanitizeText(input.title, TITLE_MAX) ?? SITE_NAME;
-  const title = baseTitle.endsWith(SITE_NAME) ? baseTitle : `${baseTitle} — ${SITE_NAME}`;
+  // 站点名（全站文案统一，0065）：调用方（Seo.svelte）注入 layout 的
+  // site_name；独立调用/测试缺省时回退内置程序名。
+  const siteName = (input.siteName ?? '').trim() || SITE_NAME;
+  const baseTitle = sanitizeText(input.title, TITLE_MAX) ?? siteName;
+  const title = baseTitle.endsWith(siteName) ? baseTitle : `${baseTitle} — ${siteName}`;
   const description = sanitizeText(input.description, DESCRIPTION_MAX);
   const canonical = safeHttpUrl(input.canonical);
   const ogImage = safeHttpUrl(input.og?.image);
@@ -121,7 +127,8 @@ export function buildSeo(input: SeoInput): SeoMeta {
     ogDescription: description,
     ogUrl: canonical,
     ogImage,
-    ogSiteName: sanitizeText(input.og?.siteName, 40),
+    // og:site_name 兜底为站点名（全站文案统一，0065）；调用方显式传值优先。
+    ogSiteName: sanitizeText(input.og?.siteName, 40) ?? siteName,
     twitterCard: input.twitter?.card ?? (twitterImage ? 'summary_large_image' : 'summary'),
     twitterImage,
     jsonLd

@@ -3,7 +3,7 @@
 //! 覆盖：上传隔离态/版本校验、closed token 校验（CSS/HTML/JS/SVG/远程资源/
 //! 任意 style 字符串）、default fallback（不存在/不兼容/停用/损坏）、
 //! theme_revision 在 SSR/浏览器/缓存/偏好一致、If-Match 偏好更新、
-//! 配置变更审计。
+//! 配置变更审计、内置 default 主题幂等持久化种子（后台主题设置）。
 
 use bblbb_backend::outbox::now_millis;
 use bblbb_backend::theme::{
@@ -322,6 +322,103 @@ async fn missing_user_resolves_to_builtin_default() {
     assert!(!theme::validate_theme_name("HasUpper"));
     assert!(!theme::validate_theme_name(""));
     assert!(theme::validate_theme_name("a-b-1"));
+    cleanup(&dir);
+    close_pool(&pool).await;
+}
+
+// ─────────────────────── default 主题持久化（后台主题设置） ───────────────────────
+
+#[tokio::test]
+async fn ensure_default_theme_is_idempotent_and_respects_admin_choice() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+
+    // 空库种子 → default 行持久化：active、revision 1、Token 与内置一致；
+    // 站点无其他生效默认主题 → 新行即为站点默认。
+    theme::ensure_default_theme(&pool).await.expect("ensure #1");
+    let themes = list_themes(&pool).await.unwrap();
+    assert_eq!(themes.len(), 1);
+    let def = &themes[0];
+    assert_eq!(def.name, DEFAULT_THEME_NAME);
+    assert_eq!(def.status, "active");
+    assert_eq!(def.revision, 1);
+    assert!(def.is_default, "站点无其他默认主题时新行应为站点默认");
+    assert_eq!(
+        def.tokens,
+        theme::default_tokens(),
+        "Token 必须等于内置默认"
+    );
+    // 修订表存在 revision 1 记录（与上传路径一致）。
+    let rev_count: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT COUNT(*) FROM theme_revisions WHERE theme_name = ? AND revision = 1",
+        )
+        .bind(DEFAULT_THEME_NAME)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(rev_count, 1);
+
+    // 幂等：重复种子不新增行、不改 revision。
+    theme::ensure_default_theme(&pool).await.expect("ensure #2");
+    let themes2 = list_themes(&pool).await.unwrap();
+    assert_eq!(themes2.len(), 1);
+    assert_eq!(themes2[0].revision, 1);
+
+    // 管理员显式切换默认主题后，种子绝不覆盖该选择。
+    upload_theme_package(&pool, &valid_package("midnight"), "admin")
+        .await
+        .unwrap();
+    set_default_theme(&pool, "midnight", "admin", "activate")
+        .await
+        .unwrap();
+    theme::ensure_default_theme(&pool).await.expect("ensure #3");
+    let themes3 = list_themes(&pool).await.unwrap();
+    let midnight = themes3.iter().find(|t| t.name == "midnight").unwrap();
+    let default3 = themes3
+        .iter()
+        .find(|t| t.name == DEFAULT_THEME_NAME)
+        .unwrap();
+    assert!(midnight.is_default, "不得覆盖管理员显式默认主题");
+    assert!(!default3.is_default);
+
+    // 管理员编辑 default 主题（revision 1→2）后，种子不得回写/重置。
+    let updated = update_theme_settings(
+        &pool,
+        DEFAULT_THEME_NAME,
+        &json!({
+            "color.background": "#111827",
+            "color.surface": "#1f2937",
+            "color.text": "#f9fafb",
+            "color.muted": "#9ca3af",
+            "color.accent": "#60a5fa",
+            "color.border": "#374151",
+            "font.body": "system-ui",
+            "font.mono": "ui-monospace",
+            "radius.control": "0.5rem",
+            "radius.card": "0.75rem",
+            "space.density": "compact",
+            "shadow.card": "md",
+            "motion.duration": "150ms",
+            "motion.reduced": true,
+        }),
+        "admin",
+        "tune builtin default",
+        Some(1),
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.revision, 2);
+    theme::ensure_default_theme(&pool).await.expect("ensure #4");
+    let themes4 = list_themes(&pool).await.unwrap();
+    let default4 = themes4
+        .iter()
+        .find(|t| t.name == DEFAULT_THEME_NAME)
+        .unwrap();
+    assert_eq!(default4.revision, 2, "种子不得重置管理员编辑后的 revision");
+    assert_eq!(default4.tokens["color.background"], "#111827");
+
     cleanup(&dir);
     close_pool(&pool).await;
 }

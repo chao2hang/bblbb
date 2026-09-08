@@ -888,28 +888,43 @@ async fn list_audit_logs(
 
 // ─── 系统设置 ────────────────────────────────────────────────────────────────
 
-/// site_settings 单行投影（0061 迁移结构；public_source 由 0063 添加；SMTP 由 0064 添加）。
+/// site_settings 单行投影（0061 迁移结构；public_source 由 0063 添加；SMTP 由
+/// 0064 添加；站点文案由 0065 添加）。
 #[derive(sqlx::FromRow, Clone)]
-struct SiteSettingsRow {
-    open_registration: i64,
-    email_verification: i64,
-    anonymous_replies: i64,
-    public_rss: i64,
-    maintenance_mode: i64,
-    site_name: String,
-    default_lang: String,
-    public_source: String,
-    api_rate_limit: Option<i64>,
-    version: i64,
-    updated_at: i64,
-    smtp_enabled: i64,
-    smtp_host: String,
-    smtp_port: i64,
-    smtp_user: String,
-    smtp_pass: String,
-    smtp_from_email: String,
-    smtp_from_name: String,
-    smtp_encryption: String,
+pub(crate) struct SiteSettingsRow {
+    pub(crate) open_registration: i64,
+    pub(crate) email_verification: i64,
+    pub(crate) anonymous_replies: i64,
+    pub(crate) public_rss: i64,
+    pub(crate) maintenance_mode: i64,
+    pub(crate) site_name: String,
+    pub(crate) default_lang: String,
+    pub(crate) public_source: String,
+    pub(crate) api_rate_limit: Option<i64>,
+    pub(crate) version: i64,
+    pub(crate) updated_at: i64,
+    pub(crate) smtp_enabled: i64,
+    pub(crate) smtp_host: String,
+    pub(crate) smtp_port: i64,
+    pub(crate) smtp_user: String,
+    pub(crate) smtp_pass: String,
+    pub(crate) smtp_from_email: String,
+    pub(crate) smtp_from_name: String,
+    pub(crate) smtp_encryption: String,
+    /// 站点文案（0065；空串 = 前端内置通用文案兜底）。
+    pub(crate) site_description: String,
+    pub(crate) login_eyebrow: String,
+    pub(crate) login_title: String,
+    pub(crate) login_subtitle: String,
+    pub(crate) register_eyebrow: String,
+    pub(crate) register_title: String,
+    pub(crate) register_subtitle: String,
+    pub(crate) google_auth_enabled: i64,
+    pub(crate) google_client_id: String,
+    pub(crate) google_client_secret: String,
+    pub(crate) github_auth_enabled: i64,
+    pub(crate) github_client_id: String,
+    pub(crate) github_client_secret: String,
 }
 
 /// 设置 JSON 投影（settings 字段集）。
@@ -932,11 +947,24 @@ fn settings_json(r: &SiteSettingsRow) -> Value {
         "smtp_from_email": r.smtp_from_email,
         "smtp_from_name": r.smtp_from_name,
         "smtp_encryption": r.smtp_encryption,
+        "site_description": r.site_description,
+        "login_eyebrow": r.login_eyebrow,
+        "login_title": r.login_title,
+        "login_subtitle": r.login_subtitle,
+        "register_eyebrow": r.register_eyebrow,
+        "register_title": r.register_title,
+        "register_subtitle": r.register_subtitle,
+        "google_auth_enabled": r.google_auth_enabled != 0,
+        "google_client_id": r.google_client_id,
+        "google_client_secret_configured": !r.google_client_secret.is_empty(),
+        "github_auth_enabled": r.github_auth_enabled != 0,
+        "github_client_id": r.github_client_id,
+        "github_client_secret_configured": !r.github_client_secret.is_empty(),
     })
 }
 
 /// 读取 site_settings 单行（迁移种子保证存在；缺失视为内部错误）。
-async fn load_site_settings(
+pub(crate) async fn load_site_settings(
     pool: &crate::db::DatabasePool,
     request_id: &str,
 ) -> Result<SiteSettingsRow, AppError> {
@@ -944,7 +972,11 @@ async fn load_site_settings(
                       maintenance_mode, site_name, default_lang, public_source,
                       api_rate_limit, version, updated_at,
                       smtp_enabled, smtp_host, smtp_port, smtp_user, smtp_pass,
-                      smtp_from_email, smtp_from_name, smtp_encryption
+                      smtp_from_email, smtp_from_name, smtp_encryption,
+                      site_description, login_eyebrow, login_title, login_subtitle,
+                      register_eyebrow, register_title, register_subtitle,
+                      google_auth_enabled, google_client_id, google_client_secret,
+                      github_auth_enabled, github_client_id, github_client_secret
                FROM site_settings WHERE id = 'singleton'";
     let row = match pool {
         Either::Left(p) => {
@@ -1041,6 +1073,8 @@ async fn update_admin_settings(
         ("anonymous_replies", &mut next.anonymous_replies),
         ("public_rss", &mut next.public_rss),
         ("maintenance_mode", &mut next.maintenance_mode),
+        ("google_auth_enabled", &mut next.google_auth_enabled),
+        ("github_auth_enabled", &mut next.github_auth_enabled),
     ] {
         if let Some(v) = flat.get(key).and_then(Value::as_bool) {
             let v = v as i64;
@@ -1267,13 +1301,89 @@ async fn update_admin_settings(
         }
     }
 
+    // 站点文案（0065 新增）：全部为可空语义字符串，trim 后允许空串
+    // （空 = 前端使用内置通用文案兜底），仅限制长度上限。
+    for (key, old, max_len) in [
+        ("site_description", &mut next.site_description, 200usize),
+        ("login_eyebrow", &mut next.login_eyebrow, 60),
+        ("login_title", &mut next.login_title, 100),
+        ("login_subtitle", &mut next.login_subtitle, 200),
+        ("register_eyebrow", &mut next.register_eyebrow, 60),
+        ("register_title", &mut next.register_title, 100),
+        ("register_subtitle", &mut next.register_subtitle, 200),
+    ] {
+        if let Some(v) = flat.get(key) {
+            let text = v.as_str().map(str::trim).ok_or_else(|| {
+                AppError::bad_request(format!("{key} must be a string"), request_id, None)
+            })?;
+            let len = text.chars().count();
+            if len > max_len {
+                return Err(AppError::bad_request(
+                    format!("{key} must be at most {max_len} characters"),
+                    request_id,
+                    None,
+                ));
+            }
+            if *old != text {
+                *old = text.to_string();
+                changed.push(key.to_string());
+            }
+        }
+    }
+
+    // 第三方 OAuth 登录配置（0066 新增）
+    if let Some(v) = flat.get("google_client_id") {
+        let text = v.as_str().map(str::trim).ok_or_else(|| {
+            AppError::bad_request("google_client_id must be a string", request_id, None)
+        })?;
+        if next.google_client_id != text {
+            next.google_client_id = text.to_string();
+            changed.push("google_client_id".to_string());
+        }
+    }
+    if let Some(v) = flat.get("google_client_secret") {
+        if !v.is_null() {
+            let pass = v.as_str().ok_or_else(|| {
+                AppError::bad_request("google_client_secret must be a string or null", request_id, None)
+            })?;
+            if !pass.is_empty() && next.google_client_secret != pass {
+                next.google_client_secret = pass.to_string();
+                changed.push("google_client_secret".to_string());
+            }
+        }
+    }
+    if let Some(v) = flat.get("github_client_id") {
+        let text = v.as_str().map(str::trim).ok_or_else(|| {
+            AppError::bad_request("github_client_id must be a string", request_id, None)
+        })?;
+        if next.github_client_id != text {
+            next.github_client_id = text.to_string();
+            changed.push("github_client_id".to_string());
+        }
+    }
+    if let Some(v) = flat.get("github_client_secret") {
+        if !v.is_null() {
+            let pass = v.as_str().ok_or_else(|| {
+                AppError::bad_request("github_client_secret must be a string or null", request_id, None)
+            })?;
+            if !pass.is_empty() && next.github_client_secret != pass {
+                next.github_client_secret = pass.to_string();
+                changed.push("github_client_secret".to_string());
+            }
+        }
+    }
+
     // 全列 UPDATE + version 乐观锁（0 行受影响 = 并发冲突 → 409）。
     let sql = "UPDATE site_settings
         SET open_registration = ?, email_verification = ?, anonymous_replies = ?, public_rss = ?,
             maintenance_mode = ?, site_name = ?, default_lang = ?, public_source = ?,
             api_rate_limit = ?, smtp_enabled = ?, smtp_host = ?, smtp_port = ?,
             smtp_user = ?, smtp_pass = ?, smtp_from_email = ?, smtp_from_name = ?,
-            smtp_encryption = ?, version = version + 1, updated_at = ?
+            smtp_encryption = ?, version = version + 1, updated_at = ?,
+            site_description = ?, login_eyebrow = ?, login_title = ?, login_subtitle = ?,
+            register_eyebrow = ?, register_title = ?, register_subtitle = ?,
+            google_auth_enabled = ?, google_client_id = ?, google_client_secret = ?,
+            github_auth_enabled = ?, github_client_id = ?, github_client_secret = ?
         WHERE id = 'singleton' AND version = ?";
     let now = now_millis();
     let affected = match pool {
@@ -1296,6 +1406,19 @@ async fn update_admin_settings(
             .bind(&next.smtp_from_name)
             .bind(&next.smtp_encryption)
             .bind(now)
+            .bind(&next.site_description)
+            .bind(&next.login_eyebrow)
+            .bind(&next.login_title)
+            .bind(&next.login_subtitle)
+            .bind(&next.register_eyebrow)
+            .bind(&next.register_title)
+            .bind(&next.register_subtitle)
+            .bind(next.google_auth_enabled)
+            .bind(&next.google_client_id)
+            .bind(&next.google_client_secret)
+            .bind(next.github_auth_enabled)
+            .bind(&next.github_client_id)
+            .bind(&next.github_client_secret)
             .bind(if_match)
             .execute(p)
             .await
@@ -1320,6 +1443,19 @@ async fn update_admin_settings(
             .bind(&next.smtp_from_name)
             .bind(&next.smtp_encryption)
             .bind(now)
+            .bind(&next.site_description)
+            .bind(&next.login_eyebrow)
+            .bind(&next.login_title)
+            .bind(&next.login_subtitle)
+            .bind(&next.register_eyebrow)
+            .bind(&next.register_title)
+            .bind(&next.register_subtitle)
+            .bind(next.google_auth_enabled)
+            .bind(&next.google_client_id)
+            .bind(&next.google_client_secret)
+            .bind(next.github_auth_enabled)
+            .bind(&next.github_client_id)
+            .bind(&next.github_client_secret)
             .bind(if_match)
             .execute(p)
             .await
@@ -1423,10 +1559,9 @@ async fn list_admin_posts(
     let board = query.board.filter(|s| !s.is_empty());
     let q = query.q.filter(|s| !s.is_empty());
     let status = query.status.filter(|s| !s.is_empty());
-    // status 直接映射（published/hidden/draft/locked → posts.status 列）；
-    // pending_review 是 review_status 上的复合条件（见 AdminPostsQuery 注释）。
+    // status 直接映射（published/hidden/draft → posts.status 列；featured/locked 特殊列）。
     let status_literal = status.as_deref().and_then(|s| match s {
-        "published" | "hidden" | "draft" | "locked" => Some(s),
+        "published" | "hidden" | "draft" => Some(s),
         _ => None,
     });
 
@@ -1448,6 +1583,12 @@ async fn list_admin_posts(
         Some("deleted") => sql.push_str(" AND p.deleted_at IS NOT NULL"),
         Some("pending_review") => {
             sql.push_str(" AND p.deleted_at IS NULL AND p.status = 'draft' AND p.review_status = 'pending_review'")
+        }
+        Some("featured") => {
+            sql.push_str(" AND p.deleted_at IS NULL AND p.featured_at IS NOT NULL")
+        }
+        Some("locked") => {
+            sql.push_str(" AND p.deleted_at IS NULL AND p.closed_at IS NOT NULL")
         }
         Some(_) => {
             if status_literal.is_some() {

@@ -451,7 +451,7 @@
   title={post ? post.title : '帖子'}
   description={post ? post.title : '帖子内容'}
   noindex={!indexable}
-  og={{ type: post?.post_type === 'article' ? 'article' : 'website', siteName: 'BBLBB' }}
+  og={{ type: post?.post_type === 'article' ? 'article' : 'website' }}
   jsonLd={
     indexable
       ? {

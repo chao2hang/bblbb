@@ -28,6 +28,7 @@
   import { applyThemeTokens, clearThemeTokens, type ActiveThemeView } from '$lib/theme/projection';
   import type { OAuthGrantItem } from '$lib/api/types';
   import type { SettingsFormResult, SettingsPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: SettingsPageData; form?: SettingsFormResult } = $props();
 
@@ -48,89 +49,128 @@
   let currentMode = $state<ThemePreference>('system');
   let activeThemeId = $state('default');
 
+  // 社区主题风格（与官方预置包 v1.1 日/夜双模式一致：日间 6 色 +
+  // 夜间 color.*.dark 变体；应用后随上方浅色/深色模式自动切换色板）。
+  // bg 为昼夜分区预览：左日间 → 中间品牌色分界 → 右夜间。
   const THEMES_LIST = [
     {
       id: 'default',
       name: 'BBLBB 经典赤墨 (原版默认)',
-      desc: '经典暖珊瑚红点缀与米白宣纸底色',
-      bg: 'linear-gradient(135deg, #f5f3ed 0%, #b23e2a 50%, #fffefb 100%)',
+      desc: '日间暖珊瑚红×米白宣纸，夜间墨绿×珊瑚橙（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f5f3ed 0%, #f5f3ed 40%, #b23e2a 49%, #b23e2a 51%, #101b19 60%, #101b19 100%)',
       tokens: {
         'color.background': '#f5f3ed',
         'color.surface': '#fffefb',
         'color.text': '#17211f',
         'color.muted': '#53605b',
         'color.accent': '#b23e2a',
-        'color.border': '#d9d6cc'
+        'color.border': '#d9d6cc',
+        'color.background.dark': '#101b19',
+        'color.surface.dark': '#172522',
+        'color.text.dark': '#f5f3ea',
+        'color.muted.dark': '#b5c0ba',
+        'color.accent.dark': '#f27759',
+        'color.border.dark': '#30433e'
       }
     },
     {
       id: 'chinese-elegance',
       name: '水墨青石 (中国风)',
-      desc: '典雅含蓄的书卷水墨素雅与青石灰蓝',
-      bg: 'linear-gradient(135deg, #f5f3ee 0%, #5a6c7d 50%, #fbfaf7 100%)',
+      desc: '日间宣纸水墨×青石蓝，夜间宿墨玄青×月白（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f5f3ee 0%, #f5f3ee 40%, #5a6c7d 49%, #5a6c7d 51%, #171a1d 60%, #171a1d 100%)',
       tokens: {
         'color.background': '#f5f3ee',
         'color.surface': '#fbfaf7',
         'color.text': '#1f1d1a',
         'color.muted': '#6b6b6b',
         'color.accent': '#5a6c7d',
-        'color.border': '#e4e1d7'
+        'color.border': '#e4e1d7',
+        'color.background.dark': '#171a1d',
+        'color.surface.dark': '#202429',
+        'color.text.dark': '#e7e5df',
+        'color.muted.dark': '#9aa0a3',
+        'color.accent.dark': '#7f95a8',
+        'color.border.dark': '#2e343b'
       }
     },
     {
       id: 'midnight',
       name: '暗夜极光',
-      desc: '深蓝灰与天蓝点缀的沉浸暗色',
-      bg: 'linear-gradient(135deg, #0f172a 0%, #38bdf8 50%, #1e293b 100%)',
+      desc: '日间极昼浅蓝×晴空青，夜间深蓝灰×天蓝极光（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #eef3f8 0%, #eef3f8 40%, #0284c7 49%, #0284c7 51%, #0f172a 60%, #0f172a 100%)',
       tokens: {
-        'color.background': '#0f172a',
-        'color.surface': '#1e293b',
-        'color.text': '#e2e8f0',
-        'color.muted': '#94a3b8',
-        'color.accent': '#38bdf8',
-        'color.border': '#334155'
+        'color.background': '#eef3f8',
+        'color.surface': '#ffffff',
+        'color.text': '#16202e',
+        'color.muted': '#5b6b7f',
+        'color.accent': '#0284c7',
+        'color.border': '#d4deea',
+        'color.background.dark': '#0f172a',
+        'color.surface.dark': '#1e293b',
+        'color.text.dark': '#e2e8f0',
+        'color.muted.dark': '#94a3b8',
+        'color.accent.dark': '#38bdf8',
+        'color.border.dark': '#334155'
       }
     },
     {
       id: 'paper',
       name: '复古羊皮纸',
-      desc: '温暖柔和的书卷复古质感',
-      bg: 'linear-gradient(135deg, #faf6ef 0%, #b23e2a 50%, #ffffff 100%)',
+      desc: '日间暖羊皮×朱砂红，夜间灯火书斋×琥珀（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #faf6ef 0%, #faf6ef 40%, #b23e2a 49%, #b23e2a 51%, #1b1813 60%, #1b1813 100%)',
       tokens: {
         'color.background': '#faf6ef',
         'color.surface': '#ffffff',
         'color.text': '#2c2c2c',
         'color.muted': '#736b5e',
         'color.accent': '#b23e2a',
-        'color.border': '#e4dcce'
+        'color.border': '#e4dcce',
+        'color.background.dark': '#1b1813',
+        'color.surface.dark': '#25211a',
+        'color.text.dark': '#e9e2d2',
+        'color.muted.dark': '#a89e8d',
+        'color.accent.dark': '#e07856',
+        'color.border.dark': '#3a342a'
       }
     },
     {
       id: 'forest',
       name: '翡翠森林',
-      desc: '清新自然的墨绿与薄荷翡翠色',
-      bg: 'linear-gradient(135deg, #f0f5f2 0%, #0f756c 50%, #ffffff 100%)',
+      desc: '日间薄荷浅林×墨绿，夜间深林夜色×翡翠荧光（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f0f5f2 0%, #f0f5f2 40%, #0f756c 49%, #0f756c 51%, #0f1713 60%, #0f1713 100%)',
       tokens: {
         'color.background': '#f0f5f2',
         'color.surface': '#ffffff',
         'color.text': '#132a21',
         'color.muted': '#516f63',
         'color.accent': '#0f756c',
-        'color.border': '#cfe0d8'
+        'color.border': '#cfe0d8',
+        'color.background.dark': '#0f1713',
+        'color.surface.dark': '#17231c',
+        'color.text.dark': '#ddebe2',
+        'color.muted.dark': '#8fa89b',
+        'color.accent.dark': '#40c9a2',
+        'color.border.dark': '#27392f'
       }
     },
     {
       id: 'cyberpunk',
       name: '赛博霓虹',
-      desc: '深紫暗夜与高亮粉紫霓虹碰撞',
-      bg: 'linear-gradient(135deg, #181126 0%, #ec4899 50%, #241b35 100%)',
+      desc: '日间雾紫纸面×热粉，夜间深紫暗夜×粉紫霓虹（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f5f1fa 0%, #f5f1fa 40%, #db2777 49%, #db2777 51%, #181126 60%, #181126 100%)',
       tokens: {
-        'color.background': '#181126',
-        'color.surface': '#241b35',
-        'color.text': '#f3f0f7',
-        'color.muted': '#9d93b3',
-        'color.accent': '#ec4899',
-        'color.border': '#3b2d56'
+        'color.background': '#f5f1fa',
+        'color.surface': '#ffffff',
+        'color.text': '#251c38',
+        'color.muted': '#7d7296',
+        'color.accent': '#db2777',
+        'color.border': '#ded4ee',
+        'color.background.dark': '#181126',
+        'color.surface.dark': '#241b35',
+        'color.text.dark': '#f3f0f7',
+        'color.muted.dark': '#9d93b3',
+        'color.accent.dark': '#ec4899',
+        'color.border.dark': '#3b2d56'
       }
     }
   ];
@@ -138,7 +178,9 @@
   onMount(() => {
     currentMode = readPreference();
     if (typeof document !== 'undefined') {
-      activeThemeId = document.documentElement.dataset.theme || 'default';
+      // 数据型主题名在 data-theme-name（dataset.theme 归日夜模式 light/dark 所有）
+      const domThemeName = document.documentElement.dataset.themeName;
+      activeThemeId = domThemeName && domThemeName !== 'default' ? domThemeName : 'default';
     }
     const hash = window.location.hash.replace(/^#settings-/, '');
     if (['profile', 'appearance', 'security', 'oauth', 'privacy'].includes(hash)) activeTab = hash;
@@ -189,9 +231,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>账号设置 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="账号设置" />
 
 <div class="container page-content app-settings-page">
   <div class="app-route-head">
@@ -355,9 +395,12 @@
             <!-- 色彩模式切换 -->
             <div>
               <strong style="font-size:14px;display:block;margin-bottom:8px;">显示模式</strong>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
+              <div role="radiogroup" aria-label="显示模式" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={currentMode === 'light'}
+                  aria-label="浅色模式"
                   class="app-card"
                   style="border:2px solid {currentMode === 'light' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
                   onclick={() => setDisplayMode('light')}
@@ -371,6 +414,9 @@
 
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={currentMode === 'dark'}
+                  aria-label="深色模式"
                   class="app-card"
                   style="border:2px solid {currentMode === 'dark' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
                   onclick={() => setDisplayMode('dark')}
@@ -384,6 +430,9 @@
 
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={currentMode === 'system'}
+                  aria-label="跟随系统模式"
                   class="app-card"
                   style="border:2px solid {currentMode === 'system' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
                   onclick={() => setDisplayMode('system')}
@@ -519,7 +568,7 @@
               <p class="input-hint {revokeResult.ok ? '' : 'is-error'}" role="{revokeResult.ok ? 'status' : 'alert'}" style="margin-top:0;">{revokeResult.message}</p>
             {/if}
             {#if grants.length === 0}
-              <EmptyState icon="key" title="暂无授权应用" desc="你使用 BBLBB 账号登录的第三方应用会显示在这里" />
+              <EmptyState icon="key" title="暂无授权应用" desc="你使用本站账号登录的第三方应用会显示在这里" />
             {:else}
               <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);">
                 {#each grants as grant (grant.client_id)}

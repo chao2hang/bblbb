@@ -22,20 +22,26 @@
 
   const channels = $derived(
     Array.isArray(config?.providers) && config.providers.length > 0
-      ? config.providers.map((p, idx) => ({
-          id: p.id,
-          initial: (p.name ?? 'P').charAt(0).toUpperCase() || 'P',
-          name: p.name ?? '未命名提供商',
-          adapter_type: (p as any).adapter_type || (p as any).api_type || 'openai_compatible',
-          url: p.base_url || 'https://api.openai.com/v1',
-          secretConfigured: p.secret_configured === true,
-          status: p.secret_configured ? '密钥已配置' : '未配置密钥',
-          rawStatus: (p as any).status ?? 'enabled',
-          isDefault: idx === 0,
-          models: [(p as any).default_model || (p as any).model || 'gpt-4o-mini']
-        }))
+      ? config.providers.map((p) => {
+          const rawStatus = (p as any).status === 'disabled' ? 'disabled' : ((p as any).status || 'enabled');
+          const firstEnabled = config.providers?.find((item: any) => item.status !== 'disabled');
+          return {
+            id: p.id,
+            initial: (p.name ?? 'P').charAt(0).toUpperCase() || 'P',
+            name: p.name ?? '未命名提供商',
+            adapter_type: (p as any).adapter_type || (p as any).api_type || 'openai_compatible',
+            url: p.base_url || 'https://api.openai.com/v1',
+            secretConfigured: p.secret_configured === true,
+            status: p.secret_configured ? '密钥已配置' : '未配置密钥',
+            rawStatus,
+            isDefault: rawStatus === 'enabled' && firstEnabled?.id === p.id,
+            models: [(p as any).default_model || (p as any).model || 'gpt-4o-mini']
+          };
+        })
       : []
   );
+
+  const enabledChannels = $derived(channels.filter((c) => c.rawStatus === 'enabled'));
 
   const taskList = $derived.by(() => {
     const list = Array.isArray(tasks) ? tasks : (tasks as any)?.items ?? [];
@@ -315,16 +321,16 @@
       <div>
         <b style="font-size:13px;">草稿格式修复</b>
         <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">整理 Markdown 结构与排版</span>
-        <select class="app-select" style="width:100%;margin-bottom:6px;">
-          {#if channels.length > 0}
-            {#each channels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
+        <select class="app-select" style="width:100%;margin-bottom:6px;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
           {:else}
-            <option value="">暂无可用渠道（请先添加渠道）</option>
+            <option value="">暂无可用启用渠道（请先添加并启用渠道）</option>
           {/if}
         </select>
-        <select class="app-select" style="width:100%;">
-          {#if channels.length > 0}
-            {#each channels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
+        <select class="app-select" style="width:100%;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
           {:else}
             <option value="">暂无可用模型</option>
           {/if}
@@ -334,16 +340,16 @@
       <div>
         <b style="font-size:13px;">内容摘要</b>
         <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">生成主题摘要与通知预览</span>
-        <select class="app-select" style="width:100%;margin-bottom:6px;">
-          {#if channels.length > 0}
-            {#each channels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
+        <select class="app-select" style="width:100%;margin-bottom:6px;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
           {:else}
-            <option value="">暂无可用渠道（请先添加渠道）</option>
+            <option value="">暂无可用启用渠道（请先添加并启用渠道）</option>
           {/if}
         </select>
-        <select class="app-select" style="width:100%;">
-          {#if channels.length > 0}
-            {#each channels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
+        <select class="app-select" style="width:100%;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
           {:else}
             <option value="">暂无可用模型</option>
           {/if}
@@ -353,16 +359,16 @@
       <div>
         <b style="font-size:13px;">敏感词复核</b>
         <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">发布前的内容安全检查</span>
-        <select class="app-select" style="width:100%;margin-bottom:6px;">
-          {#if channels.length > 0}
-            {#each channels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
+        <select class="app-select" style="width:100%;margin-bottom:6px;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
           {:else}
-            <option value="">暂无可用渠道（请先添加渠道）</option>
+            <option value="">暂无可用启用渠道（请先添加并启用渠道）</option>
           {/if}
         </select>
-        <select class="app-select" style="width:100%;">
-          {#if channels.length > 0}
-            {#each channels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
+        <select class="app-select" style="width:100%;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
           {:else}
             <option value="">暂无可用模型</option>
           {/if}
@@ -372,16 +378,16 @@
       <div>
         <b style="font-size:13px;">标题翻译</b>
         <span class="text-secondary" style="display:block;font-size:11px;margin-bottom:6px;">将标题翻译为站点默认语言</span>
-        <select class="app-select" style="width:100%;margin-bottom:6px;">
-          {#if channels.length > 0}
-            {#each channels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
+        <select class="app-select" style="width:100%;margin-bottom:6px;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}<option>{c.name} · {c.adapter_type}</option>{/each}
           {:else}
-            <option value="">暂无可用渠道（请先添加渠道）</option>
+            <option value="">暂无可用启用渠道（请先添加并启用渠道）</option>
           {/if}
         </select>
-        <select class="app-select" style="width:100%;">
-          {#if channels.length > 0}
-            {#each channels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
+        <select class="app-select" style="width:100%;" disabled={enabledChannels.length === 0}>
+          {#if enabledChannels.length > 0}
+            {#each enabledChannels as c}{#each c.models as m}<option>{m}</option>{/each}{/each}
           {:else}
             <option value="">暂无可用模型</option>
           {/if}

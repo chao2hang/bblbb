@@ -18,6 +18,7 @@
   import { show } from '$lib/ui/toast';
   import { formatTime } from '$lib/utils';
   import type { ApiKeysActionData, ApiKeysPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: ApiKeysPageData; form?: ApiKeysActionData | null } = $props();
 
@@ -56,9 +57,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>API 密钥 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="API 密钥" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/apikeys.html）：app-route-head，无面包屑。 -->

@@ -13,6 +13,8 @@
     previewThemeTokens,
     clearThemeTokens,
     fallbackDefaultTheme,
+    resolveLayoutMode,
+    LAYOUT_MODE_LABELS,
     type ActiveThemeView
   } from '$lib/theme/projection';
   import type { AdminThemesPageData, AdminThemesActionData, AdminThemeItem } from './+page.server';
@@ -23,12 +25,15 @@
   const rawThemes = $derived(data.themes ?? []);
   const conflict = $derived(form?.conflict === true);
 
-  // 官方高质量预置主题包（收录原版官方默认配色与各风格主题）
+  // 官方高质量预置主题包（收录原版官方默认配色与各风格主题）。
+  // 全部 6 个官方包均为**日/夜双模式**：日间 6 色 + 夜间 6 色（color.*.dark
+  // 可选变体，封闭 schema v1.1）。站点亮色模式取日间板，暗色模式（html.dark）
+  // 取夜间板；两者由 theme-tokens.css 按模式自动解析，管理员无需手动切换。
   const PRESET_THEMES = [
     {
       name: 'bblbb-classic',
       display_name: 'BBLBB 经典赤墨 (原版默认)',
-      desc: 'BBLBB 官方原生品牌视觉：暖珊瑚红与米白宣纸基底',
+      desc: 'BBLBB 官方原生品牌视觉：日间暖珊瑚红×米白宣纸，夜间墨绿×珊瑚橙',
       tokens: {
         'color.background': '#f5f3ed',
         'color.surface': '#fffefb',
@@ -36,11 +41,18 @@
         'color.muted': '#53605b',
         'color.accent': '#b23e2a',
         'color.border': '#d9d6cc',
+        'color.background.dark': '#101b19',
+        'color.surface.dark': '#172522',
+        'color.text.dark': '#f5f3ea',
+        'color.muted.dark': '#b5c0ba',
+        'color.accent.dark': '#f27759',
+        'color.border.dark': '#30433e',
         'font.body': 'system-ui',
         'font.mono': 'ui-monospace',
         'radius.control': '0.375rem',
         'radius.card': '0.5rem',
         'space.density': 'comfortable',
+        'layout.mode': 'classic',
         'shadow.card': 'sm',
         'motion.duration': '150ms',
         'motion.reduced': false
@@ -49,7 +61,7 @@
     {
       name: 'chinese-elegance',
       display_name: '水墨青石 (中国风)',
-      desc: '典雅含蓄的书卷水墨素雅质感与青石灰蓝点缀',
+      desc: '日间宣纸水墨×青石灰蓝，夜间宿墨玄青×月白书卷，双模式俱雅',
       tokens: {
         'color.background': '#f5f3ee',
         'color.surface': '#fbfaf7',
@@ -57,11 +69,18 @@
         'color.muted': '#6b6b6b',
         'color.accent': '#5a6c7d',
         'color.border': '#e4e1d7',
+        'color.background.dark': '#171a1d',
+        'color.surface.dark': '#202429',
+        'color.text.dark': '#e7e5df',
+        'color.muted.dark': '#9aa0a3',
+        'color.accent.dark': '#7f95a8',
+        'color.border.dark': '#2e343b',
         'font.body': 'Noto Sans SC',
         'font.mono': 'monospace',
         'radius.control': '0.125rem',
         'radius.card': '0.125rem',
         'space.density': 'comfortable',
+        'layout.mode': 'sidebar',
         'shadow.card': 'none',
         'motion.duration': '150ms',
         'motion.reduced': false
@@ -70,19 +89,26 @@
     {
       name: 'midnight',
       display_name: '暗夜极光',
-      desc: '深蓝灰与天蓝点缀的沉浸暗色主题',
+      desc: '日间极昼浅蓝×晴空青，夜间深蓝灰×天蓝极光，昼夜皆沉浸',
       tokens: {
-        'color.background': '#0f172a',
-        'color.surface': '#1e293b',
-        'color.text': '#e2e8f0',
-        'color.muted': '#94a3b8',
-        'color.accent': '#38bdf8',
-        'color.border': '#334155',
+        'color.background': '#eef3f8',
+        'color.surface': '#ffffff',
+        'color.text': '#16202e',
+        'color.muted': '#5b6b7f',
+        'color.accent': '#0284c7',
+        'color.border': '#d4deea',
+        'color.background.dark': '#0f172a',
+        'color.surface.dark': '#1e293b',
+        'color.text.dark': '#e2e8f0',
+        'color.muted.dark': '#94a3b8',
+        'color.accent.dark': '#38bdf8',
+        'color.border.dark': '#334155',
         'font.body': 'system-ui',
         'font.mono': 'ui-monospace',
         'radius.control': '0.5rem',
         'radius.card': '0.75rem',
         'space.density': 'comfortable',
+        'layout.mode': 'sidebar',
         'shadow.card': 'md',
         'motion.duration': '150ms',
         'motion.reduced': false
@@ -91,7 +117,7 @@
     {
       name: 'paper',
       display_name: '复古羊皮纸',
-      desc: '温暖柔和的书卷复古质感主题',
+      desc: '日间暖羊皮×朱砂红，夜间灯火书斋×琥珀暖调，昼夜皆书卷',
       tokens: {
         'color.background': '#faf6ef',
         'color.surface': '#ffffff',
@@ -99,11 +125,18 @@
         'color.muted': '#736b5e',
         'color.accent': '#b23e2a',
         'color.border': '#e4dcce',
+        'color.background.dark': '#1b1813',
+        'color.surface.dark': '#25211a',
+        'color.text.dark': '#e9e2d2',
+        'color.muted.dark': '#a89e8d',
+        'color.accent.dark': '#e07856',
+        'color.border.dark': '#3a342a',
         'font.body': 'serif',
         'font.mono': 'monospace',
         'radius.control': '0.25rem',
         'radius.card': '0.5rem',
         'space.density': 'comfortable',
+        'layout.mode': 'wide',
         'shadow.card': 'sm',
         'motion.duration': '150ms',
         'motion.reduced': false
@@ -112,7 +145,7 @@
     {
       name: 'forest',
       display_name: '翡翠森林',
-      desc: '清爽自然的墨绿与薄荷翡翠主题',
+      desc: '日间薄荷浅林×墨绿，夜间深林夜色×翡翠荧光，昼夜皆清爽',
       tokens: {
         'color.background': '#f0f5f2',
         'color.surface': '#ffffff',
@@ -120,11 +153,18 @@
         'color.muted': '#516f63',
         'color.accent': '#0f756c',
         'color.border': '#cfe0d8',
+        'color.background.dark': '#0f1713',
+        'color.surface.dark': '#17231c',
+        'color.text.dark': '#ddebe2',
+        'color.muted.dark': '#8fa89b',
+        'color.accent.dark': '#40c9a2',
+        'color.border.dark': '#27392f',
         'font.body': 'sans-serif',
         'font.mono': 'ui-monospace',
         'radius.control': '0.5rem',
         'radius.card': '0.75rem',
         'space.density': 'comfortable',
+        'layout.mode': 'wide',
         'shadow.card': 'sm',
         'motion.duration': '150ms',
         'motion.reduced': false
@@ -133,25 +173,51 @@
     {
       name: 'cyberpunk',
       display_name: '赛博霓虹',
-      desc: '深紫暗夜与高亮粉紫霓虹碰撞的潮酷主题',
+      desc: '日间雾紫纸面×热粉霓虹，夜间深紫暗夜×粉紫霓虹，昼夜皆潮酷',
       tokens: {
-        'color.background': '#181126',
-        'color.surface': '#241b35',
-        'color.text': '#f3f0f7',
-        'color.muted': '#9d93b3',
-        'color.accent': '#ec4899',
-        'color.border': '#3b2d56',
+        'color.background': '#f5f1fa',
+        'color.surface': '#ffffff',
+        'color.text': '#251c38',
+        'color.muted': '#7d7296',
+        'color.accent': '#db2777',
+        'color.border': '#ded4ee',
+        'color.background.dark': '#181126',
+        'color.surface.dark': '#241b35',
+        'color.text.dark': '#f3f0f7',
+        'color.muted.dark': '#9d93b3',
+        'color.accent.dark': '#ec4899',
+        'color.border.dark': '#3b2d56',
         'font.body': 'system-ui',
         'font.mono': 'ui-monospace',
         'radius.control': '0.5rem',
         'radius.card': '0.75rem',
         'space.density': 'compact',
+        'layout.mode': 'sidebar',
         'shadow.card': 'lg',
         'motion.duration': '100ms',
         'motion.reduced': false
       }
     }
   ];
+
+  const DARK_COLOR_KEYS = [
+    'color.background.dark',
+    'color.surface.dark',
+    'color.text.dark',
+    'color.muted.dark',
+    'color.accent.dark',
+    'color.border.dark'
+  ] as const;
+
+  // 官方夜间基线（新主题补全夜间色板时的预填值，来自内置 default 夜板）
+  const NIGHT_PALETTE_DEFAULT: Record<string, string> = {
+    'color.background.dark': '#101b19',
+    'color.surface.dark': '#172522',
+    'color.text.dark': '#f5f3ea',
+    'color.muted.dark': '#b5c0ba',
+    'color.accent.dark': '#f27759',
+    'color.border.dark': '#30433e'
+  };
 
   const FONT_BODY_OPTIONS = [
     'system-ui',
@@ -200,6 +266,31 @@
     return typeof val === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(val) ? val : fallback;
   }
 
+  // 主题是否携带完整夜间色板（v1.1 日/夜双模式；6 个 .dark key 全部合法）
+  function hasNightPalette(tokens: Record<string, unknown> | null | undefined): boolean {
+    return DARK_COLOR_KEYS.every(
+      (k) => typeof tokens?.[k] === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(tokens[k] as string)
+    );
+  }
+
+  // 日/夜双模式预览横幅：左侧日间板 → 右侧夜间板，中间以品牌强调色作昼夜分界；
+  // 无夜间色板的旧主题回退原单色渐变（保持既有视觉）。
+  function dualBg(tokens: Record<string, unknown> | null | undefined, name: string): string {
+    const day = safeColor(
+      tokens?.['color.background'],
+      name === 'midnight' || name === 'cyberpunk' ? '#0f172a' : '#f5f3ed'
+    );
+    const nightRaw = tokens?.['color.background.dark'];
+    const night =
+      typeof nightRaw === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(nightRaw) ? nightRaw : null;
+    if (!night) return safeBg(tokens, name);
+    const accent =
+      typeof tokens?.['color.accent'] === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(tokens['color.accent'])
+        ? (tokens['color.accent'] as string)
+        : '#b23e2a';
+    return `linear-gradient(105deg, ${day} 0%, ${day} 40%, ${accent} 49%, ${accent} 51%, ${night} 60%, ${night} 100%)`;
+  }
+
   function toThemeView(theme: AdminThemeItem): ActiveThemeView {
     return {
       name: theme.name,
@@ -218,12 +309,32 @@
   let editTokens = $state<Record<string, unknown>>({});
   let editJsonMode = $state(false);
   let editTokensRaw = $state('');
+  // Token 编辑器色板模式：day（6 色基线）/ night（color.*.dark 夜间变体）
+  let editColorMode = $state<'day' | 'night'>('day');
+
+  // 当前色板模式下 6 个颜色字段的实际 token key
+  function colorKey(base: string): string {
+    return editColorMode === 'night' ? `${base}.dark` : base;
+  }
+
+  // 切换色板模式；切到夜间且缺夜间色板时用官方夜间基线预填（可继续调整）
+  function setEditColorMode(mode: 'day' | 'night') {
+    editColorMode = mode;
+    if (mode === 'night') {
+      for (const k of DARK_COLOR_KEYS) {
+        if (typeof editTokens[k] !== 'string') editTokens[k] = NIGHT_PALETTE_DEFAULT[k];
+      }
+    }
+  }
 
   let setDefaultTheme = $state<AdminThemeItem | null>(null);
   let deleteTargetTheme = $state<AdminThemeItem | null>(null);
+  let previewPending = $state<string | null>(null);
 
   // 激活全局实时预览
   function startPreview(theme: AdminThemeItem) {
+    if (previewPending === theme.name) return;
+    previewPending = theme.name;
     previewTheme = theme;
     const view: ActiveThemeView = {
       name: theme.name,
@@ -231,8 +342,12 @@
       tokens: theme.tokens,
       source: 'user_preference'
     };
-    previewThemeTokens(view);
-    showToast(`已开启主题「${theme.display_name}」全局实时预览`, 'info');
+    try {
+      previewThemeTokens(view);
+      showToast(`已开启主题「${theme.display_name}」全局实时预览`, 'info');
+    } finally {
+      previewPending = null;
+    }
   }
 
   // 退出全局预览
@@ -249,19 +364,28 @@
   function openEditModal(theme: AdminThemeItem) {
     editTheme = theme;
     editTokens = { ...(theme.tokens ?? {}) };
-    editTokensRaw = tokensJson(theme.tokens);
+    // 结构预设缺省补全：旧主题（v1 schema 无 layout.mode）编辑时默认 classic，
+    // 避免保存后静默丢失结构声明
+    if (!editTokens['layout.mode']) editTokens['layout.mode'] = 'classic';
+    editTokensRaw = tokensJson(editTokens);
     editJsonMode = false;
+    editColorMode = 'day';
   }
 
   function closeEditModal() {
     editTheme = null;
   }
 
-  // 页面销毁时清理预览标记
+  // 页面销毁时恢复当前站点默认主题（而非仅清空）：
+  // 根 layout 复用时 activeTheme 数据不变不会重跑 effect，只 clear 会把
+  // 正式主题（含结构布局）冲掉后不恢复——离开预览必须显式回放已生效主题。
   onDestroy(() => {
-    if (previewTheme) {
+    if (previewTheme && activeTheme) {
+      applyThemeTokens(toThemeView(activeTheme));
+    } else if (previewTheme) {
       clearThemeTokens();
     }
+    previewTheme = null;
   });
 
   const activeTheme = $derived(rawThemes.find((t) => t.is_default && t.status === 'active') ?? rawThemes[0]);
@@ -305,6 +429,9 @@
         <div>
           <strong style="font-size:14px;">正在全局实时预览：「{previewTheme.display_name}」</strong>
           <span class="text-secondary" style="font-size:12px;margin-left:6px;">(代号: /{previewTheme.name} · v{previewTheme.revision})</span>
+          <span class="sbadge sb-primary" style="font-size:10px;margin-left:6px;" title="主题声明的页面结构预设（layout.mode），当前已实时应用">
+            结构：{LAYOUT_MODE_LABELS[resolveLayoutMode(previewTheme.tokens)]}
+          </span>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -336,7 +463,7 @@
     <div class="app-card__body">
       {#if activeTheme}
         <div
-          style="height:88px;border-radius:var(--radius-md);background:{safeBg(activeTheme.tokens, activeTheme.name)};margin-bottom:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.2);display:flex;align-items:flex-end;padding:12px;"
+          style="height:88px;border-radius:var(--radius-md);background:{dualBg(activeTheme.tokens, activeTheme.name)};margin-bottom:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.2);display:flex;align-items:flex-end;padding:12px;"
         >
           <span class="theme-hero-title">
             {activeTheme.display_name}
@@ -344,7 +471,8 @@
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
           <div class="text-secondary" style="font-size:13px;">
-            代号：<code>/{activeTheme.name}</code> · 修订版本：<code>v{activeTheme.revision}</code> · 亮/暗模式均自动兼容
+            代号：<code>/{activeTheme.name}</code> · 修订版本：<code>v{activeTheme.revision}</code> · 亮/暗模式均自动兼容 ·
+            页面结构：<span class="sbadge sb-primary" style="font-size:10px;">{LAYOUT_MODE_LABELS[resolveLayoutMode(activeTheme.tokens)]}</span>
           </div>
           <div style="display:flex;gap:6px;">
             <button type="button" class="btn sm secondary" onclick={() => startPreview(activeTheme)}>
@@ -381,7 +509,7 @@
           >
             <!-- 色彩预览横幅 -->
             <div
-              style="height:68px;border-radius:var(--radius-sm);background:{safeBg(theme.tokens, theme.name)};position:relative;"
+              style="height:68px;border-radius:var(--radius-sm);background:{dualBg(theme.tokens, theme.name)};position:relative;"
             >
               {#if theme.is_default}
                 <span class="sbadge sb-success" style="position:absolute;top:6px;right:6px;box-shadow:0 1px 2px rgba(0,0,0,0.2);">站点默认</span>
@@ -392,9 +520,17 @@
 
             <!-- 主题标题与标识 -->
             <div>
-              <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
                 <strong style="font-size:15px;">{theme.display_name}</strong>
-                <span class="text-secondary" style="font-size:11px;">revision v{theme.revision}</span>
+                <span style="display:flex;align-items:center;gap:4px;">
+                  {#if hasNightPalette(theme.tokens)}
+                    <span class="sbadge sb-success" title="已配置日间与夜间双模式色板，随站点亮/暗模式自动切换" style="font-size:10px;">日/夜</span>
+                  {:else}
+                    <span class="sbadge sb-gray" title="仅日间色板：暗色模式下回退使用日间色值，可编辑补全夜间色板" style="font-size:10px;">仅日间</span>
+                  {/if}
+                  <span class="sbadge sb-primary" title={`页面结构：${LAYOUT_MODE_LABELS[resolveLayoutMode(theme.tokens)]}`} style="font-size:10px;">{LAYOUT_MODE_LABELS[resolveLayoutMode(theme.tokens)]}</span>
+                  <span class="text-secondary" style="font-size:11px;">revision v{theme.revision}</span>
+                </span>
               </div>
               <code class="theme-id-code">/{theme.name}</code>
             </div>
@@ -415,9 +551,10 @@
                 <button
                   type="button"
                   class="btn sm {previewTheme?.name === theme.name ? 'primary' : 'ghost'}"
+                  disabled={previewPending === theme.name}
                   onclick={() => startPreview(theme)}
                 >
-                  {previewTheme?.name === theme.name ? '预览中' : '预览'}
+                  {previewPending === theme.name ? '加载预览…' : previewTheme?.name === theme.name ? '预览中' : '预览'}
                 </button>
                 <button
                   type="button"
@@ -474,9 +611,21 @@
             class="app-card"
             style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:12px;display:flex;flex-direction:column;gap:8px;"
           >
-            <div style="height:52px;border-radius:var(--radius-sm);background:{safeBg(preset.tokens, preset.name)};"></div>
+            <div
+              style="height:52px;border-radius:var(--radius-sm);background:{dualBg(preset.tokens, preset.name)};display:flex;align-items:flex-end;justify-content:space-between;padding:4px 8px;"
+              title="左：日间模式 · 右：夜间模式（随站点亮/暗切换自动解析）"
+            >
+              <span style="font-size:9px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.55);">日间</span>
+              <span style="font-size:9px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.55);">夜间</span>
+            </div>
             <div>
-              <strong>{preset.display_name}</strong>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                <strong>{preset.display_name}</strong>
+                <span style="display:flex;align-items:center;gap:4px;">
+                  <span class="sbadge sb-success" style="font-size:10px;" title="内置日间+夜间双模式色板">日/夜</span>
+                  <span class="sbadge sb-primary" style="font-size:10px;" title="页面结构预设（layout.mode）">{LAYOUT_MODE_LABELS[resolveLayoutMode(preset.tokens)]}</span>
+                </span>
+              </div>
               <code class="preset-code">/{preset.name}</code>
               <p class="text-secondary" style="font-size:12px;margin:4px 0 0 0;line-height:1.3;">{preset.desc}</p>
             </div>
@@ -544,7 +693,7 @@
         </label>
         <label>
           <span class="field-label">Token 配置 JSON</span>
-          <textarea name="tokens_json" class="input-field" rows="5" placeholder={`{ "color.background": "#111827", "color.surface": "#1f2937", ... }`}>{tokensJson(fallbackDefaultTheme().tokens)}</textarea>
+          <textarea name="tokens_json" class="input-field" rows="5" placeholder={`{ "color.background": "#f5f3ed", "color.surface": "#fffefb", "color.accent": "#b23e2a", "color.background.dark": "#101b19", "color.accent.dark": "#f27759", ... }`}>{tokensJson(fallbackDefaultTheme().tokens)}</textarea>
         </label>
         <label>
           <span class="field-label">操作原因（写审计日志，必填）</span>
@@ -721,53 +870,78 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
             ></textarea>
           </label>
         {:else}
+          <!-- 色板模式切换：日间（color.*）/ 夜间（color.*.dark，v1.1 双模式） -->
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            <span class="field-label" style="margin:0;">色板模式</span>
+            <span style="display:inline-flex;border:1px solid var(--color-border-strong);border-radius:var(--radius-sm);overflow:hidden;">
+              <button
+                type="button"
+                onclick={() => setEditColorMode('day')}
+                style="padding:5px 14px;font-size:12px;border:0;cursor:pointer;background:{editColorMode === 'day' ? 'var(--color-brand)' : 'transparent'};color:{editColorMode === 'day' ? 'var(--color-text-on-brand)' : 'var(--color-text-secondary)'};transition:background 0.15s,color 0.15s;"
+              >
+                日间色板
+              </button>
+              <button
+                type="button"
+                onclick={() => setEditColorMode('night')}
+                style="padding:5px 14px;font-size:12px;border:0;cursor:pointer;background:{editColorMode === 'night' ? 'var(--color-brand)' : 'transparent'};color:{editColorMode === 'night' ? 'var(--color-text-on-brand)' : 'var(--color-text-secondary)'};transition:background 0.15s,color 0.15s;"
+              >
+                夜间色板
+              </button>
+            </span>
+            <span class="text-secondary" style="font-size:11px;">
+              {editColorMode === 'day'
+                ? '编辑日间（亮色模式）色板 color.*'
+                : '编辑夜间（暗色模式）色板 color.*.dark；站点未配置夜间色板时回退日间值'}
+            </span>
+          </div>
           <!-- 实时色彩选择器 -->
           <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:12px;">
             <label>
-              <span class="field-label">页面背景色 (color.background)</span>
+              <span class="field-label">页面背景色 ({colorKey('color.background')})</span>
               <div style="display:flex;gap:6px;">
-                <input type="color" bind:value={editTokens['color.background']} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
-                <input type="text" class="input-field" bind:value={editTokens['color.background']} style="flex:1;" />
+                <input type="color" bind:value={editTokens[colorKey('color.background')]} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
+                <input type="text" class="input-field" bind:value={editTokens[colorKey('color.background')]} style="flex:1;" />
               </div>
             </label>
 
             <label>
-              <span class="field-label">卡片底色 (color.surface)</span>
+              <span class="field-label">卡片底色 ({colorKey('color.surface')})</span>
               <div style="display:flex;gap:6px;">
-                <input type="color" bind:value={editTokens['color.surface']} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
-                <input type="text" class="input-field" bind:value={editTokens['color.surface']} style="flex:1;" />
+                <input type="color" bind:value={editTokens[colorKey('color.surface')]} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
+                <input type="text" class="input-field" bind:value={editTokens[colorKey('color.surface')]} style="flex:1;" />
               </div>
             </label>
 
             <label>
-              <span class="field-label">主文字色 (color.text)</span>
+              <span class="field-label">主文字色 ({colorKey('color.text')})</span>
               <div style="display:flex;gap:6px;">
-                <input type="color" bind:value={editTokens['color.text']} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
-                <input type="text" class="input-field" bind:value={editTokens['color.text']} style="flex:1;" />
+                <input type="color" bind:value={editTokens[colorKey('color.text')]} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
+                <input type="text" class="input-field" bind:value={editTokens[colorKey('color.text')]} style="flex:1;" />
               </div>
             </label>
 
             <label>
-              <span class="field-label">次要文字色 (color.muted)</span>
+              <span class="field-label">次要文字色 ({colorKey('color.muted')})</span>
               <div style="display:flex;gap:6px;">
-                <input type="color" bind:value={editTokens['color.muted']} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
-                <input type="text" class="input-field" bind:value={editTokens['color.muted']} style="flex:1;" />
+                <input type="color" bind:value={editTokens[colorKey('color.muted')]} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
+                <input type="text" class="input-field" bind:value={editTokens[colorKey('color.muted')]} style="flex:1;" />
               </div>
             </label>
 
             <label>
-              <span class="field-label">品牌/强调色 (color.accent)</span>
+              <span class="field-label">品牌/强调色 ({colorKey('color.accent')})</span>
               <div style="display:flex;gap:6px;">
-                <input type="color" bind:value={editTokens['color.accent']} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
-                <input type="text" class="input-field" bind:value={editTokens['color.accent']} style="flex:1;" />
+                <input type="color" bind:value={editTokens[colorKey('color.accent')]} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
+                <input type="text" class="input-field" bind:value={editTokens[colorKey('color.accent')]} style="flex:1;" />
               </div>
             </label>
 
             <label>
-              <span class="field-label">边框色 (color.border)</span>
+              <span class="field-label">边框色 ({colorKey('color.border')})</span>
               <div style="display:flex;gap:6px;">
-                <input type="color" bind:value={editTokens['color.border']} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
-                <input type="text" class="input-field" bind:value={editTokens['color.border']} style="flex:1;" />
+                <input type="color" bind:value={editTokens[colorKey('color.border')]} style="width:36px;height:34px;border:none;border-radius:4px;cursor:pointer;" />
+                <input type="text" class="input-field" bind:value={editTokens[colorKey('color.border')]} style="flex:1;" />
               </div>
             </label>
           </div>
@@ -791,6 +965,35 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
                 {/each}
               </select>
             </label>
+          </div>
+
+          <!-- 页面结构布局（layout.mode）：主题可改变页面结构的闭集预设 -->
+          <div style="margin-top:6px;padding:12px;border:1px dashed var(--color-border-strong);border-radius:var(--radius-sm);background:var(--color-bg-subtle);">
+            <span class="field-label" style="display:flex;align-items:center;gap:6px;">
+              页面结构布局 (layout.mode)
+              <span class="sbadge sb-primary" style="font-size:10px;">结构变体</span>
+            </span>
+            <p class="text-secondary" style="font-size:11px;margin:4px 0 8px;line-height:1.5;">
+              主题声明的整站页面结构预设（已编译闭集，不可注入任意 HTML/CSS/JS）。
+              保存后设为站点默认即对全站生效；移动端自动回退经典结构。
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));gap:8px;">
+              <label style="display:flex;flex-direction:column;gap:4px;">
+                <input type="radio" name="layout-mode" value="classic" bind:group={editTokens['layout.mode']} style="accent-color:var(--color-brand);" />
+                <span style="font-size:12px;font-weight:600;">经典顶栏</span>
+                <span class="text-secondary" style="font-size:11px;">顶部横导航 + 居中容器（默认）</span>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;">
+                <input type="radio" name="layout-mode" value="sidebar" bind:group={editTokens['layout.mode']} style="accent-color:var(--color-brand);" />
+                <span style="font-size:12px;font-weight:600;">侧栏导航</span>
+                <span class="text-secondary" style="font-size:11px;">导航固定为左侧竖栏</span>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;">
+                <input type="radio" name="layout-mode" value="wide" bind:group={editTokens['layout.mode']} style="accent-color:var(--color-brand);" />
+                <span style="font-size:12px;font-weight:600;">宽幅全景</span>
+                <span class="text-secondary" style="font-size:11px;">宽容器 + 四列卡片网格</span>
+              </label>
+            </div>
           </div>
 
           <!-- 圆角与间距密度 -->

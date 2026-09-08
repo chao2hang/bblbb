@@ -37,11 +37,18 @@ export interface AdminUsersActionData {
   conflict?: boolean;
 }
 
-export const load: PageServerLoad = async ({ cookies, request }): Promise<AdminUsersPageData> => {
+export const load: PageServerLoad = async ({ cookies, request, url }): Promise<AdminUsersPageData> => {
   const requestId = request.headers.get('x-request-id');
+  const q = (url.searchParams.get('q') ?? '').trim();
+  const status = (url.searchParams.get('status') ?? '').trim();
+
+  const params = new URLSearchParams({ limit: '100' });
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+
   const result = await getAuthed<{ items: AdminUserItem[] }>(
     cookies,
-    '/api/v1/admin/users?limit=100',
+    `/api/v1/admin/users?${params.toString()}`,
     requestId
   );
   if (!result.ok) {

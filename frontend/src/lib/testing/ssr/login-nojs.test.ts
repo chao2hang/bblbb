@@ -37,4 +37,56 @@ describe('无 JS：登录页（M02-UX-03）', () => {
     const { body } = render(LoginPage, { props: { form: undefined } });
     expect(body).not.toContain('action="?/mfa"');
   });
+
+  it('启用第三方登录时渲染 Google 与 GitHub 登录入口', () => {
+    const { body } = render(LoginPage, {
+      props: {
+        data: {
+          site: {
+            siteName: 'BBLBB',
+            siteDescription: 'BBLBB 社区论坛',
+            loginEyebrow: 'WELCOME BACK',
+            loginTitle: '登录 BBLBB',
+            loginSubtitle: 'BBLBB 社区论坛',
+            registerEyebrow: 'JOIN BBLBB',
+            registerTitle: '创建账号',
+            registerSubtitle: 'BBLBB 社区论坛',
+            maintenanceMode: false,
+            googleLoginEnabled: true,
+            githubLoginEnabled: true,
+          }
+        },
+        form: undefined
+      }
+    });
+    expect(body).toContain('/api/v1/auth/oauth/google/start');
+    expect(body).toContain('/api/v1/auth/oauth/github/start');
+    expect(body).toContain('Google 账号登录');
+    expect(body).toContain('GitHub 账号登录');
+  });
+
+  it('未启用第三方登录时不渲染入口', () => {
+    const { body } = render(LoginPage, {
+      props: {
+        data: {
+          site: {
+            siteName: 'BBLBB',
+            siteDescription: 'BBLBB 社区论坛',
+            loginEyebrow: 'WELCOME BACK',
+            loginTitle: '登录 BBLBB',
+            loginSubtitle: 'BBLBB 社区论坛',
+            registerEyebrow: 'JOIN BBLBB',
+            registerTitle: '创建账号',
+            registerSubtitle: 'BBLBB 社区论坛',
+            maintenanceMode: false,
+            googleLoginEnabled: false,
+            githubLoginEnabled: false,
+          }
+        },
+        form: undefined
+      }
+    });
+    expect(body).not.toContain('/api/v1/auth/oauth/google/start');
+    expect(body).not.toContain('/api/v1/auth/oauth/github/start');
+  });
 });

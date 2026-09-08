@@ -8,12 +8,16 @@
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
   import CooldownButton from '$lib/components/ui/CooldownButton.svelte';
+  import { resolveSiteCopy, pageTitle, type SiteCopyView } from '$lib/site/copy';
   import type { VerifyEmailActionData } from './+page.server';
 
   let {
     data,
     form
-  }: { data: { token: string | null }; form?: VerifyEmailActionData } = $props();
+  }: { data: { token: string | null; site?: SiteCopyView | null }; form?: VerifyEmailActionData } = $props();
+
+  // 全站文案（0065）：站点名来自后台系统设置（layout 注入；隔离渲染时兜底）。
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   // 每次 resend 结果变化都递增，强制 CooldownButton 重启计时（含同秒数）
   let resendAttempt = $state(0);
@@ -28,13 +32,13 @@
 </script>
 
 <svelte:head>
-  <title>邮箱验证 — BBLBB</title>
+  <title>{pageTitle('邮箱验证', site.siteName)}</title>
 </svelte:head>
 
 <div class="auth-wrapper">
   <div class="auth-card">
     <div class="auth-header">
-      <div class="auth-logo">BBLBB</div>
+      <div class="auth-logo">{site.siteName}</div>
       <div class="auth-title">邮箱验证</div>
       <div class="auth-subtitle">完成验证即可解锁完整社区功能</div>
     </div>

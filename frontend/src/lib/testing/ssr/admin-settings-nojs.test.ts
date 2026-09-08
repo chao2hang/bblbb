@@ -47,6 +47,11 @@ describe('系统设置页 SSR（原型 app-card 布局对齐）', () => {
     expect(body).toContain('value="https://bblbb.local"');
     expect(body).toContain('name="api_rate_limit"');
     expect(body).toContain('name="reason"');
+    expect(body).toContain('第三方 OAuth 登录配置');
+    expect(body).toContain('name="google_auth_enabled"');
+    expect(body).toContain('name="github_auth_enabled"');
+    expect(body).toContain('name="google_client_id"');
+    expect(body).toContain('name="github_client_id"');
     // 原型字段文案：公开源必填 + 限流标签「次 / 分钟 / IP」+ 站点名称 ≤40
     expect(body).toContain('公开源（RSS / API）');
     expect(body).toContain('API 限流（次 / 分钟 / IP）');

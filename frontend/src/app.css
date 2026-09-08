@@ -8,8 +8,14 @@
 /* 原型应用骨架与工作流层（提供所有 .app-* 与 .wf-* 类名完整定义） */
 @import './lib/styles/prototype-app.css';
 @import './lib/styles/prototype-workflows.css';
-/* 中国风黑白灰设计系统：与原型 8765 视觉对齐的最后覆盖层 */
+/* 中国风黑白灰设计系统：与原型 8765 视觉对齐的覆盖层 */
 @import './lib/styles/chinese-elegance.css';
+/* 数据型主题 Token 全量映射（最后颜色层）：日/夜双模式解析 + 全量语义
+   变量（颜色/字体/圆角/密度/阴影/动效），压过上面各层的变量基线 */
+@import './lib/styles/theme-tokens.css';
+/* 主题结构预设（layout.mode → .app-shell[data-theme-layout]）：最后加载，
+   压过 chinese-elegance 的几何 !important，实现 sidebar/wide 结构变体 */
+@import './lib/styles/theme-layout.css';
 
 /* SvelteKit 根容器：与原型 #app 语义等价 */
 body > .sveltekit,

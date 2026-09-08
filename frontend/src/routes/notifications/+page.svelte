@@ -12,6 +12,7 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { formatRelative } from '$lib/utils';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let items = $state<Notification[]>([]);
   let unreadCount = $state(0);
@@ -115,9 +116,7 @@
   onMount(() => { load(); loadPrefs(); });
 </script>
 
-<svelte:head>
-  <title>通知中心 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="通知中心" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/notifications.html）：app-route-head，无面包屑。 -->

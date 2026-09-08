@@ -35,6 +35,7 @@
   // M14-SEO-01/02：作者页统一 SEO；banned/pending_delete 降级投影 → noindex。
   import Seo from '$lib/components/Seo.svelte';
   import type { UserFollowActionData, UserPageData } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
   /** GAP-FIX 社交统计扩展：后端 PublicProfile 已附带（BE-1），前端
    * PublicProfile 契约类型尚未收口——在此局部扩展，字段缺失时安全降级。 */
@@ -48,7 +49,10 @@
   let {
     data = { user: null },
     form
-  }: { data?: UserPageData | { user: null }; form?: UserFollowActionData | null } = $props();
+  }: {
+    data?: (UserPageData | { user: null }) & { site?: SiteCopyView | null };
+    form?: UserFollowActionData | null;
+  } = $props();
 
   let username = $derived(page.params.username ?? '');
   // SSR 已取到 → 直接用 load 数据（invalidateAll 后随 data 刷新，关注态/
@@ -191,7 +195,7 @@
 
 <Seo
   title={`${user?.display_name || user?.username || username} 的主页`}
-  description={user?.bio || `查看 ${user?.username || username} 在 BBLBB 的公开资料`}
+  description={user?.bio || `查看 ${user?.username || username} 的公开资料`}
   og={{ type: 'profile' }}
   noindex={!user}
   jsonLd={
@@ -338,15 +342,14 @@
           </div>
         {:else if tab === 'replies' || tab === 'favorites' || tab === 'activity'}
           <!-- 回复/收藏/动态：后端暂无对应的用户侧列表端点
-               （GAP-FIX-SPEC 四节预留：GET /users/{username}/comments 等），
-               先以上线占位说明呈现，端点落地后替换为列表。 -->
+               明确功能未开放与无数据边界（P3-01），避免误导用户。 -->
           <div class="card">
             <div class="card-header"><span class="card-title">{TABS.find((t) => t.key === tab)?.label ?? '内容'}</span></div>
             <div class="card-body">
               <EmptyState
                 icon="clock"
-                title="即将上线"
-                desc="该内容分类的接口尚未开放，功能上线后会在这里展示"
+                title="功能尚未开放"
+                desc="公开「{TABS.find((t) => t.key === tab)?.label ?? '内容'}」功能规划中，当前暂未开放，非无数据状态。"
               />
             </div>
           </div>

@@ -18,12 +18,15 @@
 
   let {
     user,
+    siteName = 'BBLBB',
     unread = 0,
     notifications = [],
     onlogout,
     onreadall
   }: {
     user: { username: string; display_name?: string | null; level?: number; roles?: string[] } | null;
+    /** 品牌名（后台系统设置 site_name；由 +layout.svelte 提供）。 */
+    siteName?: string;
     unread?: number;
     /** 铃铛下拉速览（最近几条通知；由 +layout.svelte 提供）。 */
     notifications?: Notification[];
@@ -178,7 +181,7 @@
       >
         <Icon name="menu" size={20} />
       </button>
-      <a href="/" class="nav-logo" onclick={closeMenus}>BBLBB</a>
+      <a href="/" class="nav-logo" onclick={closeMenus}>{siteName}</a>
       <nav class="nav-items" aria-label="主导航">
         {#each visibleNavItems as item}
           <a

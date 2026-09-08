@@ -5,6 +5,7 @@
   import { productKindLabel } from '$lib/api/client';
   import Button from '$lib/components/ui/Button.svelte';
   import type { ShopOrderPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data }: { data: ShopOrderPageData } = $props();
 
@@ -38,9 +39,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>订单结果 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="订单结果" />
 
 <div class="container page-content">
 

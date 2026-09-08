@@ -125,6 +125,31 @@ describe('M09-UI-06 管理端 AI SSR', () => {
     expect(body).toContain('取消');
   });
 
+  it('P1-08: 渠道停用状态映射与默认渠道排除', () => {
+    const disabledProviderData: AdminAiPageData = {
+      ...okData,
+      config: {
+        ...okData.config!,
+        providers: [
+          {
+            id: 'prov-disabled',
+            name: '停用渠道',
+            api_type: 'openai_compatible',
+            base_url: 'https://api.openai.com/v1',
+            model: 'gpt-4o-mini',
+            status: 'disabled',
+            secret_configured: false,
+            available: false
+          }
+        ]
+      }
+    };
+    const { body } = render(AdminAiPage, { props: { data: disabledProviderData, form: null } });
+    expect(body).toContain('已停用');
+    expect(body).not.toContain('默认渠道');
+    expect(body).toContain('暂无可用启用渠道');
+  });
+
   it('隐私守卫：对抗性 Provider（密钥明文/内部字段）不进入 HTML', () => {
     // 对抗性输入：以变量扩展注入内部字段（类型层无这些字段，纯渲染守卫验证）。
     const adversarial = {

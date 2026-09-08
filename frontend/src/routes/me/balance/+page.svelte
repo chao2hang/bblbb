@@ -9,6 +9,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { activityLevelNumber, activityXp } from '$lib/api/types';
   import type { BalanceActionData, BalancePageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: BalancePageData; form?: BalanceActionData | null } = $props();
 
@@ -46,9 +47,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>我的积分 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="我的积分" />
 
 <div class="container page-content">
 

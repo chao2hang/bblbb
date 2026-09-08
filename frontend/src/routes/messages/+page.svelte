@@ -18,6 +18,7 @@
   import { show } from '$lib/ui/toast';
   import { formatRelative, formatTime } from '$lib/utils';
   import type { MessagesActionData, MessagesPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: MessagesPageData; form?: MessagesActionData | null } = $props();
 
@@ -59,9 +60,7 @@
   const actionMessage = $derived(form?.message ?? null);
 </script>
 
-<svelte:head>
-  <title>消息 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="消息" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/messages.html）：页头为 app-route-head（INBOX / MESSAGES + h1 消息），无面包屑。 -->

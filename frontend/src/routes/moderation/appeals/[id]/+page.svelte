@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import { formatRelative } from '$lib/utils';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: PageData; form: any } = $props();
 
@@ -21,9 +22,7 @@
   const canWithdraw = $derived(appeal?.status === 'submitted' || appeal?.status === 'reviewing');
 </script>
 
-<svelte:head>
-  <title>申诉详情 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="申诉详情" />
 
 <div class="container page-content">
 

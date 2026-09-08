@@ -13,6 +13,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import type { ShopActionData, ShopProductPageData } from './+page.server';
   import type { ShopProduct } from '$lib/api/types';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: ShopProductPageData; form?: ShopActionData | null } = $props();
 
@@ -41,9 +42,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>{product ? `${product.title} — 商城` : '商品 — 商城'} · BBLBB</title>
-</svelte:head>
+  <PageTitle title={product ? `${product.title} — 商城` : '商品 — 商城'} />
 
 <div class="container page-content">
 

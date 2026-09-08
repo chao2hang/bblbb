@@ -365,6 +365,7 @@ v1 预计：
 /api/v1/stats
 /api/v1/rss
 /api/v1/atom
+/api/v1/site
 ```
 
 端点详情由实现中的 OpenAPI 提供；文档和 schema 不一致时 CI 失败。
@@ -386,6 +387,7 @@ v1 预计：
 - **首页帖子流扩展**：`GET /api/v1/posts` 列表项投影增加 `like_count`（post_reactions 聚合）；扩展 `sort=following`（当前登录用户关注的作者，未登录返回空数组）。
 - **内部管理运营端点登记**（documented non-contract，`scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT` 注册表）：站点统计 `GET /api/v1/admin/stats`、趋势 `GET /api/v1/admin/stats/trend`、BI 指标 `GET /api/v1/admin/bi/metrics`、审计读取 `GET /api/v1/admin/audit-logs`、系统设置 `GET/PATCH /api/v1/admin/settings`、帖子管理 `GET /api/v1/admin/posts` 与 `POST /api/v1/admin/posts/{id}/action`、通知广播与召回 `GET/POST /api/v1/admin/notifications/*`、通知模板 `GET /api/v1/admin/notifications/templates`、角色分配 `POST/DELETE /api/v1/admin/users/{id}/roles*`、成就管理 `GET/POST/PATCH/DELETE /api/v1/admin/achievements*` 与手工授予 `POST /api/v1/admin/achievements/{code}/grant`、积分流水与调整 `GET /api/v1/admin/points/ledger`、`POST /api/v1/admin/points/adjust`、等级规则 `GET /api/v1/admin/levels`、`PATCH /api/v1/admin/levels/{level}`、附件管理 `GET /api/v1/admin/attachments`、`DELETE /api/v1/admin/attachments/{id}`、下载交易 `GET /api/v1/admin/download-billing/transactions`、标签合并 `POST /api/v1/admin/tags/{id}/merge`。这些为运营管理接口（沿用 M12/M13 Marketplace/Plugin 先例），安全语义集中记录于 [`OPERATIONS.md §19.8`](OPERATIONS.md)；不进入冻结契约，也不得被公开客户端依赖。
 - **Feed/SEO 投影端点**：`GET /api/v1/rss`、`GET /api/v1/atom`、`GET /api/v1/sitemap.xml` 与 `GET /robots.txt` 为公开只读投影，内容、缓存与 `X-Robots-Tag` 策略见 [`CRAWLER-POLICY.md §7`](CRAWLER-POLICY.md)。
+- **站点公开信息端点**（documented non-contract，`scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT` 注册表）：`GET /api/v1/site`（匿名可读，迁移 0065）返回站点名称/描述、登录页与注册页文案（空串 = 前端内置通用文案兜底）及 `maintenance_mode` 公开标记，是全站文案统一（管理台「系统设置 → 站点文案」）的前台只读投影；SMTP、注册开关等运营字段不进该投影（留在 `GET /api/v1/admin/settings`）。响应 `private, no-store`；供第一方 SSR/前端使用，不作为冻结契约被第三方客户端依赖。
 
 ## 21. M17-GAPFIX 社交、经济与个人域端点
 

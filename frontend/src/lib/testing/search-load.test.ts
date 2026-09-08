@@ -14,7 +14,8 @@ import {
   SEARCH_QUERY_MAX,
   SEARCH_LIMIT_MAX,
   SEARCH_LIMIT_DEFAULT,
-  normalizeCursor
+  normalizeCursor,
+  tagSearchUrl
 } from '$lib/search';
 
 vi.mock('$lib/api/server', () => ({
@@ -201,5 +202,30 @@ describe('M08-UI-02 搜索结果归一化隐私守卫', () => {
       expect(typeof item.title).toBe('string');
       expect(typeof item.excerpt).toBe('string');
     }
+  });
+
+  it('P1-01 & P1-02: tagSearchUrl 正确 URL 编码特殊字符（中文、空格、#）', () => {
+    expect(tagSearchUrl('C#')).toBe('/search?tag=C%23');
+    expect(tagSearchUrl('前端 开发')).toBe('/search?tag=%E5%89%8D%E7%AB%AF+%E5%BC%80%E5%8F%91');
+    expect(tagSearchUrl({ name: 'Vue 3', slug: 'vue-3' })).toBe('/search?tag=vue-3');
+    expect(tagSearchUrl({ name: '#热门', slug: '' })).toBe('/search?tag=%23%E7%83%AD%E9%97%A8');
+    expect(tagSearchUrl({ name: '', slug: null })).toBe('/search');
+  });
+
+  it('P1-01: 单独传入 tag 参数时触发有效搜索', async () => {
+    getAuthedMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { items: [contractItem], next_cursor: null, has_more: false }
+    });
+    const data = (await load(loadEvent({ tag: 'Rust' }))) as SearchPageData;
+    expect(data.searched).toBe(true);
+    expect(data.tag).toBe('Rust');
+    expect(data.results).toHaveLength(1);
+    expect(getAuthedMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('tag=Rust'),
+      null
+    );
   });
 });

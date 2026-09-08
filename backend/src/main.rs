@@ -102,6 +102,16 @@ async fn main() -> ExitCode {
         tracing::info!("builtin roles and permissions seeded");
     }
 
+    // M13-THEME：数据库可用时幂等写入内置 default 主题（INSERT OR IGNORE；
+    // 不覆盖管理员显式默认主题与已有 Token 编辑——见 theme::ensure_default_theme）。
+    if let Some(pool) = &db_pool {
+        if let Err(error) = bblbb_backend::theme::ensure_default_theme(pool).await {
+            tracing::error!(error = %error, "failed to ensure builtin default theme");
+            return ExitCode::FAILURE;
+        }
+        tracing::info!("builtin default theme ensured");
+    }
+
     // M15-PACKAGE-04 / M15-UPGRADE-06：`--worker` 模式。
     // 独立 worker 进程：停止领取 → 收尾运行中任务（受 drain_timeout 约束）→
     // 退出；租约到期由其他 worker 安全重领（backend/src/jobs/worker_loop.rs）。

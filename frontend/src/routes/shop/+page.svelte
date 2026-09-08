@@ -8,6 +8,7 @@
   import { productKindLabel, productStatusLabel } from '$lib/api/client';
   import type { ShopProduct } from '$lib/api/types';
   import type { ShopPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data }: { data: ShopPageData } = $props();
 
@@ -46,9 +47,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>商城与积分 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="商城与积分" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/shop.html）：app-route-head，无面包屑。 -->

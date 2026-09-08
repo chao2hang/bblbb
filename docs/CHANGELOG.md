@@ -1,3 +1,28 @@
+## v1.0.0-rc.8 — 2026-09-07（全站文案统一：站点文案后台可配）
+
+> 基线 commit 待发布时补记。rc.7 之后的增量：站点级文案（站点名称/描述、
+> 登录页与注册页的眉题/标题/说明）全部收敛到后台「系统设置 → 站点文案」，
+> 新增公开只读投影 `GET /api/v1/site` 与迁移 0065，前台各页（登录/注册/
+> 忘记密码/邮箱验证/错误页/首页/导航品牌/SEO 标题后缀）不再硬编码品牌文案，
+> 空值回退内置通用文案——面向开源论坛程序的自定义部署场景。发布顺序：
+> 后端迁移 → backend → worker → frontend。
+
+### 全站文案统一（迁移 0065 / 公开端点 / 管理台）
+
+- **数据与端点**：`site_settings` 新增 7 个站点文案列（`site_description`、
+  `login_eyebrow/login_title/login_subtitle`、`register_eyebrow/register_title/
+  register_subtitle`，空串 = 前端内置通用文案兜底）；`GET/PATCH
+  /api/v1/admin/settings` 支持这些字段（长度上限校验 + 审计 + If-Match 乐观锁）；
+  新增匿名可读公开投影 `GET /api/v1/site`（documented non-contract，
+  `private, no-store`，不含 SMTP/注册开关等运营字段）。
+- **管理台**：系统设置页新增「站点文案（登录 / 注册页）」分区，7 个字段
+  纳入脏标记 / 恢复默认 / 导出配置 / 保存链路。
+- **前台**：根 layout SSR 并行拉取站点公开信息并注入 `data.site`
+  （`lib/site/copy.ts` 统一解析与兜底）；新增 `PageTitle` 组件统一
+  「页面名 — 站点名」标题格式，全站 31 处硬编码 `— BBLBB` 标题与
+  Navbar/登录/注册/首页品牌位全部改为动态渲染；Seo 组件标题后缀与
+  `og:site_name` 兜底接入站点名。
+
 ## v1.0.0-rc.7 — 2026-09-07（主题管理全局实时预览、官方预置与后台管理设置功能完善）
 
 > 基线 commit `5380a86`（feat/prototype-pages）。rc.6 之后的增量：完善主题管理全局实时预览、UI 组件库效果展示、4 套官方预置主题包一键安装，打通前后端 Token 投影与管理 CRUD；补齐系统设置 SMTP 密码加密存储与后端邮件投递，完善社交原型页面与加载失败状态。发布顺序：后端迁移 → backend → worker → frontend。

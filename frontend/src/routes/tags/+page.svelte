@@ -7,9 +7,14 @@
   // - .app-tag-cloud > .app-tag 标签胶囊
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Seo from '$lib/components/Seo.svelte';
+  import { tagSearchUrl } from '$lib/search';
   import type { TagsPageData } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
-  let { data }: { data: TagsPageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: TagsPageData & { site?: SiteCopyView | null } } = $props();
+
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const tags = $derived(data.tags);
   const groups = $derived(data.groups);
@@ -29,13 +34,13 @@
 </script>
 
 <Seo
-  title="标签 · BBLBB 社区"
+  title="标签"
   description="从一个关键词进入相关内容"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  og={{ type: 'website' }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'BBLBB 标签'
+    name: `标签 · ${site.siteName}`
   }}
 />
 
@@ -65,7 +70,7 @@
               </h2>
               <div class="app-tag-cloud">
                 {#each group.items as tag}
-                  <a class="app-tag" href="/search?tag={tag.slug}">
+                  <a class="app-tag" href={tagSearchUrl(tag)}>
                     <b>{tag.usage_count}</b> # {tag.name}
                   </a>
                 {/each}
