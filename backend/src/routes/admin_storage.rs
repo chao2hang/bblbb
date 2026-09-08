@@ -134,6 +134,25 @@ pub struct StorageSettingsRow {
     pub storage_s3_signed_url_ttl: i64,
 }
 
+/// 全空行（等价 0066 迁移的列默认值）：DB 单行缺失时的回退基线。
+impl Default for StorageSettingsRow {
+    fn default() -> Self {
+        Self {
+            storage_backend: "local".to_string(),
+            storage_local_path: String::new(),
+            storage_upload_max_bytes: 20 * 1024 * 1024,
+            storage_s3_endpoint: String::new(),
+            storage_s3_region: "us-east-1".to_string(),
+            storage_s3_bucket: String::new(),
+            storage_s3_access_key_id: String::new(),
+            storage_s3_secret_access_key: String::new(),
+            storage_s3_path_style: 0,
+            storage_s3_public_base_url: String::new(),
+            storage_s3_signed_url_ttl: 300,
+        }
+    }
+}
+
 pub async fn load_storage_settings(
     pool: &crate::db::DatabasePool,
 ) -> Result<Option<StorageSettingsRow>, sqlx::Error> {
@@ -227,19 +246,7 @@ async fn update_storage_config(
     let current_row = load_storage_settings(pool)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        .unwrap_or_else(|| StorageSettingsRow {
-            storage_backend: "local".into(),
-            storage_local_path: "".into(),
-            storage_upload_max_bytes: 20971520,
-            storage_s3_endpoint: "".into(),
-            storage_s3_region: "us-east-1".into(),
-            storage_s3_bucket: "".into(),
-            storage_s3_access_key_id: "".into(),
-            storage_s3_secret_access_key: "".into(),
-            storage_s3_path_style: 0,
-            storage_s3_public_base_url: "".into(),
-            storage_s3_signed_url_ttl: 300,
-        });
+        .unwrap_or_default();
 
     // 2. 合并更新
     let new_backend = update.backend.unwrap_or(current_row.storage_backend);
@@ -452,7 +459,7 @@ fn storage_config_json(config: &AppConfig, db_row: Option<&StorageSettingsRow>) 
         };
         json!({
             "backend": if is_s3 { "s3" } else { "local" },
-            "source": "database",
+            "source": "db",
             "version": 1,
             "configured": true,
             "local_root": local_path_str,
@@ -579,8 +586,16 @@ async fn test_storage(
         validate_endpoint_scheme(endpoint, !state.config.is_production(), request_id)?;
     }
 
+    // 回退链：候选字段 → 数据库已保存配置 → 环境变量配置。
+    // 必须含 DB 层：页面加载时 Secret 不回显（脱敏契约），表单提交的
+    // secret 恒为空——若只回退环境变量，用户“已保存凭据再点测试”会变成
+    // 无凭据探测（CredentialsNotLoaded 被误报为网络错误）。
+    let saved = load_storage_settings(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
     let started = std::time::Instant::now();
-    let result = run_storage_probe(&state.config, &candidate).await;
+    let result = run_storage_probe(&state.config, &candidate, saved.as_ref()).await;
     let elapsed_ms = started.elapsed().as_millis() as u64;
     Ok(Json(json!({
         "ok": result.ok,
@@ -620,18 +635,25 @@ struct ProbeResult {
 }
 
 /// 探测实现：local 写/读/删探针文件；s3 写/head/删探针对象（专用前缀，
-/// 立即清理）。候选字段留空时回退当前部署配置。
-async fn run_storage_probe(config: &AppConfig, candidate: &StorageTestRequest) -> ProbeResult {
-    // 目标后端：候选指定优先；未指定 → 当前部署的生效后端。
+/// 立即清理）。候选字段留空时回退：数据库已保存配置 → 环境变量配置。
+async fn run_storage_probe(
+    config: &AppConfig,
+    candidate: &StorageTestRequest,
+    saved: Option<&StorageSettingsRow>,
+) -> ProbeResult {
+    // 目标后端：候选指定优先；未指定 → 数据库已保存后端 → 环境变量。
+    let saved_s3 = saved
+        .map(|r| r.storage_backend == "s3" && !r.storage_s3_bucket.is_empty())
+        .unwrap_or(false);
     let env_s3 = config.storage_backend == "s3" && !config.s3_bucket.is_empty();
     let probe_s3 = match candidate.backend.as_deref().map(str::trim) {
         Some("s3") => true,
         Some("local") => false,
-        Some("") | None => env_s3,
+        Some("") | None => saved_s3 || env_s3,
         Some(other) => {
             return ProbeResult {
                 ok: false,
-                backend: if env_s3 { "s3" } else { "local" },
+                backend: if saved_s3 || env_s3 { "s3" } else { "local" },
                 detail: format!("backend must be 'local' or 's3' (got '{other}')"),
                 error_class: "invalid",
             };
@@ -639,25 +661,38 @@ async fn run_storage_probe(config: &AppConfig, candidate: &StorageTestRequest) -
     };
 
     if !probe_s3 {
-        // local：候选 local_path 优先，回退部署 storage_dir。
+        // local：候选 local_path → 数据库保存路径 → 部署 storage_dir。
         let root = candidate
             .local_path
             .as_deref()
             .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .or_else(|| saved.map(|r| r.storage_local_path.trim()))
             .filter(|s| !s.is_empty())
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| config.storage_dir.clone());
         return run_local_probe(root).await;
     }
 
-    // s3：空字段回退部署配置（Secret 留空 = 用当前已配置凭据）。
-    let fallback = |candidate_value: Option<&String>, env_value: &str| {
+    // s3：空字段回退（候选 → 数据库已保存 → 环境变量）。
+    // Secret 留空 = 用已保存/已部署凭据（页面不回显 Secret，属正常路径）。
+    let fallback = |candidate_value: Option<&String>, saved_value: &str, env_value: &str| {
         candidate_value
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
+            .or_else(|| {
+                let v = saved_value.trim();
+                (!v.is_empty()).then(|| v.to_string())
+            })
             .unwrap_or_else(|| env_value.to_string())
     };
-    let bucket = fallback(candidate.s3_bucket.as_ref(), &config.s3_bucket);
+    let default_row = StorageSettingsRow::default();
+    let saved_row = saved.unwrap_or(&default_row);
+    let bucket = fallback(
+        candidate.s3_bucket.as_ref(),
+        &saved_row.storage_s3_bucket,
+        &config.s3_bucket,
+    );
     if bucket.is_empty() {
         return ProbeResult {
             ok: false,
@@ -667,7 +702,11 @@ async fn run_storage_probe(config: &AppConfig, candidate: &StorageTestRequest) -
         };
     }
     let region = {
-        let r = fallback(candidate.s3_region.as_ref(), &config.s3_region);
+        let r = fallback(
+            candidate.s3_region.as_ref(),
+            &saved_row.storage_s3_region,
+            &config.s3_region,
+        );
         if r.is_empty() {
             "auto".to_string()
         } else {
@@ -675,7 +714,11 @@ async fn run_storage_probe(config: &AppConfig, candidate: &StorageTestRequest) -
         }
     };
     let endpoint = {
-        let e = fallback(candidate.s3_endpoint.as_ref(), &config.s3_endpoint);
+        let e = fallback(
+            candidate.s3_endpoint.as_ref(),
+            &saved_row.storage_s3_endpoint,
+            &config.s3_endpoint,
+        );
         if e.is_empty() {
             None
         } else {
@@ -686,14 +729,25 @@ async fn run_storage_probe(config: &AppConfig, candidate: &StorageTestRequest) -
         bucket,
         region,
         endpoint,
-        path_style: candidate.s3_path_style.unwrap_or(config.s3_path_style),
+        path_style: candidate.s3_path_style.unwrap_or(
+            if saved_row.storage_s3_path_style != 0 {
+                true
+            } else {
+                config.s3_path_style
+            },
+        ),
         access_key_id: {
-            let v = fallback(candidate.s3_access_key_id.as_ref(), &config.s3_access_key_id);
+            let v = fallback(
+                candidate.s3_access_key_id.as_ref(),
+                &saved_row.storage_s3_access_key_id,
+                &config.s3_access_key_id,
+            );
             if v.is_empty() { None } else { Some(v) }
         },
         secret_access_key: {
             let v = fallback(
                 candidate.s3_secret_access_key.as_ref(),
+                &saved_row.storage_s3_secret_access_key,
                 &config.s3_secret_access_key,
             );
             if v.is_empty() { None } else { Some(v) }
@@ -986,13 +1040,17 @@ mod tests {
     }
 
     #[test]
-    fn update_validation_s3_requires_bucket_and_region() {
+    fn update_validation_s3_requires_bucket() {
+        // backend=s3 必须给 bucket；region 允许缺省（69aaf1c：保存时
+        // 回退 us-east-1/auto，探测时同样回退，不强制填写）。
         let err = validate_storage_config_update(&update(Some("s3"), None), true, "t");
         assert!(err.is_err());
         let mut u = update(Some("s3"), None);
         u.bucket = Some("bblbb".into());
-        let err = validate_storage_config_update(&u, true, "t");
-        assert!(err.is_err());
+        assert!(
+            validate_storage_config_update(&u, true, "t").is_ok(),
+            "region 缺省必须允许"
+        );
         u.s3_region = Some("auto".into());
         assert!(validate_storage_config_update(&u, true, "t").is_ok());
     }
@@ -1025,24 +1083,50 @@ mod tests {
 
     #[tokio::test]
     async fn probe_backend_selection_falls_back_to_env() {
-        // 未指定 backend → 环境生效后端；未知值 → invalid（不落 500）。
+        // 未指定 backend → 环境/数据库生效后端；未知值 → invalid（不落 500）。
         let config = AppConfig::default(); // storage_backend=local
         let unspecified: StorageTestRequest =
             serde_json::from_value(serde_json::json!({ "backend": "" })).unwrap();
-        let result = run_storage_probe(&config, &unspecified).await;
+        let result = run_storage_probe(&config, &unspecified, None).await;
         assert_eq!(result.backend, "local");
 
         let bogus: StorageTestRequest =
             serde_json::from_value(serde_json::json!({ "backend": "ftp" })).unwrap();
-        let result = run_storage_probe(&config, &bogus).await;
+        let result = run_storage_probe(&config, &bogus, None).await;
         assert!(!result.ok);
         assert_eq!(result.error_class, "invalid");
 
-        // s3 候选但 bucket 缺失（环境也未配置）→ invalid 诊断，不 panic、不联网。
+        // s3 候选但 bucket 缺失（环境/DB 均未配置）→ invalid 诊断，不 panic、不联网。
         let no_bucket: StorageTestRequest =
             serde_json::from_value(serde_json::json!({ "backend": "s3" })).unwrap();
-        let result = run_storage_probe(&config, &no_bucket).await;
+        let result = run_storage_probe(&config, &no_bucket, None).await;
         assert!(!result.ok);
         assert_eq!(result.error_class, "invalid");
+    }
+
+    #[tokio::test]
+    async fn probe_falls_back_to_saved_db_credentials() {
+        // 页面不回显 Secret → 表单 secret 恒为空；空 secret 必须回退到
+        // 数据库已保存凭据（而非仅环境变量），否则探测无凭据。
+        let config = AppConfig::default(); // 环境未配置 s3
+        let candidate: StorageTestRequest = serde_json::from_value(serde_json::json!({
+            "backend": "s3",
+            "endpoint": "http://127.0.0.1:1", // 端口 1 = 确定性连接拒绝，不依赖外网
+            "bucket": "bblbb"
+            // secret 留空：模拟页面提交已保存配置
+        }))
+        .unwrap();
+        let mut saved = StorageSettingsRow::default();
+        saved.storage_s3_access_key_id = "SAVEDKEY".to_string();
+        saved.storage_s3_secret_access_key = "SAVEDSECRET".to_string();
+        let result = run_storage_probe(&config, &candidate, Some(&saved)).await;
+        // 无真实服务 → 网络失败，但凭据必须已注入（不再是 CredentialsNotLoaded）。
+        assert!(!result.ok);
+        assert_eq!(result.backend, "s3");
+        assert!(
+            !result.detail.contains("no credentials"),
+            "空 secret 应回退已保存凭据：{detail}",
+            detail = result.detail
+        );
     }
 }

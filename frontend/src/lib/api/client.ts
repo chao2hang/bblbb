@@ -379,6 +379,28 @@ export async function createPost(
   });
 }
 
+export interface PostUpdateInput {
+  title?: string;
+  markdown?: string;
+  reason?: string;
+}
+
+/** PATCH /api/v1/posts/{id}：编辑更新帖子（支持作者与管理员）。 */
+export async function updatePost(
+  fetchFn: typeof fetch,
+  id: string,
+  input: PostUpdateInput,
+  expectedVersion: number
+): Promise<PostDetail> {
+  return request(fetchFn, `/posts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      'If-Match': String(expectedVersion),
+    },
+    body: JSON.stringify(input),
+  });
+}
+
 // ─── Drafts ────────────────────────────────────────────────────────────────
 
 export async function listDrafts(fetchFn: typeof fetch): Promise<PageResult<Draft>> {

@@ -13,6 +13,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast } from '$lib/ui/action-toast';
   import type { AdminPostItem } from '$lib/api/types';
   import type { AdminPostsActionData, AdminPostsPageData } from './+page.server';
 
@@ -87,6 +88,13 @@
 
   const message = $derived(form?.message ?? null);
   const conflict = $derived(form?.conflict === true);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   // 派生显示项：支持按状态与关键词过滤（Mock 兜底与服务端双重保障，P1-03）
   const displayedItems = $derived.by(() => {
@@ -176,10 +184,10 @@
 {:else if data.state === 'error'}
   <p class="input-hint is-error" role="alert">{data.error || adminStateLabel('error')}</p>
 {:else if data.state === 'ok'}
-  {#if message}
+  {#if message && !hasJs}
     <p class="input-hint {conflict ? 'is-error' : ''}" role="status">{message}</p>
   {/if}
-  {#if conflict}
+  {#if conflict && !hasJs}
     <p class="input-hint is-error" role="alert">帖子状态已变化，请刷新后重试。</p>
   {/if}
 
@@ -288,13 +296,13 @@
                   <td class="adm-acts">
                     {#if item.status === 'pending_review'}
                       <!-- 待审核：通过 / 驳回 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="approve" />
                         <input type="hidden" name="reason" value="审核通过" />
                         <button type="submit" class="btn primary sm">通过</button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="reject" />
                         <input type="hidden" name="reason" value="违规驳回" />
@@ -302,7 +310,7 @@
                       </form>
                     {:else if item.status === 'published'}
                       <!-- 公开：加精/取消精华 + 隐藏 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value={item.is_featured ? 'unfeature' : 'feature'} />
                         <input type="hidden" name="reason" value={item.is_featured ? '取消加精' : '设为精华'} />
@@ -310,7 +318,10 @@
                           {item.is_featured ? '取消精华' : '设为精华'}
                         </button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <a href="/editor?post_id={encodeURIComponent(item.id)}" class="btn ghost sm" style="text-decoration:none;">
+                        代改
+                      </a>
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="hide" />
                         <input type="hidden" name="reason" value="管理隐藏" />
@@ -318,13 +329,13 @@
                       </form>
                     {:else if item.status === 'hidden'}
                       <!-- 已隐藏：恢复 / 删除 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="restore" />
                         <input type="hidden" name="reason" value="恢复展示" />
                         <button type="submit" class="btn ghost sm">恢复</button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="delete" />
                         <input type="hidden" name="reason" value="彻底删除" />
@@ -332,7 +343,7 @@
                       </form>
                     {:else if item.status === 'deleted'}
                       <!-- 已删除：恢复 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="restore" />
                         <input type="hidden" name="reason" value="恢复展示" />
@@ -340,13 +351,13 @@
                       </form>
                     {:else}
                       <!-- 草稿或其他：通过 / 隐藏 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="approve" />
                         <input type="hidden" name="reason" value="审核通过" />
                         <button type="submit" class="btn primary sm">发布</button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="hide" />
                         <input type="hidden" name="reason" value="管理隐藏" />

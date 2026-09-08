@@ -202,10 +202,13 @@ export interface PostDetail {
   view_count?: number;
   created_at: number;
   updated_at: number;
+  version?: number;
   /** 锁帖时间（M04-POSTS-09 治理：closed_at 置位即锁帖，M04-UI-06 锁定横幅）。 */
   closed_at?: number | null;
   /** 未授权时缺失（undefined）；公开/已解锁时后端渲染的清洗 HTML。 */
   body_html?: string | null;
+  /** 编辑器反显所需的原文 Markdown（契约扩展字段，仅作者/管理员可见）。 */
+  markdown?: string | null;
 }
 
 /** 评论投影（GET /posts/{id}/comments）；契约目标：Comment + body_html +

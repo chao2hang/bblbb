@@ -85,6 +85,8 @@
 
   // ── 客户端态（SSR 阶段为空；hydration 后 onMount 拉取，渐进增强） ──
   let user = $state<User | null>(null);
+  const isAuthor = $derived(Boolean(user && post?.author?.username && user.username === post.author.username));
+  const canEdit = $derived(Boolean(user && (isAuthor || user.roles?.includes('admin') || user.roles?.includes('moderator') || user.roles?.includes('administrator'))));
   let comments = $state<Comment[]>([]);
   let commentsLoaded = $state(false);
   /** 本次会话内新增/删除的回复数（对服务端 reply_count 的增量修正）。 */
@@ -522,6 +524,16 @@
             {#if locked}
               <span class="sbadge sb-danger">已锁定</span>
             {/if}
+            {#if canEdit}
+              <a
+                href="/editor?post_id={encodeURIComponent(post.id)}"
+                class="btn ghost sm"
+                style="margin-left:auto;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:2px 10px;height:26px;font-size:12px;"
+              >
+                <Icon name="pen-line" size={13} />
+                <span>{isAuthor ? '编辑内容' : '管理代改'}</span>
+              </a>
+            {/if}
           </div>
 
           {#if post.body_html && post.access_summary?.unlocked !== false}
@@ -839,6 +851,15 @@
                 <Icon name="bookmark" size={14} />
                 <span>登录后可收藏 / 点赞</span>
               </a>
+            {/if}
+            {#if canEdit}
+              <Button
+                text={isAuthor ? '编辑' : '代改'}
+                variant="secondary"
+                size="sm"
+                icon="pen-line"
+                href={`/editor?post_id=${encodeURIComponent(post.id)}`}
+              />
             {/if}
             <Button text="分享" variant="ghost" size="sm" icon="share-2" onclick={copyShare} />
             <Button

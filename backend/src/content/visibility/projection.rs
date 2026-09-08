@@ -60,6 +60,7 @@ pub struct PostFields {
     pub view_count: i64,
     pub created_at: i64,
     pub updated_at: i64,
+    pub version: i64,
     pub pinned_at: Option<i64>,
     pub scheduled_at: Option<i64>,
     pub published_at: Option<i64>,
@@ -67,6 +68,7 @@ pub struct PostFields {
     pub closed_at: Option<i64>,
     // ── 敏感字段（仅解锁时输出）──
     pub body_html: Option<String>,
+    pub body_markdown: Option<String>,
     pub excerpt: Option<String>,
     pub attachments: Vec<AttachmentRef>,
     pub search_highlight: Option<String>,
@@ -116,6 +118,7 @@ pub fn project_post(fields: PostFields, grant: AccessGrant, _author_level: u32) 
     map.insert("view_count".into(), json!(fields.view_count));
     map.insert("created_at".into(), json!(fields.created_at));
     map.insert("updated_at".into(), json!(fields.updated_at));
+    map.insert("version".into(), json!(fields.version));
     insert_opt(&mut map, "pinned_at", fields.pinned_at);
     insert_opt(&mut map, "scheduled_at", fields.scheduled_at);
     insert_opt(&mut map, "published_at", fields.published_at);
@@ -125,6 +128,9 @@ pub fn project_post(fields: PostFields, grant: AccessGrant, _author_level: u32) 
     if grant.unlocked {
         if let Some(body) = fields.body_html {
             map.insert("body_html".into(), Value::String(body));
+        }
+        if let Some(md) = fields.body_markdown {
+            map.insert("markdown".into(), Value::String(md));
         }
         if let Some(excerpt) = fields.excerpt {
             map.insert("excerpt".into(), Value::String(excerpt));
