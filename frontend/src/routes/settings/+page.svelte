@@ -21,11 +21,17 @@
   import Card from '$lib/components/ui/Card.svelte';
   import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import { PROFILE_TEXT_LIMITS } from '$lib/profile';
   import { show } from '$lib/ui/toast';
   import { formatRelative } from '$lib/utils';
   import { readPreference, applyTheme, type ThemePreference } from '$lib/theme';
   import { applyThemeTokens, clearThemeTokens, type ActiveThemeView } from '$lib/theme/projection';
+  import {
+    getNotificationPreferences,
+    setNotificationPreference,
+    type NotificationPreference
+  } from '$lib/api/client';
   import type { OAuthGrantItem } from '$lib/api/types';
   import type { SettingsFormResult, SettingsPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
@@ -48,6 +54,49 @@
   let activeTab = $state('profile');
   let currentMode = $state<ThemePreference>('system');
   let activeThemeId = $state('default');
+
+  // ── 通知偏好（从 /notifications 迁移至设置页） ──
+  let prefs = $state<NotificationPreference[]>([]);
+  let prefsError = $state<string | null>(null);
+
+  const categoryLabels: Record<string, string> = {
+    reply: '回复',
+    reaction: '点赞',
+    activity: '互动',
+    moderation: '审核',
+    system: '系统',
+    security: '安全',
+    digest: '摘要'
+  };
+
+  const categoryDescriptions: Record<string, string> = {
+    activity: '他人的点赞、回复和提及',
+    moderation: '内容被审核处理与申诉结果',
+    system: '账号与站点运营相关提醒',
+    security: '登录与账号安全提醒',
+    digest: '周期性的动态摘要'
+  };
+
+  async function loadPrefs() {
+    try {
+      const result = await getNotificationPreferences(fetch);
+      prefs = result.items;
+      prefsError = null;
+    } catch {
+      prefsError = '偏好加载失败';
+    }
+  }
+
+  async function togglePref(p: NotificationPreference, key: 'email_enabled' | 'in_app_enabled' | 'push_enabled') {
+    const next = { ...p, [key]: !p[key] };
+    try {
+      await setNotificationPreference(fetch, next);
+      Object.assign(p, next);
+      prefsError = null;
+    } catch {
+      prefsError = '偏好保存失败（安全通知不可完全关闭）';
+    }
+  }
 
   // 社区主题风格（与官方预置包 v1.1 日/夜双模式一致：日间 6 色 +
   // 夜间 color.*.dark 变体；应用后随上方浅色/深色模式自动切换色板）。
@@ -183,12 +232,14 @@
       activeThemeId = domThemeName && domThemeName !== 'default' ? domThemeName : 'default';
     }
     const hash = window.location.hash.replace(/^#settings-/, '');
-    if (['profile', 'appearance', 'security', 'oauth', 'privacy'].includes(hash)) activeTab = hash;
+    if (['profile', 'appearance', 'security', 'oauth', 'privacy', 'notifications'].includes(hash)) activeTab = hash;
+    if (activeTab === 'notifications') loadPrefs();
   });
 
   function selectTab(tab: string): void {
     activeTab = tab;
     if (typeof window !== 'undefined') window.history.replaceState(null, '', `#settings-${tab}`);
+    if (tab === 'notifications' && prefs.length === 0) loadPrefs();
   }
 
   function setDisplayMode(mode: ThemePreference) {
@@ -248,7 +299,7 @@
       <button type="button" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}><span aria-hidden="true">◐</span>外观与主题</button>
       <button type="button" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}><span aria-hidden="true">◇</span>账号安全</button>
       <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
-      <a href="/notifications"><span aria-hidden="true">◌</span>通知设置</a>
+      <button type="button" class:is-active={activeTab === 'notifications'} onclick={() => selectTab('notifications')}><span aria-hidden="true">◌</span>通知设置</button>
       <button type="button" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}><span aria-hidden="true">⌁</span>OAuth 授权</button>
       <a href="/settings/privacy"><span aria-hidden="true">□</span>隐私设置</a>
     </nav>
@@ -559,6 +610,61 @@
           </div>
         </form>
 
+        <!-- 通知偏好：类别 × 渠道矩阵（从 /notifications 迁入设置页）。
+             桌面三列对齐（列头承载渠道名），移动端隐藏列头、渠道标签随行内显示。 -->
+        <section
+          class="card settings-panel settings-panel-notifications"
+          class:is-active={activeTab === 'notifications'}
+          aria-label="通知设置"
+        >
+          <div class="card-header">
+            <div class="np-head-copy">
+              <span class="card-title">通知偏好</span>
+              <span class="np-subtitle">选择每类通知的接收渠道</span>
+            </div>
+          </div>
+          <div class="np-body">
+            {#if prefsError}<p class="form-error" role="alert">{prefsError}</p>{/if}
+            <div class="np-matrix">
+              <div class="np-row np-row-head" aria-hidden="true">
+                <span class="np-cat-head">类别</span>
+                <div class="np-channels">
+                  <span class="np-cell np-cell-head">邮件</span>
+                  <span class="np-cell np-cell-head">站内</span>
+                  <span class="np-cell np-cell-head">推送</span>
+                </div>
+              </div>
+              {#each prefs as p}
+                {@const label = categoryLabels[p.category] ?? p.category}
+                <div class="np-row" role="group" aria-label={`${label} 通知偏好`}>
+                  <div class="np-cat">
+                    <span class="np-cat-name">{label}</span>
+                    <span class="np-cat-desc">{categoryDescriptions[p.category] ?? ''}</span>
+                  </div>
+                  <div class="np-channels">
+                    <label class="np-cell">
+                      <input class="np-check" type="checkbox" checked={p.email_enabled} onchange={() => togglePref(p, 'email_enabled')} />
+                      <span class="np-cell-label">邮件</span>
+                    </label>
+                    <label class="np-cell">
+                      <input class="np-check" type="checkbox" checked={p.in_app_enabled} onchange={() => togglePref(p, 'in_app_enabled')} />
+                      <span class="np-cell-label">站内</span>
+                    </label>
+                    <label class="np-cell">
+                      <input class="np-check" type="checkbox" checked={p.push_enabled} onchange={() => togglePref(p, 'push_enabled')} />
+                      <span class="np-cell-label">推送</span>
+                    </label>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+          <div class="np-foot">
+            <Icon name="shield" size={13} />
+            <span>安全通知至少保留一个接收渠道</span>
+          </div>
+        </section>
+
         <!-- GAP-FIX OAuth 授权应用：GET /me/oauth-grants + 每行撤销
              （DangerConfirm 确认后提交隐藏表单）。TODO(BE-2)：后端端点尚未
              注册，当前列表恒空（空态说明）；落地后自动显示真实授权。 -->
@@ -673,3 +779,167 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* ---- 通知偏好矩阵（从 /notifications 迁入） ---- */
+  .np-head-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .np-subtitle {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .np-body {
+    padding: 0;
+  }
+
+  .np-body .form-error {
+    margin: var(--space-4) var(--space-5) 0;
+  }
+
+  .np-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) repeat(3, 64px);
+    align-items: center;
+    gap: var(--space-3);
+    margin-inline: calc(-1 * var(--space-5));
+    padding: var(--space-3) var(--space-5);
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .np-row-head {
+    padding-block: var(--space-2);
+  }
+
+  .np-row:not(.np-row-head) {
+    border-top: var(--border-thin);
+  }
+
+  .np-row:not(.np-row-head):hover,
+  .np-row:not(.np-row-head):focus-within {
+    background: var(--color-bg-subtle);
+  }
+
+  .np-channels {
+    display: contents;
+  }
+
+  .np-cell {
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+
+  .np-cat-head,
+  .np-cell-head {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--color-text-tertiary);
+    letter-spacing: 0.04em;
+  }
+
+  .np-cell-head {
+    text-align: center;
+  }
+
+  .np-cat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .np-cat-name {
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--color-text-primary);
+  }
+
+  .np-cat-desc {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .np-check {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--color-brand);
+    cursor: pointer;
+  }
+
+  .np-check:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+
+  .np-cell-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .np-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    border-top: var(--border-default);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  @media (max-width: 640px) {
+    .np-row-head {
+      display: none;
+    }
+
+    .np-row:not(.np-row-head) {
+      grid-template-columns: 1fr;
+      align-items: start;
+      padding-block: var(--space-4);
+    }
+
+    .np-channels {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-5);
+    }
+
+    .np-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .np-cell-label {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0;
+      overflow: visible;
+      clip: auto;
+      clip-path: none;
+      white-space: normal;
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .np-row {
+      transition: none;
+    }
+  }
+</style>

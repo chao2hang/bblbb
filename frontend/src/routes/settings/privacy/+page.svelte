@@ -36,7 +36,7 @@
       <a href="/settings"><span aria-hidden="true">◈</span>个人资料</a>
       <a href="/settings#settings-security"><span aria-hidden="true">◇</span>账号安全</a>
       <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
-      <a href="/notifications"><span aria-hidden="true">◌</span>通知设置</a>
+      <a href="/settings#settings-notifications"><span aria-hidden="true">◌</span>通知设置</a>
       <a href="/settings#settings-oauth"><span aria-hidden="true">⌁</span>OAuth 授权</a>
       <a href="/settings/privacy" class="is-active"><span aria-hidden="true">□</span>隐私设置</a>
     </nav>

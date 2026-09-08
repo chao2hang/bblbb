@@ -174,7 +174,7 @@
     <div class="app-toolbar" style="margin-top:14px;margin-bottom:0;" role="navigation" aria-label="快捷导航">
       <Button text="两步验证" variant="secondary" size="sm" icon="shield" href="/mfa" />
       <Button text="登录设备" variant="secondary" size="sm" icon="smartphone" href="#sessions" />
-      <Button text="通知设置" variant="secondary" size="sm" icon="bell" href="/notifications" />
+      <Button text="通知设置" variant="secondary" size="sm" icon="bell" href="/settings#settings-notifications" />
       <Button text="OAuth 授权" variant="secondary" size="sm" icon="key" href="/settings#settings-oauth" />
     </div>
 

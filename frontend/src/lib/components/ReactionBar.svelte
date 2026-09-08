@@ -2,7 +2,7 @@
   - 点击已激活反应 = 撤销（DELETE），未激活 = 添加（POST，body 含 reaction）。
   - 429 限流：显示 Retry-After 秒数并禁用按钮（冷却倒计时）。
   - 403 目标权限错误 / 401 未登录：分别给出指引。
-  - 通知偏好：提示反应可能通知作者（可在 /notifications 偏好中关闭）。
+  - 通知偏好：提示反应可能通知作者（可在 /settings#settings-notifications 偏好中关闭）。
   - 键盘：原生 <button>（Enter/Space 激活）。
 -->
 <script lang="ts">
@@ -15,7 +15,7 @@
     reactions = [],
     authed = true,
     fetchFn = fetch,
-    notificationUrl = '/notifications'
+    notificationUrl = '/settings#settings-notifications'
   }: {
     targetType: 'post' | 'comment';
     targetId: string;
