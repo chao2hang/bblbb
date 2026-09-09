@@ -7,6 +7,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast, toastActionResult } from '$lib/ui/action-toast';
   import {
     THEME_TOKEN_KEYS,
     applyThemeTokens,
@@ -24,6 +25,13 @@
   const pageState = $derived(data.state);
   const rawThemes = $derived(data.themes ?? []);
   const conflict = $derived(form?.conflict === true);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   // 官方高质量预置主题包（收录原版官方默认配色与各风格主题）。
   // 全部 6 个官方包均为**日/夜双模式**：日间 6 色 + 夜间 6 色（color.*.dark
@@ -411,7 +419,7 @@
     </div>
   {/if}
 
-  {#if form?.message && !conflict}
+  {#if form?.message && !conflict && !hasJs}
     <div class="app-success" role="status" style="margin-bottom:14px;padding:10px 14px;background:var(--color-success-soft);border-radius:var(--radius-md);border-left:3px solid var(--color-success);font-size:13px;">
       {form.message}
     </div>
@@ -657,7 +665,7 @@
               {#if installed}
                 <span class="sbadge sb-success" style="font-size:11px;">已安装</span>
               {:else}
-                <form method="POST" action="?/upload" use:enhance>
+                <form method="POST" action="?/upload" use:enhance={withActionToast()}>
                   <input type="hidden" name="name" value={preset.name} />
                   <input type="hidden" name="display_name" value={preset.display_name} />
                   <input type="hidden" name="tokens_json" value={JSON.stringify(preset.tokens)} />
@@ -682,7 +690,7 @@
     </summary>
     <div class="app-card__body" style="padding-top:14px;">
       <h3 style="font-size:14px;margin-bottom:8px;">上传自定义数据型主题</h3>
-      <form method="POST" action="?/upload" use:enhance class="stack" style="gap:12px;max-width:600px;">
+      <form method="POST" action="?/upload" use:enhance={withActionToast()} class="stack" style="gap:12px;max-width:600px;">
         <label>
           <span class="field-label">主题代号（name）</span>
           <input type="text" name="name" class="input-field" placeholder="例如：my-dark-theme（仅限小写字母/数字/连字符）" pattern="[a-z0-9-]{'{'}1,64{'}'}" required />
@@ -708,7 +716,7 @@
       {#each rawThemes as t (t.name)}
         <div style="margin-top:14px;padding:12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);">
           <strong style="font-size:13px;">{t.display_name} (/{t.name}) — revision v{t.revision}</strong>
-          <form method="POST" action="?/save-settings" use:enhance class="stack" style="gap:10px;margin-top:8px;">
+          <form method="POST" action="?/save-settings" use:enhance={withActionToast()} class="stack" style="gap:10px;margin-top:8px;">
             <input type="hidden" name="name" value={t.name} />
             <input type="hidden" name="revision" value={t.revision} />
             <textarea name="tokens" class="input-field" rows="4">{tokensJson(t.tokens)}</textarea>
@@ -854,7 +862,7 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
         </div>
       </header>
 
-      <form method="POST" action="?/save-settings" use:enhance class="app-card__body" style="display:flex;flex-direction:column;gap:14px;">
+      <form method="POST" action="?/save-settings" use:enhance={withActionToast()} class="app-card__body" style="display:flex;flex-direction:column;gap:14px;">
         <input type="hidden" name="name" value={editTheme.name} />
         <input type="hidden" name="revision" value={editTheme.revision} />
 
@@ -1063,6 +1071,9 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
         use:enhance={() => {
           const target = setDefaultTheme;
           return async ({ result, update }) => {
+            // 动作结果 → 全局 Toast（成功服务端文案“主题 x 已设为站点默认并激活”/ 失败红）；
+            // 顶部横幅为无 JS 回退，失败提示同样靠 Toast，避免结果不可见。
+            toastActionResult(result);
             await update();
             if (result.type === 'success' && target) {
               setDefaultTheme = null;
@@ -1071,7 +1082,6 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
               } else {
                 clearThemeTokens();
               }
-              showToast(`已成功将「${target.display_name}」设为站点默认并应用`, 'success');
             }
           };
         }}
@@ -1109,7 +1119,7 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
       <header class="app-card__head">
         <h2 id="delete-title" class="danger-heading">删除主题确认</h2>
       </header>
-      <form method="POST" action="?/delete" use:enhance class="app-card__body stack" style="gap:12px;">
+      <form method="POST" action="?/delete" use:enhance={withActionToast()} class="app-card__body stack" style="gap:12px;">
         <input type="hidden" name="name" value={deleteTargetTheme.name} />
         <p style="font-size:13px;line-height:1.5;margin:0;">
           确定要彻底删除主题<strong>「{deleteTargetTheme.display_name}」</strong>（<code>/{deleteTargetTheme.name}</code>）吗？此操作不可逆，所有使用该主题的设置将被清理。

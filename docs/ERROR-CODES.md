@@ -49,6 +49,7 @@
 | `presentation_slot_conflict` | 409 | 装备版本或槽位冲突 | 重新读取衣柜 |
 | `activity_already_claimed` | 409 | 当日自动签到/任务已领取 | 刷新活动摘要；页面访问无需报错或重试 |
 | `activity_not_eligible` | 409 | 未达到任务条件或命中风控 | 展示安全原因 |
+| `self_reaction` | 400 | 反应目标为自己发布的内容（M07-REACTIONS 自赞排除） | 展示「不能对自己发布的内容表态」，不重试 |
 | `download_url_unavailable` | 503 | 已有授权但暂时无法签发 URL | 查询授权，不重复扣费 |
 | `ai_consent_required` | 403 | AI 数据发送缺少独立同意 | 展示同意页 |
 | `ai_budget_exceeded` | 409 | Provider/用途/用户预算超出 | 等待周期或改用人工 |

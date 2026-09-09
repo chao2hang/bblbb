@@ -14,6 +14,7 @@
     type Attachment
   } from '$lib/api/client';
   import { formatBytes } from './formatBytes';
+  import Icon from '$lib/components/ui/Icon.svelte';
 
   let {
     fetchFn = fetch,
@@ -130,7 +131,7 @@
               onerror={refreshPreview}
             />
           {:else}
-            <span class="picker-thumb picker-thumb-file" aria-hidden="true">📄</span>
+            <span class="picker-thumb picker-thumb-file" aria-hidden="true"><Icon name="file-text" size={20} /></span>
           {/if}
           <span class="picker-meta">
             <span class="picker-name">{attachment.original_name ?? '附件'}</span>

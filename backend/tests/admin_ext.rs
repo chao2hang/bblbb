@@ -989,13 +989,25 @@ async fn admin_settings_oauth_configuration_and_masking() {
     assert_eq!(status, StatusCode::OK, "PATCH OAuth 配置必须 200: {body}");
     let s = &body["settings"];
     assert!(s["google_auth_enabled"].as_bool().unwrap());
-    assert_eq!(s["google_client_id"].as_str().unwrap(), "google-client-id-123");
+    assert_eq!(
+        s["google_client_id"].as_str().unwrap(),
+        "google-client-id-123"
+    );
     assert!(s["google_client_secret_configured"].as_bool().unwrap());
-    assert!(s.get("google_client_secret").is_none(), "PATCH 返回绝不泄露 Secret");
+    assert!(
+        s.get("google_client_secret").is_none(),
+        "PATCH 返回绝不泄露 Secret"
+    );
     assert!(s["github_auth_enabled"].as_bool().unwrap());
-    assert_eq!(s["github_client_id"].as_str().unwrap(), "github-client-id-789");
+    assert_eq!(
+        s["github_client_id"].as_str().unwrap(),
+        "github-client-id-789"
+    );
     assert!(s["github_client_secret_configured"].as_bool().unwrap());
-    assert!(s.get("github_client_secret").is_none(), "PATCH 返回绝不泄露 Secret");
+    assert!(
+        s.get("github_client_secret").is_none(),
+        "PATCH 返回绝不泄露 Secret"
+    );
 
     // 3) 再次 PATCH 其它字段（缺 secret 字段）→ 原 Secret 保留，不被清空
     let (status, body) = authed(

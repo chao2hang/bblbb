@@ -3,132 +3,25 @@
    成熟 · 克制 · 高密度 · 去 AI 味
    ============================================================ */
 
-/* ========== 色彩 Token ========== */
+/* ========== 色彩 Token（已迁移） ==========
+   本层原来在 tokens.css 之后重新声明了一整套暖米色/青石蓝色板，
+   于是 tokens.css 的默认主题色永远不会生效（同优先级，后者胜）。
+   「冷墨」默认主题启用后，颜色 Token 的唯一来源是 tokens.css
+   （日间 :root / 夜间 html.dark / 系统跟随分支），本层不再声明任何颜色，
+   只保留其组件几何与版式规则。
+
+   仍需保留的两个桥接变量在下方：本层的组件规则引用它们，而 tokens.css
+   使用 html.dark 而非 html[data-theme="dark"] 作为夜间选择器。
+   ========================================== */
 :root {
-  /* 黑白灰主色系（浅色：暖米纸底色，降低纯白眩光，贴合宣纸质感） */
-  --color-bg-page: #F5F3EE;
-  --color-bg-card: #FBFAF7;
-  --color-bg-subtle: #EFEDE6;
-  --color-bg-hover: #E9E6DE;
-  
-  --color-text-primary: #1F1D1A;
-  --color-text-secondary: #6B6B6B;
-  --color-text-tertiary: #9E9E9E;
-  
-  --color-border: #E4E1D7;
-  --color-border-strong: #D2CDBF;
-  --color-border-dark: #BDB7A6;
-  
-  /* 品牌色：青石蓝（极克制使用） */
-  --color-brand: #5A6C7D;
-  --color-brand-hover: #4A5C6D;
-  --color-brand-pressed: #3A4C5D;
-  --color-brand-soft: #E8EAED;
-  
-  /* 功能色：去彩色，用灰度 + 文字表达 */
-  --color-warning: #8B4513;      /* 赭石棕 */
-  --color-warning-soft: #F5F0E8;
-  --color-danger: #2C2C2C;       /* 深灰替代红色 */
-  --color-danger-soft: #F0F0F0;
-  --color-success: #4A5C4D;      /* 墨绿 */
-  --color-success-soft: #E8F0E8;
-  
-  --color-code-bg: #EFEDE6;
-  --color-focus-ring: rgba(90, 108, 125, 0.4);
-  
-  /* 字体 */
-  --font-family-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
-  --font-family-base: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", sans-serif;
-  --font-family-mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
-  
-  /* 圆角：直角为主 */
+  /* 本层组件规则引用、tokens.css 未定义的几何桥接变量 */
   --radius-none: 0;
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-full: 2px;  /* 不用圆形 */
-  /* ---- 前端独有 token 桥接（前端组件引用、原型未定义） ---- */
-  --color-surface-hover: #E9E6DE;
-  --color-surface-selected: #E8EAED;
-  --color-bg-inset: #EFEDE6;
-  --color-border-muted: #EAE7DE;
-  --color-accent: #4A5C4D;
-  --color-accent-soft: #E8F0E8;
-  --color-ink: #1F1D1A;
-  --color-overlay: rgba(31, 29, 26, 0.5);
-  --color-text-on-brand: #FFFFFF;
-  --color-text-on-solid: #FFFFFF;
-  --color-text-on-warning: #FFFFFF;
-  --color-visited: #6B6B6B;
-  --color-highlight-soft: #F5F0E8;
-  --border-input: 1px solid var(--color-border-strong);
-  --radius-xl: 2px;
-  --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-pop: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-header: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --container-max: 1420px;
-
-  
-  /* 边框 */
-  --border-thin: 0.5px solid var(--color-border);
-  --border-default: 1px solid var(--color-border);
-  --border-strong: 1px solid var(--color-border-strong);
-  
-  /* 阴影：极简 */
-  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-dropdown: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-modal: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --color-bg-hover: var(--color-surface-hover);
+  --color-border-dark: var(--color-border-strong);
+  --shadow-subtle: var(--shadow-control);
+  --shadow-dropdown: var(--shadow-pop);
   --shadow-none: none;
-}
-
-html[data-theme="dark"] {
-  --color-bg-page: #0D0D0D;
-  --color-bg-card: #1A1A1A;
-  --color-bg-subtle: #252525;
-  --color-bg-hover: #2C2C2C;
-  
-  --color-text-primary: #EBEBEB;
-  --color-text-secondary: #A3A3A3;
-  --color-text-tertiary: #6B6B6B;
-  
-  --color-border: #2C2C2C;
-  --color-border-strong: #3A3A3A;
-  --color-border-dark: #4A4A4A;
-  
-  --color-brand: #7A8C9D;
-  --color-brand-hover: #8A9CAD;
-  --color-brand-pressed: #6A7C8D;
-  --color-brand-soft: #252A2E;
-  
-  --color-warning: #A0682A;
-  --color-warning-soft: #2A2520;
-  --color-danger: #D0D0D0;
-  --color-danger-soft: #252525;
-  --color-success: #6A7C6D;
-  --color-success-soft: #202520;
-  
-  --color-code-bg: #1F1F1F;
-  --color-focus-ring: rgba(122, 140, 157, 0.5);
-  
-  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-dropdown: 0 1px 4px rgba(0, 0, 0, 0.3);
-  --shadow-modal: 0 2px 8px rgba(0, 0, 0, 0.4);
-  /* ---- 前端独有 token 桥接（暗色） ---- */
-  --color-surface-hover: #2C2C2C;
-  --color-surface-selected: #252A2E;
-  --color-bg-inset: #252525;
-  --color-border-muted: #3A3A3A;
-  --color-accent: #6A7C6D;
-  --color-accent-soft: #202520;
-  --color-ink: #EBEBEB;
-  --color-overlay: rgba(0, 0, 0, 0.7);
-  --color-visited: #A3A3A3;
-  --color-highlight-soft: #2A2520;
-  --border-input: 1px solid var(--color-border-strong);
-  --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-pop: 0 1px 4px rgba(0, 0, 0, 0.3);
-  --shadow-header: none;
-
+  --container-max: 1420px;
 }
 
 /* ========== 全局重置 ========== */
@@ -3574,7 +3467,7 @@ body:has(#page-login:not([hidden])) {
   .topic-restricted { margin-top: 20px !important; padding: 18px !important; }
   .topic-reaction-area { margin-top: 16px !important; padding-top: 16px !important; }
   .topic-reaction-area .reaction-bar { display: block !important; width: 100% !important; }
-  .topic-reaction-area .reaction-items { width: 100% !important; }
+  .topic-reaction-area .rx-pills { width: 100% !important; }
   .topic-reaction-area .topic-actions { margin-top: 8px !important; gap: 8px !important; }
   .topic-comments { margin-top: 14px !important; border-left: 0 !important; border-right: 0 !important; }
   .topic-comments__head { padding: 14px 14px 0 !important; }
@@ -3601,13 +3494,14 @@ body:has(#page-login:not([hidden])) {
   #page-admin .app-admin-shell.admin-menu-open .app-admin-side { z-index:20; }
 }
 
-/* 后台管理全局容器放宽：突破 1180px 限制，宽屏下扩宽至 1560px，设置详情不再展示不全 */
+/* 后台管理全局容器拉满视口宽度（云控制台惯例）：宽屏下内容区从侧边栏一直铺到
+   视口右侧标准留白，避免居中 1560px 造成的左右大块死区与「左右不规范」观感 */
 .app-admin-page-shell,
 #page-admin,
 .container.app-admin-page-shell,
 .page-wrapper > main > .container.app-admin-page-shell {
-  width: min(1560px, calc(100% - 48px)) !important;
-  max-width: 1560px !important;
+  width: 100% !important;
+  max-width: none !important;
 }
 
 @media (min-width: 992px) {

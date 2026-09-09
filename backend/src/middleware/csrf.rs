@@ -22,7 +22,6 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use axum_extra::extract::CookieJar;
-use chrono::Utc;
 use sqlx::Either;
 
 use crate::{
@@ -365,7 +364,12 @@ async fn resolve_csrf_secret(
     token: &str,
 ) -> Result<Option<(String, String)>, sqlx::Error> {
     let token_hash = hash_token(token);
-    let now = Utc::now().timestamp();
+    // 与 resolve_session / create_session 一致：时间戳为**毫秒**
+    // （create_session 以 now_millis()+IDLE_TIMEOUT_MS 写入 idle_expires_at）。
+    // 此前误用秒级 Utc::now().timestamp()，导致 idle/absolute 已过期的会话
+    // 在此处仍判有效——/auth/csrf 已返回预认证 token，而本中间件仍期望
+    // 会话派生 token，过期会话的写请求全部 403 csrf_failed（且重试无效）。
+    let now = crate::outbox::now_millis();
 
     let row: Option<SessionCsrfRow> = match pool {
         Either::Left(p) => {

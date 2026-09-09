@@ -35,7 +35,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/v1/comments/{id}/reactions",
-            post(create_comment_reaction),
+            post(create_comment_reaction).get(get_comment_reactions),
         )
         .route(
             "/api/v1/comments/{id}/reactions/{reaction}",
@@ -300,11 +300,30 @@ fn private_no_store(resp: Response) -> Response {
     resp
 }
 
+/// GET /api/v1/comments/{id}/reactions — 获取评论收到的表情与用户明细
+async fn get_comment_reactions(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_comment_reactions";
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let viewer_id = auth.user.as_ref().map(|u| u.id.as_str());
+    let detail = crate::reactions::service::get_reactions_detail(pool, "comment", &id, viewer_id)
+        .await
+        .map_err(|e| map_reaction_error(e, request_id))?;
+    Ok(Json(detail))
+}
+
 /// POST /api/v1/comments/{id}/reactions — 创建评论反应（M07-SHOP-08）
 async fn create_comment_reaction(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
+    payload: Option<Json<crate::routes::posts::ReactionPayload>>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "create_comment_reaction";
     let user = auth.require_auth(request_id)?;
@@ -312,11 +331,25 @@ async fn create_comment_reaction(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    let reaction = "like";
-    let summary =
-        crate::reactions::service::add_reaction(pool, &user.id, "comment", &id, reaction, false)
+    let reaction = payload
+        .map(|Json(p)| p.reaction)
+        .unwrap_or_else(|| "like".to_string());
+    let summary = match crate::reactions::service::add_reaction(
+        pool, &user.id, "comment", &id, &reaction, false,
+    )
+    .await
+    {
+        Ok(summary) => summary,
+        Err(crate::reactions::ReactionError::AlreadyExists) => {
+            return crate::reactions::service::remove_reaction(
+                pool, &user.id, "comment", &id, &reaction,
+            )
             .await
-            .map_err(|e| map_reaction_error(e, request_id))?;
+            .map(Json)
+            .map_err(|e| map_reaction_error(e, request_id));
+        }
+        Err(e) => return Err(map_reaction_error(e, request_id)),
+    };
     // 成就钩子（best-effort）：reaction_received 类成就按**评论作者**判定
     // （被赞方）；失败只 warn 不阻断反应本身。
     let author: Option<String> = match pool {
@@ -366,7 +399,14 @@ fn map_reaction_error(e: crate::reactions::ReactionError, request_id: &str) -> A
         ReactionError::Invalid(m) => AppError::bad_request(m, request_id, None),
         ReactionError::Forbidden(m) => AppError::forbidden(m, request_id),
         ReactionError::SelfReaction => {
-            AppError::bad_request("cannot react to own content", request_id, None)
+            // 稳定码 self_reaction（400）：前端映射为「不能对自己发布的内容表态」。
+            AppError::with_code(
+                StatusCode::BAD_REQUEST,
+                "self_reaction",
+                "Self Reaction",
+                "cannot react to own content",
+                request_id,
+            )
         }
         ReactionError::RateLimited { retry_after_ms } => AppError::rate_limited(
             "too many reactions",

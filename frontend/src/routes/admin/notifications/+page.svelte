@@ -5,6 +5,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast, toastActionResult } from '$lib/ui/action-toast';
   import type { AdminNotificationsPageData, AdminNotificationsActionData } from './+page.server';
 
   let { data, form }: { data: AdminNotificationsPageData; form?: AdminNotificationsActionData | null } = $props();
@@ -40,6 +41,13 @@
   let broadcastContent = $state('');
   let broadcastTarget = $state('all');
   let sending = $state(false);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   const displayedTemplates = $derived.by(() => {
     let list = templatesList;
@@ -85,7 +93,7 @@
 
 <PageHeader title="通知与邮件" />
 
-{#if form?.message}
+{#if form?.message && !hasJs}
   <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
     {form.message}
   </div>
@@ -215,14 +223,14 @@
         sending = true;
         return async ({ result, update }) => {
           sending = false;
+          // 动作结果 → 全局 Toast（成功“已发送给 N 位成员”/ 失败服务端文案）；
+          // 顶部横幅为无 JS 回退，JS 模式下失败也靠 Toast 提示，避免结果不可见。
+          toastActionResult(result);
           if (result.type === 'success') {
-            showToast('全员广播已发送', 'success');
             broadcastTitle = '';
             broadcastContent = '';
-            await update();
-          } else {
-            await update();
           }
+          await update();
         };
       }}
       class="stack"
@@ -282,7 +290,7 @@
     <div style="font-size:13px;color:var(--color-text-primary);">
       <b>{data.queue?.failed ?? 0}</b> 条待重试 · 发件箱待发队列：<b>{data.queue?.outbox_count ?? 0}</b> 条 · 投递模式：<code>{data.queue?.mode ?? 'inline/outbox'}</code>
     </div>
-    <form method="POST" action="?/retry" use:enhance style="margin:0;">
+    <form method="POST" action="?/retry" use:enhance={withActionToast()} style="margin:0;">
       <input type="hidden" name="reason" value="管理员手动重试失败队列" />
       <button
         type="button"
@@ -344,7 +352,7 @@
                 </td>
                 <td>
                   {#if !b.recalled}
-                    <form method="POST" action="?/recall" use:enhance style="margin:0;">
+                    <form method="POST" action="?/recall" use:enhance={withActionToast()} style="margin:0;">
                       <input type="hidden" name="id" value={b.id} />
                       <input type="hidden" name="reason" value="管理员在后台手动撤回广播通知" />
                       <button type="submit" class="btn sm danger">撤回</button>

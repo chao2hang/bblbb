@@ -1565,9 +1565,7 @@ mod tests {
             assert!(validate_tokens(&json!({ key: "red" })).is_err());
             assert!(validate_tokens(&json!({ key: "#zzz" })).is_err());
             assert!(validate_tokens(&json!({ key: "#fff; position: fixed" })).is_err());
-            assert!(
-                validate_tokens(&json!({ key: "url(https://evil.example/x.png)" })).is_err()
-            );
+            assert!(validate_tokens(&json!({ key: "url(https://evil.example/x.png)" })).is_err());
             assert!(validate_tokens(&json!({ key: "<svg onload=alert(1)>" })).is_err());
         }
         // 未知变体 key 仍然拒绝（封闭 schema 不因 .dark 放宽）

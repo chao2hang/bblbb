@@ -34,8 +34,10 @@ async fn get_public_site(State(state): State<AppState>) -> Result<Response, AppE
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     let row = load_site_settings(pool, request_id).await?;
-    let google_login_enabled = row.google_auth_enabled != 0 && !row.google_client_id.trim().is_empty();
-    let github_login_enabled = row.github_auth_enabled != 0 && !row.github_client_id.trim().is_empty();
+    let google_login_enabled =
+        row.google_auth_enabled != 0 && !row.google_client_id.trim().is_empty();
+    let github_login_enabled =
+        row.github_auth_enabled != 0 && !row.github_client_id.trim().is_empty();
     let mut response = Json(json!({
         "site_name": row.site_name,
         "site_description": row.site_description,

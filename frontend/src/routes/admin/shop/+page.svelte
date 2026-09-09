@@ -9,6 +9,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast, toastActionResult } from '$lib/ui/action-toast';
   import type { ShopProduct, ShopOrder } from '$lib/api/types';
   import type { AdminShopActionData, AdminShopPageData } from './+page.server';
 
@@ -35,6 +36,13 @@
   const fieldErrors = $derived(form?.fieldErrors ?? {});
 
   let creating = $state(false);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   /** 展开的编辑表单（product id）。 */
   let editing = $state<string | null>(null);
@@ -65,7 +73,7 @@
 
 <div class="container page-content">
 
-  {#if message}
+  {#if message && !hasJs}
     <p class="input-hint is-error" role="alert">{message}</p>
   {/if}
 
@@ -97,11 +105,9 @@
           return async ({ result, update }) => {
             creating = false;
             await update();
-            if (result.type === 'success') {
-              showToast((result.data as any)?.message ?? '商品已创建', 'success');
-            } else if (result.type === 'failure') {
-              showToast((result.data as any)?.message ?? '创建失败，请检查表单字段', 'danger');
-            }
+            // 动作结果 → 全局 Toast（成功“商品「x」已创建”/ 失败服务端文案）；
+            // 字段级错误仍以表内 fieldErrors 提示为主。顶部横幅为无 JS 回退。
+            toastActionResult(result);
           };
         }}
       >
@@ -225,13 +231,13 @@
                 </div>
                 <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
                   {#if p.status !== 'published'}
-                    <form method="POST" action="?/publish" use:enhance>
+                    <form method="POST" action="?/publish" use:enhance={withActionToast()}>
                       <input type="hidden" name="id" value={p.id} />
                       <Button text="发布" variant="secondary" size="sm" type="submit" />
                     </form>
                   {/if}
                   {#if p.status === 'published'}
-                    <form method="POST" action="?/disable" use:enhance style="display:flex;gap:var(--space-2);align-items:center;">
+                    <form method="POST" action="?/disable" use:enhance={withActionToast()} style="display:flex;gap:var(--space-2);align-items:center;">
                       <input type="hidden" name="id" value={p.id} />
                       <input name="reason" class="input-field" style="width:150px;" required placeholder="停售原因" aria-label="停售原因" />
                       <Button text="停售" variant="ghost" size="sm" type="submit" />
@@ -241,7 +247,7 @@
                 </div>
               </div>
               {#if editing === p.id}
-                <form method="POST" action="?/update" use:enhance style="margin-top:var(--space-3);">
+                <form method="POST" action="?/update" use:enhance={withActionToast()} style="margin-top:var(--space-3);">
                   <input type="hidden" name="id" value={p.id} />
                   <input type="hidden" name="version" value={p.version} />
                   <div class="admin-form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-2);">
@@ -315,7 +321,7 @@
                   </p>
                 </div>
                 {#if o.status === 'succeeded'}
-                  <form method="POST" action="?/refund" use:enhance style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
+                  <form method="POST" action="?/refund" use:enhance={withActionToast()} style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
                     <input type="hidden" name="id" value={o.id} />
                     <input name="amount" type="number" min="0" class="input-field" style="width:110px;" placeholder="全额/空" aria-label="退款金额（空=全额）" />
                     <input name="reason" class="input-field" style="width:180px;" required placeholder="退款原因（必填）" aria-label="退款原因" />

@@ -6,4 +6,4 @@
 
 pub mod service;
 
-pub use service::{add_reaction, remove_reaction, summarize, ReactionError};
+pub use service::{add_reaction, get_reactions_detail, remove_reaction, summarize, ReactionError};

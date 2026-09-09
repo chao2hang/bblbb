@@ -158,7 +158,11 @@
                   </div>
                   {#if item.body}<div class="text-secondary" style="font-size:var(--text-sm);margin-top:2px;">{item.body}</div>{/if}
                 </a>
-                {#if !item.is_read}
+              {/if}
+              <!-- 右侧操作区：「标为已读」与时间同行顶对齐（对齐标题行/图标中心），
+                   避免按钮悬在时间上方造成的错位。 -->
+              <div style="display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;padding-top:4px;">
+                {#if !item.unavailable && !item.is_read}
                   <button
                     type="button"
                     class="btn btn-secondary btn-sm"
@@ -166,10 +170,10 @@
                     data-testid={`read-${item.id}`}
                   >标为已读</button>
                 {/if}
-              {/if}
-              <span class="text-tertiary" style="font-size:var(--text-xs);white-space:nowrap;align-self:center;">
-                {formatRelative(item.created_at)}
-              </span>
+                <span class="text-tertiary" style="font-size:var(--text-xs);white-space:nowrap;">
+                  {formatRelative(item.created_at)}
+                </span>
+              </div>
             </div>
           {/each}
         </div>

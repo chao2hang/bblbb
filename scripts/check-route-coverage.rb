@@ -44,6 +44,9 @@ DOCUMENTED_NON_CONTRACT = {
   # 站点公开信息（全站文案统一，0065）：登录/注册页等前台文案的匿名只读
   # 投影，供第一方 SSR 使用；非冻结契约端点，记录于 docs/API.md §2。
   "site" => %w[GET],
+  # 互动表情收表情与明细列表（参考 Discourse 式右侧发表情、左侧收表情与弹窗明细）：
+  "posts/{p}/reactions" => %w[GET POST],
+  "comments/{p}/reactions" => %w[GET POST],
   "marketplace/checkout-intents/{p}" => %w[GET],
   "admin/marketplace/clients/{p}" => %w[GET PATCH],
   "admin/marketplace/clients/{p}/emergency-disable" => %w[POST],

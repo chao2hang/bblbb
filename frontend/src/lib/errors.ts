@@ -63,6 +63,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   daily_limit_exceeded: '已达今日上限，请稍后再试',
   activity_already_claimed: '今日任务已领取过',
   activity_not_eligible: '暂未满足该任务条件',
+  self_reaction: '不能对自己发布的内容表态',
 
   // 商城 / 下载 / 媒体 / AI（长尾，仅给稳定中文兜底）
   checkout_interaction_invalid: '结算确认已过期，请重新发起',

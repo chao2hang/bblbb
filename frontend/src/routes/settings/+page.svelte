@@ -470,7 +470,9 @@
                   onclick={() => setDisplayMode('light')}
                 >
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                    <strong style="font-size:14px;">☀️ 浅色模式</strong>
+                    <strong style="font-size:14px;display:inline-flex;align-items:center;gap:6px;">
+                      <Icon name="sun" size={14} />浅色模式
+                    </strong>
                     {#if currentMode === 'light'}<span class="sbadge sb-primary">生效中</span>{/if}
                   </div>
                   <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">温润宣纸米白质感底色，字迹舒适分明，不眩光。</p>
@@ -486,7 +488,9 @@
                   onclick={() => setDisplayMode('dark')}
                 >
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                    <strong style="font-size:14px;">🌙 深色模式</strong>
+                    <strong style="font-size:14px;display:inline-flex;align-items:center;gap:6px;">
+                      <Icon name="moon" size={14} />深色模式
+                    </strong>
                     {#if currentMode === 'dark'}<span class="sbadge sb-primary">生效中</span>{/if}
                   </div>
                   <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">高对比纯黑夜色底色，弱光环境阅读柔和护眼。</p>
@@ -502,7 +506,9 @@
                   onclick={() => setDisplayMode('system')}
                 >
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                    <strong style="font-size:14px;">💻 跟随系统</strong>
+                    <strong style="font-size:14px;display:inline-flex;align-items:center;gap:6px;">
+                      <Icon name="monitor" size={14} />跟随系统
+                    </strong>
                     {#if currentMode === 'system'}<span class="sbadge sb-primary">生效中</span>{/if}
                   </div>
                   <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">自动同步操作系统与浏览器的深浅色外观偏好。</p>

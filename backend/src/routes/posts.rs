@@ -53,7 +53,10 @@ pub fn router() -> Router<AppState> {
             "/api/v1/posts/{id}/revisions/{revision_id}",
             get(get_post_revision),
         )
-        .route("/api/v1/posts/{id}/reactions", post(toggle_reaction))
+        .route(
+            "/api/v1/posts/{id}/reactions",
+            post(toggle_reaction).get(get_post_reactions),
+        )
         .route(
             "/api/v1/posts/{id}/reactions/{reaction}",
             delete(delete_post_reaction),
@@ -1417,10 +1420,11 @@ async fn update_post(
             .await
             .map(|d| d.is_allowed())
             .unwrap_or(false);
-        let is_moderator = authorize_action(pool, &user.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
-            .await
-            .map(|d| d.is_allowed())
-            .unwrap_or(false);
+        let is_moderator =
+            authorize_action(pool, &user.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
+                .await
+                .map(|d| d.is_allowed())
+                .unwrap_or(false);
 
         if !is_admin && !is_moderator {
             return Err(AppError::forbidden(
@@ -1428,21 +1432,22 @@ async fn update_post(
                 request_id,
             ));
         }
-        let reason = req.reason.as_deref().unwrap_or("管理员代为编辑更新帖子").trim();
+        let reason = req
+            .reason
+            .as_deref()
+            .unwrap_or("管理员代为编辑更新帖子")
+            .trim();
 
         // 审计：代改记录（reason/effective_role）
-        let role_name = if is_admin { "administrator" } else { "moderator" };
-        AuditEntry::delegated_admin_action(
-            &user.id,
-            role_name,
-            "post.update",
-            "post",
-            &id,
-            reason,
-        )
-        .record(pool)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        let role_name = if is_admin {
+            "administrator"
+        } else {
+            "moderator"
+        };
+        AuditEntry::delegated_admin_action(&user.id, role_name, "post.update", "post", &id, reason)
+            .record(pool)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
     }
 
     let refreshed = edit_post(
@@ -1841,11 +1846,40 @@ fn private_no_store_response(resp: Response) -> Response {
     resp
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct ReactionPayload {
+    #[serde(default = "default_reaction")]
+    pub reaction: String,
+}
+
+fn default_reaction() -> String {
+    "like".to_string()
+}
+
+/// GET /api/v1/posts/{id}/reactions — 获取帖子收到的表情与用户明细
+async fn get_post_reactions(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_post_reactions";
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let viewer_id = auth.user.as_ref().map(|u| u.id.as_str());
+    let detail = crate::reactions::service::get_reactions_detail(pool, "post", &id, viewer_id)
+        .await
+        .map_err(|e| map_reaction_error(e, request_id))?;
+    Ok(Json(detail))
+}
+
 /// POST /api/v1/posts/{id}/reactions — 切换反应（M07-SHOP-08，user_reactions）
 async fn toggle_reaction(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
+    payload: Option<Json<ReactionPayload>>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "toggle_reaction";
     let user = auth.require_auth(request_id)?;
@@ -1853,9 +1887,11 @@ async fn toggle_reaction(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    let reaction = "like";
+    let reaction = payload
+        .map(|Json(p)| p.reaction)
+        .unwrap_or_else(default_reaction);
     // toggle：先尝试添加；已存在则移除。
-    match crate::reactions::service::add_reaction(pool, &user.id, "post", &id, reaction, false)
+    match crate::reactions::service::add_reaction(pool, &user.id, "post", &id, &reaction, false)
         .await
     {
         Ok(summary) => {
@@ -1881,7 +1917,7 @@ async fn toggle_reaction(
             Ok(Json(summary))
         }
         Err(crate::reactions::ReactionError::AlreadyExists) => {
-            crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, reaction)
+            crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, &reaction)
                 .await
                 .map(Json)
                 .map_err(|e| map_reaction_error(e, request_id))
@@ -1918,7 +1954,14 @@ fn map_reaction_error(e: crate::reactions::ReactionError, request_id: &str) -> A
         ReactionError::Invalid(m) => AppError::bad_request(m, request_id, None),
         ReactionError::Forbidden(m) => AppError::forbidden(m, request_id),
         ReactionError::SelfReaction => {
-            AppError::bad_request("cannot react to own content", request_id, None)
+            // 稳定码 self_reaction（400）：前端映射为「不能对自己发布的内容表态」。
+            AppError::with_code(
+                StatusCode::BAD_REQUEST,
+                "self_reaction",
+                "Self Reaction",
+                "cannot react to own content",
+                request_id,
+            )
         }
         ReactionError::RateLimited { retry_after_ms } => AppError::rate_limited(
             "too many reactions",

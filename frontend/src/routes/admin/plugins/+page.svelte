@@ -4,6 +4,7 @@
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { withActionToast } from '$lib/ui/action-toast';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminPluginsPageData, AdminPluginsActionData } from './+page.server';
 
@@ -12,6 +13,13 @@
   const pageState = $derived(data.state);
   const plugins = $derived(data.plugins ?? []);
   const message = $derived(form?.message ?? null);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   interface UnifiedPlugin {
     id: string;
@@ -97,7 +105,7 @@
     </div>
   </div>
 {:else}
-  {#if message}
+  {#if message && !hasJs}
     <div class="alert alert-info" role="status" style="margin-bottom:12px;">{message}</div>
   {/if}
 
@@ -238,7 +246,7 @@
                   <span class="text-secondary" style="font-size:11px;display:block;margin-top:2px;">policy v{p.policy_revision ?? (p as any).policy_version ?? p.version ?? 1}</span>
                 </td>
                 <td>
-                  <form method="POST" action={p.status === 'enabled' ? '?/disable' : '?/enable'} use:enhance style="margin:0;display:inline;">
+                  <form method="POST" action={p.status === 'enabled' ? '?/disable' : '?/enable'} use:enhance={withActionToast()} style="margin:0;display:inline;">
                     <input type="hidden" name="id" value={p.id} />
                     <input type="hidden" name="status" value={p.status === 'enabled' ? 'disabled' : 'enabled'} />
                     <input type="hidden" name="policy_version" value={String(p.version ?? 1)} />
@@ -270,7 +278,7 @@
       <p style="margin:0 0 8px;">
         插件是配置数据，无在线代码执行路径（code/WASM plugin execution is a v2 research item）。受控 Provider Adapter（随应用编译）：direct、hls、xigua。
       </p>
-      <form method="POST" action="?/install" use:enhance class="stack" style="gap:10px;margin-top:12px;">
+      <form method="POST" action="?/install" use:enhance={withActionToast()} class="stack" style="gap:10px;margin-top:12px;">
         <label>
           <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">插件 ID</span>
           <input type="text" name="id" class="input-field" placeholder="如：welcome-reward" required />

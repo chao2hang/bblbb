@@ -1,0 +1,18 @@
+/* ============================================================
+   BBLBB 字体自托管层（fonts.css）
+   ------------------------------------------------------------
+   两款拉丁字族随包发布（无第三方 CDN 请求、无隐私外泄、离线可用）：
+
+   - Inter Tight Variable（display / UI）：紧字距无衬线，承担标题与界面
+     文本的拉丁部分；中文回退到系统 UI 字族（PingFang / MiSans / 思源黑）。
+   - IBM Plex Mono（utility）：承担全站元信息——时间、计数、板块标记、
+     序号、代码。等宽 + tabular-nums 让数字列在扫读时天然对齐。
+
+   只引 latin / latin-ext 子集：中文由系统字体渲染，不需要为 CJK 下发
+   任何 web font（一个思源黑子集就是数 MB，是首屏预算的灾难）。
+   ============================================================ */
+
+@import '@fontsource-variable/inter-tight/wght.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';

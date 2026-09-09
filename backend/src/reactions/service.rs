@@ -1,6 +1,9 @@
 //! M07-REACTIONS：互动 Reaction 服务（user_reactions 表）。
 //!
 //! - add/remove 基于 (user_id, target_type, target_id, reaction) 复合唯一键。
+//! - 单激活语义：同一用户对同一目标只保留一个激活反应；添加新反应时事务内
+//!   原子移除旧反应（可切换），并为每个被移除反应写 REACTION_REMOVED 事件，
+//!   响应附带 `removed` 列表供前端同步。
 //! - reaction_pack 从权益 remaining_quantity 原子扣减（M07-SHOP-08）。
 //! - 反应不改变可见性、审核、排序或现金价值（M07-SHOP-06）。
 //! - 排除自赞、重复、批量刷（限流窗口，M07-LEVELS-07）。
@@ -62,8 +65,42 @@ impl std::error::Error for ReactionError {}
 /// 可反应目标类型（封闭枚举）。
 pub const TARGET_TYPES: &[&str] = &["post", "comment"];
 
-/// 反应名白名单（当前只有 like；扩展时在此枚举）。
-pub const REACTIONS: &[&str] = &["like"];
+/// 反应名白名单（支持点赞、狗头、爱心、庆祝、搞笑、给力、鼓掌及对应 Emoji）。
+pub const REACTIONS: &[&str] = &[
+    "like",
+    "doge",
+    "huaji",
+    "heart",
+    "party",
+    "laugh",
+    "fire",
+    "clap",
+    "mindblown",
+    "thinking",
+    "👍",
+    "🐶",
+    "❤️",
+    "🎉",
+    "🤣",
+    "🔥",
+    "👏",
+    "🤯",
+    "🤔",
+];
+
+fn enrich_summary(mut summary: Value, reaction: &str, active: bool) -> Value {
+    let count = summary
+        .get("counts")
+        .and_then(|c| c.get(reaction))
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    if let Value::Object(ref mut map) = summary {
+        map.insert("reaction".into(), json!(reaction));
+        map.insert("active".into(), json!(active));
+        map.insert("count".into(), json!(count));
+    }
+    summary
+}
 
 /// 校验目标类型与反应名。
 pub fn validate_reaction(target_type: &str, reaction: &str) -> Result<(), ReactionError> {
@@ -194,6 +231,108 @@ async fn recent_reaction_count_mysql(
     Ok(count)
 }
 
+/// 响应附带 `removed` 字段（单激活切换时被移除的反应名列表；无则省略）。
+fn with_removed(mut summary: Value, removed: Vec<String>) -> Value {
+    if !removed.is_empty() {
+        if let Value::Object(map) = &mut summary {
+            map.insert("removed".into(), json!(removed));
+        }
+    }
+    summary
+}
+
+/// 单激活语义：移除当前用户对同一目标的其他反应（切换），每个被移除反应
+/// 写一条 REACTION_REMOVED 事件。返回被移除的反应名列表。
+async fn remove_other_reactions_sqlite(
+    conn: &mut sqlx::SqliteConnection,
+    user_id: &str,
+    target_type: &str,
+    target_id: &str,
+    reaction: &str,
+) -> Result<Vec<String>, ReactionError> {
+    let rows = sqlx::query(
+        "SELECT reaction FROM user_reactions \
+         WHERE user_id = ? AND target_type = ? AND target_id = ? AND reaction <> ?",
+    )
+    .bind(user_id)
+    .bind(target_type)
+    .bind(target_id)
+    .bind(reaction)
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut removed = Vec::new();
+    for row in rows {
+        let r: String = row.get("reaction");
+        sqlx::query(
+            "DELETE FROM user_reactions WHERE user_id = ? AND target_type = ? AND target_id = ? AND reaction = ?",
+        )
+        .bind(user_id)
+        .bind(target_type)
+        .bind(target_id)
+        .bind(&r)
+        .execute(&mut *conn)
+        .await?;
+        enqueue_sqlite(
+            conn,
+            REACTION_REMOVED,
+            json!({
+                "target_type": target_type,
+                "target_id": target_id,
+                "user_id": user_id,
+                "reaction": r,
+            }),
+        )
+        .await?;
+        removed.push(r);
+    }
+    Ok(removed)
+}
+
+async fn remove_other_reactions_mysql(
+    tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+    user_id: &str,
+    target_type: &str,
+    target_id: &str,
+    reaction: &str,
+) -> Result<Vec<String>, ReactionError> {
+    let rows = sqlx::query(
+        "SELECT reaction FROM user_reactions \
+         WHERE user_id = ? AND target_type = ? AND target_id = ? AND reaction <> ?",
+    )
+    .bind(user_id)
+    .bind(target_type)
+    .bind(target_id)
+    .bind(reaction)
+    .fetch_all(&mut **tx)
+    .await?;
+    let mut removed = Vec::new();
+    for row in rows {
+        let r: String = row.get("reaction");
+        sqlx::query(
+            "DELETE FROM user_reactions WHERE user_id = ? AND target_type = ? AND target_id = ? AND reaction = ?",
+        )
+        .bind(user_id)
+        .bind(target_type)
+        .bind(target_id)
+        .bind(&r)
+        .execute(&mut **tx)
+        .await?;
+        enqueue_mysql(
+            tx,
+            REACTION_REMOVED,
+            json!({
+                "target_type": target_type,
+                "target_id": target_id,
+                "user_id": user_id,
+                "reaction": r,
+            }),
+        )
+        .await?;
+        removed.push(r);
+    }
+    Ok(removed)
+}
+
 /// 添加反应（含 reaction_pack 消耗与自赞/限流排除）。
 ///
 /// `require_pack`: 该反应类型需要 reaction_pack 权益时传 true（由路由层根据
@@ -243,6 +382,10 @@ pub async fn add_reaction(
                 if dup > 0 {
                     return Err(ReactionError::AlreadyExists);
                 }
+                // 单激活语义：切换前原子移除该用户对该目标的其他反应。
+                let removed =
+                    remove_other_reactions_sqlite(&mut *conn, user_id, target_type, target_id, reaction)
+                        .await?;
                 // reaction_pack 消耗：从最新 reaction_pack entitlement 扣减。
                 // （SQLite 不支持 UPDATE...JOIN 与 UPDATE...ORDER BY...LIMIT，
                 // 统一先选最新行再按 id 扣减，事务内安全）
@@ -301,7 +444,7 @@ pub async fn add_reaction(
                     .await?;
                 }
                 let summary = reaction_summary_sqlite(&mut *conn, target_type, target_id).await?;
-                Ok(summary)
+                Ok(with_removed(enrich_summary(summary, reaction, true), removed))
             }
             .await;
             match outcome {
@@ -343,6 +486,10 @@ pub async fn add_reaction(
                 if dup > 0 {
                     return Err(ReactionError::AlreadyExists);
                 }
+                // 单激活语义：切换前原子移除该用户对该目标的其他反应。
+                let removed =
+                    remove_other_reactions_mysql(&mut tx, user_id, target_type, target_id, reaction)
+                        .await?;
                 if require_pack {
                     let pack_id: Option<String> = sqlx::query_scalar(
                         "SELECT id FROM user_entitlements
@@ -397,7 +544,7 @@ pub async fn add_reaction(
                     .await?;
                 }
                 let summary = reaction_summary_mysql(&mut *tx, target_type, target_id).await?;
-                Ok(summary)
+                Ok(with_removed(enrich_summary(summary, reaction, true), removed))
             }
             .await;
             match outcome {
@@ -454,7 +601,7 @@ pub async fn remove_reaction(
                 )
                 .await?;
                 let summary = reaction_summary_sqlite(&mut *conn, target_type, target_id).await?;
-                Ok(summary)
+                Ok(enrich_summary(summary, reaction, false))
             }
             .await;
             match outcome {
@@ -496,7 +643,7 @@ pub async fn remove_reaction(
                 )
                 .await?;
                 let summary = reaction_summary_mysql(&mut *tx, target_type, target_id).await?;
-                Ok(summary)
+                Ok(enrich_summary(summary, reaction, false))
             }
             .await;
             match outcome {
@@ -590,6 +737,221 @@ async fn reaction_summary_mysql(
         "target_id": target_id,
         "total": total,
         "counts": Value::Object(counts),
+    }))
+}
+
+/// 反应详情与用户明细（用于左侧表情展示与弹窗明细）。
+pub async fn get_reactions_detail(
+    pool: &DatabasePool,
+    target_type: &str,
+    target_id: &str,
+    viewer_user_id: Option<&str>,
+) -> Result<Value, ReactionError> {
+    validate_reaction(target_type, "like")
+        .map_err(|_| ReactionError::Invalid("target_type".into()))?;
+    match pool {
+        Either::Left(p) => {
+            let detail = reactions_detail_sqlite(
+                &mut *p.acquire().await?,
+                target_type,
+                target_id,
+                viewer_user_id,
+            )
+            .await?;
+            Ok(detail)
+        }
+        Either::Right(p) => {
+            let detail = reactions_detail_mysql(
+                &mut *p.acquire().await?,
+                target_type,
+                target_id,
+                viewer_user_id,
+            )
+            .await?;
+            Ok(detail)
+        }
+    }
+}
+
+async fn reactions_detail_sqlite(
+    conn: &mut sqlx::SqliteConnection,
+    target_type: &str,
+    target_id: &str,
+    viewer_user_id: Option<&str>,
+) -> Result<Value, ReactionError> {
+    let owner = target_owner(conn, target_type, target_id).await?;
+    if owner.is_none() {
+        return Err(ReactionError::NotFound(format!(
+            "{target_type} {target_id}"
+        )));
+    }
+
+    let count_rows = sqlx::query(
+        "SELECT reaction, COUNT(*) AS count FROM user_reactions \
+         WHERE target_type = ? AND target_id = ? GROUP BY reaction ORDER BY count DESC",
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .fetch_all(&mut *conn)
+    .await?;
+
+    let mut counts = serde_json::Map::new();
+    let mut total: i64 = 0;
+    for row in &count_rows {
+        let reaction: String = row.get("reaction");
+        let count: i64 = row.get("count");
+        counts.insert(reaction, json!(count));
+        total += count;
+    }
+
+    let user_rows = sqlx::query(
+        "SELECT ur.user_id, ur.reaction, ur.created_at, \
+                u.username_normalized, u.display_name, u.avatar_attachment_id \
+         FROM user_reactions ur \
+         LEFT JOIN users u ON u.id = ur.user_id \
+         WHERE ur.target_type = ? AND ur.target_id = ? \
+         ORDER BY ur.created_at DESC LIMIT 200",
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .fetch_all(&mut *conn)
+    .await?;
+
+    let mut users = Vec::new();
+    let mut viewer_reactions = Vec::new();
+
+    for row in &user_rows {
+        let user_id: String = row.get("user_id");
+        let reaction: String = row.get("reaction");
+        let created_at: i64 = row.get("created_at");
+        let username: Option<String> = row.get("username_normalized");
+        let display_name: Option<String> = row.get("display_name");
+        let avatar_attachment_id: Option<String> = row.get("avatar_attachment_id");
+
+        if let Some(vid) = viewer_user_id {
+            if vid == user_id && !viewer_reactions.contains(&reaction) {
+                viewer_reactions.push(reaction.clone());
+            }
+        }
+
+        let uname = username.unwrap_or_else(|| "user".to_string());
+        let dname = display_name.unwrap_or_else(|| uname.clone());
+
+        users.push(json!({
+            "user_id": user_id,
+            "username": uname,
+            "display_name": dname,
+            "avatar_attachment_id": avatar_attachment_id,
+            "reaction": reaction,
+            "created_at": created_at,
+        }));
+    }
+
+    Ok(json!({
+        "target_type": target_type,
+        "target_id": target_id,
+        "total": total,
+        "counts": Value::Object(counts),
+        "viewer_reactions": viewer_reactions,
+        "users": users,
+    }))
+}
+
+async fn reactions_detail_mysql(
+    conn: &mut sqlx::MySqlConnection,
+    target_type: &str,
+    target_id: &str,
+    viewer_user_id: Option<&str>,
+) -> Result<Value, ReactionError> {
+    let owner: Option<String> = match target_type {
+        "post" => {
+            sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ?")
+                .bind(target_id)
+                .fetch_optional(&mut *conn)
+                .await?
+        }
+        "comment" => {
+            sqlx::query_scalar("SELECT author_id FROM comments WHERE id = ?")
+                .bind(target_id)
+                .fetch_optional(&mut *conn)
+                .await?
+        }
+        _ => None,
+    };
+    if owner.is_none() {
+        return Err(ReactionError::NotFound(format!(
+            "{target_type} {target_id}"
+        )));
+    }
+
+    let count_rows = sqlx::query(
+        "SELECT reaction, COUNT(*) AS count FROM user_reactions \
+         WHERE target_type = ? AND target_id = ? GROUP BY reaction ORDER BY count DESC",
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .fetch_all(&mut *conn)
+    .await?;
+
+    let mut counts = serde_json::Map::new();
+    let mut total: i64 = 0;
+    for row in &count_rows {
+        let reaction: String = row.get("reaction");
+        let count: i64 = row.get("count");
+        counts.insert(reaction, json!(count));
+        total += count;
+    }
+
+    let user_rows = sqlx::query(
+        "SELECT ur.user_id, ur.reaction, ur.created_at, \
+                u.username_normalized, u.display_name, u.avatar_attachment_id \
+         FROM user_reactions ur \
+         LEFT JOIN users u ON u.id = ur.user_id \
+         WHERE ur.target_type = ? AND ur.target_id = ? \
+         ORDER BY ur.created_at DESC LIMIT 200",
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .fetch_all(&mut *conn)
+    .await?;
+
+    let mut users = Vec::new();
+    let mut viewer_reactions = Vec::new();
+
+    for row in &user_rows {
+        let user_id: String = row.get("user_id");
+        let reaction: String = row.get("reaction");
+        let created_at: i64 = row.get("created_at");
+        let username: Option<String> = row.get("username_normalized");
+        let display_name: Option<String> = row.get("display_name");
+        let avatar_attachment_id: Option<String> = row.get("avatar_attachment_id");
+
+        if let Some(vid) = viewer_user_id {
+            if vid == user_id && !viewer_reactions.contains(&reaction) {
+                viewer_reactions.push(reaction.clone());
+            }
+        }
+
+        let uname = username.unwrap_or_else(|| "user".to_string());
+        let dname = display_name.unwrap_or_else(|| uname.clone());
+
+        users.push(json!({
+            "user_id": user_id,
+            "username": uname,
+            "display_name": dname,
+            "avatar_attachment_id": avatar_attachment_id,
+            "reaction": reaction,
+            "created_at": created_at,
+        }));
+    }
+
+    Ok(json!({
+        "target_type": target_type,
+        "target_id": target_id,
+        "total": total,
+        "counts": Value::Object(counts),
+        "viewer_reactions": viewer_reactions,
+        "users": users,
     }))
 }
 

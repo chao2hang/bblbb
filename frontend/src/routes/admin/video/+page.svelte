@@ -6,6 +6,7 @@
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast } from '$lib/ui/action-toast';
   import { videoProviderLabel } from '$lib/video/labels';
   import type { AdminVideoActionData, AdminVideoPageData } from './+page.server';
 
@@ -32,6 +33,13 @@
   let strictMode = $state(untrack(() => data.whitelistConfig?.strictMode ?? 'strict'));
   let fallbackMode = $state(untrack(() => data.whitelistConfig?.fallbackMode ?? 'safe_link'));
   let dismissedMessage = $state(false);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   $effect(() => {
     if (form?.whitelistConfig) {
@@ -115,7 +123,7 @@
     </div>
   {/if}
 
-  {#if form?.message}
+  {#if form?.message && !hasJs}
     <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
       {form.message}
     </div>
@@ -310,7 +318,7 @@
             <div style="font-size:12px;color:var(--color-text-secondary);margin:4px 0 10px;">
               审计：策略版本 v{item.policy_version ?? 1} · 更新于 最近 · 服务端写入审计
             </div>
-            <form method="POST" action="?/save" use:enhance style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <form method="POST" action="?/save" use:enhance={withActionToast()} style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
               <input type="hidden" name="provider" value={item.provider} />
               <input type="hidden" name="expected_version" value={String(item.policy_version ?? 1)} />
               <input type="text" name="reason" placeholder="必填（写审计）" value="更新策略" required style="max-width:200px;" />

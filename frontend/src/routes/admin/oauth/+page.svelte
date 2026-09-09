@@ -3,6 +3,7 @@
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast } from '$lib/ui/action-toast';
   import type { AdminOAuthActionData, AdminOAuthPageData } from './+page.server';
 
   let { data, form }: { data: AdminOAuthPageData; form?: AdminOAuthActionData | null } = $props();
@@ -28,6 +29,13 @@
   let q = $state('');
   let statusFilter = $state('');
   let selectedIds = $state<string[]>([]);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   const displayedClients = $derived.by(() => {
     let list = clientsList;
@@ -59,7 +67,7 @@
 
 <PageHeader title="OAuth 客户端" />
 
-{#if form?.message}
+{#if form?.message && !hasJs}
   <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
     {form.message}
   </div>
@@ -153,11 +161,7 @@
                 <form
                   method="POST"
                   action="?/toggle"
-                  use:enhance={() => {
-                    return async ({ update }) => {
-                      await update();
-                    };
-                  }}
+                  use:enhance={withActionToast()}
                   style="margin:0;"
                 >
                   <input type="hidden" name="id" value={client.id} />

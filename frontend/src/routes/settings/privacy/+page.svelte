@@ -4,6 +4,7 @@
   //   管理员策略优先级与 robots/索引状态说明；
   // - 文案明确 robots/meta 是声明层而非安全边界，不承诺能阻止恶意抓取。
   import Card from '$lib/components/ui/Card.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import { page } from '$app/state';
   import type { PrivacyPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
@@ -33,12 +34,12 @@
 
   <div class="app-settings-layout">
     <nav class="app-settings-nav" aria-label="设置导航">
-      <a href="/settings"><span aria-hidden="true">◈</span>个人资料</a>
-      <a href="/settings#settings-security"><span aria-hidden="true">◇</span>账号安全</a>
-      <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
-      <a href="/settings#settings-notifications"><span aria-hidden="true">◌</span>通知设置</a>
-      <a href="/settings#settings-oauth"><span aria-hidden="true">⌁</span>OAuth 授权</a>
-      <a href="/settings/privacy" class="is-active"><span aria-hidden="true">□</span>隐私设置</a>
+      <a href="/settings"><span class="app-settings-nav__icon" aria-hidden="true"><Icon name="user" size={14} /></span>个人资料</a>
+      <a href="/settings#settings-security"><span class="app-settings-nav__icon" aria-hidden="true"><Icon name="shield" size={14} /></span>账号安全</a>
+      <a href="/me#sessions"><span class="app-settings-nav__icon" aria-hidden="true"><Icon name="monitor" size={14} /></span>登录设备</a>
+      <a href="/settings#settings-notifications"><span class="app-settings-nav__icon" aria-hidden="true"><Icon name="bell" size={14} /></span>通知设置</a>
+      <a href="/settings#settings-oauth"><span class="app-settings-nav__icon" aria-hidden="true"><Icon name="key" size={14} /></span>OAuth 授权</a>
+      <a href="/settings/privacy" class="is-active"><span class="app-settings-nav__icon" aria-hidden="true"><Icon name="eye-off" size={14} /></span>隐私设置</a>
     </nav>
 
     <div class="settings-content">

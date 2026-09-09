@@ -5,6 +5,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminContentActionData, AdminContentPageData } from './+page.server';
 
   let { data, form }: { data: AdminContentPageData; form?: AdminContentActionData | null } = $props();
@@ -14,6 +15,13 @@
 
   let showRejectForm = $state(false);
   let rejectReason = $state('');
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 </script>
 
 <svelte:head>
@@ -26,12 +34,12 @@
   </a>
 </div>
 
-{#if form?.message}
+{#if form?.message && !hasJs}
   <div class="alert alert-success" role="status" style="margin-bottom:14px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-md);border-left:3px solid var(--color-success);">
     {form.message}
   </div>
 {/if}
-{#if form?.error}
+{#if form?.error && !hasJs}
   <div class="alert alert-danger" role="alert" style="margin-bottom:14px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-md);border-left:3px solid var(--color-danger);">
     {form.error}
   </div>
@@ -85,7 +93,9 @@
           action="?/approve"
           use:enhance={() => {
             return async ({ result, update }) => {
-              if (result.type === 'success') showToast('已通过审核', 'success');
+              // 动作结果 → 全局 Toast（成功“已通过审核并公开发布”/ 失败服务端文案；
+              // 失败在 data.error，无 message 字段）。顶部横幅为无 JS 回退。
+              toastActionResult(result, { message: (d) => (d?.message ?? d?.error) as string | null });
               await update();
               await invalidateAll();
             };
@@ -111,8 +121,10 @@
           action="?/reject"
           use:enhance={() => {
             return async ({ result, update }) => {
+              // 动作结果 → 全局 Toast（成功“已驳回并退回草稿”/ 失败服务端文案；
+              // 失败在 data.error，无 message 字段）。顶部横幅为无 JS 回退。
+              toastActionResult(result, { message: (d) => (d?.message ?? d?.error) as string | null });
               if (result.type === 'success') {
-                showToast('已驳回', 'success');
                 showRejectForm = false;
                 rejectReason = '';
               }

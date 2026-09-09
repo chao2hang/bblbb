@@ -6,6 +6,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminPointsPageData } from './+page.server';
 
   let { data, form }: { data: AdminPointsPageData; form?: { message?: string } | null } = $props();
@@ -14,6 +15,13 @@
 
   let showAdjustForm = $state(false);
   let adjusting = $state(false);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   const fallbackLedger = [
     { id: '1', user: 'Chaos', act: '每日签到', asset: '经验', change: '+5', time: '刚刚' },
@@ -47,7 +55,7 @@
 
 <PageHeader title="积分与货币" />
 
-{#if form?.message}
+{#if form?.message && !hasJs}
   <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
     {form.message}
   </div>
@@ -89,8 +97,10 @@
             adjusting = true;
             return async ({ result, update }) => {
               adjusting = false;
+              // 动作结果 → 全局 Toast（成功“已成功为 x 调整 +N B_COIN”/ 失败服务端文案）；
+              // 顶部横幅为无 JS 回退，失败提示同样靠 Toast，避免结果不可见。
+              toastActionResult(result);
               if (result.type === 'success') {
-                showToast('积分调整成功', 'success');
                 showAdjustForm = false;
                 await update();
                 await invalidateAll();

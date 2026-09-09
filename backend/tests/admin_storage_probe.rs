@@ -249,7 +249,11 @@ async fn storage_test_probes_submitted_s3_candidate() {
         json!({"backend": "local", "reason": "t"}),
     )
     .await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "必须先命中 step-up 门: {body}");
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "必须先命中 step-up 门: {body}"
+    );
     assert_eq!(body["code"], "step_up_required", "{body}");
 
     // re-auth 等价：mark_step_up 刷新窗口后放行
@@ -372,8 +376,15 @@ async fn storage_config_patch_http_endpoint_dev_vs_production() {
         "1",
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "开发环境必须允许 http endpoint: {body}");
-    assert_eq!(body["managed_by"], "deployment", "{body}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "开发环境必须允许 http endpoint: {body}"
+    );
+    // 258d180 起 PATCH 持久化到 site_settings（managed_by=database，热重载生效）
+    assert_eq!(body["managed_by"], "database", "{body}");
+    assert_eq!(body["source"], "database", "{body}");
+    assert_eq!(body["configured"], true, "{body}");
 
     // 生产环境：仅 https
     let prod_app = build_router(

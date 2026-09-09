@@ -708,12 +708,26 @@ export async function createAttachment(
     declared_media_type: string;
     target_type?: string | null;
     target_id?: string | null;
-  }
+  },
+  clientRequestId: string = newClientRequestId()
 ): Promise<AttachmentCreateResult> {
-  return request(fetchFn, '/attachments', {
+  const res = await request<{
+    id?: string;
+    status?: Attachment['status'];
+    attachment?: { id: string; status: Attachment['status'] };
+    upload?: AttachmentCreateResult['upload'];
+    quota?: AttachmentQuota | null;
+  }>(fetchFn, '/attachments', {
     method: 'POST',
+    headers: idemHeaders(clientRequestId),
     body: JSON.stringify(input)
   });
+  return {
+    id: res.id ?? res.attachment?.id ?? '',
+    status: res.status ?? res.attachment?.status,
+    upload: res.upload,
+    quota: res.quota
+  };
 }
 
 /** POST /api/v1/attachments/{id}/complete：完成上传并触发服务端校验（幂等）。 */
@@ -915,6 +929,40 @@ export async function recordVisit(
 
 // ─── 反应（M07-SHOP-08） ─────────────────────────────────────────────────
 
+export interface ReactionUserItem {
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_attachment_id?: string | null;
+  reaction: string;
+  created_at: number;
+}
+
+export interface TargetReactionsDetail {
+  target_type: 'post' | 'comment';
+  target_id: string;
+  total: number;
+  counts: Record<string, number>;
+  viewer_reactions: string[];
+  users: ReactionUserItem[];
+}
+
+/** GET /api/v1/posts/{id}/reactions：获取帖子表情与用户明细。 */
+export async function getPostReactions(
+  fetchFn: typeof fetch,
+  postId: string
+): Promise<TargetReactionsDetail> {
+  return request(fetchFn, `/posts/${postId}/reactions`);
+}
+
+/** GET /api/v1/comments/{id}/reactions：获取评论表情与用户明细。 */
+export async function getCommentReactions(
+  fetchFn: typeof fetch,
+  commentId: string
+): Promise<TargetReactionsDetail> {
+  return request(fetchFn, `/comments/${commentId}/reactions`);
+}
+
 /** POST /api/v1/posts/{id}/reactions（body 含 reaction，契约 ReactionCreate）。 */
 export async function addPostReaction(
   fetchFn: typeof fetch,
@@ -927,13 +975,14 @@ export async function addPostReaction(
   });
 }
 
-/** DELETE /api/v1/posts/{id}/reactions/{reaction}：撤销帖子反应。 */
+/** DELETE /api/v1/posts/{id}/reactions/{reaction}：撤销帖子反应。
+ *  返回撤销后的汇总投影（含完整 counts，供多入口同步）。 */
 export async function removePostReaction(
   fetchFn: typeof fetch,
   postId: string,
   reaction: string
-): Promise<void> {
-  await request(fetchFn, `/posts/${postId}/reactions/${encodeURIComponent(reaction)}`, {
+): Promise<ReactionResult> {
+  return request(fetchFn, `/posts/${postId}/reactions/${encodeURIComponent(reaction)}`, {
     method: 'DELETE',
     body: JSON.stringify({})
   });
@@ -951,13 +1000,14 @@ export async function addCommentReaction(
   });
 }
 
-/** DELETE /api/v1/comments/{id}/reactions/{reaction}：撤销评论反应。 */
+/** DELETE /api/v1/comments/{id}/reactions/{reaction}：撤销评论反应。
+ *  返回撤销后的汇总投影（含完整 counts，供多入口同步）。 */
 export async function removeCommentReaction(
   fetchFn: typeof fetch,
   commentId: string,
   reaction: string
-): Promise<void> {
-  await request(fetchFn, `/comments/${commentId}/reactions/${encodeURIComponent(reaction)}`, {
+): Promise<ReactionResult> {
+  return request(fetchFn, `/comments/${commentId}/reactions/${encodeURIComponent(reaction)}`, {
     method: 'DELETE',
     body: JSON.stringify({})
   });

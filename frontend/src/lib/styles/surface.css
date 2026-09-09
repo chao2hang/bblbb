@@ -1,0 +1,618 @@
+/* ============================================================
+   BBLBB Surface — 「冷墨」单一表面层（surface.css）
+   ------------------------------------------------------------
+   本层是默认主题去卡片化的执行点，加载顺序在**所有**旧层之后
+   （app.css 末尾），因为它要压过 chinese-elegance.css / components.css /
+   prototype-app.css 里成百上千条把内容包成盒子的 !important。
+
+   规则，只有三条：
+
+   1. 内容不装在盒子里。列表、侧栏、面板、表单、后台模块一律与页面共用
+      同一个表面，彼此之间用发丝线（1px --color-border）和留白分隔。
+      盒子只在一种情况下保留：它真的浮在页面之上（下拉/模态/toast/
+      hover 卡），见 §浮层。
+   2. 元信息一律 mono。时间、计数、板块名、序号、状态标记走
+      --font-family-mono + 字距 + tabular-nums；正文与标题走 Inter Tight。
+      这条让「数据」与「文字」在扫读时分层，代替了原来用底色块分层。
+   3. 强调色是信号。--color-brand 只出现在当前态、未读、主操作与活跃度上；
+      正文链接用 --color-link + 下划线。
+
+   改这层之前先想清楚：要加的东西是「内容」还是「浮层」。是内容，就不要
+   给它 border + background + radius 三件套——那就是卡片，主题会被打回原形。
+   ============================================================ */
+
+/* ============================================================
+   §1 表面归零：把所有内容容器摊平回页面底色
+   ============================================================ */
+
+.card,
+.panel,
+.category-card,
+.recommend,
+.stats-card,
+.qr,
+.app-card,
+.login-card,
+.auth-card,
+.profile-card,
+.section-surface,
+.settings-section,
+.editor-container,
+.app-form-card,
+.app-profile,
+.app-account-card,
+.app-stat,
+.app-settings-nav,
+.app-admin-side,
+.topic-head-card,
+.topic-body-card,
+.topic-editor,
+.admin-report,
+.app-capability-strip,
+.sidebar-card,
+.stat-card,
+.restricted-card,
+.points-records,
+.points-rules,
+.admin-content-table,
+.board-header,
+.profile-header,
+.app-board-card,
+.app-article-card,
+.app-user-card,
+.board-card,
+.article-card,
+.thread-list,
+.app-post-list,
+.report-bulk-toolbar,
+.feed-toolbar {
+  /* 用 --color-bg-card 而不是 transparent：默认主题下它与 --color-bg-page
+     同值（于是完全摊平），而自定义数据型主题若声明了独立的 surface 色，
+     仍能表达出来——去掉的是「盒子」，不是主题的表面语义。 */
+  background: var(--color-bg-card) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* 面板头/脚：不再是卡片的横隔条，而是一条发丝线上的标签行 */
+.app-card__head,
+.panel__head,
+.card-header {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.app-card__body,
+.card-body,
+.panel__body {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.app-card__foot,
+.card-footer,
+.panel__foot {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+
+/* 相邻面板之间用留白与发丝线分节，而不是两个盒子的边框互相顶着 */
+.app-admin-main .app-card + .app-card,
+.app-stack > .app-card + .app-card {
+  margin-top: var(--space-8) !important;
+  padding-top: var(--space-6) !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+
+/* ============================================================
+   §2 章节标题：mono 小标签代替卡片头
+   ------------------------------------------------------------
+   原来「这是一组内容」由卡片边框表达；现在由一个全大写 mono 标签 +
+   其下的发丝线表达，信息密度更高，也不会在页面上堆出一叠矩形。
+   ============================================================ */
+
+.app-card__head h2,
+.panel__head h2,
+.card-title,
+.recommend h2,
+.stats-card h2,
+.side-title,
+.section-title {
+  font-family: var(--font-family-mono) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  letter-spacing: var(--label-letter-spacing) !important;
+  text-transform: uppercase !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+/* ============================================================
+   §3 排版：层级来自字号/字重/字距，不来自字体家族切换
+   ============================================================ */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.thread h2,
+.thread-detail h1,
+.article-title,
+.page-title,
+.profile-card h2,
+.login-card h1,
+.app-route-head h1,
+.dd-head,
+.topic-head-card h1,
+.topic-prose h2 {
+  font-family: var(--font-family-display) !important;
+  color: var(--color-text-primary) !important;
+}
+
+h1,
+.app-route-head h1,
+.topic-head-card h1,
+.thread-detail h1,
+.login-card h1 {
+  font-weight: 640 !important;
+  letter-spacing: -0.025em !important;
+}
+
+h2,
+h3,
+h4 {
+  font-weight: 600 !important;
+  letter-spacing: -0.015em !important;
+}
+
+/* 品牌字：紧字距的无衬线，不再是斜体衬线 wordmark */
+.nav-logo,
+.wordmark,
+.mobile-logo {
+  font-family: var(--font-family-display) !important;
+  font-style: normal !important;
+  font-weight: 680 !important;
+  letter-spacing: -0.035em !important;
+}
+
+/* 正文链接：近墨色 + 下划线（强调色留给状态） */
+.prose a,
+.topic-prose a {
+  color: var(--color-link) !important;
+  text-decoration: underline !important;
+  text-decoration-color: color-mix(in srgb, var(--color-link) 32%, transparent) !important;
+  text-underline-offset: 3px !important;
+}
+
+.prose a:hover,
+.topic-prose a:hover {
+  color: var(--color-link-hover) !important;
+  text-decoration-color: currentColor !important;
+}
+
+/* ============================================================
+   §4 元信息：全站统一走 mono
+   ------------------------------------------------------------
+   时间、计数、板块名、序号、层级、配额——凡是「数据」都用等宽字，
+   并开 tabular-nums 让纵向数字列对齐。
+   ============================================================ */
+
+.thread-meta span,
+.thread-footer,
+.thread-footer span,
+.recommend-item small,
+.app-post-row__meta,
+.app-post-row__right,
+.app-board-card__meta,
+.app-article-card__meta,
+.app-user-card__meta,
+.app-profile__meta,
+.app-account-card small,
+.app-account-card span,
+.app-stat span,
+.topic-meta,
+.topic-comment__meta,
+.app-chip,
+.app-table th,
+.rail-foot,
+.feed-end,
+.app-conversation em,
+.app-field-help,
+.stat-card-label,
+.card-meta,
+.meta,
+.post-meta {
+  font-family: var(--font-family-mono) !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: var(--meta-letter-spacing) !important;
+}
+
+/* 表头是标签，不是内容：小字 + 字距 + 大写，且不要底色块 */
+.app-table th {
+  background: transparent !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  font-size: 10px !important;
+  letter-spacing: var(--label-letter-spacing) !important;
+  text-transform: uppercase !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+.app-table td {
+  border-top: 1px solid var(--color-border-muted) !important;
+}
+
+.app-table tr:hover td {
+  background: var(--color-surface-hover) !important;
+}
+
+/* 数值：等宽 + 紧字距，让统计数字读起来像仪表而不是标题 */
+.app-stat b,
+.app-account-card strong,
+.stat-card-value {
+  font-family: var(--font-family-mono) !important;
+  font-variant-numeric: tabular-nums !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* ============================================================
+   §5 列表：行与行之间是发丝线，不是一叠卡片
+   ============================================================ */
+
+.thread,
+.app-post-row,
+.recommend-item,
+.topic-comment,
+.app-device,
+.service-links a {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.thread,
+.app-post-row {
+  border-top: 0 !important;
+  border-bottom: 1px solid var(--color-border-muted) !important;
+}
+
+.thread:last-child,
+.app-post-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.thread:hover,
+.app-post-row:hover {
+  background: var(--color-surface-hover) !important;
+}
+
+/* 板块/文章/用户网格：从卡片阵列变成带发丝线的索引条目 */
+.app-board-card,
+.app-article-card,
+.app-user-card,
+.board-card,
+.article-card {
+  padding: var(--space-4) 0 !important;
+  border-top: 1px solid var(--color-border) !important;
+  transition: none !important;
+}
+
+.app-board-card:hover,
+.app-article-card:hover,
+.app-user-card:hover,
+.board-card:hover,
+.article-card:hover {
+  background: transparent !important;
+  border-color: var(--color-text-primary) !important;
+}
+
+.app-board-card:hover h3,
+.app-article-card:hover h3,
+.app-user-card:hover h3,
+.board-card:hover .board-card-name,
+.article-card:hover .article-card-title a {
+  color: var(--color-brand) !important;
+}
+
+/* 图标不再需要色块底：线条本身已经够识别 */
+.app-board-card__icon,
+.board-card-icon,
+.service-links__icon {
+  width: auto !important;
+  height: auto !important;
+  margin-bottom: var(--space-2) !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+/* 装饰性渐变封面：与「论坛是文字场所」的判断冲突，去掉 */
+.app-article-card__cover,
+.admin-token-preview {
+  display: none !important;
+}
+
+/* ============================================================
+   §6 控件：唯一保留圆角与实底的地方
+   ============================================================ */
+
+.btn,
+.btn--primary,
+.btn--secondary,
+.btn--ghost,
+.publish,
+button[type='submit'] {
+  border-radius: var(--radius-sm) !important;
+  font-family: var(--font-family-base) !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.005em !important;
+  box-shadow: none !important;
+}
+
+.btn.primary,
+.btn--primary,
+.publish,
+button[type='submit']:not(.secondary):not(.ghost) {
+  background: var(--color-brand) !important;
+  color: var(--color-text-on-solid) !important;
+  border: 1px solid var(--color-brand) !important;
+}
+
+.btn.primary:hover,
+.btn--primary:hover,
+.publish:hover {
+  background: var(--color-brand-hover) !important;
+  border-color: var(--color-brand-hover) !important;
+}
+
+.btn.secondary,
+.btn--secondary,
+.btn:not(.primary):not(.ghost) {
+  background: transparent !important;
+  border: 1px solid var(--color-border-strong) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.btn.secondary:hover,
+.btn--secondary:hover {
+  background: var(--color-surface-hover) !important;
+  border-color: var(--color-text-primary) !important;
+}
+
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='search'],
+textarea,
+.input,
+.app-field,
+.app-select,
+.app-textarea {
+  background: var(--color-bg-raised) !important;
+  border: 1px solid var(--color-border-strong) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+input:focus,
+textarea:focus,
+.app-field:focus,
+.app-select:focus,
+.app-textarea:focus {
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 22%, transparent) !important;
+}
+
+/* 标签/徽章：细边描线，不是柔和色块胶囊 */
+.tag,
+.badge,
+.chip,
+.status-badge,
+.pf-badge,
+.app-tag,
+.thread-footer span:first-child {
+  border-radius: var(--radius-sm) !important;
+  padding: 1px 6px !important;
+  background: transparent !important;
+  border: 1px solid var(--color-border) !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  letter-spacing: var(--label-letter-spacing) !important;
+  text-transform: uppercase !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+.tag:hover,
+.app-tag:hover,
+.thread-footer span:first-child:hover {
+  background: transparent !important;
+  border-color: var(--color-brand) !important;
+  color: var(--color-brand) !important;
+}
+
+/* 精华/置顶是**状态**，所以准许用强调色实底——全站少数几处之一 */
+.thread-meta i,
+.featured-badge,
+.tag.featured,
+.tag.pinned {
+  border-radius: var(--radius-sm) !important;
+  padding: 1px 6px !important;
+  border: 1px solid transparent !important;
+  background: var(--color-brand) !important;
+  color: var(--color-text-on-solid) !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  letter-spacing: var(--label-letter-spacing) !important;
+  text-transform: uppercase !important;
+}
+
+/* 头像：方形直角，与栅格对齐 */
+.avatar,
+.avatar-sm,
+.avatar.sm,
+.avatar.md,
+.avatar.lg,
+.avatar.xl,
+.avatar.xxl {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--color-border) !important;
+  background: var(--color-bg-subtle) !important;
+  color: var(--color-text-secondary) !important;
+  font-family: var(--font-family-mono) !important;
+  font-weight: 500 !important;
+}
+
+/* ============================================================
+   §7 导航壳：顶栏是一条线，不是一块浮起的板
+   ============================================================ */
+
+.navbar {
+  background: color-mix(in srgb, var(--color-bg-page) 86%, transparent) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  box-shadow: none !important;
+  backdrop-filter: saturate(120%) blur(14px) !important;
+}
+
+.nav-link {
+  border-radius: var(--radius-sm) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.nav-link:hover {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text-primary) !important;
+  text-decoration: none !important;
+}
+
+.nav-link.is-active {
+  background: transparent !important;
+  color: var(--color-text-primary) !important;
+  font-weight: 600 !important;
+}
+
+/* 筛选 tab：当前项用强调色下划线（状态信号），不是填充胶囊 */
+.filter-btn,
+.app-filter-tabs button {
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--color-text-secondary) !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 11px !important;
+  letter-spacing: var(--label-letter-spacing) !important;
+  text-transform: uppercase !important;
+}
+
+.filter-btn.active,
+.app-filter-tabs button.is-active {
+  border-bottom-color: var(--color-brand) !important;
+  color: var(--color-text-primary) !important;
+  font-weight: 600 !important;
+}
+
+/* 后台侧栏：竖线 + 缩进的目录，不是一块灰底面板 */
+.app-admin-side a,
+.app-settings-nav button,
+.app-settings-nav a {
+  border-radius: 0 !important;
+  border-left: 2px solid transparent !important;
+  background: transparent !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.app-admin-side a:hover,
+.app-settings-nav button:hover,
+.app-settings-nav a:hover {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.app-admin-side a.is-active,
+.app-settings-nav button.is-active,
+.app-settings-nav a.is-active {
+  background: transparent !important;
+  border-left-color: var(--color-brand) !important;
+  color: var(--color-text-primary) !important;
+  font-weight: 600 !important;
+}
+
+.app-admin-side__label {
+  font-family: var(--font-family-mono) !important;
+  letter-spacing: var(--label-letter-spacing) !important;
+  text-transform: uppercase !important;
+}
+
+/* ============================================================
+   §8 浮层：**唯一**准许成为盒子的东西
+   ------------------------------------------------------------
+   下拉、模态、toast、hover 卡真的浮在页面之上，需要边界与阴影来表达
+   「这是临时的、可关闭的一层」。它们用 --color-bg-raised。
+   ============================================================ */
+
+.dropdown,
+.app-modal,
+.user-card-popover,
+.user-hover-card,
+.user-card-sheet,
+.toast,
+.app-drawer,
+.drawer {
+  background: var(--color-bg-raised) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-pop) !important;
+}
+
+.app-modal {
+  box-shadow: var(--shadow-modal) !important;
+}
+
+/* 未读角标：强调色实底（这是最纯粹的「信号」用法） */
+.nav-notif-dot {
+  background: var(--color-brand) !important;
+  color: var(--color-text-on-solid) !important;
+  font-family: var(--font-family-mono) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* ============================================================
+   §9 空状态：一行说明 + 一个动作，不是一块带图标的占位面板
+   ============================================================ */
+
+.app-empty,
+.thread-empty,
+.recommend-empty {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.app-empty .ic,
+.thread-empty .icon {
+  opacity: 0.3 !important;
+  color: var(--color-text-tertiary) !important;
+}
+
+/* ============================================================
+   §10 代码/引用：保留必要的容器（它们表达的是「另一种内容」）
+   ============================================================ */
+
+.prose pre,
+.topic-code,
+.app-plugin-log {
+  background: var(--color-code-bg) !important;
+  border: 1px solid var(--color-border-muted) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.prose blockquote,
+.topic-prose blockquote {
+  border-left: 2px solid var(--color-border-strong) !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  color: var(--color-text-secondary) !important;
+}

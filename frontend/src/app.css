@@ -1,4 +1,6 @@
 /* BBLBB 全局样式入口 —— 复用原型设计系统（6 层：tokens → base → layout → components → pages → overrides） */
+/* 自托管字族（Inter Tight + IBM Plex Mono，仅 latin 子集；CJK 走系统字体） */
+@import './lib/styles/fonts.css';
 @import './lib/styles/tokens.css';
 @import './lib/styles/base.css';
 @import './lib/styles/layout.css';
@@ -16,6 +18,10 @@
 /* 主题结构预设（layout.mode → .app-shell[data-theme-layout]）：最后加载，
    压过 chinese-elegance 的几何 !important，实现 sidebar/wide 结构变体 */
 @import './lib/styles/theme-layout.css';
+/* 「冷墨」单一表面层（默认主题去卡片化）：必须是最后一个几何/表面层，
+   压过上面各层把内容包成盒子的 !important。只消费语义变量，不写死颜色，
+   因此数据型主题切换后依然成立。 */
+@import './lib/styles/surface.css';
 
 /* SvelteKit 根容器：与原型 #app 语义等价 */
 body > .sveltekit,

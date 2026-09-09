@@ -435,11 +435,19 @@ export interface TagListResult {
   groups: TagGroup[];
 }
 
-/** 反应切换结果投影（POST /posts/{id}/reactions）；契约目标：ReactionResult。 */
+/** 反应切换结果投影（POST /posts/{id}/reactions）；契约目标：ReactionResult。
+ *  后端实际返回完整汇总：操作后该目标的全部 counts/total，
+ *  以及单激活切换时被移除的反应名列表 removed。 */
 export interface ReactionResult {
   reaction: string;
   active: boolean;
   count: number;
+  /** 操作后该目标的全部反应计数（key 为反应名/emoji）。 */
+  counts?: Record<string, number>;
+  /** 操作后该目标的总表态数。 */
+  total?: number;
+  /** 单激活切换（一人只激活一个）时被移除的反应名列表。 */
+  removed?: string[];
 }
 
 // ── 分页类型兼容别名 ────────────────────────────────────────────────────────

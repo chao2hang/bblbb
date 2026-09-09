@@ -224,7 +224,7 @@
         {config?.backend === 's3' ? 'S3 实时运行中（全站生效）' : '本地存储运行中（全站生效）'}
       </span>
       <span class="badge {config?.source === 'db' ? 'badge-primary' : 'badge-neutral'}">
-        {config?.source === 'db' ? '来源：后台在线配置' : '来源：部署环境变量'}
+        {config?.source === 'db' ? '来源：后台在线配置' : '来源：部署环境（只读）'}
       </span>
       <span class="text-secondary">Secret 状态：{maskSecret()}</span>
     </div>

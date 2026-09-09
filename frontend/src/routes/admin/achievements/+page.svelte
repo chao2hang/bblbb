@@ -12,6 +12,7 @@
   import StatCard from '$lib/components/admin/StatCard.svelte';
   import { adminStateLabel } from '$lib/admin';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast, toastActionResult } from '$lib/ui/action-toast';
   import type {
     AdminAchievementItem,
     AdminAchievementsActionData,
@@ -39,6 +40,13 @@
 
   const message = $derived(form?.message ?? null);
   const conflict = $derived(form?.conflict === true);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   /** 手工授予对话框（表单在 Dialog 内，成功后关闭）。 */
   let grantTarget: AdminAchievementItem | null = $state(null);
@@ -137,10 +145,10 @@
     </div>
   </div>
 {:else}
-  {#if message}
+  {#if message && !hasJs}
     <p class="input-hint {conflict ? 'is-error' : ''}" role="status">{message}</p>
   {/if}
-  {#if conflict}
+  {#if conflict && !hasJs}
     <p class="input-hint is-error" role="alert">成就版本已变化（If-Match 乐观锁冲突），请刷新后重试。</p>
   {/if}
 
@@ -152,17 +160,11 @@
         action="?/create"
         use:enhance={() => {
           return async ({ result, update }) => {
-            if (result.type === 'success') {
-              const payload = result.data as { message?: string } | undefined;
-              await update();
-              showToast(payload?.message ?? '创建成功', 'success');
-            } else if (result.type === 'failure') {
-              const payload = result.data as { message?: string } | undefined;
-              await update();
-              showToast(payload?.message ?? '创建失败', 'danger');
-            } else {
-              await update();
-            }
+            // 结果 message 走全局 Toast（兜底文案与原先一致）
+            toastActionResult(result, {
+              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '创建成功' : '创建失败')
+            });
+            await update();
           };
         }}
       >
@@ -277,7 +279,7 @@
         {#if selected.size > 0}
           <div class="app-notice" role="status" style="margin:12px 14px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <b>{selected.size} 项已选中</b>
-            <form method="POST" action="?/bulk" use:enhance style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <form method="POST" action="?/bulk" use:enhance={withActionToast()} style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;">
               {#each [...selected] as c (c)}
                 <input type="hidden" name="codes" value={c} />
               {/each}
@@ -285,7 +287,7 @@
               <input type="text" class="input-field" name="reason" placeholder="操作原因（审计）" required style="max-width:200px;" />
               <button type="submit" class="btn primary sm">批量启用</button>
             </form>
-            <form method="POST" action="?/bulk" use:enhance style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <form method="POST" action="?/bulk" use:enhance={withActionToast()} style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;">
               {#each [...selected] as c (c)}
                 <input type="hidden" name="codes" value={c} />
               {/each}
@@ -357,17 +359,11 @@
                         action="?/toggle"
                         use:enhance={() => {
                           return async ({ result, update }) => {
-                            if (result.type === 'success') {
-                              const payload = result.data as { message?: string } | undefined;
-                              await update();
-                              showToast(payload?.message ?? '操作成功', 'success');
-                            } else if (result.type === 'failure') {
-                              const payload = result.data as { message?: string } | undefined;
-                              await update();
-                              showToast(payload?.message ?? '操作失败', 'danger');
-                            } else {
-                              await update();
-                            }
+                            // 结果 message 走全局 Toast（兜底文案与原先一致）
+                            toastActionResult(result, {
+                              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '操作成功' : '操作失败')
+                            });
+                            await update();
                           };
                         }}
                         style="display:flex;gap:var(--space-1);flex-wrap:wrap;align-items:center;"
@@ -406,17 +402,11 @@
       action="?/grant"
       use:enhance={() => {
         return async ({ result, update }) => {
-          if (result.type === 'success') {
-            const payload = result.data as { message?: string } | undefined;
-            await update();
-            showToast(payload?.message ?? '已授予', 'success');
-          } else if (result.type === 'failure') {
-            const payload = result.data as { message?: string } | undefined;
-            await update();
-            showToast(payload?.message ?? '授予失败', 'danger');
-          } else {
-            await update();
-          }
+          // 结果 message 走全局 Toast（兜底文案与原先一致）
+          toastActionResult(result, {
+            message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '已授予' : '授予失败')
+          });
+          await update();
           grantTarget = null;
         };
       }}
@@ -441,17 +431,11 @@
     bind:this={deleteForm}
     use:enhance={() => {
       return async ({ result, update }) => {
-        if (result.type === 'success') {
-          const payload = result.data as { message?: string } | undefined;
-          await update();
-          showToast(payload?.message ?? '已删除', 'success');
-        } else if (result.type === 'failure') {
-          const payload = result.data as { message?: string } | undefined;
-          await update();
-          showToast(payload?.message ?? '删除失败', 'danger');
-        } else {
-          await update();
-        }
+        // 结果 message 走全局 Toast（兜底文案与原先一致）
+        toastActionResult(result, {
+          message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '已删除' : '删除失败')
+        });
+        await update();
         deleteTarget = null;
       };
     }}

@@ -163,8 +163,16 @@ pub async fn load_storage_settings(
                       storage_s3_signed_url_ttl
                FROM site_settings WHERE id = 'singleton'";
     match pool {
-        Either::Left(p) => sqlx::query_as::<_, StorageSettingsRow>(sql).fetch_optional(p).await,
-        Either::Right(p) => sqlx::query_as::<_, StorageSettingsRow>(sql).fetch_optional(p).await,
+        Either::Left(p) => {
+            sqlx::query_as::<_, StorageSettingsRow>(sql)
+                .fetch_optional(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_as::<_, StorageSettingsRow>(sql)
+                .fetch_optional(p)
+                .await
+        }
     }
 }
 
@@ -176,11 +184,27 @@ pub fn build_storage_config_from_db(
     let s3 = if row.storage_backend == "s3" && !row.storage_s3_bucket.is_empty() {
         Some(crate::storage::S3Config {
             bucket: row.storage_s3_bucket.clone(),
-            region: if row.storage_s3_region.is_empty() { "us-east-1".to_string() } else { row.storage_s3_region.clone() },
-            endpoint: if row.storage_s3_endpoint.is_empty() { None } else { Some(row.storage_s3_endpoint.clone()) },
+            region: if row.storage_s3_region.is_empty() {
+                "us-east-1".to_string()
+            } else {
+                row.storage_s3_region.clone()
+            },
+            endpoint: if row.storage_s3_endpoint.is_empty() {
+                None
+            } else {
+                Some(row.storage_s3_endpoint.clone())
+            },
             path_style: row.storage_s3_path_style != 0,
-            access_key_id: if row.storage_s3_access_key_id.is_empty() { None } else { Some(row.storage_s3_access_key_id.clone()) },
-            secret_access_key: if row.storage_s3_secret_access_key.is_empty() { None } else { Some(row.storage_s3_secret_access_key.clone()) },
+            access_key_id: if row.storage_s3_access_key_id.is_empty() {
+                None
+            } else {
+                Some(row.storage_s3_access_key_id.clone())
+            },
+            secret_access_key: if row.storage_s3_secret_access_key.is_empty() {
+                None
+            } else {
+                Some(row.storage_s3_secret_access_key.clone())
+            },
             session_token: None,
         })
     } else {
@@ -191,10 +215,7 @@ pub fn build_storage_config_from_db(
     } else {
         app_config.storage_dir.clone()
     };
-    crate::storage::StorageConfig {
-        local_root,
-        s3,
-    }
+    crate::storage::StorageConfig { local_root, s3 }
 }
 
 /// GET /api/v1/admin/storage/config — 脱敏配置（backend/path_style/TTL；
@@ -251,15 +272,33 @@ async fn update_storage_config(
     // 2. 合并更新
     let new_backend = update.backend.unwrap_or(current_row.storage_backend);
     let new_local_path = update.local_path.unwrap_or(current_row.storage_local_path);
-    let new_max_bytes = update.upload_max_bytes.unwrap_or(current_row.storage_upload_max_bytes);
-    let new_s3_endpoint = update.s3_endpoint.unwrap_or(current_row.storage_s3_endpoint);
+    let new_max_bytes = update
+        .upload_max_bytes
+        .unwrap_or(current_row.storage_upload_max_bytes);
+    let new_s3_endpoint = update
+        .s3_endpoint
+        .unwrap_or(current_row.storage_s3_endpoint);
     let new_s3_region = update.s3_region.unwrap_or(current_row.storage_s3_region);
     let new_s3_bucket = update.bucket.unwrap_or(current_row.storage_s3_bucket);
-    let new_s3_ak = update.s3_access_key_id.filter(|s| !s.is_empty()).unwrap_or(current_row.storage_s3_access_key_id);
-    let new_s3_sk = update.s3_secret_access_key.filter(|s| !s.is_empty()).unwrap_or(current_row.storage_s3_secret_access_key);
-    let new_s3_path_style = update.path_style.map(|b| if b { 1i64 } else { 0i64 }).unwrap_or(current_row.storage_s3_path_style);
-    let new_s3_public_url = update.s3_public_base_url.unwrap_or(current_row.storage_s3_public_base_url);
-    let new_s3_ttl = update.signed_url_ttl_seconds.map(|t| t as i64).unwrap_or(current_row.storage_s3_signed_url_ttl);
+    let new_s3_ak = update
+        .s3_access_key_id
+        .filter(|s| !s.is_empty())
+        .unwrap_or(current_row.storage_s3_access_key_id);
+    let new_s3_sk = update
+        .s3_secret_access_key
+        .filter(|s| !s.is_empty())
+        .unwrap_or(current_row.storage_s3_secret_access_key);
+    let new_s3_path_style = update
+        .path_style
+        .map(|b| if b { 1i64 } else { 0i64 })
+        .unwrap_or(current_row.storage_s3_path_style);
+    let new_s3_public_url = update
+        .s3_public_base_url
+        .unwrap_or(current_row.storage_s3_public_base_url);
+    let new_s3_ttl = update
+        .signed_url_ttl_seconds
+        .map(|t| t as i64)
+        .unwrap_or(current_row.storage_s3_signed_url_ttl);
 
     let updated_row = StorageSettingsRow {
         storage_backend: new_backend.clone(),
@@ -729,20 +768,24 @@ async fn run_storage_probe(
         bucket,
         region,
         endpoint,
-        path_style: candidate.s3_path_style.unwrap_or(
-            if saved_row.storage_s3_path_style != 0 {
+        path_style: candidate
+            .s3_path_style
+            .unwrap_or(if saved_row.storage_s3_path_style != 0 {
                 true
             } else {
                 config.s3_path_style
-            },
-        ),
+            }),
         access_key_id: {
             let v = fallback(
                 candidate.s3_access_key_id.as_ref(),
                 &saved_row.storage_s3_access_key_id,
                 &config.s3_access_key_id,
             );
-            if v.is_empty() { None } else { Some(v) }
+            if v.is_empty() {
+                None
+            } else {
+                Some(v)
+            }
         },
         secret_access_key: {
             let v = fallback(
@@ -750,7 +793,11 @@ async fn run_storage_probe(
                 &saved_row.storage_s3_secret_access_key,
                 &config.s3_secret_access_key,
             );
-            if v.is_empty() { None } else { Some(v) }
+            if v.is_empty() {
+                None
+            } else {
+                Some(v)
+            }
         },
         session_token: None,
     };

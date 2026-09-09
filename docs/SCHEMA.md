@@ -1030,6 +1030,9 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 ### `user_reactions`
 
 - `user_id`、`target_type`、`target_id`、`reaction`、`created_at`；复合唯一键防止重复互动。
+- **单激活语义**：同一用户对同一目标只保留一个激活反应；`add_reaction` 在事务内
+  先原子移除该用户对该目标的其他反应（可切换），为每个被移除反应写
+  `reaction.removed.v1` 事件，响应附带 `removed` 列表与完整 `counts` 供前端同步。
 - 反应包消耗从 entitlement 的 `remaining_quantity` 原子扣减；反应本身不改变可见性、审核、排序或现金价值。
 
 ## 15. 主题与插件元数据

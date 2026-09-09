@@ -60,6 +60,13 @@
   const message = $derived(form?.message ?? null);
   const conflict = $derived(form?.conflict === true);
 
+  // JS 启用：保存结果已由表单回调弹全局 Toast（成功绿/失败红）；「保存失败」
+  // 标题的 .app-error 横幅仅保留为无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
+
   // ── 表单态（SSR 初始即取服务端值 → 无 JS 也能渲染/提交正确初值；
   //    后续 data 变化由下方 $effect 同步，故初始化读 data 属预期）──
   function initialForm() {
@@ -501,7 +508,7 @@
       <h2>站点信息</h2>
     </header>
     <div class="app-card__body">
-      {#if message || simulatedError}
+      {#if (message || simulatedError) && !hasJs}
         <div class="app-error" role={conflict ? 'alert' : 'status'} style="margin-bottom:14px;">
           <Icon name="alert-triangle" size={16} />
           <div>

@@ -33,6 +33,7 @@
     removeCommentReaction,
     addPostReaction,
     removePostReaction,
+    getPostReactions,
     type Comment,
     type User
   } from '$lib/api/client';
@@ -44,10 +45,13 @@
   } from '$lib/errors';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import DogeIcon from '$lib/components/ui/DogeIcon.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import ReactionBar from '$lib/components/ReactionBar.svelte';
   import SafeHtml from '$lib/components/SafeHtml.svelte';
   import UserCard from '$lib/components/UserCard.svelte';
+  import SimpleCommentEditor from '$lib/components/editor/SimpleCommentEditor.svelte';
   // M14-SEO-01/02/03：文章/讨论页统一 SEO；未发布/未解锁内容 noindex。
   import Seo from '$lib/components/Seo.svelte';
   import { show } from '$lib/ui/toast';
@@ -217,10 +221,33 @@
     return commentSort === 'latest' ? [...list].reverse() : list;
   });
 
-  // ── GAP-FIX：评论轻量点赞（reactions.rs 仅 like；初始计数后端未投影，
-  //    首次交互后从 ReactionResult 同步，本地乐观更新）──
+  // ── 互动点赞与狗头表态（点赞、狗头等反应支持）：本地乐观更新 ──
   let commentLikes = $state<Record<string, { active: boolean; count: number }>>({});
+  let commentDoges = $state<Record<string, { active: boolean; count: number }>>({});
   let likeBusyId = $state<string | null>(null);
+
+  // 单激活语义（一人只保留一个激活反应，可切换）：评论反应变更后重算 like/doge 两个状态。
+  function applyCommentReactionMutation(
+    cid: string,
+    p: MutationPayload
+  ) {
+    const likeTarget = p.reaction === 'like' || p.reaction === '👍';
+    const dogeTarget = p.reaction === 'doge' || p.reaction === '🐶';
+    const like = commentLikes[cid] ?? { active: false, count: 0 };
+    const doge = commentDoges[cid] ?? { active: false, count: 0 };
+    commentLikes[cid] = {
+      active: p.active && likeTarget,
+      count:
+        countOfIn(p.counts, 'like', '👍') ??
+        (likeTarget ? p.count : p.active && like.active ? Math.max(0, like.count - 1) : like.count)
+    };
+    commentDoges[cid] = {
+      active: p.active && dogeTarget,
+      count:
+        countOfIn(p.counts, 'doge', '🐶') ??
+        (dogeTarget ? p.count : p.active && doge.active ? Math.max(0, doge.count - 1) : doge.count)
+    };
+  }
 
   async function toggleCommentLike(c: Comment) {
     if (!user && !authed) {
@@ -232,14 +259,31 @@
     likeBusyId = c.id;
     try {
       if (current?.active) {
-        await removeCommentReaction(fetch, c.id, 'like');
-        commentLikes[c.id] = {
+        const result = await removeCommentReaction(fetch, c.id, 'like');
+        applyCommentReactionMutation(c.id, {
+          reaction: 'like',
           active: false,
-          count: Math.max(0, (current?.count ?? 1) - 1)
-        };
+          count: typeof result?.count === 'number' ? result.count : Math.max(0, (current?.count ?? 1) - 1),
+          counts: result?.counts
+        });
       } else {
-        const result = await addCommentReaction(fetch, c.id, 'like');
-        commentLikes[c.id] = { active: result.active, count: result.count };
+        // 单激活：狗头激活中时先乐观切换（失败回滚）
+        const dogeSnapshot = commentDoges[c.id] ? { ...commentDoges[c.id] } : null;
+        if (commentDoges[c.id]?.active) {
+          commentDoges[c.id] = { active: false, count: Math.max(0, commentDoges[c.id].count - 1) };
+        }
+        try {
+          const result = await addCommentReaction(fetch, c.id, 'like');
+          applyCommentReactionMutation(c.id, {
+            reaction: 'like',
+            active: result.active,
+            count: result.count,
+            counts: result.counts
+          });
+        } catch (err) {
+          if (dogeSnapshot) commentDoges[c.id] = dogeSnapshot;
+          throw err;
+        }
       }
     } catch (err: unknown) {
       const problem = err as Problem;
@@ -248,15 +292,101 @@
         return;
       }
       show(problemMessage(problem) || '点赞失败，请稍后重试', 'danger');
+    } finally {
+      likeBusyId = null;
     }
-    likeBusyId = null;
   }
 
-  // ── 原型对齐：主题功能按钮（收藏/赞/分享/举报）位于侧栏「关于作者」卡
-  //    （.topic-actions--side），正文卡下方不再单独占一行操作区。
-  //    帖子点赞与评论点赞同机制：初始计数后端未投影，首次交互后同步。 ──
+  async function toggleCommentDoge(c: Comment) {
+    if (!user && !authed) {
+      goto('/login');
+      return;
+    }
+    if (likeBusyId) return;
+    const current = commentDoges[c.id];
+    likeBusyId = c.id;
+    try {
+      if (current?.active) {
+        const result = await removeCommentReaction(fetch, c.id, 'doge');
+        applyCommentReactionMutation(c.id, {
+          reaction: 'doge',
+          active: false,
+          count: typeof result?.count === 'number' ? result.count : Math.max(0, (current?.count ?? 1) - 1),
+          counts: result?.counts
+        });
+      } else {
+        // 单激活：点赞激活中时先乐观切换（失败回滚）
+        const likeSnapshot = commentLikes[c.id] ? { ...commentLikes[c.id] } : null;
+        if (commentLikes[c.id]?.active) {
+          commentLikes[c.id] = { active: false, count: Math.max(0, commentLikes[c.id].count - 1) };
+        }
+        try {
+          const result = await addCommentReaction(fetch, c.id, 'doge');
+          applyCommentReactionMutation(c.id, {
+            reaction: 'doge',
+            active: result.active,
+            count: result.count,
+            counts: result.counts
+          });
+        } catch (err) {
+          if (likeSnapshot) commentLikes[c.id] = likeSnapshot;
+          throw err;
+        }
+      }
+    } catch (err: unknown) {
+      const problem = err as Problem;
+      if (problem?.status === 401) {
+        goto('/login');
+        return;
+      }
+      show(problemMessage(problem) || '表态失败，请稍后重试', 'danger');
+    } finally {
+      likeBusyId = null;
+    }
+  }
+
+  // ── 帖子点赞与狗头表态：侧栏与正文下方反应区联动 ──
   let postLike = $state<{ active: boolean; count: number }>({ active: false, count: 0 });
   let postLikeBusy = $state(false);
+  let postDoge = $state<{ active: boolean; count: number }>({ active: false, count: 0 });
+  let postDogeBusy = $state(false);
+  // 本地是否已发起过帖子反应变更（为 true 时跳过挂载水合，防止旧快照覆盖）
+  let postReactionsTouched = false;
+
+  // 单激活语义（一人只保留一个激活反应，可切换）：
+  // 任一反应变更成功后，用服务端结果重算行内 like/doge 两个状态。
+  type MutationPayload = {
+    reaction: string;
+    active: boolean;
+    count: number;
+    counts?: Record<string, number>;
+  };
+  function countOfIn(
+    counts: Record<string, number> | undefined,
+    name: string,
+    emoji: string
+  ): number | undefined {
+    if (!counts) return undefined;
+    if (counts[name] !== undefined) return Number(counts[name]);
+    if (counts[emoji] !== undefined) return Number(counts[emoji]);
+    return undefined;
+  }
+  function applyPostReactionMutation(p: MutationPayload) {
+    const likeTarget = p.reaction === 'like' || p.reaction === '👍';
+    const dogeTarget = p.reaction === 'doge' || p.reaction === '🐶';
+    postLike = {
+      active: p.active && likeTarget,
+      count:
+        countOfIn(p.counts, 'like', '👍') ??
+        (likeTarget ? p.count : p.active && postLike.active ? Math.max(0, postLike.count - 1) : postLike.count)
+    };
+    postDoge = {
+      active: p.active && dogeTarget,
+      count:
+        countOfIn(p.counts, 'doge', '🐶') ??
+        (dogeTarget ? p.count : p.active && postDoge.active ? Math.max(0, postDoge.count - 1) : postDoge.count)
+    };
+  }
 
   async function togglePostLike() {
     if (!post) return;
@@ -266,13 +396,32 @@
     }
     if (postLikeBusy) return;
     postLikeBusy = true;
+    postReactionsTouched = true;
     try {
       if (postLike.active) {
-        await removePostReaction(fetch, post.id, 'like');
-        postLike = { active: false, count: Math.max(0, postLike.count - 1) };
+        const result = await removePostReaction(fetch, post.id, 'like');
+        applyPostReactionMutation({
+          reaction: 'like',
+          active: false,
+          count: typeof result?.count === 'number' ? result.count : Math.max(0, postLike.count - 1),
+          counts: result?.counts
+        });
       } else {
-        const result = await addPostReaction(fetch, post.id, 'like');
-        postLike = { active: result.active, count: result.count };
+        // 单激活：狗头激活中时先乐观切换（失败回滚）
+        const dogeSnapshot = { ...postDoge };
+        if (postDoge.active) postDoge = { active: false, count: Math.max(0, postDoge.count - 1) };
+        try {
+          const result = await addPostReaction(fetch, post.id, 'like');
+          applyPostReactionMutation({
+            reaction: 'like',
+            active: result.active,
+            count: result.count,
+            counts: result.counts
+          });
+        } catch (err) {
+          postDoge = dogeSnapshot;
+          throw err;
+        }
       }
     } catch (err: unknown) {
       const problem = err as Problem;
@@ -281,13 +430,76 @@
         return;
       }
       show(problemMessage(problem) || '点赞失败，请稍后重试', 'danger');
+    } finally {
+      postLikeBusy = false;
     }
-    postLikeBusy = false;
+  }
+
+  async function togglePostDoge() {
+    if (!post) return;
+    if (!user && !authed) {
+      goto('/login');
+      return;
+    }
+    if (postDogeBusy) return;
+    postDogeBusy = true;
+    postReactionsTouched = true;
+    try {
+      if (postDoge.active) {
+        const result = await removePostReaction(fetch, post.id, 'doge');
+        applyPostReactionMutation({
+          reaction: 'doge',
+          active: false,
+          count: typeof result?.count === 'number' ? result.count : Math.max(0, postDoge.count - 1),
+          counts: result?.counts
+        });
+      } else {
+        // 单激活：点赞激活中时先乐观切换（失败回滚）
+        const likeSnapshot = { ...postLike };
+        if (postLike.active) postLike = { active: false, count: Math.max(0, postLike.count - 1) };
+        try {
+          const result = await addPostReaction(fetch, post.id, 'doge');
+          applyPostReactionMutation({
+            reaction: 'doge',
+            active: result.active,
+            count: result.count,
+            counts: result.counts
+          });
+        } catch (err) {
+          postLike = likeSnapshot;
+          throw err;
+        }
+      }
+    } catch (err: unknown) {
+      const problem = err as Problem;
+      if (problem?.status === 401) {
+        goto('/login');
+        return;
+      }
+      show(problemMessage(problem) || '表态失败，请稍后重试', 'danger');
+    } finally {
+      postDogeBusy = false;
+    }
   }
 
   onMount(async () => {
     user = await getMe(fetch);
     if (post) await loadComments();
+    // 行内赞/狗头初始态水合（ ReactionBar 的 Pill 由自身 loadDetail 独立水合）。
+    // 单激活：viewer_reactions 至多一项；若本地已发起过变更则跳过，避免旧快照覆盖。
+    if (post && !postReactionsTouched) {
+      try {
+        const detail = await getPostReactions(fetch, post.id);
+        const likeCount = detail.counts?.['like'] ?? detail.counts?.['👍'] ?? 0;
+        const dogeCount = detail.counts?.['doge'] ?? detail.counts?.['🐶'] ?? 0;
+        const activeLike = (detail.viewer_reactions ?? []).some((r) => r === 'like' || r === '👍');
+        const activeDoge = (detail.viewer_reactions ?? []).some((r) => r === 'doge' || r === '🐶');
+        postLike = { active: activeLike, count: likeCount };
+        postDoge = { active: activeDoge && !activeLike, count: dogeCount };
+      } catch {
+        /* 水合失败保持初值；后续交互以服务端响应为准 */
+      }
+    }
   });
 
   async function loadComments() {
@@ -575,8 +787,26 @@
             </aside>
           {/if}
 
-          <!-- 原型对齐：收藏/赞/分享/举报 位于侧栏「关于作者」卡
-               （.topic-actions--side），正文卡下方不设独立操作区。 -->
+          {#if post}
+            <div class="topic-reactions-card">
+              <div class="topic-reactions-title">
+                <span>给这篇文章表个态：</span>
+              </div>
+              <ReactionBar
+                targetType="post"
+                targetId={post.id}
+                reactions={[
+                  { reaction: 'like', count: postLike.count, active: postLike.active },
+                  { reaction: 'doge', count: postDoge.count, active: postDoge.active }
+                ]}
+                authed={Boolean(user || authed)}
+                {isAuthor}
+                currentUser={user}
+                fetchFn={fetch}
+                onReactionMutated={applyPostReactionMutation}
+              />
+            </div>
+          {/if}
       </article>
 
       <section class="topic-comments app-card" style="margin-top:14px;" aria-labelledby="comments-title">
@@ -628,13 +858,13 @@
                     {#if editingId === comment.id}
                       <div class="input-wrapper">
                         <label class="input-label" for="edit-comment-{comment.id}">编辑回复</label>
-                        <textarea
+                        <SimpleCommentEditor
                           id="edit-comment-{comment.id}"
-                          class="input-field editor-textarea"
                           bind:value={editText}
-                          rows="4"
-                          maxlength="10000"
-                        ></textarea>
+                          placeholder="编辑回复内容…（支持直接粘贴或拖入图片）"
+                          rows={4}
+                          maxChars={10000}
+                        />
                         {#if editRecovery && editRecovery.action !== 'none'}
                           <p class="input-hint is-error" role="alert">{editRecovery.message}</p>
                         {:else if editProblem}
@@ -656,45 +886,44 @@
                           <p class="text-tertiary" style="font-size:var(--text-sm);">内容不可见</p>
                         {/if}
                       </div>
-                      <div style="display:flex;gap:var(--space-2);margin-top:var(--space-2);align-items:center;flex-wrap:wrap;">
-                        {#if authed || user}
-                          <!-- GAP-FIX 评论轻量点赞：reactions.rs 仅 like 一种反应；
-                               初始计数未投影（首次交互后同步），本地乐观更新。 -->
-                          <button
-                            type="button"
-                            class="comment-like-btn {commentLikes[comment.id]?.active ? 'is-active' : ''}"
-                            aria-pressed={commentLikes[comment.id]?.active === true}
-                            aria-label={commentLikes[comment.id]?.active ? '取消点赞' : '点赞'}
-                            onclick={() => toggleCommentLike(comment)}
-                            disabled={likeBusyId === comment.id}
-                          >
-                            <Icon name="thumbs-up" size={14} />
-                            {#if (commentLikes[comment.id]?.count ?? 0) > 0}
-                              <span>{commentLikes[comment.id].count}</span>
-                            {/if}
-                          </button>
-                        {/if}
-                        <Button text="引用" variant="ghost" size="sm" icon="quote" onclick={() => quoteComment(comment)} disabled={locked} />
-                        <!-- M18-MISC-02：逐条回复举报入口（对齐原型） -->
-                        <a
-                          href="/moderation/report?target_type=comment&target_id={encodeURIComponent(comment.id)}"
-                          class="btn btn-ghost btn-sm"
-                          style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;"
-                          aria-label="举报 {authorLabel(comment)} 的回复"
+                      <div class="comment-reaction-bar-wrap" style="margin-top:var(--space-2);width:100%;">
+                        <ReactionBar
+                          targetType="comment"
+                          targetId={comment.id}
+                          reactions={[
+                            { reaction: 'like', count: commentLikes[comment.id]?.count ?? 0, active: commentLikes[comment.id]?.active ?? false },
+                            { reaction: 'doge', count: commentDoges[comment.id]?.count ?? 0, active: commentDoges[comment.id]?.active ?? false }
+                          ]}
+                          authed={Boolean(user || authed)}
+                          isAuthor={Boolean(user && comment.author?.id === user.id)}
+                          currentUser={user}
+                          fetchFn={fetch}
+                          onReactionMutated={(p) => applyCommentReactionMutation(comment.id, p)}
                         >
-                          <Icon name="flag" size={14} />
-                          举报
-                        </a>
-                        {#if user && comment.author?.id && comment.author.id === user.id}
-                          <Button text="编辑" variant="ghost" size="sm" icon="edit-3" onclick={() => startEdit(comment)} disabled={locked} />
-                          <Button
-                            text={deletingId === comment.id ? '删除中…' : '删除'}
-                            variant="ghost"
-                            size="sm"
-                            onclick={() => handleDelete(comment)}
-                            disabled={locked || deletingId === comment.id}
-                          />
-                        {/if}
+                          {#snippet rightActions()}
+                            <Button text="引用" variant="ghost" size="sm" icon="quote" onclick={() => quoteComment(comment)} disabled={locked} />
+                            <!-- M18-MISC-02：逐条回复举报入口（对齐原型） -->
+                            <a
+                              href="/moderation/report?target_type=comment&target_id={encodeURIComponent(comment.id)}"
+                              class="btn btn-ghost btn-sm"
+                              style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;"
+                              aria-label="举报 {authorLabel(comment)} 的回复"
+                            >
+                              <Icon name="flag" size={14} />
+                              举报
+                            </a>
+                            {#if user && comment.author?.id && comment.author.id === user.id}
+                              <Button text="编辑" variant="ghost" size="sm" icon="edit-3" onclick={() => startEdit(comment)} disabled={locked} />
+                              <Button
+                                text={deletingId === comment.id ? '删除中…' : '删除'}
+                                variant="ghost"
+                                size="sm"
+                                onclick={() => handleDelete(comment)}
+                                disabled={locked || deletingId === comment.id}
+                              />
+                            {/if}
+                          {/snippet}
+                        </ReactionBar>
                       </div>
                     {/if}
                   </div>
@@ -734,14 +963,14 @@
                   </div>
                 </div>
               {/if}
-              <textarea
+              <SimpleCommentEditor
                 id="comment-input"
-                class="input-field editor-textarea"
                 bind:value={newComment}
-                placeholder="写下你的回复…"
-                rows="4"
-                maxlength="10000"
-              ></textarea>
+                placeholder="写下你的回复…（支持直接 Ctrl+V 粘贴或拖入图片）"
+                rows={4}
+                maxChars={10000}
+                disabled={submitting}
+              />
               {#if commentRecovery && commentRecovery.action !== 'none'}
                 <p class="input-hint is-error" role="alert">{commentRecovery.message}</p>
               {:else if commentProblem}
@@ -840,6 +1069,18 @@
                 <Icon name="thumbs-up" size={14} />
                 <span>{postLike.active ? '已赞' : '赞'}{postLike.count > 0 ? ` ${formatCount(postLike.count)}` : ''}</span>
               </button>
+              <button
+                type="button"
+                class="btn ghost btn-ghost sm topic-like-btn topic-doge-btn {postDoge.active ? 'is-active' : ''}"
+                aria-pressed={postDoge.active}
+                aria-label={postDoge.active ? '取消狗头' : '狗头'}
+                disabled={postDogeBusy}
+                onclick={togglePostDoge}
+                title="滑稽狗头保命"
+              >
+                <DogeIcon size={16} />
+                <span>{postDoge.active ? '已狗头' : '狗头'}{postDoge.count > 0 ? ` ${formatCount(postDoge.count)}` : ''}</span>
+              </button>
             {:else}
               <!-- 匿名：收藏/点赞是登录操作，不渲染按钮，展示登录引导
                    （?next= 登录后回跳本帖）。 -->
@@ -899,37 +1140,40 @@
 </div>
 
 <style>
-  /* 评论轻量点赞（SafeHtml 之外的页面级按钮，scoped 正常生效）。 */
-  .comment-like-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    height: 30px;
-    padding: 0 10px;
-    border: var(--border-default);
-    border-radius: 999px;
-    background: var(--color-surface);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    cursor: pointer;
-  }
-  .comment-like-btn:hover {
-    color: var(--color-text-primary);
-    border-color: var(--color-border-strong);
-  }
-  .comment-like-btn.is-active {
-    color: var(--color-brand);
-    border-color: var(--color-brand);
-  }
-  .comment-like-btn:focus-visible {
-    outline: 2px solid var(--color-brand);
-    outline-offset: 1px;
-  }
-
   /* 侧栏主题点赞按钮（.btn.ghost 基座）的激活态。 */
   .topic-like-btn.is-active {
     color: var(--color-brand);
     border-color: var(--color-brand);
+  }
+
+  /* 狗头特定样式 */
+  :global(.topic-doge-btn .doge-icon) {
+    transition: transform 0.15s ease-out;
+  }
+  :global(.topic-doge-btn:hover .doge-icon) {
+    transform: scale(1.2) rotate(-6deg);
+  }
+  .topic-doge-btn.is-active {
+    border-color: #f59e0b;
+    color: #d97706;
+    background: rgba(245, 158, 11, 0.12);
+  }
+
+  /* 正文底部 Reaction 表态卡 */
+  .topic-reactions-card {
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px dashed var(--color-border);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    background: var(--color-bg-subtle, rgba(0, 0, 0, 0.02));
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .topic-reactions-title {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    font-weight: 500;
   }
 
   /* 代码块复制按钮（$effect 注入的 DOM 无作用域属性 → :global）。

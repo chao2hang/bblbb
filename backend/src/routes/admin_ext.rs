@@ -1344,7 +1344,11 @@ async fn update_admin_settings(
     if let Some(v) = flat.get("google_client_secret") {
         if !v.is_null() {
             let pass = v.as_str().ok_or_else(|| {
-                AppError::bad_request("google_client_secret must be a string or null", request_id, None)
+                AppError::bad_request(
+                    "google_client_secret must be a string or null",
+                    request_id,
+                    None,
+                )
             })?;
             if !pass.is_empty() && next.google_client_secret != pass {
                 next.google_client_secret = pass.to_string();
@@ -1364,7 +1368,11 @@ async fn update_admin_settings(
     if let Some(v) = flat.get("github_client_secret") {
         if !v.is_null() {
             let pass = v.as_str().ok_or_else(|| {
-                AppError::bad_request("github_client_secret must be a string or null", request_id, None)
+                AppError::bad_request(
+                    "github_client_secret must be a string or null",
+                    request_id,
+                    None,
+                )
             })?;
             if !pass.is_empty() && next.github_client_secret != pass {
                 next.github_client_secret = pass.to_string();

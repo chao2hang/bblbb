@@ -8,6 +8,7 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminAttachmentItem } from '$lib/api/types';
   import type {
@@ -40,6 +41,13 @@
   );
 
   const message = $derived(form?.message ?? null);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；列表上方内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   /** 删除确认对话框状态（行点击打开，确认后提交隐藏表单）。 */
   let deleteTarget: AdminAttachmentItem | null = $state(null);
@@ -83,7 +91,7 @@
     {:else if data.state === 'error'}
       <p class="input-hint is-error" role="alert">{data.error || adminStateLabel('error')}</p>
     {:else if data.state === 'ok'}
-      {#if message}
+      {#if message && !hasJs}
         <p class="input-hint" role="status">{message}</p>
       {/if}
 
@@ -199,12 +207,9 @@
     use:enhance={() => {
       return async ({ result, update }) => {
         if (result.type === 'success' || result.type === 'failure') {
-          const payload = result.data as { message?: string } | undefined;
           await update();
-          showToast(
-            payload?.message ?? (result.type === 'success' ? '已删除' : '删除失败'),
-            result.type === 'success' ? 'success' : 'danger'
-          );
+          // server 成功/失败均带 message（成功「附件 x 已删除（软删除，记录保留）」）
+          toastActionResult(result);
         } else {
           await update();
         }

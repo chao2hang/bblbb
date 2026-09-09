@@ -8,6 +8,6 @@
 
 <div class="toast-container" aria-live="polite" aria-label="全局提示">
   {#each $toasts as item (item.id)}
-    <Toast message={item.message} type={item.type} onclose={() => dismiss(item.id)} />
+    <Toast message={item.message} detail={item.detail} type={item.type} onclose={() => dismiss(item.id)} />
   {/each}
 </div>

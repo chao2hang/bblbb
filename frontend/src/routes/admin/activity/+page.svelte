@@ -4,6 +4,7 @@
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import { adminStateLabel } from '$lib/admin';
+  import { withActionToast } from '$lib/ui/action-toast';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -15,6 +16,13 @@
   const config = $derived(data.config);
   const tasks = $derived(data.tasks);
   const message = $derived(form?.message ?? null);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   const TASK_KINDS = ['check_in', 'task', 'reaction', 'post', 'comment', 'leaderboard'] as const;
 
@@ -63,7 +71,7 @@
 
 <div class="container page-content">
 
-  {#if message}
+  {#if message && !hasJs}
     <p class="input-hint is-error" role="alert" style="margin-bottom:var(--space-3);">{message}</p>
   {/if}
 
@@ -87,7 +95,7 @@
         </span>
       </div>
       <div class="app-card__body">
-        <form method="POST" action="?/save-config" use:enhance>
+        <form method="POST" action="?/save-config" use:enhance={withActionToast()}>
           <input type="hidden" name="expected_version" value={config.data.version} />
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-4);margin-bottom:var(--space-4);">
@@ -206,7 +214,7 @@
   <div class="app-card" style="margin-bottom:var(--space-4);">
     <div class="app-card__head"><h2>新建活跃任务</h2></div>
     <div class="app-card__body">
-      <form method="POST" action="?/create-task" use:enhance>
+      <form method="POST" action="?/create-task" use:enhance={withActionToast()}>
         <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:flex-end;">
           <div class="input-wrapper">
             <label class="input-label" for="nt-kind">类型</label>
@@ -254,7 +262,7 @@
                     +{t.amount} {t.currency.toUpperCase()} · v{t.version} · 更新于 {new Date(t.updated_at).toLocaleString('zh-CN')}
                   </p>
                 </div>
-                <form method="POST" action="?/update-task" use:enhance style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
+                <form method="POST" action="?/update-task" use:enhance={withActionToast()} style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
                   <input type="hidden" name="id" value={t.id} />
                   <input type="hidden" name="version" value={t.version} />
                   <label class="input-label" style="display:flex;align-items:center;gap:4px;font-size:var(--text-sm);">

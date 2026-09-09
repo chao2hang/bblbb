@@ -3,11 +3,19 @@
   import type { PageData } from './$types';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import { formatRelative } from '$lib/utils';
+  import { withActionToast } from '$lib/ui/action-toast';
 
   let { data, form }: { data: PageData; form: any } = $props();
 
   const appeal = $derived(data.appeal);
   const okMessage = $derived(form?.ok as string | undefined);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   const statusLabels: Record<string, string> = {
     submitted: '待复核',
@@ -47,14 +55,14 @@
   {:else if !appeal}
     <div class="app-card">
       <div class="app-card__body">
-        {#if form?.message}<p class="form-error" role="alert">{form.message}</p>{/if}
-        {#if okMessage}<p class="form-success" role="status">{okMessage}</p>{/if}
+        {#if form?.message && !hasJs}<p class="form-error" role="alert">{form.message}</p>{/if}
+        {#if okMessage && !hasJs}<p class="form-success" role="status">{okMessage}</p>{/if}
         <EmptyState icon="scale" title="未找到申诉" desc="该申诉不存在或当前角色无权查看" />
       </div>
     </div>
   {:else}
-    {#if form?.message}<p class="form-error" role="alert">{form.message}</p>{/if}
-    {#if okMessage}<p class="form-success" role="status" data-testid="admin-appeal-ok">{okMessage}</p>{/if}
+    {#if form?.message && !hasJs}<p class="form-error" role="alert">{form.message}</p>{/if}
+    {#if okMessage && !hasJs}<p class="form-success" role="status" data-testid="admin-appeal-ok">{okMessage}</p>{/if}
 
     <div class="app-card">
       <div class="app-card__head">
@@ -84,7 +92,8 @@
       <div class="app-card" style="margin-top:var(--space-4);">
         <div class="app-card__head"><h2>作出决定</h2></div>
         <div class="app-card__body">
-          <form method="POST" action="?/decide" use:enhance class="stack">
+          <!-- 成功结果在 form.ok（okMessage 同源），失败在 form.message -->
+          <form method="POST" action="?/decide" use:enhance={withActionToast({ message: (d) => (d?.message ?? d?.ok) as string | null })} class="stack">
             <label>
               <span class="field-label">决定</span>
               <select name="decision" required>

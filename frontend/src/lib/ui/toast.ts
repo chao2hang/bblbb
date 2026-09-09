@@ -13,6 +13,8 @@ export interface ToastItem {
   id: number;
   message: string;
   type: ToastType;
+  /** 可选第二行小字（诊断详情等）；为空则单行渲染。 */
+  detail?: string;
 }
 
 const DEFAULT_DURATION = 3200;
@@ -30,10 +32,15 @@ export function dismiss(id: number): void {
   store.update((all) => all.filter((t) => t.id !== id));
 }
 
-/** 弹出全局 Toast；duration <= 0 表示常驻（需手动 dismiss）。 */
-export function show(message: string, type: ToastType = 'info', duration = DEFAULT_DURATION): number {
+/** 弹出全局 Toast；duration <= 0 表示常驻（需手动 dismiss）。detail 为可选第二行小字。 */
+export function show(
+  message: string,
+  type: ToastType = 'info',
+  duration = DEFAULT_DURATION,
+  detail?: string
+): number {
   const id = ++nextId;
-  store.update((all) => [...all, { id, message, type }]);
+  store.update((all) => [...all, { id, message, type, detail }]);
   if (duration > 0) {
     timers.set(
       id,

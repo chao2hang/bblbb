@@ -55,6 +55,7 @@ html.dark .theme-preview-scope {
   /* 背景 */
   --color-bg-page: var(--bb-active-background) !important;
   --color-bg-card: var(--bb-active-surface) !important;
+  --color-bg-raised: var(--bb-active-surface) !important;
   --color-bg-subtle: color-mix(in srgb, var(--bb-active-surface) 80%, var(--bb-active-background)) !important;
   --color-bg-inset: color-mix(in srgb, var(--bb-active-surface) 55%, var(--bb-active-background)) !important;
   --color-bg-hover: color-mix(in srgb, var(--bb-active-surface) 60%, var(--bb-active-background)) !important;
@@ -67,6 +68,11 @@ html.dark .theme-preview-scope {
   --color-text-secondary: var(--bb-active-muted) !important;
   --color-text-tertiary: color-mix(in srgb, var(--bb-active-muted) 82%, var(--bb-active-background)) !important;
   --color-text-on-brand: var(--bb-active-background) !important;
+
+  /* 正文链接（surface.css §3 消费）：主题未单独声明链接色，取正文色，
+     可辨识性由下划线承担，与默认主题「强调色只做信号」的约定一致。 */
+  --color-link: var(--bb-active-text) !important;
+  --color-link-hover: var(--bb-active-accent) !important;
 
   /* 品牌色与派生态 */
   --color-brand: var(--bb-active-accent) !important;

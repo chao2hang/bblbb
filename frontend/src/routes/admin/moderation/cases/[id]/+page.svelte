@@ -5,11 +5,19 @@
   import Button from '$lib/components/ui/Button.svelte';
   import { formatRelative } from '$lib/utils';
   import type { PageData } from './$types';
+  import { withActionToast } from '$lib/ui/action-toast';
 
   let { data, form }: { data: PageData; form: any } = $props();
 
   const caseItem = $derived(data.caseItem);
   const okMessage = $derived(form?.ok as string | undefined);
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   let penaltyAction = $state<'hide' | 'mute' | 'dismiss'>('mute');
   let reasonText = $state('');
@@ -43,13 +51,13 @@
 {:else if !caseItem}
   <div class="app-card">
     <div class="app-card__body">
-      {#if form?.message}<p class="form-error" role="alert">{form.message}</p>{/if}
+      {#if form?.message && !hasJs}<p class="form-error" role="alert">{form.message}</p>{/if}
       <EmptyState icon="inbox" title="未找到案件" desc="该案件不存在或当前角色无权查看" />
     </div>
   </div>
 {:else}
-  {#if form?.message}<div class="alert alert-danger" role="alert" style="margin-bottom:12px;">{form.message}</div>{/if}
-  {#if okMessage}<div class="alert alert-success" role="status" style="margin-bottom:12px;">{okMessage}</div>{/if}
+  {#if form?.message && !hasJs}<div class="alert alert-danger" role="alert" style="margin-bottom:12px;">{form.message}</div>{/if}
+  {#if okMessage && !hasJs}<div class="alert alert-success" role="status" style="margin-bottom:12px;">{okMessage}</div>{/if}
 
   <!-- 卡片 1：原内容预览 -->
   <section class="app-card" style="margin-bottom:14px;">
@@ -76,7 +84,8 @@
         举报人 Yuwen · 原因：<b>广告 / 垃圾信息</b>
       </div>
 
-      <form method="POST" action="?/transition" use:enhance style="display:flex;flex-direction:column;gap:12px;">
+      <!-- 成功结果在 form.ok（okMessage 同源），失败在 form.message -->
+      <form method="POST" action="?/transition" use:enhance={withActionToast({ message: (d) => (d?.message ?? d?.ok) as string | null })} style="display:flex;flex-direction:column;gap:12px;">
         <!-- 隐式映射到后端的 status 与 resolution -->
         <input type="hidden" name="status" value={penaltyAction === 'dismiss' ? 'rejected' : 'resolved'} />
         

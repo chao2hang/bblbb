@@ -233,7 +233,10 @@ v1 目标为 WCAG 2.2 AA：
   签到为每日首次有效页面访问自动领取，页面按钮走 `POST /activity/visit`（幂等）。
 - **Reaction（M07-UI-07）**：`ReactionBar.svelte` 独立组件（选择/撤销/429 冷却/
   403/未登录提示），demo 于 `/me/wardrobe`；接入帖子/评论页时把每行 reactions
-  传入并接入既有列表。
+  传入并接入既有列表。左侧仅在收到反应时展示「图标 + 次数」紧凑 Pill，点击弹出
+  明细弹窗（Tab + 用户列表）；**单激活语义**：一人只保留一个激活反应，选择器中
+  点不同表情即切换（后端事务内原子删旧加新，响应 `counts` 回同步），并通过
+  `onReactionMutated` 回调联动行内并行动作按钮（侧栏赞/狗头）。
 - **后台商城/活跃（M07-UI-08）**：`/admin/shop`、`/admin/activity` 商品/订单/退款/
   任务配置；`reason` 必填（审计），If-Match 版本冲突 409 提示刷新。
 

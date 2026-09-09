@@ -355,8 +355,24 @@ fn classify_sdk<E: std::fmt::Debug>(
             }
         }
         SdkError::TimeoutError(_) => StorageError::Network(format!("s3 {operation} timeout")),
-        SdkError::DispatchFailure(_) => {
-            StorageError::Network(format!("s3 {operation} dispatch failure (dns/tls)"))
+        SdkError::DispatchFailure(err) => {
+            let dbg = format!("{err:?}");
+            // 无凭据（如表单 Secret 留空且环境/DB 均未配置）会被 SDK 包装为
+            // DispatchFailure（IMDS 探测超时）——必须与真实网络故障区分，
+            // 否则用户会看到误导性的“网络错误”。
+            if dbg.contains("CredentialsNotLoaded") {
+                StorageError::Auth(format!(
+                    "s3 {operation} failed: no credentials (provide access key/secret, or save them first)"
+                ))
+            } else {
+                // 诊断信息可能很长（完整错误链），截断保持 UI 可读。
+                // 按 chars 截断，避免切在 UTF-8 边界上 panic。
+                let mut trimmed: String = dbg.chars().take(300).collect();
+                if trimmed.len() < dbg.len() {
+                    trimmed.push('…');
+                }
+                StorageError::Network(format!("s3 {operation} dispatch failure: {trimmed}"))
+            }
         }
         other => StorageError::Upstream(format!("s3 {operation} sdk error: {other:?}")),
     }
@@ -746,7 +762,9 @@ impl StorageService {
             StorageBackend::S3 => {
                 if let Ok(guard) = self.s3.try_read() {
                     if guard.is_none() {
-                        return Err(StorageError::Invalid("s3 backend not configured".to_string()));
+                        return Err(StorageError::Invalid(
+                            "s3 backend not configured".to_string(),
+                        ));
                     }
                 }
                 Ok(DynamicAdapter::S3(self.s3.clone()))
@@ -805,7 +823,12 @@ impl DynamicAdapter {
         }
     }
 
-    pub async fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, StorageError> {
+    pub async fn read_range(
+        &self,
+        key: &str,
+        start: u64,
+        len: u64,
+    ) -> Result<Vec<u8>, StorageError> {
         match self {
             DynamicAdapter::Local(l) => l.read().await.read_range(key, start, len).await,
             DynamicAdapter::S3(s) => {
@@ -819,7 +842,12 @@ impl DynamicAdapter {
         }
     }
 
-    pub async fn write_object(&self, key: &str, data: &[u8], content_type: Option<&str>) -> Result<(), StorageError> {
+    pub async fn write_object(
+        &self,
+        key: &str,
+        data: &[u8],
+        content_type: Option<&str>,
+    ) -> Result<(), StorageError> {
         match self {
             DynamicAdapter::Local(l) => l.read().await.write_object(key, data, content_type).await,
             DynamicAdapter::S3(s) => {
@@ -882,7 +910,9 @@ impl DynamicAdapter {
         ttl_secs: u64,
     ) -> Result<PresignedUrl, StorageError> {
         match self {
-            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local presign upload not supported".into())),
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported(
+                "local presign upload not supported".into(),
+            )),
             DynamicAdapter::S3(s) => {
                 let guard = s.read().await;
                 guard
@@ -894,9 +924,15 @@ impl DynamicAdapter {
         }
     }
 
-    pub async fn presign_download(&self, key: &str, ttl_secs: u64) -> Result<PresignedUrl, StorageError> {
+    pub async fn presign_download(
+        &self,
+        key: &str,
+        ttl_secs: u64,
+    ) -> Result<PresignedUrl, StorageError> {
         match self {
-            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local presign download not supported".into())),
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported(
+                "local presign download not supported".into(),
+            )),
             DynamicAdapter::S3(s) => {
                 let guard = s.read().await;
                 guard
@@ -908,9 +944,15 @@ impl DynamicAdapter {
         }
     }
 
-    pub async fn begin_multipart(&self, key: &str, content_type: &str) -> Result<String, StorageError> {
+    pub async fn begin_multipart(
+        &self,
+        key: &str,
+        content_type: &str,
+    ) -> Result<String, StorageError> {
         match self {
-            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported(
+                "local multipart not supported".into(),
+            )),
             DynamicAdapter::S3(s) => {
                 let guard = s.read().await;
                 guard
@@ -930,7 +972,9 @@ impl DynamicAdapter {
         data: &[u8],
     ) -> Result<String, StorageError> {
         match self {
-            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported(
+                "local multipart not supported".into(),
+            )),
             DynamicAdapter::S3(s) => {
                 let guard = s.read().await;
                 guard
@@ -949,7 +993,9 @@ impl DynamicAdapter {
         parts: &[(i32, String)],
     ) -> Result<(), StorageError> {
         match self {
-            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported(
+                "local multipart not supported".into(),
+            )),
             DynamicAdapter::S3(s) => {
                 let guard = s.read().await;
                 guard
@@ -963,7 +1009,9 @@ impl DynamicAdapter {
 
     pub async fn abort_multipart(&self, key: &str, upload_id: &str) -> Result<(), StorageError> {
         match self {
-            DynamicAdapter::Local(_) => Err(StorageError::Unsupported("local multipart not supported".into())),
+            DynamicAdapter::Local(_) => Err(StorageError::Unsupported(
+                "local multipart not supported".into(),
+            )),
             DynamicAdapter::S3(s) => {
                 let guard = s.read().await;
                 guard
@@ -1004,7 +1052,12 @@ impl StorageAdapter for DynamicAdapter {
         self.read_range(key, start, len).await
     }
 
-    async fn write_object(&self, key: &str, data: &[u8], content_type: Option<&str>) -> Result<(), StorageError> {
+    async fn write_object(
+        &self,
+        key: &str,
+        data: &[u8],
+        content_type: Option<&str>,
+    ) -> Result<(), StorageError> {
         self.write_object(key, data, content_type).await
     }
 
@@ -1029,7 +1082,11 @@ impl StorageAdapter for DynamicAdapter {
         self.presign_upload(key, content_type, ttl_secs).await
     }
 
-    async fn presign_download(&self, key: &str, ttl_secs: u64) -> Result<PresignedUrl, StorageError> {
+    async fn presign_download(
+        &self,
+        key: &str,
+        ttl_secs: u64,
+    ) -> Result<PresignedUrl, StorageError> {
         self.presign_download(key, ttl_secs).await
     }
 

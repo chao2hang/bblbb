@@ -14,6 +14,13 @@
   const allPermissions = $derived(data.allPermissions ?? []);
   const message = $derived(form?.message ?? null);
 
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
+
   let searchQ = $state('');
   let permSearchQ = $state('');
   let selectedRoleId = $state<string | null>(null);
@@ -175,7 +182,7 @@
     </div>
   </div>
 {:else}
-  {#if message}
+  {#if message && !hasJs}
     <div class="app-error" role="status" style="margin-bottom:12px;">
       <b>{message}</b>
     </div>

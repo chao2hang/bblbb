@@ -49,11 +49,11 @@
     type Problem
   } from '$lib/errors';
   import Button from '$lib/components/ui/Button.svelte';
-  import SafeHtml from '$lib/components/SafeHtml.svelte';
+  import RichTextEditor from '$lib/components/editor/RichTextEditor.svelte';
   import EditorAssistantPanel from '$lib/components/ai/EditorAssistantPanel.svelte';
   import VideoInsertPanel from '$lib/components/video/VideoInsertPanel.svelte';
   import { videoProviderLabel } from '$lib/video/labels';
-  import { renderSafeMarkdown, charCount } from '$lib/utils';
+  import { charCount } from '$lib/utils';
   import PageTitle from '$lib/components/PageTitle.svelte';
 
   const MAX_TITLE_CHARS = 200;
@@ -96,15 +96,8 @@
   let user = $state<User | null>(null);
   let userLoaded = $state(false);
 
-  let previewMode = $state(false);
   let submitting = $state(false);
   let error = $state<Problem | null>(null);
-
-  // ── Markdown 工具栏（GAP-FIX 编辑器增强） ──
-  // 需要Selection API（selectionStart/End + setRangeText），无 JS 环境
-  // 不可用 → 按钮栏挂载后才渲染（textarea 本身始终可直接输入）。
-  let toolbarMounted = $state(false);
-  let editorEl = $state<HTMLTextAreaElement | undefined>(undefined);
 
   // ── 视频引用（M10-UI-01/02） ──
   let videoResolutions = $state<VideoResolveResult[]>([]);
@@ -155,9 +148,6 @@
   );
 
   onMount(async () => {
-    // Markdown 工具栏依赖 Selection API：仅在浏览器挂载后才渲染按钮
-    // （无 JS 环境按钮不出现，textarea 直接可用）。
-    toolbarMounted = true;
     // 并行拉取基础数据；getMe 决定是否启用草稿自动保存与可见等级上限。
     user = await getMe(fetch);
     userLoaded = true;
@@ -252,87 +242,6 @@
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   });
-
-  // ── Markdown 工具栏（GAP-FIX 编辑器增强） ────────────────────────────────
-
-  /** 把 [start,end) 替换为 replacement 并同步 state（setRangeText 不触发
-   *  input 事件，需手动回写 bind:value 绑定的 markdown）。 */
-  function applyEdit(
-    start: number,
-    end: number,
-    replacement: string,
-    caret: number,
-    caretEnd?: number
-  ): void {
-    if (!editorEl) return;
-    const el = editorEl;
-    el.focus();
-    el.setRangeText(replacement, start, end);
-    el.setSelectionRange(caret, caretEnd ?? caret);
-    markdown = el.value;
-  }
-
-  /** 选区包裹语法（如 **加粗**）；无选区时插入占位词并选中，便于直接输入。 */
-  function wrapSelection(prefix: string, suffix: string, placeholder: string): void {
-    if (!editorEl) return;
-    const start = editorEl.selectionStart ?? 0;
-    const end = editorEl.selectionEnd ?? 0;
-    const selected = markdown.slice(start, end) || placeholder;
-    applyEdit(
-      start,
-      end,
-      `${prefix}${selected}${suffix}`,
-      start + prefix.length,
-      start + prefix.length + selected.length
-    );
-  }
-
-  /** 行前缀语法（标题/引用/列表）：对选区覆盖的所有行加前缀。 */
-  function prefixLines(prefix: string): void {
-    if (!editorEl) return;
-    const start = editorEl.selectionStart ?? 0;
-    const end = editorEl.selectionEnd ?? start;
-    const from = markdown.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
-    let to = markdown.indexOf('\n', end);
-    if (to === -1) to = markdown.length;
-    const replaced = markdown
-      .slice(from, to)
-      .split('\n')
-      .map((line) => prefix + line)
-      .join('\n');
-    applyEdit(from, to, replaced, from + replaced.length);
-  }
-
-  /** 链接：[选中文字](url)——选中文字作链接文本，光标落在 URL 处。 */
-  function insertLink(): void {
-    if (!editorEl) return;
-    const start = editorEl.selectionStart ?? 0;
-    const end = editorEl.selectionEnd ?? 0;
-    const selected = markdown.slice(start, end) || '链接文字';
-    const replacement = `[${selected}](https://)`;
-    const urlStart = start + selected.length + 3;
-    applyEdit(start, end, replacement, urlStart, urlStart + 8);
-  }
-
-  /** M18-EDITOR-01：表格插入模板（对齐原型工具栏）。 */
-  function insertTable(): void {
-    if (!editorEl) return;
-    const tableTemplate = '\n| 标题 1 | 标题 2 |\n| ------ | ------ |\n| 内容 1 | 内容 2 |\n';
-    wrapSelection(tableTemplate, '', '');
-  }
-
-  /** 编辑器内快捷键：Ctrl/Cmd+B 加粗、Ctrl/Cmd+I 斜体。 */
-  function handleEditorKeydown(event: KeyboardEvent): void {
-    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-    const key = event.key.toLowerCase();
-    if (key === 'b') {
-      event.preventDefault();
-      wrapSelection('**', '**', '加粗文字');
-    } else if (key === 'i') {
-      event.preventDefault();
-      wrapSelection('*', '*', '斜体文字');
-    }
-  }
 
   // ── 标签 / 摘要 / 付费价格（GAP-FIX 编辑器增强） ─────────────────────────
 
@@ -655,47 +564,15 @@
 
       <div class="card">
         <div class="card-body" style="padding:0;">
-          {#if previewMode}
-            <div class="prose editor-preview" style="padding:var(--space-4);min-height:200px;">
-              <!-- 仅编辑器内预览：客户端渲染本地 Markdown，永不持久化为 HTML。
-                   发布后正文一律使用后端 body_html（M04-UI-01/02）。 -->
-              <SafeHtml html={renderSafeMarkdown(markdown) || '<p class="text-tertiary">（空内容）</p>'} />
-            </div>
-          {:else}
-            {#if toolbarMounted}
-              <!-- Markdown 工具栏：依赖 Selection API（onMount 后才渲染），
-                   无 JS 环境不出现，textarea 仍可直接书写 Markdown。 -->
-              <div
-                class="editor-toolbar"
-                role="toolbar"
-                aria-label="Markdown 格式化"
-                style="display:flex;flex-wrap:wrap;gap:var(--space-1);padding:var(--space-2) var(--space-4);border-bottom:var(--border-default);"
-              >
-                <button type="button" class="btn btn-ghost btn-sm" title="加粗（Ctrl+B）" aria-label="加粗" onclick={() => wrapSelection('**', '**', '加粗文字')}><strong>B</strong></button>
-                <button type="button" class="btn btn-ghost btn-sm" title="斜体（Ctrl+I）" aria-label="斜体" onclick={() => wrapSelection('*', '*', '斜体文字')}><em>I</em></button>
-                <button type="button" class="btn btn-ghost btn-sm" title="标题（行前加 ##）" aria-label="标题" onclick={() => prefixLines('## ')}>H2</button>
-                <button type="button" class="btn btn-ghost btn-sm" title="引用（行前加 >）" aria-label="引用" onclick={() => prefixLines('> ')}>&ldquo;&rdquo;</button>
-                <button type="button" class="btn btn-ghost btn-sm" title="行内代码" aria-label="行内代码" onclick={() => wrapSelection('`', '`', '代码')}>&lt;/&gt;</button>
-                <button type="button" class="btn btn-ghost btn-sm" title="链接" aria-label="链接" onclick={insertLink}>🔗</button>
-                <button type="button" class="btn btn-ghost btn-sm" title="无序列表（行前加 -）" aria-label="无序列表" onclick={() => prefixLines('- ')}>•&mdash;</button>
-                <!-- M18-EDITOR-01：表格工具按钮（对齐原型） -->
-                <button type="button" class="btn btn-ghost btn-sm" title="插入表格" aria-label="表格" onclick={insertTable}>⊞</button>
-              </div>
-            {/if}
-            <textarea
-              class="editor-textarea"
-              id="publish-content"
-              placeholder="使用 Markdown 编写内容…（Ctrl+B 加粗 / Ctrl+I 斜体）"
-              bind:value={markdown}
-              bind:this={editorEl}
-              onkeydown={handleEditorKeydown}
-              rows="16"
-              maxlength={MAX_MARKDOWN_CHARS}
-            ></textarea>
-          {/if}
+          <RichTextEditor
+            bind:value={markdown}
+            placeholder="使用 Markdown 或富文本编写内容…（支持表格、代码块、Ctrl+B/I 等快捷键）"
+            maxChars={MAX_MARKDOWN_CHARS}
+            id="publish-content"
+            name="markdown"
+          />
           <div style="display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);border-top:var(--border-default);">
             <span class="text-tertiary" style="font-size:var(--text-xs);">{charCount(markdown)} / {MAX_MARKDOWN_CHARS}</span>
-            <Button text={previewMode ? '编辑' : '预览'} variant="ghost" size="sm" type="button" onclick={() => (previewMode = !previewMode)} />
             {#if !userLoaded}
               <span class="text-tertiary" style="font-size:var(--text-xs);margin-left:auto;">登录后自动保存草稿…</span>
             {:else if !user}

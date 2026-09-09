@@ -7,9 +7,9 @@
     logout,
     listNotifications,
     markAllNotificationsRead,
-    type User,
-    type Notification
+    type User
   } from '$lib/api/client';
+  import { getBellUnread, getBellRecent, syncBell, setBellUnread, setBellRecent } from '$lib/notifications/bellState.svelte';
   import { goto } from '$app/navigation';
   import Navbar from '$lib/components/Navbar.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
@@ -27,14 +27,18 @@
   // navbar，无 JS 基线一致）；匿名/后端不可达为 null。
   let user = $state<User | null>(untrack(() => data?.user ?? null));
 
-  // 通知徽标：SSR/整页加载由 +layout.server.ts 提供（登录用户 limit=3 +
-  // unread_count），服务端即渲染真实徽标（无 JS 也可见）；客户端导航后
-  // 由下方会话刷新路径写入 override（null = 未覆盖，回退 server data）。
-  let unreadOverride = $state<number | null>(null);
-  let recentOverride = $state<Notification[] | null>(null);
+  // 通知徽标：共享铃铛态（bellState.svelte）在此渲染。SSR/整页加载由
+  // +layout.server.ts 提供（登录用户 limit=3 + unread_count），每次 init 无条件
+  // 播种（模块态跨请求共享，必须重新播种防泄漏；客户端 SPA 内 init 仅整页
+  // 首帧执行一次），服务端即渲染真实徽标（无 JS 也可见）；客户端导航后由
+  // 会话刷新 / 登出 / 通知页已读操作两条写入路径维护，铃铛角标不依赖路由变化。
+  syncBell(
+    untrack(() => data?.notifications?.unreadCount ?? 0),
+    untrack(() => data?.notifications?.recent ?? [])
+  );
 
-  const unread = $derived(unreadOverride ?? data?.notifications?.unreadCount ?? 0);
-  const recentNotifications = $derived(recentOverride ?? data?.notifications?.recent ?? []);
+  const unread = $derived(getBellUnread() ?? data?.notifications?.unreadCount ?? 0);
+  const recentNotifications = $derived(getBellRecent() ?? data?.notifications?.recent ?? []);
   const activeTheme = $derived<ActiveThemeView | null>(data?.activeTheme ?? null);
 
   // 全站文案（0065）：站点名/描述来自后台系统设置，后端不可达时为内置兜底。
@@ -86,19 +90,16 @@
         // 通知徽标刷新（best-effort：失败不阻塞会话态，保留 SSR 值）。
         try {
           const result = await listNotifications(fetch);
-          unreadOverride = result.unread_count ?? 0;
-          recentOverride = result.items.slice(0, 3);
+          syncBell(result.unread_count ?? 0, result.items.slice(0, 3));
         } catch {
           /* 保留现有徽标值 */
         }
       } else {
-        unreadOverride = 0;
-        recentOverride = [];
+        syncBell(0, []);
       }
     } catch {
       user = null;
-      unreadOverride = 0;
-      recentOverride = [];
+      syncBell(0, []);
     }
   }
 
@@ -107,8 +108,7 @@
       await logout(fetch);
     } finally {
       user = null;
-      unreadOverride = 0;
-      recentOverride = [];
+      syncBell(0, []);
       goto('/');
     }
   }
@@ -117,8 +117,9 @@
   async function handleMarkAllRead() {
     try {
       const result = await markAllNotificationsRead(fetch);
-      unreadOverride = Math.max(0, unread - (result?.updated ?? unread));
-      recentOverride = recentNotifications.map((n) => ({ ...n, is_read: true }));
+      const current = getBellUnread() ?? 0;
+      setBellUnread(Math.max(0, current - (result?.updated ?? current)));
+      setBellRecent((getBellRecent() ?? []).map((n) => ({ ...n, is_read: true })));
       showToast('已将全部通知标记为已读', 'success');
     } catch {
       showToast('操作失败，请稍后重试', 'danger');

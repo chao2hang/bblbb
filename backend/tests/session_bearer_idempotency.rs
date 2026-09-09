@@ -347,3 +347,115 @@ async fn cookie_put_write_is_still_csrf_protected() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+/// 回归（M02-SESSION-07）：idle/absolute 已过期（未撤销）会话的写请求必须
+/// 落到认证层 401，而不是 403 csrf_failed。
+///
+/// 此前 `resolve_csrf_secret` 误用秒级 `Utc::now().timestamp()` 与毫秒级
+/// `idle_expires_at` 比较（恒真），过期会话仍判有效：`GET /auth/csrf` 已按
+/// 未认证返回预认证 token，而中间件仍期望会话派生 token——过期会话的写
+/// 请求永远 csrf_failed，且客户端清缓存重试也失败（token 来源不变）。
+#[tokio::test]
+async fn expired_session_write_falls_to_401_not_csrf_failed() {
+    let (pool, dir) = pool_with_migrations().await;
+    let app = build_router(AppConfig::default(), Some(pool.clone()));
+    let email = insert_active_user(&pool, "exp").await;
+    let session_cookie = login_cookie(&app, &email).await;
+
+    // 正向对照：有效会话 + GET /auth/csrf 返回的会话派生 token → 通过 CSRF。
+    let csrf_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/csrf")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(csrf_resp.status(), StatusCode::OK);
+    let csrf_body: Value =
+        serde_json::from_slice(&csrf_resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let valid_token = csrf_body["token"].as_str().unwrap().to_string();
+    // 无副作用写端点（不能选 logout-all：撤销会话会让过期分支被
+    // revoked_at IS NULL 提前短路，测不到 idle 过期比较本身）。
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/me/preferences/theme")
+                .header("content-type", "application/json")
+                .header("cookie", &session_cookie)
+                .header("x-csrf-token", &valid_token)
+                .body(Body::from(r#"{"theme":"dark"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "有效会话 + 会话派生 token 不得被 CSRF 拦截"
+    );
+
+    // 会话 idle 过期（毫秒时间戳；过期但未撤销）。
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query("UPDATE user_sessions SET idle_expires_at = ?")
+                .bind(now_millis() - 1000)
+                .execute(p)
+                .await
+                .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+
+    // /auth/csrf 对过期会话按未认证处理 → 返回预认证 token（非会话派生）。
+    let csrf_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/csrf")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(csrf_resp.status(), StatusCode::OK);
+    let csrf_body: Value =
+        serde_json::from_slice(&csrf_resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let expired_token = csrf_body["token"].as_str().unwrap().to_string();
+
+    // 写请求（过期会话 Cookie + 预认证 token）：中间件必须视为无会话、由
+    // 认证层返回 401；不得因秒/毫秒单位错位把过期会话判有效而 403 csrf_failed。
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/me/preferences/theme")
+                .header("content-type", "application/json")
+                .header("cookie", &session_cookie)
+                .header("x-csrf-token", &expired_token)
+                .body(Body::from(r#"{"theme":"dark"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNAUTHORIZED,
+        "过期（未撤销）会话的写请求必须落到认证层 401，不得 403 csrf_failed"
+    );
+    let body: Value =
+        serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_ne!(body["code"], "csrf_failed");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

@@ -741,6 +741,7 @@ fn create_response_json(
         };
     }
     let body = json!({
+        "id": attachment.id,
         "attachment": attachment_json(&attachment),
         "upload": upload,
     });

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#F5F3EE" id="theme-color" />
+    <meta name="theme-color" content="#F7F8F8" id="theme-color" />
     <!-- 全局壳·主题防闪烁（照原型各页面 head 内联脚本的模式）：
          首帧前同步读取 localStorage `bblbb-theme`（light/dark/system，默认
          system）并用 matchMedia 解析暗色，随后写显式 html.light/dark class
@@ -27,7 +27,7 @@
         root.style.colorScheme = t;
         var themeColorMeta = document.querySelector('#theme-color');
         if (themeColorMeta) {
-          themeColorMeta.setAttribute('content', t === 'dark' ? '#0D0D0D' : '#F5F3EE');
+          themeColorMeta.setAttribute('content', t === 'dark' ? '#0D1014' : '#F7F8F8');
         }
       } catch (e) {
         document.documentElement.classList.add('light');

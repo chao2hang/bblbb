@@ -8,6 +8,8 @@
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
   import { adminStateLabel } from '$lib/admin';
   import { tagSearchUrl } from '$lib/search';
+  import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast, toastActionResult } from '$lib/ui/action-toast';
   import type { AdminTagsActionData, AdminTagsPageData } from './+page.server';
 
   let { data, form }: { data: AdminTagsPageData; form?: AdminTagsActionData | null } = $props();
@@ -19,6 +21,13 @@
   const message = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   let showCreate = $state(false);
 
@@ -162,7 +171,7 @@
                   <form
                     method="POST"
                     action="?/toggle"
-                    use:enhance
+                    use:enhance={withActionToast()}
                     style="display:inline-flex;gap:4px;align-items:center;margin:0;"
                   >
                     <input type="hidden" name="id" value={item.id} />
@@ -193,7 +202,7 @@
               {#if mergingId === item.id}
                 <tr>
                   <td colspan="4" style="background:var(--color-bg-subtle);">
-                    <form method="POST" action="?/merge" use:enhance style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:10px 4px;">
+                    <form method="POST" action="?/merge" use:enhance={withActionToast()} style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:10px 4px;">
                       <input type="hidden" name="id" value={item.id} />
                       <div>
                         <label class="input-label" for={`tg-target-${item.id}`}>并入目标标签</label>
@@ -226,14 +235,14 @@
     {/if}
     {/if}
 
-    {#if message}
+    {#if message && !hasJs}
       <p class="input-hint" role="status" style="margin-top:12px;">{message}</p>
     {/if}
 
-    {#if created}
+    {#if created && !hasJs}
       <p class="input-hint" role="status" style="margin-top:14px;">标签已创建。</p>
     {/if}
-    {#if message}
+    {#if message && !hasJs}
       <p class="input-hint is-error" role="alert" style="margin-top:14px;">{message}</p>
     {/if}
   </div>
@@ -269,7 +278,8 @@
   </header>
 
   <div class="app-card__body">
-    <form method="POST" action="?/create" use:enhance style="display:flex;flex-direction:column;gap:14px;max-width:520px;">
+    <!-- 创建成功时 server 只返回 created（无 message）：自定义回调补一条成功 Toast -->
+    <form method="POST" action="?/create" use:enhance={() => async ({ result, update }) => { if (result.type === 'success' && !toastActionResult(result)) { const d = result.data as { created?: boolean } | null; if (d?.created) showToast('标签已创建。', 'success'); } await update(); }} style="display:flex;flex-direction:column;gap:14px;max-width:520px;">
       <div>
         <label class="input-label" for="admin-tag-name">名称</label>
         <input type="text" class="input-field" id="admin-tag-name" name="name" maxlength="40" required />

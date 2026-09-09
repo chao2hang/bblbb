@@ -13,18 +13,20 @@ EXPECTED_TASK_FILES = %w[
   todo/M08-M12-integrations.md
   todo/M13-M17-release.md
   todo/M18-prototype-parity.md
+  todo/M19-design-system.md
 ].map { |path| File.join(ROOT, path) }.freeze
 DISCOVERED_TASK_FILES = Dir[File.join(ROOT, "todo", "M*.md")].sort.freeze
 COVERAGE_PATH = File.join(ROOT, "todo", "openapi-operation-coverage.json")
 OPENAPI_PATH = File.join(ROOT, "openapi", "openapi.yaml")
-EXPECTED_MILESTONES = (0..18).map { |number| "M#{number}" }.freeze
+EXPECTED_MILESTONES = (0..19).map { |number| "M#{number}" }.freeze
 MILESTONE_FILES = {
   (0..2) => "todo/M00-M02-foundation.md",
   (3..5) => "todo/M03-M05-community.md",
   (6..7) => "todo/M06-M07-storage-economy.md",
   (8..12) => "todo/M08-M12-integrations.md",
   (13..17) => "todo/M13-M17-release.md",
-  (18..18) => "todo/M18-prototype-parity.md"
+  (18..18) => "todo/M18-prototype-parity.md",
+  (19..19) => "todo/M19-design-system.md"
 }.freeze
 HTTP_METHODS = %w[get post put patch delete head options trace].freeze
 ALLOWED_TASK_STATES = [" ", "x", "~", "!"].freeze

@@ -27,7 +27,7 @@ use crate::{
         achievements, admin, admin_ext, ai, apikeys, auth, boards, comments, conversations,
         download, drafts, economy, economy_ext, favorites, feeds, follows, health::healthz,
         marketplace, metrics::metrics, mfa, moderation, oidc, openapi::openapi, posts, reactions,
-        ready, search, shop, storage, themes, users, video,
+        ready, search, shop, site, storage, themes, users, video,
     },
 };
 
@@ -146,6 +146,7 @@ pub fn build_router_full(
         .merge(admin_ext::router())
         .merge(feeds::router())
         .merge(search::router())
+        .merge(site::router())
         .merge(themes::router())
         .merge(favorites::router())
         .merge(follows::router())

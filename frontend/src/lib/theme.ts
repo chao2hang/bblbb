@@ -18,8 +18,8 @@ export const THEME_STORAGE_KEY = 'bblbb-theme';
 
 /** 与 tokens.css --color-bg-page 对应的地址栏底色。 */
 export const THEME_COLOR: Record<ResolvedTheme, string> = {
-  light: '#F5F3ED',
-  dark: '#101B19'
+  light: '#F7F8F8',
+  dark: '#0D1014'
 };
 
 /** 读取偏好（localStorage 不可用/值非法时回退 system）。 */

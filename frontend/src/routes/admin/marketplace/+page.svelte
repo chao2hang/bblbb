@@ -3,6 +3,7 @@
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
+  import { withActionToast } from '$lib/ui/action-toast';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminMarketplaceActionData, AdminMarketplacePageData } from './+page.server';
   import type { MarketplaceClientView } from '$lib/api/types';
@@ -16,6 +17,15 @@
   const formMessage = $derived(form?.message ?? null);
   const formSecret = $derived(form?.secret ?? null);
   const isConflict = $derived(form?.code === 'version_conflict');
+
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。「新密钥（仅显示一次）」横幅不受
+  // 影响照常渲染；密钥在 server 的 secret 字段（与 message 分离），toast 只读
+  // message，不含 secret。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
 
   interface ClientItem {
     id: string;
@@ -105,7 +115,7 @@
     </div>
   </div>
 {:else}
-  {#if formMessage}
+  {#if formMessage && !hasJs}
     <div class="alert {isConflict ? 'alert-danger' : 'alert-info'}" role={isConflict ? 'alert' : 'status'} style="margin-bottom:14px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-md);">
       <b>{isConflict ? '版本冲突：' : ''}{formMessage}</b>
     </div>
@@ -235,7 +245,7 @@
       </div>
 
       <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-        <form method="POST" action="?/runReconciliationAll" use:enhance style="margin:0;display:inline;">
+        <form method="POST" action="?/runReconciliationAll" use:enhance={withActionToast()} style="margin:0;display:inline;">
           <input type="hidden" name="reason" value="管理员在控制台触发全站商户例行对账" />
           <button type="submit" class="btn secondary sm">开始对账</button>
         </form>
@@ -243,7 +253,7 @@
           导出交易
         </button>
         {#if items.length > 0}
-          <form method="POST" action="?/emergencyDisable" use:enhance style="margin:0;display:inline;">
+          <form method="POST" action="?/emergencyDisable" use:enhance={withActionToast()} style="margin:0;display:inline;">
             <input type="hidden" name="client_id" value={items[0]?.id} />
             <input type="hidden" name="reason" value="管理员在控制台触发紧急停用保护" />
             <button type="submit" class="btn danger sm" style="font-weight:700;">
@@ -281,7 +291,7 @@
         </div>
 
         <!-- 注册/更新表单 -->
-        <form method="POST" action="?/upsertClient" use:enhance class="stack" style="gap:8px;padding:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
+        <form method="POST" action="?/upsertClient" use:enhance={withActionToast()} class="stack" style="gap:8px;padding:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
           <input type="hidden" name="id" value={c.id} />
           <input type="hidden" name="version" value={String(c.version ?? 4)} />
           <label>
@@ -296,7 +306,7 @@
         </form>
 
         <!-- 对账表单 -->
-        <form method="POST" action="?/reconcile" use:enhance style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+        <form method="POST" action="?/reconcile" use:enhance={withActionToast()} style="display:flex;gap:8px;align-items:center;margin-top:4px;">
           <input type="hidden" name="client_id" value={c.id} />
           <input type="hidden" name="after_cursor" value="0" />
           <input type="text" name="reason" placeholder="对账原因" value="日常对账" required style="width:140px;" />
