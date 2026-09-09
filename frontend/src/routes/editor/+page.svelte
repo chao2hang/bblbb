@@ -23,6 +23,8 @@
     listBoards,
     listTags,
     createPost,
+    updatePost,
+    getPost,
     createDraft,
     updateDraft,
     getDraft,
@@ -52,6 +54,7 @@
   import VideoInsertPanel from '$lib/components/video/VideoInsertPanel.svelte';
   import { videoProviderLabel } from '$lib/video/labels';
   import { renderSafeMarkdown, charCount } from '$lib/utils';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   const MAX_TITLE_CHARS = 200;
   const MAX_MARKDOWN_CHARS = 50_000; // 后端 PostContent 权威上限（Unicode 字符）
@@ -109,6 +112,16 @@
   /** 发布成功但视频引用有失败时的停留态（不阻塞发帖，提示外链）。 */
   let published = $state<{ id: string; videoFailed: number } | null>(null);
 
+  // ── 编辑已有帖子状态（?post_id=<id>）──
+  let editPostId = $state<string | null>(null);
+  let editPostVersion = $state<number>(1);
+  let editPostAuthor = $state<string | null>(null);
+  let isDelegatedEdit = $derived.by(() => {
+    if (!editPostId || !user) return false;
+    return editPostAuthor !== user.username;
+  });
+  let editReason = $state('管理员更新帖子内容');
+
   // ── 草稿状态（M04-UI-03） ──
   let draftId = $state<string | null>(null);
   let draftVersion = $state(1);
@@ -158,14 +171,37 @@
     }
     if (tagResult.status === 'fulfilled') tags = tagResult.value.items;
 
-    // ?draft=<id> 恢复草稿（M04-UI-03 恢复流程）。
-    const draftParam = page.url.searchParams.get('draft');
-    if (draftParam) {
+    // ?post_id=<id> 编辑已有帖子（作者重新编辑 / 管理员代改）
+    const postIdParam = page.url.searchParams.get('post_id');
+    if (postIdParam) {
       try {
-        const draft = await getDraft(fetch, draftParam);
-        hydrateFromDraft(draft);
-      } catch {
-        draftState = 'error';
+        const postData = await getPost(fetch, postIdParam);
+        editPostId = postData.id;
+        editPostVersion = postData.version ?? 1;
+        editPostAuthor = postData.author?.username ?? null;
+        title = postData.title;
+        markdown = postData.markdown || '';
+        if (postData.access_summary?.policy) {
+          const pol = postData.access_summary.policy;
+          if (pol === 'public' || pol === 'logged_in' || pol === 'after_reply' || pol === 'level' || pol === 'paid') {
+            accessPolicy = pol;
+          }
+        }
+        lastSaved = currentSnapshot();
+        dirty = false;
+      } catch (err: any) {
+        error = err as Problem;
+      }
+    } else {
+      // ?draft=<id> 恢复草稿（M04-UI-03 恢复流程）。
+      const draftParam = page.url.searchParams.get('draft');
+      if (draftParam) {
+        try {
+          const draft = await getDraft(fetch, draftParam);
+          hydrateFromDraft(draft);
+        } catch {
+          draftState = 'error';
+        }
       }
     }
     restoring = false;
@@ -194,10 +230,11 @@
     conflict = null;
   }
 
-  /** 字段变化 → 标记脏 + 防抖自动保存（登录时，且与上次保存快照不同）。 */
+  /** 字段变化 → 标记脏 + 防抖自动保存（仅在新建/草稿阶段，编辑已有帖子不自动覆盖草稿）。 */
   $effect(() => {
     const snapshot = currentSnapshot();
     if (restoring || !userLoaded || !user) return;
+    if (editPostId) return; // 编辑已有帖子时不触发新建草稿自动保存
     if (!title.trim() && !markdown.trim()) return;
     if (snapshot === lastSaved) return;
     dirty = true;
@@ -422,6 +459,29 @@
     // TODO(BE-2a)：后端 CreatePostRequest 暂未接收 price_coin/summary 字段
     // （grep backend/src/routes/posts.rs 确认；serde 默认忽略未知字段，
     // 提交不报错），后端按 GAP-FIX-SPEC 落地后本字段即生效。
+    // 编辑已有帖子分支（PATCH /api/v1/posts/:id）
+    if (editPostId) {
+      try {
+        await updatePost(
+          fetch,
+          editPostId,
+          {
+            title: title.trim(),
+            markdown: markdown.trim(),
+            reason: isDelegatedEdit ? editReason.trim() : undefined
+          },
+          editPostVersion
+        );
+        dirty = false;
+        goto(`/posts/${encodeURIComponent(editPostId)}`);
+      } catch (err: unknown) {
+        error = err as Problem;
+      }
+      submitting = false;
+      return;
+    }
+
+    // 新建发布分支
     const input: PostCreateInput & { price_coin?: number; summary?: string } = {
       type: POST_TYPE,
       title: title.trim(),
@@ -527,20 +587,24 @@
   });
 </script>
 
-<svelte:head>
-  <title>发布内容 — BBLBB</title>
-</svelte:head>
+  <PageTitle title={editPostId ? (isDelegatedEdit ? "管理代改内容" : "编辑内容") : "发布内容"} />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/publish.html）：位置导航用 topic-context + sr-only h1，不用 .breadcrumb。 -->
   <nav class="topic-context" aria-label="发布位置">
     <a href="/">首页</a>
     <span aria-hidden="true">/</span>
-    <a href="/me">我的</a>
-    <span aria-hidden="true">/</span>
-    <span class="topic-context__current">发布内容</span>
+    {#if editPostId}
+      <a href="/posts/{encodeURIComponent(editPostId)}">帖子</a>
+      <span aria-hidden="true">/</span>
+      <span class="topic-context__current">{isDelegatedEdit ? '管理代改' : '编辑内容'}</span>
+    {:else}
+      <a href="/me">我的</a>
+      <span aria-hidden="true">/</span>
+      <span class="topic-context__current">发布内容</span>
+    {/if}
   </nav>
-  <h1 class="sr-only" tabindex="-1">发布内容</h1>
+  <h1 class="sr-only" tabindex="-1">{editPostId ? '编辑内容' : '发布内容'}</h1>
 
   <form class="publish-layout" onsubmit={handleSubmit}>
     <div class="publish-main">
@@ -842,27 +906,42 @@
 
       <!-- M18-EDITOR-03：页脚操作区对齐原型（保存草稿 + 立即发布 + 草稿箱链接） -->
       <div style="display:flex;gap:var(--space-2);margin-top:var(--space-3);align-items:center;">
-        {#if user}
-          <button
-            type="button"
-            class="btn btn-secondary"
-            style="flex:1;"
-            onclick={() => void saveDraft()}
-            disabled={draftState === 'saving' || (!title.trim() && !markdown.trim())}
-          >
-            {draftState === 'saving' ? '保存中…' : '保存草稿'}
-          </button>
-        {/if}
-        <div style={user ? 'flex:2;' : 'width:100%;'}>
-          <Button
-            text={submitting ? '发布中…' : scheduledAt ? '定时发布' : '立即发布'}
-            variant="primary"
-            size="lg"
-            type="submit"
-            extraClass="btn-block"
-            disabled={submitting}
-          />
-        </div>
+          {#if isDelegatedEdit}
+            <div class="input-wrapper" style="margin-bottom:var(--space-3);padding:10px 12px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
+              <label class="input-label" for="edit-reason" style="color:var(--color-brand);font-weight:600;">代改原因 *（将写入管理审计日志）</label>
+              <input
+                type="text"
+                id="edit-reason"
+                class="input-field"
+                bind:value={editReason}
+                placeholder="例如：修正排版/移除违规敏感信息"
+                required
+              />
+            </div>
+          {/if}
+          <div style="display:flex;gap:var(--space-2);align-items:center;">
+            {#if user && !editPostId}
+              <button
+                type="button"
+                class="btn btn-secondary"
+                style="flex:1;"
+                onclick={() => void saveDraft()}
+                disabled={draftState === 'saving' || (!title.trim() && !markdown.trim())}
+              >
+                {draftState === 'saving' ? '保存中…' : '保存草稿'}
+              </button>
+            {/if}
+            <div style={user && !editPostId ? 'flex:2;' : 'width:100%;'}>
+              <Button
+                text={submitting ? '保存中…' : editPostId ? (isDelegatedEdit ? '保存代改内容' : '保存修改') : scheduledAt ? '定时发布' : '立即发布'}
+                variant="primary"
+                size="lg"
+                type="submit"
+                extraClass="btn-block"
+                disabled={submitting}
+              />
+            </div>
+          </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-2);">
         <span class="text-tertiary" style="font-size:var(--text-xs);">

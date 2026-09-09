@@ -8,8 +8,12 @@
   import Seo from '$lib/components/Seo.svelte';
   import { formatCount } from '$lib/utils';
   import type { TagDetailPageData } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
-  let { data }: { data: TagDetailPageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: TagDetailPageData & { site?: SiteCopyView | null } } = $props();
+
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const tagName = $derived(data.tag?.name ?? data.slug);
   const tagDescription = $derived(data.tag?.description ?? null);
@@ -24,12 +28,12 @@
 
 <Seo
   title="标签：{tagName}"
-  description="BBLBB 社区标签「{tagName}」下的帖子聚合"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  description={`社区标签「${tagName}」下的帖子聚合`}
+  og={{ type: 'website' }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: `BBLBB 标签：${tagName}`
+    name: `标签：${tagName} · ${site.siteName}`
   }}
 />
 

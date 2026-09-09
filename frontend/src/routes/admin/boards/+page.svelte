@@ -16,6 +16,7 @@
   const message = $derived(
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
+  let dismissError = $state(false);
 
   let showCreate = $state(false);
   /** 当前行内编辑表单（每次一行）。 */
@@ -93,6 +94,17 @@
   </header>
 
   <div class="app-card__body">
+    {#if message && !dismissError}
+      <div
+        class="alert {created ? 'alert-success' : 'alert-danger'}"
+        role="status"
+        style="margin-bottom:14px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;display:flex;justify-content:space-between;align-items:center;"
+      >
+        <span>{message}</span>
+        <button type="button" class="btn ghost sm" onclick={() => (dismissError = true)}>关闭</button>
+      </div>
+    {/if}
+
     {#if loadState.state === 'forbidden'}
       <p class="input-hint is-error" role="alert"><Icon name="lock" size={14} /> {adminStateLabel('forbidden')}</p>
     {:else if loadState.state === 'not_implemented'}

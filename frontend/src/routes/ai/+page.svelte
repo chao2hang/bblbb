@@ -6,6 +6,7 @@
   // - 处理中/取消状态由任务页与编辑器面板承载。
   import { aiPurposeLabel, aiDataModeLabel } from '$lib/api/client';
   import type { AiPageActionData, AiPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: AiPageData; form?: AiPageActionData | null } = $props();
 
@@ -21,9 +22,9 @@
   const revoked = $derived((caps?.consents ?? []).filter((c) => Boolean(c.revoked_at)));
 </script>
 
-<svelte:head>
-  <title>AI 能力与同意 — BBLBB</title>
-  <meta name="description" content="查看 AI 能力状态与管理你的 AI 数据发送同意" />
+  <PageTitle title="AI 能力与同意" />
+
+<svelte:head>  <meta name="description" content="查看 AI 能力状态与管理你的 AI 数据发送同意" />
   <meta name="robots" content="noindex,follow" />
 </svelte:head>
 

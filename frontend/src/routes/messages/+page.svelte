@@ -10,11 +10,15 @@
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import LoadFailureState from '$lib/components/LoadFailureState.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import { isTransientProblem } from '$lib/errors';
+  import { announceTransientProblem } from '$lib/ui/problem-toast';
   import { show } from '$lib/ui/toast';
   import { formatRelative, formatTime } from '$lib/utils';
   import type { MessagesActionData, MessagesPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: MessagesPageData; form?: MessagesActionData | null } = $props();
 
@@ -38,6 +42,16 @@
     scrollToBottom();
   });
 
+  // 瞬态服务端错误（5xx/429）→ 全局 Toast 提示 + 页面只留「加载失败·重试」
+  // 占位（产品约定：不整页展示错误态）；持续性错误仍走 ProblemState。
+  // threadProblem 与 problem 各自独立 announce（WeakSet 按对象去重）。
+  $effect(() => {
+    void data.problem;
+    void data.threadProblem;
+    announceTransientProblem(data.problem);
+    announceTransientProblem(data.threadProblem);
+  });
+
   const otherLabel = $derived(
     data.conversation
       ? data.conversation.other.display_name || data.conversation.other.username
@@ -46,9 +60,7 @@
   const actionMessage = $derived(form?.message ?? null);
 </script>
 
-<svelte:head>
-  <title>消息 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="消息" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/messages.html）：页头为 app-route-head（INBOX / MESSAGES + h1 消息），无面包屑。 -->
@@ -60,7 +72,9 @@
     </div>
   </div>
 
-  {#if data.problem}
+  {#if data.problem && isTransientProblem(data.problem)}
+    <LoadFailureState onretry={() => void invalidateAll()} />
+  {:else if data.problem}
     <ProblemState problem={data.problem} />
   {:else}
     <div class="messages-layout">
@@ -128,7 +142,11 @@
               <span class="card-title">{otherLabel}</span>
             </div>
             <div class="card-body" style="padding:0;display:flex;flex-direction:column;">
-              {#if data.threadProblem}
+              {#if data.threadProblem && isTransientProblem(data.threadProblem)}
+                <div style="padding:var(--space-4);">
+                  <LoadFailureState title="会话加载失败" onretry={() => void invalidateAll()} />
+                </div>
+              {:else if data.threadProblem}
                 <div style="padding:var(--space-4);">
                   <ProblemState problem={data.threadProblem} title="会话加载失败" />
                 </div>

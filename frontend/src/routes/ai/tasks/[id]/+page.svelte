@@ -9,6 +9,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import type { AiTask } from '$lib/api/types';
   import type { AiTaskActionData, AiTaskPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: AiTaskPageData; form?: AiTaskActionData | null } = $props();
 
@@ -76,9 +77,9 @@
   });
 </script>
 
-<svelte:head>
-  <title>AI 任务 — BBLBB</title>
-  <meta name="robots" content="noindex,follow" />
+  <PageTitle title="AI 任务" />
+
+<svelte:head>  <meta name="robots" content="noindex,follow" />
 </svelte:head>
 
 <div class="container page-content">

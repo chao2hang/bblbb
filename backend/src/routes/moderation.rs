@@ -577,9 +577,16 @@ async fn create_moderation_case(
     ))
 }
 
+#[derive(serde::Deserialize, Default)]
+struct ListModerationCasesQuery {
+    #[serde(default)]
+    status: Option<String>,
+}
+
 async fn list_moderation_cases(
     State(state): State<AppState>,
     auth: AuthSession,
+    Query(query): Query<ListModerationCasesQuery>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "list_moderation_cases";
     let user = auth.require_auth(request_id)?;
@@ -589,19 +596,28 @@ async fn list_moderation_cases(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     require_moderation(pool, &user.id, None, request_id).await?;
 
+    let status = query.status.filter(|s| !s.is_empty());
     type CaseListRow = (String, String, String, String, Option<String>, i64, i64);
     let rows: Vec<CaseListRow> = match pool {
         Either::Left(p) => sqlx::query_as(
             "SELECT id, title, status, priority, assigned_to, created_at, updated_at
-             FROM moderation_cases ORDER BY created_at DESC LIMIT 100",
+             FROM moderation_cases
+             WHERE (? IS NULL OR status = ?)
+             ORDER BY created_at DESC LIMIT 100",
         )
+        .bind(&status)
+        .bind(&status)
         .fetch_all(p)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?,
         Either::Right(p) => sqlx::query_as(
             "SELECT id, title, status, priority, assigned_to, created_at, updated_at
-             FROM moderation_cases ORDER BY created_at DESC LIMIT 100",
+             FROM moderation_cases
+             WHERE (? IS NULL OR status = ?)
+             ORDER BY created_at DESC LIMIT 100",
         )
+        .bind(&status)
+        .bind(&status)
         .fetch_all(p)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?,

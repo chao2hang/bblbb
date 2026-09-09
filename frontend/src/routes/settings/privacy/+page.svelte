@@ -6,6 +6,7 @@
   import Card from '$lib/components/ui/Card.svelte';
   import { page } from '$app/state';
   import type { PrivacyPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data }: { data: PrivacyPageData } = $props();
 
@@ -14,8 +15,9 @@
   const canonical = $derived(`${page.url.origin}/settings/privacy`);
 </script>
 
+<PageTitle title="隐私与索引设置" />
+
 <svelte:head>
-  <title>隐私与索引设置 — BBLBB</title>
   <meta name="description" content="管理你的内容在搜索引擎与 AI 摘要中的索引状态" />
   <link rel="canonical" href={canonical} />
 </svelte:head>
@@ -34,7 +36,7 @@
       <a href="/settings"><span aria-hidden="true">◈</span>个人资料</a>
       <a href="/settings#settings-security"><span aria-hidden="true">◇</span>账号安全</a>
       <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
-      <a href="/notifications"><span aria-hidden="true">◌</span>通知设置</a>
+      <a href="/settings#settings-notifications"><span aria-hidden="true">◌</span>通知设置</a>
       <a href="/settings#settings-oauth"><span aria-hidden="true">⌁</span>OAuth 授权</a>
       <a href="/settings/privacy" class="is-active"><span aria-hidden="true">□</span>隐私设置</a>
     </nav>

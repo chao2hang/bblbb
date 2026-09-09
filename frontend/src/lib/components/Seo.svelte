@@ -10,6 +10,7 @@
   import { page as kitPage } from '$app/state';
   import JsonLd from './JsonLd.svelte';
   import { buildSeo, type SeoInput } from '$lib/seo/meta';
+  import { resolveSiteCopy } from '$lib/site/copy';
 
   let {
     title,
@@ -31,10 +32,21 @@
     }
   });
 
+  // 全站文案（0065）：站点名（title 后缀）来自根 layout 的 data.site
+  // （后台系统设置）；独立渲染/后端不可达时解析内置兜底。
+  const siteName = $derived.by(() => {
+    try {
+      return resolveSiteCopy(kitPage.data?.site ?? null).siteName;
+    } catch {
+      return '';
+    }
+  });
+
   const meta = $derived(
     buildSeo({
       title,
       description,
+      siteName,
       canonical: canonical || fallbackCanonical,
       noindex,
       og,

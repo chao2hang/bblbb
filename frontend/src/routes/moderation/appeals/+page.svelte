@@ -3,6 +3,7 @@
   import type { AppealsActionData, AppealsPageData } from './+page.server';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import { formatRelative } from '$lib/utils';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: AppealsPageData; form?: AppealsActionData | null } = $props();
 
@@ -36,9 +37,7 @@
   };
 </script>
 
-<svelte:head>
-  <title>申诉中心 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="申诉中心" />
 
 <div class="container page-content">
   <!-- M18-APPEAL-02：标准页头对齐原型 -->

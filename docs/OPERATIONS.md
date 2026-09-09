@@ -518,6 +518,11 @@ DOCUMENTED_NON_CONTRACT 登记为准），权限均为相应 `*.manage`/`post.mo
 - 下载交易：`GET /api/v1/admin/download-billing/transactions`
 - 标签合并：`POST /api/v1/admin/tags/{id}/merge`
 
+其公开只读投影 `GET /api/v1/site`（匿名可读，迁移 0065 站点文案列）：站点
+名称/描述、登录/注册页文案与 `maintenance_mode` 公开标记；空文案字段表示
+「前端内置通用文案兜底」。SMTP、注册开关等运营字段不进该投影。响应
+`private, no-store`（SSR 内部 fetch 传播安全）。
+
 ## 20. 从零部署 Runbook（快速路径）
 
 本节把既有交付物串成一条线性部署路径；各步骤的详细规格在引用文档中，此处不重复。

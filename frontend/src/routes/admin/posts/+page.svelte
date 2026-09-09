@@ -5,6 +5,7 @@
   // - .app-card > .app-card__head + .app-table 数据表格
   // - 简洁一键式操作按钮（td.adm-acts）
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
+  import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
   import FilterTabs from '$lib/components/admin/FilterTabs.svelte';
@@ -12,9 +13,19 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
   import { show as showToast } from '$lib/ui/toast';
+  import { withActionToast } from '$lib/ui/action-toast';
+  import type { AdminPostItem } from '$lib/api/types';
   import type { AdminPostsActionData, AdminPostsPageData } from './+page.server';
 
   let { data, form }: { data: AdminPostsPageData; form?: AdminPostsActionData | null } = $props();
+
+  const mockPosts: AdminPostItem[] = [
+    { id: 'post-1', title: '全栈架构设计的最佳实践', author_username: 'Alice', board_slug: 'tech', board_name: '技术分享', status: 'published', review_status: 'approved', is_featured: false, is_pinned: false, is_locked: false, view_count: 1420, created_at: 1700000000000 },
+    { id: 'post-2', title: '待审核的内容规范违规检查', author_username: 'Bob', board_slug: 'water', board_name: '灌水吐槽', status: 'pending_review', review_status: 'pending_review', is_featured: false, is_pinned: false, is_locked: false, view_count: 12, created_at: 1699900000000 },
+    { id: 'post-3', title: '本周社区精华精选周刊 #12', author_username: 'Charlie', board_slug: 'announcement', board_name: '社区公告', status: 'published', review_status: 'approved', is_featured: true, is_pinned: true, is_locked: false, view_count: 5800, created_at: 1699800000000 },
+    { id: 'post-4', title: '违规广告垃圾内容处理存档', author_username: 'David', board_slug: 'market', board_name: '二手交易', status: 'hidden', review_status: 'approved', is_featured: false, is_pinned: false, is_locked: false, view_count: 4, created_at: 1699700000000 },
+    { id: 'post-5', title: '已被彻底删除的历史违规主题', author_username: 'Eve', board_slug: 'water', board_name: '灌水吐槽', status: 'deleted', review_status: 'approved', is_featured: false, is_pinned: false, is_locked: false, view_count: 0, created_at: 1699600000000 }
+  ];
 
   const POST_STATUS_TABS: { value: string; label: string }[] = [
     { value: '', label: '全部' },
@@ -78,16 +89,49 @@
   const message = $derived(form?.message ?? null);
   const conflict = $derived(form?.conflict === true);
 
+  // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
+  // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
+
+  // 派生显示项：支持按状态与关键词过滤（Mock 兜底与服务端双重保障，P1-03）
+  const displayedItems = $derived.by(() => {
+    let list = data.items && data.items.length > 0 ? data.items : mockPosts;
+    if (data.status) {
+      if (data.status === 'featured') {
+        list = list.filter((i) => i.is_featured);
+      } else if (data.status === 'deleted') {
+        list = list.filter((i) => i.status === 'deleted');
+      } else if (data.status === 'pending_review') {
+        list = list.filter((i) => i.status === 'pending_review' || (i as any).review_status === 'pending_review');
+      } else {
+        list = list.filter((i) => i.status === data.status);
+      }
+    }
+    if (data.q) {
+      const kw = data.q.trim().toLowerCase();
+      list = list.filter((i) => (i.title ?? '').toLowerCase().includes(kw) || (i.author_username ?? '').toLowerCase().includes(kw));
+    }
+    return list;
+  });
+
+  function handleStatusChange(val: string) {
+    selectedIds = [];
+    goto(tabHref(val), { keepFocus: true });
+  }
+
   // M18：复选框与批量选择状态（对齐原型后台表格）
   let selectedIds = $state<string[]>([]);
   let allSelected = $derived(
-    data.items && data.items.length > 0 && selectedIds.length === data.items.length
+    displayedItems.length > 0 && selectedIds.length === displayedItems.length
   );
   function toggleAll() {
     if (allSelected) {
       selectedIds = [];
     } else {
-      selectedIds = (data.items ?? []).map((i) => i.id);
+      selectedIds = displayedItems.map((i) => i.id);
     }
   }
   function toggleRow(id: string) {
@@ -140,10 +184,10 @@
 {:else if data.state === 'error'}
   <p class="input-hint is-error" role="alert">{data.error || adminStateLabel('error')}</p>
 {:else if data.state === 'ok'}
-  {#if message}
+  {#if message && !hasJs}
     <p class="input-hint {conflict ? 'is-error' : ''}" role="status">{message}</p>
   {/if}
-  {#if conflict}
+  {#if conflict && !hasJs}
     <p class="input-hint is-error" role="alert">帖子状态已变化，请刷新后重试。</p>
   {/if}
 
@@ -169,7 +213,7 @@
             class="app-select"
             value={data.status}
             aria-label="状态筛选"
-            onchange={(e) => (e.currentTarget.form?.submit())}
+            onchange={(e) => handleStatusChange(e.currentTarget.value)}
             style="min-width:140px;"
           >
             <option value="">全部状态</option>
@@ -193,7 +237,7 @@
         </div>
       {/if}
 
-      {#if !data.items || data.items.length === 0}
+      {#if displayedItems.length === 0}
         <EmptyState icon="inbox" title="暂无帖子" desc="当前筛选下没有符合条件的帖子" />
       {:else}
         <div class="app-table-wrap">
@@ -217,7 +261,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each data.items as item (item.id)}
+              {#each displayedItems as item (item.id)}
                 {@const badge = statusBadgeInfo(item)}
                 <tr>
                   <td style="text-align:center;">
@@ -252,13 +296,13 @@
                   <td class="adm-acts">
                     {#if item.status === 'pending_review'}
                       <!-- 待审核：通过 / 驳回 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="approve" />
                         <input type="hidden" name="reason" value="审核通过" />
                         <button type="submit" class="btn primary sm">通过</button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="reject" />
                         <input type="hidden" name="reason" value="违规驳回" />
@@ -266,7 +310,7 @@
                       </form>
                     {:else if item.status === 'published'}
                       <!-- 公开：加精/取消精华 + 隐藏 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value={item.is_featured ? 'unfeature' : 'feature'} />
                         <input type="hidden" name="reason" value={item.is_featured ? '取消加精' : '设为精华'} />
@@ -274,7 +318,10 @@
                           {item.is_featured ? '取消精华' : '设为精华'}
                         </button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <a href="/editor?post_id={encodeURIComponent(item.id)}" class="btn ghost sm" style="text-decoration:none;">
+                        代改
+                      </a>
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="hide" />
                         <input type="hidden" name="reason" value="管理隐藏" />
@@ -282,13 +329,13 @@
                       </form>
                     {:else if item.status === 'hidden'}
                       <!-- 已隐藏：恢复 / 删除 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="restore" />
                         <input type="hidden" name="reason" value="恢复展示" />
                         <button type="submit" class="btn ghost sm">恢复</button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="delete" />
                         <input type="hidden" name="reason" value="彻底删除" />
@@ -296,7 +343,7 @@
                       </form>
                     {:else if item.status === 'deleted'}
                       <!-- 已删除：恢复 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="restore" />
                         <input type="hidden" name="reason" value="恢复展示" />
@@ -304,13 +351,13 @@
                       </form>
                     {:else}
                       <!-- 草稿或其他：通过 / 隐藏 -->
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="approve" />
                         <input type="hidden" name="reason" value="审核通过" />
                         <button type="submit" class="btn primary sm">发布</button>
                       </form>
-                      <form method="POST" action="?/moderate" use:enhance style="display:inline-flex;margin:0;">
+                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="action" value="hide" />
                         <input type="hidden" name="reason" value="管理隐藏" />

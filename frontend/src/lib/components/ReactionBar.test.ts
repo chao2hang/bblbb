@@ -79,6 +79,6 @@ describe('M07-UI-07 ReactionBar', () => {
     const { container } = render(ReactionBar, { props: baseProps });
     expect(container.querySelectorAll('button.reaction-btn').length).toBe(2);
     expect(container.textContent).toContain('通知设置');
-    expect(container.querySelector('a[href="/notifications"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/settings#settings-notifications"]')).not.toBeNull();
   });
 });

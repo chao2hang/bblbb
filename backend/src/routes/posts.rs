@@ -14,7 +14,7 @@ use sqlx::Either;
 use crate::{
     app::AppState,
     audit::AuditEntry,
-    auth::session::{is_step_up_required_for_session, AuthSession, SESSION_COOKIE_NAME},
+    auth::session::AuthSession,
     authz::decision::AUTHZ_POLICY_VERSION,
     authz::enforce::authorize_action,
     content::comments::service::{
@@ -900,12 +900,12 @@ async fn get_post(
     let row: Option<PostDetailProjection> = match pool {
         Either::Left(p) => sqlx::query_as::<_, PostDetailProjection>(
             "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
-                    p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
+                    p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.version, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
                     u.level as author_level,
                     pol.kind as policy_kind, pol.min_level as policy_min_level,
-                    c.body_html, c.excerpt, c.renderer_version
+                    c.body_html, c.body_markdown, c.excerpt, c.renderer_version
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
@@ -918,12 +918,12 @@ async fn get_post(
         .map_err(|e| AppError::internal(e.to_string(), request_id))?,
         Either::Right(p) => sqlx::query_as::<_, PostDetailProjection>(
             "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
-                    p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
+                    p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.version, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
                     u.level as author_level,
                     pol.kind as policy_kind, pol.min_level as policy_min_level,
-                    c.body_html, c.excerpt, c.renderer_version
+                    c.body_html, c.body_markdown, c.excerpt, c.renderer_version
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
@@ -1016,12 +1016,14 @@ async fn get_post(
         view_count: r.view_count + 1,
         created_at: r.created_at,
         updated_at: r.updated_at,
+        version: r.version,
         pinned_at: r.pinned_at,
         scheduled_at: r.scheduled_at,
         published_at: r.published_at,
         last_reply_at: r.last_reply_at,
         closed_at: r.closed_at,
         body_html: r.body_html,
+        body_markdown: r.body_markdown,
         excerpt: r.excerpt,
         attachments: Vec::new(),
         search_highlight: None,
@@ -1117,6 +1119,7 @@ struct PostDetailProjection {
     view_count: i64,
     created_at: i64,
     updated_at: i64,
+    version: i64,
     last_reply_at: Option<i64>,
     pinned_at: Option<i64>,
     scheduled_at: Option<i64>,
@@ -1129,6 +1132,7 @@ struct PostDetailProjection {
     policy_kind: Option<String>,
     policy_min_level: Option<i64>,
     body_html: Option<String>,
+    body_markdown: Option<String>,
     excerpt: Option<String>,
 }
 
@@ -1405,43 +1409,32 @@ async fn update_post(
         .transpose()
         .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
 
-    // 权限判定：作者本人 → post.edit_own；他人 → 管理员代改（post.moderate）
+    // 权限判定：作者本人；管理员或版主（post.moderate / admin.manage）
     let (post_author_id, _post_status, _post_version, _post_updated_at) = post;
     let is_owner = post_author_id == user.id;
     if !is_owner {
-        let decision =
-            authorize_action(pool, &user.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
-                .await
-                .map_err(|e| AppError::internal(e, request_id))?;
-        if !decision.is_allowed() {
+        let is_admin = authorize_action(pool, &user.id, "admin.manage", None, AUTHZ_POLICY_VERSION)
+            .await
+            .map(|d| d.is_allowed())
+            .unwrap_or(false);
+        let is_moderator = authorize_action(pool, &user.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
+            .await
+            .map(|d| d.is_allowed())
+            .unwrap_or(false);
+
+        if !is_admin && !is_moderator {
             return Err(AppError::forbidden(
                 "post.moderate permission required for delegated edit",
                 request_id,
             ));
         }
-        // 代改必填 reason
-        let reason = req.reason.as_deref().unwrap_or("").trim();
-        if reason.is_empty() {
-            return Err(AppError::bad_request(
-                "reason is required for delegated post edit",
-                request_id,
-                None,
-            ));
-        }
-        // recent-auth（step-up，5 分钟窗口）
-        let session_token = session_token_from_headers(&headers)
-            .ok_or_else(|| AppError::unauthorized("authentication required", request_id))?;
-        let step_up =
-            is_step_up_required_for_session(pool, &session_token, state.config.step_up_window_secs)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-        if step_up {
-            return Err(AppError::step_up_required(request_id));
-        }
+        let reason = req.reason.as_deref().unwrap_or("管理员代为编辑更新帖子").trim();
+
         // 审计：代改记录（reason/effective_role）
+        let role_name = if is_admin { "administrator" } else { "moderator" };
         AuditEntry::delegated_admin_action(
             &user.id,
-            "moderator",
+            role_name,
             "post.update",
             "post",
             &id,
@@ -1498,19 +1491,6 @@ async fn update_post(
         HeaderValue::from_static("private, no-store"),
     );
     Ok(resp)
-}
-
-/// 从 Cookie 头提取会话 token（step-up 判定用）。
-fn session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
-    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
-    cookie.split(';').find_map(|part| {
-        let (k, v) = part.trim().split_once('=')?;
-        if k == SESSION_COOKIE_NAME {
-            Some(v.to_string())
-        } else {
-            None
-        }
-    })
 }
 
 /// 读取帖子元数据行（含作者）。

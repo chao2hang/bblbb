@@ -44,7 +44,10 @@ export interface AdminDownloadBillingActionData {
   config?: DownloadBillingConfigView | null;
   transactions?: AdminDownloadBillingPageData['transactions'];
   message?: string;
+  error?: boolean;
+  code?: string | null;
   requestId?: string | null;
+  input?: Record<string, unknown>;
 }
 
 async function reloadTransactions(cookies: Cookies, requestId: string | null): Promise<AdminDownloadBillingPageData['transactions']> {
@@ -132,10 +135,32 @@ export const actions: Actions = {
           message: '计费策略已保存'
         } satisfies AdminDownloadBillingActionData;
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminDownloadBillingActionData);
+      return fail(result.status, {
+        error: true,
+        message: result.message || '保存失败，请检查参数',
+        code: result.code,
+        requestId: result.requestId,
+        input: {
+          is_enabled: body.is_enabled,
+          mode: body.mode,
+          amount: body.amount,
+          authorization_ttl_seconds: body.authorization_ttl_seconds,
+          daily_user_limit: body.daily_user_limit
+        }
+      } satisfies AdminDownloadBillingActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminDownloadBillingActionData);
+      return fail(503, {
+        error: true,
+        message: '保存失败，服务端连接异常，请稍后重试',
+        input: {
+          is_enabled: body.is_enabled,
+          mode: body.mode,
+          amount: body.amount,
+          authorization_ttl_seconds: body.authorization_ttl_seconds,
+          daily_user_limit: body.daily_user_limit
+        }
+      } satisfies AdminDownloadBillingActionData);
     }
   }
 };

@@ -61,6 +61,21 @@
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
     else selectedIds = [...selectedIds, id];
   }
+
+  function exportPluginsList() {
+    const dataToExport = {
+      plugins: effectivePlugins,
+      exported_at: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plugins-list-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('插件清单已成功导出为 JSON', 'success');
+  }
 </script>
 
 <svelte:head>
@@ -240,8 +255,8 @@
       </div>
 
       <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);">
-        <span>不支持上传和执行任意插件代码</span>
-        <a class="text-link" href="/admin/plugins" onclick={() => showToast('清单已导出', 'success')}>导出清单</a>
+        <span>不支持上传和执行任意插件代码（沙箱安全保护）</span>
+        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;padding:0;" onclick={exportPluginsList}>导出清单</button>
       </footer>
     </div>
   </section>

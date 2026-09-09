@@ -8,6 +8,7 @@
   import { renderTextDiff, hasDiff } from '$lib/ai/diff';
   import Button from '$lib/components/ui/Button.svelte';
   import type { AiSuggestionActionData, AiSuggestionPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: AiSuggestionPageData; form?: AiSuggestionActionData | null } = $props();
 
@@ -34,9 +35,9 @@
   }
 </script>
 
-<svelte:head>
-  <title>AI 建议 — BBLBB</title>
-  <meta name="robots" content="noindex,follow" />
+  <PageTitle title="AI 建议" />
+
+<svelte:head>  <meta name="robots" content="noindex,follow" />
 </svelte:head>
 
 <div class="container page-content">

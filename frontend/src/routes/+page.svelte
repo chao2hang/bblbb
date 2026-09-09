@@ -13,9 +13,13 @@
   import { show } from '$lib/ui/toast';
   import { formatCount, formatRelative } from '$lib/utils';
   import Seo from '$lib/components/Seo.svelte';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
   import type { HomePageData, HomeSort } from './+page.server';
 
-  let { data }: { data: HomePageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: HomePageData & { site?: SiteCopyView | null } } = $props();
+
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const boards = $derived(data.boards);
   const totalPosts = $derived(
@@ -28,9 +32,9 @@
     return boards.find((b) => b.id === id)?.name ?? null;
   });
 
-  /** 筛选 tab（M18-HOME-02 对齐原型：所有|精华|已关注|热门；原生链接）。 */
+  /** 筛选 tab（M18-HOME-02 对齐原型：最新|精华|已关注|热门；原生链接）。 */
   const sortTabs: Array<{ value: HomeSort; label: string; href: string }> = [
-    { value: '', label: '所有', href: '/' },
+    { value: '', label: '最新', href: '/' },
     { value: 'featured', label: '精华', href: '/?sort=featured' },
     { value: 'following', label: '已关注', href: '/?sort=following' },
     { value: 'popular', label: '热门', href: '/?sort=popular' }
@@ -114,13 +118,13 @@
 
 <Seo
   title="社区论坛"
-  description="BBLBB 社区论坛：板块、标签与最新讨论"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  description={site.siteDescription}
+  og={{ type: 'website', siteName: site.siteName }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'BBLBB 社区论坛',
-    description: '自由讨论、友善交流的社区论坛'
+    name: site.siteName,
+    description: site.siteDescription
   }}
 />
 
@@ -131,7 +135,7 @@
   <div class="mobile-hero">
     <a class="mobile-doc-link" href="/" aria-label="打开社区规范"><Icon name="book-open" size={14} /><span>规范</span></a>
     <a class="mobile-search-link" href="/search" aria-label="搜索帖子、用户或标签"><Icon name="search" size={16} /></a>
-    <div class="mobile-logo">BBLBB</div>
+    <div class="mobile-logo">{site.siteName}</div>
     <div class="hero-stats">
       <button type="button">成员 <b>{formatCount(data.stats?.members ?? 128)}</b></button>
       <button type="button">内容 <b>{formatCount(totalPosts)}</b></button>
@@ -156,9 +160,9 @@
     <section class="feed" aria-label="最新讨论">
       <div class="mobile-categories" aria-label="移动端分类">
         <a href="/" class="mobile-cat-btn {data.sort === '' ? 'active' : ''}">全部</a>
-        {#if boards.length > 0}
-          <a href="/boards/{boards[0].slug}" class="mobile-cat-btn">{boards[0].name}</a>
-        {/if}
+        {#each boards as board (board.id)}
+          <a href="/boards/{board.slug}" class="mobile-cat-btn">{board.name}</a>
+        {/each}
         <button
           type="button"
           class="list"
@@ -314,7 +318,7 @@
         </nav>
       </section>
 
-      <footer class="rail-foot">© 2026<br />Powered By BBLBB Community</footer>
+      <footer class="rail-foot">© {new Date().getFullYear()}<br />Powered By {site.siteName}</footer>
     </aside>
   </div>
 </div>
@@ -714,130 +718,152 @@
     .mobile-hero {
       position: relative;
       display: block;
-      height: 154px;
+      height: 160px;
       padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 0;
       box-sizing: border-box;
-      background: var(--color-brand);
+      background: linear-gradient(168deg, var(--color-brand) 0%, color-mix(in srgb, var(--color-brand) 75%, #000) 100%);
       color: #fff;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+      overflow: hidden;
     }
     .mobile-logo {
       position: absolute !important;
-      top: calc(54px + env(safe-area-inset-top, 0px)) !important;
+      top: calc(50px + env(safe-area-inset-top, 0px)) !important;
       left: 0 !important;
       right: 0 !important;
       width: auto !important;
-      height: 32px !important;
+      height: 34px !important;
       margin: 0 !important;
       padding: 0 !important;
-      line-height: 32px !important;
+      line-height: 34px !important;
       text-align: center;
-      font-size: 32px;
+      font-size: 28px;
       font-weight: 700;
       font-family: var(--font-family-serif);
-      letter-spacing: 0.12em;
+      letter-spacing: 0.14em;
       color: #fff;
-    }
-    .mobile-doc-link {
-      position: absolute;
-      top: calc(14px + env(safe-area-inset-top, 0px));
-      left: 16px;
-      min-width: 0;
-      height: 40px;
-      padding: 0 11px;
-      border: 1px solid rgba(255, 255, 255, 0.36);
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 12px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
     }
     .mobile-search-link {
       position: absolute;
       top: calc(14px + env(safe-area-inset-top, 0px));
       right: 16px;
-      width: 40px;
-      height: 40px;
-      border: 1px solid rgba(255, 255, 255, 0.36);
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.12);
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       color: #fff;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      transition: all 0.15s ease;
+    }
+    .mobile-search-link:active {
+      transform: scale(0.93);
+      background: rgba(255, 255, 255, 0.28);
     }
     .hero-stats {
       position: absolute !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: 12px !important;
       width: auto !important;
-      height: 58px !important;
+      height: 34px !important;
       margin: 0 !important;
-      padding: 0 8px !important;
+      padding: 0 12px !important;
       box-sizing: border-box !important;
-      display: grid !important;
-      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      display: flex !important;
       align-items: center !important;
-      border-top: 1px solid rgba(255, 255, 255, 0.22);
+      justify-content: center !important;
+      gap: 8px !important;
+      border-top: none !important;
     }
     .hero-stats button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      height: 32px;
-      padding: 0;
+      gap: 4px;
+      height: 30px;
+      padding: 0 12px;
       border: 0;
-      background: transparent;
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 13px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 12px;
       cursor: pointer;
       white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+    .hero-stats button:active {
+      background: rgba(255, 255, 255, 0.24);
+      transform: scale(0.96);
     }
     .hero-stats button + button {
-      border-left: 1px solid rgba(255, 255, 255, 0.2);
+      border-left: none;
     }
     .hero-stats b {
       color: #fff;
       font-weight: 700;
+      margin-left: 2px;
     }
     .proto-home { grid-template-columns: minmax(0, 1fr); padding: 0; gap: 0; }
     .category-card { display: none; }
     .mobile-categories {
       display: flex;
-      align-items: stretch;
-      height: 52px;
+      align-items: center;
+      height: 48px;
       padding: 0 12px;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--color-border-thin, var(--color-border));
       background: var(--color-bg-card);
-      gap: 12px;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
     }
+    .mobile-categories::-webkit-scrollbar { display: none; }
     .mobile-cat-btn {
       display: inline-flex;
       align-items: center;
+      height: 32px;
       padding: 0 14px;
-      border-bottom: 2px solid transparent;
+      border-radius: 9999px;
+      border: none;
+      border-bottom: none;
+      background: var(--color-bg-subtle);
       color: var(--color-text-secondary);
       text-decoration: none;
-      font-size: 14px;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
     }
     .mobile-cat-btn.active {
-      color: var(--color-brand);
+      color: #fff;
+      background: var(--color-brand);
       font-weight: 600;
-      border-bottom-color: var(--color-brand);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--color-brand) 30%, transparent);
     }
     .mobile-categories .list {
-      min-width: 44px;
+      min-width: 32px;
+      width: 32px;
+      height: 32px;
       margin-left: auto;
       border: 0;
-      background: transparent;
+      border-radius: 50%;
+      background: var(--color-bg-subtle);
       color: var(--color-text-secondary);
       cursor: pointer;
       display: grid;
       place-items: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
     }
     .mobile-category-drawer {
       background: var(--color-bg-card);
@@ -891,16 +917,69 @@
       font-size: 12px;
       color: var(--color-text-tertiary);
     }
-    .feed-toolbar { position: sticky; top: 0; z-index: 14; height: 52px; min-height: 52px; padding: 6px 12px; border-top: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: var(--color-bg-card); }
-    .filters { gap: 6px; overflow-x: auto; }
-    .filter-btn { min-height: 38px; padding: 0 11px; font-size: 14px; }
-    .publish { min-height: 38px; height: 38px; padding: 0 13px; font-size: 13px; }
-    .thread-list { margin-top: 0; border-radius: 0; border-left: 0; border-right: 0; }
-    .thread { padding: 17px 18px; }
-    .thread-detail-link h2 { font-size: 15px; }
-    .thread-detail-link p { font-size: 13px; }
-    .thread-footer { gap: 12px; }
-    .thread-footer span:first-child { max-width: 42vw; }
+    .feed-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 14;
+      height: 44px;
+      min-height: 44px;
+      padding: 0 12px;
+      border-top: 0;
+      border-bottom: 1px solid var(--color-border-thin, var(--color-border));
+      border-radius: 0;
+      background: var(--color-bg-card);
+    }
+    .filters {
+      gap: 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      display: flex;
+      align-items: center;
+    }
+    .filters::-webkit-scrollbar { display: none; }
+    .filter-btn {
+      min-height: 44px;
+      height: 44px;
+      padding: 0 4px;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+      border-bottom: 2px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .filter-btn.active {
+      color: var(--color-brand);
+      font-weight: 600;
+      border-bottom-color: var(--color-brand);
+    }
+    .publish { display: none !important; }
+    .thread-list {
+      margin-top: 0;
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+    }
+    .thread {
+      padding: 15px 16px;
+    }
+    .thread-detail-link h2 {
+      font-size: 16px;
+      line-height: 1.45;
+      margin: 4px 0 6px;
+    }
+    .thread-detail-link p {
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .thread-footer {
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .thread-footer span:first-child {
+      max-width: 45vw;
+    }
     .mobile-hero { display: block !important; }
   }
 </style>

@@ -102,6 +102,16 @@ async fn main() -> ExitCode {
         tracing::info!("builtin roles and permissions seeded");
     }
 
+    // M13-THEME：数据库可用时幂等写入内置 default 主题（INSERT OR IGNORE；
+    // 不覆盖管理员显式默认主题与已有 Token 编辑——见 theme::ensure_default_theme）。
+    if let Some(pool) = &db_pool {
+        if let Err(error) = bblbb_backend::theme::ensure_default_theme(pool).await {
+            tracing::error!(error = %error, "failed to ensure builtin default theme");
+            return ExitCode::FAILURE;
+        }
+        tracing::info!("builtin default theme ensured");
+    }
+
     // M15-PACKAGE-04 / M15-UPGRADE-06：`--worker` 模式。
     // 独立 worker 进程：停止领取 → 收尾运行中任务（受 drain_timeout 约束）→
     // 退出；租约到期由其他 worker 安全重领（backend/src/jobs/worker_loop.rs）。
@@ -140,8 +150,20 @@ async fn main() -> ExitCode {
         }
     };
 
-    // 初始化对象存储服务（M06-ADAPTER；local 根目录 + 可选 S3）。
-    let storage = match StorageService::new(&config.storage_config()).await {
+    // 初始化对象存储服务（优先读取数据库中保存的在线配置，回退环境变量与默认值）。
+    let initial_storage_cfg = if let Some(pool) = &db_pool {
+        match bblbb_backend::routes::admin_storage::load_storage_settings(pool).await {
+            Ok(Some(row)) => {
+                tracing::info!(backend = %row.storage_backend, "从数据库加载在线存储配置");
+                bblbb_backend::routes::admin_storage::build_storage_config_from_db(&config, &row)
+            }
+            _ => config.storage_config(),
+        }
+    } else {
+        config.storage_config()
+    };
+
+    let storage = match StorageService::new(&initial_storage_cfg).await {
         Ok(storage) => Some(storage),
         Err(error) => {
             tracing::error!(%error, "failed to initialize storage service");

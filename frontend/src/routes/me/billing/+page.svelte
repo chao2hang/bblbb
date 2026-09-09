@@ -10,8 +10,9 @@
   import { show as showToast } from '$lib/ui/toast';
   import { formatRelative } from '$lib/utils';
   import type { BillingActionData, BillingPageData, BillingRow } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
-  let { data, form }: { data: BillingPageData; form?: BillingActionData | null } = $props();
+  let { data, form }: { data: BillingPageData & { site?: SiteCopyView | null }; form?: BillingActionData | null } = $props();
 
   const summary = $derived(data.summary);
   const rows = $derived(data.rows);
@@ -46,8 +47,8 @@
 
 <Seo
   title="下载账单"
-  description="BBLBB 下载授权、扣点记录与签名 URL 复用策略"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  description="下载授权、扣点记录与签名 URL 复用策略"
+  og={{ type: 'website' }}
 />
 
 <div class="container page-content">

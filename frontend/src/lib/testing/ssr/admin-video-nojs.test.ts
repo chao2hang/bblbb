@@ -124,4 +124,28 @@ describe('M10-UI-06 管理端视频 SSR', () => {
     });
     expect(disabled.body).toContain('视频功能未开放（Feature Flag 默认关闭）');
   });
+
+  it('P1-06 & P1-07: 白名单表单与转码任务多元状态渲染', () => {
+    const { body } = render(AdminVideoPage, {
+      props: {
+        data: {
+          ...okData,
+          whitelistConfig: {
+            enableEmbed: true,
+            domainWhitelist: 'surprise-test.example, bilibili.com',
+            strictMode: 'strict',
+            fallbackMode: 'safe_link'
+          }
+        },
+        form: null
+      }
+    });
+    expect(body).toContain('action="?/save-whitelist"');
+    expect(body).toContain('name="domain_whitelist"');
+    expect(body).toContain('surprise-test.example');
+    // 包含三种状态的 Mock 转码任务
+    expect(body).toContain('已转码');
+    expect(body).toContain('转码中');
+    expect(body).toContain('失败');
+  });
 });

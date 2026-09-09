@@ -5,10 +5,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import UserPage from '../../../routes/users/[username]/+page.svelte';
 
+const { mockSearchParams } = vi.hoisted(() => ({
+  mockSearchParams: new URLSearchParams()
+}));
+
 // 用户页的 username 来自 $app/state page.params；隔离渲染需提供假 page。
 vi.mock('$app/state', () => ({
   page: {
-    url: { pathname: '/users/alice' },
+    url: { pathname: '/users/alice', searchParams: mockSearchParams },
     params: { username: 'alice' },
     data: {},
     route: { id: '/users/[username]' }
@@ -79,5 +83,19 @@ describe('M03-UI-01 用户主页 SSR 守卫', () => {
     expect(body).not.toContain('alice@example.com');
     expect(body).not.toContain('banned');
     expect(body).not.toContain('status');
+  });
+
+  it('P3-01: 未开放分类（replies/favorites/activity）渲染功能尚未开放状态', () => {
+    mockSearchParams.set('tab', 'replies');
+    const { body } = render(UserPage, {
+      props: {
+        data: {
+          user: adversarialProfile as any,
+          authed: true
+        }
+      }
+    });
+    expect(body).toContain('功能尚未开放');
+    expect(body).toContain('非无数据状态');
   });
 });

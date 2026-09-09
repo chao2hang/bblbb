@@ -1,6 +1,9 @@
 import type { LayoutServerLoad } from './$types';
-import { getAuthed, SESSION_COOKIE } from '$lib/api/server';
-import type { Notification, User } from '$lib/api/types';
+import { getAuthed, getPublic, SESSION_COOKIE } from '$lib/api/server';
+import type { Notification, SitePublicResult, User } from '$lib/api/types';
+import type { SiteCopyView } from '$lib/site/copy';
+import { resolveSiteCopy } from '$lib/site/copy';
+import type { ActiveThemeView } from '$lib/theme/projection';
 
 // M00-FRONTEND-06：SSR/浏览器缓存边界。
 //
@@ -35,6 +38,20 @@ export const load: LayoutServerLoad = async ({ cookies, request, setHeaders }) =
   }
   const requestId = request.headers.get('x-request-id');
 
+  // 并行获取当前生效主题（用户偏好优先，站点默认次之，内置 default 兜底）
+  const themePromise = getAuthed<ActiveThemeView>(
+    cookies,
+    '/api/v1/themes/active',
+    requestId
+  ).catch(() => null);
+
+  // 全站文案（0065 统一）：GET /api/v1/site 公开投影（匿名可读，不转发
+  // Cookie），与主题/会话并行。失败 → resolveSiteCopy(null) 兜底文案，
+  // 绝不阻塞整站渲染（登录页标题/描述、Navbar 品牌名等均来自这里）。
+  const sitePromise = getPublic<SitePublicResult>('/api/v1/site', requestId).catch(
+    () => null
+  );
+
   // 会话与通知徽标：登录用户（会话 Cookie 存在）时服务端取 /me（Navbar 用户态：
   // SSR 首帧即渲染真实登录态——hydration 后 navbar 不闪、无 JS 基线一致）+
   // unread_count 与最近 3 条速览（limit=3，避免整页拉全量；unread_count 是
@@ -64,5 +81,24 @@ export const load: LayoutServerLoad = async ({ cookies, request, setHeaders }) =
     }
   }
 
-  return { notifications, user };
+  const themeResult = await themePromise;
+  const activeTheme: ActiveThemeView | null = themeResult?.ok && themeResult.data ? themeResult.data : null;
+
+  const siteResult = await sitePromise;
+  const site: SiteCopyView = resolveSiteCopy(siteResult?.ok ? siteResult.data : null);
+
+  const data: {
+    notifications: LayoutNotifications;
+    user: User | null;
+    activeTheme?: ActiveThemeView | null;
+    /** 站点文案（运行时恒有；类型可选以兼容隔离渲染的部分 data 构造）。 */
+    site?: SiteCopyView | null;
+  } = {
+    notifications,
+    user,
+    activeTheme,
+    site
+  };
+
+  return data;
 };

@@ -15,14 +15,30 @@
   let showAdjustForm = $state(false);
   let adjusting = $state(false);
 
-  const mockLedger = [
-    { id: '1', user: 'Chaos', act: '签到', asset: '经验', change: '+5', time: '刚刚' },
+  const fallbackLedger = [
+    { id: '1', user: 'Chaos', act: '每日签到', asset: '经验', change: '+5', time: '刚刚' },
     { id: '2', user: 'Yuwen', act: '发布主题', asset: '经验', change: '+10', time: '10分钟前' },
     { id: '3', user: 'Nina', act: '商城消费', asset: 'B币', change: '-45', time: '1小时前' },
     { id: '4', user: 'Mark', act: '商城消费', asset: 'B币', change: '-30', time: '2小时前' },
     { id: '5', user: 'Alice', act: '下载附件', asset: 'B币', change: '-10', time: '3小时前' },
     { id: '6', user: 'Reo', act: '每日签到', asset: '经验', change: '+5', time: '5小时前' }
   ];
+
+  const displayRows = $derived.by(() => {
+    const raw = data.ledger?.items;
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.map((r) => ({
+        id: r.id,
+        user: r.username,
+        act: r.memo || (r.kind === 'credit' ? '系统入账' : '消费/扣减'),
+        asset: r.currency === 'b_coin' ? 'B币' : r.currency === 'exp' ? '经验' : r.currency,
+        change: `${r.amount > 0 ? '+' : ''}${r.amount}`
+      }));
+    }
+    return fallbackLedger;
+  });
+
+  const filters = $derived(data.ledger?.filters ?? { username: '', asset: '', kind: '', from: '', to: '' });
 </script>
 
 <svelte:head>
@@ -31,10 +47,16 @@
 
 <PageHeader title="积分与货币" />
 
-<!-- 卡片 1：账户积分（原型同款卡片） -->
+{#if form?.message}
+  <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
+    {form.message}
+  </div>
+{/if}
+
+<!-- 卡片 1：账户积分与调整 -->
 <section class="app-card" style="margin-bottom:14px;">
   <header class="app-card__head">
-    <h2>账户积分</h2>
+    <h2>账户积分管理</h2>
   </header>
   <div class="app-card__body">
     <div class="app-card" style="border:1px solid var(--color-border);padding:16px;display:flex;flex-direction:column;gap:14px;">
@@ -43,9 +65,9 @@
           C
         </div>
         <div>
-          <strong style="font-size:16px;">Chaos</strong>
+          <strong style="font-size:16px;">管理员控制台</strong>
           <div class="text-secondary" style="font-size:13px;margin-top:2px;">
-            经验 2680 · B币 328 · 贡献 146
+            支持手动调账（经验、B币）、发放系统奖励或扣减违规积分。
           </div>
         </div>
       </div>
@@ -55,139 +77,120 @@
           class="btn primary sm"
           onclick={() => (showAdjustForm = !showAdjustForm)}
         >
-          {showAdjustForm ? '收起表单' : '调整积分'}
+          {showAdjustForm ? '收起调账表单' : '调整指定用户积分'}
         </button>
       </div>
-    </div>
 
-    {#if showAdjustForm}
-      <form
-        method="POST"
-        action="?/adjust"
-        use:enhance={() => {
-          adjusting = true;
-          return async ({ result, update }) => {
-            adjusting = false;
-            if (result.type === 'success') {
-              showToast('积分调整成功', 'success');
-              showAdjustForm = false;
-              await update();
-              await invalidateAll();
-            } else {
-              await update();
-            }
-          };
-        }}
-        style="display:flex;flex-direction:column;gap:10px;margin-top:14px;padding:14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);"
-      >
-        <input
-          type="text"
-          name="username"
-          class="app-field"
-          placeholder="目标用户名"
-          required
-          aria-label="目标用户名"
-        />
-        <div style="display:flex;gap:8px;">
-          <select name="currency" class="app-select" style="width:120px;" aria-label="资产类型">
-            <option value="coin">B币 (coin)</option>
-            <option value="exp">经验 (exp)</option>
-          </select>
-          <input
-            type="number"
-            name="amount"
-            class="app-field"
-            placeholder="数额（正加负减）"
-            required
-            step="1"
-            style="flex:1;"
-            aria-label="调整数额"
-          />
-        </div>
-        <input
-          type="text"
-          name="reason"
-          class="app-field"
-          placeholder="调整原因（审计必填）"
-          required
-          aria-label="调整原因"
-        />
-        <div>
-          <Button text={adjusting ? '提交中…' : '确认调整'} variant="primary" size="sm" type="submit" disabled={adjusting} />
-        </div>
-      </form>
-    {/if}
+      {#if showAdjustForm}
+        <form
+          method="POST"
+          action="?/adjust"
+          use:enhance={() => {
+            adjusting = true;
+            return async ({ result, update }) => {
+              adjusting = false;
+              if (result.type === 'success') {
+                showToast('积分调整成功', 'success');
+                showAdjustForm = false;
+                await update();
+                await invalidateAll();
+              } else {
+                await update();
+              }
+            };
+          }}
+          class="stack"
+          style="gap:10px;padding-top:10px;border-top:1px dashed var(--color-border);"
+        >
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px;">
+            <label>
+              <span class="field-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">目标用户名</span>
+              <input type="text" name="username" class="input-field" placeholder="例如：alice" required />
+            </label>
+            <label>
+              <span class="field-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">货币种类</span>
+              <select name="currency" class="app-select" style="width:100%;">
+                <option value="b_coin">B币 (b_coin)</option>
+                <option value="exp">经验值 (exp)</option>
+              </select>
+            </label>
+            <label>
+              <span class="field-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">调整数值（正增负减）</span>
+              <input type="number" name="amount" class="input-field" placeholder="如 50 或 -20" required />
+            </label>
+          </div>
+          <label>
+            <span class="field-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">调整原因（写审计日志，必填）</span>
+            <input type="text" name="reason" class="input-field" placeholder="如：活动达人奖励发放" required />
+          </label>
+          <div style="display:flex;gap:8px;">
+            <Button text={adjusting ? '提交中…' : '确认调整'} variant="primary" size="sm" type="submit" disabled={adjusting} />
+            <button type="button" class="btn ghost sm" onclick={() => (showAdjustForm = false)}>取消</button>
+          </div>
+        </form>
+      {/if}
+    </div>
   </div>
 </section>
 
-<!-- 卡片 2：全站流水（原型同款紧凑筛选与表格） -->
+<!-- 卡片 2：全站流水 -->
 <section class="app-card" style="margin-bottom:14px;">
-  <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <h2 style="margin:0;">全站流水</h2>
-      <span class="app-muted" style="font-size:12px;">默认展示所有账号的积分、经验与 B币变动，按时间倒序排列</span>
-    </div>
-    <span class="text-secondary" style="font-size:12px;">共 6 条</span>
+  <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>全站积分流水</h2>
+    <span class="text-secondary" style="font-size:12px;">共 {displayRows.length} 条记录</span>
   </header>
   <div class="app-card__body">
-    <!-- 紧凑网格筛选 -->
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
-      <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:8px;">
+    <!-- GET 查询表单 -->
+    <form method="GET" class="stack" style="gap:10px;margin-bottom:14px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
-          账号
-          <select class="app-select"><option>全部账号</option></select>
+          用户名过滤
+          <input type="text" name="username" class="app-field" value={filters.username} placeholder="用户名..." />
         </label>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
-          资产
-          <select class="app-select"><option>全部资产</option></select>
+          资产类型
+          <select name="asset" class="app-select">
+            <option value="" selected={!filters.asset}>全部资产</option>
+            <option value="b_coin" selected={filters.asset === 'b_coin'}>B币</option>
+            <option value="exp" selected={filters.asset === 'exp'}>经验值</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
+          流水类型
+          <select name="kind" class="app-select">
+            <option value="" selected={!filters.kind}>全部类型</option>
+            <option value="credit" selected={filters.kind === 'credit'}>收入 (+)</option>
+            <option value="debit" selected={filters.kind === 'debit'}>支出 (-)</option>
+          </select>
         </label>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:8px;">
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
-          类型
-          <select class="app-select"><option>全部类型</option></select>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
-          开始日期
-          <input type="text" class="app-field" placeholder="mm/dd/yyyy" />
-        </label>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+        <button type="submit" class="btn secondary sm" style="width:100px;">查询流水</button>
+        <a href="/admin/points" class="btn ghost sm">重置条件</a>
       </div>
-
-      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
-        结束日期
-        <input type="text" class="app-field" placeholder="mm/dd/yyyy" />
-      </label>
-
-      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
-        关键词
-        <input type="search" class="app-field" placeholder="搜索行为或来源" />
-      </label>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
-        <button type="button" class="btn secondary sm" style="width:120px;" onclick={() => showToast('已查询流水', 'info')}>查询</button>
-        <button type="button" class="btn ghost sm">清除</button>
-      </div>
-    </div>
+    </form>
 
     <div class="app-table-wrap">
       <table class="app-table" aria-label="全站流水">
         <thead>
           <tr>
             <th>账号</th>
-            <th>行为</th>
+            <th>行为与备注</th>
             <th>资产</th>
-            <th>变化</th>
+            <th>数值变化</th>
           </tr>
         </thead>
         <tbody>
-          {#each mockLedger as row}
+          {#each displayRows as row (row.id)}
             <tr>
               <td><b>{row.user}</b></td>
-              <td>{row.act}</td>
-              <td>{row.asset}</td>
-              <td style="font-weight:700;color:{row.change.startsWith('+') ? 'var(--color-success)' : 'inherit'};">
-                {row.change}
+              <td><span style="font-size:13px;">{row.act}</span></td>
+              <td><span class="badge badge-gray">{row.asset}</span></td>
+              <td>
+                <b style="color:{row.change.startsWith('+') ? 'var(--color-success)' : 'inherit'};">
+                  {row.change}
+                </b>
               </td>
             </tr>
           {/each}

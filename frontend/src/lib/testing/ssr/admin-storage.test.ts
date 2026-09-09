@@ -22,13 +22,17 @@ const config: StorageConfig = {
 };
 
 describe('M06-UI-06/07 存储管理 SSR', () => {
-  it('渲染脱敏配置：Secret 只显示掩码，绝不出现在 DOM', () => {
+  it('渲染脱敏配置：Secret 只显示掩码，绝不出现在 DOM，且支持 S3 路径与密钥输入', () => {
     const { body } = render(AdminStorage, {
       props: { data: { config, loadError: null }, form: null }
     });
     expect(body).toContain('••••••••••');
     expect(body).toContain('S3 兼容');
     expect(body).not.toContain('s3_secret_access_key" value=');
+    expect(body).toContain('name="s3_access_key_id"');
+    expect(body).toContain('name="s3_secret_access_key"');
+    expect(body).toContain('name="s3_public_base_url"');
+    expect(body).toContain('name="reason"');
   });
 
   it('env 来源字段禁用（只读），显示来源徽标', () => {
@@ -67,6 +71,53 @@ describe('M06-UI-06/07 存储管理 SSR', () => {
     });
     expect(body).toContain('连接成功');
     expect(body).toContain('12');
+  });
+
+  it('测试失败 → 分类与脱敏诊断（error_class + 后端）渲染', () => {
+    const { body } = render(AdminStorage, {
+      props: {
+        data: { config, loadError: null },
+        form: {
+          testResult: {
+            ok: false,
+            message: 's3 auth failed',
+            backend: 's3',
+            error_class: 'auth',
+            elapsed_ms: 34
+          }
+        }
+      }
+    });
+    expect(body).toContain('连接失败');
+    expect(body).toContain('s3');
+    expect(body).toContain('auth');
+  });
+
+  it('step_up_required → 渲染重新验证表单（M02-MFA-07）', () => {
+    const { body } = render(AdminStorage, {
+      props: {
+        data: { config, loadError: null },
+        form: { message: '此操作需要重新验证身份', stepUpRequired: true, messageKind: 'error' }
+      }
+    });
+    expect(body).toContain('需要重新验证身份');
+    expect(body).toContain('name="password"');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/reauth"/);
+    expect(body).toContain('重新验证');
+  });
+
+  it('保存成功 → 成功态提示（在线热生效）', () => {
+    const { body } = render(AdminStorage, {
+      props: {
+        data: { config, loadError: null },
+        form: {
+          message: '存储配置已保存并立即热生效（已更新数据库与服务实例，无需重启进程）。',
+          messageKind: 'success'
+        }
+      }
+    });
+    expect(body).toContain('已保存并立即热生效');
+    expect(body).not.toContain('role="alert"');
   });
 
   it('load 错误 → 错误横幅', () => {

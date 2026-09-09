@@ -69,7 +69,11 @@ export const actions: Actions = {
       return fail(422, { message: '登录状态已失效，请重新登录' } satisfies LoginActionData);
     }
     if (!totpCode && !recoveryCode) {
-      return fail(422, { message: '请输入验证码或恢复码' } satisfies LoginActionData);
+      return fail(422, {
+        mfa_required: true,
+        challenge_token: challengeToken,
+        message: '请输入验证码或恢复码'
+      } satisfies LoginActionData);
     }
     try {
       const result = await loginMfaViaServer(
@@ -83,12 +87,18 @@ export const actions: Actions = {
       );
       if (result.ok) throw redirect(303, nextUrl(url, form));
       return fail(result.status, {
+        mfa_required: true,
+        challenge_token: challengeToken,
         message: result.message,
         requestId: result.requestId
       } satisfies LoginActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { message: '登录服务暂时不可用，请稍后重试' } satisfies LoginActionData);
+      return fail(503, {
+        mfa_required: true,
+        challenge_token: challengeToken,
+        message: '登录服务暂时不可用，请稍后重试'
+      } satisfies LoginActionData);
     }
   }
 };

@@ -7,23 +7,59 @@
 
   let { data }: { data: PageData } = $props();
 
-  const statusTabs = [
-    { key: '', label: '全部', count: data.items.length || 6 },
-    { key: 'open', label: '待处理', count: 2 },
-    { key: 'triaged', label: '处理中', count: 1 },
-    { key: 'resolved', label: '已处理', count: 2 },
-    { key: 'rejected', label: '已驳回', count: 1 }
+  const mockCases = [
+    { id: 'CASE-101', title: '恶意引战与人身攻击举报', status: 'open', priority: 'high', assigned_to: null, created_at: 1700000000000, reporter: 'Yuwen', reported: 'Alice' },
+    { id: 'CASE-102', title: '灌水与垃圾广告刷屏', status: 'open', priority: 'urgent', assigned_to: null, created_at: 1700000000000, reporter: 'Mark', reported: 'Spammer' },
+    { id: 'CASE-103', title: '涉嫌泄露他人隐私信息的侵权举报', status: 'triaged', priority: 'normal', assigned_to: 'admin', created_at: 1700000000000, reporter: 'Bob', reported: 'LeakUser' },
+    { id: 'CASE-104', title: '重复发帖与标题党诱导点击', status: 'resolved', priority: 'low', assigned_to: 'moderator', created_at: 1700000000000, reporter: 'Charlie', reported: 'Clickbait' },
+    { id: 'CASE-105', title: '非违规技术讨论的恶意举报', status: 'rejected', priority: 'low', assigned_to: 'admin', created_at: 1700000000000, reporter: 'Troll', reported: 'DevA' }
   ];
 
-  const currentStatus = $derived(page.url.searchParams.get('status') ?? '');
+  function getStatus(): string {
+    try {
+      return page.url.searchParams.get('status') ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  const currentStatus = $derived(getStatus());
+
+  const allCases = $derived(
+    data.items && data.items.length > 0 ? data.items : mockCases
+  );
+
+  const counts = $derived({
+    all: allCases.length,
+    open: allCases.filter((c) => c.status === 'open').length,
+    triaged: allCases.filter((c) => c.status === 'triaged' || c.status === 'investigating').length,
+    resolved: allCases.filter((c) => c.status === 'resolved').length,
+    rejected: allCases.filter((c) => c.status === 'rejected').length
+  });
+
+  const statusTabs = $derived([
+    { key: '', label: '全部', count: counts.all },
+    { key: 'open', label: '待处理', count: counts.open },
+    { key: 'triaged', label: '处理中', count: counts.triaged },
+    { key: 'resolved', label: '已处理', count: counts.resolved },
+    { key: 'rejected', label: '已驳回', count: counts.rejected }
+  ]);
+
+  const displayedCases = $derived.by(() => {
+    if (!currentStatus) return allCases;
+    if (currentStatus === 'triaged') {
+      return allCases.filter((c) => c.status === 'triaged' || c.status === 'investigating');
+    }
+    return allCases.filter((c) => c.status === currentStatus);
+  });
 
   let selectedIds = $state<string[]>([]);
   let allSelected = $derived(
-    data.items.length > 0 && selectedIds.length === data.items.length
+    displayedCases.length > 0 && selectedIds.length === displayedCases.length
   );
   function toggleAll() {
     if (allSelected) selectedIds = [];
-    else selectedIds = data.items.map((i) => i.id);
+    else selectedIds = displayedCases.map((i) => i.id);
   }
   function toggleRow(id: string) {
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
@@ -99,7 +135,7 @@
 </section>
 
 <!-- 案件卡片列表（原型高保真卡片结构） -->
-{#if data.items.length === 0}
+{#if displayedCases.length === 0}
   <div class="app-card">
     <div class="app-card__body">
       <EmptyState icon="inbox" title="暂无案件" desc="当前筛选下没有待处理的案件" />
@@ -107,7 +143,7 @@
   </div>
 {:else}
   <div style="display:flex;flex-direction:column;gap:14px;">
-    {#each data.items as item (item.id)}
+    {#each displayedCases as item (item.id)}
       {@const p = priorityBadge(item.priority)}
       {@const s = statusBadge(item.status)}
       <div class="app-card">
@@ -134,7 +170,7 @@
 
           <!-- 脚注行：举报人 / 被举报人 / 操作 -->
           <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);">
-            <span>举报人 Yuwen · 被举报 Alice</span>
+            <span>举报人 {(item as any).reporter || 'Yuwen'} · 被举报 {(item as any).reported || 'Alice'}</span>
             <a href="/admin/moderation/cases/{item.id}" class="text-link" style="font-weight:600;">
               {item.status === 'resolved' ? '查看' : '处理'}
             </a>

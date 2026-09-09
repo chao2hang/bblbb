@@ -11,6 +11,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import type { CheckoutActionData, CheckoutPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: CheckoutPageData; form?: CheckoutActionData | null } = $props();
 
@@ -37,9 +38,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>{checkout ? `确认购买 · ${checkout.merchant_name}` : '确认购买'} · BBLBB</title>
-</svelte:head>
+  <PageTitle title={checkout ? `确认购买 · ${checkout.merchant_name}` : '确认购买'} />
 
 <div class="container page-content">
 
@@ -171,7 +170,7 @@
             <Button text="取消" variant="secondary" size="md" type="submit" />
           </form>
         </div>
-        <p class="input-hint">金额与余额均由 BBLBB 服务端计算，页面不提交可篡改的价格、用户或余额字段。确认后结果以“我的购买”为准。</p>
+        <p class="input-hint">金额与余额均由服务端计算，页面不提交可篡改的价格、用户或余额字段。确认后结果以“我的购买”为准。</p>
       </div>
     </div>
   {/if}

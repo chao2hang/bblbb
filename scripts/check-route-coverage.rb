@@ -41,6 +41,9 @@ DOCUMENTED_NON_CONTRACT = {
   "robots.txt" => %w[GET],
   "sitemap.xml" => %w[GET],
   "metrics" => %w[GET],
+  # 站点公开信息（全站文案统一，0065）：登录/注册页等前台文案的匿名只读
+  # 投影，供第一方 SSR 使用；非冻结契约端点，记录于 docs/API.md §2。
+  "site" => %w[GET],
   "marketplace/checkout-intents/{p}" => %w[GET],
   "admin/marketplace/clients/{p}" => %w[GET PATCH],
   "admin/marketplace/clients/{p}/emergency-disable" => %w[POST],

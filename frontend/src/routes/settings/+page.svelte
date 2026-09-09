@@ -18,14 +18,22 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
-  import Card from '$lib/components/ui/Card.svelte';
   import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import { PROFILE_TEXT_LIMITS } from '$lib/profile';
   import { show } from '$lib/ui/toast';
   import { formatRelative } from '$lib/utils';
+  import { readPreference, applyTheme, type ThemePreference } from '$lib/theme';
+  import { applyThemeTokens, clearThemeTokens, type ActiveThemeView } from '$lib/theme/projection';
+  import {
+    getNotificationPreferences,
+    setNotificationPreference,
+    type NotificationPreference
+  } from '$lib/api/client';
   import type { OAuthGrantItem } from '$lib/api/types';
   import type { SettingsFormResult, SettingsPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: SettingsPageData; form?: SettingsFormResult } = $props();
 
@@ -43,15 +51,215 @@
 
   const limit = PROFILE_TEXT_LIMITS;
   let activeTab = $state('profile');
+  let currentMode = $state<ThemePreference>('system');
+  let activeThemeId = $state('default');
+
+  // ── 通知偏好（从 /notifications 迁移至设置页） ──
+  let prefs = $state<NotificationPreference[]>([]);
+  let prefsError = $state<string | null>(null);
+
+  const categoryLabels: Record<string, string> = {
+    reply: '回复',
+    reaction: '点赞',
+    activity: '互动',
+    moderation: '审核',
+    system: '系统',
+    security: '安全',
+    digest: '摘要'
+  };
+
+  const categoryDescriptions: Record<string, string> = {
+    activity: '他人的点赞、回复和提及',
+    moderation: '内容被审核处理与申诉结果',
+    system: '账号与站点运营相关提醒',
+    security: '登录与账号安全提醒',
+    digest: '周期性的动态摘要'
+  };
+
+  async function loadPrefs() {
+    try {
+      const result = await getNotificationPreferences(fetch);
+      prefs = result.items;
+      prefsError = null;
+    } catch {
+      prefsError = '偏好加载失败';
+    }
+  }
+
+  async function togglePref(p: NotificationPreference, key: 'email_enabled' | 'in_app_enabled' | 'push_enabled') {
+    const next = { ...p, [key]: !p[key] };
+    try {
+      await setNotificationPreference(fetch, next);
+      Object.assign(p, next);
+      prefsError = null;
+    } catch {
+      prefsError = '偏好保存失败（安全通知不可完全关闭）';
+    }
+  }
+
+  // 社区主题风格（与官方预置包 v1.1 日/夜双模式一致：日间 6 色 +
+  // 夜间 color.*.dark 变体；应用后随上方浅色/深色模式自动切换色板）。
+  // bg 为昼夜分区预览：左日间 → 中间品牌色分界 → 右夜间。
+  const THEMES_LIST = [
+    {
+      id: 'default',
+      name: 'BBLBB 经典赤墨 (原版默认)',
+      desc: '日间暖珊瑚红×米白宣纸，夜间墨绿×珊瑚橙（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f5f3ed 0%, #f5f3ed 40%, #b23e2a 49%, #b23e2a 51%, #101b19 60%, #101b19 100%)',
+      tokens: {
+        'color.background': '#f5f3ed',
+        'color.surface': '#fffefb',
+        'color.text': '#17211f',
+        'color.muted': '#53605b',
+        'color.accent': '#b23e2a',
+        'color.border': '#d9d6cc',
+        'color.background.dark': '#101b19',
+        'color.surface.dark': '#172522',
+        'color.text.dark': '#f5f3ea',
+        'color.muted.dark': '#b5c0ba',
+        'color.accent.dark': '#f27759',
+        'color.border.dark': '#30433e'
+      }
+    },
+    {
+      id: 'chinese-elegance',
+      name: '水墨青石 (中国风)',
+      desc: '日间宣纸水墨×青石蓝，夜间宿墨玄青×月白（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f5f3ee 0%, #f5f3ee 40%, #5a6c7d 49%, #5a6c7d 51%, #171a1d 60%, #171a1d 100%)',
+      tokens: {
+        'color.background': '#f5f3ee',
+        'color.surface': '#fbfaf7',
+        'color.text': '#1f1d1a',
+        'color.muted': '#6b6b6b',
+        'color.accent': '#5a6c7d',
+        'color.border': '#e4e1d7',
+        'color.background.dark': '#171a1d',
+        'color.surface.dark': '#202429',
+        'color.text.dark': '#e7e5df',
+        'color.muted.dark': '#9aa0a3',
+        'color.accent.dark': '#7f95a8',
+        'color.border.dark': '#2e343b'
+      }
+    },
+    {
+      id: 'midnight',
+      name: '暗夜极光',
+      desc: '日间极昼浅蓝×晴空青，夜间深蓝灰×天蓝极光（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #eef3f8 0%, #eef3f8 40%, #0284c7 49%, #0284c7 51%, #0f172a 60%, #0f172a 100%)',
+      tokens: {
+        'color.background': '#eef3f8',
+        'color.surface': '#ffffff',
+        'color.text': '#16202e',
+        'color.muted': '#5b6b7f',
+        'color.accent': '#0284c7',
+        'color.border': '#d4deea',
+        'color.background.dark': '#0f172a',
+        'color.surface.dark': '#1e293b',
+        'color.text.dark': '#e2e8f0',
+        'color.muted.dark': '#94a3b8',
+        'color.accent.dark': '#38bdf8',
+        'color.border.dark': '#334155'
+      }
+    },
+    {
+      id: 'paper',
+      name: '复古羊皮纸',
+      desc: '日间暖羊皮×朱砂红，夜间灯火书斋×琥珀（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #faf6ef 0%, #faf6ef 40%, #b23e2a 49%, #b23e2a 51%, #1b1813 60%, #1b1813 100%)',
+      tokens: {
+        'color.background': '#faf6ef',
+        'color.surface': '#ffffff',
+        'color.text': '#2c2c2c',
+        'color.muted': '#736b5e',
+        'color.accent': '#b23e2a',
+        'color.border': '#e4dcce',
+        'color.background.dark': '#1b1813',
+        'color.surface.dark': '#25211a',
+        'color.text.dark': '#e9e2d2',
+        'color.muted.dark': '#a89e8d',
+        'color.accent.dark': '#e07856',
+        'color.border.dark': '#3a342a'
+      }
+    },
+    {
+      id: 'forest',
+      name: '翡翠森林',
+      desc: '日间薄荷浅林×墨绿，夜间深林夜色×翡翠荧光（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f0f5f2 0%, #f0f5f2 40%, #0f756c 49%, #0f756c 51%, #0f1713 60%, #0f1713 100%)',
+      tokens: {
+        'color.background': '#f0f5f2',
+        'color.surface': '#ffffff',
+        'color.text': '#132a21',
+        'color.muted': '#516f63',
+        'color.accent': '#0f756c',
+        'color.border': '#cfe0d8',
+        'color.background.dark': '#0f1713',
+        'color.surface.dark': '#17231c',
+        'color.text.dark': '#ddebe2',
+        'color.muted.dark': '#8fa89b',
+        'color.accent.dark': '#40c9a2',
+        'color.border.dark': '#27392f'
+      }
+    },
+    {
+      id: 'cyberpunk',
+      name: '赛博霓虹',
+      desc: '日间雾紫纸面×热粉，夜间深紫暗夜×粉紫霓虹（日/夜双模式）',
+      bg: 'linear-gradient(105deg, #f5f1fa 0%, #f5f1fa 40%, #db2777 49%, #db2777 51%, #181126 60%, #181126 100%)',
+      tokens: {
+        'color.background': '#f5f1fa',
+        'color.surface': '#ffffff',
+        'color.text': '#251c38',
+        'color.muted': '#7d7296',
+        'color.accent': '#db2777',
+        'color.border': '#ded4ee',
+        'color.background.dark': '#181126',
+        'color.surface.dark': '#241b35',
+        'color.text.dark': '#f3f0f7',
+        'color.muted.dark': '#9d93b3',
+        'color.accent.dark': '#ec4899',
+        'color.border.dark': '#3b2d56'
+      }
+    }
+  ];
 
   onMount(() => {
+    currentMode = readPreference();
+    if (typeof document !== 'undefined') {
+      // 数据型主题名在 data-theme-name（dataset.theme 归日夜模式 light/dark 所有）
+      const domThemeName = document.documentElement.dataset.themeName;
+      activeThemeId = domThemeName && domThemeName !== 'default' ? domThemeName : 'default';
+    }
     const hash = window.location.hash.replace(/^#settings-/, '');
-    if (['profile', 'security', 'oauth', 'privacy'].includes(hash)) activeTab = hash;
+    if (['profile', 'appearance', 'security', 'oauth', 'privacy', 'notifications'].includes(hash)) activeTab = hash;
+    if (activeTab === 'notifications') loadPrefs();
   });
 
   function selectTab(tab: string): void {
     activeTab = tab;
     if (typeof window !== 'undefined') window.history.replaceState(null, '', `#settings-${tab}`);
+    if (tab === 'notifications' && prefs.length === 0) loadPrefs();
+  }
+
+  function setDisplayMode(mode: ThemePreference) {
+    currentMode = mode;
+    applyTheme(mode);
+    show(`已切换为${mode === 'light' ? '浅色模式' : mode === 'dark' ? '深色模式' : '跟随系统'}`, 'success');
+  }
+
+  function selectTheme(themeItem: { id: string; name: string; tokens?: Record<string, unknown> }) {
+    activeThemeId = themeItem.id;
+    if (themeItem.id === 'default' || themeItem.id === 'bblbb-classic') {
+      clearThemeTokens();
+    } else {
+      applyThemeTokens({
+        name: themeItem.id,
+        revision: 1,
+        tokens: themeItem.tokens ?? {},
+        source: 'user_preference'
+      });
+    }
+    show(`已应用「${themeItem.name}」主题`, 'success');
   }
 
   /** 资料可见性当前值（契约 Me.profile_visible_to；缺省 everyone）。 */
@@ -73,9 +281,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>账号设置 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="账号设置" />
 
 <div class="container page-content app-settings-page">
   <div class="app-route-head">
@@ -88,12 +294,27 @@
 
   <div class="app-settings-layout">
     <nav class="app-settings-nav" aria-label="设置导航">
-      <button type="button" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}><span aria-hidden="true">◈</span>个人资料</button>
-      <button type="button" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}><span aria-hidden="true">◇</span>账号安全</button>
-      <a href="/me#sessions"><span aria-hidden="true">▣</span>登录设备</a>
-      <a href="/notifications"><span aria-hidden="true">◌</span>通知设置</a>
-      <button type="button" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}><span aria-hidden="true">⌁</span>OAuth 授权</button>
-      <a href="/settings/privacy"><span aria-hidden="true">□</span>隐私设置</a>
+      <button type="button" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="user" size={14} /></span>个人资料
+      </button>
+      <button type="button" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="palette" size={14} /></span>外观与主题
+      </button>
+      <button type="button" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="shield" size={14} /></span>账号安全
+      </button>
+      <a href="/me#sessions">
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="monitor" size={14} /></span>登录设备
+      </a>
+      <button type="button" class:is-active={activeTab === 'notifications'} onclick={() => selectTab('notifications')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="bell" size={14} /></span>通知设置
+      </button>
+      <button type="button" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}>
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="key" size={14} /></span>OAuth 授权
+      </button>
+      <a href="/settings/privacy">
+        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="eye-off" size={14} /></span>隐私设置
+      </a>
     </nav>
 
     <div class="settings-content">
@@ -225,6 +446,102 @@
           </div>
         </form>
 
+        <!-- 外观与主题设置面板 -->
+        <section
+          class="card settings-panel settings-panel-appearance"
+          class:is-active={activeTab === 'appearance'}
+          aria-label="外观与主题"
+        >
+          <div class="card-header">
+            <span class="card-title">外观与色彩偏好</span>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-5, 20px);">
+            <!-- 色彩模式切换 -->
+            <div>
+              <strong style="font-size:14px;display:block;margin-bottom:8px;">显示模式</strong>
+              <div role="radiogroup" aria-label="显示模式" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={currentMode === 'light'}
+                  aria-label="浅色模式"
+                  class="app-card"
+                  style="border:2px solid {currentMode === 'light' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
+                  onclick={() => setDisplayMode('light')}
+                >
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:14px;">☀️ 浅色模式</strong>
+                    {#if currentMode === 'light'}<span class="sbadge sb-primary">生效中</span>{/if}
+                  </div>
+                  <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">温润宣纸米白质感底色，字迹舒适分明，不眩光。</p>
+                </button>
+
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={currentMode === 'dark'}
+                  aria-label="深色模式"
+                  class="app-card"
+                  style="border:2px solid {currentMode === 'dark' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
+                  onclick={() => setDisplayMode('dark')}
+                >
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:14px;">🌙 深色模式</strong>
+                    {#if currentMode === 'dark'}<span class="sbadge sb-primary">生效中</span>{/if}
+                  </div>
+                  <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">高对比纯黑夜色底色，弱光环境阅读柔和护眼。</p>
+                </button>
+
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={currentMode === 'system'}
+                  aria-label="跟随系统模式"
+                  class="app-card"
+                  style="border:2px solid {currentMode === 'system' ? 'var(--color-brand)' : 'var(--color-border)'};border-radius:var(--radius-md);padding:14px;text-align:left;cursor:pointer;background:var(--color-bg-card);"
+                  onclick={() => setDisplayMode('system')}
+                >
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:14px;">💻 跟随系统</strong>
+                    {#if currentMode === 'system'}<span class="sbadge sb-primary">生效中</span>{/if}
+                  </div>
+                  <p class="text-secondary" style="font-size:12px;margin:0;line-height:1.4;">自动同步操作系统与浏览器的深浅色外观偏好。</p>
+                </button>
+              </div>
+            </div>
+
+            <!-- 社区主题风格选择 -->
+            <div>
+              <strong style="font-size:14px;display:block;margin-bottom:4px;">社区主题风格</strong>
+              <p class="text-secondary" style="font-size:12px;margin:0 0 12px 0;">选择你喜爱的全站设计配色，切换后全站按钮、卡片、底色与文字将同步调整。</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));gap:12px;">
+                {#each THEMES_LIST as t}
+                  <div
+                    class="app-card"
+                    style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--color-bg-card);"
+                  >
+                    <div style="height:48px;border-radius:var(--radius-sm);background:{t.bg};"></div>
+                    <div>
+                      <strong style="font-size:13px;">{t.name}</strong>
+                      <p class="text-secondary" style="font-size:11px;margin:2px 0 0 0;line-height:1.3;">{t.desc}</p>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:4px;">
+                      <button
+                        type="button"
+                        class="btn sm {activeThemeId === t.id ? 'ghost' : 'secondary'}"
+                        disabled={activeThemeId === t.id}
+                        onclick={() => selectTheme(t)}
+                      >
+                        {activeThemeId === t.id ? '当前生效' : '应用'}
+                      </button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- GAP-FIX 修改密码：POST /me/password（security 区）。TODO(BE-2)：
              后端端点尚未注册，当前提交返回失败提示；落地后成功即撤销其他会话。 -->
         <form
@@ -306,6 +623,61 @@
           </div>
         </form>
 
+        <!-- 通知偏好：类别 × 渠道矩阵（从 /notifications 迁入设置页）。
+             桌面三列对齐（列头承载渠道名），移动端隐藏列头、渠道标签随行内显示。 -->
+        <section
+          class="card settings-panel settings-panel-notifications"
+          class:is-active={activeTab === 'notifications'}
+          aria-label="通知设置"
+        >
+          <div class="card-header">
+            <div class="np-head-copy">
+              <span class="card-title">通知偏好</span>
+              <span class="np-subtitle">选择每类通知的接收渠道</span>
+            </div>
+          </div>
+          <div class="np-body">
+            {#if prefsError}<p class="form-error" role="alert">{prefsError}</p>{/if}
+            <div class="np-matrix">
+              <div class="np-row np-row-head" aria-hidden="true">
+                <span class="np-cat-head">类别</span>
+                <div class="np-channels">
+                  <span class="np-cell np-cell-head">邮件</span>
+                  <span class="np-cell np-cell-head">站内</span>
+                  <span class="np-cell np-cell-head">推送</span>
+                </div>
+              </div>
+              {#each prefs as p}
+                {@const label = categoryLabels[p.category] ?? p.category}
+                <div class="np-row" role="group" aria-label={`${label} 通知偏好`}>
+                  <div class="np-cat">
+                    <span class="np-cat-name">{label}</span>
+                    <span class="np-cat-desc">{categoryDescriptions[p.category] ?? ''}</span>
+                  </div>
+                  <div class="np-channels">
+                    <label class="np-cell">
+                      <input class="np-check" type="checkbox" checked={p.email_enabled} onchange={() => togglePref(p, 'email_enabled')} />
+                      <span class="np-cell-label">邮件</span>
+                    </label>
+                    <label class="np-cell">
+                      <input class="np-check" type="checkbox" checked={p.in_app_enabled} onchange={() => togglePref(p, 'in_app_enabled')} />
+                      <span class="np-cell-label">站内</span>
+                    </label>
+                    <label class="np-cell">
+                      <input class="np-check" type="checkbox" checked={p.push_enabled} onchange={() => togglePref(p, 'push_enabled')} />
+                      <span class="np-cell-label">推送</span>
+                    </label>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+          <div class="np-foot">
+            <Icon name="shield" size={13} />
+            <span>安全通知至少保留一个接收渠道</span>
+          </div>
+        </section>
+
         <!-- GAP-FIX OAuth 授权应用：GET /me/oauth-grants + 每行撤销
              （DangerConfirm 确认后提交隐藏表单）。TODO(BE-2)：后端端点尚未
              注册，当前列表恒空（空态说明）；落地后自动显示真实授权。 -->
@@ -315,7 +687,7 @@
               <p class="input-hint {revokeResult.ok ? '' : 'is-error'}" role="{revokeResult.ok ? 'status' : 'alert'}" style="margin-top:0;">{revokeResult.message}</p>
             {/if}
             {#if grants.length === 0}
-              <EmptyState icon="key" title="暂无授权应用" desc="你使用 BBLBB 账号登录的第三方应用会显示在这里" />
+              <EmptyState icon="key" title="暂无授权应用" desc="你使用本站账号登录的第三方应用会显示在这里" />
             {:else}
               <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);">
                 {#each grants as grant (grant.client_id)}
@@ -350,7 +722,7 @@
           </div>
         </div>
 
-        <Card>
+        <div class="card settings-panel settings-panel-profile" class:is-active={activeTab === 'profile'}>
           <div class="card-header"><span class="card-title">当前公开投影</span></div>
           <div class="card-body">
             <dl class="profile-about-list">
@@ -361,9 +733,9 @@
             </dl>
             <p class="input-hint">保存后主页与资料卡将按此公开投影展示（版本 v{user.version}）。</p>
           </div>
-        </Card>
+        </div>
 
-        <div class="card" style="margin-top:var(--space-4);">
+        <div class="card settings-panel settings-panel-profile" class:is-active={activeTab === 'profile'} style="margin-top:var(--space-4);">
           <div class="card-header"><span class="card-title">账号信息</span></div>
           <div class="card-body">
             <dl class="profile-about-list">
@@ -420,3 +792,210 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* ---- 通知偏好矩阵（从 /notifications 迁入） ---- */
+  .np-head-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .np-subtitle {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .np-body {
+    padding: 0;
+  }
+
+  .np-body .form-error {
+    margin: var(--space-4) var(--space-5) 0;
+  }
+
+  .np-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) repeat(3, 64px);
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .np-row-head {
+    padding-block: var(--space-2);
+  }
+
+  .np-row:not(.np-row-head) {
+    border-top: var(--border-thin);
+  }
+
+  .np-row:not(.np-row-head):hover,
+  .np-row:not(.np-row-head):focus-within {
+    background: var(--color-bg-subtle);
+  }
+
+  .np-channels {
+    display: contents;
+  }
+
+  .np-cell {
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+
+  .np-cat-head,
+  .np-cell-head {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--color-text-tertiary);
+    letter-spacing: 0.04em;
+  }
+
+  .np-cell-head {
+    text-align: center;
+  }
+
+  .np-cat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .np-cat-name {
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--color-text-primary);
+  }
+
+  .np-cat-desc {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .np-check {
+    /* 隐藏原生 checkbox，用伪元素自绘以保证深/浅色模式下 on/off 区分度 */
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border: 1.5px solid var(--color-border-strong, #555);
+    border-radius: 3px;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .np-check:checked {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+  }
+
+  .np-check:checked::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 5px;
+    width: 5px;
+    height: 9px;
+    border: solid var(--on-brand, #fff);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .np-check:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+
+  .np-cell-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .np-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    border-top: var(--border-default);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  @media (max-width: 640px) {
+    .np-row-head {
+      display: none;
+    }
+
+    .np-row:not(.np-row-head) {
+      grid-template-columns: 1fr;
+      align-items: start;
+      padding-block: var(--space-4);
+    }
+
+    .np-channels {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-5);
+    }
+
+    .np-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .np-cell-label {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0;
+      overflow: visible;
+      clip: auto;
+      clip-path: none;
+      white-space: normal;
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .np-row {
+      transition: none;
+    }
+  }
+
+  /* 设置侧栏 Lucide 图标——与文字基线对齐，颜色随 hover/active 切换 */
+  :global(.app-settings-nav .app-settings-nav__icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: currentColor;
+    opacity: 0.85;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  :global(.app-settings-nav button:hover .app-settings-nav__icon),
+  :global(.app-settings-nav button.is-active .app-settings-nav__icon),
+  :global(.app-settings-nav a:hover .app-settings-nav__icon),
+  :global(.app-settings-nav a.is-active .app-settings-nav__icon) {
+    opacity: 1;
+  }
+</style>

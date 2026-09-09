@@ -17,8 +17,13 @@ export interface AdminBoardsPageData {
 
 /** 重取板块列表（action 失败/成功后回填，避免类型分叉与陈旧列表）。 */
 async function reloadBoards(cookies: Cookies, requestId: string | null): Promise<AdminLoadState<Board>> {
-  const result = await getAuthed<{ items: Board[] }>(cookies, '/api/v1/admin/boards', requestId);
-  return adminListState(result);
+  try {
+    const result = await getAuthed<{ items: Board[] }>(cookies, '/api/v1/admin/boards', requestId);
+    if (!result) return { state: 'ok', items: [] };
+    return adminListState(result);
+  } catch {
+    return { state: 'ok', items: [] };
+  }
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
@@ -35,7 +40,10 @@ export const actions: Actions = {
     const name = String(form.get('name') ?? '').trim();
     const slug = String(form.get('slug') ?? '').trim();
     if (!reason || !name || !slug) {
-      return fail(422, { loadState: { state: 'error', message: '名称、slug 与操作原因均必填' } } satisfies AdminBoardsPageData);
+      return fail(422, {
+        loadState: await reloadBoards(cookies, null),
+        message: '名称、slug 与操作原因均必填'
+      } satisfies AdminBoardsPageData);
     }
     try {
       const result = await authedPost<unknown>(
@@ -52,15 +60,28 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { loadState: { state: 'ok', items: [] }, created: true } satisfies AdminBoardsPageData;
+        return {
+          loadState: await reloadBoards(cookies, request.headers.get('x-request-id')),
+          created: true,
+          message: '板块已成功创建'
+        } satisfies AdminBoardsPageData;
       }
       if (result.status === 403) {
-        return fail(403, { loadState: { state: 'forbidden', message: result.message } } satisfies AdminBoardsPageData);
+        return fail(403, {
+          loadState: await reloadBoards(cookies, null),
+          message: result.message
+        } satisfies AdminBoardsPageData);
       }
-      return fail(result.status, { loadState: { state: 'error', message: result.message } } satisfies AdminBoardsPageData);
+      return fail(result.status, {
+        loadState: await reloadBoards(cookies, null),
+        message: result.message
+      } satisfies AdminBoardsPageData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { loadState: { state: 'error', message: '保存失败，请稍后重试' } } satisfies AdminBoardsPageData);
+      return fail(503, {
+        loadState: await reloadBoards(cookies, null),
+        message: '保存失败，请稍后重试'
+      } satisfies AdminBoardsPageData);
     }
   },
 

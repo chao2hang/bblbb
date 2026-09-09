@@ -6,6 +6,7 @@
   import { enhance } from '$app/forms';
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { PurchasesActionData, PurchasesPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: PurchasesPageData; form?: PurchasesActionData | null } = $props();
 
@@ -30,9 +31,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>Marketplace 购买记录 · BBLBB</title>
-</svelte:head>
+  <PageTitle title="Marketplace 购买记录" />
 
 <div class="container page-content">
 

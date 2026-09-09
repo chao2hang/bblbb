@@ -42,6 +42,7 @@ pub mod posts;
 pub mod reactions;
 pub mod search;
 pub mod shop;
+pub mod site;
 pub mod storage;
 pub mod themes;
 pub mod users;

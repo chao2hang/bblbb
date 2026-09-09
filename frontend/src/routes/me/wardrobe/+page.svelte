@@ -22,6 +22,7 @@
   import AttachmentPicker from '$lib/components/upload/AttachmentPicker.svelte';
   import type { Entitlement, Presentation } from '$lib/api/types';
   import type { WardrobeActionData, WardrobePageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: WardrobePageData; form?: WardrobeActionData | null } = $props();
 
@@ -130,9 +131,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>我的衣柜 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="我的衣柜" />
 
 <div class="container page-content">
 

@@ -8,10 +8,11 @@
   import { productKindLabel, productStatusLabel } from '$lib/api/client';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import { show as showToast } from '$lib/ui/toast';
   import type { ShopProduct, ShopOrder } from '$lib/api/types';
-  import type { AdminShopPageData } from './+page.server';
+  import type { AdminShopActionData, AdminShopPageData } from './+page.server';
 
-  let { data, form }: { data: AdminShopPageData; form?: { message?: string } | null } = $props();
+  let { data, form }: { data: AdminShopPageData; form?: AdminShopActionData | null } = $props();
 
   /** 退款策略本地化（配置行展示用；表单 option 已是中文）。 */
   function refundPolicyLabel(policy: string): string {
@@ -31,6 +32,9 @@
   const orders = $derived(data.orders);
   const config = $derived(data.config);
   const message = $derived(form?.message ?? null);
+  const fieldErrors = $derived(form?.fieldErrors ?? {});
+
+  let creating = $state(false);
 
   /** 展开的编辑表单（product id）。 */
   let editing = $state<string | null>(null);
@@ -81,31 +85,66 @@
   <div class="app-card" style="margin-bottom:var(--space-4);">
     <div class="app-card__head"><h2>新建商品</h2></div>
     <div class="app-card__body">
-      <form method="POST" action="?/create" use:enhance>
+      <form
+        method="POST"
+        action="?/create"
+        use:enhance={({ cancel }) => {
+          if (creating) {
+            cancel();
+            return async () => {};
+          }
+          creating = true;
+          return async ({ result, update }) => {
+            creating = false;
+            await update();
+            if (result.type === 'success') {
+              showToast((result.data as any)?.message ?? '商品已创建', 'success');
+            } else if (result.type === 'failure') {
+              showToast((result.data as any)?.message ?? '创建失败，请检查表单字段', 'danger');
+            }
+          };
+        }}
+      >
+        <input type="hidden" name="currency_id" value="coin" />
         <div class="admin-form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-2);">
           <div class="input-wrapper">
-            <label class="input-label" for="np-title">标题</label>
+            <label class="input-label" for="np-title">标题 *</label>
             <input id="np-title" name="title" class="input-field" required />
+            {#if fieldErrors.title}
+              <span class="app-field-error" role="alert" style="color:var(--color-danger);font-size:11px;display:block;margin-top:2px;">{fieldErrors.title}</span>
+            {/if}
           </div>
           <div class="input-wrapper">
-            <label class="input-label" for="np-kind">类型</label>
+            <label class="input-label" for="np-kind">类型 *</label>
             <select id="np-kind" name="kind" class="input-field">
               {#each PRODUCT_KINDS as kind}
                 <option value={kind}>{productKindLabel(kind)}</option>
               {/each}
             </select>
+            {#if fieldErrors.kind}
+              <span class="app-field-error" role="alert" style="color:var(--color-danger);font-size:11px;display:block;margin-top:2px;">{fieldErrors.kind}</span>
+            {/if}
           </div>
           <div class="input-wrapper">
-            <label class="input-label" for="np-slug">slug</label>
+            <label class="input-label" for="np-slug">slug *</label>
             <input id="np-slug" name="slug" class="input-field" required pattern="[a-z0-9-]+" />
+            {#if fieldErrors.slug}
+              <span class="app-field-error" role="alert" style="color:var(--color-danger);font-size:11px;display:block;margin-top:2px;">{fieldErrors.slug}</span>
+            {/if}
           </div>
           <div class="input-wrapper">
-            <label class="input-label" for="np-price">价格（coin）</label>
+            <label class="input-label" for="np-price">价格（coin）*</label>
             <input id="np-price" name="unit_price" type="number" min="0" step="1" class="input-field" required />
+            {#if fieldErrors.unit_price}
+              <span class="app-field-error" role="alert" style="color:var(--color-danger);font-size:11px;display:block;margin-top:2px;">{fieldErrors.unit_price}</span>
+            {/if}
           </div>
           <div class="input-wrapper">
             <label class="input-label" for="np-stock">库存（空=不限）</label>
             <input id="np-stock" name="stock_remaining" type="number" min="0" class="input-field" placeholder="不限" />
+            {#if fieldErrors.stock_remaining}
+              <span class="app-field-error" role="alert" style="color:var(--color-danger);font-size:11px;display:block;margin-top:2px;">{fieldErrors.stock_remaining}</span>
+            {/if}
           </div>
           <div class="input-wrapper">
             <label class="input-label" for="np-level">等级门槛</label>
@@ -116,8 +155,11 @@
             <input id="np-limit" name="quantity_limit" type="number" min="1" value="1" class="input-field" />
           </div>
           <div class="input-wrapper">
-            <label class="input-label" for="np-slot">展示槽位</label>
-            <input id="np-slot" name="slot" class="input-field" placeholder="avatar_frame / profile_badges…" />
+            <label class="input-label" for="np-slot">展示槽位 *</label>
+            <input id="np-slot" name="slot" value="avatar_frame" class="input-field" required placeholder="avatar_frame / profile_badges…" />
+            {#if fieldErrors.slot}
+              <span class="app-field-error" role="alert" style="color:var(--color-danger);font-size:11px;display:block;margin-top:2px;">{fieldErrors.slot}</span>
+            {/if}
           </div>
           <div class="input-wrapper">
             <label class="input-label" for="np-icon">图标 Token</label>
@@ -141,10 +183,13 @@
           </div>
         </div>
         <div class="input-wrapper" style="margin-top:var(--space-2);">
-          <label class="input-label" for="np-reason">操作原因</label>
+          <label class="input-label" for="np-reason">操作原因 *</label>
           <input id="np-reason" name="reason" class="input-field" required placeholder="必填（写审计）" />
+          {#if fieldErrors.reason}
+            <span class="app-field-error" role="alert" style="color:var(--color-danger);font-size:11px;display:block;margin-top:2px;">{fieldErrors.reason}</span>
+          {/if}
         </div>
-        <Button text="创建商品" variant="primary" size="sm" type="submit" extraClass="mt-2" />
+        <Button text={creating ? '创建中…' : '创建商品'} variant="primary" size="sm" type="submit" disabled={creating} extraClass="mt-2" />
       </form>
     </div>
   </div>

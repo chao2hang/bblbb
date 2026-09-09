@@ -10,13 +10,17 @@
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import LoadFailureState from '$lib/components/LoadFailureState.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
   import { listMyFavorites } from '$lib/api/client';
   import type { PostSummary } from '$lib/api/types';
+  import { isTransientProblem } from '$lib/errors';
+  import { announceTransientProblem } from '$lib/ui/problem-toast';
   import { show } from '$lib/ui/toast';
   import { formatCount, formatRelative } from '$lib/utils';
   import { boardVisuals } from '$lib/board-visuals';
   import type { FavoritesActionData, FavoritesPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: FavoritesPageData; form?: FavoritesActionData | null } = $props();
 
@@ -38,6 +42,13 @@
     void data.after;
     extraPages = [];
     loadedCursor = undefined;
+  });
+
+  // 瞬态服务端错误（5xx/429）→ 全局 Toast 提示 + 页面只留「加载失败·重试」
+  // 占位（产品约定：不整页展示错误态）；持续性错误仍走 ProblemState。
+  $effect(() => {
+    void data.problem;
+    announceTransientProblem(data.problem);
   });
 
   /** JS 下追加下一页；无 JS 走 ?after= 链接（整页翻页）。 */
@@ -67,9 +78,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>我的收藏 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="我的收藏" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/favorites.html）：app-route-head，无面包屑。 -->
@@ -81,7 +90,9 @@
     </div>
   </div>
 
-  {#if data.problem}
+  {#if data.problem && isTransientProblem(data.problem)}
+    <LoadFailureState onretry={() => void invalidateAll()} />
+  {:else if data.problem}
     <ProblemState problem={data.problem} />
   {:else}
     <div class="card">

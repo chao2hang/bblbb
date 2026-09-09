@@ -1,0 +1,212 @@
+/* ============================================================
+   BBLBB Theme Layout Presets — 主题声明的页面结构预设
+   ============================================================
+   由数据型主题 token `layout.mode`（classic | sidebar | wide）驱动。
+   根布局把解析后的预设写入 .app-shell[data-theme-layout]（SSR 首帧即生效），
+   applyThemeTokens/previewThemeTokens 在预览与正式切换时同步该属性。
+
+   安全边界（docs/THEME.md）：
+   - 预设是前端已编译的闭集，主题数据只能提供 enum 值；
+   - 不存在任何从数据库值拼接的选择器/class/import 路径；
+   - classic 是缺省结构，本文件只为 sidebar/wide 编写差异规则。
+
+   响应式契约：移动端（<1024px）一律回退 classic 结构——顶栏隐藏由
+   既有规则处理，BottomNav/后台抽屉导航与 44px 触控目标保持不变。
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   sidebar：桌面端导航固定为左侧竖栏，内容区右移
+   ------------------------------------------------------------ */
+@media (min-width: 1024px) {
+  /* 顶栏 → 左侧全高竖栏（压过 layout.css sticky 与 chinese-elegance 顶栏基座） */
+  .app-shell[data-theme-layout='sidebar'] .navbar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 236px !important;
+    height: auto !important;
+    max-height: 100vh !important;
+    border-bottom: 0 !important;
+    border-right: var(--border-thin) !important;
+    box-shadow: none !important;
+    z-index: var(--z-sticky) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: thin !important;
+  }
+
+  /* 容器竖排：logo → 导航 → 搜索 → 用户区，铺满整栏 */
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: var(--space-4) !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    padding: var(--space-4) var(--space-3) var(--space-5) !important;
+  }
+
+  /* 导航链接竖排；chinese-elegance 的横排 order 布局在此失效 */
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-left,
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-center,
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    order: initial !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: var(--space-1) !important;
+  }
+
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-items {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+    margin-left: 0 !important;
+  }
+
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-link {
+    justify-content: flex-start !important;
+    height: auto !important;
+    min-height: 40px !important;
+    padding: 0 var(--space-3) !important;
+    border-bottom-color: transparent !important;
+    border-left: 2px solid transparent !important;
+    border-radius: 0 !important;
+  }
+
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-link:hover,
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-link.is-active {
+    border-bottom-color: transparent !important;
+    border-left-color: var(--color-brand) !important;
+  }
+
+  /* 搜索框铺满栏宽 */
+  .app-shell[data-theme-layout='sidebar'] .navbar .search-form {
+    width: 100% !important;
+    max-width: none !important;
+    flex: 0 0 auto !important;
+  }
+
+  /* 用户区贴栏底（铃铛/主题切换/头像竖排） */
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-right {
+    margin-top: auto !important;
+  }
+
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-right .nav-link {
+    min-height: 40px !important;
+  }
+
+  /* 更多下拉在竖栏内展开（锚定 nav-left，不再横向溢出） */
+  .app-shell[data-theme-layout='sidebar'] .navbar .nav-more-wrapper,
+  .app-shell[data-theme-layout='sidebar'] .navbar .user-menu-wrapper {
+    position: static !important;
+  }
+
+  /* 通知速览/用户菜单等下拉在竖栏内改为纵向铺开（不再绝对定位溢出栏外） */
+  .app-shell[data-theme-layout='sidebar'] .navbar .dropdown.more-menu,
+  .app-shell[data-theme-layout='sidebar'] .navbar .dropdown.notif-menu,
+  .app-shell[data-theme-layout='sidebar'] .navbar .dropdown.user-menu {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-top: var(--border-thin) !important;
+    border-radius: 0 !important;
+  }
+
+  /* 内容画布右移，让出竖栏宽度（后台/前台页面统一生效） */
+  .app-shell[data-theme-layout='sidebar'] .page-wrapper {
+    margin-left: 236px !important;
+    min-height: 100vh !important;
+  }
+
+  /* 跳转链接避开竖栏 */
+  body:has(.app-shell[data-theme-layout='sidebar']) .skip-link {
+    left: calc(236px + var(--space-4)) !important;
+  }
+
+  /* 竖栏结构下顶栏内的移动端汉堡按钮保持隐藏（桌面视口） */
+  .app-shell[data-theme-layout='sidebar'] .navbar .mobile-menu-btn {
+    display: none !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   wide：宽幅容器 + 多列网格（内容结构密度变化）
+   ------------------------------------------------------------ */
+@media (min-width: 1024px) {
+  /* 顶层容器与原型画布放宽 */
+  .app-shell[data-theme-layout='wide'] .container {
+    max-width: min(1760px, 95vw) !important;
+  }
+
+  .app-shell[data-theme-layout='wide'] .app-page {
+    max-width: min(1700px, 95vw) !important;
+  }
+
+  /* 内容网格：主列 + 更宽的侧栏 */
+  .app-shell[data-theme-layout='wide'] .content-grid,
+  .app-shell[data-theme-layout='wide'] .app-grid,
+  .app-shell[data-theme-layout='wide'] .topic-layout {
+    grid-template-columns: minmax(0, 1fr) 340px !important;
+  }
+
+  /* 卡片网格 3 → 4 列 */
+  .app-shell[data-theme-layout='wide'] .articles-grid,
+  .app-shell[data-theme-layout='wide'] .boards-grid,
+  .app-shell[data-theme-layout='wide'] .app-board-grid,
+  .app-shell[data-theme-layout='wide'] .app-article-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  /* 统计卡 4 → 6 列 */
+  .app-shell[data-theme-layout='wide'] .stats-grid,
+  .app-shell[data-theme-layout='wide'] .app-stat-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+
+  /* 管理后台：更宽画布 + 更宽侧栏导航 */
+  .app-shell[data-theme-layout='wide'] .app-admin-page-shell {
+    max-width: 1840px !important;
+  }
+
+  .app-shell[data-theme-layout='wide'] .app-admin-shell {
+    grid-template-columns: 280px minmax(0, 1fr) !important;
+  }
+
+  /* 表格与代码块不再被 1180px 画布挤压 */
+  .app-shell[data-theme-layout='wide'] .app-table {
+    min-width: 760px !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   包装器基线：chinese-elegance.css 为从未渲染过的 .app-shell 元素写过
+   底部导航余量（758 行桌面 64px / 992 行移动 76px，原为死规则）。根布局
+   引入 .app-shell 包装器后这些规则被激活，会与 .page-wrapper 自身的
+   底部余量叠加 → 显式归零，由 .page-wrapper 独自承担 BottomNav 余量。
+   ------------------------------------------------------------ */
+.app-shell {
+  padding-bottom: 0 !important;
+}
+
+/* ------------------------------------------------------------
+   结构切换过渡（尊重减少动效偏好）
+   ------------------------------------------------------------ */
+.app-shell {
+  transition: margin-left var(--duration-base) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell {
+    transition: none !important;
+  }
+}

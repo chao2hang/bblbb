@@ -7,8 +7,12 @@
   import Seo from '$lib/components/Seo.svelte';
   import Table from '$lib/components/ui/Table.svelte';
   import type { MarketplacePageData } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
-  let { data }: { data: MarketplacePageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: MarketplacePageData & { site?: SiteCopyView | null } } = $props();
+
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const purchases = $derived(data.purchases);
   const totals = $derived(data.totals);
@@ -81,12 +85,12 @@
 
 <Seo
   title="应用市场"
-  description="BBLBB 应用市场：安全接入、Client 授权与交易状态"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  description={`${site.siteName}应用市场：安全接入、Client 授权与交易状态`}
+  og={{ type: 'website' }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'BBLBB 应用市场'
+    name: `应用市场 · ${site.siteName}`
   }}
 />
 

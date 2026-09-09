@@ -234,7 +234,12 @@ textarea.input-field {
 
 .user-hover-template { display: none; }
 
-.author-hover-trigger:focus-visible,
+.author-hover-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+  border-radius: 50%;
+}
+
 .author-hover-name-trigger:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 3px;

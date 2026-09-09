@@ -11,8 +11,12 @@
   import Seo from '$lib/components/Seo.svelte';
   import type { Board } from '$lib/api/types';
   import type { BoardsPageData } from './+page.server';
+  import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
-  let { data }: { data: BoardsPageData } = $props();
+  // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
+  let { data }: { data: BoardsPageData & { site?: SiteCopyView | null } } = $props();
+
+  const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
   const boards = $derived(data.boards);
   const error = $derived(data.error);
@@ -49,13 +53,13 @@
 </script>
 
 <Seo
-  title="板块 · BBLBB 社区"
+  title="板块"
   description="按兴趣进入社区的不同讨论空间"
-  og={{ type: 'website', siteName: 'BBLBB' }}
+  og={{ type: 'website' }}
   jsonLd={{
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'BBLBB 板块'
+    name: `板块 · ${site.siteName}`
   }}
 />
 

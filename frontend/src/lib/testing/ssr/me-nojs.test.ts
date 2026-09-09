@@ -47,8 +47,7 @@ describe('无 JS：/me 页（M02-UX-05）', () => {
       }
     });
     expect(body).toContain('alice');
-    expect(body).toContain('alice@example.com'); // 本人账号邮箱可展示
-    expect(body).toContain('未验证'); // email_verified=false → 去验证入口
+    expect(body).not.toContain('alice@example.com'); // 邮箱不对外展示
     expect(body).toContain('正常'); // status=active
     expect(body).toContain('LV.3');
     expect(body).not.toContain('sess-current'); // 会话 id 仅作隐藏表单值不泄漏
@@ -90,7 +89,7 @@ describe('无 JS：/me 页（M02-UX-05）', () => {
     expect(body).toContain('退出全部设备');
   });
 
-  it('已验证账号不显示去验证入口', () => {
+  it('已验证账号正常渲染，不泄漏邮箱', () => {
     const { body } = render(MePage, {
       props: {
         data: {
@@ -102,8 +101,7 @@ describe('无 JS：/me 页（M02-UX-05）', () => {
         form: undefined
       }
     });
-    expect(body).toContain('已验证');
-    expect(body).not.toContain('去验证');
+    expect(body).not.toContain('alice@example.com');
     expect(body).toContain('暂无登录设备');
   });
 

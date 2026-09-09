@@ -8,6 +8,7 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import { formatTime, charCount } from '$lib/utils';
   import type { DraftsPageData } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data }: { data: DraftsPageData } = $props();
 
@@ -39,9 +40,7 @@
   }
 </script>
 
-<svelte:head>
-  <title>我的草稿 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="我的草稿" />
 
 <div class="container page-content">
 

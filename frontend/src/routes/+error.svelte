@@ -4,6 +4,7 @@
   // （role=alert + 按状态恢复动作 + request ID），与页面内错误一致。
   import { page } from '$app/state';
   import ProblemState from '$lib/components/ProblemState.svelte';
+  import { resolveSiteCopy } from '$lib/site/copy';
 
   interface PageError {
     status?: number;
@@ -21,10 +22,13 @@
         ? '页面不存在或已被删除。'
         : ''
   );
+  // 全站文案（0065）：站点名来自 layout 数据（page.data 合并了 layout load；
+  // 根 layout 自身失败时 page.data 为空对象 → resolveSiteCopy 兜底）。
+  const siteName = $derived(resolveSiteCopy(page.data?.site ?? null).siteName);
 </script>
 
 <svelte:head>
-  <title>出错了 — BBLBB</title>
+  <title>出错了 — {siteName}</title>
   <!-- M14-SEO-03：错误页（404/403/409/422/429/503）一律 noindex ——
        删除/隐藏内容以 404 呈现，不允许被索引。 -->
   <meta name="robots" content="noindex, noarchive, nofollow" />

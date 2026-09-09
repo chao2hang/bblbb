@@ -7,9 +7,15 @@
   // - 用户名/邮箱已存在与成功统一显示成功（后端防枚举返回一致 201）。
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
+  import { resolveSiteCopy, pageTitle, type SiteCopyView } from '$lib/site/copy';
   import type { RegisterActionData } from './+page.server';
 
-  let { form }: { form?: RegisterActionData } = $props();
+  // data 可选：隔离渲染（vitest）只传 form；运行时恒有（layout 注入 site）。
+  let { data, form }: { data?: { site?: SiteCopyView | null }; form?: RegisterActionData } = $props();
+
+  // 全站文案（0065）：注册页眉题/标题/说明来自后台系统设置（layout 注入；
+  // 隔离渲染/后端不可达时解析内置兜底）。
+  const site = $derived<SiteCopyView>(data?.site ?? resolveSiteCopy(null));
 
   const usernameError = $derived(form?.fieldErrors?.username ?? null);
   const emailError = $derived(form?.fieldErrors?.email ?? null);
@@ -24,14 +30,15 @@
 </script>
 
 <svelte:head>
-  <title>注册 — BBLBB</title>
+  <title>{pageTitle('注册', site.siteName)}</title>
 </svelte:head>
 
 <div class="login-page auth-wrapper" id="page-register">
   <section class="login-shell">
     <div class="login-card auth-card">
-      <p class="login-eyebrow">JOIN BBLBB</p>
-      <h1 tabindex="-1">创建账号</h1>
+      <p class="login-eyebrow">{site.registerEyebrow}</p>
+      <h1 tabindex="-1">{site.registerTitle}</h1>
+      <p class="login-subtitle">{site.registerSubtitle}</p>
       <div class="auth-body">
       {#if form?.ok}
         <div class="empty-state">
@@ -127,6 +134,35 @@
           </div>
           <Button text="创建账号" variant="primary" size="lg" type="submit" block disabled={!agreed} />
         </form>
+
+        {#if site.googleLoginEnabled || site.githubLoginEnabled}
+          <div class="oauth-divider">
+            <span class="oauth-divider-line"></span>
+            <span class="oauth-divider-text">快捷注册方式</span>
+            <span class="oauth-divider-line"></span>
+          </div>
+          <div class="oauth-buttons">
+            {#if site.googleLoginEnabled}
+              <a href="/api/v1/auth/oauth/google/start" class="oauth-btn oauth-google" data-provider="google">
+                <svg class="oauth-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Google 快捷注册 / 登录</span>
+              </a>
+            {/if}
+            {#if site.githubLoginEnabled}
+              <a href="/api/v1/auth/oauth/github/start" class="oauth-btn oauth-github" data-provider="github">
+                <svg class="oauth-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                <span>GitHub 快捷注册 / 登录</span>
+              </a>
+            {/if}
+          </div>
+        {/if}
       {/if}
     </div>
       <p class="login-signup">
@@ -135,3 +171,68 @@
     </div>
   </section>
 </div>
+
+<style>
+  /* 与登录页 .login-subtitle 同视觉（登录页样式为 scoped，不跨页共享）。 */
+  .login-subtitle {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .oauth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 14px;
+  }
+
+  .oauth-divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--color-border, rgba(0, 0, 0, 0.1));
+  }
+
+  .oauth-divider-text {
+    font-size: 12px;
+    color: var(--color-text-secondary, #666);
+    white-space: nowrap;
+  }
+
+  .oauth-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .oauth-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 16px;
+    border-radius: var(--radius-md, 6px);
+    border: 1px solid var(--color-border, #e5e5e5);
+    background: var(--color-surface, #fff);
+    color: var(--color-text-primary, #111);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+
+  .oauth-btn:hover {
+    background: var(--color-bg-secondary, #f8f9fa);
+    border-color: color-mix(in srgb, var(--color-text-primary) 30%, transparent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .oauth-icon {
+    flex-shrink: 0;
+  }
+</style>

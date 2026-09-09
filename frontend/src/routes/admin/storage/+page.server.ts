@@ -3,8 +3,11 @@
 //
 // - load：GET /admin/storage/config（脱敏视图）。
 // - save action：PATCH /admin/storage/config（If-Match 版本 + reason；空
-//   Secret 输入表示保持原值）。
+//   Secret 输入表示保持原值）。当前部署由环境变量管理（M06-ADAPTER-03），
+//   保存语义 = 校验 + 审计意图，生效需改 BBLBB__* 环境变量并重启。
 // - test action：POST /admin/storage/test（测试候选/当前配置，脱敏诊断）。
+// - reauth action：POST /api/v1/auth/re-auth（step-up 窗口过期后重新验证，
+//   M02-MFA-07；save/test 命中 403 step_up_required 时展示）。
 // - M06-UI-07：TTL 修改只影响新签发 URL；后端切换需预演/hash/回滚——界面
 //   明确提示，不提供“一键切换”。
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
@@ -20,6 +23,10 @@ export interface AdminStoragePageData {
 /** form action 返回投影。 */
 export interface AdminStorageActionData {
   message?: string;
+  /** message 类型：success（保存/重认证成功）或 error（fail 分支）。 */
+  messageKind?: 'success' | 'error';
+  /** 403 step_up_required → 页面展示重新验证（reauth）表单。 */
+  stepUpRequired?: boolean;
   requestId?: string | null;
   testResult?: StorageTestResult | null;
 }
@@ -57,12 +64,17 @@ function buildPatch(form: FormData, current: StorageConfig | null): Record<strin
   set('backend', form.get('backend') ? String(form.get('backend')) : undefined);
   set('local_path', String(form.get('local_path') ?? '').trim() || null);
   set('s3_endpoint', String(form.get('s3_endpoint') ?? '').trim() || null);
-  set('s3_region', String(form.get('s3_region') ?? '').trim() || null);
+  set('s3_region', String(form.get('s3_region') ?? '').trim() || 'us-east-1');
   set('s3_bucket', String(form.get('s3_bucket') ?? '').trim() || null);
   set('s3_path_style', boolForm(form, 's3_path_style'));
   set('s3_presigned_uploads', boolForm(form, 's3_presigned_uploads'));
+  set('s3_public_base_url', String(form.get('s3_public_base_url') ?? '').trim() || null);
   set('signed_url_ttl_seconds', numOrNull(form.get('signed_url_ttl_seconds')));
-  set('upload_max_bytes', numOrNull(form.get('upload_max_bytes')));
+  const maxSizeMb = numOrNull(form.get('max_size_mb'));
+  const uploadMaxBytes = numOrNull(form.get('upload_max_bytes')) ?? (maxSizeMb ? Math.round(maxSizeMb * 1048576) : undefined);
+  set('upload_max_bytes', uploadMaxBytes);
+  const accessKey = String(form.get('s3_access_key_id') ?? '').trim();
+  if (accessKey) set('s3_access_key_id', accessKey, true);
   const secret = String(form.get('s3_secret_access_key') ?? '').trim();
   if (secret) set('s3_secret_access_key', secret, true);
   return patch;
@@ -74,10 +86,16 @@ export const actions: Actions = {
     const reason = String(form.get('reason') ?? '').trim();
     const expectedVersion = Number(form.get('expected_version') ?? 0);
     if (!reason) {
-      return fail(422, { message: '操作原因必填' } satisfies AdminStorageActionData);
+      return fail(422, {
+        message: '操作原因必填',
+        messageKind: 'error'
+      } satisfies AdminStorageActionData);
     }
     if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
-      return fail(422, { message: '配置版本缺失或无效，请刷新后重试' } satisfies AdminStorageActionData);
+      return fail(422, {
+        message: '配置版本缺失或无效，请刷新后重试',
+        messageKind: 'error'
+      } satisfies AdminStorageActionData);
     }
     // 用上次 load 的 config 判断 managed 字段；action 无法重取 load 数据，
     // 由页面把 managed_fields 一起提交（仅用于跳过只读字段）。
@@ -87,7 +105,10 @@ export const actions: Actions = {
     const current: StorageConfig | null = managed.length > 0 ? ({ managed_fields: managed } as StorageConfig) : null;
     const patch = buildPatch(form, current);
     if (Object.keys(patch).length === 0) {
-      return fail(422, { message: '没有需要保存的变更' } satisfies AdminStorageActionData);
+      return fail(422, {
+        message: '没有需要保存的变更',
+        messageKind: 'error'
+      } satisfies AdminStorageActionData);
     }
     try {
       const result = await authedPatch<StorageConfig>(
@@ -98,15 +119,39 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { message: '存储配置已保存（只影响新上传/新签发 URL）' } satisfies AdminStorageActionData;
+        const message =
+          result.data.managed_by === 'database'
+            ? '存储配置已保存并立即热生效（已更新数据库与服务实例，无需重启进程）。'
+            : '存储配置已保存（只影响新上传/新签发 URL）';
+        return { message, messageKind: 'success' } satisfies AdminStorageActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份（登录已超过有效期），请输入密码重新验证后重试',
+          messageKind: 'error',
+          stepUpRequired: true,
+          requestId: result.requestId
+        } satisfies AdminStorageActionData);
       }
       if (result.status === 409) {
-        return fail(409, { message: `版本冲突或字段由部署配置管理：${result.message}` } satisfies AdminStorageActionData);
+        return fail(409, {
+          message: `版本冲突或字段由部署配置管理：${result.message}`,
+          messageKind: 'error',
+          requestId: result.requestId
+        } satisfies AdminStorageActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminStorageActionData);
+      const detailedMsg = result.message || '保存失败，请检查请求参数';
+      return fail(result.status, {
+        message: detailedMsg,
+        messageKind: 'error',
+        requestId: result.requestId
+      } satisfies AdminStorageActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminStorageActionData);
+      return fail(503, {
+        message: '保存失败，请稍后重试',
+        messageKind: 'error'
+      } satisfies AdminStorageActionData);
     }
   },
   test: async ({ request, cookies }) => {
@@ -118,8 +163,12 @@ export const actions: Actions = {
       s3_region: String(form.get('s3_region') ?? '').trim() || null,
       s3_bucket: String(form.get('s3_bucket') ?? '').trim() || null,
       s3_path_style: boolForm(form, 's3_path_style') ?? false,
-      signed_url_ttl_seconds: numOrNull(form.get('signed_url_ttl_seconds'))
+      s3_public_base_url: String(form.get('s3_public_base_url') ?? '').trim() || null,
+      signed_url_ttl_seconds: numOrNull(form.get('signed_url_ttl_seconds')),
+      reason: String(form.get('reason') ?? '').trim() || '测试存储连接'
     };
+    const accessKey = String(form.get('s3_access_key_id') ?? '').trim();
+    if (accessKey) candidate.s3_access_key_id = accessKey;
     const secret = String(form.get('s3_secret_access_key') ?? '').trim();
     if (secret) candidate.s3_secret_access_key = secret;
     try {
@@ -130,16 +179,65 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { testResult: result.data } satisfies AdminStorageActionData;
+        return { testResult: result.data, messageKind: 'success' } satisfies AdminStorageActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份（登录已超过有效期），请输入密码重新验证后重试',
+          messageKind: 'error',
+          stepUpRequired: true,
+          requestId: result.requestId,
+          testResult: null
+        } satisfies AdminStorageActionData);
       }
       return fail(result.status, {
         message: result.message,
+        messageKind: 'error',
         requestId: result.requestId,
         testResult: null
       } satisfies AdminStorageActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { message: '测试连接失败，请稍后重试' } satisfies AdminStorageActionData);
+      return fail(503, {
+        message: '测试连接失败，请稍后重试',
+        messageKind: 'error',
+        testResult: null
+      } satisfies AdminStorageActionData);
+    }
+  },
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        message: '请输入当前密码',
+        messageKind: 'error'
+      } satisfies AdminStorageActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试保存或测试连接',
+          messageKind: 'success'
+        } satisfies AdminStorageActionData;
+      }
+      return fail(result.status, {
+        message: result.message,
+        messageKind: 'error',
+        requestId: result.requestId
+      } satisfies AdminStorageActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '重新验证服务暂不可用，请稍后重试',
+        messageKind: 'error'
+      } satisfies AdminStorageActionData);
     }
   }
 };

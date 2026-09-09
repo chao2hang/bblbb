@@ -206,6 +206,16 @@ export function problemMessage(problem: Problem | null | undefined): string {
   return '操作失败，请稍后重试';
 }
 
+/** 判断是否为「瞬态服务端错误」：5xx（服务器内部/上游故障）与 429（限流）。
+ * 这类错误稍后重试即可能恢复——UI 约定用全局 Toast 提示（不占页面主体），
+ * 页面只保留中性的「加载失败 + 重试」占位；401/403/404/409/422 等持续性
+ * 问题仍由 ProblemState 整页呈现（用户需要明确的下一步动作）。 */
+export function isTransientProblem(problem: Problem | null | undefined): boolean {
+  const status = problem?.status;
+  if (typeof status !== 'number') return false;
+  return status >= 500 && status <= 599 || status === 429;
+}
+
 /** 字段级错误：在 problem.errors[] 中按 field 查找并映射为中文文案；无则返回 null。 */
 export function fieldError(problem: Problem | null | undefined, field: string): string | null {
   const item = problem?.errors?.find((e) => e.field === field);

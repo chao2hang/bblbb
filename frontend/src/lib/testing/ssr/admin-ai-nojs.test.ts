@@ -89,6 +89,31 @@ describe('M09-UI-06 管理端 AI SSR', () => {
     expect(body).not.toContain('sk-');
   });
 
+  it('渠道管理：支持删除渠道表单（?/deleteProvider，携带 provider_id 与 reason）', () => {
+    const { body } = render(AdminAiPage, { props: { data: okData, form: null } });
+    expect(body).toMatch(/<form[^>]*action="\?\/deleteProvider"/);
+    expect(body).toContain('name="provider_id"');
+    expect(body).toContain('value="prov-1"');
+    expect(body).toContain('删除');
+    expect(body).toContain('编辑');
+    expect(body).toContain('测试连接');
+  });
+
+  it('渠道列表为空时展示添加指引，无假数据', () => {
+    const emptyProviderData: AdminAiPageData = {
+      ...okData,
+      config: {
+        ...okData.config!,
+        providers: []
+      }
+    };
+    const { body } = render(AdminAiPage, { props: { data: emptyProviderData, form: null } });
+    expect(body).toContain('尚未配置任何 AI 模型渠道');
+    expect(body).toContain('添加第一个渠道');
+    expect(body).not.toContain('受控 Gateway');
+    expect(body).not.toContain('本地 Ollama');
+  });
+
   it('任务表：重试/取消表单（reason 必填）', () => {
     const { body } = render(AdminAiPage, { props: { data: okData, form: null } });
     expect(body).toContain('t-1');
@@ -98,6 +123,31 @@ describe('M09-UI-06 管理端 AI SSR', () => {
     expect(body).toContain('name="task_id"');
     expect(body).toContain('重试');
     expect(body).toContain('取消');
+  });
+
+  it('P1-08: 渠道停用状态映射与默认渠道排除', () => {
+    const disabledProviderData: AdminAiPageData = {
+      ...okData,
+      config: {
+        ...okData.config!,
+        providers: [
+          {
+            id: 'prov-disabled',
+            name: '停用渠道',
+            api_type: 'openai_compatible',
+            base_url: 'https://api.openai.com/v1',
+            model: 'gpt-4o-mini',
+            status: 'disabled',
+            secret_configured: false,
+            available: false
+          }
+        ]
+      }
+    };
+    const { body } = render(AdminAiPage, { props: { data: disabledProviderData, form: null } });
+    expect(body).toContain('已停用');
+    expect(body).not.toContain('默认渠道');
+    expect(body).toContain('暂无可用启用渠道');
   });
 
   it('隐私守卫：对抗性 Provider（密钥明文/内部字段）不进入 HTML', () => {

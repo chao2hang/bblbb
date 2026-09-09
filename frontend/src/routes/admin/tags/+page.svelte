@@ -7,6 +7,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
   import { adminStateLabel } from '$lib/admin';
+  import { tagSearchUrl } from '$lib/search';
   import type { AdminTagsActionData, AdminTagsPageData } from './+page.server';
 
   let { data, form }: { data: AdminTagsPageData; form?: AdminTagsActionData | null } = $props();
@@ -157,7 +158,7 @@
                   {/if}
                 </td>
                 <td class="adm-acts">
-                  <a class="btn ghost sm" href="/search?tag={item.slug}">查看</a>
+                  <a class="btn ghost sm" href={tagSearchUrl(item)}>查看</a>
                   <form
                     method="POST"
                     action="?/toggle"

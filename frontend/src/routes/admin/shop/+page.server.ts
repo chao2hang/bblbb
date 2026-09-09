@@ -22,6 +22,8 @@ export interface AdminShopActionData {
   message?: string;
   requestId?: string | null;
   code?: string | null;
+  fieldErrors?: Record<string, string>;
+  input?: Record<string, unknown>;
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
@@ -54,7 +56,23 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   return { products, orders, config } satisfies AdminShopPageData;
 };
 
-const PRODUCT_FIELDS = ['kind', 'slug', 'title', 'description_safe', 'icon_token', 'slot', 'currency_id', 'unit_price', 'quantity_limit', 'required_level', 'validity_seconds', 'sale_start_at', 'sale_end_at', 'refund_policy'] as const;
+const PRODUCT_FIELDS = [
+  'kind',
+  'slug',
+  'title',
+  'description_safe',
+  'icon_token',
+  'slot',
+  'currency_id',
+  'unit_price',
+  'quantity_limit',
+  'stock_remaining',
+  'required_level',
+  'validity_seconds',
+  'sale_start_at',
+  'sale_end_at',
+  'refund_policy'
+] as const;
 
 function productBody(form: FormData): Record<string, unknown> {
   const body: Record<string, unknown> = {
@@ -67,12 +85,17 @@ function productBody(form: FormData): Record<string, unknown> {
     if (value === '') continue;
     if (field === 'unit_price' || field === 'quantity_limit' || field === 'required_level') {
       body[field] = Number(value);
+    } else if (field === 'stock_remaining') {
+      body[field] = value === 'null' ? null : Number(value);
     } else if (field === 'validity_seconds' || field === 'sale_start_at' || field === 'sale_end_at') {
       body[field] = value === 'null' || value === '0' ? null : Number(value);
     } else {
       body[field] = value;
     }
   }
+  // 默认货币与槽位兜底（避免缺失必填项被后端拒收，P2-06）
+  if (!body.currency_id) body.currency_id = 'coin';
+  if (!body.slot) body.slot = 'avatar_frame';
   return body;
 }
 
@@ -80,18 +103,58 @@ export const actions: Actions = {
   create: async ({ request, cookies }) => {
     const form = await request.formData();
     const reason = String(form.get('reason') ?? '').trim();
-    if (!reason) {
-      return fail(422, { message: '操作原因必填' } satisfies AdminShopActionData);
+    const body = productBody(form);
+
+    const fieldErrors: Record<string, string> = {};
+    const title = String(form.get('title') ?? '').trim();
+    const slug = String(form.get('slug') ?? '').trim();
+    const kind = String(form.get('kind') ?? '').trim();
+    const unitPriceRaw = String(form.get('unit_price') ?? '').trim();
+    const unitPrice = Number(unitPriceRaw);
+    const stockRaw = String(form.get('stock_remaining') ?? '').trim();
+
+    if (!title) fieldErrors.title = '商品标题必填';
+    if (!slug) fieldErrors.slug = 'slug 必填';
+    else if (!/^[a-z0-9-]+$/.test(slug)) fieldErrors.slug = 'slug 只能包含小写字母、数字和连字符';
+    if (!kind) fieldErrors.kind = '商品类型必填';
+    if (unitPriceRaw === '' || isNaN(unitPrice) || unitPrice < 0) fieldErrors.unit_price = '价格必须为大于等于 0 的整数';
+    if (stockRaw !== '' && (isNaN(Number(stockRaw)) || Number(stockRaw) < 0)) fieldErrors.stock_remaining = '库存必须为大于等于 0 的整数';
+    if (!reason) fieldErrors.reason = '操作原因必填（写入审计日志）';
+
+    if (Object.keys(fieldErrors).length > 0) {
+      return fail(422, {
+        message: '请检查表单中填写的字段错误',
+        fieldErrors,
+        input: body
+      } satisfies AdminShopActionData);
     }
+
     try {
-      const result = await authedPost<ShopProduct>(cookies, '/api/v1/admin/shop/products', productBody(form), request.headers.get('x-request-id'));
+      const result = await authedPost<ShopProduct>(
+        cookies,
+        '/api/v1/admin/shop/products',
+        body,
+        request.headers.get('x-request-id')
+      );
       if (result.ok) {
         return { message: `商品「${result.data.title}」已创建` } satisfies AdminShopActionData;
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminShopActionData);
+      const backendMsg = result.message || '请求参数有误';
+      if (backendMsg.includes('slug')) fieldErrors.slug = backendMsg;
+      if (backendMsg.includes('slot')) fieldErrors.slot = backendMsg;
+      if (backendMsg.includes('price')) fieldErrors.unit_price = backendMsg;
+      if (backendMsg.includes('currency')) fieldErrors.currency_id = backendMsg;
+
+      return fail(result.status, {
+        message: backendMsg,
+        code: result.code,
+        requestId: result.requestId,
+        fieldErrors,
+        input: body
+      } satisfies AdminShopActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { message: '创建失败，请稍后重试' } satisfies AdminShopActionData);
+      return fail(503, { message: '创建失败，请稍后重试', input: body } satisfies AdminShopActionData);
     }
   },
   update: async ({ request, cookies }) => {

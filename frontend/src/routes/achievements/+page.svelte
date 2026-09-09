@@ -11,10 +11,13 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import LoadFailureState from '$lib/components/LoadFailureState.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
   import StatCard from '$lib/components/ui/StatCard.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { isTransientProblem } from '$lib/errors';
+  import { announceTransientProblem } from '$lib/ui/problem-toast';
   import { show } from '$lib/ui/toast';
   import { formatTime } from '$lib/utils';
   import type {
@@ -22,11 +25,19 @@
     AchievementsPageData,
     AchievementCard
   } from './+page.server';
+  import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: {
     data: AchievementsPageData;
     form?: AchievementsActionData | null;
   } = $props();
+
+  // 瞬态服务端错误（5xx/429）→ 全局 Toast 提示 + 页面只留「加载失败·重试」
+  // 占位（产品约定：不整页展示错误态）；持续性错误仍走 ProblemState。
+  $effect(() => {
+    void data.problem;
+    announceTransientProblem(data.problem);
+  });
 
   const actionMessage = $derived(form?.message ?? null);
   const overallPct = $derived(
@@ -96,15 +107,15 @@
   }
 </script>
 
-<svelte:head>
-  <title>成就墙 — BBLBB</title>
-</svelte:head>
+  <PageTitle title="成就墙" />
 
 <div class="container page-content">
   <!-- 原型对齐（prototype/pages/achievements.html）：仅 sr-only h1，无可见页头、无面包屑。 -->
   <h1 class="sr-only" tabindex="-1">成就墙</h1>
 
-  {#if data.problem}
+  {#if data.problem && isTransientProblem(data.problem)}
+    <LoadFailureState onretry={() => void invalidateAll()} />
+  {:else if data.problem}
     <ProblemState problem={data.problem} />
   {:else}
     <!-- 总览卡：已解锁 / 装备槽 + 总进度 -->
