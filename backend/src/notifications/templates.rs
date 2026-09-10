@@ -136,9 +136,12 @@ pub fn render(
         }
         TemplateKey::MentionCreated => {
             let count = p("mention_count").unwrap_or_else(|| "1".to_string());
-            p("actor_name")
-                .map(|name| format!("{name} 等 {count} 人提及了你"))
-                .or(Some(format!("{count} 人提及了你")))
+            match p("actor_name") {
+                // 单一提及者（逐条评论逐收件人的常规形态）不带「等 N 人」
+                Some(name) if count == "1" => Some(format!("{name} 提及了你")),
+                Some(name) => Some(format!("{name} 等 {count} 人提及了你")),
+                None => Some(format!("{count} 人提及了你")),
+            }
         }
         TemplateKey::ModerationAction => {
             let action = p("action").unwrap_or_else(|| "update".to_string());
@@ -228,6 +231,26 @@ mod tests {
         assert!(r.body.unwrap().contains("永久"));
         let r = render(TemplateKey::LevelUp, &serde_json::Map::new());
         assert!(r.body.unwrap().contains("Lv.—"));
+    }
+
+    #[test]
+    fn mention_single_actor_reads_naturally() {
+        // M05-NOTIFY-10：单一提及者不带「等 N 人」；多/缺参数行为不变
+        let r = render(
+            TemplateKey::MentionCreated,
+            &map(&[("actor_name", "alice"), ("mention_count", "1")]),
+        );
+        assert_eq!(r.title, "有人提及了你");
+        assert_eq!(r.body.as_deref(), Some("alice 提及了你"));
+
+        let multi = render(
+            TemplateKey::MentionCreated,
+            &map(&[("actor_name", "alice"), ("mention_count", "3")]),
+        );
+        assert_eq!(multi.body.as_deref(), Some("alice 等 3 人提及了你"));
+
+        let anon = render(TemplateKey::MentionCreated, &serde_json::Map::new());
+        assert_eq!(anon.body.as_deref(), Some("1 人提及了你"));
     }
 
     #[test]

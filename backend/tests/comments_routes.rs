@@ -1349,3 +1349,108 @@ async fn delete_comment_with_stale_if_match_is_conflict() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+// ── M05-NOTIFY-10：@提及 链接化 + 通知 ──────────────────────────────────────
+
+/// 插入固定 username 的用户（verified + active），返回 user_id。
+async fn insert_user_named(pool: &DatabasePool, username: &str) -> String {
+    let user_id = uuid::Uuid::now_v7().to_string();
+    let now = now_millis();
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, display_name, email_verified, email_verified_at, created_at, updated_at)
+                 VALUES (?, ?, ?, 'dummy', 'active', 5, ?, 1, ?, ?, ?)",
+            )
+            .bind(&user_id)
+            .bind(username)
+            .bind(format!("{username}_route@example.com"))
+            .bind(format!("{username} 显示名"))
+            .bind(now - 25 * 3600 * 1000)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+    user_id
+}
+
+#[tokio::test]
+async fn create_comment_linkifies_mentions_and_notifies() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let bob = insert_user_named(&pool, "bobm").await;
+    let (user, session, csrf) = authed_session(&app, &pool).await;
+    let post_id = publish(&pool, &user, "提及主题").await;
+
+    let (status, body, _) = authed_post(
+        &app,
+        &format!("/api/v1/posts/{post_id}/comments"),
+        &session,
+        &csrf,
+        comment_body(
+            "你好 @bobm；邮箱 a@bobm.example 不算提及",
+            "comment-req-mention-01",
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "创建必须 201: {body}");
+    // 回帖内容里的 @用户 变成资料页链接（显示原样、href 小写、邮箱形态不链接）
+    let html = body["body_html"].as_str().unwrap_or("");
+    assert!(
+        html.contains("<a href=\"/users/bobm\" class=\"mention\">@bobm</a>"),
+        "body_html 应含提及链接: {html}"
+    );
+    assert!(!html.contains("a@<a"), "邮箱形态不得链接化: {html}");
+
+    // 被提及用户收到一条 mention 通知（邮箱形态不产生额外通知）
+    let count: i64 = match &pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = ?")
+                .bind(&bob)
+                .fetch_one(p)
+                .await
+                .unwrap()
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(count, 1, "被提及用户恰收到 1 条通知");
+    let (n_type, n_link, n_title): (String, Option<String>, String) = match &pool {
+        Either::Left(p) => {
+            sqlx::query_as(
+                "SELECT type, link, title FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+            )
+            .bind(&bob)
+            .fetch_one(p)
+            .await
+            .unwrap()
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(n_type, "mention");
+    assert_eq!(
+        n_link.as_deref(),
+        Some(format!("/posts/{post_id}").as_str())
+    );
+    assert_eq!(n_title, "有人提及了你");
+
+    // 提及者自己（作者）不产生自提及通知（作者可能因评论成就收到 badge 通知，
+    // 这里只断言 mention 类型为 0）
+    let self_mentions: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'mention'",
+        )
+        .bind(&user)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(self_mentions, 0, "提及者本人不产生 mention 通知");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

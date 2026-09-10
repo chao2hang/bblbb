@@ -11,6 +11,8 @@ Markdown 原文
                         标题锚点/代码块/引用/表格/嵌套确定性上限，M04-MARKDOWN-02/04)
   └─ sanitize_html     (ammonia 4.1.4 allowlist：标签/属性/协议/rel/target/
                         iframe Provider，M04-MARKDOWN-03)
+  └─ linkify_mentions  (清洗后 HTML 文本节点 @username → /users/{username}
+                        资料页锚点，M05-NOTIFY-10；跳过 code/pre/a 与标签属性)
   └─ render_public_excerpt (纯文本摘要，只取公开正文，M04-MARKDOWN-06)
      └─ render_content → {body_html, restricted_html, excerpt, renderer_version}
 ```
@@ -18,11 +20,26 @@ Markdown 原文
 **策略版本**：`POLICY_VERSION = RENDERER_VERSION + "+" + SANITIZER_VERSION`
 （`backend/src/content/markdown/policy.rs`）。
 
-- `RENDERER_VERSION` 当前 `markdown-v1`：渲染行为变更（扩展开关、锚点规则、
-  各类上限、HTML 转义策略）时递增；
+- `RENDERER_VERSION` 当前 `markdown-v2`：渲染行为变更（扩展开关、锚点规则、
+  各类上限、HTML 转义策略、@提及链接化）时递增；v2 = M05-NOTIFY-10 新增
+  @提及链接化；
 - `SANITIZER_VERSION` 当前 `ammonia-v1`：清洗 allowlist 变更（标签/属性/协议/
   iframe Provider/URL 规则）时递增；
 - 任一递增 → `POLICY_VERSION` 变化 → 存量行 `renderer_version` 判定为 stale。
+
+@提及（M05-NOTIFY-10）补充契约：
+
+- **语法**：`@` + 3..=20 个 `[A-Za-z0-9_-]`；`@` 前是用户名字符（如邮箱
+  `mail@example.com`）不匹配；用户名整体贪心匹配；显示文本保持原样，href
+  用规范化小写（与 `users.username_normalized` 一致）。
+- **渲染**：在清洗**之后**执行（清洗 allowlist 与相对 URL 拒绝契约不变）；
+  只重写文本节点，`<code>`/`<pre>`/`<a>` 内部与标签属性不动；不校验用户
+  存在性（不存在用户链接到 404 资料页）。
+- **通知**：提及解析（`content::mentions::extract_mentions`，从 Markdown
+  事件流取文本，跳过代码/链接）由回复创建流程调用
+  （`notifications::create_mention_notifications`）：只通知真实存在的非本人
+  用户（排除 deleted/pending_delete），每条内容最多 10 个，通知 type=mention、
+  link 指向所属 post、去重键细化到 comment。
 
 **落库**：`post_contents.renderer_version` 与 `post_revisions.renderer_version`
 存 POLICY_VERSION。修订快照的 markdown 原文不可变；渲染产物（html/excerpt）
@@ -99,6 +116,7 @@ Markdown 原文
 - `backend/src/content/markdown/policy.rs` — 版本常量与上限常量
 - `backend/src/content/markdown/render.rs` — CommonMark 渲染（确定性上限）
 - `backend/src/content/markdown/sanitize.rs` — ammonia allowlist
+- `backend/src/content/mentions.rs` — @提及链接化与提及解析（M05-NOTIFY-10）
 - `backend/src/content/markdown/excerpt.rs` — 公开安全摘要
 - `backend/src/content/markdown/rerender.rs` — `markdown.rerender` Job（入队/处理）
 - `frontend/src/lib/components/SafeHtml.svelte` — 唯一 `{@html}` sink

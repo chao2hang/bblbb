@@ -263,6 +263,7 @@ mod tests {
             view_count: 10,
             created_at: 1,
             updated_at: 2,
+            version: 1,
             pinned_at: None,
             scheduled_at: None,
             published_at: Some(1),
@@ -272,6 +273,11 @@ mod tests {
                 Some(format!("<p>{CANARY}</p>"))
             } else {
                 Some("<p>hello</p>".into())
+            },
+            body_markdown: if canary_body {
+                Some(CANARY.into())
+            } else {
+                Some("hello".into())
             },
             excerpt: Some("excerpt".into()),
             attachments: vec![AttachmentRef {

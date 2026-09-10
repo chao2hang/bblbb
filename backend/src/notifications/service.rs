@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use serde_json::{json, Value};
 use sqlx::Either;
 
+use crate::content::mentions::MAX_MENTIONS_PER_CONTENT;
 use crate::db::DatabasePool;
 use crate::moderation::model::SanctionKind;
 use crate::notifications::model::{Notification, NotificationCategory, NotificationPreference};
@@ -65,6 +66,12 @@ pub struct CreateNotificationInput {
     pub resource_id: Option<String>,
     /// 安全模板参数（白名单标量；禁止隐藏正文/内部 note）。
     pub params: serde_json::Map<String, Value>,
+    /// 显式投递去重键覆盖（M05-NOTIFY-10）：None 时按既有约定
+    /// `{user_id}|{template_key}|{resource_type}|{resource_id}` 推导；Some 时
+    /// 原样使用（仍参与 `UNIQUE(user_id, delivery_dedup_key)`）。@提及通知
+    /// 用它把去重资源细化到 comment（同一评论重放幂等、不同评论各通知
+    /// 一次），而 link/权限复查仍指向所属 post。
+    pub delivery_dedup_key: Option<String>,
 }
 
 /// 创建通知（M05-NOTIFY-02/05）。
@@ -87,17 +94,19 @@ pub async fn create_notification(
     let rendered = render(input.template_key, &input.params);
     let resource_type = input.resource_type.as_deref().unwrap_or("");
     let resource_id = input.resource_id.as_deref().unwrap_or("");
-    let dedup_key = if resource_type.is_empty() && resource_id.is_empty() {
-        None
-    } else {
-        Some(format!(
-            "{}|{}|{}|{}",
-            input.user_id,
-            input.template_key.as_str(),
-            resource_type,
-            resource_id
-        ))
-    };
+    let dedup_key = input.delivery_dedup_key.clone().or_else(|| {
+        if resource_type.is_empty() && resource_id.is_empty() {
+            None
+        } else {
+            Some(format!(
+                "{}|{}|{}|{}",
+                input.user_id,
+                input.template_key.as_str(),
+                resource_type,
+                resource_id
+            ))
+        }
+    });
 
     let notification = Notification {
         id: uuid::Uuid::now_v7().to_string(),
@@ -184,6 +193,97 @@ pub async fn create_notification(
         notification,
         inserted,
     })
+}
+
+/// @提及通知（M05-NOTIFY-10）：为一条评论/帖子正文中解析出的提及创建通知。
+///
+/// - 收件人解析：`username_normalized` 精确匹配 `users` 表（提及已在
+///   [`crate::content::mentions::extract_mentions`] 规范化为小写）；排除
+///   提及者本人与已删除账号（`deleted`/`pending_delete`）；数量以
+///   [`MAX_MENTIONS_PER_CONTENT`] 封顶（防单条内容刷量）。
+/// - 通知形态：`mention.created` 模板（category=activity、遗留 type=mention，
+///   与 `GET /notifications?category=mention` 过滤一致）；资源指向所属 post
+///   （link=`/posts/{post_id}`，`project_list` 的隐藏/删除复查因此生效）；
+///   投递去重键细化到 comment（`{user}|mention.created|comment|{comment_id}`），
+///   同一评论幂等重放不重复、不同评论各通知一次。
+/// - 返回实际新建（`inserted=true`）的通知数；调用方 best-effort（失败只记
+///   日志，不影响内容创建主流程）。
+pub async fn create_mention_notifications(
+    pool: &DatabasePool,
+    actor_id: &str,
+    actor_name: &str,
+    post_id: &str,
+    comment_id: &str,
+    mentioned: &[String],
+    now: i64,
+) -> Result<usize, NotifyError> {
+    let names: Vec<&str> = mentioned
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .take(MAX_MENTIONS_PER_CONTENT)
+        .collect();
+    if names.is_empty() {
+        return Ok(0);
+    }
+
+    let placeholders = vec!["?"; names.len()].join(",");
+    let sql = format!(
+        "SELECT id, username_normalized FROM users
+         WHERE username_normalized IN ({placeholders})
+           AND status NOT IN ('deleted', 'pending_delete')
+           AND id <> ?
+         ORDER BY username_normalized"
+    );
+    let recipients: Vec<(String, String)> = match pool {
+        Either::Left(p) => {
+            let mut q = sqlx::query_as::<_, (String, String)>(&sql);
+            for name in &names {
+                q = q.bind(name);
+            }
+            q = q.bind(actor_id);
+            q.fetch_all(p).await?
+        }
+        Either::Right(p) => {
+            let mut q = sqlx::query_as::<_, (String, String)>(&sql);
+            for name in &names {
+                q = q.bind(name);
+            }
+            q = q.bind(actor_id);
+            q.fetch_all(p).await?
+        }
+    };
+
+    let mut created = 0usize;
+    for (recipient_id, _username) in recipients {
+        let mut params = serde_json::Map::new();
+        params.insert(
+            "actor_name".to_string(),
+            Value::String(actor_name.to_string()),
+        );
+        params.insert("mention_count".to_string(), Value::String("1".to_string()));
+        let result = create_notification(
+            pool,
+            CreateNotificationInput {
+                user_id: recipient_id.clone(),
+                category: NotificationCategory::Activity,
+                template_key: TemplateKey::MentionCreated,
+                r#type: Some("mention".to_string()),
+                resource_type: Some("post".to_string()),
+                resource_id: Some(post_id.to_string()),
+                params,
+                delivery_dedup_key: Some(format!(
+                    "{recipient_id}|mention.created|comment|{comment_id}"
+                )),
+            },
+            now,
+        )
+        .await?;
+        if result.inserted {
+            created += 1;
+        }
+    }
+    Ok(created)
 }
 
 /// 站内通知游标列表（M05-NOTIFY-03）。

@@ -135,12 +135,28 @@ fn write_path_render_content_is_consistent() {
     assert!(!rendered.excerpt.contains("受限正文"), "摘要不得含受限内容");
     assert!(rendered
         .renderer_version
-        .starts_with("markdown-v1+ammonia-v1"));
-    // 清洗器出口与管线出口一致
+        .starts_with("markdown-v2+ammonia-v1"));
+    // 清洗器出口 + 提及链接化与管线出口一致
     assert_eq!(
         rendered.body_html,
-        sanitize_html(&bblbb_backend::content::markdown::render::render_to_html(
-            "# 公开\n\n公开正文"
+        bblbb_backend::content::mentions::linkify_mentions(&sanitize_html(
+            &bblbb_backend::content::markdown::render::render_to_html("# 公开\n\n公开正文")
         ))
     );
+}
+
+#[test]
+fn pipeline_linkifies_mentions_in_post_body() {
+    // M05-NOTIFY-10：写路径正文 @提及 渲染为资料页链接（body_html 派生数据）
+    let rendered = render_content("看一下 @Alice 的发言", None);
+    assert!(
+        rendered
+            .body_html
+            .contains("<a href=\"/users/alice\" class=\"mention\">@Alice</a>"),
+        "正文提及应链接到资料页: {}",
+        rendered.body_html
+    );
+    // 摘要是纯文本，不受链接化影响
+    assert!(rendered.excerpt.contains("@Alice"));
+    assert!(!rendered.excerpt.contains("<a "), "摘要保持纯文本");
 }

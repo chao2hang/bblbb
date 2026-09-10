@@ -1801,6 +1801,30 @@ async fn create_comment(
             if let Err(e) = crate::achievements::evaluate(pool, &user.id).await {
                 tracing::warn!(user_id = %user.id, error = %e, "achievement evaluate failed (comment)");
             }
+            // @提及通知（M05-NOTIFY-10，best-effort）：解析正文 @用户，为每个
+            // 被提及的真实用户创建 mention 通知；失败只 warn，不影响回复创建
+            // （幂等重放同评论不会重复通知，见去重键细化到 comment）。
+            let mentioned = crate::content::mentions::extract_mentions(content.as_str());
+            if !mentioned.is_empty() {
+                let actor_name = user
+                    .display_name
+                    .clone()
+                    .filter(|n| !n.trim().is_empty())
+                    .unwrap_or_else(|| user.username.clone());
+                if let Err(e) = crate::notifications::service::create_mention_notifications(
+                    pool,
+                    &user.id,
+                    &actor_name,
+                    &id,
+                    &comment_id,
+                    &mentioned,
+                    now,
+                )
+                .await
+                {
+                    tracing::warn!(comment_id = %comment_id, error = %e, "mention notification failed");
+                }
+            }
             let mut resp_body = comment_json(&projection);
             resp_body["floor"] = json!(created.floor);
             Ok(private_no_store_response(

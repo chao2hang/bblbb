@@ -228,6 +228,7 @@ pub async fn notify_oauth_security(
             resource_type: Some(resource_type.to_string()),
             resource_id: Some(resource_id.to_string()),
             params,
+            delivery_dedup_key: None,
         },
         now_millis(),
     )

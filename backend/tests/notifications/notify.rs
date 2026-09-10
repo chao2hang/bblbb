@@ -181,6 +181,7 @@ async fn create_notification_validates_and_dedups() {
             resource_type: Some("post".to_string()),
             resource_id: Some("p1".to_string()),
             params: params(&[("actor_name", "小明")]),
+            delivery_dedup_key: None,
         },
         now,
     )
@@ -202,6 +203,7 @@ async fn create_notification_validates_and_dedups() {
             resource_type: Some("post".to_string()),
             resource_id: Some("p1".to_string()),
             params: params(&[("actor_name", "小明")]),
+            delivery_dedup_key: None,
         },
         now,
     )
@@ -230,6 +232,7 @@ async fn create_notification_validates_and_dedups() {
                 resource_type: None,
                 resource_id: None,
                 params: params(&[(forbidden, "隐藏正文/内部note")]),
+                delivery_dedup_key: None,
             },
             now,
         )
@@ -262,6 +265,7 @@ async fn list_cursor_and_read_flows() {
                 resource_type: None,
                 resource_id: None,
                 params: params(&[("level", &format!("{i}"))]),
+                delivery_dedup_key: None,
             },
             now + i,
         )
@@ -397,6 +401,7 @@ async fn permission_recheck_hides_unavailable_content() {
             resource_type: Some("post".to_string()),
             resource_id: Some(post.clone()),
             params: params(&[("actor_name", "小明")]),
+            delivery_dedup_key: None,
         },
         now,
     )
@@ -582,6 +587,185 @@ async fn email_payload_and_log_sanitization() {
     assert!(!log.contains(&token), "token 必须脱敏");
     assert!(!log.contains("正文"), "正文不得入日志");
     assert!(log.contains("[REDACTED]"));
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+// ─── M05-NOTIFY-10：@提及通知 ─────────────────────────────────────────────
+
+/// 插入指定 username 的用户（默认 active），返回 user_id。
+async fn insert_user_with_username(pool: &DatabasePool, username: &str, status: &str) -> String {
+    let user_id = uuid::Uuid::now_v7().to_string();
+    let now = now_millis();
+    match pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, display_name, email_verified, email_verified_at, created_at, updated_at)
+                 VALUES (?, ?, ?, 'dummy', ?, 5, ?, 1, ?, ?, ?)",
+            )
+            .bind(&user_id)
+            .bind(username)
+            .bind(format!("{username}_mention@example.com"))
+            .bind(status)
+            .bind(format!("{username} 显示名"))
+            .bind(now - 25 * 3600 * 1000)
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+    user_id
+}
+
+#[tokio::test]
+async fn mention_notifications_resolved_deduped_and_linked() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let author = insert_user_with_username(&pool, "alice", "active").await;
+    let bob = insert_user_with_username(&pool, "bob", "active").await;
+    let carol = insert_user_with_username(&pool, "carol", "active").await;
+    let post_id = insert_post(&pool, &author).await;
+    let now = now_millis();
+
+    // 提及：bob + carol + 不存在的用户 + 提及者本人
+    let mentioned = vec![
+        "bob".to_string(),
+        "ghost99".to_string(),
+        "carol".to_string(),
+        "alice".to_string(),
+    ];
+    let created = notify::create_mention_notifications(
+        &pool,
+        &author,
+        "爱丽丝",
+        &post_id,
+        "comment-1",
+        &mentioned,
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(created, 2, "只通知真实存在的非本人用户（bob/carol）");
+
+    for uid in [&bob, &carol] {
+        assert_eq!(count_notifications(&pool, uid).await, 1);
+        let (items, _) = notify::list_notifications(&pool, uid, 50, false, Some("mention"), None)
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 1, "category=mention 过滤命中");
+        let n = &items[0];
+        assert_eq!(n.r#type, "mention");
+        assert_eq!(n.category, NotificationCategory::Activity);
+        assert_eq!(n.template_key.as_deref(), Some("mention.created"));
+        assert_eq!(
+            n.link.as_deref(),
+            Some(format!("/posts/{post_id}").as_str())
+        );
+        assert_eq!(n.title, "有人提及了你");
+        assert_eq!(n.body.as_deref(), Some("爱丽丝 提及了你"));
+        assert_eq!(n.resource_type.as_deref(), Some("post"));
+        assert_eq!(n.resource_id.as_deref(), Some(post_id.as_str()));
+    }
+
+    // 去重：同一评论重放 → 不重复；不同评论 → 再通知一次
+    let replay = notify::create_mention_notifications(
+        &pool,
+        &author,
+        "爱丽丝",
+        &post_id,
+        "comment-1",
+        &mentioned,
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(replay, 0, "同 (收件人, mention.created, comment) 幂等重放");
+    assert_eq!(count_notifications(&pool, &bob).await, 1);
+
+    let second = notify::create_mention_notifications(
+        &pool,
+        &author,
+        "爱丽丝",
+        &post_id,
+        "comment-2",
+        &mentioned,
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(second, 2, "不同评论各自通知一次");
+    assert_eq!(count_notifications(&pool, &bob).await, 2);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn mention_notifications_exclude_deleted_and_cap() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let author = insert_user_with_username(&pool, "authorx", "active").await;
+    let post_id = insert_post(&pool, &author).await;
+    let now = now_millis();
+
+    // 已删除 / 待删除账号不收通知
+    let _gone = insert_user_with_username(&pool, "goneuser", "deleted").await;
+    let _pending = insert_user_with_username(&pool, "pendingx", "pending_delete").await;
+    let created = notify::create_mention_notifications(
+        &pool,
+        &author,
+        "作者",
+        &post_id,
+        "comment-1",
+        &["goneuser".to_string(), "pendingx".to_string()],
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(created, 0, "删除/待删除账号不通知");
+
+    // 提及数量上限：> MAX 只通知前 MAX 个
+    let many: Vec<String> = (0..15)
+        .map(|i| {
+            let name = format!("bulk{i:02}");
+            name
+        })
+        .collect();
+    for name in &many {
+        insert_user_with_username(&pool, name, "active").await;
+    }
+    let created = notify::create_mention_notifications(
+        &pool,
+        &author,
+        "作者",
+        &post_id,
+        "comment-2",
+        &many,
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        created,
+        bblbb_backend::content::mentions::MAX_MENTIONS_PER_CONTENT,
+        "提及通知数量以 MAX_MENTIONS_PER_CONTENT 封顶"
+    );
+
+    // 空提及 → 0
+    let empty = notify::create_mention_notifications(
+        &pool,
+        &author,
+        "作者",
+        &post_id,
+        "comment-3",
+        &[],
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(empty, 0);
 
     close_pool(&pool).await;
     cleanup(&dir);

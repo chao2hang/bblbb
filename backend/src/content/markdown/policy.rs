@@ -5,7 +5,11 @@
 //! - `IFRAME_PROVIDERS` 为视频 embed 主机白名单（清洗器唯一来源）。
 
 /// CommonMark 渲染策略版本（升级渲染行为时递增，触发重渲染 Job）。
-pub const RENDERER_VERSION: &str = "markdown-v1";
+///
+/// v2（M05-NOTIFY-10）：管线新增 @提及链接化（`@username` → `/users/{username}`
+/// 资料页锚点），存量 `post_contents`/`post_revisions` 渲染产物判定为 stale，
+/// 由 `markdown.rerender` Job 重渲染补齐提及链接。
+pub const RENDERER_VERSION: &str = "markdown-v2";
 
 /// 清洗策略版本（升级 allowlist 时递增，触发重渲染 Job）。
 pub const SANITIZER_VERSION: &str = "ammonia-v1";

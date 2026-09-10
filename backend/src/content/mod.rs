@@ -5,6 +5,7 @@
 //! revisions，M04-SCHEMA-04 加入 comments 楼层模型。
 
 pub mod markdown;
+pub mod mentions;
 pub mod model;
 pub mod posts;
 pub mod repository;
