@@ -1,33 +1,73 @@
 <script lang="ts">
-  // 发现页（公开 SSR）：1:1 对齐原型 prototype/pages/discover.html
-  // 三栏高密度社区布局：
-  //   左：热门话题（category-card side-hot）
-  //   中：信息流（feed-toolbar + 线程卡列表）
-  //   右：推荐栏（热门板块 + 社区服务快捷链接）
-  import Avatar from '$lib/components/ui/Avatar.svelte';
+  // 发现页（公开 SSR）：算法推荐流（前端先行，推荐算法后做）。
+  // 两栏布局（推荐算法未上线前以热门内容兜底）：
+  //   中：推荐信息流（feed-title + TopicList，与首页列表同构）
+  //   右：推荐板块 + 社区服务快捷链接（桌面展示，小屏隐藏）
+  // 旧版的热门标签 chip / 侧栏话题 / 手动排序 tab（热门|最新|精华）已随
+  // 「算法推送」产品决策移除——本页不再提供手动排序与标签入口。
   import Icon from '$lib/components/ui/Icon.svelte';
   import Seo from '$lib/components/Seo.svelte';
+  import TopicList, { type TopicListRow } from '$lib/components/forum/TopicList.svelte';
   import { boardVisuals } from '$lib/board-visuals';
-  import { formatCount, formatRelative } from '$lib/utils';
+  import { formatCount } from '$lib/utils';
   import type { DiscoverPageData } from './+page.server';
   import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
+  import { page } from '$app/state';
 
   // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
   let { data }: { data: DiscoverPageData & { site?: SiteCopyView | null } } = $props();
 
+  const user = $derived.by(() => {
+    try {
+      return page.data?.user ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const authed = $derived(Boolean(user));
+
   const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
-  const tags = $derived(data.tags);
   const posts = $derived(data.posts);
   const boards = $derived(data.boards);
   const error = $derived(data.error);
 
-  let activeTab = $state<'hot' | 'latest' | 'featured'>('hot');
+  /** board_id → 持久化板块图标（boards.icon；行徽标用，未命中为 null）。 */
+  const boardIconOf = $derived((id: string | null | undefined) => {
+    if (!id) return null;
+    return boards.find((b) => b.id === id)?.icon ?? null;
+  });
+
+  /** 传给共享 TopicList 的行投影（与首页列表同构）。 */
+  const listRows = $derived<TopicListRow[]>(
+    posts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      author:
+        p.author?.display_name || p.author_display_name || p.author?.username ||
+        '匿名',
+      authorUsername: p.author?.username ?? p.author_name ?? null,
+      authorPresentation: p.author?.presentation_tokens ?? null,
+      authorAvatarAttachmentId: p.author?.avatar_attachment_id ?? null,
+      boardLabel: p.board_name ?? null,
+      boardSlug: p.board_slug ?? null,
+      boardIcon: boardIconOf(p.board_id),
+      likeCount: p.like_count ?? 0,
+      replyCount: p.reply_count,
+      viewCount: p.view_count,
+      pinned: p.pinned ?? false,
+      featured: p.is_featured ?? false,
+      createdAt: p.created_at,
+      lastReplyAt: p.last_reply_at ?? null,
+      reasonBadge: p.reason ?? null,
+      participants: p.participants ?? []
+    }))
+  );
 </script>
 
 <Seo
   title="发现"
-  description={`发现${site.siteName}里的热门内容与活跃成员`}
+  description={`为你推荐${site.siteName}社区里你可能感兴趣的内容`}
   og={{ type: 'website' }}
   jsonLd={{
     '@context': 'https://schema.org',
@@ -38,105 +78,43 @@
 
 <div class="container" id="page-discover">
   <h1 class="sr-only">发现</h1>
-  <p class="sr-only">发现社区里的热门内容与活跃成员</p>
+  <p class="sr-only">为你推荐社区里你可能感兴趣的内容</p>
+
+  {#if error}
+    <div class="discover-problem" role="alert">
+      <span>推荐内容加载失败：{error}</span>
+      <a href="/discover">重新加载</a>
+    </div>
+  {/if}
+
   <div class="proto-discover">
-    <!-- 左栏：热门话题（原型 aside.category-card.side-hot） -->
-    <aside class="category-card side-hot" aria-label="热门话题">
-      <h2 class="side-title fire-c">
-        <Icon name="flame" size={18} />热门话题
-      </h2>
-      {#each tags.slice(0, 6) as tag (tag.id)}
-        <a href="/tags/{tag.slug}">
-          <b># {tag.name}</b>
-          <em>{formatCount(tag.usage_count)} 讨论</em>
-        </a>
-      {/each}
-      {#if tags.length === 0}
-        <div style="padding:14px;color:var(--color-text-tertiary);font-size:13px;">暂无热门标签</div>
-      {/if}
-    </aside>
-
-    <!-- 中栏：信息流（原型 section.feed） -->
-    <section class="feed" aria-label="发现内容流">
+    <!-- 中栏：推荐信息流 -->
+    <section class="feed" aria-label="推荐内容流">
       <div class="feed-toolbar">
-        <div class="filters">
-          <button
-            type="button"
-            class="filter-btn {activeTab === 'hot' ? 'active' : ''}"
-            onclick={() => (activeTab = 'hot')}
-          >
-            热门
-          </button>
-          <button
-            type="button"
-            class="filter-btn {activeTab === 'latest' ? 'active' : ''}"
-            onclick={() => (activeTab = 'latest')}
-          >
-            最新
-          </button>
-          <button
-            type="button"
-            class="filter-btn {activeTab === 'featured' ? 'active' : ''}"
-            onclick={() => (activeTab = 'featured')}
-          >
-            精华
-          </button>
+        <div class="feed-title">
+          <span class="feed-title__main">为你推荐</span>
+          <span class="feed-title__hint">根据你的浏览与互动持续调整</span>
         </div>
-        <a class="publish" href="/editor">发布</a>
+        <a
+          class="publish"
+          href={authed ? '/editor' : `/login?next=${encodeURIComponent('/editor')}`}
+        >
+          {authed ? '发布' : '登录后发布'}
+        </a>
       </div>
 
-      <!-- 线程列表 -->
-      <div class="thread-list">
-        {#each posts as post (post.id)}
-          {@const author = post.author?.username || '匿名'}
-          <article class="thread">
-            <Avatar name={author} size="lg" />
-            <div class="thread-body">
-              <div class="thread-meta">
-                <b>{author}</b>
-                <span>· {formatRelative(post.created_at)}</span>
-              </div>
-              <a class="thread-detail-link" href="/posts/{encodeURIComponent(post.id)}">
-                <h2>{post.title}</h2>
-                {#if post.summary}
-                  <p>{post.summary}</p>
-                {/if}
-              </a>
-              <div class="thread-footer">
-                {#if post.board_name}
-                  <span>{post.board_name}</span>
-                {/if}
-                <span class="thread-likes" style="display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--color-text-tertiary);" aria-label="{formatCount(post.like_count ?? 0)} 人点赞">
-                  <Icon name="heart" size={13} />
-                  {formatCount(post.like_count ?? 0)}
-                </span>
-                <a
-                  class="thread-comment-link"
-                  href="/posts/{encodeURIComponent(post.id)}"
-                  aria-label="查看回复"
-                  style="display:inline-flex;align-items:center;gap:3px;"
-                >
-                  <Icon name="message-square" size={13} />
-                  {formatCount(post.reply_count)}
-                </a>
-              </div>
-            </div>
-          </article>
-        {/each}
+      <!-- 推荐列表（共享 TopicList：表头 + TopicRow 行，与首页列表同构） -->
+      <TopicList
+        rows={listRows}
+        emptyTitle="还没有可推荐的内容"
+        emptyDesc="社区的第一批讨论正等着你来发起"
+        emptyCta={{
+          href: authed ? '/editor' : `/login?next=${encodeURIComponent('/editor')}`,
+          label: authed ? '发布第一篇内容' : '登录后发布内容'
+        }}
+      />
 
-        {#if posts.length === 0}
-          <div class="thread-empty">
-            <div class="empty-state-title">还没有活跃内容</div>
-            <p class="empty-state-desc">社区的第一批讨论正等着你来发起</p>
-            <a class="empty-state-cta" href="/editor" style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:8px 18px;border-radius:var(--radius-sm);background:var(--color-brand);color:#fff;font-size:var(--text-sm);font-weight:var(--weight-medium);text-decoration:none;">
-              <Icon name="plus" size={15} />
-              <span>发布第一篇内容</span>
-            </a>
-          </div>
-        {/if}
-      </div>
-
-      <div class="feed-end">— 没有更多内容了 —</div>
+      <div class="feed-end">— 没有更多推荐了 —</div>
     </section>
 
     <!-- 右栏：推荐板块与社区服务（原型 aside.right-rail） -->
@@ -145,7 +123,7 @@
         <section class="recommend" aria-label="推荐板块">
           <h2>推荐板块</h2>
           {#each boards.slice(0, 4) as board (board.id)}
-            {@const visuals = boardVisuals(board.slug)}
+            {@const visuals = boardVisuals(board.slug, board.icon)}
             <div class="recommend-item">
               <span class="app-board-card__icon" style="margin-bottom:0;width:32px;height:32px;flex:0 0 32px;">
                 <Icon name={visuals.icon || 'workflow'} size={16} />
@@ -160,11 +138,11 @@
       {/if}
 
       <section class="stats-card community-service" aria-label="社区服务">
-        <h2>社区服务</h2>
+        <h2>{authed ? '社区服务' : '快捷入口'}</h2>
         <nav class="service-links" aria-label="快捷入口">
-          <a href="/editor">
+          <a href={authed ? '/editor' : `/login?next=${encodeURIComponent('/editor')}`}>
             <span class="service-links__icon"><Icon name="edit-3" size={16} /></span>
-            <span><b>发布内容</b><small>分享观点与创作</small></span>
+            <span><b>{authed ? '发布内容' : '登录发布'}</b><small>{authed ? '分享观点与创作' : '登录后开始创作'}</small></span>
             <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
           </a>
           <a href="/boards">
@@ -172,11 +150,19 @@
             <span><b>浏览板块</b><small>发现感兴趣的讨论</small></span>
             <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
           </a>
-          <a href="/achievements">
-            <span class="service-links__icon"><Icon name="trophy" size={16} /></span>
-            <span><b>成就墙</b><small>查看成长与勋章</small></span>
-            <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
-          </a>
+          {#if authed}
+            <a href="/achievements">
+              <span class="service-links__icon"><Icon name="trophy" size={16} /></span>
+              <span><b>成就墙</b><small>查看成长与勋章</small></span>
+              <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
+            </a>
+          {:else}
+            <a href="/login">
+              <span class="service-links__icon"><Icon name="log-in" size={16} /></span>
+              <span><b>登录 / 注册</b><small>加入社区交流讨论</small></span>
+              <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
+            </a>
+          {/if}
         </nav>
       </section>
 
@@ -188,13 +174,14 @@
 </div>
 
 <style>
-  /* ===== 三栏骨架（原型 #page-discover：260px | 1fr | 300px，gap 20）===== */
+  /* ===== 两栏骨架（推荐流 | 300px 右栏，gap 20）===== */
   .container {
     padding-inline: 10px;
   }
+
   .proto-discover {
     display: grid;
-    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(250px, 300px);
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
     gap: var(--space-5);
     align-items: start;
     padding: var(--space-5) 0 var(--space-6);
@@ -203,88 +190,54 @@
     min-width: 0;
   }
 
-  /* ===== 左栏：热门话题 ===== */
-  .side-hot {
-    background: var(--color-bg-card);
-    border: var(--border-default);
-    border-radius: 0;
-    box-shadow: none;
-    height: max-content;
-    padding: 6px 16px;
-  }
-  .side-title {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--color-text-primary);
-    margin: 14px 0 8px;
-    padding: 0 14px;
-    font-family: var(--font-family-base);
-  }
-  .side-hot a {
-    height: 52px;
-    border-bottom: var(--border-default);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: var(--color-text-secondary);
-    text-decoration: none;
-    font-size: 14px;
-    padding: 0 14px;
-  }
-  .side-hot a:last-child {
-    border-bottom: 0;
-  }
-  .side-hot a:hover b {
-    color: var(--color-brand);
-  }
-  .side-hot b {
-    font-size: 14px;
-    color: var(--color-text-primary);
-  }
-  .side-hot em {
-    font-style: normal;
-    font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-  }
-
-  /* ===== 中栏：信息流 ===== */
+  /* ===== 中栏：推荐信息流 ===== */
   .feed-toolbar {
     height: 64px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 0 25px;
     background: var(--color-bg-card);
     border: none;
     border-radius: 2px;
   }
-  .filters {
+  .discover-problem {
     display: flex;
     align-items: center;
-    gap: 22px;
-    height: 100%;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin: var(--space-4) 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--aui-danger-border);
+    background: var(--aui-danger-faint);
+    color: var(--aui-danger);
+    font: var(--text-sm)/1.45 var(--aui-font-mono);
   }
-  .filter-btn {
-    border: 0;
-    background: transparent;
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    padding: 21px 0;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
+  .discover-problem a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
   }
-  .filter-btn:hover {
-    color: var(--color-text-primary);
+  .feed-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
   }
-  .filter-btn.active {
+  .feed-title__main {
+    font-size: 16px;
     font-weight: var(--weight-semibold);
-    color: var(--color-brand);
-    border-bottom-color: var(--color-brand);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+  }
+  .feed-title__hint {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .publish {
     border: 0;
@@ -298,108 +251,12 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    flex: 0 0 auto;
   }
   .publish:hover {
     background: var(--color-brand-hover);
   }
 
-  /* 线程列表 */
-  .thread-list {
-    margin-top: 12px;
-    background: var(--color-bg-card);
-    border: var(--border-default);
-    border-radius: 0;
-    overflow: hidden;
-  }
-  .thread {
-    display: flex;
-    gap: 13px;
-    padding: 14px 16px;
-    border-bottom: var(--border-thin);
-    background: transparent;
-    transition: background 0.12s;
-  }
-  .thread:hover {
-    background: var(--color-surface-hover);
-  }
-  .thread:last-child {
-    border-bottom: none;
-  }
-  .thread-body {
-    flex: 1;
-    min-width: 0;
-  }
-  .thread-detail-link {
-    display: block;
-    color: inherit;
-    text-decoration: none;
-  }
-  .thread-detail-link h2 {
-    font-size: 16px;
-    font-weight: var(--weight-semibold);
-    line-height: 1.6;
-    margin: 0 0 6px;
-    color: var(--color-text-primary);
-  }
-  .thread-detail-link:hover h2 {
-    color: var(--color-brand);
-  }
-  .thread-detail-link p {
-    color: var(--color-text-secondary);
-    line-height: 1.75;
-    margin: 0;
-    font-size: 14px;
-  }
-  .thread-meta {
-    font-size: 13px;
-    color: var(--color-text-secondary);
-  }
-  .thread-meta span {
-    color: var(--color-text-tertiary);
-    margin-left: 5px;
-  }
-  .thread-footer {
-    margin-top: 13px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    color: var(--color-text-tertiary);
-    font-size: 13px;
-    white-space: nowrap;
-  }
-  .thread-footer span {
-    color: var(--color-text-tertiary);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .thread-footer > * {
-    padding: 5px 0;
-  }
-  .thread-comment-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--color-text-secondary);
-    text-decoration: none;
-    flex: 0 0 auto;
-  }
-  .thread-comment-link:hover {
-    color: var(--color-brand);
-  }
-  .thread-empty {
-    padding: 48px 24px;
-    text-align: center;
-  }
-  .empty-state-title {
-    font-size: var(--text-base);
-    font-weight: var(--weight-medium);
-  }
-  .empty-state-desc {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    margin: var(--space-2) 0 0;
-  }
   .feed-end {
     text-align: center;
     color: var(--color-text-tertiary);
@@ -517,58 +374,39 @@
     line-height: 1.8;
   }
 
-  /* 响应式断点 */
+  /* 响应式断点（≤999px：单栏，右栏隐藏；移动端精修由 mobile.css 承接） */
   @media (max-width: 999px) {
-    .proto-discover {
-      grid-template-columns: 200px minmax(0, 1fr);
-    }
-    .right-rail {
-      display: none;
-    }
-  }
-  @media (max-width: 767px) {
-    .container {
-      padding-inline: 0 !important;
-    }
     .proto-discover {
       grid-template-columns: minmax(0, 1fr);
       padding: 0;
       gap: 0;
     }
-    .side-hot {
+    .right-rail {
       display: none;
     }
-    .feed-toolbar {
-      height: auto;
-      min-height: 48px;
-      padding: 6px 14px;
-      border-radius: 0;
-      border-bottom: 1px solid var(--color-border);
+  }
+  /* 表头降级与移动端断点由共享 TopicList 组件承接（与 TopicRow 一致） */
+  @media (max-width: 767px) {
+    .container {
+      padding-inline: var(--space-3) !important;
     }
-    .filters {
+    .feed-toolbar {
+      height: 48px;
+      min-height: 48px;
+      padding: 0 12px;
+      border-radius: var(--aui-radius-sm, 4px);
+    }
+    .feed-title {
       gap: 8px;
     }
-    .filter-btn {
-      padding: 8px 12px;
-      font-size: 14px;
-      border-bottom: 2px solid transparent;
+    .feed-title__main {
+      font-size: 15px;
     }
-    .filter-btn.active {
-      border-bottom-color: var(--color-brand);
+    .feed-title__hint {
+      display: none;
     }
     .publish {
-      height: 34px;
-      padding: 0 14px;
-      font-size: 13px;
-    }
-    .thread-list {
-      margin-top: 0;
-      border-radius: 0;
-      border-left: 0;
-      border-right: 0;
-    }
-    .thread {
-      padding: 16px 14px;
+      display: none !important;
     }
   }
 </style>

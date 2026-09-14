@@ -31,8 +31,8 @@ pub const ACCOUNT_COOLDOWN_MS: i64 = 24 * 60 * 60 * 1000;
 ///
 /// - `status`/`email_verified` 来自 `users`；`cooldown_until` 由
 ///   `email_verified_at + ACCOUNT_COOLDOWN_MS` 推导；
-/// - `mute_until`/`board_mute_until` 来自 sanction（M5 落地前由调用方注入，
-///   `load_account_gates` 当前返回 None）。
+/// - `mute_until`/`board_mute_until` 来自当前时刻生效的 sanctions；板块禁言
+///   只有在 authorize_action 携带 board_id 时参与裁决。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AccountGates {
     pub status: AccountStatus,
@@ -121,6 +121,7 @@ pub fn account_gate(
 pub async fn load_account_gates(
     pool: &DatabasePool,
     user_id: &str,
+    board_id: Option<&str>,
 ) -> Result<AccountGates, String> {
     let (status, email_verified_at): (String, Option<i64>) = match pool {
         Either::Left(db) => {
@@ -144,9 +145,9 @@ pub async fn load_account_gates(
     // M05-SANCTIONS-03：全局 mute / 生效中的 ban 请求时实时计算（不依赖
     // worker 到期任务）；预约 ban 生效窗口内视同 banned。
     let effective =
-        crate::moderation::sanctions::service::effective_sanctions(pool, user_id, None, now)
+        crate::moderation::sanctions::service::effective_sanctions(pool, user_id, board_id, now)
             .await
-            .unwrap_or_default();
+            .map_err(|e| e.to_string())?;
     let banned = effective
         .iter()
         .any(|s| s.kind == crate::moderation::model::SanctionKind::Ban);
@@ -160,12 +161,17 @@ pub async fn load_account_gates(
         .filter(|s| s.kind == crate::moderation::model::SanctionKind::Mute)
         .filter_map(|s| s.ends_at)
         .max();
+    let board_mute_until = effective
+        .iter()
+        .filter(|s| s.kind == crate::moderation::model::SanctionKind::BoardMute)
+        .filter_map(|s| s.ends_at)
+        .max();
     Ok(AccountGates {
         status,
         email_verified: email_verified_at.is_some(),
         cooldown_until: email_verified_at.map(|verified| verified + ACCOUNT_COOLDOWN_MS),
         mute_until,
-        board_mute_until: None,
+        board_mute_until,
     })
 }
 
@@ -241,7 +247,7 @@ pub async fn authorize_action(
     policy_version: &str,
 ) -> Result<Decision, String> {
     let roles = aggregate_permissions(pool, user_id, board_id).await?;
-    let gates = load_account_gates(pool, user_id).await?;
+    let gates = load_account_gates(pool, user_id, board_id).await?;
     Ok(authorize_with(
         &roles,
         &gates,

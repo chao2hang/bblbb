@@ -1,5 +1,7 @@
 # BBLBB — 差异文档同步验证（M17-FREEZE-02）
 
+> 历史快照：rc.2 / 2026-08-08。本文记录当时的同步结果，不代表当前工作区；当前文档/契约状态以 `../../reports/rc/README.md` 及仓库校验脚本为准。
+
 > 用途：对 `change-list.md` 中每一项差异，验证 Requirements、OpenAPI、Schema、
 > Security、Testing 和专项文档均同步更新。所有命令在 2026-08-08 于仓库根目录
 > 重跑并记录输出（干净环境可复现）。

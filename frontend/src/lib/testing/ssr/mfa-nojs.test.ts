@@ -18,10 +18,13 @@ const user = {
   version: 3
 };
 
+// M02-MFA-PK：服务端未配置 Passkey 的默认形态（整块隐藏）
+const noPasskey = { passkeyEnabled: false, passkeys: [], passkeysError: null };
+
 function renderPage(form?: unknown): string {
   const { body } = render(MfaPage, {
     props: {
-      data: { user, error: null },
+      data: { user, error: null, ...noPasskey },
       ...(form === undefined ? {} : { form })
     }
   });
@@ -74,11 +77,46 @@ describe('无 JS：/mfa 页（M18-MFA-01）', () => {
   it('已启用：SSR 输出 ?/recovery 与 ?/disable 原生表单', () => {
     const { body } = render(MfaPage, {
       props: {
-        data: { user: { ...user, mfa_enabled: true }, error: null }
+        data: { user: { ...user, mfa_enabled: true }, error: null, ...noPasskey }
       }
     });
     expect(body).toContain('已启用');
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/recovery"/);
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/disable"/);
+  });
+
+  it('Passkey：启用时输出管理卡片与 ?/passkeyRevoke 原生表单', () => {
+    const { body } = render(MfaPage, {
+      props: {
+        data: {
+          user: { ...user, mfa_enabled: true },
+          error: null,
+          passkeyEnabled: true,
+          passkeys: [
+            {
+              id: 'pk-1',
+              name: 'MacBook 指纹',
+              aaguid: null,
+              backup_eligible: true,
+              backed_up: true,
+              created_at: 1700000000000,
+              last_used_at: 1700000001000
+            }
+          ],
+          passkeysError: null
+        }
+      }
+    });
+    expect(body).toContain('Passkey');
+    expect(body).toContain('MacBook 指纹');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/passkeyRevoke"/);
+    expect(body).toContain('name="id" value="pk-1"');
+    // 已云同步徽标（backup 状态随断言更新）
+    expect(body).toContain('已云同步');
+  });
+
+  it('Passkey：未配置时整块隐藏', () => {
+    const body = renderPage(undefined);
+    expect(body).not.toContain('passkeyRevoke');
   });
 });

@@ -9,10 +9,21 @@ test.describe('admin 后台（动态菜单 + 权限一致）', () => {
   test('admin 可访问后台首页并看到按域分组导航', async ({ page }) => {
     await loginAs(page, 'admin');
     await page.goto('/admin');
+    const mobileMenu = page.getByRole('button', { name: '管理菜单', exact: true });
+    if ((page.viewportSize()?.width ?? 1280) < 768) {
+      await expect(mobileMenu).toBeVisible();
+      const shell = page.locator('.app-admin-shell');
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await mobileMenu.click();
+        if (await shell.evaluate((element) => element.classList.contains('admin-menu-open'))) break;
+        await page.waitForTimeout(250);
+      }
+      await expect(shell).toHaveClass(/admin-menu-open/);
+    }
     await expect(page.getByRole('navigation', { name: '管理后台导航' })).toBeVisible();
-    await expect(page.getByRole('link', { name: '用户', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: '主题', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'AI', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '用户管理', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '主题管理', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '大模型设置', exact: true })).toBeVisible();
   });
 
   test('admin 用户管理列表加载（后端权限裁决）', async ({ page }) => {

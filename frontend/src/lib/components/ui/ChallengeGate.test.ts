@@ -52,9 +52,9 @@ describe('M08-UI-06 ChallengeGate', () => {
     expect(container.textContent).toContain('完成验证');
   });
 
-  it('失败回退：始终提供返回搜索首页的普通链接', () => {
+  it('失败回退：始终提供返回首页的普通链接', () => {
     const { container } = render(ChallengeGate, { props: { challengeUrl: null, onRetry: null } });
-    const fallback = container.querySelector<HTMLAnchorElement>('a[href="/search"]');
+    const fallback = container.querySelector<HTMLAnchorElement>('a[href="/"]');
     expect(fallback).not.toBeNull();
     expect(container.textContent).toContain('不会解除服务端的内容授权边界');
   });

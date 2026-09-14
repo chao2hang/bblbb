@@ -1,5 +1,5 @@
 //! M03-SCHEMA-01：用户资料/隐私/偏好/等级缓存/profile revision 迁移契约——
-//! - `users` 增加资料与等级缓存列（level 默认 1、avatar/signature/时间戳）；
+//! - `users` 增加资料与信任等级缓存列（trust_level 默认 0、avatar/signature/时间戳）；
 //! - `user_preferences`：展示偏好（时区/语言/主题/通知 JSON）；
 //! - `user_privacy`：隐私设置（邮箱/资料可见范围，默认最保守 + CHECK 约束）；
 //! - `profile_revisions`：资料每次变更追加一条（revision 递增、UNIQUE(user_id,
@@ -77,20 +77,20 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> String {
     user_id
 }
 
-/// users 新列契约：资料字段 + 等级缓存列全部存在。
+/// users 新列契约：资料字段 + 信任等级缓存列全部存在。
 #[tokio::test]
-async fn users_gains_profile_and_level_columns() {
+async fn users_gains_profile_and_trust_level_columns() {
     let (pool, dir) = pool_with_migrations().await;
     let columns = table_columns(&pool, "users").await;
 
     for required in [
-        "level",                // 等级缓存（可重建，真实来源 M7 经验账户）
-        "level_updated_at",     // 等级缓存刷新时间（NULL = 未计算）
-        "avatar_attachment_id", // 头像附件引用（软引用，attachments 表 M6 落地）
-        "signature",            // 个人签名
-        "last_login_at",        // 最近登录时间
-        "delete_requested_at",  // 注销申请时间
-        "deleted_at",           // 硬删除时间（匿名化后）
+        "trust_level",            // 信任等级缓存（可重建，真实来源行为统计）
+        "trust_level_updated_at", // 信任等级缓存刷新时间（NULL = 未计算）
+        "avatar_attachment_id",   // 头像附件引用（软引用，attachments 表 M6 落地）
+        "signature",              // 个人签名
+        "last_login_at",          // 最近登录时间
+        "delete_requested_at",    // 注销申请时间
+        "deleted_at",             // 硬删除时间（匿名化后）
     ] {
         assert!(
             columns.iter().any(|c| c == required),
@@ -102,21 +102,21 @@ async fn users_gains_profile_and_level_columns() {
     cleanup(&dir);
 }
 
-/// 新用户 level 默认 1（等级缓存尚未计算）。
+/// 新用户 trust_level 默认 0（信任等级缓存尚未计算）。
 #[tokio::test]
-async fn level_defaults_to_one() {
+async fn trust_level_defaults_to_zero() {
     let (pool, dir) = pool_with_migrations().await;
-    let user_id = insert_user(&pool, "level").await;
+    let user_id = insert_user(&pool, "trust_level").await;
     match &pool {
         Either::Left(p) => {
-            let level: i64 = sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            let trust_level: i64 = sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
                 .bind(&user_id)
                 .fetch_one(p)
                 .await
                 .unwrap();
-            assert_eq!(level, 1, "新用户 level 必须默认 1");
+            assert_eq!(trust_level, 0, "新用户 trust_level 必须默认 0");
             let updated: Option<i64> =
-                sqlx::query_scalar("SELECT level_updated_at FROM users WHERE id = ?")
+                sqlx::query_scalar("SELECT trust_level_updated_at FROM users WHERE id = ?")
                     .bind(&user_id)
                     .fetch_one(p)
                     .await

@@ -158,6 +158,44 @@ impl Default for FeatureFlags {
 }
 
 impl FeatureFlags {
+    /// 从数据库加载持久化 Flag（`feature_flags` 表，0073 迁移；P0 整改）。
+    ///
+    /// 表缺失或查询失败 → 全部默认关闭（fail-closed）并记 warn，不 panic、
+    /// 不阻塞启动。kill switch 由调用方按 `BBLBB__FEATURE_KILL_SWITCH`
+    /// 在加载后叠加（`emergency_off`）。
+    pub async fn load(pool: &crate::db::DatabasePool) -> Self {
+        use sqlx::Either;
+        let mut snapshot = Self::all_default();
+        let sql = "SELECT name, enabled, effective_at, version FROM feature_flags ORDER BY name";
+        let rows: Vec<(String, i64, i64, i64)> = match pool {
+            Either::Left(p) => sqlx::query_as(sql).fetch_all(p).await,
+            Either::Right(p) => sqlx::query_as(sql).fetch_all(p).await,
+        }
+        .unwrap_or_else(|error| {
+            tracing::warn!(
+                %error,
+                "feature_flags table unavailable; falling back to all-default (disabled)"
+            );
+            Vec::new()
+        });
+        for (name, enabled, effective_at, version) in rows {
+            let Some(feature) = FeatureName::ALL.iter().find(|f| f.as_str() == name) else {
+                continue;
+            };
+            if let Some(flag) = snapshot.flags.iter_mut().find(|f| f.name == *feature) {
+                flag.enabled = enabled != 0;
+                flag.effective_at = effective_at;
+                flag.version = version.max(1) as u64;
+            }
+        }
+        snapshot
+    }
+
+    /// 当前紧急关闭状态（管理员 kill-switch API 读取用）。
+    pub fn kill_switch(&self) -> bool {
+        self.kill_switch
+    }
+
     /// 默认状态：五个可选能力全部关闭（M01-CONFIG-06），无紧急关闭。
     pub fn all_default() -> Self {
         let flags = FeatureName::ALL
@@ -254,10 +292,6 @@ impl FeatureFlags {
     /// 审计记录（不含 Secret 内容）。
     pub fn audit_log(&self) -> &[FlagChangeRecord] {
         &self.audit
-    }
-
-    pub fn kill_switch(&self) -> bool {
-        self.kill_switch
     }
 }
 

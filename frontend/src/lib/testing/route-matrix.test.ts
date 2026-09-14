@@ -53,12 +53,24 @@ function listSourceFiles(dir: string, acc: string[] = []): string[] {
 
 describe('M03-UI-09 原型 → 生产路由矩阵', () => {
   it('矩阵覆盖原型 router.js 全部路由（无遗漏，设计回归基线）', () => {
-    const matrixPrototypes = PROTOTYPE_ROUTE_MATRIX.map((e) => e.prototype);
+    // 「(无原型页)」哨兵 = 无原型对应、仅生产侧交付的页面（如 /admin/assignments
+    // 角色委派），不参与原型 router.js 基线对比；其真实性由下方守卫用例保证。
+    const matrixPrototypes = PROTOTYPE_ROUTE_MATRIX.map((e) => e.prototype).filter(
+      (p) => p !== '(无原型页)'
+    );
     for (const route of PROTOTYPE_ROUTES) {
       expect(matrixPrototypes).toContain(route);
     }
     // 矩阵无多余行、无遗漏行（与原型一一对应；排序比较避免分组顺序耦合）。
     expect([...matrixPrototypes].sort()).toEqual([...PROTOTYPE_ROUTES].sort());
+  });
+
+  it('「(无原型页)」哨兵行必须指向真实存在的生产路由', () => {
+    const routes = productionRoutes();
+    for (const entry of PROTOTYPE_ROUTE_MATRIX.filter((e) => e.prototype === '(无原型页)')) {
+      const production = entry.production.replaceAll(/\[([^\]]+)\]/g, '{$1}');
+      expect(routes.has(production), `${entry.production} 应存在 +page.svelte`).toBe(true);
+    }
   });
 
   it('shipped 路由的 +page.svelte / +error.svelte 存在于生产 routes', () => {

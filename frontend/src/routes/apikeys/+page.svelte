@@ -60,14 +60,7 @@
   <PageTitle title="API 密钥" />
 
 <div class="container page-content">
-  <!-- 原型对齐（prototype/pages/apikeys.html）：app-route-head，无面包屑。 -->
-  <div class="app-route-head">
-    <div class="app-route-head__copy">
-      <span class="app-kicker">ACCOUNT / DEVELOPER</span>
-      <h1 tabindex="-1">API 密钥</h1>
-      <p>按最小 scope 管理个人 API 访问凭证</p>
-    </div>
-  </div>
+  <h1 class="u-visually-hidden">API 密钥</h1>
 
   {#if data.problem && isTransientProblem(data.problem)}
     <LoadFailureState onretry={() => void invalidateAll()} />

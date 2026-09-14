@@ -10,6 +10,7 @@ import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { newClientRequestId } from '$lib/api/client';
+import { parseBatchIds, batchResult, type BatchOutcome } from '$lib/admin-batch';
 import type {
   AiAdminConfig,
   AiAdminProviderConfig,
@@ -401,5 +402,39 @@ export const actions: Actions = {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '取消失败，请稍后重试' } satisfies AdminAiActionData);
     }
+  },
+
+  /**
+   * 批量重试任务（约定 B）：ids = 任务 id 列表，循环调用与单条 retry 完全相同的
+   * 端点 POST /api/v1/admin/ai/tasks/{id}/retry（body {reason}），逐条 try/catch
+   * 汇总成败（无乐观锁版本，任务行不携带 If-Match）。
+   */
+  batchRetry: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' } satisfies AdminAiActionData);
+    const ids = parseBatchIds(form);
+    if (ids.length === 0) {
+      return fail(422, { message: '未选择任何任务' } satisfies AdminAiActionData);
+    }
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const taskId of ids) {
+      try {
+        const result = await authedPost<{ ok?: boolean }>(
+          cookies,
+          `/api/v1/admin/ai/tasks/${encodeURIComponent(taskId)}/retry`,
+          { reason },
+          request.headers.get('x-request-id')
+        );
+        if (result.ok) outcome.okCount++;
+        else outcome.failures.push({ id: taskId, message: result.message });
+      } catch {
+        outcome.failures.push({ id: taskId, message: '网络错误' });
+      }
+    }
+    const summary = batchResult(outcome, '批量重试任务');
+    return summary.ok
+      ? { ok: true, message: summary.message } satisfies AdminAiActionData
+      : fail(summary.status, { message: summary.message } satisfies AdminAiActionData);
   }
 };

@@ -1,6 +1,7 @@
 use axum::{
     extract::{Path, State},
-    response::Json,
+    http::{header, HeaderValue},
+    response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
@@ -14,6 +15,15 @@ use crate::authz::decision::AUTHZ_POLICY_VERSION;
 use crate::authz::enforce::authorize_action;
 use crate::download::service::{download, get_authorization, sign_url, DownloadError};
 use crate::error::AppError;
+
+fn private_no_store<T: IntoResponse>(response: T) -> Response {
+    let mut response = response.into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    response
+}
 
 /// 下载授权与抵扣路由（M06-DOWNLOAD）。
 pub fn router() -> Router<AppState> {
@@ -160,7 +170,7 @@ async fn get_authorization_route(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_authorization";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -169,7 +179,7 @@ async fn get_authorization_route(
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     get_authorization(pool, &user.id, &id)
         .await
-        .map(Json)
+        .map(|value| private_no_store(Json(value)))
         .map_err(|e| download_error_to_app(e, request_id))
 }
 
@@ -177,7 +187,7 @@ async fn sign_url_route(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "sign_url";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -190,7 +200,7 @@ async fn sign_url_route(
         .ok_or_else(|| AppError::internal("storage not configured", request_id))?;
     sign_url(pool, storage, &user.id, &id)
         .await
-        .map(Json)
+        .map(|value| private_no_store(Json(value)))
         .map_err(|e| download_error_to_app(e, request_id))
 }
 
@@ -198,7 +208,7 @@ async fn sign_url_route(
 async fn get_me_download_transactions(
     State(state): State<AppState>,
     auth: AuthSession,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_download_transactions";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -243,7 +253,7 @@ async fn get_me_download_transactions(
                     })
                 })
                 .collect();
-            Ok(Json(json!({ "transactions": items })))
+            Ok(private_no_store(Json(json!({ "transactions": items }))))
         }
         sqlx::Either::Right(p) => {
             let rows = sqlx::query(
@@ -270,7 +280,7 @@ async fn get_me_download_transactions(
                     })
                 })
                 .collect();
-            Ok(Json(json!({ "transactions": items })))
+            Ok(private_no_store(Json(json!({ "transactions": items }))))
         }
     }
 }

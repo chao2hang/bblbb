@@ -550,16 +550,16 @@ async fn reset_confirm_endpoint_returns_unified_400() {
     let ok = confirm(&token).await.unwrap();
     assert_eq!(ok.status(), StatusCode::OK);
 
-    // 已消费 token → 400 统一错误
+    // 已消费 token → 422 统一错误（契约 /auth/password-reset/confirm 仅声明 422）
     let again = confirm(&token).await.unwrap();
-    assert_eq!(again.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(again.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let body: Value =
         serde_json::from_slice(&again.into_body().collect().await.unwrap().to_bytes()).unwrap();
-    assert_eq!(body["code"], "bad_request");
+    assert_eq!(body["code"], "reset_token_invalid");
 
-    // 未知 token → 同一 400 响应
+    // 未知 token → 同一 422 响应
     let bogus = confirm(&generate_token()).await.unwrap();
-    assert_eq!(bogus.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(bogus.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     close_pool(&pool).await;
     cleanup(&dir);

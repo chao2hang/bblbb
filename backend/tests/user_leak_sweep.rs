@@ -236,18 +236,22 @@ async fn api_surface_never_leaks_private_user_fields() {
     keys.sort();
     // GAP-FIX 社交域：公开投影追加公开社交统计
     // （post_count/followers/following/is_following）。
+    // M07-SHOP-SCHEMA-06：公开装扮投影（presentation_tokens）。
+    // 社交域·成就：已装备成就徽章（equipped_achievements，仅 code/name）。
     let mut expected = [
         "avatar_attachment_id",
         "bio",
         "cover_attachment_id",
         "created_at",
         "display_name",
+        "equipped_achievements",
         "followers",
         "following",
         "id",
         "is_following",
         "level",
         "post_count",
+        "presentation_tokens",
         "signature",
         "username",
     ]

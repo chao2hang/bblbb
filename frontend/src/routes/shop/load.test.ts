@@ -30,7 +30,7 @@ const product: ShopProduct = {
   status: 'published',
   slug: 'blue-name',
   title: '蓝色昵称',
-  currency: 'coin',
+  currency_id: 'coin',
   unit_price: 50,
   quantity_limit: 1,
   required_level: 1,
@@ -43,10 +43,14 @@ const product: ShopProduct = {
 describe('M07-UI-02 商城列表 load', () => {
   it('成功 → 商品列表 + 余额/等级（activity summary）', async () => {
     getAuthedMock
-      .mockResolvedValueOnce({ ok: true, data: { items: [product] } })
+      .mockResolvedValueOnce({ ok: true, data: { products: [product] } })
       .mockResolvedValueOnce({
         ok: true,
         data: { level: 5, xp: 10, checked_in_today: true, streak_days: 2, balances: [{ currency: 'coin', amount: 200 }] }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { level: 5 }
       });
     const data = (await listLoad(loadEvent('req-1'))) as ShopPageData;
     expect(data.products).toEqual([product]);
@@ -71,12 +75,34 @@ describe('M07-UI-02 商城列表 load', () => {
 
   it('activity summary 失败不阻断商品列表', async () => {
     getAuthedMock
-      .mockResolvedValueOnce({ ok: true, data: { items: [product] } })
+      .mockResolvedValueOnce({ ok: true, data: { products: [product] } })
+      .mockResolvedValueOnce({ ok: false, status: 503, message: 'x', requestId: null, retryAfterSecs: null, code: null })
       .mockResolvedValueOnce({ ok: false, status: 503, message: 'x', requestId: null, retryAfterSecs: null, code: null });
     const data = (await listLoad(loadEvent())) as ShopPageData;
     expect(data.products).toEqual([product]);
     expect(data.balance).toBeNull();
     expect(data.level).toBeNull();
+  });
+
+  it('新后端契约：level 为对象 + balances 投影 → 取 sort_order 与 coin', async () => {
+    getAuthedMock
+      .mockResolvedValueOnce({ ok: true, data: { products: [product] } })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          level: { level_id: 'lv2', name: '常客', sort_order: 2 },
+          checked_in_today: true,
+          streak_days: 3,
+          balances: [{ currency: 'coin', amount: 50 }]
+        }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { level: 2 }
+      });
+    const data = (await listLoad(loadEvent())) as ShopPageData;
+    expect(data.level).toBe(2);
+    expect(data.balance).toEqual({ currency: 'coin', amount: 50 });
   });
 });
 
@@ -87,6 +113,10 @@ describe('M07-UI-03 商品详情 load', () => {
       .mockResolvedValueOnce({
         ok: true,
         data: { level: 5, xp: 10, checked_in_today: true, streak_days: 2, balances: [{ currency: 'coin', amount: 200 }] }
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { level: 5 }
       })
       .mockResolvedValueOnce({ ok: true, data: { items: [{ id: 'e1', product_id: 'p1', status: 'owned' }] } });
     const data = (await detailLoad(loadEvent() as unknown as Parameters<typeof detailLoad>[0])) as ShopProductPageData;

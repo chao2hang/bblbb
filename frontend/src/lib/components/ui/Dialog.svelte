@@ -1,5 +1,7 @@
 <script lang="ts">
   // M14-COMPONENTS-01/04：可访问 Dialog 基础组件（模态弹窗）。
+  // 使用 blbui dialog token 的原生 SSR 适配层：焦点陷阱、Escape、滚动锁和
+  // focus return 由此组件统一维护，避免 shadow DOM 与 no-JS 语义冲突。
   //
   // 可访问性契约（M14-A11Y-07 键盘/焦点验收）：
   // - role="dialog" + aria-modal + aria-labelledby/aria-describedby；
@@ -81,11 +83,21 @@
     if (!open) return;
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.addEventListener('keydown', handleKeydown);
-    const scrollY = window.scrollY;
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     document.body.style.overflow = 'hidden';
     removeScrollLock = () => {
       document.body.style.overflow = '';
-      window.scrollTo(0, scrollY);
+      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+        const desc = Object.getOwnPropertyDescriptor(window, 'scrollTo');
+        // JSDOM has a dummy stub that throws "Not implemented" unless mocked
+        if (!desc || typeof desc.value === 'function') {
+          try {
+            window.scrollTo(0, scrollY);
+          } catch {
+            // ignore JSDOM not implemented error
+          }
+        }
+      }
     };
     void tick().then(() => {
       if (!dialogEl) return;

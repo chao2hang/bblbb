@@ -1,15 +1,27 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 // 远程测试与本地 HTTPS 支持：
 // 后端会话/CSRF cookie 是 __Host- 前缀（强制 Secure，M02-SESSION-02），
 // 非 localhost 的明文 http 无法存储该 cookie（浏览器与 curl 均拒绝），
-// 远程或非 localhost 访问必须经 https。若存在 dev/certs 证书或环境变量，自动开启 https。
-const defaultCert = '../dev/certs/dev.crt';
-const defaultKey = '../dev/certs/dev.key';
-const tlsCert = process.env.BBLBB_DEV_TLS_CERT ?? (existsSync(defaultCert) ? defaultCert : undefined);
-const tlsKey = process.env.BBLBB_DEV_TLS_KEY ?? (existsSync(defaultKey) ? defaultKey : undefined);
+// 远程或非 localhost 访问必须经 https。默认开发证书按本配置文件定位，
+// 不受 npm run dev 的当前工作目录影响；环境变量仍可覆盖证书路径。
+const defaultCert = fileURLToPath(new URL('../dev/certs/dev.crt', import.meta.url));
+const defaultKey = fileURLToPath(new URL('../dev/certs/dev.key', import.meta.url));
+const resolveTlsPath = (value: string): string => resolve(process.cwd(), value);
+const tlsCert = process.env.BBLBB_DEV_TLS_CERT
+  ? resolveTlsPath(process.env.BBLBB_DEV_TLS_CERT)
+  : existsSync(defaultCert)
+    ? defaultCert
+    : undefined;
+const tlsKey = process.env.BBLBB_DEV_TLS_KEY
+  ? resolveTlsPath(process.env.BBLBB_DEV_TLS_KEY)
+  : existsSync(defaultKey)
+    ? defaultKey
+    : undefined;
 
 // 自签名证书环境下，允许 Node.js SSR 内部请求信任该证书
 if (tlsCert && tlsKey && process.env.NODE_TLS_REJECT_UNAUTHORIZED === undefined) {
@@ -23,6 +35,9 @@ const apiTarget = process.env.E2E_API_TARGET ?? 'http://127.0.0.1:8080';
 export default defineConfig({
   plugins: [sveltekit()],
   server: {
+    // 远程浏览器需要访问 10.10.10.10:5173；开发服务器默认绑定所有接口，
+    // 可用 BBLBB_DEV_HOST=127.0.0.1 恢复仅本机监听。
+    host: process.env.BBLBB_DEV_HOST ?? '0.0.0.0',
     hmr: { overlay: false },
     ...(tlsCert && tlsKey
       ? { https: { cert: readFileSync(tlsCert), key: readFileSync(tlsKey) } }

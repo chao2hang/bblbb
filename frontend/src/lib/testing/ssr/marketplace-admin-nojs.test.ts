@@ -1,6 +1,7 @@
-// M12-UI-05/06：管理员 Marketplace 控制台 SSR——Client/Scope/限额/余额/
-// Webhook/对账/紧急停用表单、高风险操作 reason 必填、权限越界（无权限态）、
-// 敏感账务字段脱敏。
+// M12-UI-05/06 & M18-ADMIN-BATCH：管理员 Marketplace 控制台 SSR——
+// Client/Scope/限额/余额渲染、写操作「按钮 → 弹层」新契约（行状态「⋮」菜单/
+// 编辑配置/对账/退款重试/轮换/紧急停用触发入口 + 隐藏审计表单）、权限越界（无权限态）、
+// 敏感账务字段脱敏。弹层内容（Dialog/DangerConfirm）为客户端交互，无 JS 不渲染。
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import AdminMarketplacePage from '../../../routes/admin/marketplace/+page.svelte';
@@ -51,13 +52,20 @@ describe('M12-UI-05 管理控制台 SSR', () => {
     expect(body).toContain('轮换 Webhook Secret');
   });
 
-  it('Client 表单带 If-Match 版本与必填 reason', () => {
+  it('Client 表单改按钮+弹层：行「⋮」菜单/编辑配置触发入口 + 隐藏 If-Match 审计表单', () => {
     const { body } = render(AdminMarketplacePage, { props: { data, form: null } });
-    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/upsertClient"/);
+    // 约定 D：行级「状态」= 「⋮」菜单触发按钮（aria-label 含行语义）；
+    // 菜单关闭态不渲染列表项「设置状态」（Dialog 标题「设置 Client 状态」关闭态也不渲染）。
+    // 批量「批量设置状态」在 BatchBar 内，未选中时不渲染
+    expect(body).toContain('aria-label="更多操作：商户 测试商户"');
+    expect(body).not.toContain('设置状态');
+    // 详情卡「编辑配置」触发按钮（?/upsertClient Dialog，约定 D 保持按钮不动）
+    expect(body).toContain('编辑配置');
+    // If-Match / reason 审计要素经 DangerConfirm 隐藏表单仍出现在 SSR HTML
     expect(body).toContain('name="version"');
-    expect(body).toContain('value="4"');
-    expect(body).toContain('操作原因（必填）');
     expect(body).toContain('name="reason"');
+    // 行选择列 aria 标签（批量操作契约）
+    expect(body).toContain('aria-label="选择 测试商户"');
   });
 
   it('权限越界 → 显示无权限态', () => {
@@ -76,12 +84,12 @@ describe('M12-UI-05 管理控制台 SSR', () => {
 });
 
 describe('M12-UI-06 高风险操作 SSR', () => {
-  it('紧急停用/对账/退款重试表单均含 reason 输入', () => {
+  it('紧急停用/对账/退款重试入口均为按钮（弹层由客户端渲染）', () => {
     const { body } = render(AdminMarketplacePage, { props: { data, form: null } });
     expect(body).toContain('紧急停用');
     expect(body).toContain('对账');
-    // 对账表单带 client_id 与原因。
-    expect(body).toContain('name="after_cursor"');
+    expect(body).toContain('退款重试');
+    // DangerConfirm 隐藏表单携带审计要素（reason），弹层本体无 JS 不渲染
     expect(body).toContain('name="reason"');
   });
 

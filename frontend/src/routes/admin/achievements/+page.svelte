@@ -1,18 +1,24 @@
 <script lang="ts">
   // GAP-FIX（管理域·成就管理）：目录表格（code/名称/分类/条件/奖励/状态/解锁数）
-  // + 新建成就表单 + 行操作（启停 If-Match / 手工授予 Dialog / 删除 DangerConfirm）。
+  // + 新建成就表单 + 行操作（启停 If-Match / 手工授予 / 删除，均收进行操作弹层）。
+  // M18-ADMIN-OPS（约定 D）：行内「启停表单 / 上传图标 / 移除图标 / 手工授予 / 删除」
+  // 多个写入口收敛为每行一个「⋮」三点菜单（RowActionsMenu）→ 点菜单项打开该操作的
+  // 单动作确认 Dialog（启停 ?/toggle If-Match；上传图标 ?/uploadIcon file input；
+  // 移除图标 ?/removeIcon；手工授予 ?/grant username+reason；删除 ?/delete reason
+  // ——危险 danger 提交按钮）。
+  // 批量启用/停用（BatchBar + ?/bulk）与页头「新建成就」表单保持不变。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
+  import BatchBar from '$lib/components/admin/BatchBar.svelte';
+  import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
   import { enhance } from '$app/forms';
   import Button from '$lib/components/ui/Button.svelte';
-  import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
   import StatCard from '$lib/components/admin/StatCard.svelte';
   import { adminStateLabel } from '$lib/admin';
-  import { show as showToast } from '$lib/ui/toast';
-  import { withActionToast, toastActionResult } from '$lib/ui/action-toast';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import type {
     AdminAchievementItem,
     AdminAchievementsActionData,
@@ -48,28 +54,89 @@
     hasJs = true;
   });
 
-  /** 手工授予对话框（表单在 Dialog 内，成功后关闭）。 */
-  let grantTarget: AdminAchievementItem | null = $state(null);
-  let grantCode = $state('');
-  let grantUsername = $state('');
-  let grantReason = $state('');
+  /** 行操作「⋮」菜单 + 弹层（约定 D：菜单项决定动作，弹层内单动作确认）。
+   *  按 opsAction 渲染对应表单节：启停（?/toggle If-Match）/
+   *  图标（?/uploadIcon + ?/removeIcon）/ 手工授予（?/grant username+reason）/
+   *  删除（?/delete reason，danger 提交）。target 区分行，草稿随关闭清空。 */
+  type OpsAction = 'toggle' | 'uploadIcon' | 'removeIcon' | 'grant' | 'delete';
+  let opsTarget: AdminAchievementItem | null = $state(null);
+  let opsAction = $state<OpsAction>('toggle');
+  let opsToggleReason = $state('');
+  let opsIconReason = $state('');
+  let opsGrantUsername = $state('');
+  let opsGrantReason = $state('');
+  let opsDeleteReason = $state('');
 
-  function openGrant(item: AdminAchievementItem): void {
-    grantTarget = item;
-    grantCode = item.code;
-    grantUsername = '';
-    grantReason = '';
+  function openOps(item: AdminAchievementItem, action: OpsAction): void {
+    opsTarget = item;
+    opsAction = action;
+    opsToggleReason = '';
+    opsIconReason = '';
+    opsGrantUsername = '';
+    opsGrantReason = '';
+    opsDeleteReason = '';
   }
 
-  /** 删除确认（DangerConfirm + 隐藏表单 requestSubmit）。 */
-  let deleteTarget: AdminAchievementItem | null = $state(null);
-  let deleteReason = $state('');
-  let deleteForm: HTMLFormElement | undefined = $state();
-
-  function openDelete(item: AdminAchievementItem): void {
-    deleteTarget = item;
-    deleteReason = '';
+  function closeOps(): void {
+    opsTarget = null;
+    opsToggleReason = '';
+    opsIconReason = '';
+    opsGrantUsername = '';
+    opsGrantReason = '';
+    opsDeleteReason = '';
   }
+
+  /** 行「⋮」菜单项：启停（状态取反文案）/ 上传图标 / 移除图标（仅已有图标）/
+   *  手工授予 / 删除（危险）。 */
+  function rowActions(item: AdminAchievementItem) {
+    const actions: { label: string; danger?: boolean; run: () => void }[] = [
+      { label: item.is_enabled ? '停用' : '启用', run: () => openOps(item, 'toggle') },
+      { label: '上传图标', run: () => openOps(item, 'uploadIcon') }
+    ];
+    if (item.icon_url) {
+      actions.push({ label: '移除图标', run: () => openOps(item, 'removeIcon') });
+    }
+    actions.push({ label: '手工授予', run: () => openOps(item, 'grant') });
+    actions.push({ label: '删除', danger: true, run: () => openOps(item, 'delete') });
+    return actions;
+  }
+
+  /** 弹层标题/描述随菜单选定动作切换（单动作确认，非分节选择）。 */
+  function opsActionMetaFor(item: AdminAchievementItem, action: OpsAction): {
+    title: string;
+    description: string;
+  } {
+    const subject = `${item.name}（${item.code}）`;
+    switch (action) {
+      case 'toggle':
+        return {
+          title: `${item.is_enabled ? '停用' : '启用'}成就：${subject}`,
+          description: `将该成就切换为「${item.is_enabled ? '停用' : '启用'}」（If-Match 乐观锁）；操作原因写审计。`
+        };
+      case 'uploadIcon':
+        return {
+          title: `上传成就图标：${subject}`,
+          description: 'png/jpeg/webp/gif，≤2MB；存储在站点本地磁盘，不经 S3。'
+        };
+      case 'removeIcon':
+        return {
+          title: `移除成就图标：${subject}`,
+          description: '移除后该成就回退默认占位图标；原因写入审计日志。'
+        };
+      case 'grant':
+        return {
+          title: `手工授予成就：${subject}`,
+          description: '按用户名授予（已解锁则幂等保持原解锁时间）；授予原因写审计。'
+        };
+      case 'delete':
+        return {
+          title: `删除成就：${subject}`,
+          description: '危险操作：将级联删除全部解锁记录，不可恢复；删除原因写审计。'
+        };
+    }
+  }
+
+  const opsActionMeta = $derived(opsTarget ? opsActionMetaFor(opsTarget, opsAction) : null);
 
   // ── 统计卡 + 工具栏（视觉对齐 M17-GAPFIX-06：原型 achievement-stats/
   //    app-filter-tabs 同构；搜索/筛选为客户端过滤，无 JS 时显示全量）──
@@ -85,13 +152,24 @@
   let statusFilter = $state('');
   let categoryFilter = $state('');
 
-  // 批量选择（M17-GAPFIX-07：原型批量条 同构）。
+  // 批量选择（M17-GAPFIX-07：原型批量条 同构；约定 B 接共享 BatchBar）。
   let selected = $state(new Set<string>());
   function toggleSelect(code: string): void {
     const next = new Set(selected);
     if (next.has(code)) next.delete(code);
     else next.add(code);
     selected = next;
+  }
+
+  // 批量启用/停用 Dialog（一个 Dialog 服务一类操作，方向由 batchNextEnabled 区分；
+  // 提交 ?/bulk——服务端循环调用与 ?/toggle 相同的 PATCH /admin/achievements/{code}）。
+  let batchOpen = $state(false);
+  let batchNextEnabled = $state(true);
+  let batchReason = $state('');
+  function openBatch(next: boolean): void {
+    batchNextEnabled = next;
+    batchReason = '';
+    batchOpen = true;
   }
 
   const categories = $derived([...new Set(items.map((i) => i.category))]);
@@ -194,10 +272,6 @@
             <input id="ac-threshold" name="condition_threshold" type="number" min="0" step="1" class="input-field" required value="1" />
           </div>
           <div class="input-wrapper">
-            <label class="input-label" for="ac-reward-exp">奖励 EXP</label>
-            <input id="ac-reward-exp" name="reward_exp" type="number" min="0" step="1" class="input-field" value="0" />
-          </div>
-          <div class="input-wrapper">
             <label class="input-label" for="ac-reward-coin">奖励金币</label>
             <input id="ac-reward-coin" name="reward_coin" type="number" min="0" step="1" class="input-field" value="0" />
           </div>
@@ -223,6 +297,9 @@
           </div>
           <Button text="创建成就" variant="primary" size="sm" type="submit" />
         </div>
+        <p class="input-hint" style="margin-top:var(--space-2);">
+          成就创建后可在下方列表「图标」列上传成就图片（png/jpeg/webp/gif，≤2MB；存储在站点本地磁盘，不经 S3）。
+        </p>
       </form>
     </div>
   </div>
@@ -276,27 +353,10 @@
           <p class="input-hint">没有符合该筛选条件的成就。</p>
         </div>
       {:else}
-        {#if selected.size > 0}
-          <div class="app-notice" role="status" style="margin:12px 14px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <b>{selected.size} 项已选中</b>
-            <form method="POST" action="?/bulk" use:enhance={withActionToast()} style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              {#each [...selected] as c (c)}
-                <input type="hidden" name="codes" value={c} />
-              {/each}
-              <input type="hidden" name="is_enabled" value="true" />
-              <input type="text" class="input-field" name="reason" placeholder="操作原因（审计）" required style="max-width:200px;" />
-              <button type="submit" class="btn primary sm">批量启用</button>
-            </form>
-            <form method="POST" action="?/bulk" use:enhance={withActionToast()} style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              {#each [...selected] as c (c)}
-                <input type="hidden" name="codes" value={c} />
-              {/each}
-              <input type="hidden" name="is_enabled" value="false" />
-              <input type="text" class="input-field" name="reason" placeholder="操作原因（审计）" required style="max-width:200px;" />
-              <button type="submit" class="btn secondary sm">批量停用</button>
-            </form>
-          </div>
-        {/if}
+        <BatchBar count={selected.size} onclear={() => (selected = new Set())}>
+          <Button text="批量启用" variant="secondary" size="sm" onclick={() => openBatch(true)} />
+          <Button text="批量停用" variant="danger" size="sm" onclick={() => openBatch(false)} />
+        </BatchBar>
         <div style="overflow-x:auto;">
           <table class="app-table" aria-label="成就列表">
             <thead>
@@ -310,6 +370,7 @@
                   />
                 </th>
                 <th>code</th>
+                <th style="width:120px;">图标</th>
                 <th>名称</th>
                 <th>分类</th>
                 <th>条件</th>
@@ -332,6 +393,28 @@
                   </td>
                   <td><code style="font-size:var(--text-sm);">{item.code}</code></td>
                   <td>
+                    <!-- 成就图标（不走 S3）：仅预览；上传/移除入口收进行「操作」弹层。
+                         预览带 cache-bust（上传后 version 变化 → URL 追加 v=，绕过 5min 缓存）。 -->
+                    {#if item.icon_url}
+                      <img
+                        src="{item.icon_url}?v={item.version}"
+                        alt="{item.name} 成就图标"
+                        width="38"
+                        height="38"
+                        loading="lazy"
+                        style="width:38px;height:38px;border-radius:10px;object-fit:cover;border:1px solid var(--color-border);background:var(--color-bg-subtle);"
+                      />
+                    {:else}
+                      <span
+                        class="achievement-icon achievement-icon--sm"
+                        aria-hidden="true"
+                        style="width:38px;height:38px;"
+                      >
+                        <Icon name="award" size={16} />
+                      </span>
+                    {/if}
+                  </td>
+                  <td>
                     {item.name}
                     {#if item.is_hidden}<span class="badge badge-neutral" style="margin-left:4px;">隐藏</span>{/if}
                     <span class="text-secondary" style="display:block;font-size:var(--text-xs);max-width:220px;">{item.description}</span>
@@ -342,7 +425,7 @@
                     <span class="text-secondary" style="display:block;font-size:var(--text-xs);">≥ {item.condition_threshold}</span>
                   </td>
                   <td>
-                    <span class="text-secondary" style="font-size:var(--text-sm);">EXP {item.reward_exp} · 币 {item.reward_coin}</span>
+                    <span class="text-secondary" style="font-size:var(--text-sm);">币 {item.reward_coin}</span>
                   </td>
                   <td>
                     {#if item.is_enabled}
@@ -353,32 +436,11 @@
                   </td>
                   <td><span style="font-variant-numeric:tabular-nums;">{item.unlocked_count}</span></td>
                   <td>
-                    <div style="display:flex;flex-direction:column;gap:var(--space-2);min-width:240px;">
-                      <form
-                        method="POST"
-                        action="?/toggle"
-                        use:enhance={() => {
-                          return async ({ result, update }) => {
-                            // 结果 message 走全局 Toast（兜底文案与原先一致）
-                            toastActionResult(result, {
-                              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '操作成功' : '操作失败')
-                            });
-                            await update();
-                          };
-                        }}
-                        style="display:flex;gap:var(--space-1);flex-wrap:wrap;align-items:center;"
-                      >
-                        <input type="hidden" name="code" value={item.code} />
-                        <input type="hidden" name="version" value={String(item.version)} />
-                        <input type="hidden" name="is_enabled" value={item.is_enabled ? 'false' : 'true'} />
-                        <input type="text" class="input-field" name="reason" placeholder="原因（审计）" required style="max-width:130px;" />
-                        <Button text={item.is_enabled ? '停用' : '启用'} variant={item.is_enabled ? 'secondary' : 'primary'} size="sm" type="submit" />
-                      </form>
-                      <div style="display:flex;gap:var(--space-1);">
-                        <Button text="手工授予" variant="secondary" size="sm" onclick={() => openGrant(item)} />
-                        <Button text="删除" variant="danger" size="sm" onclick={() => openDelete(item)} />
-                      </div>
-                    </div>
+                    <!-- 每行一个「⋮」动作菜单（约定 D）：菜单项打开对应单动作确认 Dialog -->
+                    <RowActionsMenu
+                      label="更多操作：成就 {item.name}"
+                      actions={rowActions(item)}
+                    />
                   </td>
                 </tr>
               {/each}
@@ -390,69 +452,188 @@
     </div>
   </div>
 
-  <!-- 手工授予：Dialog 内表单（username + reason → POST grant）。 -->
+  <!-- 行操作 Dialog（约定 D：动作由「⋮」菜单选定，单动作确认 + reason 必填）：
+       按 opsAction 渲染对应表单节，各节独立提交既有契约；成功 toastActionResult →
+       update → 关弹层清 target/草稿。 -->
   <Dialog
-    open={grantTarget !== null}
-    title="手工授予成就"
-    description={grantTarget ? `将「${grantTarget.name}」（${grantTarget.code}）授予指定成员；已解锁则幂等保持原解锁时间。` : ''}
-    onclose={() => (grantTarget = null)}
+    open={opsTarget !== null}
+    title={opsActionMeta?.title ?? '成就操作'}
+    description={opsActionMeta?.description ?? ''}
+    onclose={closeOps}
+  >
+    {#if opsAction === 'toggle'}
+      <!-- 动作节：启停（?/toggle，If-Match version + 目标 is_enabled + 必填原因） -->
+      <form
+        method="POST"
+        action="?/toggle"
+        use:enhance={() => {
+          return async ({ result, update }) => {
+            // 结果 message 走全局 Toast（兜底文案与原先一致）
+            toastActionResult(result, {
+              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '操作成功' : '操作失败')
+            });
+            await update({ reset: false });
+            if (result.type === 'success') closeOps();
+          };
+        }}
+        style="display:flex;flex-direction:column;gap:10px;"
+      >
+        <input type="hidden" name="code" value={opsTarget?.code ?? ''} />
+        <input type="hidden" name="version" value={String(opsTarget?.version ?? '')} />
+        <input type="hidden" name="is_enabled" value={opsTarget ? String(!opsTarget.is_enabled) : ''} />
+        <div class="input-wrapper">
+          <label class="input-label" for="ach-ops-toggle-reason">操作原因（写审计）</label>
+          <input id="ach-ops-toggle-reason" name="reason" class="input-field" required bind:value={opsToggleReason} placeholder="必填" />
+        </div>
+        <div>
+          <Button
+            text={opsTarget?.is_enabled ? '确认停用' : '确认启用'}
+            variant="primary"
+            size="sm"
+            type="submit"
+          />
+        </div>
+      </form>
+    {:else if opsAction === 'uploadIcon'}
+      <!-- 动作节：上传图标（?/uploadIcon multipart。存储在站点本地磁盘，不经 S3；
+           png/jpeg/webp/gif，≤2MB）。 -->
+      <form
+        method="POST"
+        action="?/uploadIcon"
+        enctype="multipart/form-data"
+        use:enhance={() => {
+          return async ({ result, update }) => {
+            toastActionResult(result, {
+              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '图标已更新' : '上传失败')
+            });
+            await update({ reset: false });
+            if (result.type === 'success') closeOps();
+          };
+        }}
+        style="display:flex;flex-direction:column;gap:10px;"
+      >
+        <input type="hidden" name="code" value={opsTarget?.code ?? ''} />
+        <input
+          type="file"
+          name="icon"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          required
+          aria-label="成就图标文件（png/jpeg/webp/gif，≤2MB）"
+        />
+        <div class="input-wrapper">
+          <label class="input-label" for="ach-ops-icon-reason">操作原因（写审计）</label>
+          <input id="ach-ops-icon-reason" name="reason" class="input-field" required bind:value={opsIconReason} placeholder="必填" />
+        </div>
+        <div><Button text="上传图标" variant="secondary" size="sm" type="submit" /></div>
+      </form>
+    {:else if opsAction === 'removeIcon' && opsTarget?.icon_url}
+      <!-- 动作节：移除图标（?/removeIcon；仅已有图标时菜单提供该项） -->
+      <form
+        method="POST"
+        action="?/removeIcon"
+        use:enhance={() => {
+          return async ({ result, update }) => {
+            toastActionResult(result, {
+              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '图标已移除' : '移除失败')
+            });
+            await update({ reset: false });
+            if (result.type === 'success') closeOps();
+          };
+        }}
+        style="margin-top:6px;"
+      >
+        <input type="hidden" name="code" value={opsTarget?.code ?? ''} />
+        <input type="hidden" name="reason" value="移除成就图标（管理台操作）" />
+        <Button text="移除当前图标" variant="ghost" size="sm" type="submit" />
+      </form>
+    {:else if opsAction === 'grant'}
+      <!-- 动作节：手工授予（?/grant，username + reason；已解锁则幂等保持原解锁时间） -->
+      <form
+        method="POST"
+        action="?/grant"
+        use:enhance={() => {
+          return async ({ result, update }) => {
+            // 结果 message 走全局 Toast（兜底文案与原先一致）
+            toastActionResult(result, {
+              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '已授予' : '授予失败')
+            });
+            await update({ reset: false });
+            if (result.type === 'success') closeOps();
+          };
+        }}
+        style="display:flex;flex-direction:column;gap:10px;"
+      >
+        <input type="hidden" name="code" value={opsTarget?.code ?? ''} />
+        <div class="input-wrapper">
+          <label class="input-label" for="ach-ops-grant-username">用户名</label>
+          <input id="ach-ops-grant-username" name="username" class="input-field" required bind:value={opsGrantUsername} placeholder="member_username" />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="ach-ops-grant-reason">授予原因（写审计）</label>
+          <input id="ach-ops-grant-reason" name="reason" class="input-field" required bind:value={opsGrantReason} placeholder="必填" />
+        </div>
+        <div><Button text="确认授予" variant="primary" size="sm" type="submit" /></div>
+      </form>
+    {:else if opsAction === 'delete'}
+      <!-- 动作节：删除（?/delete，reason 必填；危险动作 → danger 提交按钮，级联删除解锁记录）。 -->
+      <form
+        method="POST"
+        action="?/delete"
+        use:enhance={() => {
+          return async ({ result, update }) => {
+            // 结果 message 走全局 Toast（兜底文案与原先一致）
+            toastActionResult(result, {
+              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '已删除' : '删除失败')
+            });
+            await update({ reset: false });
+            if (result.type === 'success') closeOps();
+          };
+        }}
+        style="display:flex;flex-direction:column;gap:10px;"
+      >
+        <input type="hidden" name="code" value={opsTarget?.code ?? ''} />
+        <div class="input-wrapper">
+          <label class="input-label" for="ach-ops-delete-reason">删除原因（写审计）</label>
+          <input id="ach-ops-delete-reason" name="reason" class="input-field" required bind:value={opsDeleteReason} placeholder="必填" />
+        </div>
+        <p class="input-hint is-error" style="margin:0;">将级联删除全部解锁记录，不可恢复。</p>
+        <div><Button text="确认删除" variant="danger" size="sm" type="submit" /></div>
+      </form>
+    {/if}
+  </Dialog>
+
+  <!-- 批量启用/停用：Dialog 内填公共原因，POST ?/bulk（服务端循环调用与
+       ?/toggle 相同的 PATCH /admin/achievements/{code} 端点并逐条 If-Match）。 -->
+  <Dialog
+    open={batchOpen}
+    title={batchNextEnabled ? '批量启用成就' : '批量停用成就'}
+    description={`将对 ${selected.size} 项成就${batchNextEnabled ? '启用' : '停用'}；操作原因写入审计日志。`}
+    onclose={() => (batchOpen = false)}
   >
     <form
       method="POST"
-      action="?/grant"
+      action="?/bulk"
       use:enhance={() => {
         return async ({ result, update }) => {
-          // 结果 message 走全局 Toast（兜底文案与原先一致）
-          toastActionResult(result, {
-            message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '已授予' : '授予失败')
-          });
+          toastActionResult(result);
           await update();
-          grantTarget = null;
+          if (result.type === 'success') {
+            selected = new Set();
+            batchOpen = false;
+          }
         };
       }}
     >
-      <input type="hidden" name="code" value={grantCode} />
+      {#each [...selected] as c (c)}
+        <input type="hidden" name="codes" value={c} />
+      {/each}
+      <input type="hidden" name="is_enabled" value={String(batchNextEnabled)} />
       <div class="input-wrapper" style="margin-bottom:var(--space-3);">
-        <label class="input-label" for="grant-username">用户名</label>
-        <input id="grant-username" name="username" class="input-field" required bind:value={grantUsername} placeholder="member_username" />
+        <label class="input-label" for="ach-batch-reason">操作原因（写审计）</label>
+        <input id="ach-batch-reason" name="reason" class="input-field" required bind:value={batchReason} placeholder="必填" />
       </div>
-      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
-        <label class="input-label" for="grant-reason">授予原因（写审计）</label>
-        <input id="grant-reason" name="reason" class="input-field" required bind:value={grantReason} placeholder="必填" />
-      </div>
-      <Button text="确认授予" variant="primary" size="sm" type="submit" />
+      <Button text="确认{batchNextEnabled ? '启用' : '停用'} {selected.size} 项" variant="primary" size="sm" type="submit" />
     </form>
   </Dialog>
 
-  <!-- 删除确认：DangerConfirm + reason（写审计），确认后提交隐藏表单。 -->
-  <form
-    method="POST"
-    action="?/delete"
-    bind:this={deleteForm}
-    use:enhance={() => {
-      return async ({ result, update }) => {
-        // 结果 message 走全局 Toast（兜底文案与原先一致）
-        toastActionResult(result, {
-          message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '已删除' : '删除失败')
-        });
-        await update();
-        deleteTarget = null;
-      };
-    }}
-  >
-    <input type="hidden" name="code" value={deleteTarget?.code ?? ''} />
-    <input type="hidden" name="reason" value={deleteReason} />
-  </form>
-
-  <DangerConfirm
-    open={deleteTarget !== null}
-    title="删除成就"
-    description={deleteTarget ? `确认删除「${deleteTarget.name}」（${deleteTarget.code}）？将级联删除全部解锁记录，不可恢复。` : ''}
-    confirmText="确认删除"
-    oncancel={() => (deleteTarget = null)}
-    onconfirm={() => deleteForm?.requestSubmit()}
-  >
-    <label class="input-label" for="ach-del-reason">删除原因（写审计）</label>
-    <input id="ach-del-reason" class="input-field" bind:value={deleteReason} placeholder="必填" required />
-  </DangerConfirm>
 {/if}

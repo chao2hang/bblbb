@@ -27,16 +27,18 @@
   import Button from '$lib/components/ui/Button.svelte';
   import QuotaDisplay from './QuotaDisplay.svelte';
   import { formatBytes, progressLabel } from './formatBytes';
+  import { loadUploadPolicy, resolveUploadMediaType, uploadTypeHint } from '$lib/upload/mediaTypes';
 
   let {
     fetchFn = fetch,
     targetType = null,
     targetId = null,
-    accept = 'image/*,.pdf,.zip,.txt',
+    accept = '.jpg,.jpeg,.png,.webp,.gif,.avif,.pdf,.txt,.md,.log,.csv,.json,.xml,.docx,.xlsx,.pptx,.mp4,.m4v,.mp3,.webm,image/*',
     maxBytes = 0,
     label = '选择文件',
     waitReady = true,
     showQuota = true,
+    autoUpload = false,
     onReady
   }: {
     fetchFn?: typeof fetch;
@@ -48,6 +50,8 @@
     label?: string;
     waitReady?: boolean;
     showQuota?: boolean;
+    /** 选择文件后是否自动开始上传。默认为 false（保持选择后出现「开始上传」按钮契约）。 */
+    autoUpload?: boolean;
     onReady?: (attachment: Attachment) => void;
   } = $props();
 
@@ -137,6 +141,9 @@
       return;
     }
     file = f;
+    if (autoUpload) {
+      void start();
+    }
   }
 
   function reset() {
@@ -246,10 +253,19 @@
     errorText = '';
     phase = 'creating';
     try {
+      // 站点上传类型策略（管理后台可配置；拉取失败按全量白名单乐观处理）。
+      const allowed = await loadUploadPolicy(fetchFn);
+      const declaredMediaType = resolveUploadMediaType(file, allowed);
+      if (!declaredMediaType) {
+        fail(
+          `不支持的文件类型「${file.name}」。当前站点允许：${uploadTypeHint(allowed)}`
+        );
+        return;
+      }
       const created = await createAttachment(fetchFn, {
         filename: file.name,
         size: file.size,
-        declared_media_type: file.type || 'application/octet-stream',
+        declared_media_type: declaredMediaType,
         target_type: targetType,
         target_id: targetId
       });
@@ -266,12 +282,14 @@
       await uploadBytes(id);
       phase = 'completing';
       const completed = await completeAttachment(fetchFn, id, newClientRequestId());
-      let finalAttachment = completed;
-      if (waitReady && completed.status === 'processing') {
+      // 后端 complete 返回 { attachment: Attachment } 或直接 Attachment
+      const unwrapped = (completed as unknown as { attachment?: Attachment }).attachment ?? completed;
+      let finalAttachment = unwrapped;
+      if (waitReady && unwrapped.status === 'processing') {
         phase = 'processing';
         finalAttachment = await pollReady(id);
       }
-      if (!finalAttachment) finalAttachment = completed;
+      if (!finalAttachment) finalAttachment = unwrapped;
       if (finalAttachment.status === 'quarantined') {
         phase = 'error';
         errorText = '文件未通过安全校验，已被隔离';
@@ -426,14 +444,22 @@
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-border, #d0d7de);
-    border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--aui-border, var(--color-border));
+    border-radius: var(--aui-radius, var(--radius-sm));
     cursor: pointer;
-    background: var(--color-surface, #fff);
+    background: var(--aui-control-bg, var(--color-bg-card));
+    color: var(--aui-text, var(--color-text-primary));
+    font-size: var(--text-sm);
     font-weight: 500;
+    transition: background var(--duration-fast, 150ms) ease, border-color var(--duration-fast, 150ms) ease;
+  }
+  .uploader-input-label:hover {
+    background: var(--aui-control-bg-hover, var(--color-bg-subtle));
+    border-color: var(--aui-border-hover, var(--color-border-strong));
+    color: var(--aui-text-primary, var(--color-text-primary));
   }
   .uploader-input-label:focus-within {
-    outline: 2px solid var(--color-primary, #0969da);
+    outline: 2px solid var(--aui-primary, var(--color-brand));
     outline-offset: 1px;
   }
   .uploader-file {
@@ -445,13 +471,13 @@
   .uploader-progress {
     height: 8px;
     border-radius: 4px;
-    background: var(--color-border, #d0d7de);
+    background: var(--aui-border, var(--color-border));
     overflow: hidden;
     margin: var(--space-2) 0;
   }
   .uploader-progress-fill {
     height: 100%;
-    background: var(--color-primary, #0969da);
+    background: var(--aui-primary, var(--color-brand));
     transition: width 0.2s ease;
   }
   .uploader-actions {
@@ -463,7 +489,7 @@
     max-width: 240px;
     max-height: 180px;
     margin-top: var(--space-2);
-    border-radius: var(--radius-sm, 6px);
-    border: 1px solid var(--color-border, #d0d7de);
+    border-radius: var(--aui-radius, var(--radius-sm));
+    border: 1px solid var(--aui-border, var(--color-border));
   }
 </style>

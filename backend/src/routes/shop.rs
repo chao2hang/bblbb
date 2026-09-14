@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, State},
+    http::HeaderMap,
     response::Json,
     routing::{get, post},
     Router,
@@ -39,10 +40,17 @@ struct CreateOrderBody {
     #[serde(default = "default_quantity")]
     quantity: i64,
     idempotency_key: Option<String>,
+    client_request_id: Option<String>,
+    expected_product_version: Option<i64>,
 }
 
 fn default_quantity() -> i64 {
     1
+}
+
+#[derive(Deserialize, Default)]
+struct PresentationVersionBody {
+    expected_presentation_version: Option<i64>,
 }
 
 async fn list_shop_products(
@@ -87,6 +95,7 @@ async fn get_shop_product(
 async fn create_shop_order(
     State(state): State<AppState>,
     auth: AuthSession,
+    headers: HeaderMap,
     axum::Json(body): axum::Json<CreateOrderBody>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "create_shop_order";
@@ -101,9 +110,23 @@ async fn create_shop_order(
     if !decision.is_allowed() {
         return Err(AppError::forbidden("shop purchase not allowed", request_id));
     }
-    let key = body
-        .idempotency_key
-        .clone()
+    if let Some(expected_version) = body.expected_product_version {
+        let product = crate::shop::service::get_product(pool, &body.product_id)
+            .await
+            .map_err(|e| shop_error_to_app(e, request_id))?;
+        if product.get("version").and_then(Value::as_i64) != Some(expected_version) {
+            return Err(AppError::conflict(
+                "product version mismatch (reload and retry)",
+                request_id,
+            ));
+        }
+    }
+    let key = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned)
+        .or_else(|| body.idempotency_key.clone())
+        .or_else(|| body.client_request_id.clone())
         .unwrap_or_else(|| uuid::Uuid::now_v7().simple().to_string());
     crate::shop::service::buy_product(pool, &user.id, &body.product_id, body.quantity, &key)
         .await
@@ -148,6 +171,7 @@ async fn equip_entitlement(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
+    body: Option<axum::Json<PresentationVersionBody>>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "equip_entitlement";
     let user = auth.require_auth(request_id)?;
@@ -167,16 +191,22 @@ async fn equip_entitlement(
     if !decision.is_allowed() {
         return Err(AppError::forbidden("not allowed", request_id));
     }
-    crate::shop::service::equip(pool, &user.id, &id)
-        .await
-        .map(Json)
-        .map_err(|e| shop_error_to_app(e, request_id))
+    crate::shop::service::equip_with_version(
+        pool,
+        &user.id,
+        &id,
+        body.and_then(|b| b.0.expected_presentation_version),
+    )
+    .await
+    .map(Json)
+    .map_err(|e| shop_error_to_app(e, request_id))
 }
 
 async fn unequip_entitlement(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
+    body: Option<axum::Json<PresentationVersionBody>>,
 ) -> Result<Json<Value>, AppError> {
     let request_id = "unequip_entitlement";
     let user = auth.require_auth(request_id)?;
@@ -184,10 +214,27 @@ async fn unequip_entitlement(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    crate::shop::service::unequip(pool, &user.id, &id)
-        .await
-        .map(Json)
-        .map_err(|e| shop_error_to_app(e, request_id))
+    let decision = authorize_action(
+        pool,
+        &user.id,
+        "shop.entitlement.manage_own",
+        None,
+        AUTHZ_POLICY_VERSION,
+    )
+    .await
+    .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden("not allowed", request_id));
+    }
+    crate::shop::service::unequip_with_version(
+        pool,
+        &user.id,
+        &id,
+        body.and_then(|b| b.0.expected_presentation_version),
+    )
+    .await
+    .map(Json)
+    .map_err(|e| shop_error_to_app(e, request_id))
 }
 
 async fn get_me_presentation(

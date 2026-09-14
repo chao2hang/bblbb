@@ -24,7 +24,7 @@ use crate::jobs::worker_loop::JobOutcome;
 pub const WORKER_QUEUES: &[&str] = &["default", "mail"];
 
 /// 按 `kind` 分发一个已领取的任务。
-pub async fn dispatch_job(pool: &DatabasePool, job: ClaimedJob) -> JobOutcome {
+pub async fn dispatch_job(pool: &DatabasePool, settings_key: &str, job: ClaimedJob) -> JobOutcome {
     match job.kind.as_str() {
         "search.index" => crate::search::index_job::handle_index_job(pool, &job).await,
         "markdown.rerender" => {
@@ -35,8 +35,13 @@ pub async fn dispatch_job(pool: &DatabasePool, job: ClaimedJob) -> JobOutcome {
         }
         "account_deletion" => crate::users::deletion::handle_account_deletion(pool, &job).await,
         "email.deliver" => {
-            // 从数据库读取 SMTP 发信配置
-            let smtp_conf = match crate::email::service::load_smtp_config_from_db(pool).await {
+            // 从数据库读取 SMTP 发信配置（P0 整改：smtp_pass 静态加密解密）
+            let smtp_conf = match crate::email::service::load_smtp_config_from_db(
+                pool,
+                settings_key,
+            )
+            .await
+            {
                 Ok(c) => c,
                 Err(e) => {
                     tracing::error!(job_id = %job.id, error = %e, "email.deliver job: failed to read smtp config from db");

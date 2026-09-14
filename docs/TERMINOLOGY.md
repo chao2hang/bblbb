@@ -10,6 +10,7 @@
 | `closed` | locked（除播放器/附件状态外） | 禁止新增回复；不等于内容删除或账号封禁 |
 | `hidden` | deleted | 公开投影不可见，但对象和审计仍存在 |
 | `sanction` | punishment（叙述可用） | 对账号或板块施加的正式限制记录 |
+| `trust_level` | 信任度/经验等级/积分等级混用 | LinuxDo 式行为可信度等级（TL0–TL4，见 `TRUST-LEVELS.md`）；全站唯一等级标准，原 10 级经验等级已全面下线 |
 | `currency` | point、coin、额度混用 | 可计量账户单位；内置代码为 `exp`、`coin`、`contribution` |
 | `coin` | B币（仅 UI 文案） | 默认可消费货币，整数最小单位 |
 | `authorization` | grant、unlock 混用 | 允许一次或一段时间执行某动作的后端记录 |

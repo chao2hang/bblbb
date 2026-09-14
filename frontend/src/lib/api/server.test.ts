@@ -349,18 +349,18 @@ describe('loginViaServer / loginMfaViaServer（M02-UX-03 两步登录）', () =>
     expect(cookies.setCalls.map((c) => c.name)).toContain('__Host-bblbb_session');
   });
 
-  it('第二步：验证码错误 → 401', async () => {
+  it('第二步：验证码错误 → 401 mfa_code_invalid（文案不再是「请先登录」）', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ token: 't' }, 200))
       .mockResolvedValueOnce(
-        jsonResponse({ status: 401, code: 'unauthorized', detail: 'invalid MFA credentials', request_id: 'rid-2' }, 401)
+        jsonResponse({ status: 401, code: 'mfa_code_invalid', detail: 'invalid MFA credentials', request_id: 'rid-2' }, 401)
       );
     vi.stubGlobal('fetch', fetchMock);
     const cookies = mockCookies();
 
     const result = await loginMfaViaServer(cookies, { challenge_token: 'ch-1', totp_code: '000000' });
-    expect(result).toMatchObject({ ok: false, status: 401 });
+    expect(result).toMatchObject({ ok: false, status: 401, message: '验证码不正确或已过期' });
   });
 });
 

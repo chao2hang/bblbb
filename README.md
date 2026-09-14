@@ -81,6 +81,7 @@ Caddy
 | [`EVENT-CATALOG.md`](docs/EVENT-CATALOG.md) | 领域事件、Outbox 和审计目录 |
 | [`RETENTION-PRIVACY.md`](docs/RETENTION-PRIVACY.md) | 数据保留、导出、注销和第三方隐私 |
 | [`TERMINOLOGY.md`](docs/TERMINOLOGY.md) | 统一业务术语 |
+| [`TRUST-LEVELS.md`](docs/TRUST-LEVELS.md) | 信任等级（LinuxDo 式 TL0–TL4）：行为统计、晋升/降级与手动授予 |
 | [`TESTING.md`](docs/TESTING.md) | 三数据库与安全验收矩阵 |
 | [`FIXTURES.md`](docs/FIXTURES.md) | 测试 Fixture 与可控性约定 |
 | [`CI-LAYERS.md`](docs/CI-LAYERS.md) | CI 四层分层与最小复现命令 |
@@ -99,7 +100,7 @@ Caddy
 
 [`miniprogram/`](miniprogram/) 是社区论坛的微信小程序端（原生小程序，无构建步骤、无第三方依赖），
 对接后端 `/api/v1` REST API：认证（邮箱/用户名 + 密码，含 MFA 两步）、板块/帖子/楼层评论/搜索、
-发帖/编辑/收藏/点赞、每日签到与等级经验、成就、积分商城与装扮、设备会话管理。
+发帖/编辑/收藏/点赞、每日签到与 B 币活动奖励、LinuxDo 式信任等级、成就、积分商城与装扮、设备会话管理。
 认证复用后端既有的**会话 Cookie + CSRF**机制（`M02-SESSION-07/08/09`）；
 生产部署需将后端 HTTPS 域名登记为小程序 request 合法域名，并在
 `BBLBB__ALLOWED_ORIGINS` 放行 `https://servicewechat.com`（小程序运行时 Referer 来源）。
@@ -108,15 +109,15 @@ Caddy
 
 ## 当前状态
 
-v0.5 需求基线冻结于 2026-08-04（commit `5e17fa3`）；M0–M17 主体已完成，M18 原型功能对齐收尾中（23/30 叶子任务完成）：
+v0.5 需求基线冻结于 2026-08-04（commit `5e17fa3`）；截至 2026-09-12，M18 前端交互对齐已完成，但后端原子批量与全量服务端导出仍待实现；M19 设计系统重做已由产品所有者确认取消（当前主题符合要求）；全仓 823 个叶子任务中 796 项完成、25 项阻塞、2 项待完成（S3 一次性上传策略仍是发布阻断项）：
 
-- Rust/axum 后端：认证闭环（注册/邮箱验证/登录/登出/找回密码/MFA/CSRF）、内容与楼层回复、板块与标签、举报/审核/处罚/申诉、通知、附件与下载计费、积分商城与装扮、活跃等级、搜索、AI Gateway、视频嵌入、OIDC、公开市场、主题与插件，以及社交/个人域（关注、收藏、私信、成就、API 密钥、改密、OAuth 授权管理、积分流水、付费内容解锁、站点统计与 RSS/Atom）——**全部 223 个契约 operation 已实现**（194 verified + 29 implemented，逐项登记见 [`todo/OPENAPI-COVERAGE.md`](todo/OPENAPI-COVERAGE.md)）；数据库支持 SQLite 与 MySQL/MariaDB，启动默认**不**自动迁移（需 `BBLBB__AUTO_MIGRATE=true` 或 `--migrate` 才应用迁移，见 [`backend/README.md`](backend/README.md)）
+- Rust/axum 后端：认证闭环（注册/邮箱验证/登录/登出/找回密码/MFA/CSRF）、内容与楼层回复、板块与标签、举报/审核/处罚/申诉、通知、附件与下载计费、积分商城与装扮、活跃等级、搜索、AI Gateway、视频嵌入、OIDC、公开市场、主题与插件，以及社交/个人域（关注、收藏、双人私信、成就、API 密钥、改密、OAuth 授权管理、积分流水、付费内容解锁、站点统计与 RSS/Atom）——233 个契约 operation 均已分配，其中 201 个 verified、23 个 implemented、9 个 not_started（逐项登记见 [`todo/OPENAPI-COVERAGE.md`](todo/OPENAPI-COVERAGE.md)）；数据库支持 SQLite 与 MySQL/MariaDB，启动默认**不**自动迁移（需 `BBLBB__AUTO_MIGRATE=true` 或 `--migrate`才应用迁移，见 [`backend/README.md`](backend/README.md)）
 - SvelteKit 2 / Svelte 5 / adapter-node 前端：覆盖原型全站 IA（首页/发现/板块/标签/帖子/搜索/私信/收藏/成就/商城/市场/账单/设置/申诉/API 密钥与 29 个管理后台页面，共 69 个页面路由），SSR + 无 JS 降级可访问
 - 微信小程序端（见上文）
 - GitHub Actions CI：文档与 OpenAPI（含路线图/覆盖校验）、Rust（sccache 缓存）、前端、原型和三数据库基础检查
 - 58 路由高保真原型（34 前台 + 24 后台管理）
-- OpenAPI 3.1 契约：172 paths、223 operations、223 唯一 operationId
-- 102 个工作包、819 个叶子任务的执行册（M0–M17：765 完成 + 24 阻塞；M18 进行中 23/30）
+- OpenAPI 3.1 契约：180 paths、233 operations、233 唯一 operationId
+- 102 个工作包、823 个叶子任务的执行册（796 完成、25 阻塞、2 待完成；M18 已完成 30/32；当前首要任务为 `M18-ADMIN-BATCH-01`）
 
 ### 开发命令
 
@@ -150,15 +151,24 @@ make install            # 安装前端 / 原型依赖
 # 2. 初始化数据库（SQLite，默认写 /tmp/bblbb.sqlite；可用 BBLBB_DB 覆盖）
 make migrate
 
-# 3. 启动后端（默认监听 127.0.0.1:8080）
+# 3. （可选）需要两步验证（TOTP/MFA）时配置 secret 加密密钥：
+#    复制 backend/.env.example 为 backend/.env（已被 .gitignore 忽略），并填入
+#    BBLBB__MFA_ENCRYPTION_KEY=<64位hex>，例如：
+#      python3 -c "import secrets; print(secrets.token_hex(32))"
+#    未配置时 MFA 相关路由统一返回 500（启动不报错，属预期行为）；
+#    密钥一经使用请勿更换（更换后既有 TOTP 无法解密）。
+cp backend/.env.example backend/.env
+
+# 4. 启动后端（默认监听 127.0.0.1:8080）
 #    启动默认不会自动迁移；需要自动迁移时：
 #    BBLBB__AUTO_MIGRATE=true cargo run --manifest-path backend/Cargo.toml
 #    或 cd backend && BBLBB__AUTO_MIGRATE=true cargo run
 #    也支持传 --migrate 参数一次性应用迁移
 cd backend && cargo run
 
-# 4. 另开终端启动前端开发服务器（默认 http://localhost:5173）
+# 5. 另开终端启动前端开发服务器（默认 HTTPS，远程访问 https://10.10.10.10:5173/）
 make dev                # 等价于 cd frontend && npm run dev
+# 也可显式指定：npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
 首次从零检查/验证（耗时最长的是 Rust 依赖编译）：

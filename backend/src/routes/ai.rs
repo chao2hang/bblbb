@@ -132,7 +132,9 @@ async fn get_ai_capabilities(State(state): State<AppState>) -> Result<Json<Value
         .unwrap_or(0);
     let enabled = state
         .flags
-        .is_enabled(crate::config::flags::FeatureName::Ai, now);
+        .read()
+        .map(|flags| flags.is_enabled(crate::config::flags::FeatureName::Ai, now))
+        .unwrap_or(false);
     let pool = state.db.as_deref();
     let providers = match pool {
         Some(pool) => list_providers_redacted(pool, request_id).await?,

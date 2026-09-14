@@ -2,9 +2,14 @@
   // GAP-FIX（M17-GAPFIX-07·组件封装）：运营趋势柱状图——纯 CSS 柱条
   // （无图表库依赖），指标内切换（内容/活跃/审核），标签按本地时区渲染。
   // 数据形状：GET /api/v1/admin/stats/trend 的 buckets（start/end 毫秒）。
+  // 优化（M19·值班台）：零值桶画「休眠」灰桩而不是强调色小柱（0 不是微量活动）；
+  // 全零周期与加载失败给出可行动空态，不再让 170px 空场浪费视线。
   import type { AdminStatsTrend, AdminStatsTrendBucket } from '$lib/api/types';
 
-  let { trend }: { trend: AdminStatsTrend | null } = $props();
+  let {
+    trend,
+    retryHref = '/admin'
+  }: { trend: AdminStatsTrend | null; retryHref?: string } = $props();
 
   type MetricKey = 'posts' | 'active_users' | 'reports';
 
@@ -21,6 +26,7 @@
   const values = $derived(buckets.map((b) => b[metric]));
   const max = $derived(Math.max(1, ...values));
   const total = $derived(values.reduce((sum, v) => sum + v, 0));
+  const isEmpty = $derived(trend === null || buckets.length === 0 || total === 0);
 
   /** 桶标签：时桶显示起始整点，日及以上显示 M/D。 */
   function bucketLabel(start: number, end: number): string {
@@ -33,12 +39,11 @@
 </script>
 
 <div class="trend-chart">
-  <div class="trend-chart__tabs" role="tablist" aria-label="趋势指标">
+  <div class="trend-chart__tabs" role="group" aria-label="趋势指标">
     {#each METRICS as m (m.key)}
       <button
         type="button"
-        role="tab"
-        aria-selected={metric === m.key}
+        aria-pressed={metric === m.key}
         class:is-active={metric === m.key}
         onclick={() => (metric = m.key)}
       >
@@ -47,14 +52,25 @@
     {/each}
   </div>
 
-  {#if !trend || buckets.length === 0}
-    <p class="trend-chart__empty">暂无趋势数据。</p>
+  {#if isEmpty}
+    <p class="trend-chart__empty" role="status">
+      {#if trend === null || buckets.length === 0}
+        <span>趋势数据暂不可用。</span>
+        <a class="trend-chart__retry" href={retryHref}>刷新趋势</a>
+      {:else}
+        当前周期内暂无「{metricLabel}」数据，可切换指标或上方周期查看。
+      {/if}
+    </p>
   {:else}
     <div class="trend-chart__bars" role="img" aria-label="最近 {buckets.length} 桶{metricLabel}趋势，合计 {total}">
       {#each buckets as b, i (b.start)}
         <div class="trend-chart__col" title="{bucketLabel(b.start, b.end)} · {metricLabel} {values[i]}">
           <div class="trend-chart__bar-zone">
-            <div class="trend-chart__bar" style="height:{Math.max(2, Math.round((values[i] / max) * 100))}%"></div>
+            <div
+              class="trend-chart__bar"
+              class:is-dormant={values[i] === 0}
+              style="height:{values[i] === 0 ? 2 : Math.max(3, Math.round((values[i] / max) * 100))}%"
+            ></div>
           </div>
           <span class="trend-chart__label">{bucketLabel(b.start, b.end)}</span>
         </div>
@@ -110,6 +126,11 @@
     background: linear-gradient(180deg, var(--color-brand) -40%, var(--color-brand-soft) 90%);
     min-height: 3px;
   }
+  /* 零值桶：休眠灰桩——0 不该长得像微量活动。 */
+  .trend-chart__bar.is-dormant {
+    background: var(--color-border-muted);
+    border-radius: 1px 1px 0 0;
+  }
   .trend-chart__label {
     text-align: center;
     color: var(--color-text-secondary);
@@ -122,12 +143,33 @@
     margin: 10px 0 0;
     color: var(--color-text-secondary);
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .trend-chart__foot b {
-    color: var(--color-text-primary, inherit);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
   }
   .trend-chart__empty {
-    padding: var(--space-4);
+    display: grid;
+    min-height: 140px;
+    place-items: center;
+    align-content: center;
+    gap: 6px;
+    margin: 0;
+    border-bottom: 1px solid var(--color-border-muted);
     color: var(--color-text-secondary);
+    font-size: 13px;
+  }
+  .trend-chart__retry {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 10px;
+    color: var(--color-link);
+    font: 600 12px/1.2 var(--font-family-mono);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 </style>

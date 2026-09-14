@@ -151,7 +151,7 @@ async fn resolve_session(
             // 获取用户和会话信息
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        u.level, s.id as session_id, s.last_seen_at
+                        u.trust_level AS level, s.id as session_id, s.last_seen_at
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -177,6 +177,9 @@ async fn resolve_session(
                         .bind(&token_hash)
                         .execute(p)
                         .await?;
+                    // 信任等级钩子（best-effort，M20-TRUST）：会话活跃记当日访问
+                    // （user×day 唯一幂等，随续期节流至多 1 次/分钟）。
+                    crate::trust::on_session_active(&Either::Left(p.clone()), &row.id).await;
                 }
 
                 let csrf = generate_csrf_token(&row.session_id, &token_hash);
@@ -227,7 +230,7 @@ async fn resolve_session(
 
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        u.level, s.id as session_id, s.last_seen_at
+                        u.trust_level AS level, s.id as session_id, s.last_seen_at
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -253,6 +256,8 @@ async fn resolve_session(
                         .bind(&token_hash)
                         .execute(p)
                         .await?;
+                    // 信任等级钩子（best-effort，M20-TRUST）：会话活跃记当日访问。
+                    crate::trust::on_session_active(&Either::Right(p.clone()), &row.id).await;
                 }
 
                 let csrf = generate_csrf_token(&row.session_id, &token_hash);
@@ -397,6 +402,7 @@ pub async fn revoke_session(pool: &DatabasePool, token: &str) -> Result<(), sqlx
 /// 在登录、权限提升、改密和高风险重新认证后调用：旧 token 立即失效
 /// （`revoked_at` + `revoke_reason`，`version` +1），新 token 由
 /// [`create_session`] 签发（全新 session 行，version 从 0 开始）。
+/// 旧会话的设备 UA 沿用到新会话（设备列表展示不因旋转丢失）。
 ///
 /// 当前 token 无有效会话时返回 `Err(sqlx::Error::RowNotFound)`。
 pub async fn rotate_session(
@@ -409,10 +415,11 @@ pub async fn rotate_session(
     let token_hash = hash_token(current_token);
     let now = now_millis();
 
-    let user_id: Option<String> = match pool {
+    // 沿用旧会话的设备 UA：旋转后新会话在设备列表中仍显示同一设备
+    let row: Option<(String, Option<String>)> = match pool {
         Either::Left(p) => {
-            sqlx::query_scalar(
-                "SELECT user_id FROM user_sessions
+            sqlx::query_as(
+                "SELECT user_id, user_agent FROM user_sessions
                  WHERE token_hash = ? AND revoked_at IS NULL",
             )
             .bind(&token_hash)
@@ -420,8 +427,8 @@ pub async fn rotate_session(
             .await?
         }
         Either::Right(p) => {
-            sqlx::query_scalar(
-                "SELECT user_id FROM user_sessions
+            sqlx::query_as(
+                "SELECT user_id, user_agent FROM user_sessions
                  WHERE token_hash = ? AND revoked_at IS NULL",
             )
             .bind(&token_hash)
@@ -429,7 +436,7 @@ pub async fn rotate_session(
             .await?
         }
     };
-    let Some(user_id) = user_id else {
+    let Some((user_id, ua)) = row else {
         return Err(sqlx::Error::RowNotFound);
     };
 
@@ -461,8 +468,8 @@ pub async fn rotate_session(
         }
     }
 
-    // 签发新 Session（全新 token，旧 token 已失效）
-    create_session(pool, &user_id, None, false).await
+    // 签发新 Session（全新 token，旧 token 已失效；设备 UA 沿用旧会话）
+    create_session(pool, &user_id, ua.as_deref(), false).await
 }
 
 /// 设备会话列表项（M02-SESSION-05）。

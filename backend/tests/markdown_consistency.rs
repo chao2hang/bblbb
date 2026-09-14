@@ -135,7 +135,7 @@ fn write_path_render_content_is_consistent() {
     assert!(!rendered.excerpt.contains("受限正文"), "摘要不得含受限内容");
     assert!(rendered
         .renderer_version
-        .starts_with("markdown-v2+ammonia-v1"));
+        .starts_with("markdown-v2+ammonia-v2"));
     // 清洗器出口 + 提及链接化与管线出口一致
     assert_eq!(
         rendered.body_html,

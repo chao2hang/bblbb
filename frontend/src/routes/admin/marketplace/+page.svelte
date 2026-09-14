@@ -1,9 +1,21 @@
 <script lang="ts">
-  // M12-UI-05/06 & M18-ADMIN-MARKETPLACE：市场与交易管理页（对齐原型卡片视觉与管理控制台功能）。
+  // M12-UI-05/06 & M18-ADMIN-MARKETPLACE & M18-ADMIN-BATCH：市场与交易管理页。
+  // 约定 A：所有写操作 = 按钮 → Dialog/DangerConfirm（表单在弹层内，成功后
+  // toastActionResult → update → 关闭弹层并清理 target）；无 JS 回退横幅保留。
+  // 约定 B：Client 表格选择列 + BatchBar →「批量设置状态」Dialog（循环单条端点）。
+  // 约定 D：Client 表格行内「状态」入口改为「⋮」三点菜单——单项「设置状态」
+  // 打开既有状态 Dialog；表格行外的管理面板（编辑配置/发起对账/轮换/紧急停用）
+  // 与页脚操作保持原按钮不动。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '$lib/components/ui/Button.svelte';
-  import { withActionToast } from '$lib/ui/action-toast';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
+  import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
+  import BatchBar from '$lib/components/admin/BatchBar.svelte';
+  import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
+  import MetricGroup from '$lib/components/ui/MetricGroup.svelte';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminMarketplaceActionData, AdminMarketplacePageData } from './+page.server';
   import type { MarketplaceClientView } from '$lib/api/types';
@@ -36,25 +48,23 @@
     raw?: MarketplaceClientView;
   }
 
-  const fallbackClients: ClientItem[] = [
-    { id: 'theme-store', name: '主题商店', type: '应用 · theme-store', status: 'active', orders: 42 },
-    { id: 'avatar-gen', name: '头像生成', type: '工具 · avatar-gen', status: 'active', orders: 128 },
-    { id: 'export-helper', name: '导出助手', type: '工具 · export-helper', status: 'disabled', orders: 77 }
-  ];
+  const displayedList: ClientItem[] = $derived(
+    items.map((c: MarketplaceClientView): ClientItem => ({
+      id: c.id,
+      name: c.name,
+      type: `应用 · ${c.id}`,
+      status: c.status,
+      orders: 0,
+      raw: c
+    }))
+  );
 
-  const displayedList: ClientItem[] = $derived.by(() => {
-    if (items.length > 0) {
-      return items.map((c: MarketplaceClientView): ClientItem => ({
-        id: c.id,
-        name: c.name,
-        type: `应用 · ${c.id}`,
-        status: c.status,
-        orders: 12,
-        raw: c
-      }));
-    }
-    return fallbackClients;
-  });
+  const overviewMetrics = $derived([
+    { label: '启用应用', value: displayedList.filter((client) => client.status === 'active').length, note: `共 ${displayedList.length} 个` },
+    { label: '待审批', value: '暂无统计', note: '接口未提供审批汇总' },
+    { label: '待对账交易', value: '暂无统计', note: '请通过商户对账操作查看' },
+    { label: '紧急开关', value: '按选中商户', note: '需要单选后操作' }
+  ]);
 
   let q = $state('');
   let statusFilter = $state('');
@@ -82,6 +92,143 @@
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
     else selectedIds = [...selectedIds, id];
   }
+
+  /** 行数据（含 version）查找：批量 versions 隐藏域与弹层预填都用它。 */
+  function clientById(id: string): MarketplaceClientView | undefined {
+    return items.find((c) => c.id === id);
+  }
+
+  // ── 弹层 target 状态（约定 A：一个 Dialog 服务一类操作，target 区分行）──
+  /** 单行状态切换（?/setStatus）。 */
+  let statusTarget = $state<MarketplaceClientView | null>(null);
+  let statusValue = $state('');
+  let statusReason = $state('');
+  function openStatus(c: MarketplaceClientView) {
+    statusTarget = c;
+    statusValue = c.status;
+    statusReason = '';
+  }
+  function closeStatus() {
+    statusTarget = null;
+  }
+
+  /** 行「⋮」菜单项（约定 D：单一「设置状态」动作 → 既有状态 Dialog）。 */
+  function clientRowActions(clientId: string) {
+    return [
+      {
+        label: '设置状态',
+        run: () => {
+          const c = clientById(clientId);
+          if (c) openStatus(c);
+        }
+      }
+    ];
+  }
+
+  /** 批量设置状态（?/batchSetStatus）。 */
+  let batchStatusOpen = $state(false);
+  let batchStatusValue = $state('');
+  let batchReason = $state('');
+  function openBatchStatus() {
+    batchStatusValue = '';
+    batchReason = '';
+    batchStatusOpen = true;
+  }
+  function closeBatchStatus() {
+    batchStatusOpen = false;
+  }
+
+  /** 全站对账（?/runReconciliationAll）。 */
+  let reconcileAllOpen = $state(false);
+  let reconcileAllReason = $state('');
+  function openReconcileAll() {
+    reconcileAllReason = '';
+    reconcileAllOpen = true;
+  }
+  function closeReconcileAll() {
+    reconcileAllOpen = false;
+  }
+
+  /** 单商户对账（?/runReconciliation）。 */
+  let reconcileTarget = $state<MarketplaceClientView | null>(null);
+  let reconcileReason = $state('');
+  function openReconcile(c: MarketplaceClientView) {
+    reconcileTarget = c;
+    reconcileReason = '';
+  }
+  function closeReconcile() {
+    reconcileTarget = null;
+  }
+
+  /** 退款重试（?/retryRefund）：处理 requested 态退款。 */
+  let retryRefundOpen = $state(false);
+  let refundIdInput = $state('');
+  let refundReason = $state('');
+  function openRetryRefund() {
+    refundIdInput = '';
+    refundReason = '';
+    retryRefundOpen = true;
+  }
+  function closeRetryRefund() {
+    retryRefundOpen = false;
+  }
+
+  /** 编辑 Client 配置（?/upsertClient）。 */
+  let editTarget = $state<MarketplaceClientView | null>(null);
+  let editName = $state('');
+  let editOwner = $state('');
+  let editTerms = $state('');
+  let editPrivacy = $state('');
+  let editWebhook = $state('');
+  let editRedirects = $state('');
+  let editFeeBps = $state('');
+  let editStatus = $state('');
+  let editReason = $state('');
+  function openEdit(c: MarketplaceClientView) {
+    editTarget = c;
+    editName = c.name;
+    editOwner = c.owner_user_id ?? '';
+    editTerms = c.terms_url ?? '';
+    editPrivacy = c.privacy_url ?? '';
+    editWebhook = c.webhook_url ?? '';
+    editRedirects = (c.redirect_uris ?? []).join('\n');
+    editFeeBps = String(c.fee_bps ?? 0);
+    editStatus = c.status;
+    editReason = '';
+  }
+  function closeEdit() {
+    editTarget = null;
+  }
+
+  /** 轮换 Webhook Secret（?/rotateWebhook）：DangerConfirm + 隐藏表单 requestSubmit。 */
+  let rotateTarget = $state<MarketplaceClientView | null>(null);
+  let rotateReason = $state('');
+  let rotateForm: HTMLFormElement | undefined = $state();
+  function openRotate(c: MarketplaceClientView) {
+    rotateTarget = c;
+    rotateReason = '';
+  }
+
+  /** 紧急停用（?/emergencyDisable）：DangerConfirm + 隐藏表单 requestSubmit。
+   *  触发入口：概览表选中单一商户的页脚按钮 / 详情卡内行按钮。 */
+  let emergencyTarget = $state<MarketplaceClientView | null>(null);
+  let emergencyReason = $state('');
+  let emergencyForm: HTMLFormElement | undefined = $state();
+  const selectedEmergency = $derived(
+    selectedIds.length === 1 ? (clientById(selectedIds[0]) ?? null) : null
+  );
+  function openEmergency(c: MarketplaceClientView) {
+    emergencyTarget = c;
+    emergencyReason = '';
+  }
+
+  /** 弹层表单共用结果处理：toast → update → 成功才关弹层（失败留在弹层改）。 */
+  const dialogEnhance = (onSuccess: () => void): SubmitFunction =>
+    () => async ({ result, update }) => {
+      toastActionResult(result);
+      await update();
+      if (result.type === 'success') onSuccess();
+    };
 
   function exportMarketplaceData() {
     const dataToExport = {
@@ -122,7 +269,7 @@
   {/if}
 
   {#if formSecret}
-    <div class="alert alert-warning" role="status" style="margin-bottom:14px;padding:10px 14px;background:#fffbe6;border:1px solid #ffe58f;border-radius:var(--radius-md);">
+    <div class="alert alert-warning" role="status" style="margin-bottom:14px;padding:10px 14px;background:var(--color-warning-soft);border:1px solid var(--color-warning);border-radius:var(--radius-md);">
       <b>新密钥（仅显示一次，请妥善保存）：</b>
       <code style="display:block;margin-top:6px;font-size:14px;font-weight:700;word-break:break-all;">{formSecret}</code>
     </div>
@@ -134,28 +281,7 @@
       <h2>运行概览</h2>
     </header>
     <div class="app-card__body">
-      <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:14px;">
-        <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-          <div style="font-size:26px;font-weight:700;">{displayedList.length}</div>
-          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">启用应用</div>
-          <div class="text-secondary" style="font-size:11px;margin-top:2px;">共 {displayedList.length} 个</div>
-        </div>
-        <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-          <div style="font-size:26px;font-weight:700;">1</div>
-          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">待审批</div>
-          <div class="text-secondary" style="font-size:11px;margin-top:2px;">需要处理</div>
-        </div>
-        <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-          <div style="font-size:26px;font-weight:700;">3</div>
-          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">待对账交易</div>
-          <div class="text-secondary" style="font-size:11px;margin-top:2px;">Webhook 健康</div>
-        </div>
-        <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-          <div style="font-size:22px;font-weight:700;">未触发</div>
-          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">紧急开关</div>
-          <div class="text-secondary" style="font-size:11px;margin-top:2px;">正常</div>
-        </div>
-      </div>
+      <MetricGroup items={overviewMetrics} />
     </div>
   </section>
 
@@ -165,40 +291,37 @@
       <h2>应用 Client</h2>
     </header>
     <div class="app-card__body">
-      <!-- 工具栏 -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      <!-- 工具栏：单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
         <input
           type="search"
           bind:value={q}
           class="app-field"
           placeholder="搜索当前列表..."
           aria-label="搜索当前列表"
+          style="flex:1 1 220px;min-width:0;"
         />
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <select
-            class="app-select"
-            bind:value={statusFilter}
-            aria-label="状态筛选"
-            style="min-width:140px;"
-          >
-            <option value="">全部状态</option>
-            <option value="active">已启用</option>
-            <option value="disabled">已禁用</option>
-          </select>
-          {#if q || statusFilter}
-            <button type="button" class="btn ghost sm" onclick={() => { q = ''; statusFilter = ''; }}>
-              清除
-            </button>
-          {/if}
-        </div>
+        <select
+          class="app-select"
+          bind:value={statusFilter}
+          aria-label="状态筛选"
+          style="flex:0 0 auto;width:168px;"
+        >
+          <option value="">全部状态</option>
+          <option value="active">已启用</option>
+          <option value="disabled">已禁用</option>
+        </select>
+        {#if q || statusFilter}
+          <button type="button" class="btn ghost sm" style="flex:0 0 auto;" onclick={() => { q = ''; statusFilter = ''; }}>
+            清除
+          </button>
+        {/if}
       </div>
 
-      {#if selectedIds.length > 0}
-        <div class="app-notice" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
-          <span style="font-size:var(--text-xs);font-weight:600;">{selectedIds.length} 项已选</span>
-          <button type="button" class="btn secondary sm" onclick={() => (selectedIds = [])}>取消选择</button>
-        </div>
-      {/if}
+      <!-- 批量工具条（约定 B：选中后渲染，按钮打开批量 Dialog） -->
+      <BatchBar count={selectedIds.length} noun="个商户" onclear={() => (selectedIds = [])}>
+        <Button text="批量设置状态" variant="secondary" size="sm" onclick={openBatchStatus} />
+      </BatchBar>
 
       <div class="app-table-wrap">
         <table class="app-table" aria-label="应用 Client 列表">
@@ -215,6 +338,7 @@
               <th style="min-width:180px;">应用</th>
               <th>状态</th>
               <th>累计订单</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -225,7 +349,7 @@
                     type="checkbox"
                     checked={selectedIds.includes(client.id)}
                     onchange={() => toggleRow(client.id)}
-                    aria-label="选择此项"
+                    aria-label="选择 {client.name}"
                   />
                 </td>
                 <td>
@@ -238,6 +362,13 @@
                   </span>
                 </td>
                 <td><span style="font-size:13px;font-weight:500;">{client.orders}</span></td>
+                <td>
+                  <!-- 写操作：每行一个「⋮」菜单（约定 D）→ 状态 Dialog（表单在弹层内） -->
+                  <RowActionsMenu
+                    label="更多操作：商户 {client.name}"
+                    actions={clientRowActions(client.id)}
+                  />
+                </td>
               </tr>
             {/each}
           </tbody>
@@ -245,31 +376,25 @@
       </div>
 
       <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-        <form method="POST" action="?/runReconciliationAll" use:enhance={withActionToast()} style="margin:0;display:inline;">
-          <input type="hidden" name="reason" value="管理员在控制台触发全站商户例行对账" />
-          <button type="submit" class="btn secondary sm">开始对账</button>
-        </form>
-        <button type="button" class="btn secondary sm" onclick={exportMarketplaceData}>
-          导出交易
-        </button>
-        {#if items.length > 0}
-          <form method="POST" action="?/emergencyDisable" use:enhance={withActionToast()} style="margin:0;display:inline;">
-            <input type="hidden" name="client_id" value={items[0]?.id} />
-            <input type="hidden" name="reason" value="管理员在控制台触发紧急停用保护" />
-            <button type="submit" class="btn danger sm" style="font-weight:700;">
-              紧急停用
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <Button text="开始对账" variant="secondary" size="sm" onclick={openReconcileAll} />
+          <Button text="退款重试" variant="secondary" size="sm" onclick={openRetryRefund} />
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <Button text="导出交易" variant="secondary" size="sm" onclick={exportMarketplaceData} />
+          {#if selectedEmergency}
+            <Button text="紧急停用已选商户" variant="danger" size="sm" onclick={() => openEmergency(selectedEmergency)} />
+          {:else}
+            <button type="button" class="btn secondary sm" style="font-weight:700;" disabled title="请先在应用列表中选择一个商户">
+              选择商户后停用
             </button>
-          </form>
-        {:else}
-          <button type="button" class="btn secondary sm" style="font-weight:700;" onclick={() => showToast('当前暂无可停用商户', 'info')}>
-            紧急停用
-          </button>
-        {/if}
+          {/if}
+        </div>
       </footer>
     </div>
   </section>
 
-  <!-- 控制台管理与对账表单（折叠收纳，保证测试断言要求） -->
+  <!-- 控制台管理与对账（折叠收纳）：写操作均为按钮 → 弹层 -->
   {#each items as c (c.id)}
     <details class="app-card" style="margin-bottom:14px;">
       <summary class="app-card__head" style="cursor:pointer;user-select:none;">
@@ -277,7 +402,7 @@
       </summary>
       <div class="app-card__body" style="padding-top:12px;display:flex;flex-direction:column;gap:12px;font-size:13px;">
         <div>
-          <span>可用余额：<b>{c.balance?.available_balance ?? 0}</b></span> · 
+          <span>可用余额：<b>{c.balance?.available_balance ?? 0}</b></span> ·
           <span>待结算：<b>{c.balance?.pending_balance ?? 0}</b></span>
         </div>
 
@@ -290,29 +415,271 @@
           {/each}
         </div>
 
-        <!-- 注册/更新表单 -->
-        <form method="POST" action="?/upsertClient" use:enhance={withActionToast()} class="stack" style="gap:8px;padding:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
-          <input type="hidden" name="id" value={c.id} />
-          <input type="hidden" name="version" value={String(c.version ?? 4)} />
-          <label>
-            操作原因（必填）
-            <input type="text" name="reason" value="更新商户配置" required />
-          </label>
-          <div style="display:flex;gap:8px;">
-            <button type="submit" class="btn primary sm">保存设置</button>
-            <button type="submit" formaction="?/rotateSecret" class="btn ghost sm">轮换 Webhook Secret</button>
-            <button type="submit" formaction="?/emergencyDisable" class="btn danger sm">紧急停用</button>
-          </div>
-        </form>
-
-        <!-- 对账表单 -->
-        <form method="POST" action="?/reconcile" use:enhance={withActionToast()} style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-          <input type="hidden" name="client_id" value={c.id} />
-          <input type="hidden" name="after_cursor" value="0" />
-          <input type="text" name="reason" placeholder="对账原因" value="日常对账" required style="width:140px;" />
-          <button type="submit" class="btn secondary sm">发起对账</button>
-        </form>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <Button text="编辑配置" variant="primary" size="sm" onclick={() => openEdit(c)} />
+          <Button text="发起对账" variant="secondary" size="sm" onclick={() => openReconcile(c)} />
+          <Button text="轮换 Webhook Secret" variant="ghost" size="sm" onclick={() => openRotate(c)} />
+          <Button text="紧急停用" variant="danger" size="sm" onclick={() => openEmergency(c)} />
+        </div>
       </div>
     </details>
   {/each}
+
+  <!-- 单行状态切换 Dialog（?/setStatus：If-Match + reason 审计） -->
+  <Dialog
+    open={statusTarget !== null}
+    title="设置 Client 状态"
+    description={statusTarget ? `将「${statusTarget.name}」切换到目标状态（If-Match 乐观锁，原因写审计）。` : ''}
+    onclose={closeStatus}
+  >
+    <form
+      method="POST"
+      action="?/setStatus"
+      use:enhance={dialogEnhance(closeStatus)}
+    >
+      <input type="hidden" name="client_id" value={statusTarget?.id ?? ''} />
+      <input type="hidden" name="version" value={String(statusTarget?.version ?? '')} />
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-status">目标状态</label>
+        <select id="mk-status" name="status" class="input-field" bind:value={statusValue}>
+          <option value="pending">待审批（pending）</option>
+          <option value="active">启用（active）</option>
+          <option value="disabled">禁用（disabled）</option>
+          <option value="emergency_disabled">紧急停用（emergency_disabled，需人工恢复）</option>
+        </select>
+      </div>
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-status-reason">操作原因（写审计）</label>
+        <input id="mk-status-reason" name="reason" class="input-field" required bind:value={statusReason} placeholder="必填" />
+      </div>
+      <Button text="确认切换" variant="primary" size="sm" type="submit" />
+    </form>
+  </Dialog>
+
+  <!-- 批量设置状态 Dialog（?/batchSetStatus：ids+versions 循环单条端点） -->
+  <Dialog
+    open={batchStatusOpen}
+    title="批量设置状态"
+    description={`将更新 ${selectedIds.length} 个商户的状态（逐条 If-Match 提交，原因写审计）。`}
+    onclose={closeBatchStatus}
+  >
+    <form
+      method="POST"
+      action="?/batchSetStatus"
+      use:enhance={() => async ({ result, update }) => {
+        toastActionResult(result);
+        await update();
+        if (result.type === 'success') {
+          selectedIds = [];
+          closeBatchStatus();
+        }
+      }}
+    >
+      <input type="hidden" name="ids" value={selectedIds.join(',')} />
+      <input
+        type="hidden"
+        name="versions"
+        value={selectedIds.map((id) => String(clientById(id)?.version ?? '')).join(',')}
+      />
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-batch-status">目标状态</label>
+        <select id="mk-batch-status" name="status" class="input-field" bind:value={batchStatusValue} required>
+          <option value="" disabled>请选择状态</option>
+          <option value="pending">待审批（pending）</option>
+          <option value="active">启用（active）</option>
+          <option value="disabled">禁用（disabled）</option>
+        </select>
+      </div>
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-batch-reason">操作原因（写审计）</label>
+        <input id="mk-batch-reason" name="reason" class="input-field" required bind:value={batchReason} placeholder="必填" />
+      </div>
+      <Button text={`批量更新 ${selectedIds.length} 项`} variant="primary" size="sm" type="submit" />
+    </form>
+  </Dialog>
+
+  <!-- 全站对账 Dialog（?/runReconciliationAll）：说明影响 + reason -->
+  <Dialog
+    open={reconcileAllOpen}
+    title="发起全站对账"
+    description="将对全部商户执行增量对账（恒等式校验），结果写入审计与 Webhook 投递记录；交易量大时可能持续数分钟。"
+    onclose={closeReconcileAll}
+  >
+    <form
+      method="POST"
+      action="?/runReconciliationAll"
+      use:enhance={dialogEnhance(closeReconcileAll)}
+    >
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-recon-all-reason">操作原因（写审计）</label>
+        <input id="mk-recon-all-reason" name="reason" class="input-field" required bind:value={reconcileAllReason} placeholder="必填" />
+      </div>
+      <Button text="确认对账" variant="primary" size="sm" type="submit" />
+    </form>
+  </Dialog>
+
+  <!-- 单商户对账 Dialog（?/runReconciliation） -->
+  <Dialog
+    open={reconcileTarget !== null}
+    title="发起商户对账"
+    description={reconcileTarget ? `对「${reconcileTarget.name}」执行增量对账（恒等式校验），结果写入审计。` : ''}
+    onclose={closeReconcile}
+  >
+    <form
+      method="POST"
+      action="?/runReconciliation"
+      use:enhance={dialogEnhance(closeReconcile)}
+    >
+      <input type="hidden" name="client_id" value={reconcileTarget?.id ?? ''} />
+      <input type="hidden" name="after_cursor" value="0" />
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-recon-reason">对账原因（写审计）</label>
+        <input id="mk-recon-reason" name="reason" class="input-field" required bind:value={reconcileReason} placeholder="必填" />
+      </div>
+      <Button text="确认对账" variant="primary" size="sm" type="submit" />
+    </form>
+  </Dialog>
+
+  <!-- 退款重试 Dialog（?/retryRefund）：处理 requested 态退款 -->
+  <Dialog
+    open={retryRefundOpen}
+    title="退款重试"
+    description="对处于 requested 状态的退款单重新提交处理；请输入退款单 ID，处理结果写入审计。"
+    onclose={closeRetryRefund}
+  >
+    <form
+      method="POST"
+      action="?/retryRefund"
+      use:enhance={dialogEnhance(closeRetryRefund)}
+    >
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-refund-id">退款单 ID</label>
+        <input id="mk-refund-id" name="refund_id" class="input-field" required bind:value={refundIdInput} placeholder="refund id" />
+      </div>
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="mk-refund-reason">操作原因（写审计）</label>
+        <input id="mk-refund-reason" name="reason" class="input-field" required bind:value={refundReason} placeholder="必填" />
+      </div>
+      <Button text="确认重试" variant="primary" size="sm" type="submit" />
+    </form>
+  </Dialog>
+
+  <!-- 编辑 Client 配置 Dialog（?/upsertClient：If-Match + reason 审计） -->
+  <Dialog
+    open={editTarget !== null}
+    title="编辑 Client 配置"
+    description={editTarget ? `更新「${editTarget.name}」的商户资料与状态（If-Match 乐观锁，原因写审计）。` : ''}
+    onclose={closeEdit}
+  >
+    <form
+      method="POST"
+      action="?/upsertClient"
+      use:enhance={dialogEnhance(closeEdit)}
+    >
+      <input type="hidden" name="id" value={editTarget?.id ?? ''} />
+      <input type="hidden" name="version" value={String(editTarget?.version ?? '')} />
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);">
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-name">名称</label>
+          <input id="mk-edit-name" name="name" class="input-field" bind:value={editName} />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-owner">Owner 用户 ID</label>
+          <input id="mk-edit-owner" name="owner_user_id" class="input-field" bind:value={editOwner} />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-terms">条款 URL</label>
+          <input id="mk-edit-terms" name="terms_url" class="input-field" bind:value={editTerms} />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-privacy">隐私 URL</label>
+          <input id="mk-edit-privacy" name="privacy_url" class="input-field" bind:value={editPrivacy} />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-webhook">Webhook URL</label>
+          <input id="mk-edit-webhook" name="webhook_url" class="input-field" bind:value={editWebhook} />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-fee">手续费（bps）</label>
+          <input id="mk-edit-fee" name="fee_bps" type="number" min="0" class="input-field" bind:value={editFeeBps} />
+        </div>
+        <div class="input-wrapper" style="grid-column:1 / -1;">
+          <label class="input-label" for="mk-edit-redirects">回调地址（每行一个）</label>
+          <textarea id="mk-edit-redirects" name="redirect_uris" class="input-field" rows="2" bind:value={editRedirects}></textarea>
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-status">状态</label>
+          <select id="mk-edit-status" name="status" class="input-field" bind:value={editStatus}>
+            <option value="pending">待审批（pending）</option>
+            <option value="active">启用（active）</option>
+            <option value="disabled">禁用（disabled）</option>
+          </select>
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="mk-edit-reason">操作原因（必填，写审计）</label>
+          <input id="mk-edit-reason" name="reason" class="input-field" required bind:value={editReason} placeholder="必填" />
+        </div>
+      </div>
+      <div style="margin-top:var(--space-3);">
+        <Button text="保存设置" variant="primary" size="sm" type="submit" />
+      </div>
+    </form>
+  </Dialog>
+{/if}
+
+<!-- 轮换 Webhook Secret：DangerConfirm + 隐藏表单 requestSubmit（reason 写审计）。 -->
+{#if clients.state !== 'forbidden'}
+  <form
+    method="POST"
+    action="?/rotateWebhook"
+    bind:this={rotateForm}
+    use:enhance={() => async ({ result, update }) => {
+      toastActionResult(result);
+      await update();
+      rotateTarget = null;
+    }}
+  >
+    <input type="hidden" name="client_id" value={rotateTarget?.id ?? ''} />
+    <input type="hidden" name="reason" value={rotateReason} />
+  </form>
+
+  <DangerConfirm
+    open={rotateTarget !== null}
+    title="轮换 Webhook Secret"
+    description={rotateTarget ? `确认轮换「${rotateTarget.name}」的 Webhook Secret？旧密钥立即失效，需在商户侧同步更新。` : ''}
+    confirmText="确认轮换"
+    oncancel={() => (rotateTarget = null)}
+    onconfirm={() => rotateForm?.requestSubmit()}
+  >
+    <label class="input-label" for="mk-rotate-reason">操作原因（写审计）</label>
+    <input id="mk-rotate-reason" class="input-field" bind:value={rotateReason} placeholder="必填" required />
+  </DangerConfirm>
+
+  <!-- 紧急停用：DangerConfirm + 隐藏表单 requestSubmit（If-Match + reason 审计）。 -->
+  <form
+    method="POST"
+    action="?/emergencyDisable"
+    bind:this={emergencyForm}
+    use:enhance={() => async ({ result, update }) => {
+      toastActionResult(result);
+      await update();
+      emergencyTarget = null;
+    }}
+  >
+    <input type="hidden" name="client_id" value={emergencyTarget?.id ?? ''} />
+    <input type="hidden" name="version" value={String(emergencyTarget?.version ?? '')} />
+    <input type="hidden" name="reason" value={emergencyReason} />
+  </form>
+
+  <DangerConfirm
+    open={emergencyTarget !== null}
+    title="紧急停用 Client"
+    description={emergencyTarget ? `确认紧急停用「${emergencyTarget.name}」？该商户将立即停止服务，需人工恢复。` : ''}
+    confirmText="确认紧急停用"
+    oncancel={() => (emergencyTarget = null)}
+    onconfirm={() => emergencyForm?.requestSubmit()}
+  >
+    <label class="input-label" for="mk-emergency-reason">停用原因（写审计）</label>
+    <input id="mk-emergency-reason" class="input-field" bind:value={emergencyReason} placeholder="必填" required />
+  </DangerConfirm>
 {/if}

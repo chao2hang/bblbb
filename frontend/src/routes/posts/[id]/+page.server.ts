@@ -9,8 +9,8 @@
 // SSR HTML / hydration payload。
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getAuthed, SESSION_COOKIE } from '$lib/api/server';
-import type { AccessSummary, Board, PostAuthor, PostDetail } from '$lib/api/types';
+import { getAuthed } from '$lib/api/server';
+import type { AccessSummary, Board, PostAuthor, PostDetail, PublicPresentationTokens, User } from '$lib/api/types';
 
 /** GAP-FIX 社交域：详情响应的 viewer 视角聚合（posts.rs 已注入，
  *  白名单外字段一律不挑）。字段可选——旧投影/测试 fixture 缺失时页面
@@ -32,8 +32,11 @@ export interface AuthorCardData {
   username: string;
   display_name: string | null;
   level: number;
-  bio: string | null;
   signature: string | null;
+  /** 公开装扮投影（M07-SHOP-SCHEMA-06）：服务端编译的白名单 Token。 */
+  presentation_tokens: Record<string, string | string[]> | null;
+  /** 上传头像附件引用（公开；侧栏「关于作者」头像直渲图片）。 */
+  avatar_attachment_id: string | null;
   post_count: number;
   followers: number;
   following: number;
@@ -47,21 +50,41 @@ export interface BoardCardData {
   name: string;
   description: string | null;
   post_count: number;
+  /** 持久化板块图标（boards.icon；null/未知名由前台回退 slug 视觉映射）。 */
+  icon: string | null;
   today_post_count?: number;
+}
+
+/** 侧栏板块导航行：与共享 BoardNav.svelte 的 BoardNavItem 结构兼容
+ *  （同一次 GET /boards 反查产出，读帖时可跳转其他板块）。
+ *  post_count 匿名投影缺失 → 不传（导航行不渲染计数，不假报 0）。 */
+export interface BoardNavItemData {
+  id: string;
+  slug: string;
+  name: string;
+  post_count?: number;
+  icon: string | null;
 }
 
 export interface PostDetailPageData {
   post: PostDetailPagePost | null;
-  /** 会话 Cookie 是否存在（仅 SSR 渲染回复表单的提示；真实鉴权由后端裁决）。 */
-  authed: boolean;
   error: string | null;
   /** 关于作者侧栏卡（无作者用户名/拉取失败 → null，主内容不受影响）。 */
   author: AuthorCardData | null;
   /** 所在板块侧栏卡（无 board_id/拉取失败 → null）。 */
   board: BoardCardData | null;
+  /** 侧栏板块导航（与 board 同源反查；无 board_id/拉取失败 → 空数组，
+   *  BoardNav 整卡不渲染，主内容不受影响）。 */
+  boards: BoardNavItemData[];
+  /** 当前会话用户（服务端 /me 验证过）。SvelteKit 把根 layout 的 load 数据
+   *  并入页面 data，此字段来自 +layout.server.ts（匿名/会话失效/后端不可达
+   *  为 null）。页面一切登录态 UI（回复表单、点赞/举报入口）只以此为准——
+   *  不得用「Cookie 是否存在」判定：失效 Cookie 会让匿名访客看到回复表单。 */
+  user?: User | null;
 }
 
-/** 作者白名单：id/username/display_name/level/profile_url（契约 Author）。 */
+/** 作者白名单：id/username/display_name/level/profile_url/avatar_attachment_id
+ *  （契约 Author；avatar_attachment_id 为公开头像附件引用，列表头像直渲图片）。 */
 function pickAuthor(raw: unknown): PostAuthor | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Record<string, unknown>;
@@ -71,6 +94,10 @@ function pickAuthor(raw: unknown): PostAuthor | null {
   if (typeof a.display_name === 'string') out.display_name = a.display_name;
   if (typeof a.level === 'number') out.level = a.level;
   if (typeof a.profile_url === 'string') out.profile_url = a.profile_url;
+  if (typeof a.avatar_attachment_id === 'string') out.avatar_attachment_id = a.avatar_attachment_id;
+  if (a.presentation_tokens && typeof a.presentation_tokens === 'object') {
+    out.presentation_tokens = a.presentation_tokens as PublicPresentationTokens;
+  }
   return out;
 }
 
@@ -116,20 +143,36 @@ function pickPost(raw: unknown): PostDetail {
   if (access?.unlocked === true && typeof r.body_html === 'string') {
     out.body_html = r.body_html;
   }
+  if (Array.isArray(r.tags)) {
+    out.tags = r.tags.filter((t) => typeof t === 'string') as string[];
+  }
   return out;
 }
 
-/** 作者公开投影白名单（AuthorCardData；隐藏 bio/签名等一并不进输出）。 */
+/** 作者公开投影白名单（AuthorCardData；bio 已下线，只保留签名；
+ *  presentation_tokens 为服务端编译的公开装扮投影，逐槽位白名单渲染）。 */
 function pickAuthorCard(raw: unknown): AuthorCardData | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Record<string, unknown>;
   if (typeof a.username !== 'string' || !a.username) return null;
+  const rawTokens = a.presentation_tokens;
+  const presentationTokens =
+    rawTokens && typeof rawTokens === 'object' && !Array.isArray(rawTokens)
+      ? (Object.fromEntries(
+          Object.entries(rawTokens as Record<string, unknown>).filter(
+            ([k, v]) =>
+              typeof k === 'string' &&
+              (typeof v === 'string' || (Array.isArray(v) && v.every((x) => typeof x === 'string')))
+          )
+        ) as Record<string, string | string[]>)
+      : null;
   return {
     username: a.username,
     display_name: typeof a.display_name === 'string' ? a.display_name : null,
     level: typeof a.level === 'number' ? a.level : 1,
-    bio: typeof a.bio === 'string' ? a.bio : null,
     signature: typeof a.signature === 'string' ? a.signature : null,
+    presentation_tokens: presentationTokens,
+    avatar_attachment_id: typeof a.avatar_attachment_id === 'string' ? a.avatar_attachment_id : null,
     post_count: typeof a.post_count === 'number' ? a.post_count : 0,
     followers: typeof a.followers === 'number' ? a.followers : 0,
     following: typeof a.following === 'number' ? a.following : 0
@@ -153,9 +196,6 @@ async function safeGet<T>(
 export const load: PageServerLoad = async ({ params, cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
   const id = params.id;
-  // 注意：cookies.get 缺失时返回 undefined（非 null），必须真值判断——
-  // 此前 `!== null` 恒真，导致匿名也渲染回复表单/点赞按钮。
-  const authed = Boolean(cookies.get(SESSION_COOKIE));
   const result = await getAuthed<unknown>(
     cookies,
     `/api/v1/posts/${encodeURIComponent(id)}`,
@@ -166,10 +206,10 @@ export const load: PageServerLoad = async ({ params, cookies, request }) => {
     if (result.status === 404) throw error(404, '帖子不存在或不可见');
     return {
       post: null,
-      authed,
       error: result.message,
       author: null,
-      board: null
+      board: null,
+      boards: []
     } satisfies PostDetailPageData;
   }
   const raw = (result.data ?? {}) as Record<string, unknown>;
@@ -197,6 +237,24 @@ export const load: PageServerLoad = async ({ params, cookies, request }) => {
 
   const author = authorUsername ? pickAuthorCard(authorRaw) : null;
   let board: BoardCardData | null = null;
+  // 板块导航行：同一次列表反查的全部板块（服务端已按请求方可见性裁剪），
+  // 字段白名单挑选——id/slug/name 恒需，post_count 仅在数值投影时携带。
+  const navBoards: BoardNavItemData[] =
+    boardId && Array.isArray(boardsRaw?.items)
+      ? (boardsRaw!.items as Board[]).flatMap((b) =>
+          b && b.id && b.slug && b.name
+            ? [
+                {
+                  id: b.id,
+                  slug: b.slug,
+                  name: b.name,
+                  icon: b.icon ?? null,
+                  ...(typeof b.post_count === 'number' ? { post_count: b.post_count } : {})
+                }
+              ]
+            : []
+        )
+      : [];
   if (boardId && Array.isArray(boardsRaw?.items)) {
     // today_post_count 不在契约 Board 类型里（authed 聚合，GAP-FIX 社交域），
     // 此处局部扩展而不是改 types.ts。
@@ -209,6 +267,7 @@ export const load: PageServerLoad = async ({ params, cookies, request }) => {
         name: match.name,
         description: match.description ?? null,
         post_count: match.post_count ?? 0,
+        icon: match.icon ?? null,
         ...(typeof match.today_post_count === 'number'
           ? { today_post_count: match.today_post_count }
           : {})
@@ -216,5 +275,5 @@ export const load: PageServerLoad = async ({ params, cookies, request }) => {
     }
   }
 
-  return { post, authed, error: null, author, board } satisfies PostDetailPageData;
+  return { post, error: null, author, board, boards: navBoards } satisfies PostDetailPageData;
 };

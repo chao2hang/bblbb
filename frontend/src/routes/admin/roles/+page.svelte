@@ -1,11 +1,15 @@
 <script lang="ts">
   // M18-ADMIN-ROLES：角色与权限管理页（对齐原型 #admin-roles 目录与设置详情页）。
-  import PageHeader from '$lib/components/admin/PageHeader.svelte';
+  // 角色委派完整 CRUD：新建角色走 POST /admin/roles（注册表权限校验，
+  // recent-auth 403 step_up_required → re-auth 弹窗）；「管理成员」接入
+  // /admin/assignments 角色委派页。
   import { enhance } from '$app/forms';
-  import Icon from '$lib/components/ui/Icon.svelte';
+  import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import Button from '$lib/components/ui/Button.svelte';
-  import { show as showToast } from '$lib/ui/toast';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminRolesActionData, AdminRolesPageData } from './+page.server';
 
   let { data, form }: { data: AdminRolesPageData; form?: AdminRolesActionData | null } = $props();
@@ -36,23 +40,26 @@
     enabledCount: number;
     totalCount: number;
     isSystem: boolean;
+    version: number;
+    permissions: string[];
   }
 
-  const defaultRoles: RoleDefinition[] = [
-    { id: 'owner', name: '站长', type: '系统角色', desc: '拥有平台所有权和紧急处置能力。', scope: '全站', icon: 'shield', members: 1, enabledCount: 43, totalCount: 43, isSystem: true },
-    { id: 'administrator', name: '管理员', type: '系统角色', desc: '管理内容、成员和平台日常配置。', scope: '全站', icon: 'shield', members: 2, enabledCount: 38, totalCount: 43, isSystem: true },
-    { id: 'editor', name: '内容编辑', type: '内置角色', desc: '负责内容编辑、发布、置顶和精选。', scope: '全站', icon: 'users', members: 3, enabledCount: 16, totalCount: 43, isSystem: false },
-    { id: 'board_moderator', name: '版主', type: '内置角色', desc: '维护所负责板块的秩序和内容质量。', scope: '所在板块', icon: 'flag', members: 5, enabledCount: 12, totalCount: 43, isSystem: false },
-    { id: 'ops', name: '社区运营', type: '内置角色', desc: '负责社区活动、公告、精选和运营数据。', scope: '全站', icon: 'users', members: 2, enabledCount: 18, totalCount: 43, isSystem: false },
-    { id: 'finance', name: '财务管理员', type: '内置角色', desc: '管理账务、对账、退款和商城结算。', scope: '全站', icon: 'coins', members: 1, enabledCount: 10, totalCount: 43, isSystem: false },
-    { id: 'developer', name: '开发者', type: '自定义角色', desc: '管理 API Key、Webhook 与第三方集成。', scope: '全站', icon: 'users', members: 8, enabledCount: 8, totalCount: 43, isSystem: false },
-    { id: 'creator', name: '创作者', type: '自定义角色', desc: '可以发布内容并管理自己的创作。', scope: '个人', icon: 'users', members: 42, enabledCount: 6, totalCount: 43, isSystem: false },
-    { id: 'member', name: '成员', type: '系统角色', desc: '完成注册验证后的基础社区成员。', scope: '个人', icon: 'users', members: 1284, enabledCount: 4, totalCount: 43, isSystem: true },
-    { id: 'guest', name: '访客', type: '系统角色', desc: '未登录用户，只能浏览公开内容。', scope: '公开', icon: 'globe', members: 0, enabledCount: 1, totalCount: 43, isSystem: true }
-  ];
-
   const roleList = $derived.by(() => {
-    let list = defaultRoles;
+    if (loadState.state !== 'ok') return [] as RoleDefinition[];
+    let list = loadState.items.map((role) => ({
+      id: role.id,
+      name: role.name,
+      type: role.is_system ? '系统角色' : '自定义角色',
+      desc: role.permissions?.length ? `${role.permissions.length} 项已配置权限` : '尚未配置权限',
+      scope: role.scope ?? '未声明',
+      icon: role.is_system ? 'shield' : 'users',
+      members: 0,
+      enabledCount: role.permissions?.length ?? 0,
+      totalCount: allPermissions.length,
+      isSystem: role.is_system === true,
+      version: role.updated_at ?? 0,
+      permissions: role.permissions ?? []
+    }));
     if (searchQ.trim()) {
       const q = searchQ.trim().toLowerCase();
       list = list.filter((r) => r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q) || r.scope.toLowerCase().includes(q));
@@ -60,7 +67,7 @@
     return list;
   });
 
-  const currentRole = $derived(defaultRoles.find((r) => r.id === selectedRoleId) ?? defaultRoles[0]);
+  const currentRole = $derived(roleList.find((r) => r.id === selectedRoleId) ?? roleList[0] ?? null);
 
   // 权限中文说明映射字典（全量）
   const PERM_METAS: Record<string, { group: string; label: string }> = {
@@ -123,10 +130,12 @@
   $effect(() => {
     // 根据角色初始赋权
     const initial: Record<string, boolean> = {};
-    const count = currentRole.enabledCount;
-    allPermissions.forEach((code, idx) => {
-      initial[code] = idx < count;
-    });
+    if (currentRole) {
+      const allowed = new Set(currentRole.permissions);
+      allPermissions.forEach((code) => {
+        initial[code] = allowed.has(code);
+      });
+    }
     enabledPerms = initial;
   });
 
@@ -161,6 +170,56 @@
   function clearAllGlobal() {
     allPermissions.forEach((code) => (enabledPerms[code] = false));
   }
+
+  // —— 新建角色（完整 CRUD）——
+  let showCreate = $state(false);
+  let createPerms = $state<Record<string, boolean>>({});
+  let createSearchQ = $state('');
+  let createName = $state('');
+  let createDisplayName = $state('');
+
+  // 角色标识建议：输入显示名时自动生成 name 建议（仅在未手改 name 时跟随）。
+  let nameTouched = $state(false);
+  function slugifyDisplay(v: string): string {
+    return v
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 64);
+  }
+
+  const createPermissionGroups = $derived.by(() => {
+    const map = new Map<string, { code: string; label: string }[]>();
+    for (const code of allPermissions) {
+      const meta = PERM_METAS[code] ?? { group: '其他权限', label: code };
+      if (createSearchQ.trim()) {
+        const q = createSearchQ.trim().toLowerCase();
+        if (!code.toLowerCase().includes(q) && !meta.label.toLowerCase().includes(q) && !meta.group.toLowerCase().includes(q)) {
+          continue;
+        }
+      }
+      if (!map.has(meta.group)) map.set(meta.group, []);
+      map.get(meta.group)!.push({ code, label: meta.label });
+    }
+    return Array.from(map.entries()).map(([name, perms]) => ({ name, perms }));
+  });
+
+  const createPermCount = $derived(Object.values(createPerms).filter(Boolean).length);
+
+  function createSelectAllInGroup(perms: { code: string }[]) {
+    perms.forEach((p) => (createPerms[p.code] = true));
+  }
+  function createClearAllInGroup(perms: { code: string }[]) {
+    perms.forEach((p) => (createPerms[p.code] = false));
+  }
+
+  // —— step-up 重新验证（M02-MFA-07）：save/create 命中 403 step_up_required ——
+  let reauthLoading = $state(false);
+  let reauthCancelled = $state(false);
+  let reauthError = $state<string | null>(null);
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
+  });
 </script>
 
 <svelte:head>
@@ -182,7 +241,7 @@
     </div>
   </div>
 {:else}
-  {#if message && !hasJs}
+  {#if message}
     <div class="app-error" role="status" style="margin-bottom:12px;">
       <b>{message}</b>
     </div>
@@ -199,7 +258,9 @@
         </div>
         <div class="admin-role-directory__head-actions" style="display:flex;gap:10px;align-items:center;">
           <span class="sbadge sb-gray" style="padding:4px 8px;border-radius:4px;background:var(--color-bg-subtle);font-size:12px;">{roleList.length} 个角色</span>
-          <button type="button" class="btn primary sm" onclick={() => showToast('自定义角色可在后端迁移脚本中注册', 'info')}>+ 新建角色</button>
+          <button type="button" class="btn primary sm" onclick={() => (showCreate = true)}>
+            + 新建角色
+          </button>
         </div>
       </header>
 
@@ -257,8 +318,118 @@
       <h3>管理员 · 全站</h3>
       <label><input type="checkbox" checked /> 管理后台 (admin.manage)</label>
     </div>
-  {:else}
-    <!-- 原型对齐：角色设置详情页（宽屏展开，全量分组，极佳管理体验） -->
+
+    {#if showCreate}
+      <!-- 新建自定义角色（约定 A：Dialog 内表单；POST /admin/roles；权限目录复用注册表全量） -->
+      <Dialog
+        open={showCreate}
+        title="新建自定义角色"
+        description="角色标识创建后不可修改；权限按注册表校验，操作原因写入审计日志。"
+        onclose={() => (showCreate = false)}
+      >
+        <form
+          method="POST"
+          action="?/create"
+          use:enhance={() => {
+            return async ({ result, update }) => {
+              toastActionResult(result);
+              await update({ reset: false });
+              if (result.type === 'success') {
+                showCreate = false;
+                createName = '';
+                createDisplayName = '';
+                createPerms = {};
+                createSearchQ = '';
+                nameTouched = false;
+              }
+            };
+          }}
+          style="display:flex;flex-direction:column;gap:14px;"
+        >
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;">
+              <div>
+                <label class="input-label" for="role-create-display">角色显示名</label>
+                <input
+                  class="input-field"
+                  type="text"
+                  id="role-create-display"
+                  name="display_name"
+                  bind:value={createDisplayName}
+                  maxlength="64"
+                  placeholder="如：社区编辑"
+                  oninput={() => {
+                    if (!nameTouched) createName = slugifyDisplay(createDisplayName);
+                  }}
+                />
+              </div>
+              <div>
+                <label class="input-label" for="role-create-name">角色标识（小写字母/数字/下划线）</label>
+                <input
+                  class="input-field"
+                  type="text"
+                  id="role-create-name"
+                  name="name"
+                  bind:value={createName}
+                  maxlength="64"
+                  required
+                  pattern={'[a-z0-9_]{1,64}'}
+                  oninput={() => {
+                    nameTouched = true;
+                  }}
+                  placeholder="如：community_editor"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="input-label" for="role-create-desc">描述（可留空）</label>
+              <input class="input-field" type="text" id="role-create-desc" name="description" maxlength="200" placeholder="该角色的职责说明" />
+            </div>
+
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                <span class="input-label" style="margin:0;">权限（已选 {createPermCount} / {allPermissions.length}）</span>
+                <input class="input-field" type="search" bind:value={createSearchQ} placeholder="搜索权限…" aria-label="搜索权限" style="max-width:240px;height:32px;" />
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:12px;max-height:360px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:10px;">
+                {#each createPermissionGroups as group}
+                  <div style="border:1px solid var(--color-border);border-radius:var(--radius-sm);overflow:hidden;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--color-bg-subtle);font-size:12px;">
+                      <b>{group.name}</b>
+                      <span style="display:flex;gap:6px;">
+                        <button type="button" class="btn ghost xs" onclick={() => createSelectAllInGroup(group.perms)}>全选</button>
+                        <button type="button" class="btn ghost xs" onclick={() => createClearAllInGroup(group.perms)}>清空</button>
+                      </span>
+                    </div>
+                    {#each group.perms as item}
+                      <label style="display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-top:1px solid var(--color-border);cursor:pointer;">
+                        <input type="checkbox" name="permissions" value={item.code} bind:checked={createPerms[item.code]} style="margin-top:3px;" />
+                        <span style="display:flex;flex-direction:column;gap:1px;">
+                          <code style="font-size:12px;font-weight:700;">{item.code}</code>
+                          <small style="font-size:11px;color:var(--color-text-secondary);">{item.label}</small>
+                        </span>
+                      </label>
+                    {/each}
+                  </div>
+                {:else}
+                  <p class="input-hint">没有匹配的权限。</p>
+                {/each}
+              </div>
+            </div>
+
+            <div>
+              <label class="input-label" for="role-create-reason">操作原因（写入审计日志）</label>
+              <input class="input-field" type="text" id="role-create-reason" name="reason" required placeholder="如：内容运营团队需要独立编辑权限" />
+            </div>
+
+            <div>
+              <button type="submit" class="btn primary sm">创建角色</button>
+              <button type="button" class="btn ghost sm" onclick={() => (showCreate = false)}>取消</button>
+            </div>
+          </form>
+      </Dialog>
+    {/if}
+  {:else if currentRole}
+    <!-- 角色设置详情页：权限保存走服务端 PATCH action。 -->
     <div style="margin-bottom:14px;">
       <button type="button" class="btn ghost sm" onclick={() => (selectedRoleId = null)}>
         ← 返回角色列表
@@ -268,7 +439,9 @@
       </span>
     </div>
 
-    <section class="app-card" style="margin-bottom:14px;">
+    <form method="POST" action="?/save" use:enhance class="app-card" style="margin-bottom:14px;">
+      <input type="hidden" name="id" value={currentRole.id} />
+      <input type="hidden" name="version" value={currentRole.version} />
       <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
         <div>
           <div class="admin-role-kicker" style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--color-text-secondary);margin-bottom:4px;">
@@ -285,8 +458,8 @@
           <span class="badge badge-level" style="font-size:12px;padding:4px 8px;">
             {Object.values(enabledPerms).filter(Boolean).length} / {allPermissions.length} 已启用
           </span>
-          <button type="button" class="btn secondary sm" onclick={() => showToast('可直接在下方编辑并保存权限', 'info')}>编辑资料</button>
-          <button type="button" class="btn secondary sm" onclick={() => showToast('成员可在用户管理页统一调配', 'info')}>管理成员</button>
+          <button type="button" class="btn secondary sm" disabled title="角色资料编辑 action 尚未接入">编辑资料</button>
+          <a class="btn secondary sm" href="/admin/assignments" title="在角色委派页为用户授予或撤销该角色">管理成员</a>
         </div>
       </header>
 
@@ -303,7 +476,7 @@
         <div style="display:flex;gap:8px;align-items:center;">
           <button type="button" class="btn ghost sm" onclick={selectAllGlobal}>全部启用</button>
           <button type="button" class="btn ghost sm" onclick={clearAllGlobal}>全部停用</button>
-          <button type="button" class="btn ghost sm" onclick={() => showToast('已生效', 'info')}>预览生效权限</button>
+          <button type="button" class="btn ghost sm" disabled title="权限预览尚未提供独立 action">预览生效权限</button>
         </div>
       </div>
 
@@ -328,6 +501,8 @@
                 <label class="admin-permission" style="display:flex;align-items:flex-start;gap:10px;padding:10px 4px;border-bottom:1px solid var(--color-border);cursor:pointer;">
                   <input
                     type="checkbox"
+                    name="permissions"
+                    value={item.code}
                     bind:checked={enabledPerms[item.code]}
                     disabled={currentRole.isSystem}
                     style="margin-top:3px;"
@@ -343,16 +518,61 @@
         {/each}
       </div>
 
-      <footer class="app-card__foot" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--color-border);">
-        <span class="app-muted" style="font-size:12px;">未保存的修改只保留在当前页面</span>
+      <footer class="app-card__foot" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid var(--color-border);flex-wrap:wrap;">
+        <label style="flex:1;min-width:220px;">
+          <span class="app-muted" style="display:block;font-size:11px;margin-bottom:4px;">操作原因（写入审计日志）</span>
+          <input class="input-field" type="text" name="reason" value="更新角色权限" required />
+        </label>
         <button
-          type="button"
+          type="submit"
           class="btn primary"
-          onclick={() => showToast(`已保存 ${currentRole.name} 权限配置`, 'success')}
+          disabled={currentRole.isSystem}
+          title={currentRole.isSystem ? '系统角色权限由服务端保护，不能在此修改' : undefined}
         >
-          保存 {currentRole.name} 权限
+          {currentRole.isSystem ? '系统角色不可修改' : `保存 ${currentRole.name} 权限`}
         </button>
       </footer>
-    </section>
+    </form>
   {/if}
 {/if}
+
+<!-- step-up 重新验证（M02-MFA-07）：save/create 命中 403 step_up_required 时展示。
+     无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="角色权限的保存与角色创建属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，可继续刚才的操作。"
+  onclose={() => (reauthCancelled = true)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'failure') {
+          reauthError = (result.data as unknown as AdminRolesActionData | null)?.message ?? '密码验证失败，请重试';
+          return;
+        }
+        await update();
+      };
+    }}
+    style="display:flex;flex-direction:column;gap:10px;"
+  >
+    <div>
+      <label class="input-label" for="role-reauth-password">当前账号密码</label>
+      <input class="input-field" type="password" id="role-reauth-password" name="password" autocomplete="current-password" required />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
+    </div>
+  </form>
+</Dialog>

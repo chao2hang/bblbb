@@ -33,12 +33,13 @@ const boards: Array<{
   slug: string;
   name: string;
   description: string;
+  icon: string | null;
   version: number;
   created_at: number;
   updated_at: number;
 }> = [
-  { id: 'b1', slug: 'general', name: '综合讨论', description: '日常', version: 1, created_at: 0, updated_at: 0 },
-  { id: 'b2', slug: 'tech', name: '技术分享', description: '技术', version: 1, created_at: 0, updated_at: 0 }
+  { id: 'b1', slug: 'general', name: '综合讨论', description: '日常', icon: null, version: 1, created_at: 0, updated_at: 0 },
+  { id: 'b2', slug: 'tech', name: '技术分享', description: '技术', icon: null, version: 1, created_at: 0, updated_at: 0 }
 ];
 
 beforeEach(() => {

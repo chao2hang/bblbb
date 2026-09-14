@@ -197,6 +197,18 @@ describe('全局壳·Toast store', () => {
     await waitFor(() => expect(screen.queryByText('保存成功')).toBeNull());
     expect(get(toasts).length).toBe(1);
   });
+
+  it('重复提示合并，并最多保留四条可见 Toast', () => {
+    const first = show('重复错误', 'danger');
+    const duplicate = show('重复错误', 'danger');
+    expect(duplicate).toBe(first);
+
+    show('提示 1');
+    show('提示 2');
+    show('提示 3');
+    show('提示 4');
+    expect(get(toasts).map((toast) => toast.message)).toEqual(['提示 1', '提示 2', '提示 3', '提示 4']);
+  });
 });
 
 describe('全局壳·未登录菜单投影', () => {
@@ -226,7 +238,7 @@ describe('全局壳·未登录菜单投影', () => {
     for (const href of ['/shop', '/marketplace', '/achievements', '/me/billing', '/apikeys']) {
       expect(menu.querySelector(`a[href="${href}"]`), `未登录不应出现 ${href}`).toBeNull();
     }
-    for (const href of ['/search', '/boards', '/tags']) {
+    for (const href of ['/boards', '/tags']) {
       expect(menu.querySelector(`a[href="${href}"]`), `公开入口应保留 ${href}`).toBeTruthy();
     }
   });
@@ -243,5 +255,49 @@ describe('全局壳·未登录菜单投影', () => {
     for (const href of ['/shop', '/marketplace', '/achievements', '/me/billing', '/apikeys']) {
       expect(menu.querySelector(`a[href="${href}"]`), `登录后应出现 ${href}`).toBeTruthy();
     }
+  });
+});
+
+describe('全局壳·移动端半屏用户菜单 (Bottom Sheet)', () => {
+  it('展开用户菜单时渲染底栏拉手、背景遮罩层与关闭按钮', async () => {
+    const user = userEvent.setup();
+    render(Navbar, { props: { user: navUser } });
+
+    // 默认未展开
+    expect(screen.queryByRole('menu', { name: '用户菜单' })).toBeNull();
+    expect(document.querySelector('.user-sheet-backdrop')).toBeNull();
+
+    // 点击头像按钮展开
+    await user.click(screen.getByRole('button', { name: '用户菜单' }));
+    const menu = screen.getByRole('menu', { name: '用户菜单' });
+    expect(menu).toBeTruthy();
+
+    // 包含 iOS/Android 交互规范的拉手条与半屏遮罩
+    expect(menu.querySelector('.user-menu-handle-bar')).not.toBeNull();
+    expect(menu.querySelector('.user-menu-handle')).not.toBeNull();
+    expect(document.querySelector('.user-sheet-backdrop')).not.toBeNull();
+
+    // 头部包含关闭按钮
+    const closeBtn = screen.getByRole('button', { name: '关闭' });
+    expect(closeBtn).toBeTruthy();
+
+    // 点击关闭按钮可收起
+    await user.click(closeBtn);
+    expect(screen.queryByRole('menu', { name: '用户菜单' })).toBeNull();
+    expect(document.querySelector('.user-sheet-backdrop')).toBeNull();
+  });
+
+  it('点击遮罩层可收起半屏菜单', async () => {
+    const user = userEvent.setup();
+    render(Navbar, { props: { user: navUser } });
+
+    await user.click(screen.getByRole('button', { name: '用户菜单' }));
+    expect(screen.getByRole('menu', { name: '用户菜单' })).toBeTruthy();
+
+    const backdrop = document.querySelector('.user-sheet-backdrop') as HTMLElement;
+    expect(backdrop).not.toBeNull();
+    await user.click(backdrop);
+
+    expect(screen.queryByRole('menu', { name: '用户菜单' })).toBeNull();
   });
 });

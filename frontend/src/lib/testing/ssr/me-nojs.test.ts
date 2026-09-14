@@ -49,7 +49,7 @@ describe('无 JS：/me 页（M02-UX-05）', () => {
     expect(body).toContain('alice');
     expect(body).not.toContain('alice@example.com'); // 邮箱不对外展示
     expect(body).toContain('正常'); // status=active
-    expect(body).toContain('LV.3');
+    expect(body).toContain('TL3');
     expect(body).not.toContain('sess-current'); // 会话 id 仅作隐藏表单值不泄漏
   });
 

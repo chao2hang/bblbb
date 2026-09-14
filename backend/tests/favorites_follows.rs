@@ -62,7 +62,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> (String, String) {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 5, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -634,7 +634,6 @@ async fn achievements_public_catalog_and_my_view() {
             "name",
             "description",
             "category",
-            "reward_exp",
             "reward_coin",
             "is_hidden",
             "sort_order",
@@ -662,6 +661,44 @@ async fn achievements_public_catalog_and_my_view() {
     assert_eq!(body["stats"]["unlocked"], 0);
     assert_eq!(body["stats"]["equipped"], 0);
     assert_eq!(body["stats"]["max_slots"], 3);
+
+    // 本人视图 status 过滤验证（M18-ACH-01）
+    let (status, body) = authed(
+        &app,
+        "GET",
+        "/api/v1/me/achievements?status=unlocked",
+        &alice_session,
+        &alice_csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["items"].as_array().unwrap().len(), 0);
+    assert_eq!(body["stats"]["total"], 8);
+
+    // 批量装备徽章验证（M18-ACH-01）：未解锁装备返回 409
+    let (status, body) = authed(
+        &app,
+        "PUT",
+        "/api/v1/me/badges",
+        &alice_session,
+        &alice_csrf,
+        json!({ "badges": ["first_post"] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "未解锁不可装备: {body}");
+
+    // 超过 3 枚返回 409
+    let (status, body) = authed(
+        &app,
+        "PUT",
+        "/api/v1/me/badges",
+        &alice_session,
+        &alice_csrf,
+        json!({ "badges": ["b1", "b2", "b3", "b4"] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "超过 3 枚限制: {body}");
 
     // 未认证 → 401
     let resp = app
@@ -832,6 +869,19 @@ async fn admin_grant_equip_and_slot_limit() {
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "未解锁装备必须 409");
 
+    // 批量装备 PUT /api/v1/me/badges 成功
+    let (status, body) = authed(
+        &app,
+        "PUT",
+        "/api/v1/me/badges",
+        &alice_session,
+        &alice_csrf,
+        json!({ "badges": ["community_elder"] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["equipped"], json!(["community_elder"]));
+
     close_pool(&pool).await;
     cleanup(&dir);
 }
@@ -856,7 +906,6 @@ async fn admin_create_patch_delete_achievement() {
             "category": "special",
             "condition_type": "manual",
             "condition_threshold": 0,
-            "reward_exp": 1,
             "reward_coin": 1,
             "is_hidden": false,
             "is_enabled": true,
@@ -975,6 +1024,99 @@ async fn admin_create_patch_delete_achievement() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["items"].as_array().unwrap().len(), 8);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// 公开资料携带已装备成就徽章（资料卡「佩戴徽章」行的真实数据来源）：
+/// 授予/解锁并装备后，GET /users/{username}（匿名）返回 equipped_achievements
+/// （仅 code/name，≤3，按目录排序）；未装备用户为空数组；卸下后消失。
+#[tokio::test]
+async fn public_profile_exposes_equipped_achievements() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (admin_session, admin_csrf) = admin_ctx(&app, &pool).await;
+    let (alice_id, alice_name) = insert_user(&pool, "alice").await;
+    let alice_session = common::direct_session_cookie(&pool, &alice_id).await;
+    let alice_csrf = session_csrf(&app, &alice_session).await;
+    let (_bob_id, bob_name) = insert_user(&pool, "bob").await;
+
+    // 未装备：公开资料 equipped_achievements 为空数组
+    let (status, body) = anon_get(&app, &format!("/api/v1/users/{bob_name}")).await;
+    assert_eq!(status, StatusCode::OK, "公开主页必须 200: {body}");
+    assert_eq!(
+        body["equipped_achievements"].as_array().map(Vec::len),
+        Some(0),
+        "未装备用户为空数组: {body}"
+    );
+
+    // 发帖 → first_post 自动解锁；管理授予 community_elder（manual）
+    let _post = publish_post(&app, &alice_session, &alice_csrf, "ach-eq-000000001").await;
+    let (status, body) = authed(
+        &app,
+        "POST",
+        "/api/v1/admin/achievements/community_elder/grant",
+        &admin_session,
+        &admin_csrf,
+        json!({ "username": alice_name, "reason": "test grant for equip" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "授予必须 201: {body}");
+
+    // 装备两枚（community_elder + first_post）
+    for code in ["community_elder", "first_post"] {
+        let (status, body) = authed(
+            &app,
+            "PUT",
+            &format!("/api/v1/me/achievements/{code}/equip"),
+            &alice_session,
+            &alice_csrf,
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "装备 {code} 必须 200: {body}");
+    }
+
+    // 公开资料（匿名视角）携带已装备徽章；按目录排序（sort_order）：
+    // first_post(sort 1) 在 community_elder(sort 8) 之前
+    let (status, body) = anon_get(&app, &format!("/api/v1/users/{alice_name}")).await;
+    assert_eq!(status, StatusCode::OK, "公开主页必须 200: {body}");
+    let badges = body["equipped_achievements"].as_array().unwrap();
+    assert_eq!(badges.len(), 2, "两枚已装备徽章: {body}");
+    assert_eq!(badges[0]["code"], "first_post");
+    assert_eq!(badges[0]["name"], "首发帖");
+    assert_eq!(badges[1]["code"], "community_elder");
+    assert_eq!(badges[1]["name"], "社区元老");
+    for badge in badges {
+        assert_eq!(
+            badge
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec!["code".to_string(), "name".to_string()],
+            "成就徽章只允许 code/name 公开字段"
+        );
+    }
+
+    // 卸下 first_post → 公开资料只剩 community_elder
+    let (status, _) = authed(
+        &app,
+        "DELETE",
+        "/api/v1/me/achievements/first_post/equip",
+        &alice_session,
+        &alice_csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = anon_get(&app, &format!("/api/v1/users/{alice_name}")).await;
+    assert_eq!(status, StatusCode::OK);
+    let badges = body["equipped_achievements"].as_array().unwrap();
+    assert_eq!(badges.len(), 1, "卸下后只剩一枚: {body}");
+    assert_eq!(badges[0]["code"], "community_elder");
 
     close_pool(&pool).await;
     cleanup(&dir);

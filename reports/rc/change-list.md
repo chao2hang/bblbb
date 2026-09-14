@@ -1,5 +1,7 @@
 # BBLBB — RC 变更清单（M17-FREEZE-01）
 
+> 历史快照：rc.2 / 2026-08-08。本文只用于审计追溯；当前版本、契约和任务状态以 [`../../TODO.md`](../../TODO.md)、`../../todo/openapi-operation-coverage.json` 与 `../../reports/rc/README.md` 为准。
+
 > 用途：从冻结基线到 v1.0.0-rc.2 的 API/schema/state/permission/privacy 差异清单，
 > 逐项标注文档同步状态与证据。冻结基线 = `docs/PRODUCT-DECISIONS.md` +
 > `docs/REQUIREMENTS.md` v0.5（2026-08-04 产品所有者确认）与

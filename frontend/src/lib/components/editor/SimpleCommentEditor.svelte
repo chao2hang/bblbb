@@ -167,7 +167,7 @@
 
     {#if isUploading}
       <div class="uploading-indicator" role="status" aria-live="polite">
-        <span class="mini-spinner" aria-hidden="true"></span>
+        <span class="mini-spinner" aria-hidden="true"><i></i><i></i><i></i></span>
         <span>{uploadStatusText}</span>
       </div>
     {/if}
@@ -264,18 +264,38 @@
     font-size: var(--text-xs, 12px);
   }
 
+  /* 三个变形方块（与 aui-spinner 同一视觉语言），替代旋转圆环 */
   .mini-spinner {
-    width: 12px;
-    height: 12px;
-    border: 2px solid rgba(178, 62, 42, 0.25);
-    border-top-color: var(--color-primary, #b23e2a);
-    border-radius: 50%;
-    animation: editor-spin 0.8s linear infinite;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 10px;
   }
 
-  @keyframes editor-spin {
-    to {
-      transform: rotate(360deg);
+  .mini-spinner i {
+    width: 3px;
+    height: 100%;
+    background: currentColor;
+    animation: editor-blocks-pulse 800ms ease-in-out infinite;
+  }
+
+  .mini-spinner i:nth-child(2) {
+    animation-delay: 100ms;
+  }
+
+  .mini-spinner i:nth-child(3) {
+    animation-delay: 200ms;
+  }
+
+  @keyframes editor-blocks-pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+      transform: scaleY(0.7);
+    }
+    50% {
+      opacity: 1;
+      transform: scaleY(1);
     }
   }
 </style>

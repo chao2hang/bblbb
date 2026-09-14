@@ -101,6 +101,8 @@ struct UpdateDraftRequest {
     access_policy: Option<String>,
     #[serde(default)]
     scheduled_at: Option<Option<i64>>,
+    #[serde(default)]
+    tags: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -149,25 +151,25 @@ fn private_no_store(resp: Response) -> Response {
     resp
 }
 
-/// 读取作者当前等级（真实来源 M7 经验账户；缓存重建前 default 1）。
+/// 读取作者当前信任等级（users.trust_level；缺省 TL0）。
 async fn author_level(pool: &DatabasePool, user_id: &str) -> Result<u32, AppError> {
     let request_id = "author_level";
     let level: Option<i64> = match pool {
         Either::Left(p) => {
-            sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
                 .bind(user_id)
                 .fetch_optional(p)
                 .await
         }
         Either::Right(p) => {
-            sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
                 .bind(user_id)
                 .fetch_optional(p)
                 .await
         }
     }
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-    Ok(level.unwrap_or(1).clamp(1, u32::MAX as i64) as u32)
+    Ok(level.unwrap_or(0).clamp(0, u32::MAX as i64) as u32)
 }
 
 /// 权限判定辅助（异步）。
@@ -448,6 +450,26 @@ async fn update_draft(
         ));
     }
 
+    if let Some(tags) = req.tags.as_deref() {
+        if tags.len() > 8 {
+            return Err(AppError::bad_request(
+                "tags must contain at most 8 items",
+                request_id,
+                None,
+            ));
+        }
+        for tag in tags {
+            let len = tag.trim().chars().count();
+            if len == 0 || len > 32 {
+                return Err(AppError::bad_request(
+                    "each tag must be 1-32 characters",
+                    request_id,
+                    None,
+                ));
+            }
+        }
+    }
+
     let level = author_level(pool, &user.id).await?;
     let now = now_millis();
     let patch = validate_draft_patch(
@@ -492,10 +514,13 @@ async fn update_draft(
             Some(ts) => ts,
             None => current.scheduled_at,
         },
-        // GAP-FIX 快照字段：PATCH 不在契约范围（创建时快照），保持原值。
+        // GAP-FIX 快照字段：创建与更新时快照。
         price_coin: current.price_coin,
         summary: current.summary,
-        tags_json: current.tags_json,
+        tags_json: match req.tags {
+            Some(tags) => Some(serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string())),
+            None => current.tags_json,
+        },
         version: current.version,
         created_at: current.created_at,
         updated_at: now,

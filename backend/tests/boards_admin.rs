@@ -680,3 +680,174 @@ async fn deactivated_board_leaves_public_list() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+/// 板块图标（0071 boards.icon，M18）：
+/// - 创建携带 icon → 落库 + 管理投影/公开投影返回；
+/// - PATCH icon 更新 → 落库与审计 after 同步；
+/// - PATCH icon="" → 清除（NULL）；
+/// - PATCH icon 非法（大写/空格/角括号）→ 400。
+#[tokio::test]
+async fn board_icon_create_update_clear_and_invalid() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let admin = admin_ctx(&app, &pool).await;
+
+    // 创建携带 icon
+    let (status, body) = authed(
+        &app,
+        "POST",
+        "/api/v1/admin/boards",
+        &admin.session,
+        &admin.csrf,
+        None,
+        json!({ "slug": "iconic", "name": "图标板块", "icon": "flame", "reason": "创建" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let board_id = body["id"].as_str().unwrap().to_string();
+
+    let icon: Option<String> = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT icon FROM boards WHERE id = ?")
+            .bind(&board_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(icon.as_deref(), Some("flame"), "icon 必须落库");
+
+    // 管理投影返回 icon
+    let (status, body) = authed(
+        &app,
+        "GET",
+        &format!("/api/v1/admin/boards/{board_id}"),
+        &admin.session,
+        &admin.csrf,
+        None,
+        json!(null),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["icon"], "flame", "管理投影必须含 icon");
+
+    // 公开投影（匿名）也返回 icon（装饰性字段，非敏感）
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/boards/iconic")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let public_board: Value =
+        serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(public_board["icon"], "flame", "公开投影必须含 icon");
+
+    // PATCH 更新 icon + 审计 after
+    let v1 = board_version(&pool, &board_id).await;
+    let (status, body) = authed(
+        &app,
+        "PATCH",
+        &format!("/api/v1/admin/boards/{board_id}"),
+        &admin.session,
+        &admin.csrf,
+        Some(v1),
+        json!({ "icon": "puzzle", "reason": "换图标" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let icon: Option<String> = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT icon FROM boards WHERE id = ?")
+            .bind(&board_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(icon.as_deref(), Some("puzzle"), "icon 必须更新");
+    let (metadata): (String) = match &pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT metadata FROM audit_logs WHERE target_type = 'board' AND target_id = ? AND action = 'admin.board_update'",
+        )
+        .bind(&board_id)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    let metadata: Value = serde_json::from_str(&metadata).unwrap();
+    assert_eq!(metadata["before"]["icon"], "flame");
+    assert_eq!(metadata["after"]["icon"], "puzzle");
+
+    // PATCH icon="" → 清除（NULL）
+    let v2 = board_version(&pool, &board_id).await;
+    let (status, _) = authed(
+        &app,
+        "PATCH",
+        &format!("/api/v1/admin/boards/{board_id}"),
+        &admin.session,
+        &admin.csrf,
+        Some(v2),
+        json!({ "icon": "", "reason": "清除图标" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let icon: Option<String> = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT icon FROM boards WHERE id = ?")
+            .bind(&board_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert!(icon.is_none(), "空串必须清除图标（NULL）");
+
+    // PATCH 未提供 icon → 保持不变（仍为 NULL）
+    let v3 = board_version(&pool, &board_id).await;
+    let (status, _) = authed(
+        &app,
+        "PATCH",
+        &format!("/api/v1/admin/boards/{board_id}"),
+        &admin.session,
+        &admin.csrf,
+        Some(v3),
+        json!({ "name": "图标板块", "reason": "不改图标" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let icon: Option<String> = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT icon FROM boards WHERE id = ?")
+            .bind(&board_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert!(icon.is_none(), "未提供 icon 必须保持原值");
+
+    // 非法 icon（大写/空格/角括号/中文）→ 400
+    for bad in ["Flame", "my icon", "<svg>", "火焰"] {
+        let v = board_version(&pool, &board_id).await;
+        let (status, body) = authed(
+            &app,
+            "PATCH",
+            &format!("/api/v1/admin/boards/{board_id}"),
+            &admin.session,
+            &admin.csrf,
+            Some(v),
+            json!({ "icon": bad, "reason": "非法图标" }),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "icon={bad} 必须 400: {body}"
+        );
+    }
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

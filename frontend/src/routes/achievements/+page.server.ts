@@ -22,9 +22,10 @@ export interface AchievementCard {
   name: string;
   description: string;
   category: string;
-  rewardExp: number;
   rewardCoin: number;
   isHidden: boolean;
+  /** 后台上传的成就图标（本地磁盘，不走 S3）；null = 未上传。 */
+  iconUrl: string | null;
   unlocked: boolean;
   unlockedAt: number | null;
   /** 进行中进度（已解锁 = target 满条）。 */
@@ -74,9 +75,9 @@ export const load: PageServerLoad = async ({ fetch }) => {
         name: hiddenLocked ? '???' : def.name,
         description: hiddenLocked ? '隐藏成就：达成条件保密，解锁后揭晓' : def.description,
         category: def.category,
-        rewardExp: def.reward_exp,
         rewardCoin: def.reward_coin,
         isHidden: def.is_hidden,
+        iconUrl: def.icon_url ?? null,
         unlocked,
         unlockedAt: unlocked ? (my?.unlocked_at ?? null) : null,
         progress: unlocked ? target : (my?.progress ?? 0),

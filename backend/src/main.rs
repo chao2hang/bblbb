@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
 use bblbb_backend::observability::{self, LogFormat};
-use bblbb_backend::{build_router_with_storage, storage::StorageService, AppConfig};
+use bblbb_backend::{build_router_full, storage::StorageService, AppConfig};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -16,6 +16,12 @@ async fn main() -> ExitCode {
     // M01-DB-02：启动前校验数据库 URL 与连接池参数，非法配置立即失败。
     if let Err(error) = config.validate_db_config() {
         eprintln!("invalid database configuration: {error}");
+        return ExitCode::FAILURE;
+    }
+
+    // M02-MFA-PK：Passkey 配置非法立即失败（未配置 rp_id = 关闭，合法）。
+    if let Err(error) = config.validate_passkey_config() {
+        eprintln!("invalid passkey configuration: {error}");
         return ExitCode::FAILURE;
     }
 
@@ -119,6 +125,13 @@ async fn main() -> ExitCode {
         return run_worker_mode(config, db_pool).await;
     }
 
+    // P0 整改：`--bootstrap` 模式（docs/OPERATIONS.md §15）。
+    // 生成一次性首管理员引导 token：只存 SHA-256 哈希，明文打印一次；
+    // 已有 active administrator 时拒绝（实例已初始化）。需先完成迁移。
+    if std::env::args().any(|arg| arg == "--bootstrap") {
+        return run_bootstrap_mode(db_pool).await;
+    }
+
     let listener = match tokio::net::TcpListener::bind(config.bind_address).await {
         Ok(listener) => listener,
         Err(error) => {
@@ -163,6 +176,18 @@ async fn main() -> ExitCode {
         config.storage_config()
     };
 
+    // P0 整改：Feature Flag 从 `feature_flags` 表加载（运行时持久化事实来源）；
+    // 表缺失/查询失败回退默认全关。kill switch（环境变量）在加载后叠加。
+    let flags = if let Some(pool) = &db_pool {
+        let mut loaded = bblbb_backend::config::flags::FeatureFlags::load(pool).await;
+        if config.feature_kill_switch {
+            loaded.emergency_off("system", "BBLBB__FEATURE_KILL_SWITCH=true at startup", 0);
+        }
+        loaded
+    } else {
+        config.feature_flags()
+    };
+
     let storage = match StorageService::new(&initial_storage_cfg).await {
         Ok(storage) => Some(storage),
         Err(error) => {
@@ -173,9 +198,20 @@ async fn main() -> ExitCode {
 
     // `into_make_service_with_connect_info`：为 /metrics 提供真实对端地址以
     // 实施 loopback 访问限制（M15-PACKAGE-07 / M15-OBSERVE-04）。
+    // P0 整改：同进程启动通用 Outbox 消费者（事务提交事件的最终投递）；
+    // 独立信号监听（重复安装信号处理器是安全的），收到 SIGTERM/SIGINT 后
+    // 与 HTTP 服务器一起优雅退出。
+    if let Some(pool) = db_pool.clone() {
+        let outbox_shutdown = bblbb_backend::jobs::worker_loop::worker_shutdown_signal().await;
+        let settings_key = config.settings_encryption_key.clone();
+        tokio::spawn(async move {
+            bblbb_backend::jobs::outbox_consumer::run(pool, settings_key, outbox_shutdown).await;
+        });
+    }
+
     if let Err(error) = axum::serve(
         listener,
-        build_router_with_storage(config, db_pool, storage)
+        build_router_full(config, db_pool, flags, storage)
             .into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown)
@@ -187,6 +223,41 @@ async fn main() -> ExitCode {
 
     tracing::info!("server shutdown complete");
     ExitCode::SUCCESS
+}
+
+/// `--bootstrap` 模式：生成一次性首管理员引导 token（P0 整改）。
+///
+/// 明文 token 只输出到 stdout 一次（运维职责：立即转移到 root 可读的
+/// 安全位置，不得进入普通日志/前端环境）；数据库只存 SHA-256 哈希，
+/// 24 小时有效、消费一次后永久失效。要求迁移已应用（bootstrap_tokens 表）。
+async fn run_bootstrap_mode(db_pool: Option<bblbb_backend::db::pool::DatabasePool>) -> ExitCode {
+    let Some(pool) = db_pool else {
+        eprintln!("bootstrap mode requires a configured and reachable database");
+        return ExitCode::FAILURE;
+    };
+    let now = bblbb_backend::outbox::now_millis();
+    match bblbb_backend::bootstrap::create_bootstrap_token(&pool, now).await {
+        Ok((_token_id, token)) => {
+            println!("================================================================");
+            println!("BBLBB bootstrap token (shown once, valid 24h):");
+            println!();
+            println!("{token}");
+            println!();
+            println!("Create the first administrator (no session needed):");
+            println!("  POST /api/v1/auth/bootstrap");
+            println!("  Header: Idempotency-Key: <random string, 16-200 chars>");
+            println!("  {{\"token\":\"<token>\",\"username\":\"<name>\",\"email\":\"<addr>\",\"password\":\"<pw>\"}}");
+            println!("================================================================");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            tracing::error!(
+                %error,
+                "failed to create bootstrap token (apply migrations first? administrator already exists?)"
+            );
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// `--worker` 模式（M15-PACKAGE-04 / M15-UPGRADE-06）。
@@ -217,7 +288,20 @@ async fn run_worker_mode(
     let shutdown = bblbb_backend::jobs::worker_loop::worker_shutdown_signal().await;
     let mut handles = Vec::new();
 
+    // P0 整改：worker 模式同样运行通用 Outbox 消费者。
+    {
+        let outbox_pool = pool.clone();
+        let outbox_shutdown = shutdown.clone();
+        let settings_key = _config.settings_encryption_key.clone();
+        handles.push(tokio::spawn(async move {
+            bblbb_backend::jobs::outbox_consumer::run(outbox_pool, settings_key, outbox_shutdown)
+                .await;
+        }));
+    }
+
+    let dispatch_settings_key = _config.settings_encryption_key.clone();
     for queue in WORKER_QUEUES {
+        let dispatch_settings_key = dispatch_settings_key.clone();
         let worker_pool = pool.clone();
         let closure_pool = pool.clone();
         let worker_shutdown = shutdown.clone();
@@ -234,7 +318,11 @@ async fn run_worker_mode(
                 worker_shutdown,
                 move |job: ClaimedJob| {
                     let job_pool = closure_pool.clone();
-                    async move { bblbb_backend::jobs::dispatch::dispatch_job(&job_pool, job).await }
+                    let settings_key = dispatch_settings_key.clone();
+                    async move {
+                        bblbb_backend::jobs::dispatch::dispatch_job(&job_pool, &settings_key, job)
+                            .await
+                    }
                 },
             )
             .await;

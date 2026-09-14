@@ -48,10 +48,11 @@
   ];
 
   /** 可校验字段键（lang 无业务校验，仅占位以统一错误盒结构）。 */
-  type FieldKey = 'siteName' | 'lang' | 'source' | 'rateLimit';
-  const FIELD_KEYS: FieldKey[] = ['siteName', 'lang', 'source', 'rateLimit'];
+  type FieldKey = 'siteName' | 'currencyName' | 'lang' | 'source' | 'rateLimit';
+  const FIELD_KEYS: FieldKey[] = ['siteName', 'currencyName', 'lang', 'source', 'rateLimit'];
   const FIELD_ELEMENT_ID: Record<FieldKey, string> = {
     siteName: 'set-site-name',
+    currencyName: 'set-currency-name',
     lang: 'set-default-lang',
     source: 'set-public-source',
     rateLimit: 'set-rate-limit'
@@ -80,6 +81,7 @@
         maintenance_mode: Boolean(s?.maintenance_mode)
       } as Record<SwitchKey, boolean>,
       siteName: s?.site_name ?? '',
+      currencyName: s?.currency_name ?? '金币',
       defaultLang: s?.default_lang ?? 'zh-CN',
       publicSource: s?.public_source ?? '',
       rateLimit: Number(s?.api_rate_limit ?? 0),
@@ -114,6 +116,7 @@
   const init = initialForm();
   let switches = $state<Record<SwitchKey, boolean>>(init.switches);
   let siteName = $state(init.siteName);
+  let currencyName = $state(init.currencyName);
   let defaultLang = $state(init.defaultLang);
   let publicSource = $state(init.publicSource);
   let rateLimit = $state<number>(init.rateLimit);
@@ -144,13 +147,12 @@
   let githubClientSecretConfigured = $state(init.githubClientSecretConfigured);
   let errors = $state<Record<FieldKey, string>>({
     siteName: '',
+    currencyName: '',
     lang: '',
     source: '',
     rateLimit: ''
   });
   let saving = $state(false);
-  let simulateFail = $state(false);
-  let simulatedError = $state<string | null>(null);
   /** 本次会话最近一次成功保存时间（状态行「最近保存于 …」用）。 */
   let lastSavedAt = $state<number | null>(null);
 
@@ -166,6 +168,7 @@
       maintenance_mode: Boolean(s.maintenance_mode)
     };
     siteName = s.site_name ?? '';
+    currencyName = s.currency_name ?? '金币';
     defaultLang = s.default_lang ?? 'zh-CN';
     publicSource = s.public_source ?? '';
     rateLimit = Number(s.api_rate_limit ?? 0);
@@ -193,7 +196,7 @@
     githubClientId = s.github_client_id ?? '';
     githubClientSecret = '';
     githubClientSecretConfigured = Boolean(s.github_client_secret_configured);
-    errors = { siteName: '', lang: '', source: '', rateLimit: '' };
+    errors = { siteName: '', currencyName: '', lang: '', source: '', rateLimit: '' };
   });
 
   // 已保存快照（脏检查 + 恢复默认的目标值）。
@@ -207,6 +210,7 @@
       public_rss: Boolean(s.public_rss),
       maintenance_mode: Boolean(s.maintenance_mode),
       site_name: s.site_name ?? '',
+      currency_name: s.currency_name ?? '金币',
       default_lang: s.default_lang ?? 'zh-CN',
       public_source: s.public_source ?? '',
       api_rate_limit: Number(s.api_rate_limit ?? 0),
@@ -238,6 +242,7 @@
     let n = 0;
     for (const sw of SWITCHES) if (switches[sw.key] !== s[sw.key]) n += 1;
     if (siteName !== s.site_name) n += 1;
+    if (currencyName !== (s.currency_name ?? '金币')) n += 1;
     if (defaultLang !== s.default_lang) n += 1;
     if (publicSource !== s.public_source) n += 1;
     if (Number(rateLimit) !== s.api_rate_limit) n += 1;
@@ -270,12 +275,15 @@
   function validate(): Record<FieldKey, string> {
     const errs: Record<FieldKey, string> = {
       siteName: '',
+      currencyName: '',
       lang: '',
       source: '',
       rateLimit: ''
     };
     if (!siteName.trim()) errs.siteName = '站点名称不能为空';
     else if ([...siteName.trim()].length > 40) errs.siteName = '站点名称不能超过 40 个字符';
+    if (!currencyName.trim()) errs.currencyName = '货币名称不能为空';
+    else if ([...currencyName.trim()].length > 16) errs.currencyName = '货币名称不能超过 16 个字符';
     if (!/^https?:\/\/\S+\.\S+/.test(publicSource.trim())) errs.source = '请输入有效的 http(s):// 地址';
     const n = Number(rateLimit);
     const raw: unknown = rateLimit;
@@ -321,6 +329,7 @@
       maintenance_mode: s.maintenance_mode
     };
     siteName = s.site_name;
+    currencyName = s.currency_name ?? '金币';
     defaultLang = s.default_lang;
     publicSource = s.public_source;
     rateLimit = s.api_rate_limit;
@@ -345,16 +354,8 @@
     githubAuthEnabled = s.github_auth_enabled;
     githubClientId = s.github_client_id;
     githubClientSecret = '';
-    errors = { siteName: '', lang: '', source: '', rateLimit: '' };
+    errors = { siteName: '', currencyName: '', lang: '', source: '', rateLimit: '' };
     showToast('已恢复为当前已保存配置', 'info');
-  }
-
-  function resetLocalSettings() {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('bblbb-theme');
-    }
-    restoreDefaults();
-    showToast('已重置未保存表单，并刷新至已持久化配置', 'success');
   }
 
   /** 导出当前表单配置为 JSON（含未保存更改；原型 data-sys-export 的生产落地）。 */
@@ -365,6 +366,7 @@
       settings: {
         ...switches,
         site_name: siteName,
+        currency_name: currencyName,
         default_lang: defaultLang,
         public_source: publicSource,
         api_rate_limit: Number(rateLimit),
@@ -508,17 +510,12 @@
       <h2>站点信息</h2>
     </header>
     <div class="app-card__body">
-      {#if (message || simulatedError) && !hasJs}
+      {#if message && !hasJs}
         <div class="app-error" role={conflict ? 'alert' : 'status'} style="margin-bottom:14px;">
           <Icon name="alert-triangle" size={16} />
           <div>
             <b>{conflict ? '保存失败（版本冲突）' : '保存失败'}</b>
-            <span>{simulatedError || message}</span>
-            {#if simulatedError}
-              <div style="margin-top:6px;">
-                <button type="button" class="btn ghost sm" onclick={() => (simulatedError = null)}>关闭提示</button>
-              </div>
-            {/if}
+            <span>{message}</span>
             {#if conflict}
               <span>设置已被其他人修改（If-Match 乐观锁冲突）。请刷新页面获取最新版本后再保存。</span>
             {/if}
@@ -530,19 +527,7 @@
         method="POST"
         action="?/save"
         use:enhance={({ cancel }) => {
-          simulatedError = null;
-
-          // 模拟保存失败演示模式：拦截请求，不写服务端，给出失败反馈
-          if (simulateFail) {
-            cancel();
-            saving = true;
-            setTimeout(() => {
-              saving = false;
-              simulatedError = '服务超时（演示模拟）。你的更改未写入服务端，可修改后重试。';
-              showToast('保存失败 · 服务超时（模拟）', 'danger');
-            }, 600);
-            return async () => {};
-          }
+          // P0 整改：移除生产后台的「模拟保存失败」演示分支——保存一律真实提交。
 
           // 提交前集中校验（原型：toast + 聚焦第一处错误）。
           const errs = validate();
@@ -593,6 +578,21 @@
               oninput={onEdit}
             />
             {#if errors.siteName}<p class="app-field-error" role="alert">{errors.siteName}</p>{/if}
+          </div>
+          <div class="app-form-field" class:is-dirty={saved !== null && currencyName !== (saved.currency_name ?? '金币')}>
+            <label class="app-field-label" for="set-currency-name">货币名称（单位）<span class="app-required">*</span></label>
+            <input
+              id="set-currency-name"
+              name="currency_name"
+              class="app-field"
+              class:is-error={!!errors.currencyName}
+              required
+              maxlength="16"
+              placeholder="例如：金币、B币、社区点"
+              bind:value={currencyName}
+              oninput={onEdit}
+            />
+            {#if errors.currencyName}<p class="app-field-error" role="alert">{errors.currencyName}</p>{/if}
           </div>
           <div class="app-form-field" class:is-dirty={saved !== null && defaultLang !== saved.default_lang}>
             <label class="app-field-label" for="set-default-lang">默认语言</label>
@@ -876,7 +876,7 @@
             </p>
 
             <!-- Google 登录配置 -->
-            <div style="margin-bottom:16px;padding:12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-secondary, rgba(0,0,0,0.02));">
+            <div style="margin-bottom:16px;padding:12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-subtle);">
               <div style="margin-bottom:10px;">
                 <label class="app-check" style="margin:0;display:inline-flex;align-items:center;gap:8px;">
                   <input type="checkbox" name="google_auth_enabled" bind:checked={googleAuthEnabled} oninput={onEdit} />
@@ -919,7 +919,7 @@
             </div>
 
             <!-- GitHub 登录配置 -->
-            <div style="margin-bottom:14px;padding:12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-secondary, rgba(0,0,0,0.02));">
+            <div style="margin-bottom:14px;padding:12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg-subtle);">
               <div style="margin-bottom:10px;">
                 <label class="app-check" style="margin:0;display:inline-flex;align-items:center;gap:8px;">
                   <input type="checkbox" name="github_auth_enabled" bind:checked={githubAuthEnabled} oninput={onEdit} />
@@ -992,33 +992,19 @@
     </div>
   </section>
 
-  <!-- 数据与演示（对齐原型「数据与演示」卡片结构） -->
+  <!-- 数据与导出（P0 整改：移除「模拟保存失败/重置本地演示状态」演示专属能力） -->
   <section class="app-card">
     <header class="app-card__head">
-      <h2>数据与演示</h2>
-      <span class="sr-only">数据与导出</span>
+      <h2>数据与导出</h2>
     </header>
     <div class="app-card__body">
       <p class="app-muted" style="line-height:1.5;">
-        导出当前表单配置为 JSON（含未保存更改）；重置会清除本地演示状态（含积分、草稿、后台变更）并刷新页面。
+        导出当前表单配置为 JSON（含未保存更改）。
       </p>
 
-      <div style="margin:12px 0;">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--color-text-secondary);">
-          <input type="checkbox" bind:checked={simulateFail} onchange={(e) => showToast(e.currentTarget.checked ? '已开启保存超时模拟' : '已恢复正常模式', 'info')} />
-          <span>模拟保存失败</span>
-        </label>
-        <span class="app-muted" style="font-size:11px;display:block;margin-top:2px;">
-          开启后点击“保存设置”将模拟服务超时，用于演示失败反馈（演示开关，不随配置保存）
-        </span>
-      </div>
-
-      <div class="admin-action-row" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
+      <div class="admin-action-row" style="margin-top:14px;">
         <button type="button" class="text-link" style="font-size:13px;background:none;border:none;cursor:pointer;" onclick={exportConfig}>
           导出当前配置
-        </button>
-        <button type="button" class="btn secondary sm" onclick={resetLocalSettings}>
-          重置并清本地缓存
         </button>
       </div>
     </div>

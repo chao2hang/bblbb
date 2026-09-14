@@ -21,8 +21,7 @@ use bblbb_backend::economy::activity::service::{
     ActivityError, TaskInput,
 };
 use bblbb_backend::economy::ledger::service as ledger;
-use bblbb_backend::economy::ledger::service::{get_account, CURRENCY_EXP};
-use bblbb_backend::economy::levels::{self, RecomputeOutcome};
+use bblbb_backend::economy::ledger::service::{get_account, CURRENCY_COIN};
 use bblbb_backend::outbox::now_millis;
 use bblbb_backend::{build_router, AppConfig};
 use http_body_util::BodyExt;
@@ -70,7 +69,7 @@ async fn insert_user_with(pool: &DatabasePool, tag: &str, timezone: &str, status
         Either::Left(p) => {
             sqlx::query(
                 "INSERT INTO users
-                     (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, timezone, created_at, updated_at)
+                     (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, timezone, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', ?, 1, 1, ?, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -94,8 +93,8 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> String {
     insert_user_with(pool, tag, "UTC", "active").await
 }
 
-async fn exp_balance(pool: &DatabasePool, user_id: &str) -> i64 {
-    match get_account(pool, user_id, CURRENCY_EXP).await {
+async fn coin_balance(pool: &DatabasePool, user_id: &str) -> i64 {
+    match get_account(pool, user_id, CURRENCY_COIN).await {
         Ok(account) => account.balance,
         Err(_) => 0,
     }
@@ -160,103 +159,6 @@ fn fixed_now() -> i64 {
         .timestamp_millis()
 }
 
-// ─── M07-LEVELS-02：等级重建 + level_events ───────────────────────────
-
-#[tokio::test]
-async fn level_recompute_writes_level_events_and_syncs_users() {
-    let (pool, dir) = sqlite_pool_with_migrations().await;
-    let user = insert_user(&pool, "lv").await;
-    let now = fixed_now();
-    ensure_default_activity_config(&pool, now).await.unwrap();
-
-    // 首次：余额 0 → L1（初始事件 from=NULL）。
-    let first = levels::recompute_level(&pool, &user, "test", now)
-        .await
-        .unwrap();
-    assert!(first.changed);
-    assert_eq!(first.to_level_id.clone().unwrap(), level_id(&pool, 1).await);
-    assert_eq!(
-        user_level(&pool, &user).await,
-        1,
-        "users.level 缓存同步为 L1"
-    );
-
-    // 入账 500 exp → L3（threshold 300；500 < 600）。
-    let op = ledger::credit(
-        &pool,
-        LedgerCmd::award(&user, "lvl-award-1", 500),
-        now + 1000,
-    )
-    .await
-    .unwrap();
-    let second: RecomputeOutcome = levels::recompute_level(&pool, &user, "test.award", now + 2000)
-        .await
-        .unwrap();
-    assert!(second.changed);
-    assert_eq!(
-        second.from_level_id.clone().unwrap(),
-        level_id(&pool, 1).await
-    );
-    assert_eq!(
-        second.to_level_id.clone().unwrap(),
-        level_id(&pool, 3).await
-    );
-    assert_eq!(user_level(&pool, &user).await, 3);
-
-    // 撤销 → 余额 0 → 降级回 L1（事件 from L3 to L1）。
-    ledger::reversal(
-        &pool,
-        "test",
-        "lvl-rev-1",
-        None,
-        &op.operation_id,
-        "test",
-        now + 3000,
-    )
-    .await
-    .unwrap();
-    let third = levels::recompute_level(&pool, &user, "test.reversal", now + 4000)
-        .await
-        .unwrap();
-    assert!(third.changed);
-    assert_eq!(
-        third.from_level_id.clone().unwrap(),
-        level_id(&pool, 3).await
-    );
-    assert_eq!(third.to_level_id.clone().unwrap(), level_id(&pool, 1).await);
-
-    // level_events 只追加：3 条，from/to 正确。
-    let events: Vec<(Option<String>, String, String)> = match &pool {
-        Either::Left(p) => sqlx::query_as(
-            "SELECT from_level_id, to_level_id, reason FROM level_events WHERE user_id = ? ORDER BY created_at",
-        )
-        .bind(&user)
-        .fetch_all(p)
-        .await
-        .unwrap(),
-        Either::Right(_) => panic!("SQLite only"),
-    };
-    assert_eq!(events.len(), 3, "升降级各写一条事件");
-    assert_eq!(events[0].0, None);
-    assert_eq!(events[0].1, level_id(&pool, 1).await);
-    assert_eq!(events[1].1, level_id(&pool, 3).await);
-    assert_eq!(events[2].0.clone().unwrap(), level_id(&pool, 3).await);
-    assert_eq!(events[2].1, level_id(&pool, 1).await);
-
-    // 缓存重建不改变账本：仍是 award + reversal 两条 operation。
-    let ops: i64 = match &pool {
-        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM point_operations")
-            .fetch_one(p)
-            .await
-            .unwrap(),
-        Either::Right(_) => panic!("SQLite only"),
-    };
-    assert_eq!(ops, 2, "重建只写缓存与事件，不动账本");
-
-    close_pool(&pool).await;
-    cleanup(&dir);
-}
-
 // ─── M07-LEVELS-05：签到首次奖励 + 重放去重 ───────────────────────────
 
 #[tokio::test]
@@ -269,11 +171,11 @@ async fn checkin_first_claim_grants_then_replay_dedupes() {
     assert!(first.first_today, "首次访问应领取奖励");
     assert!(first.checked_in_today);
     assert_eq!(first.today_earned.len(), 1);
-    assert_eq!(first.today_earned[0].currency, "exp");
+    assert_eq!(first.today_earned[0].currency, "coin");
     assert_eq!(first.today_earned[0].amount, 10);
     assert!(first.point_operation_id.is_some());
     assert_eq!(first.activity_day, "2026-08-06", "UTC 用户日界线");
-    assert_eq!(exp_balance(&pool, &user).await, 10, "奖励入账");
+    assert_eq!(coin_balance(&pool, &user).await, 10, "奖励入账");
     assert_eq!(claim_count(&pool, &user).await, 1);
     assert_eq!(activity_operation_count(&pool).await, 1);
 
@@ -284,7 +186,7 @@ async fn checkin_first_claim_grants_then_replay_dedupes() {
     assert!(replay.checked_in_today);
     assert!(replay.today_earned.is_empty());
     assert_eq!(replay.point_operation_id.as_deref(), Some(op_id.as_str()));
-    assert_eq!(exp_balance(&pool, &user).await, 10, "不重复奖励");
+    assert_eq!(coin_balance(&pool, &user).await, 10, "不重复奖励");
     assert_eq!(claim_count(&pool, &user).await, 1);
     assert_eq!(activity_operation_count(&pool).await, 1);
 
@@ -334,7 +236,7 @@ async fn checkin_activity_day_follows_user_timezone_boundary() {
     // 同一用户在不同本地日各领取一次（不重复、不合并）。
     let day1 = claim_count(&pool, &west).await;
     assert_eq!(day1, 1);
-    assert_eq!(exp_balance(&pool, &west).await, 10);
+    assert_eq!(coin_balance(&pool, &west).await, 10);
 
     close_pool(&pool).await;
     cleanup(&dir);
@@ -388,7 +290,7 @@ async fn concurrent_visits_claim_once() {
         "至少一方领取成功（pending 补完成可能双方都报首次）"
     );
     assert_eq!(claim_count(&pool, &user).await, 1, "并发只落一条 claim");
-    assert_eq!(exp_balance(&pool, &user).await, 10, "并发只奖励一次");
+    assert_eq!(coin_balance(&pool, &user).await, 10, "并发只奖励一次");
     assert_eq!(
         activity_operation_count(&pool).await,
         1,
@@ -488,7 +390,7 @@ async fn banned_and_unverified_users_cannot_claim() {
         "封禁用户拒绝: {err}"
     );
     assert_eq!(claim_count(&pool, &banned).await, 0);
-    assert_eq!(exp_balance(&pool, &banned).await, 0, "封禁用户不产生奖励");
+    assert_eq!(coin_balance(&pool, &banned).await, 0, "封禁用户不产生奖励");
 
     let err = claim_check_in(&pool, &pending, now).await.unwrap_err();
     assert!(matches!(err, ActivityError::NotEligible(_)));
@@ -512,7 +414,7 @@ async fn self_reaction_excluded_and_dup_reaction_deduped() {
             kind: Some("reaction".to_string()),
             amount: Some(5),
             daily_limit: Some(10),
-            currency_id: Some(CURRENCY_EXP.to_string()),
+            currency_id: Some(CURRENCY_COIN.to_string()),
             ..TaskInput::default()
         },
         now,
@@ -534,7 +436,7 @@ async fn self_reaction_excluded_and_dup_reaction_deduped() {
         .await
         .unwrap();
     assert!(first.claimed);
-    assert_eq!(exp_balance(&pool, &user).await, 5);
+    assert_eq!(coin_balance(&pool, &user).await, 5);
 
     // 撤赞重赞（同 dedup 周期）→ 不重复奖励。
     let dup = claim_reaction_reward(&pool, &user, &owner, "post", "p-1", "like", now + 1000)
@@ -544,7 +446,7 @@ async fn self_reaction_excluded_and_dup_reaction_deduped() {
         matches!(dup, ActivityError::AlreadyClaimed),
         "重放拒绝: {dup}"
     );
-    assert_eq!(exp_balance(&pool, &user).await, 5);
+    assert_eq!(coin_balance(&pool, &user).await, 5);
     assert_eq!(claim_count(&pool, &user).await, 1);
 
     close_pool(&pool).await;
@@ -564,7 +466,7 @@ async fn content_reward_respects_daily_limit() {
             kind: Some("post".to_string()),
             amount: Some(20),
             daily_limit: Some(1),
-            currency_id: Some(CURRENCY_EXP.to_string()),
+            currency_id: Some(CURRENCY_COIN.to_string()),
             ..TaskInput::default()
         },
         now,
@@ -576,7 +478,7 @@ async fn content_reward_respects_daily_limit() {
         .await
         .unwrap();
     assert!(first.claimed);
-    assert_eq!(exp_balance(&pool, &user).await, 20);
+    assert_eq!(coin_balance(&pool, &user).await, 20);
 
     // 同日第二个目标 → 每日上限拒绝（不同 dedup key 受 daily_limit 约束）。
     let err = claim_content_reward(&pool, &user, "post", "post-2", now + 1000)
@@ -586,7 +488,7 @@ async fn content_reward_respects_daily_limit() {
         matches!(err, ActivityError::NotEligible(_)),
         "每日上限: {err}"
     );
-    assert_eq!(exp_balance(&pool, &user).await, 20);
+    assert_eq!(coin_balance(&pool, &user).await, 20);
 
     close_pool(&pool).await;
     cleanup(&dir);
@@ -600,7 +502,7 @@ async fn revoke_claim_appends_reversal_without_mutating_history() {
     let user = insert_user(&pool, "rev").await;
     let now = fixed_now();
     let out = claim_check_in(&pool, &user, now).await.unwrap();
-    assert_eq!(exp_balance(&pool, &user).await, 10);
+    assert_eq!(coin_balance(&pool, &user).await, 10);
     let op_id = out.point_operation_id.clone().unwrap();
 
     let claim_id: String = match &pool {
@@ -633,7 +535,7 @@ async fn revoke_claim_appends_reversal_without_mutating_history() {
         Either::Right(_) => panic!("SQLite only"),
     };
     assert_eq!(status, "revoked");
-    assert_eq!(exp_balance(&pool, &user).await, 0, "撤销走反向补偿流水");
+    assert_eq!(coin_balance(&pool, &user).await, 0, "撤销走反向补偿流水");
     let rev: Option<String> = match &pool {
         Either::Left(p) => sqlx::query_scalar(
             "SELECT reverses_operation_id FROM point_operations WHERE reverses_operation_id = ?",
@@ -888,8 +790,13 @@ async fn http_summary_and_visit_flow() {
     assert_eq!(status, StatusCode::OK, "summary: {body}");
     assert_eq!(body["checked_in_today"], false);
     assert_eq!(body["streak_days"], 0);
-    assert!(body["experience"]["balance"].is_number());
-    assert!(body["level"].is_object(), "等级投影存在: {body}");
+    assert_eq!(
+        body["balances"],
+        json!([{ "currency": "coin", "amount": 0 }])
+    );
+    assert!(body.get("experience").is_none());
+    assert!(body.get("xp").is_none());
+    assert!(body.get("levels").is_none());
 
     // 首次 visit：自动签到。
     let (status, body) = authed_json(
@@ -907,7 +814,7 @@ async fn http_summary_and_visit_flow() {
     assert_eq!(body["streak_days"], 1);
     let earned = body["today_earned"].as_array().unwrap();
     assert_eq!(earned.len(), 1);
-    assert_eq!(earned[0]["currency"], "exp");
+    assert_eq!(earned[0]["currency"], "coin");
     assert_eq!(earned[0]["amount"], 10);
     assert!(body["point_operation_id"].is_string());
 
@@ -928,7 +835,7 @@ async fn http_summary_and_visit_flow() {
         body["today_earned"].as_array().unwrap().is_empty(),
         "重放无奖励: {body}"
     );
-    assert_eq!(exp_balance(&pool, &user).await, 10);
+    assert_eq!(coin_balance(&pool, &user).await, 10);
 
     close_pool(&pool).await;
     cleanup(&dir);
@@ -970,7 +877,7 @@ async fn http_visit_rejects_anonymous_crawler_and_health_paths() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "crawler: {body}");
     assert_eq!(claim_count(&pool, &user).await, 0, "爬虫访问不签到");
-    assert_eq!(exp_balance(&pool, &user).await, 0);
+    assert_eq!(coin_balance(&pool, &user).await, 0);
 
     // 健康检查/静态路径 → 400。
     for path in ["/healthz", "/api/v1/activity/summary", "/assets/app.js"] {
@@ -1109,35 +1016,6 @@ async fn admin_http_config_and_task_permission_gates() {
 
 // ─── 助手 ──────────────────────────────────────────────────────────────
 
-/// 默认方案下第 n 级（1 起）的 level_id。
-async fn level_id(pool: &DatabasePool, nth: i64) -> String {
-    let id: String = match pool {
-        Either::Left(p) => sqlx::query_scalar(
-            "SELECT l.id FROM levels l
-             JOIN level_schemes s ON s.id = l.scheme_id
-             WHERE s.is_active = 1
-             ORDER BY l.sort_order LIMIT 1 OFFSET ?",
-        )
-        .bind(nth - 1)
-        .fetch_one(p)
-        .await
-        .unwrap(),
-        Either::Right(_) => panic!("SQLite only"),
-    };
-    id
-}
-
-async fn user_level(pool: &DatabasePool, user_id: &str) -> i64 {
-    match pool {
-        Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_one(p)
-            .await
-            .unwrap(),
-        Either::Right(_) => panic!("SQLite only"),
-    }
-}
-
 struct LedgerCmd;
 
 impl LedgerCmd {
@@ -1148,7 +1026,7 @@ impl LedgerCmd {
             kind: ledger::LedgerKind::Award,
             actor_id: None,
             user_id: user_id.to_string(),
-            currency_id: CURRENCY_EXP.to_string(),
+            currency_id: CURRENCY_COIN.to_string(),
             delta_balance: amount,
             delta_frozen: 0,
             source_type: None,

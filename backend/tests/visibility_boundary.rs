@@ -68,7 +68,7 @@ async fn insert_author(pool: &DatabasePool, tag: &str, level: i64) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', ?, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -212,7 +212,7 @@ async fn author_downgrade_then_edit_returns_422() {
     // 降级作者到 3（level 策略 min_level=4 > 3）
     match &pool {
         Either::Left(p) => {
-            sqlx::query("UPDATE users SET level = 3 WHERE id = ?")
+            sqlx::query("UPDATE users SET trust_level = 3 WHERE id = ?")
                 .bind(&author)
                 .execute(p)
                 .await

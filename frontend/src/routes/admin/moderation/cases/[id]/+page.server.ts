@@ -24,19 +24,8 @@ export const load: PageServerLoad = async (
   if (!result.ok && result.status === 401) throw redirect(303, '/login');
   if (!result.ok && result.status === 403) return { caseItem: null, forbidden: true, message: result.message } satisfies CaseDetailPageData;
   if (!result.ok) {
-    // 降级兜底 Mock 详情（保证列表到详情入口全量可达，P1-05）
-    const mockFallback: ModerationCaseDetail = {
-      id: params.id,
-      title: params.id === 'CASE-101' ? '恶意引战与人身攻击举报' : `违规内容审核案件 ${params.id}`,
-      status: params.id === 'CASE-104' ? 'resolved' : params.id === 'CASE-105' ? 'rejected' : params.id === 'CASE-103' ? 'triaged' : 'open',
-      priority: params.id === 'CASE-102' ? 'urgent' : params.id === 'CASE-101' ? 'high' : 'normal',
-      assigned_to: params.id === 'CASE-103' ? 'admin' : null,
-      created_at: Date.now() - 3600000,
-      updated_at: Date.now(),
-      resolved_at: null,
-      resolution: null
-    };
-    return { caseItem: mockFallback } satisfies CaseDetailPageData;
+    // P0 整改：API 失败必须渲染错误态，禁止伪造案件详情（此前回退 CASE-101..105 mock）。
+    return { caseItem: null, message: result.message } satisfies CaseDetailPageData;
   }
   return { caseItem: result.data } satisfies CaseDetailPageData;
 };

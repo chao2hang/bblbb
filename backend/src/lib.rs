@@ -17,6 +17,7 @@ pub mod audit;
 pub mod auth;
 pub mod authz;
 pub mod boards;
+pub mod bootstrap;
 pub mod config;
 pub mod content;
 pub mod db;
@@ -45,6 +46,7 @@ pub mod shop;
 pub mod storage;
 pub mod tags;
 pub mod theme;
+pub mod trust;
 pub mod users;
 pub mod video;
 

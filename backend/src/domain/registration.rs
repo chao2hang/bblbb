@@ -103,6 +103,35 @@ impl std::fmt::Display for RegisterValidationError {
 
 impl std::error::Error for RegisterValidationError {}
 
+impl RegisterValidationError {
+    /// 出错字段名（与前端 `fieldError(problem, field)` 对齐）。
+    pub fn field(&self) -> &'static str {
+        match self {
+            RegisterValidationError::UsernameLength
+            | RegisterValidationError::UsernameInvalidChars
+            | RegisterValidationError::UsernameReserved => "username",
+            RegisterValidationError::EmailTooLong | RegisterValidationError::EmailInvalid => {
+                "email"
+            }
+            RegisterValidationError::PasswordLength
+            | RegisterValidationError::PasswordComplexity => "password",
+        }
+    }
+
+    /// 稳定 message_key（前端 `MESSAGE_BY_CODE` 据此渲染字段级中文文案）。
+    pub fn message_key(&self) -> &'static str {
+        match self {
+            RegisterValidationError::UsernameLength => "username_length",
+            RegisterValidationError::UsernameInvalidChars => "username_invalid_chars",
+            RegisterValidationError::UsernameReserved => "username_reserved",
+            RegisterValidationError::EmailTooLong => "email_too_long",
+            RegisterValidationError::EmailInvalid => "email_invalid",
+            RegisterValidationError::PasswordLength => "password_length",
+            RegisterValidationError::PasswordComplexity => "password_complexity",
+        }
+    }
+}
+
 /// 校验注册请求；成功输出规范化注册数据。
 pub fn validate_register(
     req: &RegisterRequest,

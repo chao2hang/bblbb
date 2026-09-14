@@ -1,7 +1,16 @@
 <script lang="ts">
-  // GAP-FIX（M17-GAPFIX-07·组件封装）：页面标题（原型 sr-only h1 同构）。
-  // 所有管理页统一入口，保证无 JS/读屏器下每页有标题。
-  let { title }: { title: string } = $props();
+  // AUI 升级后渲染正式页头；升级前使用相邻 light-DOM fallback，避免慢 hydration 首屏丢标题。
+  let {
+    title,
+    description = ''
+  }: {
+    title: string;
+    description?: string;
+  } = $props();
 </script>
 
-<h1 class="sr-only">{title}</h1>
+<aui-page-header class="app-admin-page-header" {title} {description}></aui-page-header>
+<div class="app-admin-page-header-fallback">
+  <h1>{title}</h1>
+  {#if description}<p>{description}</p>{/if}
+</div>

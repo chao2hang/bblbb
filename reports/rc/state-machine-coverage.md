@@ -1,5 +1,7 @@
 # BBLBB — 状态机合法/非法迁移测试矩阵（M16-HARNESS-03）
 
+> 历史快照：rc.2 / 2026-08-08。矩阵与测试引用只代表当次 RC 验收，当前状态机变更需重新运行校验。
+
 > 每个状态机至少有一个合法迁移行为测试和一个非法迁移测试（拒绝且不改变状态），
 > 并对稳定错误码做断言。证据引用 `backend/tests/` 与 `backend/src/` 中真实存在的
 > 测试函数（`file.rs#function`），由 `ruby scripts/check-state-machine-matrix.rb`

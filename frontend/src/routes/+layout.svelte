@@ -1,6 +1,6 @@
 <script lang="ts">
   import '../app.css';
-  import { untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { page } from '$app/state';
   import {
     getMe,
@@ -17,8 +17,13 @@
   import NoJsNotice from '$lib/components/ui/NoJsNotice.svelte';
   import { show as showToast } from '$lib/ui/toast';
   import { applyThemeTokens, clearThemeTokens, resolveLayoutMode, type ActiveThemeView } from '$lib/theme/projection';
+  import { registerAdminElements } from '@chaos_team/blbui-core/register';
   import type { LayoutData } from './$types';
   import type { Snippet } from 'svelte';
+
+  onMount(() => {
+    registerAdminElements();
+  });
 
   // data 在 SvelteKit 运行时恒有（LayoutData）；测试隔离渲染时可缺省。
   let { data, children }: { data?: LayoutData; children: Snippet } = $props();
@@ -49,6 +54,7 @@
   // SSR 首帧即写入 .app-shell[data-theme-layout]，结构无闪烁；
   // 浏览器端 applyThemeTokens/previewThemeTokens 在预览与切换时同步该属性。
   const shellLayout = $derived(resolveLayoutMode(activeTheme?.tokens ?? null));
+  const isAdmin = $derived(page.url.pathname.startsWith('/admin'));
 
   // 全站生效主题 Token 动态应用
   $effect(() => {
@@ -137,25 +143,33 @@
 
 <!-- .app-shell：主题结构预设作用域（data-theme-layout 由服务端数据解析，
      classic 为缺省；预览/切换由 projection 写入同一属性保持一致） -->
-<div class="app-shell" data-theme-layout={shellLayout}>
-  <Navbar
-    user={user}
-    siteName={siteName}
-    {unread}
-    notifications={recentNotifications}
-    onlogout={handleLogout}
-    onreadall={handleMarkAllRead}
-  />
-
-  <div class="page-wrapper">
-    <main id="main-content" tabindex="-1">
+<div class="app-shell" class:app-shell--admin={isAdmin} data-theme-layout={shellLayout}>
+  {#if isAdmin}
+    <main id="main-content" tabindex="-1" class="admin-viewport-main">
       {@render children()}
     </main>
-  </div>
-  <!-- 原型无站点页脚（prototype/assets/page-chrome.js 仅注入顶栏/底部导航/Toast），
-       故不渲染 site-footer；移动端安全区余量由 .page-wrapper 自身的 padding 兜底。 -->
+  {:else}
+    <div class="aui-root">
+      <Navbar
+        user={user}
+        siteName={siteName}
+        {unread}
+        notifications={recentNotifications}
+        onlogout={handleLogout}
+        onreadall={handleMarkAllRead}
+      />
 
-  <!-- 全局壳：移动端底部导航（≤768px）+ 全局 Toast 容器 -->
-  <BottomNav user={user} />
+      <div class="page-wrapper">
+        <main id="main-content" tabindex="-1">
+          {@render children()}
+        </main>
+      </div>
+      <!-- 原型无站点页脚（prototype/assets/page-chrome.js 仅注入顶栏/底部导航/Toast），
+           故不渲染 site-footer；移动端安全区余量由 .page-wrapper 自身的 padding 兜底。 -->
+
+      <!-- 全局壳：移动端底部导航（≤768px）+ 全局 Toast 容器 -->
+      <BottomNav user={user} {unread} />
+    </div>
+  {/if}
 </div>
 <ToastHost />

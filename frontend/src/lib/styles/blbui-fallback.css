@@ -1,0 +1,114 @@
+/*
+ * BLBUI pre-upgrade fallback.
+ * Custom elements are registered onMount, so SSR and slow/disabled JS must still
+ * expose a readable first frame. :not(:defined) rules disappear after upgrade.
+ */
+
+aui-card:not(:defined) {
+  display: block;
+  min-width: 0;
+  border: 1px solid var(--aui-border);
+  background: var(--aui-surface);
+  color: var(--aui-text);
+}
+
+aui-card:not(:defined) > [slot='header'] {
+  display: block;
+  padding: 16px 16px 0;
+  border-bottom: 0;
+}
+
+aui-card:not(:defined) > :not([slot]) {
+  display: block;
+  padding: 16px;
+}
+
+aui-card:not(:defined) > [slot='footer'] {
+  display: block;
+  padding: 12px 16px;
+  border-top: 1px solid var(--aui-border);
+}
+
+aui-page-header:not(:defined) {
+  display: none;
+}
+
+.app-admin-page-header-fallback {
+  display: block;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--aui-border);
+}
+
+.app-admin-page-header-fallback h1 {
+  margin: 0;
+  color: var(--aui-text-primary);
+  font: 700 18px/1.2 var(--aui-font-mono);
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+}
+
+.app-admin-page-header-fallback p {
+  margin: 4px 0 0;
+  color: var(--aui-text-secondary);
+  font: 12px/1.45 var(--aui-font-mono);
+}
+
+aui-page-header:defined + .app-admin-page-header-fallback {
+  display: none;
+}
+
+aui-status-tag:not(:defined) {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  color: var(--aui-text-muted);
+  font: 10px/1.2 var(--aui-font-mono);
+  letter-spacing: 0.05em;
+}
+
+/* aui-spinner 注册前的降级：与注册后一致的「三个变形方块」轮廓
+   （repeating-gradient 画出 3 根 3px 竖条，整组做 scaleY+opacity 脉冲），
+   不再使用旋转方块，避免加载动画在注册前后闪烁不一致。 */
+aui-spinner:not(:defined) {
+  display: inline-block;
+  width: 13px;
+  height: 10px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--aui-primary) 0 3px,
+    transparent 3px 5px
+  );
+  background-repeat: no-repeat;
+  background-size: 13px 100%;
+  animation: aui-fallback-blocks 800ms ease-in-out infinite;
+}
+
+aui-table:not(:defined) {
+  display: block;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--aui-border);
+}
+
+aui-table:not(:defined) > * {
+  min-width: 100%;
+}
+
+@keyframes aui-fallback-blocks {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scaleY(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  aui-spinner:not(:defined) {
+    animation: none;
+  }
+}

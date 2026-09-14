@@ -6,6 +6,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed } from '$lib/api/server';
+import {
+  batchResult,
+  emptyBatchSelection,
+  parseBatchIds,
+  type BatchOutcome
+} from '$lib/admin-batch';
 import type { AdminPostItem } from '$lib/api/types';
 
 /** 帖子管理动作白名单（与后端 POST /admin/posts/{id}/action 契约一致）。 */
@@ -122,5 +128,47 @@ export const actions: Actions = {
     } catch {
       return fail(503, { message: '操作失败，请稍后重试' });
     }
+  },
+
+  /**
+   * 批量审核（M18-ADMIN-DIALOG）：循环既有单条端点
+   * POST /api/v1/admin/posts/{id}/action（action/reason，与单条 ?/moderate
+   * 完全一致——帖子动作端点不使用 If-Match），逐条 try/catch 汇总成败。
+   */
+  batchModerate: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const ids = parseBatchIds(form);
+    const action = String(form.get('action') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
+    if (!(POST_ACTIONS as readonly string[]).includes(action)) {
+      return fail(422, { message: `无效动作：${action}` });
+    }
+    if (ids.length === 0) {
+      const empty = batchResult(emptyBatchSelection(), '批量审核');
+      return fail(empty.status, { message: empty.message });
+    }
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const id of ids) {
+      try {
+        const result = await authedPost<unknown>(
+          cookies,
+          `/api/v1/admin/posts/${encodeURIComponent(id)}/action`,
+          { action, reason },
+          request.headers.get('x-request-id')
+        );
+        if (result.ok) {
+          outcome.okCount++;
+        } else if (result.status === 409) {
+          outcome.failures.push({ id, message: `状态冲突：${result.message}` });
+        } else {
+          outcome.failures.push({ id, message: result.message });
+        }
+      } catch {
+        outcome.failures.push({ id, message: '网络错误' });
+      }
+    }
+    const summary = batchResult(outcome, '批量审核');
+    return summary.ok ? { message: summary.message } : fail(summary.status, { message: summary.message });
   }
 };

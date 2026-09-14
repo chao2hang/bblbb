@@ -48,9 +48,12 @@ export const load: PageServerLoad = async ({ cookies, request, url }): Promise<A
   const requestId = request.headers.get('x-request-id');
 
   // ── 全站流水（过滤条件来自 URL，GET 表单可直接驱动，无 JS 可用）──
+  const rawAsset = url.searchParams.get('asset')?.trim() ?? '';
+  // 流水筛选也只暴露 B币；兼容旧链接中的 b_coin 别名。
+  const asset = rawAsset === 'coin' || rawAsset === 'b_coin' ? 'coin' : '';
   const filters = {
     username: url.searchParams.get('username')?.trim() ?? '',
-    asset: url.searchParams.get('asset')?.trim() ?? '',
+    asset,
     kind: url.searchParams.get('kind')?.trim() ?? '',
     from: url.searchParams.get('from')?.trim() ?? '',
     to: url.searchParams.get('to')?.trim() ?? ''
@@ -104,9 +107,12 @@ export const actions: Actions = {
   adjust: async ({ request, cookies }) => {
     const form = await request.formData();
     const username = String(form.get('username') ?? '').trim();
-    const currency = String(form.get('currency') ?? 'coin').trim();
+    const currency = String(form.get('currency') ?? 'coin').trim().toLowerCase();
     const amount = Number(form.get('amount') ?? 0);
     const reason = String(form.get('reason') ?? '').trim();
+    if (currency !== 'coin') {
+      return fail(422, { message: '调账币种仅支持 B币' });
+    }
     if (!username || !amount || !reason) {
       return fail(422, { message: '用户名、非 0 调整数额与调整原因均为必填' });
     }
@@ -119,7 +125,7 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { message: `已成功为 ${username} 调整 ${amount > 0 ? '+' : ''}${amount} ${currency.toUpperCase()}` };
+        return { message: `已成功为 ${username} 调整 ${amount > 0 ? '+' : ''}${amount} B币` };
       }
       return fail(result.status, { message: result.message });
     } catch {

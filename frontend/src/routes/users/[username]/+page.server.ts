@@ -14,8 +14,8 @@
 //   post_count/followers/following/is_following 由后端 PublicProfile 附带。
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getAuthed, SESSION_COOKIE } from '$lib/api/server';
-import { followUser, unfollowUser } from '$lib/api/client';
+import { authedPost, getAuthed, getPublic, SESSION_COOKIE } from '$lib/api/server';
+import { followUser, newClientRequestId, unfollowUser } from '$lib/api/client';
 import { problemMessage, type Problem } from '$lib/errors';
 import type { PublicProfile } from '$lib/api/types';
 
@@ -32,17 +32,22 @@ export interface UserFollowActionData {
   requestId?: string | null;
 }
 
+export interface UserMessageActionData {
+  ok?: boolean;
+  message?: string;
+  requestId?: string | null;
+}
+
 export const load: PageServerLoad = async ({ params, cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
   const username = params.username;
   // 关注是登录操作：无会话 Cookie → 页面渲染登录引导而非关注表单
   // （真值判断：cookies.get 缺失返回 undefined，非 null，`!== null` 恒真）。
   const authed = Boolean(cookies.get(SESSION_COOKIE));
-  const result = await getAuthed<PublicProfile>(
-    cookies,
-    `/api/v1/users/${encodeURIComponent(username)}`,
-    requestId
-  );
+  const profilePath = `/api/v1/users/${encodeURIComponent(username)}`;
+  const result = authed
+    ? await getAuthed<PublicProfile>(cookies, profilePath, requestId)
+    : await getPublic<PublicProfile>(profilePath, requestId);
   if (result.ok) {
     return { user: result.data, authed } satisfies UserPageData;
   }
@@ -60,6 +65,34 @@ function asProblem(e: unknown): Problem | null {
 }
 
 export const actions: Actions = {
+  // 发私信：创建或复用双人会话后跳入 /messages；请求经过会话绑定
+  // CSRF，幂等键用于网络重试时保持请求身份稳定。
+  message: async ({ params, cookies, request }) => {
+    const username = params.username;
+    const clientRequestId = newClientRequestId();
+    const result = await authedPost<{ id?: string }>(
+      cookies,
+      '/api/v1/conversations',
+      { username, client_request_id: clientRequestId },
+      request.headers.get('x-request-id'),
+      { 'Idempotency-Key': clientRequestId }
+    );
+    if (result.ok && result.data?.id) {
+      throw redirect(303, `/messages?c=${encodeURIComponent(result.data.id)}`);
+    }
+    if (!result.ok && result.status === 401) {
+      throw redirect(303, `/login?next=${encodeURIComponent(`/users/${username}`)}`);
+    }
+    if (!result.ok) {
+      return fail(result.status, {
+        message: result.message,
+        requestId: result.requestId
+      } satisfies UserMessageActionData);
+    }
+    return fail(503, {
+      message: '会话创建结果无效，请稍后重试'
+    } satisfies UserMessageActionData);
+  },
   // 关注 / 取关（GAP-FIX follows.rs）：会话过期 → redirect /login（enhance
   // 自动跟随）；成功由页面 toast + invalidateAll 刷新统计与 is_following。
   // 注意 redirect 在 try 外抛出（避免被本 action 的 catch 吞掉）。

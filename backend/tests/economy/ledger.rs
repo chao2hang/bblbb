@@ -9,7 +9,7 @@ use bblbb_backend::db::DatabasePool;
 use bblbb_backend::economy::ledger::service as ledger;
 use bblbb_backend::economy::ledger::service::{
     apply_operation, get_account, AccountState, AdminGrantInput, LedgerCommand, LedgerError,
-    LedgerKind, CURRENCY_COIN, CURRENCY_EXP,
+    LedgerKind, CURRENCY_COIN,
 };
 use bblbb_backend::outbox::now_millis;
 use sqlx::Either;
@@ -51,7 +51,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 5, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -615,24 +615,15 @@ async fn seeded_currencies_and_snapshot() {
     let user = insert_user(&pool, "u").await;
     let now = now_millis();
 
-    // 种子货币（M07-LEDGER-01）
-    let (exp_kind, coin_kind): (String, String) = match &pool {
-        Either::Left(p) => {
-            let e: String = sqlx::query_scalar("SELECT kind FROM currencies WHERE id = ?")
-                .bind(CURRENCY_EXP)
-                .fetch_one(p)
-                .await
-                .unwrap();
-            let c: String = sqlx::query_scalar("SELECT kind FROM currencies WHERE id = ?")
-                .bind(CURRENCY_COIN)
-                .fetch_one(p)
-                .await
-                .unwrap();
-            (e, c)
-        }
+    // 仅保留 B 币种子（M07-LEDGER-01）。
+    let coin_kind: String = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT kind FROM currencies WHERE id = ?")
+            .bind(CURRENCY_COIN)
+            .fetch_one(p)
+            .await
+            .unwrap(),
         Either::Right(_) => panic!("SQLite only"),
     };
-    assert_eq!(exp_kind, "experience");
     assert_eq!(coin_kind, "spendable");
 
     // 快照

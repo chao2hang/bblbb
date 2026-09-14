@@ -2,9 +2,11 @@
 // 角色卡 + 权限复选网格；保存走既有 PATCH /admin/roles/{id}
 // （If-Match=updated_at 乐观锁 + reason + recent-auth；system 角色
 // 权限不可改，前端对应只读）。all_permissions 为注册表全量目录。
-import { fail, redirect, type Cookies } from '@sveltejs/kit';
+// 角色委派完整 CRUD：新增「创建角色」POST /admin/roles（自定义角色，
+// 权限名必须存在于注册表；recent-auth 403 step_up_required → reauth 弹窗）。
+import { fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPatch, getAuthed } from '$lib/api/server';
+import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { adminListState, type AdminLoadState, type AdminRoleItem } from '$lib/admin';
 
 export interface AdminRolesPageData {
@@ -17,11 +19,8 @@ export interface AdminRolesPageData {
 export interface AdminRolesActionData {
   loadState: AdminLoadState<AdminRoleItem>;
   message?: string | null;
-}
-
-export interface AdminRolesActionData {
-  loadState: AdminLoadState<AdminRoleItem>;
-  message?: string | null;
+  /** 403 step_up_required → 页面展示重新验证（reauth）表单。 */
+  stepUpRequired?: boolean;
 }
 
 async function reloadRoles(cookies: Cookies, requestId: string | null): Promise<AdminRolesPageData['loadState']> {
@@ -69,12 +68,111 @@ export const actions: Actions = {
       if (result.ok) {
         return { loadState: await reloadRoles(cookies, request.headers.get('x-request-id')), message: '角色权限已保存' } satisfies AdminRolesActionData;
       }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          loadState: await reloadRoles(cookies, null),
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminRolesActionData);
+      }
       if (result.status === 409) {
         return fail(409, { loadState: await reloadRoles(cookies, request.headers.get('x-request-id')), message: `版本冲突：${result.message}，请刷新后重试` } satisfies AdminRolesActionData);
       }
       return fail(result.status, { loadState: await reloadRoles(cookies, request.headers.get('x-request-id')), message: result.message } satisfies AdminRolesActionData);
-    } catch {
+    } catch (e) {
+      if (isRedirect(e)) throw e;
       return fail(503, { loadState: await reloadRoles(cookies, null), message: '保存失败，请稍后重试' } satisfies AdminRolesActionData);
+    }
+  },
+
+  /** 创建自定义角色：POST /admin/roles（name 小写字母/数字/下划线；权限≥1）。 */
+  create: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const reason = String(form.get('reason') ?? '').trim();
+    const name = String(form.get('name') ?? '').trim();
+    const displayName = String(form.get('display_name') ?? '').trim();
+    const description = String(form.get('description') ?? '').trim();
+    const permissions = form.getAll('permissions').map(String);
+
+    if (!reason) {
+      return fail(422, { loadState: await reloadRoles(cookies, null), message: '操作原因必填（写入审计日志）' } satisfies AdminRolesActionData);
+    }
+    if (!name || !/^[a-z0-9_]{1,64}$/.test(name)) {
+      return fail(422, {
+        loadState: await reloadRoles(cookies, null),
+        message: '角色标识无效：仅允许小写字母、数字与下划线（≤64 字符）'
+      } satisfies AdminRolesActionData);
+    }
+    if (permissions.length === 0) {
+      return fail(422, { loadState: await reloadRoles(cookies, null), message: '至少勾选一项权限' } satisfies AdminRolesActionData);
+    }
+
+    try {
+      const result = await authedPost<unknown>(
+        cookies,
+        '/api/v1/admin/roles',
+        {
+          name,
+          display_name: displayName || name,
+          description: description || undefined,
+          permissions,
+          reason
+        },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          loadState: await reloadRoles(cookies, request.headers.get('x-request-id')),
+          message: `角色 ${displayName || name} 已创建`
+        } satisfies AdminRolesActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          loadState: await reloadRoles(cookies, null),
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminRolesActionData);
+      }
+      return fail(result.status, { loadState: await reloadRoles(cookies, request.headers.get('x-request-id')), message: result.message } satisfies AdminRolesActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { loadState: await reloadRoles(cookies, null), message: '创建失败，请稍后重试' } satisfies AdminRolesActionData);
+    }
+  },
+
+  /** 重新验证身份（step-up 窗口过期后；与 storage 页同款交互）。 */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        loadState: await reloadRoles(cookies, null),
+        message: '请输入当前密码'
+      } satisfies AdminRolesActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          loadState: await reloadRoles(cookies, request.headers.get('x-request-id')),
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminRolesActionData;
+      }
+      return fail(result.status, {
+        loadState: await reloadRoles(cookies, null),
+        message: result.message
+      } satisfies AdminRolesActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        loadState: await reloadRoles(cookies, null),
+        message: '验证失败，请稍后重试'
+      } satisfies AdminRolesActionData);
     }
   }
 };

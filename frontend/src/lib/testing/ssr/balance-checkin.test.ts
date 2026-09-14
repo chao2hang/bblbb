@@ -1,30 +1,23 @@
-// M07-UI-01：余额/等级/经验/签到 SSR——安全投影、签到按钮（原生 form + 幂等键）、
+// M07-UI-01：余额/信任等级/签到 SSR——安全投影、签到按钮（原生 form + 幂等键）、
 // 已签到态与 429 冷却提示。
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import BalancePage from '../../../routes/me/balance/+page.svelte';
 
 const summary = {
-  level: 7,
-  level_name: '资深成员',
-  xp: 320,
-  xp_to_next: 180,
   checked_in_today: true,
   streak_days: 4,
-  today_earned: [{ currency: 'coin', amount: 10 }, { currency: 'exp', amount: 20 }],
-  balances: [
-    { currency: 'coin', amount: 1500 },
-    { currency: 'exp', amount: 320 }
-  ]
+  today_earned: [{ currency: 'coin', amount: 10 }],
+  balances: [{ currency: 'coin', amount: 1500 }]
 };
 
 describe('M07-UI-01 积分页 SSR', () => {
-  it('渲染余额/等级/经验/连续签到与今日奖励（安全投影）', () => {
+  it('渲染余额/连续签到与今日奖励（安全投影）', () => {
     const { body } = render(BalancePage, {
       props: { data: { summary, error: null }, form: null }
     });
-    expect(body).toContain('LV.7');
-    expect(body).toContain('资深成员');
+    expect(body).toContain('社区信任等级');
+    expect(body).toContain('/me/level');
     expect(body).toContain('1500');
     expect(body).toContain('COIN');
     expect(body).toContain('+10');
@@ -64,3 +57,4 @@ describe('M07-UI-01 积分页 SSR', () => {
     expect(body).not.toContain('B 币');
   });
 });
+

@@ -59,6 +59,8 @@
 
 高保真重点页为：仪表盘、文件存储、举报与审核（含详情）、积分与货币、等级管理、主题管理、插件管理、OAuth 客户端；其余导航项做列表占位页（DataTable \+ FilterBar \+ 少量 Mock 行）即可，但导航必须全部可点。
 
+> 实现差异（2026-09）：现系统后台「激励与交易」组在「等级管理」旁另有**「信任等级」/admin/trust-levels**（M20-TRUST，LinuxDo 式 TL0–TL4，等级管理主线，见 §1\.5 路由表与 `TRUST-LEVELS.md`），原型导航未含此项。
+
 ## 1\.5 全站路由表
 
 |路由|页面|备注|
@@ -83,7 +85,7 @@
 |/admin/reports|举报与审核列表|4 个状态 tab \+ 筛选|
 |/admin/reports/\[id\]|举报处理详情页|示例 /admin/reports/R\-1024|
 |/admin/points|积分与货币管理|含调整积分流程|
-|/admin/levels|等级管理|含晋升路径可视化|
+|/admin/levels|等级管理|已实现（2026-09 合并单轨）：LinuxDo 式信任等级 TL0–TL4 唯一管理入口（M20-TRUST，每级规则/用户数表 + 管理员手动授予 TL4 唯一通道）+ 按信任等级取档的附件空间配额管理；原 /admin/trust-levels 独立路由并入本页，经验方案阶梯展示移除；原型的「晋升路径可视化」未实现，体系对照见 TRUST-LEVELS\.md §1\.1|
 |/admin/themes|主题管理|含预览与切换流程|
 |/admin/plugins|插件管理|配置型 / 预编译 UI 插件分区|
 |/admin/oauth|OAuth 客户端管理|含创建客户端流程|
@@ -252,6 +254,8 @@
 |流水表筛选（币种/类型）|原地过滤|
 |等级表行「编辑」|编辑 Modal（名称/颜色/经验门槛/权益）→ 保存 Toast|
 |晋升路径节点（LV\.1–LV\.10）|点击节点在右侧「等级预览卡」展示该等级样式|
+
+> **实现差异（2026-09 合并单轨，以现系统为准）。** 等级管理页的本节原型设计（等级表编辑 Modal、LV\.1–LV\.10 晋升路径可视化、等级预览卡）未实现；已实现的 /admin/levels 为「LinuxDo 式信任等级 TL0–TL4（规则/用户数表 + 手动授予）+ 按信任等级取档的附件空间配额管理（If-Match 乐观锁 + reason 审计 + step-up）」，原 **/admin/trust-levels** 独立路由并入本页（导航单入口）；经验方案阶梯展示与 0062 存档 CRUD 均已移除（见 `TRUST-LEVELS.md` §1\.1 三张等级表角色对照）。
 
 ## 2\.11 主题、插件、OAuth 与市场管理页（/admin/themes、/admin/plugins、/admin/oauth、/admin/marketplace）
 

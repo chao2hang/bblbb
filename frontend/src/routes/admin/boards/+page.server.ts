@@ -1,10 +1,19 @@
 // M03-UI-07：管理板块页——列表（后端裁决）+ 新建板块表单 + 编辑/置顶
 // （PATCH /admin/boards/{id}，If-Match 版本 + reason 审计；视觉对齐
 // M17-GAPFIX-06：补原型「可见性/发帖策略/状态」列与「编辑/置顶」行操作）。
+// M18-ADMIN-DIALOG：新增批量 ?/batchUpdate——后端已有板块级单条写端点
+// PATCH /api/v1/admin/boards/{id}（backend/src/routes/admin.rs update_admin_board），
+// 循环调用之（is_active/reason + If-Match）实现批量启用/停用。
 import { fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { adminListState, type AdminLoadState } from '$lib/admin';
+import {
+  batchResult,
+  emptyBatchSelection,
+  parseBatchEntries,
+  type BatchOutcome
+} from '$lib/admin-batch';
 import type { Board } from '$lib/api/types';
 
 export interface AdminBoardsPageData {
@@ -53,6 +62,8 @@ export const actions: Actions = {
           name,
           slug,
           description: String(form.get('description') ?? '').trim() || null,
+          // 板块图标（0071）：空 = 未设置（后端存 NULL）；非空 = lucide 图标名。
+          icon: String(form.get('icon') ?? '').trim() || null,
           visibility: String(form.get('visibility') ?? 'public'),
           posting_mode: String(form.get('posting_mode') ?? 'normal'),
           reason
@@ -103,6 +114,9 @@ export const actions: Actions = {
     if (name) body.name = name;
     const description = String(form.get('description') ?? '').trim();
     if (description) body.description = description;
+    // 板块图标（0071）：编辑表单恒含 icon 控件——
+    // 非空 = 设置/替换；空串 = 清除（后端置 NULL）。幂等：未改动时重发原值。
+    if (form.has('icon')) body.icon = String(form.get('icon') ?? '').trim();
     const visibility = String(form.get('visibility') ?? '').trim();
     if (visibility) body.visibility = visibility;
     const postingMode = String(form.get('posting_mode') ?? '').trim();
@@ -138,5 +152,51 @@ export const actions: Actions = {
       if (isRedirect(e)) throw e;
       return fail(503, { loadState: await reloadBoards(cookies, null), message: '保存失败，请稍后重试' } satisfies AdminBoardsPageData);
     }
+  },
+
+  /**
+   * 批量启用/停用（M18-ADMIN-DIALOG）：循环既有单条端点
+   * PATCH /api/v1/admin/boards/{id}（is_active/reason + If-Match，与 ?/update
+   * 完全一致），versions 与 ids 顺序一一对应；逐条 try/catch 汇总成败。
+   */
+  batchUpdate: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const entries = parseBatchEntries(form);
+    const reason = String(form.get('reason') ?? '').trim();
+    const nextActive = String(form.get('is_active') ?? '') === 'true';
+    const label = nextActive ? '批量启用' : '批量停用';
+    if (!reason) {
+      return fail(422, { loadState: await reloadBoards(cookies, null), message: '操作原因必填（写入审计日志）' } satisfies AdminBoardsPageData);
+    }
+    if (entries.length === 0) {
+      const empty = batchResult(emptyBatchSelection(), label);
+      return fail(empty.status, { loadState: await reloadBoards(cookies, null), message: empty.message } satisfies AdminBoardsPageData);
+    }
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const entry of entries) {
+      try {
+        const result = await authedPatch<unknown>(
+          cookies,
+          `/api/v1/admin/boards/${encodeURIComponent(entry.id)}`,
+          { is_active: nextActive, reason },
+          entry.version ? { 'If-Match': entry.version } : {},
+          request.headers.get('x-request-id')
+        );
+        if (result.ok) {
+          outcome.okCount++;
+        } else if (result.status === 409) {
+          outcome.failures.push({ id: entry.id, message: `版本冲突：${result.message}` });
+        } else {
+          outcome.failures.push({ id: entry.id, message: result.message });
+        }
+      } catch {
+        outcome.failures.push({ id: entry.id, message: '网络错误' });
+      }
+    }
+    const summary = batchResult(outcome, label);
+    const loadState = await reloadBoards(cookies, request.headers.get('x-request-id'));
+    return summary.ok
+      ? { loadState, message: summary.message } satisfies AdminBoardsPageData
+      : fail(summary.status, { loadState, message: summary.message } satisfies AdminBoardsPageData);
   }
 };

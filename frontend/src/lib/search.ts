@@ -74,7 +74,7 @@ export function normalizeCursor(raw: string | null | undefined): {
   return { cursor: trimmed, invalid: null };
 }
 
-/** 构建搜索页 URL（供分页链接/表单回填共用）。 */
+/** 构建搜索页 URL（保留供兼容解析与历史深链接）。 */
 export function searchUrl(
   q: string,
   opts: { limit?: number; after?: string | null; tag?: string | null } = {}
@@ -84,20 +84,18 @@ export function searchUrl(
   if (opts.tag) params.set('tag', opts.tag);
   if (opts.limit && opts.limit !== SEARCH_LIMIT_DEFAULT) params.set('limit', String(opts.limit));
   if (opts.after) params.set('after', opts.after);
-  return `/search?${params.toString()}`;
+  return `/?${params.toString()}`;
 }
 
-/** 构建标签搜索/导航 URL（正确 URL 编码中文、空格、# 等特殊字符）。 */
+/** 构建标签直达 URL（支持标签对象或字符串 slug，直达 /tags/{slug}，无标签回退 /tags）。 */
 export function tagSearchUrl(
   tag: string | { slug?: string | null; name?: string | null }
 ): string {
   const value = typeof tag === 'string'
     ? tag.trim()
     : String(tag.slug || tag.name || '').trim();
-  if (!value) return '/search';
-  const params = new URLSearchParams();
-  params.set('tag', value);
-  return `/search?${params.toString()}`;
+  if (!value) return '/tags';
+  return `/tags/${encodeURIComponent(value)}`;
 }
 
 // ── 搜索行/分页归一化（SSR 与浏览器 client 共用；M08-UI-02） ────────────────

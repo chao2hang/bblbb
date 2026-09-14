@@ -141,7 +141,7 @@ Docs: markdown links, referenced files, terminology checks
 - 相同 key 不同请求返回冲突。
 - SQLite 并发写、MySQL/MariaDB 行锁竞争。
 - 模拟事务各步骤失败，保证无“余额变但流水没写”。
-- 经验等级缓存可从账户重建。
+- 信任等级由行为统计与 `trust_level_rules` 评估；不由 B 币余额重建。
 
 可用属性测试验证所有账户：
 

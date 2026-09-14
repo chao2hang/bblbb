@@ -128,9 +128,22 @@ export async function runAxe(page: Page, label: string, opts: { failOnSerious?: 
   // hydration 竞态下会把过渡态误报为 link-name/link-in-text-block 等违规。
   // 先等待固定 settle 让 hydration 完成，再对「疑似过渡态」违规重扫。
   await page.waitForTimeout(1200);
-  const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
+  let result: Awaited<ReturnType<AxeBuilder['analyze']>> | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2 && !result; attempt += 1) {
+    try {
+      result = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        await page.waitForLoadState('domcontentloaded').catch(() => {});
+        await page.waitForTimeout(500);
+      }
+    }
+  }
+  if (!result) throw lastError ?? new Error(`axe 扫描失败：${label}`);
 
   const violations = result.violations.map((v) => ({
     id: v.id,
@@ -199,12 +212,22 @@ export const LOCALE = 'zh-CN';
  * 进入表单 —— 无 JS 场景（javaScriptEnabled=false）无 hydration，直接通过。
  */
 export async function stableFill(page: Page, locator: ReturnType<Page['locator']>, value: string): Promise<void> {
+  const contentEditable = await locator
+    .evaluate((element) => element instanceof HTMLElement && element.isContentEditable)
+    .catch(() => false);
+
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await locator.fill(value);
-    const current = await locator.inputValue().catch(() => '');
+    const current = contentEditable
+      ? await locator.textContent().catch(() => '')
+      : await locator.inputValue().catch(() => '');
     if (current === value) return;
     await page.waitForTimeout(120);
   }
   await locator.fill(value);
-  await expect(locator).toHaveValue(value);
+  if (contentEditable) {
+    await expect(locator).toHaveText(value);
+  } else {
+    await expect(locator).toHaveValue(value);
+  }
 }

@@ -229,7 +229,7 @@ pub async fn ensure_ledger_user(
     let rows = match pool {
         sqlx::Either::Left(p) => sqlx::query(
             "INSERT OR IGNORE INTO users
-             (id, username_normalized, email_normalized, password_hash, status, level, email_verified, created_at, updated_at)
+             (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, created_at, updated_at)
              VALUES (?, ?, ?, '!', 'active', 0, 0, ?, ?)",
         )
         .bind(user_id)
@@ -242,7 +242,7 @@ pub async fn ensure_ledger_user(
         .rows_affected(),
         sqlx::Either::Right(p) => sqlx::query(
             "INSERT IGNORE INTO users
-             (id, username_normalized, email_normalized, password_hash, status, level, email_verified, created_at, updated_at)
+             (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, created_at, updated_at)
              VALUES (?, ?, ?, '!', 'active', 0, 0, ?, ?)",
         )
         .bind(user_id)

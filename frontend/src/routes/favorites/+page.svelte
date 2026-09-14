@@ -66,9 +66,15 @@
     loadingMore = false;
   }
 
-  /** 行内展示作者名（嵌套投影优先，回退平面投影）。 */
+  /** 行内展示作者标签：优先昵称，缺省回退用户名（嵌套投影优先，回退平面投影）。 */
   function authorLabel(post: PostSummary): string {
-    return post.author?.username ?? post.author_name ?? '匿名';
+    return (
+      post.author?.display_name ??
+      post.author_display_name ??
+      post.author?.username ??
+      post.author_name ??
+      '匿名'
+    );
   }
 
   /** 后端时间戳为毫秒（M01-DB-08），formatRelative 口径为秒。 */
@@ -80,15 +86,8 @@
 
   <PageTitle title="我的收藏" />
 
-<div class="container page-content">
-  <!-- 原型对齐（prototype/pages/favorites.html）：app-route-head，无面包屑。 -->
-  <div class="app-route-head">
-    <div class="app-route-head__copy">
-      <span class="app-kicker">LIBRARY / FAVORITES</span>
-      <h1 tabindex="-1">我的收藏</h1>
-      <p>收藏的内容</p>
-    </div>
-  </div>
+<div class="container page-content" id="page-favorites">
+  <h1 class="u-visually-hidden">我的收藏</h1>
 
   {#if data.problem && isTransientProblem(data.problem)}
     <LoadFailureState onretry={() => void invalidateAll()} />
@@ -104,7 +103,7 @@
           <p class="input-hint" role="status" style="padding:var(--space-3) var(--space-4);margin:0;">{actionMessage}</p>
         {/if}
         {#if items.length === 0}
-          <div style="padding:var(--space-6);">
+          <div class="favorites-empty-wrap" style="padding:var(--space-6);">
             <EmptyState
               icon="star"
               title="还没有收藏"

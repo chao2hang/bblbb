@@ -5,7 +5,8 @@
 //   reason 写审计；storage.manage 权限门）。
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedDeleteBody, getAuthed } from '$lib/api/server';
+import { authedDeleteBody, authedPatch, getAuthed } from '$lib/api/server';
+import { parseBatchIds, batchResult, type BatchOutcome } from '$lib/admin-batch';
 import type { AdminAttachmentItem } from '$lib/api/types';
 
 export type AdminAttachmentsState = 'ok' | 'forbidden' | 'not_implemented' | 'error';
@@ -83,5 +84,95 @@ export const actions: Actions = {
     } catch {
       return fail(503, { message: '删除失败，请稍后重试' });
     }
+  },
+  // M18-ADMIN-BATCH：批量删除 = 循环调用与单条 delete 完全相同的既有端点
+  // （DELETE /admin/attachments/{id} body {reason}，软删除 + reason 写审计；
+  // 该端点无 If-Match 乐观锁，AdminAttachmentItem 亦无 version 字段，故不提交 versions）。
+  batchDelete: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const ids = parseBatchIds(form);
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) return fail(422, { message: '删除原因必填（写审计）' });
+    if (ids.length === 0) return fail(422, { message: '未选择任何附件' });
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const id of ids) {
+      try {
+        const r = await authedDeleteBody<unknown>(
+          cookies,
+          `/api/v1/admin/attachments/${encodeURIComponent(id)}`,
+          { reason },
+          request.headers.get('x-request-id')
+        );
+        if (r.ok) outcome.okCount++;
+        else outcome.failures.push({ id, message: r.message });
+      } catch {
+        outcome.failures.push({ id, message: '网络错误' });
+      }
+    }
+    const r = batchResult(outcome, '批量删除附件');
+    return r.ok ? { message: r.message } : fail(r.status, { message: r.message });
+  },
+
+  /** 快速封禁恶意上传者（可同时勾选软删除当前违规附件）。 */
+  banUser: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const username = String(form.get('username') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    const deleteAttachmentId = String(form.get('delete_attachment_id') ?? '').trim();
+
+    if (!username) return fail(422, { message: '缺少用户名' });
+    if (!reason) return fail(422, { message: '封禁原因必填（写审计）' });
+
+    const requestId = request.headers.get('x-request-id');
+
+    // 1. 查询用户以获取用户真实 id 与 If-Match 乐规锁版本
+    const userResult = await getAuthed<{ items: Array<{ id: string; username: string; status: string; version: number }> }>(
+      cookies,
+      `/api/v1/admin/users?q=${encodeURIComponent(username)}`,
+      requestId
+    );
+
+    if (!userResult.ok || !userResult.data?.items || userResult.data.items.length === 0) {
+      return fail(404, { message: `未检索到用户「${username}」` });
+    }
+
+    const targetUser = userResult.data.items.find(
+      (u) => u.username.toLowerCase() === username.toLowerCase()
+    ) ?? userResult.data.items[0];
+
+    if (targetUser.status === 'banned') {
+      return fail(400, { message: `用户「${username}」已处于封禁状态` });
+    }
+
+    // 2. 封禁用户：PATCH /api/v1/admin/users/{id}
+    const banResult = await authedPatch<unknown>(
+      cookies,
+      `/api/v1/admin/users/${encodeURIComponent(targetUser.id)}`,
+      { status: 'banned', reason: `附件管理处置违规用户: ${reason}` },
+      { 'If-Match': String(targetUser.version) },
+      requestId
+    );
+
+    if (!banResult.ok) {
+      return fail(banResult.status, { message: banResult.message, requestId: banResult.requestId });
+    }
+
+    // 3. 若勾选删除违规附件，一并执行软删除
+    if (deleteAttachmentId) {
+      try {
+        await authedDeleteBody<unknown>(
+          cookies,
+          `/api/v1/admin/attachments/${encodeURIComponent(deleteAttachmentId)}`,
+          { reason: `封禁违规用户一并清理: ${reason}` },
+          requestId
+        );
+      } catch {
+        // 软删除失败不阻止封禁成功的主结果
+      }
+    }
+
+    return {
+      message: `已成功封禁违规用户「${username}」${deleteAttachmentId ? '，并清理对应违规附件' : ''}`
+    };
   }
 };

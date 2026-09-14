@@ -94,7 +94,9 @@ describe('M06-UI-01 上传流程', () => {
     await fireEvent.click(getByText('开始上传'));
     await waitFor(() => expect(mocked.createAttachment).toHaveBeenCalledTimes(1));
 
-    expect(FakeXHR.instances).toHaveLength(1);
+    // start() 在 create 前会先拉取站点上传类型策略（额外一跳异步），
+    // XHR 创建落在后续微任务，用 waitFor 等待避免时序脆弱。
+    await waitFor(() => expect(FakeXHR.instances).toHaveLength(1));
     const xhr = FakeXHR.instances[0];
     expect(xhr.openedUrl).toBe('https://s3.example.com/put');
     expect(xhr.sent).toBe(true);

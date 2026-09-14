@@ -97,12 +97,13 @@ async fn valid_fields_insert_and_checks_pass() {
         "meta",
         "站务公告",
         Some("规则与公告 https://example.com"),
+        Some("shield"),
         5,
         true,
         "normal",
     )
     .expect("合法字段必须通过校验");
-    validate_board_fields("archive", "归档", None, -3, false, "readonly")
+    validate_board_fields("archive", "归档", None, None, -3, false, "readonly")
         .expect("readonly 是合法发帖规则");
 
     insert_board(&pool, "meta", "站务公告", "normal").await;
@@ -137,7 +138,7 @@ async fn invalid_posting_mode_rejected_by_validation_and_db() {
     let (pool, dir) = sqlite_pool_with_migrations().await;
 
     assert_eq!(
-        validate_board_update(None, None, None, None, Some("lockdown")),
+        validate_board_update(None, None, None, None, None, Some("lockdown")),
         Err(BoardValidationError::InvalidPostingMode {
             value: "lockdown".to_string()
         })

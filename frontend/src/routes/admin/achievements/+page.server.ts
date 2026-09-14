@@ -7,10 +7,20 @@
 //   （is_enabled 启停；409 冲突态提示刷新）；
 // - grant：POST /api/v1/admin/achievements/{code}/grant（username + reason，
 //   手工授予 manual 类成就 + 通知用户）；
-// - delete：DELETE /api/v1/admin/achievements/{code} body {reason}（级联解锁记录）。
+// - delete：DELETE /api/v1/admin/achievements/{code} body {reason}（级联解锁记录）；
+// - uploadIcon：POST /api/v1/admin/achievements/{code}/icon?reason=…（原始图片
+//   字节，不走 S3——后端直写 storage_dir/achievements/ 本地磁盘；≤2MB，
+//   png/jpeg/webp/gif，后端魔数嗅探）；
+// - removeIcon：DELETE /api/v1/admin/achievements/{code}/icon body {reason}。
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedDeleteBody, authedPatch, authedPost, getAuthed } from '$lib/api/server';
+import {
+  authedDeleteBody,
+  authedPatch,
+  authedPost,
+  authedPostBytes,
+  getAuthed
+} from '$lib/api/server';
 
 /** 解锁判定条件类型（achievements::evaluate 支持的钩子集合）。 */
 const CONDITION_TYPES = [
@@ -22,6 +32,9 @@ const CONDITION_TYPES = [
   'manual'
 ] as const;
 
+/** 图标上传上限（与后端 achievements::icon::MAX_ICON_BYTES 一致；2MB）。 */
+const MAX_ICON_BYTES = 2 * 1024 * 1024;
+
 /** 管理端成就行（GET /api/v1/admin/achievements 投影；隐藏条件对管理员可见）。 */
 export interface AdminAchievementItem {
   code: string;
@@ -30,13 +43,14 @@ export interface AdminAchievementItem {
   category: string;
   condition_type: string;
   condition_threshold: number;
-  reward_exp: number;
   reward_coin: number;
   is_hidden: boolean;
   is_enabled: boolean;
   sort_order: number;
   unlocked_count: number;
   version: number;
+  /** 已上传图标（null = 未上传，展示回退内置图标）。 */
+  icon_url: string | null;
 }
 
 export type AdminAchievementsState = 'ok' | 'forbidden' | 'not_implemented' | 'error';
@@ -89,7 +103,6 @@ export const actions: Actions = {
     const category = String(form.get('category') ?? '').trim();
     const conditionType = String(form.get('condition_type') ?? '').trim();
     const conditionThreshold = intField(form, 'condition_threshold');
-    const rewardExp = intField(form, 'reward_exp');
     const rewardCoin = intField(form, 'reward_coin');
     const sortOrder = intField(form, 'sort_order');
     const reason = String(form.get('reason') ?? '').trim();
@@ -109,8 +122,6 @@ export const actions: Actions = {
     if (
       !Number.isInteger(conditionThreshold) ||
       conditionThreshold < 0 ||
-      !Number.isInteger(rewardExp) ||
-      rewardExp < 0 ||
       !Number.isInteger(rewardCoin) ||
       rewardCoin < 0 ||
       !Number.isInteger(sortOrder)
@@ -129,7 +140,6 @@ export const actions: Actions = {
           category,
           condition_type: conditionType,
           condition_threshold: conditionThreshold,
-          reward_exp: rewardExp,
           reward_coin: rewardCoin,
           is_hidden: form.has('is_hidden'),
           is_enabled: form.has('is_enabled'),
@@ -278,6 +288,65 @@ export const actions: Actions = {
       return fail(result.status, { message: result.message, requestId: result.requestId });
     } catch {
       return fail(503, { message: '删除失败，请稍后重试' });
+    }
+  },
+
+  /** 上传成就图标（不走 S3：后端直写 storage_dir/achievements/ 本地磁盘）。 */
+  uploadIcon: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const code = String(form.get('code') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    const file = form.get('icon');
+    if (!code) return fail(422, { message: '缺少成就 code' });
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
+    if (!(file instanceof File) || file.size === 0) {
+      return fail(422, { message: '请选择图标文件（png/jpeg/webp/gif，≤2MB）' });
+    }
+    if (file.size > MAX_ICON_BYTES) {
+      return fail(422, { message: '图标超过 2MB 上限' });
+    }
+    const contentType = file.type.startsWith('image/') ? file.type : 'application/octet-stream';
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    try {
+      const result = await authedPostBytes<{ icon_url: string; version: number }>(
+        cookies,
+        `/api/v1/admin/achievements/${encodeURIComponent(code)}/icon?reason=${encodeURIComponent(reason)}`,
+        bytes,
+        contentType,
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `成就 ${code} 图标已更新` };
+      }
+      if (result.status === 413) {
+        return fail(413, { message: '图标超过 2MB 上限' });
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId });
+    } catch {
+      return fail(503, { message: '上传失败，请稍后重试' });
+    }
+  },
+
+  /** 移除成就图标（删文件 + 清空 icon_path）。 */
+  removeIcon: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const code = String(form.get('code') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!code) return fail(422, { message: '缺少成就 code' });
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
+    try {
+      const result = await authedDeleteBody<unknown>(
+        cookies,
+        `/api/v1/admin/achievements/${encodeURIComponent(code)}/icon`,
+        { reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `成就 ${code} 图标已移除` };
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId });
+    } catch {
+      return fail(503, { message: '移除失败，请稍后重试' });
     }
   }
 };

@@ -505,7 +505,7 @@ pub async fn get_draft(
 pub async fn update_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx::Error> {
     let sql = "UPDATE drafts SET
         board_id = ?, post_type = ?, title = ?, markdown = ?, visibility_level = ?,
-        access_policy = ?, scheduled_at = ?, version = version + 1, updated_at = ?
+        access_policy = ?, scheduled_at = ?, tags_json = ?, version = version + 1, updated_at = ?
         WHERE id = ? AND owner_id = ? AND deleted_at IS NULL";
     match pool {
         Either::Left(p) => sqlx::query(sql)
@@ -516,6 +516,7 @@ pub async fn update_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx
             .bind(draft.visibility_level)
             .bind(&draft.access_policy)
             .bind(draft.scheduled_at)
+            .bind(&draft.tags_json)
             .bind(draft.updated_at)
             .bind(&draft.id)
             .bind(&draft.owner_id)
@@ -530,6 +531,7 @@ pub async fn update_draft(pool: &DatabasePool, draft: &Draft) -> Result<(), sqlx
             .bind(draft.visibility_level)
             .bind(&draft.access_policy)
             .bind(draft.scheduled_at)
+            .bind(&draft.tags_json)
             .bind(draft.updated_at)
             .bind(&draft.id)
             .bind(&draft.owner_id)

@@ -11,7 +11,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4173;
-const BASE_URL = `http://localhost:${PORT}`;
+const BASE_URL = process.env.E2E_BASE_URL ?? `https://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: './tests/playwright',
@@ -27,6 +27,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: BASE_URL,
+    ignoreHTTPSErrors: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     locale: 'zh-CN',
@@ -35,6 +36,7 @@ export default defineConfig({
   webServer: {
     command: 'node tests/playwright/fixtures/serve.mjs',
     url: BASE_URL,
+    ignoreHTTPSErrors: true,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000
   },

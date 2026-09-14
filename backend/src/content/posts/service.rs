@@ -286,20 +286,24 @@ async fn load_author_risk_context(
     author_id: &str,
 ) -> Result<(Option<i64>, i64), PublishError> {
     let row: Option<(i64, i64)> = match pool {
-        Either::Left(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
-            .bind(author_id)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| PublishError::Db(e.to_string()))?,
-        Either::Right(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
-            .bind(author_id)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| PublishError::Db(e.to_string()))?,
+        Either::Left(p) => {
+            sqlx::query_as("SELECT created_at, trust_level AS level FROM users WHERE id = ?")
+                .bind(author_id)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| PublishError::Db(e.to_string()))?
+        }
+        Either::Right(p) => {
+            sqlx::query_as("SELECT created_at, trust_level AS level FROM users WHERE id = ?")
+                .bind(author_id)
+                .fetch_optional(p)
+                .await
+                .map_err(|e| PublishError::Db(e.to_string()))?
+        }
     };
     Ok(row
         .map(|(created_at, level)| (Some(created_at), level))
-        .unwrap_or((None, 1)))
+        .unwrap_or((None, 0)))
 }
 
 /// 事务写：posts + post_contents + post_revisions（+ 即时发布时板块计数）。
@@ -784,7 +788,7 @@ fn is_unique_violation(err: &sqlx::Error) -> bool {
 
 // ─────────────────────── M04-VISIBILITY-04：编辑前作者等级重检 ──────────────
 
-/// 编辑前作者等级重检（fail-closed）：重读 `users.level`，若帖子当前有效
+/// 编辑前作者等级重检（fail-closed）：重读 `users.trust_level`，若帖子当前有效
 /// 可见等级超过作者当前等级 → [`PublishBlocked::VisibilityExceedsLevel`]。
 ///
 /// `EditPostInput` 无可见性字段（编辑不改变可见性），重检锚点是帖子**当前
@@ -806,12 +810,12 @@ async fn recheck_edit_author_level(pool: &DatabasePool, post: &Post) -> Result<(
 /// 重读作者当前等级（服务端权威，不信任客户端缓存）。
 async fn read_author_level(pool: &DatabasePool, author_id: &str) -> Result<u32, PublishBlocked> {
     let level: Option<i64> = match pool {
-        Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+        Either::Left(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
             .bind(author_id)
             .fetch_optional(p)
             .await
             .map_err(|e| PublishBlocked::Internal(e.to_string()))?,
-        Either::Right(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+        Either::Right(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
             .bind(author_id)
             .fetch_optional(p)
             .await
@@ -819,7 +823,7 @@ async fn read_author_level(pool: &DatabasePool, author_id: &str) -> Result<u32, 
     };
     Ok(level
         .ok_or_else(|| PublishBlocked::AccountUnavailable("author not found".to_string()))?
-        .clamp(1, i64::from(u32::MAX)) as u32)
+        .clamp(0, i64::from(u32::MAX)) as u32)
 }
 
 /// 帖子当前有效可见等级（见 [`recheck_edit_author_level`] 文档）。
@@ -860,7 +864,7 @@ async fn current_effective_visibility(
     };
     match row {
         Some((kind, min_level)) if kind == "level" => {
-            Ok(min_level.map_or(1, |lv| lv.clamp(1, i64::from(u32::MAX)) as u32))
+            Ok(min_level.map_or(1, |lv| lv.clamp(0, i64::from(u32::MAX)) as u32))
         }
         _ => Ok(1),
     }

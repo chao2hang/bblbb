@@ -89,7 +89,7 @@ test.describe('图片失败降级（image failure）', () => {
     await page.route('**/*.{png,jpg,jpeg,webp,gif,svg}', (route) => route.abort());
     await page.goto('/users/alice');
     // 头像/封面使用文本/字母占位（Avatar/ProfileCover 不依赖图片 URL）。
-    await expect(page.getByRole('main')).toBeVisible();
+    await expect(page.locator('#main-content')).toBeVisible();
     const imgs = await page.locator('img').count();
     // 即使有 img 元素，也必须有 alt 或可读名称。
     const badAlts = await page.evaluate(() =>

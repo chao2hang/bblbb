@@ -41,6 +41,16 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   authentication_required: '请先登录后再继续操作',
   unauthorized: '请先登录后再继续操作',
   invalid_token: '登录状态已失效，请重新登录',
+  // 认证语义细分（ERROR-CODES.md）：登录/第二因素/重认证错误不再是「请先登录」
+  invalid_credentials: '用户名或密码不正确',
+  mfa_code_invalid: '验证码不正确或已过期',
+  mfa_challenge_invalid: '登录验证已过期，请从第一步重新登录',
+  mfa_confirm_invalid: '验证码不正确，请输入 6 位数字验证码',
+  mfa_enrollment_invalid: '当前没有进行中的两步验证设置，请重新开始',
+  reauth_password_invalid: '密码不正确，请重试',
+  invalid_current_password: '当前密码不正确',
+  verification_token_invalid: '验证链接无效或已过期，请重新获取验证邮件',
+  reset_token_invalid: '重置链接无效或已过期，请重新发起找回密码',
   forbidden: '你没有权限执行此操作',
   not_found: '内容不存在或已被移除',
   conflict: '操作冲突，请刷新页面后重试',
@@ -51,18 +61,33 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   too_many_requests: '操作过于频繁，请稍后再试',
   feature_disabled: '该功能当前未开放',
   internal_error: '服务器开小差了，请稍后重试',
-  validation_failed: '提交的内容未通过校验',
+  validation_failed: '提交的内容未通过校验，请检查表单',
   not_implemented: '该功能尚未上线',
 
   // 校验（422）
   visibility_level_exceeds_author: '可见等级高于你的当前等级，请调低可见等级',
   invalid_url: '链接地址无效，请修改后重试',
+  // 注册/表单字段级 message_key（backend domain/registration.rs 对齐）
+  username_length: '用户名需 3–20 个字符',
+  username_invalid_chars: '用户名只能包含字母、数字、_ 和 -',
+  username_reserved: '该用户名已被保留，请换一个',
+  email_too_long: '邮箱过长，请使用 254 字符以内的邮箱',
+  email_invalid: '邮箱格式不正确',
+  password_length: '密码需 8–128 位',
+  password_complexity: '密码需同时包含字母和数字',
+  password_required: '请输入密码',
 
   // 账号与内容
   insufficient_funds: '余额不足',
   daily_limit_exceeded: '已达今日上限，请稍后再试',
   activity_already_claimed: '今日任务已领取过',
   activity_not_eligible: '暂未满足该任务条件',
+  // 社交 / 付费内容（422 长尾，with_code 直发，注册表已收录）
+  cannot_follow_self: '不能关注你自己',
+  cannot_message_self: '不能给自己发送私信',
+  invalid_price_coin: '定价无效：价格需在 1–1000 金币之间，且仅付费内容可设置',
+  post_not_paid: '该内容不是付费内容',
+  price_not_configured: '付费内容未设置价格，暂无法购买',
   self_reaction: '不能对自己发布的内容表态',
 
   // 商城 / 下载 / 媒体 / AI（长尾，仅给稳定中文兜底）
@@ -81,7 +106,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   ai_consent_required: '发送数据前需要你同意 AI 处理条款',
   ai_budget_exceeded: 'AI 用量已超限，请稍后再试',
   ai_suggestion_stale: '内容已更新，建议已过期',
-  invalid_storage_request: '存储请求参数有误，请检查后重试',
+  invalid_storage_request: '上传被拒绝：文件类型或大小不符合站点设置，请更换文件后重试',
   storage_partial_upload: '上传未完成，请重新发起上传',
   storage_forbidden: '存储访问被拒绝，请联系管理员',
   storage_auth_failed: '存储认证失败，请联系管理员',

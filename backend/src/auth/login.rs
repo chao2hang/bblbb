@@ -199,9 +199,10 @@ pub async fn login_user(
             .await
             .map_err(LoginError::Database)?;
 
-        // 启用 TOTP：密码已验，但暂不签发会话——由 handler 签发一次性
-        // challenge，第二步 /auth/login/mfa 完成后才签发（M02-UX-03）。
-        if crate::auth::mfa::has_confirmed_totp(pool, &user.id)
+        // 启用第二因素（TOTP 或 Passkey，M02-MFA-PK）：密码已验，但暂不签发
+        // 会话——由 handler 签发一次性 challenge，第二步 /auth/login/mfa
+        // 完成后才签发（M02-UX-03；三选一 OR 语义）。
+        if crate::auth::passkey::has_second_factor(pool, &user.id)
             .await
             .map_err(db_err_from_mfa)?
         {

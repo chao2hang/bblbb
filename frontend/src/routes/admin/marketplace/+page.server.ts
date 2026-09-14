@@ -7,8 +7,10 @@
 //   全部强制 reason + recent-auth（后端）+ 审计。
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPost, authedPatch, getAuthed } from '$lib/api/server';
+import type { Cookies } from '@sveltejs/kit';
+import { authedPost, authedPatch, getAuthed, type ServerWriteFailure } from '$lib/api/server';
 import { adminListState, type AdminLoadState } from '$lib/admin';
+import { parseBatchEntries, batchResult, type BatchOutcome } from '$lib/admin-batch';
 import type {
   MarketplaceBalanceView,
   MarketplaceClientView,
@@ -120,6 +122,46 @@ function clientBody(form: FormData): Record<string, unknown> {
   return body;
 }
 
+/** 单条状态切换公共实现（setStatus 与 batchSetStatus 共用）：
+ * GET 当前完整视图 → PATCH 全量保形 + If-Match 乐观锁（与单条 action 语义一致）。 */
+async function setClientStatusOnce(
+  cookies: Cookies,
+  key: string,
+  version: number,
+  status: string,
+  reason: string,
+  requestId: string | null
+): Promise<{ ok: true; data: MarketplaceClientView } | ServerWriteFailure> {
+  const detail = await getAuthed<MarketplaceClientView>(
+    cookies,
+    `/api/v1/admin/marketplace/clients/${encodeURIComponent(key)}`,
+    requestId
+  );
+  if (!detail.ok) return { ok: false, status: detail.status, message: detail.message, requestId: detail.requestId, retryAfterSecs: detail.retryAfterSecs ?? null, code: detail.code ?? null };
+  const c = detail.data;
+  const body = {
+    name: c.name,
+    owner_user_id: c.owner_user_id ?? '',
+    terms_url: c.terms_url ?? '',
+    privacy_url: c.privacy_url ?? '',
+    webhook_url: c.webhook_url ?? '',
+    redirect_uris: c.redirect_uris ?? [],
+    fee_bps: c.fee_bps ?? 0,
+    scopes: (c.scopes ?? []).map((sc) => ({ scope: sc.scope, status: sc.status, limits: sc.limits ?? {} })),
+    status,
+    reason
+  };
+  const result = await authedPatch<MarketplaceClientView>(
+    cookies,
+    `/api/v1/admin/marketplace/clients/${encodeURIComponent(key)}`,
+    body,
+    { 'If-Match': String(version) },
+    requestId
+  );
+  if (result.ok) return { ok: true, data: result.data };
+  return { ok: false, status: result.status, message: result.message, requestId: result.requestId, retryAfterSecs: result.retryAfterSecs ?? null, code: result.code ?? null };
+}
+
 export const actions: Actions = {
   upsertClient: async ({ request, cookies }) => {
     const form = await request.formData();
@@ -149,7 +191,9 @@ export const actions: Actions = {
     }
   },
   /** 概览表状态切换（M17-GAPFIX-07）：取当前完整视图 → PATCH 全量保形 + 新状态。
-   * 值域：pending/active/disabled/emergency_disabled（emergency 需人工恢复，不提供按钮）。 */
+   * 值域：pending/active/disabled/emergency_disabled（emergency 需人工恢复，不提供按钮）。
+   * M18-ADMIN-BATCH：单条与批量（batchSetStatus）共用 setClientStatusOnce，
+   * 保证端点/方法/If-Match 语义与单条 action 完全一致。 */
   setStatus: async ({ request, cookies }) => {
     const form = await request.formData();
     const key = String(form.get('client_id') ?? '').trim();
@@ -159,32 +203,7 @@ export const actions: Actions = {
     if (!key || !status) return fail(422, { message: '缺少参数' } satisfies AdminMarketplaceActionData);
     if (!reason) return fail(422, { message: '操作原因必填' } satisfies AdminMarketplaceActionData);
     try {
-      const detail = await getAuthed<MarketplaceClientView>(
-        cookies,
-        `/api/v1/admin/marketplace/clients/${encodeURIComponent(key)}`,
-        request.headers.get('x-request-id')
-      );
-      if (!detail.ok) return fail(detail.status, { message: detail.message } satisfies AdminMarketplaceActionData);
-      const c = detail.data;
-      const body = {
-        name: c.name,
-        owner_user_id: c.owner_user_id ?? '',
-        terms_url: c.terms_url ?? '',
-        privacy_url: c.privacy_url ?? '',
-        webhook_url: c.webhook_url ?? '',
-        redirect_uris: c.redirect_uris ?? [],
-        fee_bps: c.fee_bps ?? 0,
-        scopes: (c.scopes ?? []).map((sc) => ({ scope: sc.scope, status: sc.status, limits: sc.limits ?? {} })),
-        status,
-        reason
-      };
-      const result = await authedPatch<MarketplaceClientView>(
-        cookies,
-        `/api/v1/admin/marketplace/clients/${encodeURIComponent(key)}`,
-        body,
-        { 'If-Match': String(version) },
-        request.headers.get('x-request-id')
-      );
+      const result = await setClientStatusOnce(cookies, key, version, status, reason, request.headers.get('x-request-id'));
       if (result.ok) {
         return { message: `Client「${result.data.name}」状态已切换为 ${result.data.status}` } satisfies AdminMarketplaceActionData;
       }
@@ -196,6 +215,38 @@ export const actions: Actions = {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '操作失败，请稍后重试' } satisfies AdminMarketplaceActionData);
     }
+  },
+  /** 批量设置状态（M18-ADMIN-BATCH）：循环调用 setStatus 同款单条端点
+   * （GET 详情 → PATCH 全量保形 + If-Match），逐条汇总成败。 */
+  batchSetStatus: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const entries = parseBatchEntries(form);
+    const status = String(form.get('status') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!status) return fail(422, { message: '缺少目标状态' } satisfies AdminMarketplaceActionData);
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' } satisfies AdminMarketplaceActionData);
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const e of entries) {
+      try {
+        const r = await setClientStatusOnce(
+          cookies,
+          e.id,
+          e.version ? Number(e.version) : 1,
+          status,
+          reason,
+          request.headers.get('x-request-id')
+        );
+        if (r.ok) outcome.okCount++;
+        else outcome.failures.push({ id: e.id, message: r.message });
+      } catch (err) {
+        if (isRedirect(err)) throw err;
+        outcome.failures.push({ id: e.id, message: '网络错误' });
+      }
+    }
+    const r = batchResult(outcome, '批量设置状态');
+    return r.ok
+      ? { message: r.message } satisfies AdminMarketplaceActionData
+      : fail(r.status, { message: r.message } satisfies AdminMarketplaceActionData);
   },
   /** 全站对账（M17-GAPFIX-07）：POST /admin/marketplace/reconciliation/run（无 client_id）。 */
   runReconciliationAll: async ({ request, cookies }) => {

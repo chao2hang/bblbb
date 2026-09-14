@@ -71,6 +71,36 @@ v1.0 OIDC：
 - **TOTP 禁用窗口**：停用 MFA 后（`DELETE /auth/mfa`，单事务撤销 TOTP + 失效
   恢复码 + 安全通知）强制账号立即失去 elevated 权限，须重新 enrollment。
 
+### Passkey 第二因素（M02-MFA-PK）
+
+- **语义**：Passkey（WebAuthn/FIDO2）是 MFA 登录第二步的**第三选项**，与
+  TOTP/恢复码 OR 共存——`POST /api/v1/auth/login/mfa` 的 `totp_code` /
+  `recovery_code` / `passkey` 恰好一个通过即签发会话；`mfa_required` 与
+  `Me.mfa_enabled` 的判定统一为「TOTP 已启用 **或** 存在有效 Passkey」。
+- **流程**：
+  1. 注册：`POST /api/v1/auth/passkeys`（begin，返回 creation options）→
+     浏览器 `navigator.credentials.create()` → `POST /api/v1/auth/passkeys/confirm`
+     （浏览器凭据 JSON 原文提交，webauthn-rs 校验后落库 `passkey_credentials`）；
+  2. 登录：第一步密码通过后 `LoginMfaChallenge.passkey_available=true` →
+     `POST /api/v1/auth/login/mfa/passkey/options`（用一次性 MFA challenge 换
+     request options，allowCredentials 限定该账号凭据）→ 浏览器
+     `navigator.credentials.get()` → 断言随 `POST /api/v1/auth/login/mfa` 提交。
+- **安全约定**：
+  - challenge 一律服务端生成；webauthn-rs 注册/认证 state（含 challenge）
+    serde 序列化存 `webauthn_challenges`，5 分钟过期、一次性消费，绝不信任
+    客户端回传的 challenge；
+  - 登录断言 challenge 绑定该次两步登录（`mfa_login_challenges.token_hash`），
+    防跨会话重放；断言校验失败统一 401 `mfa_code_invalid`（与 TOTP/恢复码
+    同语义，不泄漏第二因素细节）；
+  - Passkey 流程强制 user verification（UV），服务端仍显式断言
+    `AuthenticationResult::user_verified()`；签名/origin/rpIdHash/counter
+    校验由 webauthn-rs 完成，断言成功后 `update_credential` 回写 counter 与
+    backup 状态；
+  - **配置**：`BBLBB__PASSKEY_RP_ID`（站点根域，须与 `public_origin` host
+    一致或为其父域；空 = 关闭；注册后不可变更）、`BBLBB__PASSKEY_RP_NAME`；
+  - 撤销 Passkey 要求近期认证（step-up，与停用 TOTP 同级）；注册/撤销均发
+    `mfa_changed` 安全通知。
+
 ### 重置密码
 
 - 一次性 token，数据库只存哈希，30 分钟过期。

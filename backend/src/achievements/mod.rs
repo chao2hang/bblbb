@@ -16,6 +16,8 @@
 use serde_json::json;
 use sqlx::Either;
 
+pub mod icon;
+
 use crate::db::DatabasePool;
 use crate::outbox::now_millis;
 
@@ -42,7 +44,6 @@ pub struct AchievementRow {
     pub category: String,
     pub condition_type: String,
     pub condition_threshold: i64,
-    pub reward_exp: i64,
     pub reward_coin: i64,
     pub is_hidden: i64,
     pub is_enabled: i64,
@@ -50,6 +51,8 @@ pub struct AchievementRow {
     pub version: i64,
     pub created_at: i64,
     pub updated_at: i64,
+    /// 成就图标文件名（`storage_dir/achievements/` 内；NULL = 未上传）。
+    pub icon_path: Option<String>,
 }
 
 /// 用户各条件维度的实时进度统计。
@@ -152,7 +155,7 @@ async fn stats_scalar(pool: &DatabasePool, user_id: &str, sql: &str) -> Result<i
 /// 列出启用中的成就（公共目录；按 sort_order ASC, code ASC 稳定排序）。
 pub async fn list_enabled_achievements(pool: &DatabasePool) -> Result<Vec<AchievementRow>, String> {
     let sql = "SELECT id, code, name, description, category, condition_type, condition_threshold,
-                      reward_exp, reward_coin, is_hidden, is_enabled, sort_order, version, created_at, updated_at
+                      reward_coin, is_hidden, is_enabled, sort_order, version, created_at, updated_at, icon_path
                FROM achievements WHERE is_enabled = 1 ORDER BY sort_order ASC, code ASC";
     let rows: Vec<AchievementRow> = match pool {
         Either::Left(p) => sqlx::query_as(sql).fetch_all(p).await,
@@ -367,17 +370,26 @@ pub async fn notify_private_message(
 }
 
 /// 成就 → 公共 JSON 投影（隐藏成就 description 脱敏为「隐藏成就」）。
+///
+/// `icon_url`：已上传图标时为公开读取端点 URL（本地磁盘存储，不走 S3）。
 pub fn achievement_public_json(a: &AchievementRow) -> serde_json::Value {
     json!({
         "code": a.code,
         "name": a.name,
         "description": if a.is_hidden != 0 { "隐藏成就" } else { a.description.as_str() },
         "category": a.category,
-        "reward_exp": a.reward_exp,
         "reward_coin": a.reward_coin,
         "is_hidden": a.is_hidden != 0,
         "sort_order": a.sort_order,
+        "icon_url": icon_url(&a.code, a.icon_path.as_deref()),
     })
+}
+
+/// 成就图标公开 URL（`icon_path` 非空时）。
+pub fn icon_url(code: &str, icon_path: Option<&str>) -> Option<String> {
+    icon_path
+        .filter(|p| !p.is_empty())
+        .map(|_| format!("/api/v1/achievements/{code}/icon"))
 }
 
 #[cfg(test)]

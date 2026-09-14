@@ -164,6 +164,7 @@ GET /api/v1/boards/{id}/posts?limit=30&after=<opaque-cursor>&sort=latest
 
 ```text
 POST /api/v1/attachments                 创建上传/本地流式上传
+GET  /api/v1/attachments                 本人附件列表 + 当前等级容量摘要（扩展端点）
 POST /api/v1/attachments/{id}/complete   完成 S3 直传并触发服务端校验
 GET  /api/v1/attachments/{id}            元数据
 GET  /api/v1/attachments/{id}/content    鉴权下载或短期重定向
@@ -177,7 +178,9 @@ GET  /api/v1/download-authorizations/{id}      查询本人下载授权
 POST /api/v1/download-authorizations/{id}/sign-url 重新鉴权签发 URL，不重复扣费
 ```
 
-- 创建响应返回当前等级的 `max_file_bytes`、`total_bytes`、`used_bytes` 和 `remaining_bytes`。
+- `GET /api/v1/attachments` 为非冻结契约的扩展端点（注册于 `scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT`）：auth 后返回本人非 deleted 附件（`items`，created_at 倒序，≤100 条）与 `quota` 容量摘要（`level`/`max_file_bytes`/`total_bytes`/`used_bytes`/`remaining_bytes`/`reserved_bytes`/`charged_bytes`/`daily_upload_bytes`/`daily_used_bytes`/`retention_days`/`allowed_media_types`，与上传预留校验同口径；`level` 为用户信任等级 TL0–4，配额档位键 2026-09 起为 `users.trust_level`）；不泄漏 storage_key 等存储细节。
+- `quota.allowed_media_types` 为站点上传类型策略（管理后台「文件存储 → 允许上传的类型」按类目 image/pdf/text/office/av 配置）当前放行的完整媒体类型列表，前端以此做 accept 提示与预校验；create 时服务端按同一策略权威校验，策略外类型返回 400 `invalid_storage_request`。
+- 创建响应返回当前信任等级（TL0–4）档位的 `max_file_bytes`、`total_bytes`、`used_bytes` 和 `remaining_bytes`。
 - 超过单附件限制返回 413 `attachment_too_large`；超过用户总容量返回 409 `attachment_quota_exceeded`。错误可返回安全的数值配额，但不能泄漏其他用户信息。
 - S3 可返回短期预签名上传参数，但完成后必须服务端校验对象。
 - 创建响应仅返回限定对象 key 的短期上传参数、必要请求头和过期时间，绝不返回 S3 Access Key 或 Secret。
@@ -206,6 +209,7 @@ PATCH /api/v1/admin/levels/{id}/attachment-quota
 - 仅具备系统存储管理权限的管理员可调用，并要求 Session、CSRF、近期重新认证和审计。
 - GET 只返回 `secret_configured`、配置来源、后端类型和脱敏连接状态，不返回 Secret。
 - PATCH 中空 Secret 表示保持原值；更换 Secret 只接受写入，不提供读取接口。由环境变量或 Workload Identity 管理的字段为只读，更新返回 409 `managed_configuration`。
+- PATCH 可携带 `allowed_upload_types`（非空类目数组，取值仅限 `image`/`pdf`/`text`/`office`/`av`）配置站点上传类型白名单，保存后立即生效（create 实时读库）；空数组或未知类目返回 400。该配置只能在能力白名单（图片/PDF/纯文本族/OOXML/常见音视频）子集内收窄，压缩包、可执行文件与宏文档始终拒绝。
 - `test` 可测试尚未保存的候选配置，但响应只包含稳定错误码和脱敏诊断，不回显凭证、内部对象 key 或签名 URL；测试对象使用专用前缀并立即清理。
 - `signed_url_ttl_seconds` 控制 S3 临时公开链接有效期；修改后只影响新签发 URL，不删除或修改附件对象。
 - 等级附件配额 PATCH 接受 `max_file_bytes` 和 `total_bytes`，要求总容量不小于单附件上限；修改后立即影响新上传并写管理员审计。
@@ -385,9 +389,11 @@ v1 预计：
 - **标签聚合**：`GET /api/v1/tags/{slug}/posts`（公开；published + 未删除；created_at 游标分页；投影含 board 与作者摘要）。
 - **板块帖子扩展**：`GET /api/v1/boards/{slug}/posts` 扩展 `sort=featured`（精华优先）、`sort=unanswered`（无回复过滤）与 `q`（标题/作者模糊搜索，LIKE + ESCAPE '!'）。
 - **首页帖子流扩展**：`GET /api/v1/posts` 列表项投影增加 `like_count`（post_reactions 聚合）；扩展 `sort=following`（当前登录用户关注的作者，未登录返回空数组）。
-- **内部管理运营端点登记**（documented non-contract，`scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT` 注册表）：站点统计 `GET /api/v1/admin/stats`、趋势 `GET /api/v1/admin/stats/trend`、BI 指标 `GET /api/v1/admin/bi/metrics`、审计读取 `GET /api/v1/admin/audit-logs`、系统设置 `GET/PATCH /api/v1/admin/settings`、帖子管理 `GET /api/v1/admin/posts` 与 `POST /api/v1/admin/posts/{id}/action`、通知广播与召回 `GET/POST /api/v1/admin/notifications/*`、通知模板 `GET /api/v1/admin/notifications/templates`、角色分配 `POST/DELETE /api/v1/admin/users/{id}/roles*`、成就管理 `GET/POST/PATCH/DELETE /api/v1/admin/achievements*` 与手工授予 `POST /api/v1/admin/achievements/{code}/grant`、积分流水与调整 `GET /api/v1/admin/points/ledger`、`POST /api/v1/admin/points/adjust`、等级规则 `GET /api/v1/admin/levels`、`PATCH /api/v1/admin/levels/{level}`、附件管理 `GET /api/v1/admin/attachments`、`DELETE /api/v1/admin/attachments/{id}`、下载交易 `GET /api/v1/admin/download-billing/transactions`、标签合并 `POST /api/v1/admin/tags/{id}/merge`。这些为运营管理接口（沿用 M12/M13 Marketplace/Plugin 先例），安全语义集中记录于 [`OPERATIONS.md §19.8`](OPERATIONS.md)；不进入冻结契约，也不得被公开客户端依赖。
+- **内部管理运营端点登记**（documented non-contract，`scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT` 注册表）：站点统计 `GET /api/v1/admin/stats`、趋势 `GET /api/v1/admin/stats/trend`、BI 指标 `GET /api/v1/admin/bi/metrics`、审计读取 `GET /api/v1/admin/audit-logs`、系统设置 `GET/PATCH /api/v1/admin/settings`、帖子管理 `GET /api/v1/admin/posts` 与 `POST /api/v1/admin/posts/{id}/action`、通知广播与召回 `GET/POST /api/v1/admin/notifications/*`、通知模板 `GET /api/v1/admin/notifications/templates`、角色分配 `POST/DELETE /api/v1/admin/users/{id}/roles*`、成就管理 `GET/POST/PATCH/DELETE /api/v1/admin/achievements*` 与手工授予 `POST /api/v1/admin/achievements/{code}/grant`、积分流水与调整 `GET /api/v1/admin/points/ledger`、`POST /api/v1/admin/points/adjust`、信任等级规则 `GET /api/v1/admin/trust-levels`、规则编辑 `PATCH /api/v1/admin/trust-levels/{level}`（If-Match + reason 审计，2026-09 可配置化）与重置 `POST /api/v1/admin/trust-levels/{level}/reset`、手动授予 `POST /api/v1/admin/users/{user_id}/trust-level`（**等级管理主线**；等级规则存档 CRUD `GET/PATCH /api/v1/admin/levels*` 与经验方案阶梯 `GET /api/v1/admin/levels/scheme` 已于 2026-09 随等级管理合并单轨移除，体系对照见 [`TRUST-LEVELS.md` §1.1](TRUST-LEVELS.md)）、附件管理 `GET /api/v1/admin/attachments`、`DELETE /api/v1/admin/attachments/{id}`、下载交易 `GET /api/v1/admin/download-billing/transactions`、标签合并 `POST /api/v1/admin/tags/{id}/merge`。这些为运营管理接口（沿用 M12/M13 Marketplace/Plugin 先例），安全语义集中记录于 [`OPERATIONS.md §19.8`](OPERATIONS.md)；不进入冻结契约，也不得被公开客户端依赖。
 - **Feed/SEO 投影端点**：`GET /api/v1/rss`、`GET /api/v1/atom`、`GET /api/v1/sitemap.xml` 与 `GET /robots.txt` 为公开只读投影，内容、缓存与 `X-Robots-Tag` 策略见 [`CRAWLER-POLICY.md §7`](CRAWLER-POLICY.md)。
 - **站点公开信息端点**（documented non-contract，`scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT` 注册表）：`GET /api/v1/site`（匿名可读，迁移 0065）返回站点名称/描述、登录页与注册页文案（空串 = 前端内置通用文案兜底）及 `maintenance_mode` 公开标记，是全站文案统一（管理台「系统设置 → 站点文案」）的前台只读投影；SMTP、注册开关等运营字段不进该投影（留在 `GET /api/v1/admin/settings`）。响应 `private, no-store`；供第一方 SSR/前端使用，不作为冻结契约被第三方客户端依赖。
+- **兴趣推荐流端点**（documented non-contract，同上注册表）：`GET /api/v1/recommendations?limit=N`（匿名可读；登录后个性化，2026-09 发现页「算法推送」改造）。v1 评分 = 兴趣画像（关注板块 ×3 / 互动过(赞/回)的板块 ×2 / 互动标签命中 ×1.5，封顶 3）+ 互动热度饱和（`(reply×2 + like×4) / (… + 40)`）+ 新鲜度（72h 半衰），候选池为最近 240 条 published 帖子并**排除本人/已点赞/已回复**；无信号的匿名/新用户退化为「热度×新鲜度」排序（响应 `strategy: interest-v1 | trending-fallback`）。列表项为 `GET /api/v1/posts` 同构投影 + `reason`（你关注的板块/相关标签/你互动过的板块/社区热门）与 `score`。缓存：匿名 `public, max-age=30`、登录 `private, no-store`。算法 v1 迭代期（权重与召回策略持续调整），暂不进冻结契约；评分实现见 `backend/src/routes/recommendations.rs`。
+- **用户 @提及推荐端点**（documented non-contract，同上注册表）：`GET /api/v1/users/suggest?q=&limit=5`（限登录用户，回复与发帖时输入 `@` 触发模糊搜索自动完成与预览）。支持针对 `username_normalized` 与 `display_name` 的模糊匹配，并按匹配相似度（完全匹配 > 前缀匹配 > 子串包含）与用户名长度排序；`q` 为空时默认返回 5 个最相近活跃用户。排除本人、已注销与删除中的账号。响应 `Cache-Control: private, no-store`；只返回安全公开字段 `{ items: [{ username, display_name, level }] }`。供前端编辑器 @提及自动补全使用，暂不进冻结契约。
 
 ## 21. M17-GAPFIX 社交、经济与个人域端点
 
@@ -417,9 +423,9 @@ GET    /api/v1/me/favorites                本人收藏列表（keyset favorites
 ### 21.2 私信（Conversations）
 
 ```text
-GET  /api/v1/conversations                       本人会话列表（last_message_at DESC keyset）
+GET  /api/v1/conversations                       本人会话列表（(last_message_at,id) DESC 不透明 keyset）
 POST /api/v1/conversations                        与指定用户开（或复用）会话 → 201 {id, other}
-GET  /api/v1/conversations/{id}/messages          消息线程（created_at ASC，after = 上一页最后一条）
+GET  /api/v1/conversations/{id}/messages          消息线程（(created_at,id) ASC，after = 不透明复合游标）
 POST /api/v1/conversations/{id}/messages          发消息 → 201
 POST /api/v1/conversations/{id}/read              标记已读（本人 last_read_at）→ 204
 ```
@@ -427,6 +433,7 @@ POST /api/v1/conversations/{id}/read              标记已读（本人 last_rea
 - 权限：`authenticated` + CSRF；**仅会话参与者可读写**，非参与者与不存在一律 404（不枚举会话 ID）。
 - 与自己开会话 422；目标用户不存在 404。创建语义为 find-or-create：两人已有会话时返回既有 `id`。
 - 发消息走 `client_request_id` + `idempotency_records` 幂等（scope `conversation.message`）：同 key + 相同请求摘要重放返回原消息；同 key 不同摘要返回 409 `idempotency_conflict`。
+- 列表游标使用 base64url 编码的 `(timestamp,id)` 复合键；同一毫秒内的消息/会话按 id 稳定排序，分页不重不漏。
 - 消息落库后给对方插入 `type='mention'`、`link='/messages'` 的通知（best-effort，不阻断发送）。
 - 会话列表只含双人会话，`other` 为对方公开投影；不返回对方 email 等私有字段。
 
@@ -441,7 +448,12 @@ DELETE /api/v1/me/achievements/{code}/equip     卸下徽章
 
 - 目录 `public`；本人视图与装备操作 `authenticated` + CSRF。
 - 装备位上限 3（`MAX_EQUIPPED_SLOTS`），超出返回 409；装备尚未解锁的成就同样返回 409。
+- **公开佩戴投影**：`GET /api/v1/users/{username}` 公开资料追加 `equipped_achievements`
+  （已装备成就徽章数组，≤3，仅 `code`/`name` 公开字段，按目录排序；无装备或
+  封禁/注销降级为空数组）。帖子页资料卡（UserHoverCard）「佩戴徽章」行渲染该
+  真实数据（成就墙「正在装备」槽），不再使用商城装扮徽章 Token。
 - 管理侧目录/新建/更新（If-Match version）/删除与手工授予（`POST /api/v1/admin/achievements/{code}/grant`）为 documented non-contract 端点（§20）；`manual` 类成就唯一授予来源，复用统一 unlock 路径并发徽章通知。
+- **成就图标（不走 S3，documented non-contract，见 §20）**：`GET /api/v1/achievements/{code}/icon` 公开读取（匿名；ETag + `Cache-Control: public, max-age=300`；未上传 → 404）；管理侧 `POST /api/v1/admin/achievements/{code}/icon?reason=…`（请求体 = 原始图片字节，png/jpeg/webp/gif 魔数嗅探，≤2MB，直写 `storage_dir/achievements/` 本地磁盘）与 `DELETE …/icon`（body `{reason}`）。公共目录与管理目录投影追加 `icon_url`（未上传为 `null`）。
 
 ### 21.4 个人 API 密钥
 
@@ -496,3 +508,72 @@ GET /api/v1/stats     公开站点统计（成员/帖子/板块等聚合计数�
 
 `GET /api/v1/rss` 与 `GET /api/v1/atom` 为公开只读内容订阅投影，排序、缓存与防泄漏规则遵循 [`CRAWLER-POLICY.md §7.1`](CRAWLER-POLICY.md)（`published_at DESC, id DESC` 稳定排序；受限/未发布正文不出现在投影中）。
 
+## 22. 信任等级 API（M20-TRUST，non-contract）
+
+LinuxDo 式 TL0–TL4 信任等级（详见 [`TRUST-LEVELS.md`](TRUST-LEVELS.md)）。
+端点同 M12/M13 先例不进入冻结契约，登记于 `check-route-coverage.rb`；
+权限复用 `user.read_own` / `user.edit_own` / `level.manage`，无新增权限。
+
+```text
+GET   /api/v1/me/trust-level                    当前等级 + 下一级逐项进度
+POST  /api/v1/me/trust-level/read-time          阅读时长心跳 {"seconds": 1..=60}
+GET   /api/v1/admin/trust-levels                每级规则 + 用户数（level.manage）
+PATCH /api/v1/admin/trust-levels/{level}        编辑等级规则（If-Match 乐观锁 + 审计）
+POST  /api/v1/admin/trust-levels/{level}/reset  恢复该等级内置默认规则（审计）
+POST  /api/v1/admin/users/{id}/trust-level      手动设置（TL4 唯一通道，写审计）
+```
+
+- 进度视图惰性评估后返回，`Cache-Control: private, no-store`。
+- 心跳服务端钳制（单请求 ≤60s、每人每日 ≤7200s）；非法/多余字段 400。
+- 规则编辑通过 If-Match 乐观锁防止并发覆盖；TL0 禁止设置晋升条件，TL4 强制 manual_only=true；未知键拒绝；重置与更新均写审计。
+- 手动授予需 `reason`（1..=500 字符），目标不存在 404；变更写
+  `trust_level_events`（reason=`manual`）与审计 `admin.trust_level.set`。
+
+## 23. 平台治理与运行时配置 API（2026-09 契约扩展）
+
+包含 9 个新增 OpenAPI 契约操作（`openapi/openapi.yaml` 事实来源，对应迁移 0073 等底座）：
+
+### 23.1 首管理员引导（Bootstrap）
+
+```text
+POST /api/v1/auth/bootstrap    使用一次性 Token 创建首个系统管理员（P0 整改）
+```
+
+- 权限：`public`（免登录）；`x-csrf: false`；支持 `Idempotency-Key`。
+- 请求体：`{ token, username, email, password }`。
+- 仅当系统通过 `bblbb-backend --bootstrap` 离线生成一次性 token（库内仅存 SHA-256 哈希，24h 有效）且当前库内尚无 active administrator 时允许调用。
+- 校验顺序：限流（每 IP 5 次/小时防爆破）→ Token 校验（哈希比对、有效性、未消费）→ 系统管理员唯一性检查 → 单事务创建用户并分配 administrator 角色、消费 Token 并写入审计。
+- 重复初始化或已有管理员返回 409 `conflict`；Token 无效/过期返回 422 `validation_failed`。
+
+### 23.2 板块角色管理（Board Roles）
+
+```text
+GET    /api/v1/admin/boards/{id}/roles                       获取指定板块的启用角色与人员指派列表
+POST   /api/v1/admin/boards/{id}/roles                       为用户指派板块角色（role.manage）
+DELETE /api/v1/admin/boards/{id}/roles/{user_id}/{role_name} 撤销用户的板块角色
+```
+
+- 权限：`role.manage` + Session + CSRF；写操作记录管理员审计日志。
+- 支持在板块层级细粒度委派版主（board_moderator）等角色；变更即时生效。
+
+### 23.3 审核风险策略管理（Risk Policy）
+
+```text
+GET   /api/v1/admin/moderation/risk-policy    获取当前生效的内容风险审核策略
+PATCH /api/v1/admin/moderation/risk-policy    版本化更新风控策略（If-Match 乐观锁）
+```
+
+- 权限：`admin.manage` / `post.moderate` + Session + CSRF。
+- 集中管理敏感词白名单、自动审核阈值、违规处置策略版本；PATCH 要求 `If-Match` 并写审计。
+
+### 23.4 Feature Flags 运行时控制（可选能力治理）
+
+```text
+GET   /api/v1/admin/feature-flags              获取当前所有 Flag 运行时状态及 kill-switch 状态
+PATCH /api/v1/admin/feature-flags/{name}       按名字开关可选能力（If-Match 乐观锁 + reason 审计）
+POST  /api/v1/admin/feature-flags/kill-switch  紧急全站熔断关闭全部可选能力
+```
+
+- 权限：`admin.manage` + Session + CSRF。
+- 管理 `ai`、`video`、`download_billing`、`oidc`、`marketplace` 等可选能力的运行时持久化开关（0073 迁移）；修改后同进程原地重载快照并落库。
+- `POST .../kill-switch` 提供一键紧急降级熔断通道，确保系统在第三方依赖故障时保障论坛核心运转。

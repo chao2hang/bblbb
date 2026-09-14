@@ -55,7 +55,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 1, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -70,7 +70,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> String {
         }
         Either::Right(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 1, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -265,6 +265,8 @@ async fn buy_product_charges_and_grants_entitlement() {
         .unwrap();
     assert_eq!(order["status"], "succeeded");
     assert_eq!(order["total_amount"], 200);
+    assert_eq!(order["order"]["id"], order["order_id"]);
+    assert_eq!(order["order"]["entitlement_status"], "granted");
     assert_eq!(balance_of(&pool, &user).await, 800);
     assert_eq!(stock_of(&pool, &product).await, Some(3));
 
@@ -274,6 +276,8 @@ async fn buy_product_charges_and_grants_entitlement() {
     let order_id = order["order_id"].as_str().unwrap();
     let order_view = get_order(&pool, &user, order_id, false).await.unwrap();
     assert_eq!(order_view["status"], "succeeded");
+    assert_eq!(order_view["entitlement_id"], order["entitlement_id"]);
+    assert_eq!(order_view["entitlement_status"], "granted");
 
     close_pool(&pool).await;
     cleanup(&dir);
@@ -517,6 +521,24 @@ async fn entitlement_expiry_and_slot_exclusivity() {
         None,
     )
     .await;
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query("UPDATE shop_products SET presentation_tokens_json = ? WHERE id = ?")
+                .bind(r#"["nickname.color.rainbow"]"#)
+                .bind(&p2)
+                .execute(p)
+                .await
+                .unwrap();
+        }
+        Either::Right(p) => {
+            sqlx::query("UPDATE shop_products SET presentation_tokens_json = ? WHERE id = ?")
+                .bind(r#"["nickname.color.rainbow"]"#)
+                .bind(&p2)
+                .execute(p)
+                .await
+                .unwrap();
+        }
+    };
     credit_user(&pool, &user, 1000).await;
 
     let o1 = buy_product(&pool, &user, &p1, 1, "idem-e1").await.unwrap();
@@ -549,6 +571,11 @@ async fn entitlement_expiry_and_slot_exclusivity() {
     assert!(
         statuses.iter().filter(|s| **s == "equipped").count() == 1,
         "slot 互斥失败: {statuses:?}"
+    );
+    let presentation = get_presentation(&pool, &user).await.unwrap();
+    assert_eq!(
+        presentation["presentation_tokens"]["nickname_color"],
+        "rainbow"
     );
     unequip(&pool, &user, e2).await.unwrap();
     let list = list_my_entitlements(&pool, &user).await.unwrap();

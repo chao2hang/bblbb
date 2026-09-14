@@ -11,31 +11,66 @@
    2. 强调色 --color-brand 是**信号**，不是装饰。它只用于：当前态、
       未读、主操作、活跃度。正文链接用 --color-link（近墨色 + 下划线），
       所以强调色出现的地方一定有含义，不会退化成品牌涂装。
-   3. 页面只有一个表面。--color-bg-card 与 --color-bg-page 同值：
-      内容区不再是浮在画布上的盒子，分隔交给发丝线与留白。需要真正
+   3. 内容模块使用独立的 --color-bg-card 表面，条目仍保持透明：
+      L1 列表容器用边框与卡片面成立，L2 行交给发丝线与留白，真正
       「浮起来」的只有下拉/模态/toast，它们用 --color-bg-raised。
    ============================================================ */
 
 :root {
-  /* ---- Colors: Background ----
-     page 与 card 同色是本主题的结构前提（单一表面，见文件头 §3）。
-     raised 仅供浮层（dropdown / modal / toast / hover 卡）使用。 */
-  --color-bg-page: #F7F8F8;
-  --color-bg-card: #F7F8F8;
-  --color-bg-raised: #FFFFFF;
-  --color-bg-subtle: #EFF1F2;
-  --color-bg-inset: #E7EAEC;
-  --color-surface-hover: #EDEFF1;
-  --color-surface-selected: #E5EAF4;
-  --color-overlay: rgba(16, 20, 26, 0.44);
+  /* blbui 基础变量：站点默认亮色，组件 shadow DOM 也必须跟随站点主题。 */
+  --aui-bg: #F7F8F8;
+  --aui-surface: #FFFFFF;
+  --aui-surface-subtle: #F1F3F5;
+  --aui-surface-elevated: #FFFFFF;
+  --aui-header: #F1F3F5;
+  --aui-border: #DFE3E7;
+  --aui-border-hover: #B8C0C9;
+  --aui-focus: #2C4BD8;
+  --aui-focus-ring: 0 0 0 2px rgb(44 75 216 / 24%);
+  --aui-text: #1B2430;
+  --aui-text-primary: #10141A;
+  --aui-text-secondary: #545C68;
+  --aui-text-muted: #5D6672;
+  --aui-text-inverse: #FFFFFF;
+  --aui-primary: #2C4BD8;
+  --aui-primary-content: #FFFFFF;
+  --aui-secondary: #545C68;
+  --aui-secondary-content: #FFFFFF;
+  --aui-accent: #2C4BD8;
+  --aui-accent-content: #FFFFFF;
+  --aui-neutral: #E6E9ED;
+  --aui-neutral-content: #1B2430;
+  --aui-color-scheme: light;
+  --aui-control-bg: #FFFFFF;
+  --aui-control-bg-hover: #F1F3F5;
+  --aui-control-border-hover: #B8C0C9;
+  --aui-success: #17824B;
+  --aui-danger: #C9363E;
+  --aui-warning: #9B6500;
+  --aui-info: #2C4BD8;
+  --aui-font-ui: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  --aui-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* ---- Colors: Text ---- */
-  --color-text-primary: #10141A;
-  --color-text-secondary: #545C68;
-  --color-text-tertiary: #7A828E;
-  --color-text-on-brand: #FFFFFF;
-  --color-text-on-solid: #FFFFFF;
-  --color-text-on-warning: #10141A;
+  /* ============================================================
+     blbui 设计系统基线桥接：
+     全站核心语义变量直接取自 blbui (--aui-*)，实现默认使用 blbui 自带样式与调色板
+     ============================================================ */
+  --color-bg-page: var(--aui-bg, #0a0a0a);
+  --color-bg-card: var(--aui-surface, #0f0f0f);
+  --color-bg-raised: var(--aui-surface-elevated, #18181b);
+  --color-bg-subtle: var(--aui-surface-subtle, #0c0c0c);
+  --color-bg-inset: var(--aui-header, #18181b);
+  --color-surface-hover: var(--aui-control-bg-hover, #18181b);
+  --color-surface-selected: var(--aui-table-row-hover, rgb(39 39 42 / 50%));
+  --color-overlay: var(--aui-overlay, rgb(0 0 0 / 78%));
+
+  /* ---- Colors: Text (来自 blbui --aui-text-*) ---- */
+  --color-text-primary: var(--aui-text-primary, #ffffff);
+  --color-text-secondary: var(--aui-text-secondary, #737373);
+  --color-text-tertiary: var(--aui-text-muted, #52525b);
+  --color-text-on-brand: var(--aui-primary-content, #000000);
+  --color-text-on-solid: var(--aui-primary-content, #000000);
+  --color-text-on-warning: var(--aui-warning-content, #241402);
 
   /* ---- Theme preview palette (admin visual reference) ---- */
   --theme-preview-light-bar: #F7F8F8;
@@ -49,50 +84,53 @@
   --theme-preview-dark-fg: #EDEFF2;
   --theme-preview-dark-muted: #262C35;
 
-  /* ---- Colors: Brand — 电光靛蓝，只用于信号（当前态/未读/主操作/活跃） ---- */
-  --color-brand: #2C4BD8;
-  --color-brand-hover: #2440BC;
-  --color-brand-pressed: #1C33A0;
-  --color-brand-soft: #E4E9FB;
-  --color-accent: #0E7C6B;
-  --color-accent-soft: #DCF2EE;
-  --color-ink: #10141A;
+  /* ---- Colors: Brand / Accent / Ink (来自 blbui) ---- */
+  --color-brand: var(--aui-primary, #ffffff);
+  --color-brand-hover: var(--aui-primary, #ffffff);
+  --color-brand-pressed: var(--aui-secondary, #a1a1aa);
+  --color-brand-soft: var(--aui-neutral, #27272a);
+  --color-accent: var(--aui-accent, #60a5fa);
+  --color-accent-soft: color-mix(in srgb, var(--aui-accent, #60a5fa) 18%, var(--aui-surface, #0f0f0f));
+  --color-ink: var(--aui-text-primary, #ffffff);
 
-  /* 正文链接：近墨色 + 下划线承担可辨识性，把强调色留给状态。 */
-  --color-link: #1B2430;
-  --color-link-hover: #2C4BD8;
+  /* 正文链接 */
+  --color-link: var(--aui-text, #e5e5e5);
+  --color-link-hover: var(--aui-primary, #ffffff);
 
-  /* ---- Colors: Border ---- */
-  --color-border: #DFE3E7;
-  --color-border-muted: #EAEDF0;
-  --color-border-strong: #C2C8D0;
+  /* ---- Colors: Border (来自 blbui --aui-border-*) ---- */
+  --color-border: var(--aui-border, #262626);
+  --color-border-muted: var(--aui-grid-line, rgb(38 38 38 / 25%));
+  --color-border-strong: var(--aui-border-hover, #404040);
 
-  /* ---- Colors: Semantic ---- */
-  --color-success: #0F7B3D;
-  --color-success-soft: #DCF4E5;
-  --color-warning: #8A5A00;
-  --color-warning-soft: #FBF0D6;
-  --color-danger: #C42B32;
-  --color-danger-soft: #FBE6E7;
+  /* ---- Colors: Semantic (来自 blbui) ---- */
+  --color-success: var(--aui-success, #10b981);
+  --color-success-soft: color-mix(in srgb, var(--aui-success, #10b981) 14%, var(--aui-surface, #0f0f0f));
+  --color-warning: var(--aui-warning, #f59e0b);
+  --color-warning-soft: color-mix(in srgb, var(--aui-warning, #f59e0b) 14%, var(--aui-surface, #0f0f0f));
+  --color-danger: var(--aui-danger, #ef4444);
+  --color-danger-soft: var(--aui-danger-soft, rgb(239 68 68 / 10%));
 
-  /* ---- Colors: Code / Focus / List states ---- */
-  --color-code-bg: #EDEFF2;
-  --color-focus-ring: rgba(44, 75, 216, 0.72);
-  --color-visited: #6D7480;
-  --color-highlight-soft: #FBF0D6;
+  /* ---- Colors: Code / Focus / List states (来自 blbui) ---- */
+  --color-code-bg: var(--aui-code-bg, #080808);
+  --color-focus-ring: var(--aui-focus-ring, 0 0 0 2px rgb(161 161 170 / 28%));
+  --color-visited: var(--aui-text-secondary, #737373);
+  --color-highlight-soft: color-mix(in srgb, var(--aui-warning, #f59e0b) 14%, var(--aui-surface, #0f0f0f));
 
-  /* ---- Typography ----
-     display/base：Inter Tight（拉丁）+ 系统 CJK；界面与标题共用一族，
-     层级靠字号/字重/字距，不靠换字体家族。
-     mono：IBM Plex Mono，全站元信息（时间/计数/标记/序号）的专用字族。 */
-  --font-family-base: "Inter Tight Variable", "Inter Tight", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", "PingFang SC", "MiSans", "HarmonyOS Sans SC",
-    "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  /* ---- Typography（全站字体规范体系） ----
+     1. Display / UI / Base: 优先自托管 Inter Tight（紧凑现代无衬线），中文回退 PingFang / MiSans / 思源黑
+     2. Utility / Mono: 优先自托管 IBM Plex Mono（工程师/数据对齐等宽），配 tabular-nums 对齐数值
+     3. Serif: 规范人文衬线 Georgia / 宋体 / 思源宋体，仅用于金句与典雅引文
+     4. AUI 桥接：保持 blbui 组件与全站字体一致
+     5. 别名兼容：提供 --font-family-ui / --font-family-body 别名避免历史样式失效
+  */
+  --font-family-base: "Inter Tight Variable", "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --font-family-display: var(--font-family-base);
-  --font-family-mono: "IBM Plex Mono", "SF Mono", ui-monospace, Consolas, monospace;
-  /* 旧层（chinese-elegance / 页面内联）仍引用 serif 变量；指向正文族，
-     避免宋体标题回潮又不必逐处改写。 */
-  --font-family-serif: var(--font-family-base);
+  --font-family-mono: "IBM Plex Mono", "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-family-serif: Georgia, "Songti SC", "Noto Serif SC", serif;
+  --font-family-ui: var(--font-family-base);
+  --font-family-body: var(--font-family-base);
+  --aui-font-ui: var(--font-family-base);
+  --aui-font-mono: var(--font-family-mono);
 
   /* 元信息标签的统一排版（mono + 字距 + 小字号），供各层 font: 简写复用 */
   --meta-letter-spacing: 0.02em;
@@ -132,36 +170,31 @@
   --space-12: 48px;
   --space-16: 64px;
 
-  /* ---- Radius ----
-     控件保留小圆角（可点性提示），容器不再需要圆角：容器本身没有了。 */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-full: 999px;
+  /* ---- Radius (采用 blbui --aui-radius) ---- */
+  --radius-sm: var(--aui-radius-sm, 0px);
+  --radius-md: var(--aui-radius-md, 0px);
+  --radius-lg: var(--aui-radius-lg, 0px);
+  --radius-xl: var(--aui-radius-lg, 0px);
+  --radius-full: var(--aui-radius-full, 999px);
 
   /* ---- Border ---- */
-  --border-default: 1px solid var(--color-border);
-  --border-input: 1px solid var(--color-border-strong);
-  --border-strong: 1px solid var(--color-border-strong);
-  /* 原型 chinese-elegance 的发丝分隔线（顶栏等大块面板底边）：
-     0.5px 细边，避免 1px 实边在高对比背景上显得过重。 */
-  --border-thin: 0.5px solid var(--color-border);
+  --border-default: 1px solid var(--aui-border, #262626);
+  --border-input: 1px solid var(--aui-border, #262626);
+  --border-strong: 1px solid var(--aui-border-hover, #404040);
+  --border-thin: 1px solid var(--aui-border, #262626);
 
-  /* ---- Shadow ----
-     严格保留给真正浮起的层（下拉/模态/toast）。内容区一律无阴影：
-     单一表面主题里，一道阴影就会把某块内容重新变回卡片。 */
+  /* ---- Shadow (采用 blbui 阴影系统) ---- */
   --shadow-control: none;
-  --shadow-pop: 0 12px 32px rgba(16, 20, 26, 0.12), 0 2px 6px rgba(16, 20, 26, 0.06);
-  --shadow-modal: 0 32px 80px rgba(16, 20, 26, 0.24), 0 8px 24px rgba(16, 20, 26, 0.1);
+  --shadow-pop: var(--aui-shadow-pop, 8px 8px 0 rgb(0 0 0 / 22%));
+  --shadow-modal: var(--aui-shadow-lg, 0 20px 55px rgb(0 0 0 / 38%));
   --shadow-header: none;
 
-  /* ---- Motion ---- */
-  --duration-fast: 140ms;
-  --duration-base: 220ms;
-  --duration-slow: 320ms;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* ---- Motion (采用 blbui 动效) ---- */
+  --duration-fast: 120ms;
+  --duration-base: var(--aui-transition, 160ms ease-in-out);
+  --duration-slow: 240ms;
+  --ease-out: ease-in-out;
+  --ease-standard: ease-in-out;
 
   /* ---- Z-index ---- */
   --z-dropdown: 100;
@@ -182,8 +215,39 @@
    Dark theme — GitHub dark palette (no pure black / pure white)
    ============================================================ */
 html.dark {
+  --aui-bg: #0D1014;
+  --aui-surface: #14181E;
+  --aui-surface-subtle: #11151B;
+  --aui-surface-elevated: #171C23;
+  --aui-header: #171C23;
+  --aui-border: #262C35;
+  --aui-border-hover: #3B434F;
+  --aui-focus: #7B92FF;
+  --aui-focus-ring: 0 0 0 2px rgb(123 146 255 / 38%);
+  --aui-text: #DCE1E8;
+  --aui-text-primary: #EDEFF2;
+  --aui-text-secondary: #A2AAB6;
+  --aui-text-muted: #79818D;
+  --aui-text-inverse: #0D1014;
+  --aui-primary: #7B92FF;
+  --aui-primary-content: #0D1014;
+  --aui-secondary: #A2AAB6;
+  --aui-secondary-content: #0D1014;
+  --aui-accent: #4FC7B0;
+  --aui-accent-content: #071B18;
+  --aui-neutral: #262C35;
+  --aui-neutral-content: #EDEFF2;
+  --aui-color-scheme: dark;
+  --aui-control-bg: #0C0C0C;
+  --aui-control-bg-hover: #18181B;
+  --aui-control-border-hover: #52525B;
+  --aui-success: #3DBE6B;
+  --aui-danger: #F2585B;
+  --aui-warning: #D2A02F;
+  --aui-info: #7B92FF;
+
   --color-bg-page: #0D1014;
-  --color-bg-card: #0D1014;
+  --color-bg-card: #14181E;
   --color-bg-raised: #171C23;
   --color-bg-subtle: #14181E;
   --color-bg-inset: #171C23;
@@ -236,8 +300,38 @@ html.dark {
    html.dark / html.light and wins. */
 @media (prefers-color-scheme: dark) {
   html:not(.light):not(.dark) {
+    --aui-bg: #0D1014;
+    --aui-surface: #14181E;
+    --aui-surface-subtle: #11151B;
+    --aui-surface-elevated: #171C23;
+    --aui-header: #171C23;
+    --aui-border: #262C35;
+    --aui-border-hover: #3B434F;
+    --aui-focus: #7B92FF;
+    --aui-focus-ring: 0 0 0 2px rgb(123 146 255 / 38%);
+    --aui-text: #DCE1E8;
+    --aui-text-primary: #EDEFF2;
+    --aui-text-secondary: #A2AAB6;
+    --aui-text-muted: #79818D;
+    --aui-text-inverse: #0D1014;
+    --aui-primary: #7B92FF;
+    --aui-primary-content: #0D1014;
+    --aui-secondary: #A2AAB6;
+    --aui-secondary-content: #0D1014;
+    --aui-accent: #4FC7B0;
+    --aui-accent-content: #071B18;
+    --aui-neutral: #262C35;
+    --aui-neutral-content: #EDEFF2;
+    --aui-control-bg: #0C0C0C;
+    --aui-control-bg-hover: #18181B;
+    --aui-control-border-hover: #52525B;
+    --aui-success: #3DBE6B;
+    --aui-danger: #F2585B;
+    --aui-warning: #D2A02F;
+    --aui-info: #7B92FF;
+
     --color-bg-page: #0D1014;
-    --color-bg-card: #0D1014;
+    --color-bg-card: #14181E;
     --color-bg-raised: #171C23;
     --color-bg-subtle: #14181E;
     --color-bg-inset: #171C23;

@@ -2,6 +2,7 @@ pub mod identity;
 pub mod login;
 pub mod mfa;
 pub mod mfa_login;
+pub mod passkey;
 pub mod password;
 pub mod password_reset;
 pub mod preauth;
@@ -23,6 +24,11 @@ pub use mfa::{
 };
 pub use mfa_login::{
     complete_mfa_login, start_mfa_login, MfaLoginCompleted, MfaLoginError, MFA_CHALLENGE_TTL_MS,
+};
+pub use passkey::{
+    begin_passkey_login, begin_passkey_registration, build_webauthn, confirm_passkey_registration,
+    has_active_passkey, has_second_factor, list_passkeys, revoke_passkey, verify_passkey_login,
+    PasskeyError, PasskeyInfo, PASSKEY_CHALLENGE_TTL_MS, PASSKEY_MAX_PER_USER,
 };
 pub use password::{hash_password, verify_password, VerifyResult};
 pub use password_reset::{

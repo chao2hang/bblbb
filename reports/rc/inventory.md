@@ -1,5 +1,7 @@
 # BBLBB — 依赖、License、SBOM、Secret 与构建物清点（M17-FREEZE-05）
 
+> 历史快照：rc.2 / 2026-08-08。依赖、SBOM 和构建物数据需要在新 RC 重新采集，本文只用于审计追溯。
+
 > 执行：platform/release-manager；日期：2026-08-08。
 
 ## 1. 依赖与 License

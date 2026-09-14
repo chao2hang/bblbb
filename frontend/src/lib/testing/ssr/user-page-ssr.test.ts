@@ -41,7 +41,9 @@ const adversarialProfile = {
   // 签名 URL（M6 渲染期临时解析，不得被任何投影持久化）
   cover_url: 'https://cdn.example.com/cover-alice?v=1&X-Amz-Signature=abc&Expires=1789999999',
   avatar_url: 'https://cdn.example.com/avatar-alice?v=1&X-Amz-Signature=def&Expires=1789999999',
-  signed_url: 'https://s3.example.com/private?v=1&X-Amz-Signature=xyz&Expires=1789999999'
+  signed_url: 'https://s3.example.com/private?v=1&X-Amz-Signature=xyz&Expires=1789999999',
+  // 社交域·成就：已装备成就徽章（公开投影字段，仅 code/name）
+  equipped_achievements: [{ code: 'first_post', name: '首发帖' }]
 };
 
 describe('M03-UI-01 用户主页 SSR 守卫', () => {
@@ -49,9 +51,11 @@ describe('M03-UI-01 用户主页 SSR 守卫', () => {
     const { body } = render(UserPage, { props: { data: { user: adversarialProfile, authed: true } } });
     expect(body).toContain('爱丽丝');
     expect(body).toContain('@ alice');
-    expect(body).toContain('LV.7');
-    expect(body).toContain('公开简介');
+    expect(body).toContain('TL7');
+    // 产品下线简介字段：即使对抗性响应携带 bio，也绝不进入 HTML（只保留签名）。
+    expect(body).not.toContain('公开简介');
     expect(body).toContain('公开签名');
+    expect(body).toContain('发私信');
     expect(body).not.toContain('alice@example.com');
     expect(body).not.toContain('SSR-USER-PAGE-HASH');
     expect(body).not.toContain('SSR-USER-PAGE-TOKEN');
@@ -76,7 +80,7 @@ describe('M03-UI-01 用户主页 SSR 守卫', () => {
     // 公开字段仍渲染。
     expect(body).toContain('爱丽丝');
     expect(body).toContain('@ alice');
-    expect(body).toContain('LV.7');
+    expect(body).toContain('TL7');
     // 置空字段不渲染，状态/邮箱不进入 HTML。
     expect(body).not.toContain('公开简介');
     expect(body).not.toContain('公开签名');

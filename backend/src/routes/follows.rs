@@ -348,7 +348,7 @@ async fn list_follow_page(
     };
     let sql = format!(
         "SELECT u.username_normalized AS username, u.display_name AS display_name,
-                u.level AS level, f.created_at AS follow_created_at
+                u.trust_level AS level, f.created_at AS follow_created_at
          FROM user_follows f
          JOIN users u ON u.id = {}
          WHERE {where_clause} AND u.status <> 'deleted'

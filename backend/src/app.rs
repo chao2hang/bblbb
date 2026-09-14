@@ -4,7 +4,7 @@ use std::time::Duration;
 use axum::{
     body::Body,
     extract::State,
-    http::{Request as HttpRequest, StatusCode},
+    http::{header, HeaderValue, Request as HttpRequest, StatusCode},
     middleware,
     response::{IntoResponse, Response},
     routing::get,
@@ -25,9 +25,10 @@ use crate::{
     ratelimit::RateLimiter,
     routes::{
         achievements, admin, admin_ext, ai, apikeys, auth, boards, comments, conversations,
-        download, drafts, economy, economy_ext, favorites, feeds, follows, health::healthz,
-        marketplace, metrics::metrics, mfa, moderation, oidc, openapi::openapi, posts, reactions,
-        ready, search, shop, site, storage, themes, users, video,
+        download, drafts, economy, economy_ext, favorites, feature_flags, feeds, follows,
+        health::healthz, marketplace, metrics::metrics, mfa, moderation, oidc, openapi::openapi,
+        passkey, posts, reactions, ready, recommendations, search, shop, site, storage, themes,
+        trust, users, video,
     },
 };
 
@@ -37,6 +38,26 @@ pub const BODY_LIMIT: usize = 10 * 1024 * 1024;
 /// 请求处理超时（30 秒，M00-BACKEND-06）
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
+async fn private_cache_headers(request: HttpRequest<Body>, next: middleware::Next) -> Response {
+    let path = request.uri().path();
+    let private = path.starts_with("/api/v1/admin/")
+        || path.starts_with("/api/v1/me")
+        || path.starts_with("/api/v1/notifications")
+        || path.starts_with("/api/v1/reports")
+        || path.starts_with("/api/v1/appeals")
+        || path.starts_with("/api/v1/download-authorizations")
+        || path.starts_with("/api/v1/attachments")
+        || path.starts_with("/api/v1/users/");
+    let mut response = next.run(request).await;
+    if private {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        );
+    }
+    response
+}
+
 /// 应用共享状态
 ///
 /// M0 骨架只注入 `config` 与 `db`。M1 扩展点（M00-BACKEND-02）：
@@ -44,12 +65,16 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// - `storage: Arc<dyn Storage>`：对象/附件存储接口
 /// - `jobs: Arc<JobDispatcher>` / `outbox`：任务与发件箱
 /// - `audit: Arc<dyn AuditSink>`：审计写入接口
-/// - `flags: Arc<FeatureFlags>`：功能开关
+/// - `flags`：功能开关快照（`RwLock`，管理员更新 feature flag 后原地重载；
+///   P0 整改前为启动期不可变快照）
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<AppConfig>,
     pub db: Option<Arc<DatabasePool>>,
-    pub flags: crate::config::flags::FeatureFlags,
+    /// Feature Flag 运行时快照：启动时从 `feature_flags` 表加载，
+    /// 管理员 PATCH/kill-switch 后同进程原地重载（`std::sync::RwLock`；
+    /// 读路径无 await，可安全在同步上下文取读锁）。
+    pub flags: Arc<std::sync::RwLock<crate::config::flags::FeatureFlags>>,
     /// 进程内限流器（M02-IDENTITY-06；多实例再引入 Redis）。
     pub limiter: Arc<RateLimiter>,
     /// 对象存储服务（M06-ADAPTER；None = 存储域路由返回 503）。
@@ -100,7 +125,7 @@ pub fn build_router_full(
     let state = AppState {
         config: Arc::new(config),
         db: db.map(Arc::new),
-        flags,
+        flags: Arc::new(std::sync::RwLock::new(flags)),
         limiter: Arc::new(RateLimiter::new()),
         storage: storage.map(Arc::new),
         antibot: Arc::new(crate::antibot::AntibotEngine::new()),
@@ -127,6 +152,7 @@ pub fn build_router_full(
         .merge(auth::router())
         .merge(users::router())
         .merge(mfa::router())
+        .merge(passkey::router())
         .merge(boards::router())
         .merge(posts::router())
         .merge(drafts::router())
@@ -138,12 +164,14 @@ pub fn build_router_full(
         .merge(economy_ext::router())
         .merge(shop::router())
         .merge(reactions::router())
+        .merge(recommendations::router())
         .merge(ai::router())
         .merge(video::router())
         .merge(oidc::router())
         .merge(marketplace::router())
         .merge(admin::router())
         .merge(admin_ext::router())
+        .merge(feature_flags::router())
         .merge(feeds::router())
         .merge(search::router())
         .merge(site::router())
@@ -153,11 +181,13 @@ pub fn build_router_full(
         .merge(conversations::router())
         .merge(achievements::router())
         .merge(apikeys::router())
+        .merge(trust::router())
         // CSRF 防护：状态变更请求 + 会话 Cookie 必须携带合法 X-CSRF-Token
         .layer(middleware::from_fn_with_state(
             state.clone(),
             csrf_protection,
         ))
+        .layer(middleware::from_fn(private_cache_headers))
         .with_state(state);
 
     // Trace span 携带真实 request_id（由 request_id 中间件最先注入扩展，
@@ -247,7 +277,13 @@ async fn feature_gate(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
-    if state.flags.is_enabled(feature, now) {
+    // 读锁取当前快照（管理员更新后原地重载；锁内无 await）。
+    let enabled = state
+        .flags
+        .read()
+        .map(|flags| flags.is_enabled(feature, now))
+        .unwrap_or(false);
+    if enabled {
         return next.run(request).await;
     }
     let request_id = request

@@ -62,7 +62,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> (String, String) {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 5, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -320,6 +320,7 @@ async fn admin_settings_get_patch_optimistic_lock() {
     assert!(body["settings"]["open_registration"].as_bool().unwrap());
     assert!(!body["settings"]["anonymous_replies"].as_bool().unwrap());
     assert_eq!(body["settings"]["site_name"].as_str().unwrap(), "BBLBB");
+    assert_eq!(body["settings"]["currency_name"].as_str().unwrap(), "金币");
     // 0063 种子默认值：public_source = 原型默认公开源。
     assert_eq!(
         body["settings"]["public_source"].as_str().unwrap(),
@@ -384,6 +385,7 @@ async fn admin_settings_get_patch_optimistic_lock() {
             "settings": {
                 "open_registration": false,
                 "site_name": "BBLBB 测试站",
+                "currency_name": "B币",
                 "public_source": "https://settings.example.com",
                 "site_description": "测试站描述",
                 "login_eyebrow": "HELLO",
@@ -413,6 +415,7 @@ async fn admin_settings_get_patch_optimistic_lock() {
         body["settings"]["site_name"].as_str().unwrap(),
         "BBLBB 测试站"
     );
+    assert_eq!(body["settings"]["currency_name"].as_str().unwrap(), "B币");
     // 0065 站点文案：PATCH 后回读一致（trim 后落库）。
     assert_eq!(
         body["settings"]["site_description"].as_str().unwrap(),
@@ -460,8 +463,17 @@ async fn admin_settings_get_patch_optimistic_lock() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["version"].as_i64().unwrap(), 2);
-    assert!(!body["settings"]["open_registration"].as_bool().unwrap());
+    assert_eq!(body["settings"]["currency_name"].as_str().unwrap(), "B币");
+    let coin_count = count(
+        &pool,
+        "SELECT COUNT(*) FROM currencies WHERE code = 'coin' AND name = 'B币'",
+        None,
+    )
+    .await;
+    assert_eq!(
+        coin_count, 1,
+        "currencies 表中 coin 货币名称必须落库更新为 B币"
+    );
     let audit = count(
         &pool,
         "SELECT COUNT(*) FROM audit_logs WHERE action = 'admin.settings.update'",
@@ -886,7 +898,7 @@ async fn admin_settings_smtp_configuration_and_masking() {
     assert!(s.get("smtp_pass").is_none(), "PATCH 返回绝不得泄露明文密码");
 
     // 6) 从 DB 辅助函数直接验证持久化的 SMTP 配置
-    let db_conf = bblbb_backend::email::service::load_smtp_config_from_db(&pool)
+    let db_conf = bblbb_backend::email::service::load_smtp_config_from_db(&pool, "")
         .await
         .expect("load smtp from db")
         .expect("singleton exists");
@@ -923,7 +935,7 @@ async fn admin_settings_smtp_configuration_and_masking() {
         "未传密码时原密码应保持"
     );
 
-    let db_conf2 = bblbb_backend::email::service::load_smtp_config_from_db(&pool)
+    let db_conf2 = bblbb_backend::email::service::load_smtp_config_from_db(&pool, "")
         .await
         .unwrap()
         .unwrap();
@@ -1196,6 +1208,139 @@ async fn admin_posts_list_and_actions_flow() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "member 动作必须 403");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// M18-ADMIN-CONTENT-01：审核版本对比端点——待审草稿可取全量修订（含正文，
+/// 按 version 升序）；member 无 post.moderate → 403；不存在的帖子 → 404。
+#[tokio::test]
+async fn admin_post_revisions_for_pending_review() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let (_admin_id, session, csrf) = admin_ctx(&app, &pool).await;
+    let (author_id, _a) = insert_user(&pool, "aut").await;
+    let author_session = common::direct_session_cookie(&pool, &author_id).await;
+    let author_csrf = session_csrf(&app, &author_session).await;
+    let (member_id, _m) = insert_user(&pool, "mem").await;
+    let member_session = common::direct_session_cookie(&pool, &member_id).await;
+    let member_csrf = session_csrf(&app, &member_session).await;
+
+    // 经 API 创建帖子（v1 首发快照由创建路径写入），再置为待审草稿并直插
+    // v2 编辑快照（不依赖风险策略触发条件）。
+    let post_id = publish_post(&app, &author_session, &author_csrf, "admx-rev-000000000001").await;
+    let now = now_millis();
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "UPDATE posts SET status = 'draft', review_status = 'pending_review' WHERE id = ?",
+            )
+            .bind(&post_id)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+    let rev2 = uuid::Uuid::now_v7().to_string();
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO post_revisions (id, post_id, editor_id, body_markdown, body_html,
+                        restricted_markdown, restricted_html, renderer_version, change_reason,
+                        version, created_at)
+                 VALUES (?, ?, ?, ?, ?, NULL, NULL, 'v1', ?, 2, ?)",
+            )
+            .bind(&rev2)
+            .bind(&post_id)
+            .bind(&author_id)
+            .bind("正文内容（编辑后）：新增了 OIDC 接入说明。")
+            .bind("<p>正文内容（编辑后）：新增了 OIDC 接入说明。</p>")
+            .bind("补充 OIDC 接入说明")
+            .bind(now)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+
+    // 1) 待审草稿（draft + pending_review）可读全量修订——公开端点对非
+    //    published|hidden 一律 404，管理端点必须放行。
+    let (status, body) = authed(
+        &app,
+        "GET",
+        &format!("/api/v1/admin/posts/{post_id}/revisions"),
+        &session,
+        &csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "管理修订列表必须 200: {body}");
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2, "v1+v2 两版快照: {body}");
+    assert_eq!(items[0]["version"].as_i64().unwrap(), 1, "按 version 升序");
+    assert_eq!(items[1]["version"].as_i64().unwrap(), 2);
+    assert_eq!(
+        items[0]["body_markdown"].as_str().unwrap(),
+        "正文内容",
+        "审核员始终可见修订正文"
+    );
+    assert!(
+        items[1]["body_markdown"].as_str().unwrap().contains("OIDC"),
+        "v2 快照含编辑后正文: {body}"
+    );
+    assert_eq!(items[1]["reason"].as_str().unwrap(), "补充 OIDC 接入说明");
+    assert_eq!(items[1]["resource_id"].as_str().unwrap(), post_id);
+
+    // 2) 待审队列列表（status=pending_review）包含该帖（审核页数据源）。
+    let (status, body) = authed(
+        &app,
+        "GET",
+        "/api/v1/admin/posts?status=pending_review",
+        &session,
+        &csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "待审列表必须 200: {body}");
+    assert!(
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|it| it["id"].as_str() == Some(post_id.as_str())),
+        "待审列表必须包含目标帖: {body}"
+    );
+
+    // 3) member 无 post.moderate → 403。
+    let (status, _body) = authed(
+        &app,
+        "GET",
+        &format!("/api/v1/admin/posts/{post_id}/revisions"),
+        &member_session,
+        &member_csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "member 必须 403");
+
+    // 4) 不存在的帖子 → 404。
+    let (status, _body) = authed(
+        &app,
+        "GET",
+        "/api/v1/admin/posts/01911111-1111-7111-8111-111111111111/revisions",
+        &session,
+        &csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "不存在的帖子必须 404");
 
     close_pool(&pool).await;
     cleanup(&dir);
@@ -1606,6 +1751,19 @@ async fn role_assign_revoke_and_guards() {
     )
     .await;
     assert_eq!(n, 1, "user_roles 唯一约束不得重复");
+
+    // 板块角色不能通过全局 user_roles 授予（防止 board_moderator 提权为全局版主）。
+    let (status, _body) = authed(
+        &app,
+        "POST",
+        &format!("/api/v1/admin/users/{target_id}/roles"),
+        &session,
+        &csrf,
+        json!({ "role_name": "board_moderator", "reason": "错误作用域" }),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // 自我分配 → 403。
     let (status, body) = authed(

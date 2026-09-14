@@ -1,0 +1,748 @@
+/* ============================================================
+   LinuxDo-inspired Personal Credits Page Styles
+   Scoped to .linuxdo-credits to avoid leaking to other pages.
+   Matches the design, tokens, layout and components of LinuxDo credits.
+   ============================================================ */
+
+.linuxdo-credits {
+  --color-total: hsl(217, 91%, 60%);
+  --color-income: #10b981;
+  --color-expense: #f43f5e;
+  --chart-border: var(--color-border, #e2e8f0);
+  --chart-muted: var(--color-text-secondary, #64748b);
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+:root[data-theme="dark"] .linuxdo-credits,
+.dark .linuxdo-credits {
+  --color-total: hsl(217, 91%, 60%);
+  --color-income: #10b981;
+  --color-expense: #f43f5e;
+  --chart-border: rgba(255, 255, 255, 0.12);
+  --chart-muted: #94a3b8;
+}
+
+/* Container & Spacing */
+.linuxdo-credits.py-6,
+.linuxdo-credits .py-6 {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.linuxdo-credits.space-y-12 > * + *,
+.linuxdo-credits .space-y-12 > * + * {
+  margin-top: 2.25rem;
+}
+
+.linuxdo-credits .space-y-6 > * + * {
+  margin-top: 1.5rem;
+}
+
+.linuxdo-credits .space-y-4 > * + * {
+  margin-top: 1rem;
+}
+
+.linuxdo-credits .space-y-2 > * + * {
+  margin-top: 0.5rem;
+}
+
+.linuxdo-credits .space-y-1\.5 > * + * {
+  margin-top: 0.375rem;
+}
+
+.linuxdo-credits .space-y-1 > * + * {
+  margin-top: 0.25rem;
+}
+
+.linuxdo-credits .space-y-0\.5 > * + * {
+  margin-top: 0.125rem;
+}
+
+/* Typography */
+.linuxdo-credits .text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.linuxdo-credits .text-xl {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.linuxdo-credits .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.linuxdo-credits .text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.linuxdo-credits .text-\[10px\] {
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.linuxdo-credits .text-\[11px\] {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.linuxdo-credits .font-semibold {
+  font-weight: 600;
+}
+
+.linuxdo-credits .font-medium {
+  font-weight: 500;
+}
+
+.linuxdo-credits .font-bold {
+  font-weight: 700;
+}
+
+.linuxdo-credits .leading-none {
+  line-height: 1;
+}
+
+.linuxdo-credits .leading-tight {
+  line-height: 1.25;
+}
+
+.linuxdo-credits .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Borders & Padding */
+.linuxdo-credits .border-b {
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.linuxdo-credits .border-t {
+  border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+.linuxdo-credits .border-0 {
+  border: 0 !important;
+}
+
+.linuxdo-credits .pb-2 {
+  padding-bottom: 0.5rem;
+}
+
+.linuxdo-credits .pb-3 {
+  padding-bottom: 0.75rem;
+}
+
+.linuxdo-credits .pb-4 {
+  padding-bottom: 1rem;
+}
+
+.linuxdo-credits .pt-1 {
+  padding-top: 0.25rem;
+}
+
+.linuxdo-credits .pt-2 {
+  padding-top: 0.5rem;
+}
+
+.linuxdo-credits .pt-3 {
+  padding-top: 0.75rem;
+}
+
+.linuxdo-credits .pt-4 {
+  padding-top: 1rem;
+}
+
+.linuxdo-credits .py-1 {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.linuxdo-credits .py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.linuxdo-credits .py-3 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.linuxdo-credits .py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.linuxdo-credits .px-0 {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.linuxdo-credits .px-1\.5 {
+  padding-left: 0.375rem;
+  padding-right: 0.375rem;
+}
+
+.linuxdo-credits .px-2 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.linuxdo-credits .px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.linuxdo-credits .px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.linuxdo-credits .p-2 {
+  padding: 0.5rem;
+}
+
+.linuxdo-credits .p-3 {
+  padding: 0.75rem;
+}
+
+.linuxdo-credits .pr-3 {
+  padding-right: 0.75rem;
+}
+
+.linuxdo-credits .mb-1 {
+  margin-bottom: 0.25rem;
+}
+
+.linuxdo-credits .mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.linuxdo-credits .mb-4 {
+  margin-bottom: 1rem;
+}
+
+.linuxdo-credits .mb-6 {
+  margin-bottom: 1.5rem;
+}
+
+.linuxdo-credits .mt-1 {
+  margin-top: 0.25rem;
+}
+
+.linuxdo-credits .mt-2 {
+  margin-top: 0.5rem;
+}
+
+.linuxdo-credits .mt-3 {
+  margin-top: 0.75rem;
+}
+
+.linuxdo-credits .-mt-4 {
+  margin-top: -1rem;
+}
+
+.linuxdo-credits .ml-1 {
+  margin-left: 0.25rem;
+}
+
+.linuxdo-credits .ml-2 {
+  margin-left: 0.5rem;
+}
+
+.linuxdo-credits .h-2 {
+  height: 0.5rem;
+}
+
+.linuxdo-credits .h-4 {
+  height: 1rem;
+}
+
+.linuxdo-credits .h-6 {
+  height: 1.5rem;
+}
+
+.linuxdo-credits .h-8 {
+  height: 2rem;
+}
+
+.linuxdo-credits .h-9 {
+  height: 2.25rem;
+}
+
+.linuxdo-credits .h-46 {
+  height: 11.5rem;
+}
+
+.linuxdo-credits .h-\[200px\] {
+  height: 200px;
+}
+
+.linuxdo-credits .h-\[240px\] {
+  height: 240px;
+}
+
+.linuxdo-credits .min-h-\[200px\] {
+  min-height: 200px;
+}
+
+.linuxdo-credits .min-h-\[220px\] {
+  min-height: 220px;
+}
+
+.linuxdo-credits .w-full {
+  width: 100%;
+}
+
+.linuxdo-credits .h-full {
+  height: 100%;
+}
+
+.linuxdo-credits .size-full {
+  width: 100%;
+  height: 100%;
+}
+
+.linuxdo-credits .size-3 {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.linuxdo-credits .size-3\.5 {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.linuxdo-credits .size-4 {
+  width: 1rem;
+  height: 1rem;
+}
+
+.linuxdo-credits .size-5 {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.linuxdo-credits .rounded-sm {
+  border-radius: 0.1875rem;
+}
+
+.linuxdo-credits .rounded-md {
+  border-radius: 0.375rem;
+}
+
+.linuxdo-credits .rounded-lg {
+  border-radius: 0.625rem;
+}
+
+.linuxdo-credits .rounded-full {
+  border-radius: 9999px;
+}
+
+.linuxdo-credits .shadow-none {
+  box-shadow: none !important;
+}
+
+/* Flex & Grid */
+.linuxdo-credits .flex {
+  display: flex;
+}
+
+.linuxdo-credits .inline-flex {
+  display: inline-flex;
+}
+
+.linuxdo-credits .flex-col {
+  flex-direction: column;
+}
+
+.linuxdo-credits .flex-1 {
+  flex: 1 1 0%;
+}
+
+.linuxdo-credits .shrink-0 {
+  flex-shrink: 0;
+}
+
+.linuxdo-credits .min-w-0 {
+  min-width: 0;
+}
+
+.linuxdo-credits .flex-wrap {
+  flex-wrap: wrap;
+}
+
+.linuxdo-credits .items-center {
+  align-items: center;
+}
+
+.linuxdo-credits .items-start {
+  align-items: flex-start;
+}
+
+.linuxdo-credits .justify-between {
+  justify-content: space-between;
+}
+
+.linuxdo-credits .justify-center {
+  justify-content: center;
+}
+
+.linuxdo-credits .gap-1 {
+  gap: 0.25rem;
+}
+
+.linuxdo-credits .gap-1\.5 {
+  gap: 0.375rem;
+}
+
+.linuxdo-credits .gap-2 {
+  gap: 0.5rem;
+}
+
+.linuxdo-credits .gap-3 {
+  gap: 0.75rem;
+}
+
+.linuxdo-credits .gap-4 {
+  gap: 1rem;
+}
+
+.linuxdo-credits .gap-6 {
+  gap: 1.5rem;
+}
+
+.linuxdo-credits .gap-8 {
+  gap: 2rem;
+}
+
+.linuxdo-credits .grid {
+  display: grid;
+}
+
+.linuxdo-credits .grid-cols-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.linuxdo-credits .relative {
+  position: relative;
+}
+
+.linuxdo-credits .overflow-hidden {
+  overflow: hidden;
+}
+
+.linuxdo-credits .text-right {
+  text-align: right;
+}
+
+.linuxdo-credits .cursor-pointer {
+  cursor: pointer;
+}
+
+/* Colors & Theming */
+.linuxdo-credits .text-muted-foreground {
+  color: var(--color-text-secondary, #64748b);
+}
+
+.linuxdo-credits .bg-muted {
+  background-color: var(--color-bg-subtle, #f1f5f9);
+}
+
+.linuxdo-credits .bg-muted\/40 {
+  background-color: var(--color-bg-subtle, rgba(241, 245, 249, 0.4));
+}
+
+.linuxdo-credits .bg-muted\/50 {
+  background-color: var(--color-bg-subtle, rgba(241, 245, 249, 0.5));
+}
+
+.linuxdo-credits .bg-muted\/70 {
+  background-color: var(--color-bg-subtle, rgba(241, 245, 249, 0.7));
+}
+
+.linuxdo-credits .bg-background {
+  background-color: var(--color-bg-card, #ffffff);
+}
+
+.linuxdo-credits .text-card-foreground {
+  color: var(--color-text-primary, #0f172a);
+}
+
+.linuxdo-credits .text-green-600 {
+  color: #10b981;
+}
+
+.linuxdo-credits .text-red-600 {
+  color: #f43f5e;
+}
+
+.linuxdo-credits .text-blue-600 {
+  color: #2563eb;
+}
+
+.linuxdo-credits .divide-border\/70 > * + * {
+  border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+.linuxdo-credits .bg-green-500\/85 {
+  background-color: rgb(16 185 129 / 85%);
+}
+
+.linuxdo-credits .bg-red-500\/85 {
+  background-color: rgb(244 63 94 / 85%);
+}
+
+.linuxdo-credits .underline-offset-4 {
+  text-underline-offset: 4px;
+}
+
+.linuxdo-credits .hover\:underline:hover {
+  text-decoration: underline;
+}
+
+.linuxdo-credits [data-slot="counting-number"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Cards & Slots */
+.linuxdo-credits [data-slot="card"] {
+  background: var(--color-bg-card, #ffffff);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 210px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.linuxdo-credits [data-slot="card"]:hover {
+  border-color: var(--color-border-hover, #cbd5e1);
+}
+
+.linuxdo-credits [data-slot="card-header"] {
+  padding: 1rem 1rem 0.5rem;
+}
+
+.linuxdo-credits [data-slot="card-title"] {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary, #0f172a);
+}
+
+.linuxdo-credits [data-slot="card-content"] {
+  padding: 0 1rem;
+  position: relative;
+  flex: 1;
+}
+
+.linuxdo-credits [data-slot="card-footer"] {
+  padding: 0 1rem;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  background: transparent;
+}
+
+.linuxdo-credits [data-slot="badge"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-size: 10px;
+  padding: 0.125rem 0.45rem;
+  font-weight: 500;
+  background-color: var(--color-brand, #2563eb);
+  color: #ffffff;
+}
+
+.linuxdo-credits [data-slot="badge"].badge-success {
+  background-color: #10b981;
+  color: #ffffff;
+}
+
+.linuxdo-credits [data-slot="badge"].badge-warning {
+  background-color: #f59e0b;
+  color: #ffffff;
+}
+
+.linuxdo-credits [data-slot="button"] {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary, #64748b);
+  border-radius: 0.375rem;
+  transition: all 0.15s ease;
+}
+
+.linuxdo-credits [data-slot="button"]:hover {
+  color: var(--color-text-primary, #0f172a);
+  background-color: var(--color-bg-subtle, rgba(0, 0, 0, 0.05));
+}
+
+.linuxdo-credits [data-slot="scroll-area"] {
+  position: relative;
+  height: 196px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.linuxdo-credits [data-slot="scroll-area-viewport"],
+.linuxdo-credits [data-radix-scroll-area-viewport] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  padding-bottom: 0.5rem;
+}
+
+.linuxdo-credits [data-slot="scroll-area-viewport"]::-webkit-scrollbar,
+.linuxdo-credits [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none;
+}
+
+/* Empty State Styling */
+.linuxdo-credits .empty-placeholder {
+  height: 100%;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--color-text-secondary, #94a3b8);
+}
+
+.linuxdo-credits .empty-placeholder svg {
+  opacity: 0.4;
+  color: currentColor;
+}
+
+/* Responsive Queries */
+@media (min-width: 400px) {
+  .linuxdo-credits .min-\[400px\]\:hidden {
+    display: none !important;
+  }
+  .linuxdo-credits .min-\[400px\]\:inline {
+    display: inline !important;
+  }
+}
+
+@media (max-width: 399px) {
+  .linuxdo-credits .min-\[400px\]\:hidden {
+    display: inline !important;
+  }
+  .linuxdo-credits .min-\[400px\]\:inline {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .linuxdo-credits .md\:grid {
+    display: grid !important;
+  }
+  .linuxdo-credits .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .linuxdo-credits .md\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .linuxdo-credits .md\:col-span-1 {
+    grid-column: span 1 / span 1 !important;
+  }
+  .linuxdo-credits .md\:col-span-2 {
+    grid-column: span 2 / span 2 !important;
+  }
+  .linuxdo-credits .md\:gap-12 {
+    gap: 3rem !important;
+  }
+  .linuxdo-credits .md\:order-none {
+    order: 0 !important;
+  }
+  .linuxdo-credits .md\:block {
+    display: block !important;
+  }
+  .linuxdo-credits .md\:inline-flex {
+    display: inline-flex !important;
+  }
+  .linuxdo-credits .md\:hidden {
+    display: none !important;
+  }
+  .linuxdo-credits .md\:pt-px {
+    padding-top: 1px !important;
+  }
+  .linuxdo-credits .md\:pt-0 {
+    padding-top: 0 !important;
+  }
+  .linuxdo-credits .md\:pt-2 {
+    padding-top: 0.5rem !important;
+  }
+  .linuxdo-credits .md\:pt-3 {
+    padding-top: 0.75rem !important;
+  }
+  .linuxdo-credits .md\:pt-4 {
+    padding-top: 1rem !important;
+  }
+  .linuxdo-credits .md\:pb-0 {
+    padding-bottom: 0 !important;
+  }
+  .linuxdo-credits .md\:pb-3 {
+    padding-bottom: 0.75rem !important;
+  }
+  .linuxdo-credits .md\:pb-4 {
+    padding-bottom: 1rem !important;
+  }
+  .linuxdo-credits .md\:border-b {
+    border-bottom: 1px solid var(--color-border, #e2e8f0) !important;
+  }
+  .linuxdo-credits .md\:text-left {
+    text-align: left !important;
+  }
+  .linuxdo-credits .md\:whitespace-nowrap {
+    white-space: nowrap !important;
+  }
+  .linuxdo-credits .md\:divide-y-0 > * + * {
+    border-top-width: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .linuxdo-credits .lg\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Recharts / Chart styling */
+.linuxdo-credits [data-slot="chart"] {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  height: 240px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.linuxdo-credits .chart-container {
+  width: 100%;
+  height: 240px;
+  position: relative;
+}
+
+.linuxdo-credits .chart-container svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}

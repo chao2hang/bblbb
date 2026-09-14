@@ -30,7 +30,7 @@ function jsonResponse(data: unknown): Response {
   });
 }
 
-/** 对抗性板块：白名单 6 字段之外混入邮箱/凭据/密钥。 */
+/** 对抗性板块：白名单 7 字段（含公开 icon）之外混入邮箱/凭据/密钥。 */
 const adversarialBoard = {
   id: 'b1',
   slug: 'general',
@@ -38,6 +38,7 @@ const adversarialBoard = {
   description: '日常闲聊',
   post_count: 3,
   is_active: true,
+  icon: 'message-circle',
   email: 'owner@example.com',
   password_hash: '$argon2id$HASH-SECRET',
   session_token: 'TOKEN-SECRET',
@@ -54,7 +55,8 @@ const adversarialTag = {
   api_key: 'AKIA-SECRET'
 };
 
-/** 对抗性帖子：除了私密字段，还带隐藏正文（非公开可见性不应流出）。 */
+/** 对抗性帖子：除了私密字段，还带隐藏正文（非公开可见性不应流出）；
+ *  参与者带装扮投影（公开）与混入的私密字段（必须被白名单拦截）。 */
 const adversarialPost = {
   id: 'p1',
   title: '你好 BBLBB',
@@ -67,7 +69,27 @@ const adversarialPost = {
   content: 'PUBLIC-BODY-SHOULD-NOT-LEAK',
   body_html: '<p>PUBLIC-BODY-SHOULD-NOT-LEAK</p>',
   hidden_body: '<p>HIDDEN-SECRET-BODY</p>',
-  visibility: 'logged_in'
+  visibility: 'logged_in',
+  author: {
+    id: 'u1',
+    username: 'chaos',
+    display_name: 'Chaos',
+    avatar_attachment_id: 'att-avatar-1',
+    presentation_tokens: { avatar_frame: 'gold_ring' },
+    email: 'owner@example.com',
+    session_token: 'TOKEN-SECRET'
+  },
+  participants: [
+    {
+      id: 'u2',
+      username: 'nina',
+      display_name: '妮娜',
+      avatar_attachment_id: 'att-avatar-2',
+      presentation_tokens: { avatar_frame: 'gold_ring' },
+      email: 'nina@example.com',
+      password_hash: '$argon2id$PARTICIPANT-HASH'
+    }
+  ]
 };
 
 const FORBIDDEN = [
@@ -123,26 +145,46 @@ describe('M00-FRONTEND-09 隐私守卫：hydration payload / 预取数据源', (
 
     // 数组元素只保留白名单字段（不得出现混入的私密键）。
     expect(Object.keys(data.boards[0]).sort()).toEqual(
-      ['description', 'id', 'is_active', 'name', 'post_count', 'slug'].sort()
+      ['description', 'icon', 'id', 'is_active', 'name', 'post_count', 'slug'].sort()
     );
     expect(Object.keys(data.tags[0]).sort()).toEqual(['id', 'name', 'slug', 'usage_count'].sort());
     expect(Object.keys(data.posts[0]).sort()).toEqual(
       [
+        'author_avatar_attachment_id',
+        'author_display_name',
         'author_id',
         'author_name',
+        'author_presentation_tokens',
         'board_id',
         'created_at',
         'id',
         'is_featured',
         'last_reply_at',
         'like_count',
+        'participants',
         'pinned',
         'reply_count',
-        'summary',
         'title',
         'view_count'
       ].sort()
     );
+    // 作者只透传公开投影（上传头像附件引用 + 服务端编译的装扮 Token），
+    // 嵌套作者对象里混入的私密字段（邮箱/会话令牌）不会流入 load 输出。
+    expect(data.posts[0].author_presentation_tokens).toEqual({ avatar_frame: 'gold_ring' });
+    expect(data.posts[0].author_avatar_attachment_id).toBe('att-avatar-1');
+    // 参与者预览只含公开投影（id/username/display_name/avatar_attachment_id/
+    // presentation_tokens），对抗性后端混入的私密参与者字段（如邮箱/密码哈希）
+    // 不会流入 load 输出。
+    expect(Object.keys((data.posts[0].participants as object[])[0]).sort()).toEqual(
+      ['id', 'username', 'display_name', 'avatar_attachment_id', 'presentation_tokens'].sort()
+    );
+    expect((data.posts[0].participants as Array<Record<string, unknown>>)[0]).toMatchObject({
+      id: 'u2',
+      username: 'nina',
+      display_name: '妮娜',
+      avatar_attachment_id: 'att-avatar-2',
+      presentation_tokens: { avatar_frame: 'gold_ring' }
+    });
   });
 
   it('白名单字段的值完整保留（公开数据不丢失）', async () => {
@@ -153,7 +195,8 @@ describe('M00-FRONTEND-09 隐私守卫：hydration payload / 预取数据源', (
       name: '综合讨论',
       description: '日常闲聊',
       post_count: 3,
-      is_active: true
+      is_active: true,
+      icon: 'message-circle'
     });
     expect(data.tags[0]).toMatchObject({ id: 't1', name: 'svelte', usage_count: 5 });
     expect(data.posts[0]).toMatchObject({ id: 'p1', title: '你好 BBLBB', reply_count: 2 });
@@ -163,8 +206,12 @@ describe('M00-FRONTEND-09 隐私守卫：hydration payload / 预取数据源', (
     // 预取提示本身只是「hover 时预取」的开关，不携带任何数据。
     expect(appHtml).toContain('data-sveltekit-preload-data="hover"');
     // 预取拉取的是各路由 load 输出（__data.json），其隐私由上面的 load 测试保证。
+    // （presentation_tokens 是服务端编译的公开装扮投影，属白名单字段——
+    //   这里只禁真实私密字段名，不能误伤包含 "token" 子串的公开键。）
     const data = await runLoad(adversarialFetch());
-    expect(JSON.stringify(data)).not.toMatch(/password|token|secret|body_html|hidden/);
+    expect(JSON.stringify(data)).not.toMatch(
+      /password_hash|session_token|totp_secret|api_key|body_html|hidden_body|SECRET|@example\.com/
+    );
   });
 });
 

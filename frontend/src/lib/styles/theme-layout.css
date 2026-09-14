@@ -12,7 +12,22 @@
 
    响应式契约：移动端（<1024px）一律回退 classic 结构——顶栏隐藏由
    既有规则处理，BottomNav/后台抽屉导航与 44px 触控目标保持不变。
+
+   画布契约（2026-09 修复「侧栏/无侧栏切换时界面宽度变化」）：
+   竖栏不挤压内容——它只"借用" classic 布局左侧本来就存在的页边距。
+   内容画布仍按 classic 的同一公式取宽并居中（让位余量 8px）：
+   - 宽屏（≥ 画布上限 + 栏宽 + 两侧 8px 余量）：画布宽度与位置和
+     classic **像素级一致**，切换结构时内容完全不跳动
+     （1420 画布自 1920 视口起；app-page 家族上限现与 .container 同为 var(--container-max)）；
+   - 中屏：画布宽度保持 classic 值，左缘贴齐竖栏（右侧保底 8px）；
+   - 窄屏：画布才真正收缩（min(100% − 栏宽 − 16px)），与旧行为同量级。
+   全幅画布（后台管理容器）无法居中，显式让出竖栏宽度（同旧行为）。
    ============================================================ */
+
+/* 竖栏宽度常量：栏宽 / 画布让位 / 跳转链接统一引用，避免多处硬编码漂移 */
+:root {
+  --layout-sidebar-w: 236px;
+}
 
 /* ------------------------------------------------------------
    sidebar：桌面端导航固定为左侧竖栏，内容区右移
@@ -24,7 +39,7 @@
     top: 0 !important;
     left: 0 !important;
     bottom: 0 !important;
-    width: 236px !important;
+    width: var(--layout-sidebar-w) !important;
     height: auto !important;
     max-height: 100vh !important;
     border-bottom: 0 !important;
@@ -109,7 +124,8 @@
     position: static !important;
   }
 
-  /* 通知速览/用户菜单等下拉在竖栏内改为纵向铺开（不再绝对定位溢出栏外） */
+  /* 通知速览/用户菜单等下拉在竖栏内改为纵向铺开（不再绝对定位溢出栏外）；
+     仍保留卡片观感：完整细边框 + 主题卡片圆角（头像点击后的菜单不再是直角） */
   .app-shell[data-theme-layout='sidebar'] .navbar .dropdown.more-menu,
   .app-shell[data-theme-layout='sidebar'] .navbar .dropdown.notif-menu,
   .app-shell[data-theme-layout='sidebar'] .navbar .dropdown.user-menu {
@@ -117,20 +133,57 @@
     width: 100% !important;
     max-width: none !important;
     box-shadow: none !important;
-    border: 0 !important;
-    border-top: var(--border-thin) !important;
-    border-radius: 0 !important;
+    margin-top: var(--space-1) !important;
+    border: var(--border-thin) !important;
+    border-radius: var(--radius-lg) !important;
   }
 
-  /* 内容画布右移，让出竖栏宽度（后台/前台页面统一生效） */
+  /* 内容画布不再整体右移（旧实现 margin-left: 236px 会把所有画布挤进
+     变窄的剩余空间，切换 classic↔sidebar 时全站宽度/位置跳变）。竖栏改为
+     覆盖在 classic 布局左侧页边距上，画布按 classic 同一公式取宽居中：
+     宽屏与 classic 像素级一致，中屏左缘贴栏，窄屏才收缩（见文件头画布契约）。 */
   .app-shell[data-theme-layout='sidebar'] .page-wrapper {
-    margin-left: 236px !important;
     min-height: 100vh !important;
+  }
+
+  /* 居中画布·container 家族（上限 var(--container-max) = 1280px）：
+     宽度仍为 min(上限, 100% − 48px) 的 classic 口径，仅左缘按需让位竖栏 */
+  .app-shell[data-theme-layout='sidebar'] #main-content .container:not(.app-admin-page-shell) {
+    max-width: min(var(--container-max), calc(100% - var(--layout-sidebar-w) - 16px)) !important;
+    margin-left: max(
+      calc(var(--layout-sidebar-w) + 8px),
+      calc((100% - min(var(--container-max), 100% - var(--layout-sidebar-w) - 16px)) / 2)
+    ) !important;
+  }
+
+  /* 居中画布·app-page 家族（上限 var(--container-max)，与首页 .container 同宽；
+     后置于 container 组以同口径覆盖） */
+  .app-shell[data-theme-layout='sidebar'] #main-content .app-page:not(.app-admin-page-shell) {
+    width: min(var(--container-max), calc(100% - var(--layout-sidebar-w) - 16px)) !important;
+    margin-left: max(
+      calc(var(--layout-sidebar-w) + 8px),
+      calc((100% - min(var(--container-max), 100% - var(--layout-sidebar-w) - 16px)) / 2)
+    ) !important;
+  }
+
+  /* 个人页画布（#page-me 与 .app-page 家族同口径） */
+  .app-shell[data-theme-layout='sidebar'] #main-content #page-me.app-page {
+    width: min(var(--container-max), calc(100% - var(--layout-sidebar-w) - 16px)) !important;
+    margin-left: max(
+      calc(var(--layout-sidebar-w) + 8px),
+      calc((100% - min(var(--container-max), 100% - var(--layout-sidebar-w) - 16px)) / 2)
+    ) !important;
+  }
+
+  /* 后台管理全幅画布：无法居中，显式让出竖栏宽度（宽度口径与旧行为一致） */
+  .app-shell[data-theme-layout='sidebar'] #main-content .container.app-admin-page-shell {
+    width: calc(100% - var(--layout-sidebar-w)) !important;
+    margin-left: var(--layout-sidebar-w) !important;
   }
 
   /* 跳转链接避开竖栏 */
   body:has(.app-shell[data-theme-layout='sidebar']) .skip-link {
-    left: calc(236px + var(--space-4)) !important;
+    left: calc(var(--layout-sidebar-w) + var(--space-4)) !important;
   }
 
   /* 竖栏结构下顶栏内的移动端汉堡按钮保持隐藏（桌面视口） */
@@ -149,7 +202,7 @@
   }
 
   .app-shell[data-theme-layout='wide'] .app-page {
-    max-width: min(1700px, 95vw) !important;
+    max-width: min(1760px, 95vw) !important;
   }
 
   /* 内容网格：主列 + 更宽的侧栏 */
@@ -182,7 +235,7 @@
     grid-template-columns: 280px minmax(0, 1fr) !important;
   }
 
-  /* 表格与代码块不再被 1180px 画布挤压 */
+  /* 表格与代码块不再被居中画布挤压 */
   .app-shell[data-theme-layout='wide'] .app-table {
     min-width: 760px !important;
   }
@@ -199,14 +252,8 @@
 }
 
 /* ------------------------------------------------------------
-   结构切换过渡（尊重减少动效偏好）
+   结构切换过渡：无。classic↔sidebar 是结构性切换（顶栏↔竖栏无法连续
+   形变，画布在 classic 侧以 margin:auto 居中、CSS 不能向 auto 插值），
+   强行半程动画（宽度动、位置跳）反而更不协调——保持干净的一次性切换。
+   稳定性由上方「画布契约」保证：宽屏下画布宽度与位置两种结构完全一致。
    ------------------------------------------------------------ */
-.app-shell {
-  transition: margin-left var(--duration-base) var(--ease-standard);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-shell {
-    transition: none !important;
-  }
-}

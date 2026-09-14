@@ -347,7 +347,7 @@ async fn adversarial_request_body_roles_and_permissions_are_ignored() {
     let roles = aggregate_permissions(&pool, &p.member, Some(&p.general))
         .await
         .expect("聚合必须成功");
-    let gates = load_account_gates(&pool, &p.member)
+    let gates = load_account_gates(&pool, &p.member, Some(&p.general))
         .await
         .expect("状态门必须成功");
     for perm in ["admin.manage", "post.moderate", "post.read"] {

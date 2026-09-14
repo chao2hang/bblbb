@@ -1,23 +1,26 @@
 <!-- M07-UI-05/06：衣柜——装备槽（昵称颜色/头像框/挂件/徽章≤3/主页装饰/
   帖子装饰）、过期自动卸下、装饰预览（只渲染白名单 Token，见 tokens.ts）、
-  减少动效（prefers-reduced-motion）。
+  权益行内可视化预览（EntitlementPreview：头像框/挂件图、昵称效果、徽章章面、
+  装饰色板）、减少动效（prefers-reduced-motion）。
 -->
 <script lang="ts">
   import { enhance } from '$app/forms';
   import {
     NICKNAME_COLORS,
-    NICKNAME_DECORATIONS,
     AVATAR_FRAMES,
-    AVATAR_ATTACHMENTS,
     BADGES,
-    TITLE_PREFIXES,
     PROFILE_EFFECTS,
     POST_EFFECTS,
+    normalizeSlot,
+    projectEntitlementTokens,
     slotLabel
   } from '$lib/components/wardrobe/tokens';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import ReactionBar from '$lib/components/ReactionBar.svelte';
+  import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
+  import EntitlementPreview from '$lib/components/wardrobe/EntitlementPreview.svelte';
   import AttachmentUploader from '$lib/components/upload/AttachmentUploader.svelte';
   import AttachmentPicker from '$lib/components/upload/AttachmentPicker.svelte';
   import type { Entitlement, Presentation } from '$lib/api/types';
@@ -30,6 +33,7 @@
   let selectedAttachmentId = $state<string | null>(null);
 
   const presentation = $derived(data.presentation);
+  const user = $derived(data.user);
   const entitlements = $derived(data.entitlements);
   const error = $derived(data.error);
   const actionMessage = $derived(form?.message ?? null);
@@ -44,21 +48,9 @@
     const v = tokens['nickname_color'];
     return typeof v === 'string' && v in NICKNAME_COLORS ? v : null;
   });
-  const nicknameDecoration = $derived.by(() => {
-    const v = tokens['nickname_decoration'];
-    return typeof v === 'string' && v in NICKNAME_DECORATIONS ? v : null;
-  });
   const avatarFrame = $derived.by(() => {
     const v = tokens['avatar_frame'];
     return typeof v === 'string' && v in AVATAR_FRAMES ? AVATAR_FRAMES[v] : null;
-  });
-  const avatarAttachment = $derived.by(() => {
-    const v = tokens['avatar_attachment'];
-    return typeof v === 'string' && v in AVATAR_ATTACHMENTS ? v : null;
-  });
-  const titlePrefix = $derived.by(() => {
-    const v = tokens['title_prefix'];
-    return typeof v === 'string' && v in TITLE_PREFIXES ? v : null;
   });
   const profileEffect = $derived.by(() => {
     const v = tokens['profile_effect'];
@@ -77,15 +69,6 @@
   /** 徽章最多 3 个（服务端裁决为主，前端仅作入口禁用提示）。 */
   const badgesAtLimit = $derived(profileBadges.length >= 3);
 
-  /** 展示中昵称（颜色/装饰/前缀均来自白名单映射）。 */
-  const displayName = $derived.by(() => {
-    let name = '我';
-    const deco = nicknameDecoration ? NICKNAME_DECORATIONS[nicknameDecoration] : null;
-    if (titlePrefix) name = `${TITLE_PREFIXES[titlePrefix].prefix} ${name}`;
-    if (deco) name = `${deco.prefix}${name}${deco.suffix}`;
-    return name;
-  });
-
   /** 槽位 id 集合（equipped 权益）。 */
   const equippedIds = $derived(new Set(entitlements.filter((e) => e.status === 'equipped').map((e) => e.id)));
 
@@ -101,8 +84,20 @@
 
   function canEquip(e: Entitlement): boolean {
     if (e.status !== 'owned' && e.status !== 'equipped') return false;
-    if (e.slot === 'profile_badges' && e.status !== 'equipped' && badgesAtLimit) return false;
+    if (normalizeSlot(e.slot) === 'profile_badges' && e.status !== 'equipped' && badgesAtLimit) return false;
     return true;
+  }
+
+  /** 权益 Token 投影（白名单可视化 + 中文标签；未知 Token 不渲染）。 */
+  function previewOf(e: Entitlement) {
+    return projectEntitlementTokens(e.presentation_tokens, e.asset_attachment_id, e.slot);
+  }
+
+  /** 行标题：商品名优先，缺失时回退 Token 中文标签，最后才是商品 id。 */
+  function entitlementTitle(e: Entitlement, labels: string[]): string {
+    const title = e.product_title?.trim();
+    if (title) return title;
+    return labels[0] ?? e.product_id;
   }
 
   function statusLabel(status: string): string {
@@ -133,7 +128,7 @@
 
   <PageTitle title="我的衣柜" />
 
-<div class="container page-content">
+<div class="container page-content" id="page-wardrobe">
 
   {#if error}
     <p class="input-hint is-error" role="alert">{error}</p>
@@ -150,16 +145,11 @@
         <div class="card-body">
           <div class="wardrobe-preview {profileEffect ? 'effect-' + profileEffect : ''}">
             <div class="avatar-stack">
-              <div class="preview-avatar {avatarFrame ?? ''}">
-                <span aria-hidden="true">😀</span>
-                {#if avatarAttachment}
-                  <span class="avatar-pendant" aria-hidden="true">{AVATAR_ATTACHMENTS[avatarAttachment]}</span>
-                {/if}
-              </div>
+              <CosmeticAvatar name={user?.display_name || user?.username || "我的头像"} size="2xl" presentation={presentation} avatarAttachmentId={user?.avatar_attachment_id} seed={user?.username ?? user?.id} />
             </div>
-            <div class="preview-name" style={nicknameColor ? `color:${NICKNAME_COLORS[nicknameColor]};` : ''}>
-              {displayName}
-            </div>
+             <div class="preview-name">
+               <CosmeticName name={user?.display_name || user?.username || "我的昵称"} presentation={presentation} />
+             </div>
             <div class="preview-badges">
               {#if profileBadges.length === 0}
                 <span class="text-secondary" style="font-size:var(--text-xs);">未装备徽章</span>
@@ -192,10 +182,12 @@
           {:else}
             <div style="display:flex;flex-direction:column;">
               {#each entitlements.filter((e) => e.status === 'equipped') as e (e.id)}
+                {@const preview = previewOf(e)}
                 <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);display:flex;gap:var(--space-3);align-items:center;">
+                  <EntitlementPreview projection={preview} iconToken={e.icon_token} name={user?.display_name || user?.username || '我'} />
                   <div style="min-width:0;flex:1;">
-                    <strong>{e.product_title ?? e.product_id}</strong>
-                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{slotLabel(e.slot ?? '')}</span>
+                    <strong>{entitlementTitle(e, preview.labels)}</strong>
+                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{slotLabel(normalizeSlot(e.slot))}</span>
                     <p class="text-secondary" style="font-size:var(--text-sm);margin:2px 0 0;">
                       {#if expiring(e)}
                         {expiring(e)}
@@ -230,11 +222,13 @@
           {:else}
             <div style="display:flex;flex-direction:column;">
               {#each equippable as e (e.id)}
+                {@const preview = previewOf(e)}
                 <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);display:flex;gap:var(--space-3);align-items:center;">
+                  <EntitlementPreview projection={preview} iconToken={e.icon_token} name={user?.display_name || user?.username || '我'} />
                   <div style="min-width:0;flex:1;">
-                    <strong>{e.product_title ?? e.product_id}</strong>
-                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{slotLabel(e.slot ?? '')}</span>
-                    {#if e.slot === 'profile_badges' && e.remaining_quantity > 1}
+                    <strong>{entitlementTitle(e, preview.labels)}</strong>
+                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{slotLabel(normalizeSlot(e.slot))}</span>
+                    {#if normalizeSlot(e.slot) === 'profile_badges' && e.remaining_quantity > 1}
                       <span class="badge badge-neutral">×{e.remaining_quantity}</span>
                     {/if}
                     {#if expiring(e)}
@@ -247,14 +241,14 @@
                       <input type="hidden" name="entitlement_id" value={e.id} />
                       <input type="hidden" name="expected_presentation_version" value={presentationVersion} />
                       <Button
-                        text={e.slot === 'profile_badges' && badgesAtLimit ? '徽章已满（≤3）' : '装备'}
+                        text={normalizeSlot(e.slot) === 'profile_badges' && badgesAtLimit ? '徽章已满（≤3）' : '装备'}
                         variant="secondary"
                         size="sm"
                         type="submit"
-                        disabled={e.slot === 'profile_badges' && badgesAtLimit}
+                        disabled={normalizeSlot(e.slot) === 'profile_badges' && badgesAtLimit}
                       />
                     </form>
-                  {:else if e.slot === 'profile_badges' && badgesAtLimit}
+                  {:else if normalizeSlot(e.slot) === 'profile_badges' && badgesAtLimit}
                     <span class="text-secondary" style="font-size:var(--text-sm);">徽章最多 3 个</span>
                   {/if}
                 </div>
@@ -271,10 +265,12 @@
           <div class="card-body" style="padding:0;">
             <div style="display:flex;flex-direction:column;">
               {#each [...expired, ...revoked] as e (e.id)}
+                {@const preview = previewOf(e)}
                 <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);display:flex;gap:var(--space-3);align-items:center;">
+                  <EntitlementPreview projection={preview} iconToken={e.icon_token} name={user?.display_name || user?.username || '我'} />
                   <div style="min-width:0;flex:1;">
-                    <span>{e.product_title ?? e.product_id}</span>
-                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{slotLabel(e.slot ?? '')}</span>
+                    <span>{entitlementTitle(e, preview.labels)}</span>
+                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{slotLabel(normalizeSlot(e.slot))}</span>
                     <span class="badge badge-warning" style="margin-left:var(--space-2);">{statusLabel(e.status)}</span>
                   </div>
                   {#if e.status === 'expired'}
@@ -350,11 +346,11 @@
 
 <style>
   .wardrobe-preview {
-    border: 1px solid var(--color-border, #d0d7de);
-    border-radius: var(--radius-md, 8px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
     padding: var(--space-5);
     text-align: center;
-    background: var(--color-surface, #fff);
+    background: var(--color-bg-card);
   }
   .avatar-stack {
     display: inline-flex;
@@ -364,13 +360,13 @@
     position: relative;
     width: 72px;
     height: 72px;
-    border-radius: 50%;
+    border-radius: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 36px;
-    background: var(--color-bg-subtle, #f6f8fa);
-    border: 2px solid var(--color-border, #d0d7de);
+    background: var(--color-bg-subtle);
+    border: 2px solid var(--color-border);
     overflow: visible;
   }
   .preview-avatar.avatar-frame-gold {

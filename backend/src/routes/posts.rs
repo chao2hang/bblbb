@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
@@ -14,9 +16,10 @@ use sqlx::Either;
 use crate::{
     app::AppState,
     audit::AuditEntry,
-    auth::session::AuthSession,
+    auth::session::{is_step_up_required_for_session, AuthSession, SESSION_COOKIE_NAME},
     authz::decision::AUTHZ_POLICY_VERSION,
     authz::enforce::authorize_action,
+    content::attachments::{extract_attachment_content_ids, load_unavailable_attachment_ids},
     content::comments::service::{
         comment_json, create_comment as service_create_comment, list_comments_page,
         load_comment_projection, validate_parent_scope, CommentCursor, CreateCommentError,
@@ -98,6 +101,8 @@ struct UpdatePostRequest {
     /// 管理员代改时必填（PostPatch 无此字段，服务端宽松接收）。
     #[serde(default)]
     reason: Option<String>,
+    #[serde(default)]
+    tags: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -256,18 +261,18 @@ async fn create_post(
     }
 
     let level: Option<i64> = match pool {
-        Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+        Either::Left(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
             .bind(&user.id)
             .fetch_optional(p)
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-        Either::Right(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+        Either::Right(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
             .bind(&user.id)
             .fetch_optional(p)
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
     };
-    let author_level = level.unwrap_or(1).clamp(1, u32::MAX as i64) as u32;
+    let author_level = level.unwrap_or(0).clamp(0, u32::MAX as i64) as u32;
 
     // GAP-FIX extras 输入（CreatePostInput 构造会 move req 字段，先取出）。
     let extras = PostExtras {
@@ -323,6 +328,20 @@ async fn create_post(
             // 成就钩子（best-effort）：post_count 类成就；失败只 warn 不阻断。
             if let Err(e) = crate::achievements::evaluate(pool, &user.id).await {
                 tracing::warn!(user_id = %user.id, error = %e, "achievement evaluate failed (post)");
+            }
+            // 活跃奖励钩子（best-effort，M07-LEVELS）：post 类 activity_rules 规则
+            // （管理端「积分规则」页配置）；未配置规则/总闸关闭/每日上限/冷却命中
+            // 时引擎返回 NotEligible，静默跳过；失败只 warn 不阻断发帖响应。
+            if let Err(e) = crate::economy::activity::service::claim_content_reward(
+                pool,
+                &user.id,
+                "post",
+                &published.post.id,
+                now_millis(),
+            )
+            .await
+            {
+                tracing::warn!(user_id = %user.id, error = %e, "activity content reward failed (post)");
             }
             let mut body = post_created_json(&published.post);
             if let Some(obj) = body.as_object_mut() {
@@ -533,7 +552,7 @@ async fn link_post_tags(
     };
     let mut linked_ids: Vec<String> = Vec::new();
     let mut linked_names: Vec<String> = Vec::new();
-    for raw in tags {
+    for (idx, raw) in tags.iter().enumerate() {
         let tag = raw.trim();
         if tag.is_empty() {
             continue;
@@ -567,12 +586,13 @@ async fn link_post_tags(
         let insert_sql =
             "INSERT OR IGNORE INTO post_tags (post_id, tag_id, created_at) VALUES (?, ?, ?)";
         let bump_sql = "UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?";
+        let tag_now = now + idx as i64;
         match pool {
             Either::Left(p) => {
                 sqlx::query(insert_sql)
                     .bind(post_id)
                     .bind(&tag_id)
-                    .bind(now)
+                    .bind(tag_now)
                     .execute(p)
                     .await
                     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -588,7 +608,7 @@ async fn link_post_tags(
                 )
                 .bind(post_id)
                 .bind(&tag_id)
-                .bind(now)
+                .bind(tag_now)
                 .execute(p)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -686,7 +706,26 @@ async fn list_posts(
 
     let (rows, has_more) = list_posts_page(pool, &filter, request_id).await?;
 
-    let items: Vec<Value> = rows.iter().map(post_summary_json).collect();
+    // 参与者预览（一页一查询）：楼主之外已发布回复的不同作者，每帖 ≤2 个。
+    let post_ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
+    let participants = fetch_post_participants(pool, &post_ids, request_id).await?;
+    // 作者装扮投影（作者去重后逐个查询）：参与者列楼主头像的已装备头像框。
+    let author_ids: Vec<String> = rows.iter().map(|r| r.author_id.clone()).collect();
+    let author_tokens = fetch_author_presentation_tokens(pool, &author_ids).await;
+    let empty_participants: Vec<PostParticipantRow> = Vec::new();
+    let items: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            post_summary_json(
+                r,
+                participants
+                    .get(&r.id)
+                    .map(|v| v.as_slice())
+                    .unwrap_or(&empty_participants),
+                author_tokens.get(&r.author_id),
+            )
+        })
+        .collect();
     let next_cursor = if has_more {
         rows.last()
             .map(|r| r.created_at.to_string())
@@ -702,36 +741,203 @@ async fn list_posts(
 }
 
 /// 帖子列表行（不含正文；fetch limit+1 判断 has_more）。
+/// 字段 pub(crate)：推荐流（routes::recommendations）复用同一投影。
 #[derive(sqlx::FromRow)]
-struct PostListRow {
-    id: String,
-    board_id: String,
-    author_id: String,
-    post_type: String,
-    title: String,
-    status: String,
-    reply_count: i64,
-    view_count: i64,
-    created_at: i64,
-    updated_at: i64,
-    last_reply_at: Option<i64>,
-    pinned_at: Option<i64>,
+pub(crate) struct PostListRow {
+    pub(crate) id: String,
+    pub(crate) board_id: String,
+    pub(crate) author_id: String,
+    pub(crate) post_type: String,
+    pub(crate) title: String,
+    pub(crate) status: String,
+    pub(crate) reply_count: i64,
+    pub(crate) view_count: i64,
+    pub(crate) created_at: i64,
+    pub(crate) updated_at: i64,
+    pub(crate) last_reply_at: Option<i64>,
+    pub(crate) pinned_at: Option<i64>,
     /// 0003 既有布尔列（is_pinned 的同义列，见 0061 迁移注释）。
-    pinned: i64,
+    pub(crate) pinned: i64,
     /// 精选时间戳（is_featured = featured_at IS NOT NULL）。
-    featured_at: Option<i64>,
-    author_name: Option<String>,
+    pub(crate) featured_at: Option<i64>,
+    pub(crate) author_name: Option<String>,
+    /// 作者昵称（users.display_name；前台列表优先显示昵称，缺省回退用户名）。
+    pub(crate) author_display_name: Option<String>,
+    /// 作者上传头像附件 id（公开引用；参与者列楼主头像渲染用，可空）。
+    pub(crate) author_avatar_attachment_id: Option<String>,
     /// 作者手写摘要（列表卡片展示；与前端首页线程卡对齐，见 posts 表同名列）。
-    summary: Option<String>,
+    pub(crate) summary: Option<String>,
     /// 点赞计数（M18-HOME-01，原型帖子卡 ♥ 计数）。
-    like_count: i64,
+    pub(crate) like_count: i64,
 }
 
-fn post_summary_json(p: &PostListRow) -> Value {
+/// 帖子列表参与者预览行（GET /posts、GET /boards/{slug}/posts、推荐流共用）：
+/// 话题参与者 = 已发布回复的不同作者（不含楼主），按首个回复楼层排序。
+/// 仅含公开字段（id/username/display_name/avatar_attachment_id/
+/// presentation_tokens），与作者投影同构。
+#[derive(Clone, Debug)]
+pub(crate) struct PostParticipantRow {
+    #[allow(dead_code)]
+    pub(crate) post_id: String,
+    pub(crate) user_id: String,
+    pub(crate) username: Option<String>,
+    pub(crate) display_name: Option<String>,
+    /// 用户上传头像附件 id（公开引用；附件内容经 /attachments/{id} 鉴权下发）。
+    pub(crate) avatar_attachment_id: Option<String>,
+    #[allow(dead_code)]
+    pub(crate) presentation_tokens: Option<crate::users::dto::PublicPresentationTokens>,
+}
+
+/// 每帖返回的参与者上限：前台参与者列最多展示 5 个头像（楼主 + 至多 4 个回复者），
+/// 超过 5 个时最后头像后显示省略符号（返回至多 5 个回复者供前台判断是否超限）。
+pub(crate) const PARTICIPANT_PREVIEW_LIMIT: usize = 5;
+
+/// `fetch_post_participants` 查询行：
+/// (post_id, user_id, username, display_name, avatar_attachment_id)。
+type ParticipantQueryRow = (
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
+/// 一次取回一页帖子的参与者预览（单查询避免 N+1）：
+/// `comments(status='published')` 与楼主去重后按 (post_id, author_id) 分组，
+/// 以首个回复楼层（MIN(floor)）排序——先参与者先展示；GROUP BY 显式包含
+/// 所选非聚合列，SQLite/MySQL(ONLY_FULL_GROUP_BY)/MariaDB 三方言一致。
+pub(crate) async fn fetch_post_participants(
+    pool: &DatabasePool,
+    post_ids: &[String],
+    request_id: &'static str,
+) -> Result<HashMap<String, Vec<PostParticipantRow>>, AppError> {
+    if post_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let placeholders = vec!["?"; post_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT c.post_id, c.author_id AS user_id, u.username_normalized AS username, \
+                u.display_name AS display_name, u.avatar_attachment_id AS avatar_attachment_id \
+         FROM comments c \
+         JOIN posts p ON p.id = c.post_id AND c.author_id <> p.author_id \
+         LEFT JOIN users u ON u.id = c.author_id \
+         WHERE c.status = 'published' AND c.post_id IN ({placeholders}) \
+         GROUP BY c.post_id, c.author_id, u.username_normalized, u.display_name, u.avatar_attachment_id \
+         ORDER BY c.post_id, MIN(c.floor), c.author_id"
+    );
+    let rows: Vec<ParticipantQueryRow> = match pool {
+        Either::Left(p) => {
+            let mut query = sqlx::query_as::<_, ParticipantQueryRow>(&sql);
+            for id in post_ids {
+                query = query.bind(id);
+            }
+            query
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
+        Either::Right(p) => {
+            let mut query = sqlx::query_as::<_, ParticipantQueryRow>(&sql);
+            for id in post_ids {
+                query = query.bind(id);
+            }
+            query
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
+    };
+
+    // Decorated participant previews are enriched below.
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    let mut grouped: HashMap<String, Vec<PostParticipantRow>> = HashMap::new();
+    for (post_id, user_id, username, display_name, avatar_attachment_id) in rows {
+        let count = counts.entry(post_id.clone()).or_insert(0);
+        if *count >= PARTICIPANT_PREVIEW_LIMIT {
+            continue;
+        }
+        *count += 1;
+        let presentation_tokens =
+            crate::shop::service::get_public_presentation_tokens(pool, &user_id)
+                .await
+                .unwrap_or(None);
+        grouped
+            .entry(post_id.clone())
+            .or_default()
+            .push(PostParticipantRow {
+                post_id,
+                user_id,
+                username,
+                display_name,
+                avatar_attachment_id,
+                presentation_tokens,
+            });
+    }
+    Ok(grouped)
+}
+
+/// 一页帖子的作者装扮投影（按 author_id 去重后逐作者查询；列表「参与者」
+/// 列楼主头像渲染已装备头像框用）。作者未装备/权益失效时不写入映射，
+/// 投影保持与参与者一致：无装扮不出 `presentation_tokens` 键。
+pub(crate) async fn fetch_author_presentation_tokens(
+    pool: &DatabasePool,
+    author_ids: &[String],
+) -> HashMap<String, crate::users::dto::PublicPresentationTokens> {
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut tokens: HashMap<String, crate::users::dto::PublicPresentationTokens> = HashMap::new();
+    for author_id in author_ids {
+        if author_id.is_empty() || !seen.insert(author_id.as_str()) {
+            continue;
+        }
+        if let Ok(Some(value)) =
+            crate::shop::service::get_public_presentation_tokens(pool, author_id).await
+        {
+            tokens.insert(author_id.clone(), value);
+        }
+    }
+    tokens
+}
+
+pub(crate) fn post_summary_json(
+    p: &PostListRow,
+    participants: &[PostParticipantRow],
+    author_presentation_tokens: Option<&crate::users::dto::PublicPresentationTokens>,
+) -> Value {
+    let participants_json: Vec<Value> = participants
+        .iter()
+        .map(|u| {
+            let mut value = json!({
+                "id": u.user_id,
+                "username": u.username,
+                "display_name": u.display_name,
+            });
+            if let Some(attachment_id) = &u.avatar_attachment_id {
+                value["avatar_attachment_id"] = json!(attachment_id);
+            }
+            if let Some(tokens) = &u.presentation_tokens {
+                value["presentation_tokens"] = json!(tokens);
+            }
+            value
+        })
+        .collect();
+    // 作者公开投影（可选项）：已装备头像框等安全 Token 与上传头像附件引用
+    // 随列表行下发，参与者列楼主头像与悬浮资料卡同源渲染。
+    let mut author = json!({
+        "id": p.author_id,
+        "username": p.author_name,
+        "display_name": p.author_display_name,
+    });
+    if let Some(attachment_id) = &p.author_avatar_attachment_id {
+        author["avatar_attachment_id"] = json!(attachment_id);
+    }
+    if let Some(tokens) = author_presentation_tokens {
+        author["presentation_tokens"] = json!(tokens);
+    }
     json!({
         "id": p.id,
         "board_id": p.board_id,
-        "author": { "id": p.author_id, "username": p.author_name },
+        "author": author,
+        "participants": participants_json,
         "post_type": p.post_type,
         "title": p.title,
         "status": p.status,
@@ -790,6 +996,8 @@ async fn list_posts_page(
         "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
                 p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
                 p.pinned_at, p.pinned, p.featured_at, u.username_normalized as author_name,
+                u.display_name as author_display_name,
+                u.avatar_attachment_id as author_avatar_attachment_id,
                 p.summary,
                 (SELECT COUNT(*) FROM post_reactions pr WHERE pr.post_id = p.id AND pr.reaction = 'like') AS like_count
          FROM posts p
@@ -906,7 +1114,8 @@ async fn get_post(
                     p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.version, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
-                    u.level as author_level,
+                    u.trust_level as author_level,
+                    u.avatar_attachment_id as author_avatar_attachment_id,
                     pol.kind as policy_kind, pol.min_level as policy_min_level,
                     c.body_html, c.body_markdown, c.excerpt, c.renderer_version
              FROM posts p
@@ -924,7 +1133,8 @@ async fn get_post(
                     p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.version, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
-                    u.level as author_level,
+                    u.trust_level as author_level,
+                    u.avatar_attachment_id as author_avatar_attachment_id,
                     pol.kind as policy_kind, pol.min_level as policy_min_level,
                     c.body_html, c.body_markdown, c.excerpt, c.renderer_version
              FROM posts p
@@ -980,14 +1190,14 @@ async fn get_post(
             .unwrap_or(crate::domain::posts::AccessPolicy::Public);
     let min_level = r
         .policy_min_level
-        .map(|lv| lv.clamp(1, i64::from(u32::MAX)) as u32);
+        .map(|lv| lv.clamp(0, i64::from(u32::MAX)) as u32);
     let key = post_grant_key(&id);
     let actor = auth.user.as_ref().map(|u| Actor {
         id: &u.id,
-        level: u.level.clamp(1, i64::from(u32::MAX)) as u32,
+        level: u.level.clamp(0, i64::from(u32::MAX)) as u32,
         username: &u.username,
     });
-    let author_level = r.author_level.unwrap_or(1).clamp(1, i64::from(u32::MAX)) as u32;
+    let author_level = r.author_level.unwrap_or(0).clamp(0, i64::from(u32::MAX)) as u32;
     let content = AccessContent {
         grant_target_key: Some(&key),
         author_id: Some(&r.author_id),
@@ -1004,13 +1214,42 @@ async fn get_post(
     };
     let grant = evaluate(actor.as_ref(), &content, &ctx).await;
 
+    // 附件占位（M06-QUOTA-09 展示端）：正文引用的附件已删除/不可用时，
+    // 读取时替换为「附件已删除」占位（落库 HTML 与 Markdown 不变）。
+    let body_html = match (r.body_html, r.body_markdown.as_deref()) {
+        (Some(html), Some(markdown)) if !html.is_empty() => {
+            let candidate_ids = extract_attachment_content_ids(markdown);
+            let unavailable = load_unavailable_attachment_ids(pool, &candidate_ids)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            if unavailable.is_empty() {
+                Some(html)
+            } else {
+                Some(
+                    crate::content::attachments::replace_unavailable_attachments(
+                        &html,
+                        &unavailable,
+                    ),
+                )
+            }
+        }
+        (html, _) => html,
+    };
+
+    let author_presentation_tokens =
+        crate::shop::service::get_public_presentation_tokens(pool, &r.author_id)
+            .await
+            .unwrap_or(None);
+
     let fields = PostFields {
         id: r.id,
         title: r.title,
         author_id: r.author_id,
         author_username: r.author_name,
         author_display_name: r.author_display_name,
-        author_level: r.author_level.unwrap_or(1),
+        author_level: r.author_level.unwrap_or(0),
+        author_presentation_tokens,
+        author_avatar_attachment_id: r.author_avatar_attachment_id.clone(),
         post_type: r.post_type,
         status: r.status,
         board_id: r.board_id,
@@ -1025,7 +1264,7 @@ async fn get_post(
         published_at: r.published_at,
         last_reply_at: r.last_reply_at,
         closed_at: r.closed_at,
-        body_html: r.body_html,
+        body_html,
         body_markdown: r.body_markdown,
         excerpt: r.excerpt,
         attachments: Vec::new(),
@@ -1060,9 +1299,11 @@ async fn get_post(
         }
         None => false,
     };
+    let post_tags = load_post_tags(pool, &id, request_id).await?;
     if let Some(map) = body.as_object_mut() {
         map.insert("favorite_count".into(), json!(favorite_count));
         map.insert("viewer_favorited".into(), json!(viewer_favorited));
+        map.insert("tags".into(), json!(post_tags));
     }
 
     // M05-RISK-06：作者查看自己待审帖子 → 投影安全审核状态（只含类别）。
@@ -1088,6 +1329,12 @@ async fn get_post(
             HeaderValue::from_static("private, no-store"),
         );
         return Ok(resp);
+    }
+
+    // 信任等级钩子（best-effort，M20-TRUST）：登录用户浏览即「进入话题」，
+    // user×post 唯一幂等；触发惰性评估。放在缓存头构造前，失败不影响响应。
+    if let Some(u) = auth.user.as_ref() {
+        crate::trust::on_topic_viewed(pool, &u.id, &id).await;
     }
 
     let ch = cache_headers_for(&grant, &body.to_string());
@@ -1132,6 +1379,7 @@ struct PostDetailProjection {
     author_name: Option<String>,
     author_display_name: Option<String>,
     author_level: Option<i64>,
+    author_avatar_attachment_id: Option<String>,
     policy_kind: Option<String>,
     policy_min_level: Option<i64>,
     body_html: Option<String>,
@@ -1191,6 +1439,27 @@ async fn load_post_favorite_count(
     }
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
     Ok(count)
+}
+
+/// 读取帖子标签名（按关联顺序；供详情聚合与反显）。
+async fn load_post_tags(
+    pool: &DatabasePool,
+    post_id: &str,
+    request_id: &'static str,
+) -> Result<Vec<String>, AppError> {
+    let sql = "SELECT t.name FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = ? ORDER BY pt.created_at ASC, pt.tag_id ASC";
+    match pool {
+        Either::Left(p) => sqlx::query_scalar::<_, String>(sql)
+            .bind(post_id)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id)),
+        Either::Right(p) => sqlx::query_scalar::<_, String>(sql)
+            .bind(post_id)
+            .fetch_all(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id)),
+    }
 }
 
 /// 读取帖子作者与状态（revisions 可见性判定用）。
@@ -1412,6 +1681,27 @@ async fn update_post(
         .transpose()
         .map_err(|detail| AppError::bad_request(detail, request_id, None))?;
 
+    // 标签校验（PATCH 语义：仅当提供时校验与更新）
+    if let Some(tags) = req.tags.as_deref() {
+        if tags.len() > 8 {
+            return Err(AppError::bad_request(
+                "tags must contain at most 8 items",
+                request_id,
+                None,
+            ));
+        }
+        for tag in tags {
+            let len = tag.trim().chars().count();
+            if len == 0 || len > 32 {
+                return Err(AppError::bad_request(
+                    "each tag must be 1-32 characters",
+                    request_id,
+                    None,
+                ));
+            }
+        }
+    }
+
     // 权限判定：作者本人；管理员或版主（post.moderate / admin.manage）
     let (post_author_id, _post_status, _post_version, _post_updated_at) = post;
     let is_owner = post_author_id == user.id;
@@ -1432,11 +1722,25 @@ async fn update_post(
                 request_id,
             ));
         }
-        let reason = req
-            .reason
-            .as_deref()
-            .unwrap_or("管理员代为编辑更新帖子")
-            .trim();
+        let reason = req.reason.as_deref().unwrap_or("").trim();
+        if reason.is_empty() {
+            return Err(AppError::bad_request(
+                "reason is required for delegated post edit",
+                request_id,
+                None,
+            ));
+        }
+
+        // recent-auth（step-up，5 分钟窗口）
+        let session_token = session_token_from_headers(&headers)
+            .ok_or_else(|| AppError::unauthorized("authentication required", request_id))?;
+        let step_up =
+            is_step_up_required_for_session(pool, &session_token, state.config.step_up_window_secs)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        if step_up {
+            return Err(AppError::step_up_required(request_id));
+        }
 
         // 审计：代改记录（reason/effective_role）
         let role_name = if is_admin {
@@ -1483,12 +1787,59 @@ async fn update_post(
         PublishError::Db(msg) => AppError::internal(msg, request_id),
     })?;
 
+    if let Some(tags) = req.tags.as_deref() {
+        let old_tag_ids: Vec<String> = match pool {
+            Either::Left(p) => sqlx::query_scalar("SELECT tag_id FROM post_tags WHERE post_id = ?")
+                .bind(&id)
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            Either::Right(p) => {
+                sqlx::query_scalar("SELECT tag_id FROM post_tags WHERE post_id = ?")
+                    .bind(&id)
+                    .fetch_all(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            }
+        };
+        for tag_id in &old_tag_ids {
+            let decr_sql = "UPDATE tags SET usage_count = CASE WHEN usage_count > 0 THEN usage_count - 1 ELSE 0 END WHERE id = ?";
+            match pool {
+                Either::Left(p) => {
+                    let _ = sqlx::query(decr_sql).bind(tag_id).execute(p).await;
+                }
+                Either::Right(p) => {
+                    let _ = sqlx::query(decr_sql).bind(tag_id).execute(p).await;
+                }
+            }
+        }
+        match pool {
+            Either::Left(p) => {
+                let _ = sqlx::query("DELETE FROM post_tags WHERE post_id = ?")
+                    .bind(&id)
+                    .execute(p)
+                    .await;
+            }
+            Either::Right(p) => {
+                let _ = sqlx::query("DELETE FROM post_tags WHERE post_id = ?")
+                    .bind(&id)
+                    .execute(p)
+                    .await;
+            }
+        }
+        let now = now_millis();
+        let _ = link_post_tags(pool, &id, Some(tags), now, request_id).await?;
+        let _ = crate::search::index_job::enqueue_index_job(pool, "post", &id).await;
+    }
+
+    let post_tags = load_post_tags(pool, &id, request_id).await?;
     let body = json!({
         "id": refreshed.id,
         "title": refreshed.title,
         "status": refreshed.status.as_str(),
         "version": refreshed.version,
         "updated_at": refreshed.updated_at,
+        "tags": post_tags,
     });
     let mut resp = (StatusCode::OK, Json(body)).into_response();
     resp.headers_mut().insert(
@@ -1496,6 +1847,19 @@ async fn update_post(
         HeaderValue::from_static("private, no-store"),
     );
     Ok(resp)
+}
+
+/// 从 Cookie 头提取会话 token（step-up 判定用）。
+fn session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+    cookie.split(';').find_map(|part| {
+        let (k, v) = part.trim().split_once('=')?;
+        if k == SESSION_COOKIE_NAME {
+            Some(v.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 /// 读取帖子元数据行（含作者）。
@@ -1535,6 +1899,7 @@ async fn get_post_row(
 /// `security: *2` = 可选会话）。响应 `Cache-Control: public, max-age=60` + ETag。
 async fn list_comments(
     State(state): State<AppState>,
+    auth: AuthSession,
     Path(id): Path<String>,
     Query(query): Query<ListQuery>,
 ) -> Result<Response, AppError> {
@@ -1576,7 +1941,16 @@ async fn list_comments(
     let (rows, has_more) = list_comments_page(pool, &id, after.as_ref(), limit)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-    let items: Vec<Value> = rows.iter().map(comment_json).collect();
+    // 附件占位（M06-QUOTA-09 展示端）：本页评论引用的附件统一查一次状态，
+    // 行缺失/非 ready（含已删除）的引用读取时替换为「附件已删除」占位。
+    let candidate_ids: Vec<String> = rows
+        .iter()
+        .flat_map(|r| extract_attachment_content_ids(&r.content))
+        .collect();
+    let unavailable = load_unavailable_attachment_ids(pool, &candidate_ids)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let items: Vec<Value> = rows.iter().map(|r| comment_json(r, &unavailable)).collect();
     let next_cursor = if has_more {
         rows.last()
             .map(|r| CommentCursor::new(r.floor, &r.id).encode())
@@ -1591,6 +1965,14 @@ async fn list_comments(
             "has_more": has_more,
         },
     });
+
+    // 信任等级钩子（best-effort，M20-TRUST）：登录用户翻阅楼层即「阅读楼层」，
+    // user×comment 唯一幂等；触发惰性评估。
+    if let Some(u) = auth.user.as_ref() {
+        let comment_ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
+        crate::trust::on_comments_read(pool, &u.id, &id, &comment_ids).await;
+    }
+
     Ok(read_response(body, request_id))
 }
 
@@ -1801,6 +2183,19 @@ async fn create_comment(
             if let Err(e) = crate::achievements::evaluate(pool, &user.id).await {
                 tracing::warn!(user_id = %user.id, error = %e, "achievement evaluate failed (comment)");
             }
+            // 活跃奖励钩子（best-effort，M07-LEVELS）：comment 类 activity_rules
+            // 规则；同评论去重（幂等重放不重复奖励）；失败只 warn 不阻断。
+            if let Err(e) = crate::economy::activity::service::claim_content_reward(
+                pool,
+                &user.id,
+                "comment",
+                &comment_id,
+                now,
+            )
+            .await
+            {
+                tracing::warn!(user_id = %user.id, error = %e, "activity content reward failed (comment)");
+            }
             // @提及通知（M05-NOTIFY-10，best-effort）：解析正文 @用户，为每个
             // 被提及的真实用户创建 mention 通知；失败只 warn，不影响回复创建
             // （幂等重放同评论不会重复通知，见去重键细化到 comment）。
@@ -1825,7 +2220,11 @@ async fn create_comment(
                     tracing::warn!(comment_id = %comment_id, error = %e, "mention notification failed");
                 }
             }
-            let mut resp_body = comment_json(&projection);
+            let candidate_ids = extract_attachment_content_ids(&projection.content);
+            let unavailable = load_unavailable_attachment_ids(pool, &candidate_ids)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            let mut resp_body = comment_json(&projection, &unavailable);
             resp_body["floor"] = json!(created.floor);
             Ok(private_no_store_response(
                 (StatusCode::CREATED, Json(resp_body)).into_response(),
@@ -1835,8 +2234,17 @@ async fn create_comment(
             // 同 key+摘要重放：返回原评论（按引用读取）
             if let Some(comment_id) = response_reference {
                 if let Ok(Some(projection)) = load_comment_projection(pool, &comment_id).await {
+                    let candidate_ids = extract_attachment_content_ids(&projection.content);
+                    // 幂等重放路径保持既有错误语义（409），占位查询失败降级为不替换
+                    let unavailable = load_unavailable_attachment_ids(pool, &candidate_ids)
+                        .await
+                        .unwrap_or_default();
                     return Ok(private_no_store_response(
-                        (StatusCode::CREATED, Json(comment_json(&projection))).into_response(),
+                        (
+                            StatusCode::CREATED,
+                            Json(comment_json(&projection, &unavailable)),
+                        )
+                            .into_response(),
                     ));
                 }
             }
@@ -1919,8 +2327,7 @@ async fn toggle_reaction(
         .await
     {
         Ok(summary) => {
-            // 成就钩子（best-effort）：reaction_received 类成就按**帖子作者**
-            // 判定（被赞方）；失败只 warn。
+            // 作者查询（被赞方；供活跃奖励与成就钩子共用）。
             let author: Option<String> = match pool {
                 Either::Left(p) => sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ?")
                     .bind(&id)
@@ -1933,6 +2340,28 @@ async fn toggle_reaction(
                     .await
                     .map_err(|e| AppError::internal(e.to_string(), request_id))?,
             };
+            // 活跃奖励钩子（best-effort，M07-LEVELS）：reaction 类规则奖励**表态方**
+            // （引擎内排除自赞、同目标+反应去重、撤赞重赞不重复奖励）；失败只 warn。
+            if let Some(author_id) = author.as_deref() {
+                if let Err(e) = crate::economy::activity::service::claim_reaction_reward(
+                    pool,
+                    &user.id,
+                    author_id,
+                    "post",
+                    &id,
+                    &reaction,
+                    now_millis(),
+                )
+                .await
+                {
+                    tracing::warn!(user_id = %user.id, error = %e, "activity reaction reward failed (post)");
+                }
+            }
+            // 信任等级钩子（best-effort，M20-TRUST）：反应变化影响表态方与
+            // 被赞方统计（送出/收到的赞）；失败只 warn。
+            crate::trust::on_reaction_changed(pool, &user.id, author.as_deref()).await;
+            // 成就钩子（best-effort）：reaction_received 类成就按**帖子作者**
+            // 判定（被赞方）；失败只 warn。
             if let Some(author_id) = author {
                 if let Err(e) = crate::achievements::evaluate(pool, &author_id).await {
                     tracing::warn!(user_id = %author_id, error = %e, "achievement evaluate failed (reaction)");
@@ -1941,13 +2370,39 @@ async fn toggle_reaction(
             Ok(Json(summary))
         }
         Err(crate::reactions::ReactionError::AlreadyExists) => {
-            crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, &reaction)
-                .await
-                .map(Json)
-                .map_err(|e| map_reaction_error(e, request_id))
+            let removed =
+                crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, &reaction)
+                    .await
+                    .map_err(|e| map_reaction_error(e, request_id))?;
+            let author = post_author(pool, &id, request_id).await?;
+            crate::trust::on_reaction_changed(pool, &user.id, author.as_deref()).await;
+            Ok(Json(removed))
         }
         Err(e) => Err(map_reaction_error(e, request_id)),
     }
+}
+
+/// 帖子作者查询（信任等级钩子用；查不到返回 None，不阻塞主流程）。
+async fn post_author(
+    pool: &DatabasePool,
+    post_id: &str,
+    request_id: &str,
+) -> Result<Option<String>, AppError> {
+    match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ?")
+                .bind(post_id)
+                .fetch_optional(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar("SELECT author_id FROM posts WHERE id = ?")
+                .bind(post_id)
+                .fetch_optional(p)
+                .await
+        }
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))
 }
 
 /// DELETE /api/v1/posts/{id}/reactions/{reaction} — 移除帖子反应
@@ -1963,10 +2418,14 @@ async fn delete_post_reaction(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, &reaction)
-        .await
-        .map(Json)
-        .map_err(|e| map_reaction_error(e, request_id))
+    let removed =
+        crate::reactions::service::remove_reaction(pool, &user.id, "post", &id, &reaction)
+            .await
+            .map_err(|e| map_reaction_error(e, request_id))?;
+    // 信任等级钩子（best-effort）：撤赞同样影响双方统计。
+    let author = post_author(pool, &id, request_id).await?;
+    crate::trust::on_reaction_changed(pool, &user.id, author.as_deref()).await;
+    Ok(Json(removed))
 }
 
 /// 反应错误 → AppError（不泄漏目标细节）。

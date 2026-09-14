@@ -78,8 +78,12 @@ struct DbSmtpRow {
 }
 
 /// 从 site_settings 读取当前数据库中的 SMTP 配置。
+///
+/// `settings_key` 为 `BBLBB__SETTINGS_ENCRYPTION_KEY`（P0 整改：smtp_pass
+/// 静态加密 `enc1:` 密文；历史明文原样透传，解密失败按未配置处理）。
 pub async fn load_smtp_config_from_db(
     pool: &DatabasePool,
+    settings_key: &str,
 ) -> Result<Option<DbSmtpConfig>, sqlx::Error> {
     let sql = "SELECT smtp_enabled, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from_email, smtp_from_name, smtp_encryption FROM site_settings WHERE id = 'singleton'";
     let row: Option<DbSmtpRow> = match pool {
@@ -91,7 +95,7 @@ pub async fn load_smtp_config_from_db(
         host: r.smtp_host,
         port: r.smtp_port.clamp(1, 65535) as u16,
         user: r.smtp_user,
-        pass: r.smtp_pass,
+        pass: crate::config::secret_crypto::decrypt_setting(settings_key, &r.smtp_pass),
         from_email: r.smtp_from_email,
         from_name: r.smtp_from_name,
         encryption: r.smtp_encryption,

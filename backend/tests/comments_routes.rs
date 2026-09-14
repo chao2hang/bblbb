@@ -62,7 +62,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str, verified: bool, status: &st
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, display_name, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, display_name, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', ?, 5, ?, ?, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -1359,7 +1359,7 @@ async fn insert_user_named(pool: &DatabasePool, username: &str) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, display_name, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, display_name, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 5, ?, 1, ?, ?, ?)",
             )
             .bind(&user_id)

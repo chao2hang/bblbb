@@ -357,7 +357,7 @@ async fn preauth_verify_email_cross_origin_rejected() {
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert_eq!(body["code"], "origin_not_allowed");
 
-    // 同源 → 放行到 token 校验（统一 400 invalid or expired）
+    // 同源 → 放行到 token 校验（统一 422 invalid or expired）
     let ok = app
         .clone()
         .oneshot(
@@ -374,7 +374,7 @@ async fn preauth_verify_email_cross_origin_rejected() {
         )
         .await
         .unwrap();
-    assert_eq!(ok.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(ok.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let body: Value =
         serde_json::from_slice(&ok.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert!(

@@ -13,6 +13,22 @@ import { render } from 'svelte/server';
 import PostPage from '../../../routes/posts/[id]/+page.svelte';
 import { load } from '../../../routes/posts/[id]/+page.server';
 import type { PostDetailPageData } from '../../../routes/posts/[id]/+page.server';
+import type { User } from '$lib/api/types';
+
+/** 会话用户 fixture：页面登录态 UI（回复表单/点赞/举报）以 data.user
+ *  （根 layout 服务端 /me 验证结果）为准，不再有 authed（Cookie 存在与否）。 */
+const authedUser: User = {
+  id: 'me-1',
+  username: 'carol',
+  email: 'carol@example.com',
+  email_verified: true,
+  status: 'active',
+  display_name: '卡罗尔',
+  level: 2,
+  roles: ['member'],
+  mfa_enabled: false,
+  version: 1
+};
 
 const publicPost: PostDetailPageData = {
   post: {
@@ -32,7 +48,7 @@ const publicPost: PostDetailPageData = {
   // GAP-FIX 内容消费增强：侧栏卡片字段（fixture 缺省 = 服务端降级态）。
   author: null,
   board: null,
-  authed: false,
+  boards: [],
   error: null
 };
 
@@ -54,7 +70,7 @@ const restrictedData: PostDetailPageData = {
   },
   author: null,
   board: null,
-  authed: false,
+  boards: [],
   error: null
 };
 
@@ -76,7 +92,7 @@ const lockedData: PostDetailPageData = {
   },
   author: null,
   board: null,
-  authed: true,
+  boards: [],
   error: null
 };
 
@@ -86,7 +102,10 @@ describe('M04-UI-09 帖子详情无 JS 公开阅读（SSR）', () => {
     expect(body).toContain('公开讨论：无 JS 可读');
     expect(body).toContain('爱丽丝');
     expect(body).toContain('这是公开正文，仅来自后端 body_html。');
-    expect(body).toContain('2 回复');
+    // 浏览量/回复数下移到主贴底部统计行（topic-stats），无 JS 仍可读。
+    expect(body).toContain('topic-stats');
+    expect(body).toContain('浏览量');
+    expect(body).toContain('2 条回复');
   });
 
   it('受限帖：unlocked=false 时隐藏正文不进入 SSR HTML，渲染可访问占位', () => {
@@ -101,6 +120,42 @@ describe('M04-UI-09 帖子详情无 JS 公开阅读（SSR）', () => {
     const { body } = render(PostPage, { props: { data: publicPost } });
     expect(body).toContain('登录后即可回复');
     expect(body).not.toContain('name="comment-markdown"');
+    expect(body).toContain('登录后举报');
+    expect(body).toMatch(/href="\/login\?next=%2Fmoderation%2Freport%3Fpost%3Dpost-1"/);
+  });
+
+  it('侧栏快捷动作不重复渲染狗头，狗头入口由 ReactionBar 负责', () => {
+    const { body } = render(PostPage, { props: { data: { ...publicPost, user: authedUser } } });
+    expect(body).toContain('topic-actions--side');
+    expect(body).not.toContain('topic-doge-btn');
+    expect(body).toContain('reaction-add-btn');
+  });
+
+  it('侧栏板块导航（首页同款分类卡）：所在板块高亮且可跳转其他板块；空列表不渲染卡片', () => {
+    const data: PostDetailPageData = {
+      ...publicPost,
+      board: { slug: 'tech', name: '技术分享', description: '技术文章', post_count: 3, icon: null },
+      boards: [
+        { id: 'b1', slug: 'general', name: '综合讨论', post_count: 6, icon: null },
+        { id: 'b2', slug: 'tech', name: '技术分享', post_count: 3, icon: null },
+        { id: 'b3', slug: 'creative', name: '创意工坊', icon: null }
+      ]
+    };
+    const { body } = render(PostPage, { props: { data } });
+    // 首页同款 category-card（aria-label 标识）
+    expect(body).toContain('板块分类');
+    // 「全部」→ 首页全部信息流（与首页左栏「全部」同语义）；各板块可跳转
+    expect(body).toContain('href="/"');
+    expect(body).toContain('href="/boards/general"');
+    expect(body).toContain('href="/boards/creative"');
+    // 帖子所在板块（tech）高亮（scoped class 前缀在 selected 之前）
+    expect(body).toContain('aria-current="page"');
+    expect(body).toContain(' selected"');
+    // 「全部」行计数 = 6 + 3（仅在任一板块有计数投影时汇总）
+    expect(body).toContain('>9</em>');
+    // 空 boards（无 board_id/降级）→ 整卡不渲染
+    const empty = render(PostPage, { props: { data: { ...publicPost, boards: [] } } });
+    expect(empty.body).not.toContain('板块分类');
   });
 });
 
@@ -142,7 +197,7 @@ describe('M04-UI-07 可见性可访问占位：hidden/after_reply/level/paid 不
         },
         author: null,
         board: null,
-        authed: false,
+        boards: [],
         error: null
       };
       const { body } = render(PostPage, { props: { data } });
@@ -156,12 +211,12 @@ describe('M04-UI-07 可见性可访问占位：hidden/after_reply/level/paid 不
 });
 
 describe('M04-UI-09 回复表单合理退化（SSR）', () => {
-  it('已认证上下文（authed=true）：SSR 输出回复 <form> 与 textarea 字段', () => {
+  it('已认证上下文（data.user 会话）：SSR 输出回复 <form> 与 textarea 字段', () => {
     const { body } = render(PostPage, {
       props: {
         data: {
           ...publicPost,
-          authed: true
+          user: authedUser
         }
       }
     });
@@ -262,13 +317,40 @@ describe('M04-UI-01/+page.server 公开字段白名单（对抗性响应）', ()
     ).rejects.toMatchObject({ status: 404 });
   });
 
-  it('会话 Cookie 存在时 authed=true（SSR 回复表单提示）', async () => {
+  it('带标签帖子：load 输出 tags 数组，且 SSR 渲染标签链接', async () => {
+    mockFetch({
+      id: 'post-tag-1',
+      title: '标签帖子',
+      status: 'published',
+      access_summary: { policy: 'public', unlocked: true },
+      tags: ['svelte', 'rust'],
+      created_at: 1700000000000,
+      updated_at: 1700000000000,
+      body_html: '<p>正文内容</p>'
+    });
+    const data = (await load({
+      params: { id: 'post-tag-1' },
+      cookies: { get: () => null },
+      request: { headers: new Headers() }
+    } as never)) as PostDetailPageData;
+    expect(data.post?.tags).toEqual(['svelte', 'rust']);
+
+    const { body } = render(PostPage, { props: { data } });
+    expect(body).toContain('href="/tags/svelte"');
+    expect(body).toContain('#svelte');
+    expect(body).toContain('href="/tags/rust"');
+    expect(body).toContain('#rust');
+  });
+
+  it('会话 Cookie 存在也不再输出 authed（登录态以 layout /me 验证为准）', async () => {
     mockFetch({ id: 'post-1', title: '标题', created_at: 0, updated_at: 0 });
     const data = (await load({
       params: { id: 'post-1' },
       cookies: { get: (name: string) => (name === '__Host-bblbb_session' ? 'sess-1' : null) },
       request: { headers: new Headers() }
     } as never)) as PostDetailPageData;
-    expect(data.authed).toBe(true);
+    // 回归防线：页面数据不得再携带「Cookie 存在与否」的 authed——失效 Cookie
+    // 曾借此让匿名访客看到回复表单。会话态统一由根 layout 的 data.user 承载。
+    expect('authed' in data).toBe(false);
   });
 });

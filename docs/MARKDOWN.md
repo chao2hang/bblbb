@@ -23,8 +23,9 @@ Markdown 原文
 - `RENDERER_VERSION` 当前 `markdown-v2`：渲染行为变更（扩展开关、锚点规则、
   各类上限、HTML 转义策略、@提及链接化）时递增；v2 = M05-NOTIFY-10 新增
   @提及链接化；
-- `SANITIZER_VERSION` 当前 `ammonia-v1`：清洗 allowlist 变更（标签/属性/协议/
-  iframe Provider/URL 规则）时递增；
+- `SANITIZER_VERSION` 当前 `ammonia-v2`：清洗 allowlist 变更（标签/属性/协议/
+  iframe Provider/URL 规则）时递增；v2 = 站内附件内容端点相对 URL 放行
+  （`/api/v1/attachments/` 前缀作用于 `a[href]`/`img[src]`，其余相对路径仍拒绝）；
 - 任一递增 → `POLICY_VERSION` 变化 → 存量行 `renderer_version` 判定为 stale。
 
 @提及（M05-NOTIFY-10）补充契约：
@@ -32,7 +33,8 @@ Markdown 原文
 - **语法**：`@` + 3..=20 个 `[A-Za-z0-9_-]`；`@` 前是用户名字符（如邮箱
   `mail@example.com`）不匹配；用户名整体贪心匹配；显示文本保持原样，href
   用规范化小写（与 `users.username_normalized` 一致）。
-- **渲染**：在清洗**之后**执行（清洗 allowlist 与相对 URL 拒绝契约不变）；
+- **渲染**：在清洗**之后**执行（清洗 allowlist 契约不变；相对 URL 仅新增
+  站内附件端点例外，`/users/...` 锚点由本模块构造、不经清洗）；
   只重写文本节点，`<code>`/`<pre>`/`<a>` 内部与标签属性不动；不校验用户
   存在性（不存在用户链接到 404 资料页）。
 - **通知**：提及解析（`content::mentions::extract_mentions`，从 Markdown

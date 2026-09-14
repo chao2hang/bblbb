@@ -4,60 +4,60 @@
       "username": "alice",
       "email": "alice@e2e.example",
       "password": "E2e-test-pass-123!",
-      "session": "xoIOMniR2BZEFgINp3GdSuu_C2Ji5DeP",
+      "session": "J8QLafXUavllos9NkC9T14oJmEmB85_N",
       "persona": "member",
-      "user_id": "019fe05a-5fcd-7750-87ed-a31d8d44f263",
-      "hidden_post_id": "019fe05a-6495-7fb2-9a9b-228876a05dc2"
+      "user_id": "01a094ff-6388-7fc0-8aec-2744334e06ed",
+      "hidden_post_id": "01a094ff-6a87-73e0-a2fe-4426ea264617"
     },
     "bob": {
       "username": "bob",
       "email": "bob@e2e.example",
       "password": "E2e-test-pass-123!",
-      "session": "ODYHAHWQnzGtiEoyWbs6HUTpZP4G9poZ",
+      "session": "mJwPcCKd-Ci-Q9-u5ypTjtQ9K8mYqfUm",
       "persona": "unverified",
-      "user_id": "019fe05a-6156-7e52-8326-0545cdb198ce"
+      "user_id": "01a094ff-65ba-71d0-bf93-d2906fd8227e"
     },
     "carol": {
       "username": "carol",
       "email": "carol@e2e.example",
       "password": "E2e-test-pass-123!",
-      "session": "iD2WBhXLutyuQbWODZQDL4hcg0bvU6Xj",
+      "session": "tr54a7rZ_fk_mKHj8X4CUNAG_PyAfVpQ",
       "persona": "muted",
-      "user_id": "019fe05a-62d9-7781-8f38-c6bba84c7133"
+      "user_id": "01a094ff-67e3-7371-a49a-2fbdb863e052"
     },
     "dave": {
       "username": "dave",
       "email": "dave@e2e.example",
       "password": null,
       "persona": "banned",
-      "session": "PduQK2FeWt5BJHk79852NCOpD0pSQ_1A",
-      "user_id": "6a1c9c5a-850a-4893-882e-d6a6bb3c5cde"
+      "session": "fDBWUBPttqaUk97L5x6m8gS6jBJDHA-G",
+      "user_id": "4beb3572-b937-4c87-ae82-33a9b42b4dde"
     },
     "mod": {
       "username": "mod",
       "email": "mod@e2e.example",
       "password": null,
       "persona": "moderator",
-      "session": "DxaX5JKit70wi0Sh8OgcyrEKY2XiX7vu",
-      "user_id": "a58b37cd-95aa-49f9-986d-677ddd1514e0"
+      "session": "kvsukTaoKr1ATLe7jSZxAeQovsJXwlqH",
+      "user_id": "e4afef71-6cd9-4659-8247-f4ce76bce4e4"
     },
     "admin": {
       "username": "admin",
       "email": "admin@e2e.example",
       "password": null,
       "persona": "admin",
-      "session": "dcujiX4vH3XhJ5dlGKAsIfUDN3iRnRyo",
-      "user_id": "c4936149-75cf-4c28-8a3d-b9590701b352"
+      "session": "FzHz7Pi0qA4oDAxHGFHNqR87DKmvd9GC",
+      "user_id": "dc7af7fe-7583-4d22-a499-4f20834b8930"
     },
     "cooldown": {
       "username": "cooldown",
       "email": "cooldown@e2e.example",
       "password": null,
       "persona": "cooldown",
-      "session": "mNYMyijuCyCXpdDb84moQuUco0D410ek",
-      "user_id": "9600376a-82e0-437f-9345-8b386afb4ecd"
+      "session": "ydydmE5DC8XdWabZfCcmQ_EkEuzgiBob",
+      "user_id": "da0f5943-90c8-4517-9ec3-d7ff7b484e53"
     }
   },
-  "backend": "http://127.0.0.1:8080",
+  "backend": "http://127.0.0.1:8099",
   "password": "E2e-test-pass-123!"
 }

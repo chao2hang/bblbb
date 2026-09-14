@@ -11,7 +11,8 @@ export interface ShopOrderPageData {
   error: string | null;
 }
 
-export const load: PageServerLoad = async ({ cookies, request, params }) => {
+export const load: PageServerLoad = async ({ cookies, request, params, depends }) => {
+  depends('app:shop-order');
   const requestId = request.headers.get('x-request-id');
   const orderResult = await getAuthed<ShopOrder>(
     cookies,

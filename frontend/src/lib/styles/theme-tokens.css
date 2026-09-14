@@ -89,15 +89,60 @@ html.dark .theme-preview-scope {
   --border-strong: 1px solid var(--color-border-strong) !important;
   --border-thin: 0.5px solid var(--bb-active-border) !important;
 
-  /* 状态辅助色（无独立 Token，从核心色派生，保持语义可读） */
+  /* 状态辅助色：先落到 --bb-active-* / 固定语义色，再供 --aui-* 消费，避免变量环。 */
+  --color-accent: var(--bb-active-accent) !important;
+  --color-success: color-mix(in srgb, #16834B 78%, var(--bb-active-surface)) !important;
+  --color-danger: color-mix(in srgb, #C9363E 78%, var(--bb-active-surface)) !important;
+  --color-warning: color-mix(in srgb, #9B6500 78%, var(--bb-active-surface)) !important;
+  --color-info: var(--bb-active-accent) !important;
   --color-code-bg: color-mix(in srgb, var(--bb-active-text) 7%, var(--bb-active-surface)) !important;
   --color-focus-ring: color-mix(in srgb, var(--bb-active-accent) 70%, transparent) !important;
   --color-visited: var(--bb-active-muted) !important;
   --color-highlight-soft: color-mix(in srgb, #FDE047 24%, var(--bb-active-surface)) !important;
 
-  /* 字体 */
-  --font-family-base: var(--bb-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif) !important;
-  --font-family-mono: var(--bb-font-mono, "SF Mono", "JetBrains Mono", ui-monospace, Consolas, monospace) !important;
+  /* blbui shadow DOM 同步：自定义主题必须同时投影 --aui-*。 */
+  --aui-bg: var(--color-bg-page) !important;
+  --aui-surface: var(--color-bg-card) !important;
+  --aui-surface-subtle: var(--color-bg-subtle) !important;
+  --aui-surface-elevated: var(--color-bg-raised) !important;
+  --aui-header: var(--color-bg-inset) !important;
+  --aui-border: var(--color-border) !important;
+  --aui-border-hover: var(--color-border-strong) !important;
+  --aui-focus: var(--color-brand) !important;
+  --aui-focus-ring: var(--color-focus-ring) !important;
+  --aui-text: var(--color-link) !important;
+  --aui-text-primary: var(--color-text-primary) !important;
+  --aui-text-secondary: var(--color-text-secondary) !important;
+  --aui-text-muted: var(--color-text-tertiary) !important;
+  --aui-text-inverse: var(--color-text-on-brand) !important;
+  --aui-primary: var(--color-brand) !important;
+  --aui-primary-content: var(--color-text-on-brand) !important;
+  --aui-secondary: var(--color-text-secondary) !important;
+  --aui-secondary-content: var(--color-text-on-solid) !important;
+  --aui-accent: var(--color-accent) !important;
+  --aui-neutral: var(--color-bg-subtle) !important;
+  --aui-neutral-content: var(--color-text-primary) !important;
+  --aui-control-bg: var(--color-bg-subtle) !important;
+  --aui-control-bg-hover: var(--color-surface-hover) !important;
+  --aui-control-border-hover: var(--color-border-strong) !important;
+  --aui-success: var(--color-success) !important;
+  --aui-danger: var(--color-danger) !important;
+  --aui-warning: var(--color-warning) !important;
+  --aui-info: var(--color-accent) !important;
+  --aui-radius: var(--radius-sm) !important;
+  --aui-radius-sm: var(--radius-sm) !important;
+  --aui-radius-md: var(--radius-md) !important;
+  --aui-radius-lg: var(--radius-lg) !important;
+
+  /* 字体：优先自托管 Inter Tight / IBM Plex Mono，未配置自定义主题时确保全站字族统一规范 */
+  --font-family-base: var(--bb-font-body, "Inter Tight Variable", "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif) !important;
+  --font-family-display: var(--font-family-base) !important;
+  --font-family-mono: var(--bb-font-mono, "IBM Plex Mono", "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace) !important;
+  --font-family-serif: Georgia, "Songti SC", "Noto Serif SC", serif !important;
+  --font-family-ui: var(--font-family-base) !important;
+  --font-family-body: var(--font-family-base) !important;
+  --aui-font-ui: var(--font-family-base) !important;
+  --aui-font-mono: var(--font-family-mono) !important;
 
   /* 圆角：control → sm/md（按钮/输入/徽章），card → lg/xl（卡片/模态/面板） */
   --radius-sm: var(--bb-radius-control, 5px) !important;

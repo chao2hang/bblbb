@@ -13,23 +13,24 @@ test.describe('SSR 源（meta/canonical/OG/Twitter/JSON-LD）', () => {
   test('主页输出 title/description/canonical/OG/Twitter/JSON-LD', async ({ page }) => {
     const response = await page.goto('/');
     const html = await response!.text();
+    const origin = new URL(page.url()).origin;
     expect(html).toContain('<title>社区论坛 — BBLBB</title>');
     expect(html).toMatch(/<meta name="description"/);
-    expect(html).toMatch(/<link rel="canonical" href="http:\/\/localhost:4173\/"/);
+    expect(html).toContain(`<link rel="canonical" href="${origin}/"`);
     expect(html).toContain('property="og:type"');
     expect(html).toContain('name="twitter:card"');
     expect(html).toContain('application/ld+json');
   });
 
   test('帖子详情输出 Article JSON-LD 与 canonical（公开已发布帖）', async ({ page }) => {
-    await page.goto('/boards/general');
+    await page.goto('/');
     const link = page.locator('a[href^="/posts/"]').first();
     await link.waitFor({ state: 'visible', timeout: 10_000 });
     const href = await link.getAttribute('href');
     const response = await page.goto(href!);
     const html = await response!.text();
     expect(html).toMatch(/<title>[^<]+ — BBLBB<\/title>/);
-    expect(html).toMatch(/<link rel="canonical" href="http:\/\/localhost:4173\/posts\//);
+    expect(html).toContain(`<link rel="canonical" href="${new URL(page.url()).origin}/posts/`);
     expect(html).toContain('ld+json');
   });
 

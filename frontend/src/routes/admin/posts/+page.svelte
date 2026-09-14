@@ -3,29 +3,31 @@
   // - 顶部 .app-filter-tabs 状态筛选 Tab 链接（全部 / 待审核 / 公开 / 精华 / 已隐藏 / 已删除）
   // - .app-toolbar 搜索条
   // - .app-card > .app-card__head + .app-table 数据表格
-  // - 简洁一键式操作按钮（td.adm-acts）
+  // - 行操作按钮（td.adm-acts）
+  // M18-ADMIN-DIALOG：9 个行内审核 POST 表单收敛为弹层。
+  // M18-ADMIN-OPS：行操作进一步收敛为**每行一个「操作」按钮** → 弹层内以动作
+  // chips 选择具体操作（通过/驳回/精华/隐藏/恢复/发布/删除）+ reason 必填，
+  // 单表单提交到既有 ?/moderate 契约（POST /api/v1/admin/posts/{id}/action）；
+  // 危险动作（删除/隐藏）选中时提交按钮转 danger 样式并二次确认文案。
+  // 已发布帖的「代改」同样收进「⋮」菜单（goto 客户端 GET 导航跳编辑器）；「查看原帖」保持 <a>。
+  // 批量：选择列 + BatchBar + 批量审核 Dialog（选动作 + 理由）→ ?/batchModerate。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { goto } from '$app/navigation';
   import { enhance } from '$app/forms';
+  import BatchBar from '$lib/components/admin/BatchBar.svelte';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
   import FilterTabs from '$lib/components/admin/FilterTabs.svelte';
+  import RowActionsMenu, { type RowActionItem } from '$lib/components/admin/RowActionsMenu.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
-  import { show as showToast } from '$lib/ui/toast';
-  import { withActionToast } from '$lib/ui/action-toast';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminPostItem } from '$lib/api/types';
-  import type { AdminPostsActionData, AdminPostsPageData } from './+page.server';
+    import type { AdminPostsActionData, AdminPostsPageData } from './+page.server';
 
   let { data, form }: { data: AdminPostsPageData; form?: AdminPostsActionData | null } = $props();
-
-  const mockPosts: AdminPostItem[] = [
-    { id: 'post-1', title: '全栈架构设计的最佳实践', author_username: 'Alice', board_slug: 'tech', board_name: '技术分享', status: 'published', review_status: 'approved', is_featured: false, is_pinned: false, is_locked: false, view_count: 1420, created_at: 1700000000000 },
-    { id: 'post-2', title: '待审核的内容规范违规检查', author_username: 'Bob', board_slug: 'water', board_name: '灌水吐槽', status: 'pending_review', review_status: 'pending_review', is_featured: false, is_pinned: false, is_locked: false, view_count: 12, created_at: 1699900000000 },
-    { id: 'post-3', title: '本周社区精华精选周刊 #12', author_username: 'Charlie', board_slug: 'announcement', board_name: '社区公告', status: 'published', review_status: 'approved', is_featured: true, is_pinned: true, is_locked: false, view_count: 5800, created_at: 1699800000000 },
-    { id: 'post-4', title: '违规广告垃圾内容处理存档', author_username: 'David', board_slug: 'market', board_name: '二手交易', status: 'hidden', review_status: 'approved', is_featured: false, is_pinned: false, is_locked: false, view_count: 4, created_at: 1699700000000 },
-    { id: 'post-5', title: '已被彻底删除的历史违规主题', author_username: 'Eve', board_slug: 'water', board_name: '灌水吐槽', status: 'deleted', review_status: 'approved', is_featured: false, is_pinned: false, is_locked: false, view_count: 0, created_at: 1699600000000 }
-  ];
 
   const POST_STATUS_TABS: { value: string; label: string }[] = [
     { value: '', label: '全部' },
@@ -34,6 +36,68 @@
     { value: 'featured', label: '精华' },
     { value: 'hidden', label: '已隐藏' },
     { value: 'deleted', label: '已删除' }
+  ];
+
+  /** 审核动作白名单（与 ?/moderate 服务端契约一致；删除含在行操作弹层中）。 */
+  const MODERATE_ACTIONS = [
+    'approve',
+    'reject',
+    'hide',
+    'restore',
+    'feature',
+    'unfeature',
+    'delete'
+  ] as const;
+  type ModerateAction = (typeof MODERATE_ACTIONS)[number];
+
+  /** 行操作弹层选项（按行状态给出可用动作；danger 动作提交时二次确认文案）。 */
+  interface OpsOption {
+    action: ModerateAction;
+    label: string;
+    danger?: boolean;
+  }
+
+  function opsOptionsFor(item: AdminPostItem): OpsOption[] {
+    if (item.status === 'pending_review') {
+      return [
+        { action: 'approve', label: '通过（发布）' },
+        { action: 'reject', label: '驳回', danger: true }
+      ];
+    }
+    if (item.status === 'published') {
+      return item.is_featured
+        ? [
+            { action: 'unfeature', label: '取消精华' },
+            { action: 'hide', label: '隐藏', danger: true }
+          ]
+        : [
+            { action: 'feature', label: '设为精华' },
+            { action: 'hide', label: '隐藏', danger: true }
+          ];
+    }
+    if (item.status === 'hidden') {
+      return [
+        { action: 'restore', label: '恢复' },
+        { action: 'delete', label: '删除', danger: true }
+      ];
+    }
+    if (item.status === 'deleted') {
+      return [{ action: 'restore', label: '恢复' }];
+    }
+    return [
+      { action: 'approve', label: '发布' },
+      { action: 'hide', label: '隐藏', danger: true }
+    ];
+  }
+
+  /** 批量审核动作选项（label 与行按钮文案一致）。 */
+  const BATCH_ACTION_OPTIONS: { value: ModerateAction; label: string }[] = [
+    { value: 'approve', label: '通过（发布）' },
+    { value: 'reject', label: '驳回' },
+    { value: 'hide', label: '隐藏' },
+    { value: 'restore', label: '恢复' },
+    { value: 'feature', label: '设为精华' },
+    { value: 'unfeature', label: '取消精华' }
   ];
 
   function formatDateTime(ms: number | null | undefined): string {
@@ -68,12 +132,6 @@
     return qs ? `/admin/posts?${qs}` : '/admin/posts';
   }
 
-  function searchAction(): string {
-    const params = new URLSearchParams();
-    if (data.status) params.set('status', data.status);
-    return params.toString() ? `/admin/posts?${params.toString()}` : '/admin/posts';
-  }
-
   const nextHref = $derived(
     data.state === 'ok' && data.nextCursor
       ? (() => {
@@ -96,9 +154,9 @@
     hasJs = true;
   });
 
-  // 派生显示项：支持按状态与关键词过滤（Mock 兜底与服务端双重保障，P1-03）
+  // 只展示服务端返回的数据；空列表必须表达真实空态，不能用演示帖子掩盖 API 故障或权限状态。
   const displayedItems = $derived.by(() => {
-    let list = data.items && data.items.length > 0 ? data.items : mockPosts;
+    let list = data.items ?? [];
     if (data.status) {
       if (data.status === 'featured') {
         list = list.filter((i) => i.is_featured);
@@ -140,6 +198,52 @@
     } else {
       selectedIds = [...selectedIds, id];
     }
+  }
+
+  /** 行操作「⋮」菜单 + 弹层（约定 D：菜单选动作，弹层内确认 + reason）。 */
+  let opsTarget: AdminPostItem | null = $state(null);
+  let opsAction = $state<ModerateAction>('approve');
+  let opsReason = $state('');
+
+  const opsOptions = $derived(opsTarget ? opsOptionsFor(opsTarget) : []);
+  const opsSelected = $derived(opsOptions.find((o) => o.action === opsAction) ?? null);
+
+  function openOps(item: AdminPostItem, action: ModerateAction): void {
+    opsTarget = item;
+    opsAction = action;
+    opsReason = '';
+  }
+
+  function closeOps(): void {
+    opsTarget = null;
+  }
+
+  /** 行「⋮」菜单项（按行状态给出可用动作）；已发布帖的「代改」也收进菜单。 */
+  function rowActions(item: AdminPostItem): RowActionItem[] {
+    const actions: RowActionItem[] = opsOptionsFor(item).map((option) => ({
+      label: option.label,
+      danger: option.danger,
+      run: () => openOps(item, option.action)
+    }));
+    if (item.status === 'published') {
+      // 代改为 GET 导航（与原 <a> 链接同语义），点菜单项后客户端跳转编辑器。
+      actions.push({
+        label: '代改',
+        run: () => goto(`/editor?post_id=${encodeURIComponent(item.id)}`)
+      });
+    }
+    return actions;
+  }
+
+  /** 批量审核 Dialog（选中行执行同一动作 + 公共理由）。 */
+  let batchOpen = $state(false);
+  let batchAction = $state<ModerateAction>('approve');
+  let batchReason = $state('');
+
+  function openBatchModerate(): void {
+    batchAction = 'approve';
+    batchReason = '';
+    batchOpen = true;
   }
 
   function statusBadgeInfo(item: { status: string; is_featured?: boolean }): { cls: string; label: string } {
@@ -197,8 +301,8 @@
     </header>
 
     <div class="app-card__body">
-      <!-- 原型对齐工具条（搜索当前列表 + 全部状态下拉 + 清除） -->
-      <form method="GET" action="/admin/posts" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      <!-- 原型对齐工具条：搜索 + 状态筛选 + 清除，单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
+      <form method="GET" action="/admin/posts" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
         <input
           type="search"
           name="q"
@@ -206,36 +310,30 @@
           class="app-field"
           placeholder="搜索当前列表..."
           aria-label="搜索当前列表"
+          style="flex:1 1 220px;min-width:0;"
         />
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <select
-            name="status"
-            class="app-select"
-            value={data.status}
-            aria-label="状态筛选"
-            onchange={(e) => handleStatusChange(e.currentTarget.value)}
-            style="min-width:140px;"
-          >
-            <option value="">全部状态</option>
-            {#each POST_STATUS_TABS.slice(1) as tab}
-              <option value={tab.value}>{tab.label}</option>
-            {/each}
-          </select>
-          {#if data.q || data.status}
-            <a href="/admin/posts" class="text-link" style="font-size:var(--text-sm);">清除</a>
-          {/if}
-        </div>
+        <select
+          name="status"
+          class="app-select"
+          value={data.status}
+          aria-label="状态筛选"
+          onchange={(e) => handleStatusChange(e.currentTarget.value)}
+          style="flex:0 0 auto;width:168px;"
+        >
+          <option value="">全部状态</option>
+          {#each POST_STATUS_TABS.slice(1) as tab}
+            <option value={tab.value}>{tab.label}</option>
+          {/each}
+        </select>
+        {#if data.q || data.status}
+          <a href="/admin/posts" class="btn ghost sm" style="flex:0 0 auto;">清除</a>
+        {/if}
       </form>
 
-      {#if selectedIds.length > 0}
-        <!-- 原型批量操作栏 -->
-        <div class="app-notice" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
-          <span style="font-size:var(--text-xs);font-weight:600;">{selectedIds.length} 项已选</span>
-          <div style="display:flex;gap:6px;">
-            <button type="button" class="btn secondary sm" onclick={() => (selectedIds = [])}>取消选择</button>
-          </div>
-        </div>
-      {/if}
+      <!-- 批量工具条（选中 > 0 时渲染；批量动作与理由在 Dialog 内填写） -->
+      <BatchBar count={selectedIds.length} onclear={() => (selectedIds = [])}>
+        <Button text="批量审核" variant="secondary" size="sm" onclick={openBatchModerate} />
+      </BatchBar>
 
       {#if displayedItems.length === 0}
         <EmptyState icon="inbox" title="暂无帖子" desc="当前筛选下没有符合条件的帖子" />
@@ -257,7 +355,7 @@
                 <th>板块</th>
                 <th>状态</th>
                 <th>时间</th>
-                <th style="min-width:180px;">操作</th>
+                <th style="min-width:200px;">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -269,14 +367,14 @@
                       type="checkbox"
                       checked={selectedIds.includes(item.id)}
                       onchange={() => toggleRow(item.id)}
-                      aria-label="选择此项"
+                      aria-label="选择帖子 {item.id}"
                     />
                   </td>
                   <td>
                     <b>{item.title || '（无标题）'}</b>
                     {#if item.status === 'hidden'}<span class="text-secondary" style="font-size:11px;margin-left:6px;">已被隐藏</span>{/if}
                     <span class="sub" style="display:block;margin-top:3px;">
-                      <a class="app-link" href="/posts/{item.id}" target="_blank" style="font-size:11px;">
+                      <a class="app-link" href="/posts/{item.id}" target="_blank" rel="noopener noreferrer" style="font-size:11px;">
                         查看原帖
                       </a>
                     </span>
@@ -294,76 +392,13 @@
                     <span class="text-secondary" style="font-size:12px;">{relativeTime(item.created_at)}</span>
                   </td>
                   <td class="adm-acts">
-                    {#if item.status === 'pending_review'}
-                      <!-- 待审核：通过 / 驳回 -->
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="approve" />
-                        <input type="hidden" name="reason" value="审核通过" />
-                        <button type="submit" class="btn primary sm">通过</button>
-                      </form>
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="reject" />
-                        <input type="hidden" name="reason" value="违规驳回" />
-                        <button type="submit" class="btn danger sm">驳回</button>
-                      </form>
-                    {:else if item.status === 'published'}
-                      <!-- 公开：加精/取消精华 + 隐藏 -->
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value={item.is_featured ? 'unfeature' : 'feature'} />
-                        <input type="hidden" name="reason" value={item.is_featured ? '取消加精' : '设为精华'} />
-                        <button type="submit" class="btn ghost sm">
-                          {item.is_featured ? '取消精华' : '设为精华'}
-                        </button>
-                      </form>
-                      <a href="/editor?post_id={encodeURIComponent(item.id)}" class="btn ghost sm" style="text-decoration:none;">
-                        代改
-                      </a>
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="hide" />
-                        <input type="hidden" name="reason" value="管理隐藏" />
-                        <button type="submit" class="btn ghost sm">隐藏</button>
-                      </form>
-                    {:else if item.status === 'hidden'}
-                      <!-- 已隐藏：恢复 / 删除 -->
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="restore" />
-                        <input type="hidden" name="reason" value="恢复展示" />
-                        <button type="submit" class="btn ghost sm">恢复</button>
-                      </form>
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="delete" />
-                        <input type="hidden" name="reason" value="彻底删除" />
-                        <button type="submit" class="btn danger sm">删除</button>
-                      </form>
-                    {:else if item.status === 'deleted'}
-                      <!-- 已删除：恢复 -->
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="restore" />
-                        <input type="hidden" name="reason" value="恢复展示" />
-                        <button type="submit" class="btn ghost sm">恢复</button>
-                      </form>
-                    {:else}
-                      <!-- 草稿或其他：通过 / 隐藏 -->
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="approve" />
-                        <input type="hidden" name="reason" value="审核通过" />
-                        <button type="submit" class="btn primary sm">发布</button>
-                      </form>
-                      <form method="POST" action="?/moderate" use:enhance={withActionToast()} style="display:inline-flex;margin:0;">
-                        <input type="hidden" name="id" value={item.id} />
-                        <input type="hidden" name="action" value="hide" />
-                        <input type="hidden" name="reason" value="管理隐藏" />
-                        <button type="submit" class="btn ghost sm">隐藏</button>
-                      </form>
-                    {/if}
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                      <!-- 每行一个「⋮」动作菜单：审核动作进弹层；已发布帖的「代改」也在菜单内（约定 D） -->
+                      <RowActionsMenu
+                        label="更多操作：帖子 {item.title || item.id}"
+                        actions={rowActions(item)}
+                      />
+                    </div>
                   </td>
                 </tr>
               {/each}
@@ -410,3 +445,89 @@
     </div>
   </section>
 {/if}
+
+<!-- 行操作 Dialog（约定 D）：动作由「⋮」菜单选定，弹层内确认 + reason 必填 → 既有 ?/moderate 契约。 -->
+<Dialog
+  open={opsTarget !== null}
+  title={opsSelected ? `审核操作：${opsSelected.label}` : '审核操作'}
+  description={opsSelected
+    ? `将对帖子「${opsTarget?.title || opsTarget?.id}」执行「${opsSelected.label}」${opsSelected.danger ? '——危险操作，请谨慎确认' : ''}；原因写入审计日志。`
+    : '填写操作原因（必填，写入审计日志）。'}
+  onclose={closeOps}
+>
+  <form
+    method="POST"
+    action="?/moderate"
+    use:enhance={() => {
+      return async ({ result, update }) => {
+        toastActionResult(result);
+        await update();
+        closeOps();
+      };
+    }}
+  >
+    <input type="hidden" name="id" value={opsTarget?.id ?? ''} />
+    <input type="hidden" name="action" value={opsAction} />
+
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="post-ops-reason">操作原因（写审计）</label>
+      <input
+        id="post-ops-reason"
+        name="reason"
+        class="input-field"
+        required
+        bind:value={opsReason}
+        placeholder="必填"
+      />
+    </div>
+    <Button
+      text={opsSelected?.danger ? `确认${opsSelected.label}` : '确认执行'}
+      variant={opsSelected?.danger ? 'danger' : 'primary'}
+      size="sm"
+      type="submit"
+    />
+  </form>
+</Dialog>
+
+<!-- 批量审核 Dialog：ids 隐藏字段 + 公共动作 + reason 必填 → ?/batchModerate -->
+<Dialog
+  open={batchOpen}
+  title="批量审核"
+  description={`将对 ${selectedIds.length} 个帖子执行同一审核动作；原因写审计，逐条调用既有审核端点。`}
+  onclose={() => (batchOpen = false)}
+>
+  <form
+    method="POST"
+    action="?/batchModerate"
+    use:enhance={() => {
+      return async ({ result, update }) => {
+        toastActionResult(result);
+        await update();
+        selectedIds = [];
+        batchOpen = false;
+      };
+    }}
+  >
+    <input type="hidden" name="ids" value={selectedIds.join(',')} />
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="post-batch-action">批量动作</label>
+      <select id="post-batch-action" name="action" class="input-field" bind:value={batchAction}>
+        {#each BATCH_ACTION_OPTIONS as opt (opt.value)}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="post-batch-reason">操作原因（写审计）</label>
+      <input
+        id="post-batch-reason"
+        name="reason"
+        class="input-field"
+        required
+        bind:value={batchReason}
+        placeholder="必填"
+      />
+    </div>
+    <Button text="执行批量审核" variant="primary" size="sm" type="submit" />
+  </form>
+</Dialog>

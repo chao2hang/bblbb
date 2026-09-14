@@ -1,9 +1,9 @@
 # BBLBB v1.0 正式上线执行路线图
 
-> 路线图版本：v1.0.0-rc.2
-> 更新日期：2026-08-08
+> 路线图版本：v1.0.0-rc.8（工作区快照，尚未打 tag）
+> 更新日期：2026-09-12
 > 产品基线：Frozen v0.5；产品所有者已确认。
-> 当前阶段：M0-M17 的 789 个叶子任务已达终态（765 完成 + 24 阻塞）；**M18 原型功能对齐**（30 个叶子任务，23 完成 + 7 待完成）执行中，见 [`M18`](todo/M18-prototype-parity.md#m18)；下一任务：[`M18-ACH-01`](todo/M18-prototype-parity.md#m18)。
+> 当前阶段：M0-M17 已完成业务收口但保留 26 项发布阻塞；M18 仍有 2 项批量/导出后端任务未完成；M19 设计系统重做已取消；下一任务：[`M18-ADMIN-BATCH-01`](todo/M18-prototype-parity.md#m18)。
 > 目标：从已交付的规格、OpenAPI、Rust/SvelteKit/迁移/CI 骨架，推进到可正式上线并可恢复的 v1.0。
 
 ## 1. 结论与使用方式
@@ -11,7 +11,7 @@
 本路线图现在分成两层，避免旧版中“里程碑 checkbox”和“NOW checkbox”重复计数：
 
 1. **本文件是唯一仪表盘**：记录状态、依赖、覆盖率、当前批次和上线门槛，不重复列叶子任务。
-2. **`todo/` 是唯一执行清单**：共 107 个工作包、861 个唯一叶子任务（M0-M17 789 + M18 原型对齐 30 + M19 设计系统 42）；每项带 15-60 分钟估时，工作包带优先级、owner、风险、依赖、目标文件和验收方式。
+2. **`todo/` 是唯一执行清单**：共 102 个工作包、823 个唯一叶子任务（M0-M17 791 + M18 原型对齐 32；M19 已取消）；每项带 15-60 分钟估时，工作包带优先级、owner、风险、依赖、目标文件和验收方式。
 
 任何实现工作必须从对应执行册选择一项叶子任务。不能通过修改本页的汇总数字来代替完成任务。
 
@@ -80,19 +80,19 @@ commit=<hash 或 PR>；review=<评审人/日期或 none>
 | ID | 状态 | 已交付内容 | 证据 |
 |---|---|---|---|
 | `BASE-001` | 已完成 | 产品需求、关键决策和文档事实来源冻结 | `docs/REQUIREMENTS.md`、`docs/PRODUCT-DECISIONS.md`、`docs/DOCUMENT-STATUS.md`；commit `5e17fa3` |
-| `BASE-002` | 已完成 | OpenAPI 3.1 契约：133 paths、172 operations、172 唯一 operationId | `openapi/openapi.yaml`；本次 Ruby 校验 172/172 且必需扩展完整；commit `5e17fa3` |
+| `BASE-002` | 已完成 | **rc.2 历史基线**：OpenAPI 3.1 契约 133 paths、172 operations、172 唯一 operationId | `openapi/openapi.yaml`；2026-08-04 Ruby 校验 172/172；当前契约为 179 paths、232 operations；commit `5e17fa3` |
 | `BASE-003` | 已完成 | Rust/axum 可运行骨架、`/healthz`、请求 ID、Problem 边界和 OpenAPI JSON | `backend/`；`cargo fmt`、Clippy、4 tests 通过；commit `5e17fa3` |
 | `BASE-004` | 已完成 | SvelteKit 2/Svelte 5/adapter-node 骨架和同源健康 API client | `frontend/`；`npm ci && npm run check && npm run build` 通过；commit `5e17fa3` |
 | `BASE-005` | 已完成 | SQLite/MySQL/MariaDB 初始 users/session 骨架迁移 | `migrations/*/0001_skeleton.sql`；本次 SQLite 空库应用和 foreign key check 通过；commit `5e17fa3` |
 | `BASE-006` | 已完成 | GitHub Actions 的文档、Rust、前端、原型和三数据库基础 CI | `.github/workflows/ci.yml`；commit `5e17fa3`；后续仍须加入完整契约/安全/发布门槛 |
 | `BASE-007` | 已完成 | 66 路由高保真原型和 22 条后台路由 | `prototype/`；render 66/66、interaction 通过；golden 视觉差异尚未冻结，由 `M16-RELEASE-TEST-06` 跟踪 |
-| `BASE-008` | 已完成 | rc.2 执行册、OpenAPI 逐项登记和路线图校验器 | `todo/`、`scripts/sync-operation-coverage.rb`、`scripts/check-roadmap.rb`；2026-08-04：Ruby 2.6 语法检查通过，路线图 87/783、依赖无环、仪表盘/53 个本地链接有效，OpenAPI 172/172 同步检查通过 |
+| `BASE-008` | 已完成 | **rc.2 历史基线**：执行册、OpenAPI 逐项登记和路线图校验器 | `todo/`、`scripts/sync-operation-coverage.rb`、`scripts/check-roadmap.rb`；2026-08-04：Ruby 2.6 语法检查通过，路线图 87/783、依赖无环、仪表盘/53 个本地链接有效，OpenAPI 172/172 同步检查通过；当前执行册为 102/823，OpenAPI 为 233/233 |
 
 基线只证明“正式开发入口存在”，不表示认证、论坛、附件、账本或其他业务已经实现。`getHealth` 在 API 覆盖登记中标记为 `baseline_only`，其余 operation 默认 `not_started`。
 
 ## 5. 进度仪表盘
 
-> 当前静态快照由 rc.2 建立时统计；每次合并任务状态变更必须运行 `ruby scripts/check-roadmap.rb` 并同步本表。数字不能领先于执行册证据。
+> 本表为 2026-09-12 工作区快照；BASE 表中的 rc.2 数字是历史基线，不代表当前状态。每次合并任务状态变更必须运行 `ruby scripts/check-roadmap.rb` 并同步本表，数字不能领先于执行册证据。
 
 | 里程碑 | 范围 | 工作包 | 叶子任务 | P0 / P1 / P2 | 当前状态 | 入口 |
 |---|---|---:|---:|---:|---|---|
@@ -101,8 +101,8 @@ commit=<hash 或 PR>；review=<评审人/日期或 none>
 | M2 | 注册、邮箱验证、Session/CSRF、MFA | 4 | 44 | 34 / 10 / 0 | 完成 | [`M00-M02`](todo/M00-M02-foundation.md#m2) |
 | M3 | 资料、RBAC、板块、标签、搜索仓储 | 6 | 56 | 28 / 28 / 0 | 完成 | [`M03-M05`](todo/M03-M05-community.md#m3) |
 | M4 | Markdown、内容、回复、可见性 | 6 | 61 | 33 / 28 / 0 | 完成 | [`M03-M05`](todo/M03-M05-community.md#m4) |
-| M5 | 风险审核、举报、处罚、申诉、通知 | 7 | 63 | 37 / 26 / 0 | 完成 | [`M03-M05`](todo/M03-M05-community.md#m5) |
-| M6 | Local/S3、配额、下载抵扣、迁移 | 7 | 65 | 50 / 15 / 0 | 完成 | [`M06-M07`](todo/M06-M07-storage-economy.md#m6) |
+| M5 | 风险审核、举报、处罚、申诉、通知 | 7 | 64 | 37 / 27 / 0 | 完成 | [`M03-M05`](todo/M03-M05-community.md#m5) |
+| M6 | Local/S3、配额、下载抵扣、迁移 | 7 | 65 | 50 / 15 / 0 | 阻塞 | [`M06-M07`](todo/M06-M07-storage-economy.md#m6) |
 | M7 | 账本、等级、签到、商城、装扮 | 5 | 46 | 18 / 28 / 0 | 完成 | [`M06-M07`](todo/M06-M07-storage-economy.md#m7) |
 | M8 | 搜索、Feed、SEO、反爬 | 4 | 36 | 12 / 24 / 0 | 完成 | [`M08-M12`](todo/M08-M12-integrations.md#m8) |
 | M9 | AI Gateway、同意、任务、建议 | 5 | 39 | 24 / 15 / 0 | 完成 | [`M08-M12`](todo/M08-M12-integrations.md#m9) |
@@ -113,12 +113,13 @@ commit=<hash 或 PR>；review=<评审人/日期或 none>
 | M14 | 全量前端、a11y、无 JS、SEO | 4 | 32 | 10 / 22 / 0 | 完成 | [`M13-M17`](todo/M13-M17-release.md#m14) |
 | M15 | 部署、观测、备份、恢复、升级 | 5 | 42 | 42 / 0 / 0 | 阻塞 | [`M13-M17`](todo/M13-M17-release.md#m15) |
 | M16 | 契约、安全、故障、性能、RC 测试 | 6 | 48 | 48 / 0 / 0 | 阻塞 | [`M13-M17`](todo/M13-M17-release.md#m16) |
-| M17 | 冻结、预发布、专项 Gate、上线 | 7 | 50 | 39 / 6 / 5 | 阻塞 | [`M13-M17`](todo/M13-M17-release.md#m17) |
-| M18 | 原型功能对齐（手机端全站对比补齐） | 14 | 30 | 0 / 26 / 4 | 进行中 | [`M18`](todo/M18-prototype-parity.md#m18) |
-| M19 | 设计系统重做（冷墨主题 + 组件封装） | 5 | 42 | 4 / 30 / 8 | 进行中 | [`M19`](todo/M19-design-system.md#m19) |
-| **总计** |  | **107** | **861** | **548 / 296 / 17** | **793 完成 / 0 进行中 / 24 阻塞 / 44 未开始** |  |
+| M17 | 冻结、预发布、专项 Gate、上线 | 7 | 51 | 39 / 7 / 5 | 阻塞 | [`M13-M17`](todo/M13-M17-release.md#m17) |
+| M18 | 原型功能对齐（手机端全站对比补齐） | 14 | 32 | 0 / 28 / 4 | 进行中 | [`M18`](todo/M18-prototype-parity.md#m18) |
+| **总计** |  | **102** | **823** | **544 / 270 / 9** | **796 完成 / 0 进行中 / 25 阻塞 / 2 未开始** |  |
 
 5 个 P2 任务只负责在生产中实际开启 Download Billing、AI、Video、OIDC 和 Marketplace。对应实现、安全和专项门槛仍属于 P0/P1，不能用“保持关闭”掩盖实现未完成。若 v1.0 首发继续关闭某项 P2，必须记录负责人、原因、观察条件和后续启用计划。
+
+二次安全复核保留发布阻断：S3 presigned PUT 尚未绑定不可覆盖的一次性上传约束。相关任务已在 `todo/M06-M07-storage-economy.md` 标记 `[!]`，因此当前不能声明正式上线就绪。
 
 ## 6. 执行依赖与推荐顺序
 
@@ -154,24 +155,18 @@ M0 工程治理
 
 ### 6.2 当前唯一执行批次
 
-当前只推进以下任务，不并行开始下一批：
+M18 已完成前端交互收口，但后端原子批量和全量服务端导出仍待完成；全仓 823 个叶子任务中 797 完成、24 阻塞、2 待开始。
 
-| 顺序 | 任务 | 目标 |
-|---:|---|---|
-| 1 | `M00-TOOL-01` | 固定开发/CI 工具版本 |
-| 2 | `M00-TOOL-02` | 建立根命令帮助 |
-| 3 | `M00-TOOL-03` | 接通后端根检查 |
-| 4 | `M00-TOOL-04` | 接通前端根检查 |
-| 5 | `M00-TOOL-05` | 接通原型检查 |
-| 6 | `M00-TOOL-06` | 接通契约、迁移、文档和 Secret 检查 |
-| 7 | `M00-TOOL-07` | 聚合 `make check` 并测试失败传播 |
-| 8 | `M00-TOOL-08` | 核对 ignore 边界 |
-| 9 | `M00-TOOL-09` | 清理 README 过期事实 |
-| 10 | `M00-TOOL-10` | 干净环境复现并记录证据 |
+| 顺序 | 任务 | 目标 | 状态 |
+|---:|---|---|---|
+| 1 | `M18-ADMIN-BATCH-01` | 后端帖子/板块/标签/用户原子批量操作端点 | 待完成 |
+| 2 | `M18-ADMIN-BATCH-02` | 后端全量筛选结果流式 CSV 导出端点 | 待完成 |
+| 3 | `M18-ACH-01` | 补齐成就筛选和 3 槽徽章装备的后端契约 | 已完成 |
+| 4 | `M18-APPEAL-01` | 验收并补齐申诉中心与违规记录投影 | 已完成 |
+| 5 | `M18-ADMIN-BATCH-03` | 前端通用 admin 表格组件化与 7 页接入 | 已完成 |
+| 6 | `M18-IA-02` | 补齐公开用户页与本人视角的原型 IA（含他人视角私信入口） | 已完成 |
 
-完成 `M00-TOOL` 后再从 `M00-CONTRACT-01` 开始。不要提前实现业务 Handler。
-
-## 7. OpenAPI 172 operations 机械覆盖
+## 7. OpenAPI 233 operations 机械覆盖
 
 覆盖文件：
 
@@ -228,9 +223,9 @@ not_started → baseline_only/in_progress → implemented → verified
 
 以下断言必须全部为真；它们是发布 Gate，不是另一份可勾选任务，证据来自 M15-M17：
 
-1. 所有 544 个 P0 和 234 个 P1 任务完成并有证据；没有未批准 `[!]`；5 个 P2 若未执行，必须保持默认关闭并记录负责人和启用计划。
+1. 所有 544 个 P0 和 270 个 P1 任务完成并有证据；没有未批准 `[!]`；9 个 P2 若未执行，必须保持默认关闭并记录负责人和启用计划。
 2. SQLite、MySQL 8、MariaDB 10.11 的迁移、仓储契约、HTTP 契约和关键并发测试全部绿。
-3. OpenAPI 173/173 operations 为 `verified`，权限、错误码、状态机、事件和 Schema 无未批准差异。
+3. OpenAPI 233/233 operations 为 `verified`，权限、错误码、状态机、事件和 Schema 无未批准差异。
 4. 匿名、未验证、冷静期、member、moderator、administrator、restricted、mute 和 banned persona 的服务端权限通过。
 5. 隐藏正文不出现在 API、SSR、DOM、hydration、搜索、Feed、SEO、通知、日志、审计、AI、附件或公共缓存。
 6. 积分、解锁、下载、商城、Marketplace 和退款不重复扣款，不修改历史流水，故障时完整回滚。

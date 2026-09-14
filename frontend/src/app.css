@@ -1,4 +1,6 @@
-/* BBLBB 全局样式入口 —— 复用原型设计系统（6 层：tokens → base → layout → components → pages → overrides） */
+/* BBLBB 全局样式入口：blbui 基础层先加载，站点 token 再覆盖其默认值。 */
+@import '@chaos_team/blbui-core/styles.css';
+@import './lib/styles/blbui-fallback.css';
 /* 自托管字族（Inter Tight + IBM Plex Mono，仅 latin 子集；CJK 走系统字体） */
 @import './lib/styles/fonts.css';
 @import './lib/styles/tokens.css';
@@ -7,9 +9,8 @@
 @import './lib/styles/components.css';
 @import './lib/styles/pages.css';
 @import './lib/styles/visual-overrides.css';
-/* 原型应用骨架与工作流层（提供所有 .app-* 与 .wf-* 类名完整定义） */
+/* 原型应用骨架：仅保留仍有真实 DOM 消费的 .app-* 兼容层。 */
 @import './lib/styles/prototype-app.css';
-@import './lib/styles/prototype-workflows.css';
 /* 中国风黑白灰设计系统：与原型 8765 视觉对齐的覆盖层 */
 @import './lib/styles/chinese-elegance.css';
 /* 数据型主题 Token 全量映射（最后颜色层）：日/夜双模式解析 + 全量语义
@@ -22,6 +23,16 @@
    压过上面各层把内容包成盒子的 !important。只消费语义变量，不写死颜色，
    因此数据型主题切换后依然成立。 */
 @import './lib/styles/surface.css';
+/* LinuxDo-inspired focused topic composer, scoped to /editor. */
+@import './lib/styles/linuxdo-composer.css';
+/* LinuxDo-inspired personal credits page, scoped to .linuxdo-credits */
+@import './lib/styles/linuxdo-credits.css';
+/* 「冷墨 · 窄轨」移动端精修层（≤767px）：必须是最后一层 ——
+   统一各页面移动解剖（Discourse 式信息流行模型 / 页首墨条 /
+   底部导航 / 触控密度），压过上面各层互相打架的 ≤767px 规则。 */
+@import './lib/styles/mobile.css';
+/* 后台壳层最终交互契约：统一 rail/drawer 断点与工具条状态。 */
+@import './lib/styles/admin.css';
 
 /* SvelteKit 根容器：与原型 #app 语义等价 */
 body > .sveltekit,

@@ -15,7 +15,7 @@ const product: ShopProduct = {
   description_safe: '昵称显示为蓝色',
   icon_token: 'star',
   slot: 'nickname_color',
-  currency: 'coin',
+  currency_id: 'coin',
   unit_price: 50,
   quantity_limit: 1,
   stock_remaining: 10,
@@ -49,7 +49,7 @@ describe('M07-UI-03 购买确认页 SSR', () => {
     expect(body).toContain('COIN');
     expect(body).toContain('200'); // 当前余额
     expect(body).toContain('150'); // 200 - 50 = 购买后余额
-    expect(body).toContain('数字装扮默认不可退款');
+    expect(body).toContain('数字装扮确认后不可退款');
     expect(body).toContain('确认购买');
   });
 
@@ -95,6 +95,50 @@ describe('M07-UI-03 购买确认页 SSR', () => {
     expect(body).toContain('value="3"'); // product.version
   });
 
+  it('免费商品（单价为 0 或系统 UUID 货币）→ 价格显示为“免费”，绝不泄露底层 UUID', () => {
+    const freeProduct: ShopProduct = {
+      ...product,
+      unit_price: 0,
+      currency_id: '01911fd5-0047-0000-0000-000000000001'
+    };
+    const { body } = render(ShopProductPage, {
+      props: { data: confirmData({ product: freeProduct }), form: null }
+    });
+    expect(body).toContain('免费');
+    expect(body).not.toContain('01911fd5-0047-0000-0000-000000000001');
+    expect(body).not.toContain('01911FD5-0047-0000-0000-000000000001');
+  });
+
+  it('商品带有货币 UUID 时 → 正确归一化为代号展示，绝不泄漏 UUID 原文', () => {
+    const coinProduct: ShopProduct = {
+      ...product,
+      unit_price: 88,
+      currency_id: '01911fd5-0047-0000-0000-000000000002'
+    };
+    const { body } = render(ShopProductPage, {
+      props: { data: confirmData({ product: coinProduct }), form: null }
+    });
+    expect(body).toContain('88 COIN');
+    expect(body).not.toContain('01911fd5-0047-0000-0000-000000000002');
+    expect(body).not.toContain('01911FD5-0047-0000-0000-000000000002');
+  });
+
+  it('单价行展示（不发生货币名称重复，如“200 金币 金币”）', () => {
+    const customProduct: ShopProduct = {
+      ...product,
+      unit_price: 200,
+      currency_id: '01911fd5-0047-0000-0000-000000000002',
+      currency_name: '金币'
+    };
+    const { body } = render(ShopProductPage, {
+      props: { data: confirmData({ product: customProduct }), form: null }
+    });
+    // price-line 中 strong 仅包含数值 200，旁边紧随 price-currency “金币”，绝不出现重复的“金币 金币”
+    expect(body).not.toMatch(/金币\s*金币/);
+    expect(body).toContain('>200</strong>');
+    expect(body).toContain('price-currency');
+  });
+
   it('action 失败 → 显示错误信息与恢复指引（版本冲突）', () => {
     const { body } = render(ShopProductPage, {
       props: {
@@ -105,6 +149,59 @@ describe('M07-UI-03 购买确认页 SSR', () => {
     expect(body).toContain('商品信息已更新');
     expect(body).toContain('刷新页面后重新确认商品信息');
   });
+
+  it('商品舞台展示用户卡片并搭配装扮试穿（非单纯展示孤立装扮）', () => {
+    const blueNameProduct: ShopProduct = {
+      ...product,
+      title: '蔚蓝',
+      slot: 'nickname_color',
+      presentation_tokens: ['nickname.color.blue']
+    };
+    const { body } = render(ShopProductPage, {
+      props: {
+        data: {
+          ...confirmData({ product: blueNameProduct }),
+          user: {
+            id: 'u1',
+            username: 'testuser',
+            display_name: '测试玩家',
+            level: 5,
+            status: 'active',
+            email: 'test@example.com',
+            email_verified: true,
+            roles: [],
+            mfa_enabled: false,
+            signature: '测试签名'
+          } as never
+        },
+        form: null
+      }
+    });
+    // 舞台渲染了用户资料卡，并带有预览容器和试穿提示
+    expect(body).toContain('user-hover-card');
+    expect(body).toContain('stage-card-wrap');
+    expect(body).toContain('测试玩家');
+    expect(body).toContain('试穿效果 · 蔚蓝');
+    expect(body).toContain('✦ 装扮试穿中');
+  });
+
+  it('未登录或缺省用户时使用默认预览资料卡展示装扮搭配', () => {
+    const frameProduct: ShopProduct = {
+      ...product,
+      title: '蔚蓝之环',
+      slot: 'avatar_frame',
+      presentation_tokens: ['avatar.frame.blue_ring']
+    };
+    const { body } = render(ShopProductPage, {
+      props: {
+        data: confirmData({ product: frameProduct }),
+        form: null
+      }
+    });
+    expect(body).toContain('user-hover-card');
+    expect(body).toContain('BBLBB');
+    expect(body).toContain('试穿效果 · 蔚蓝之环');
+  });
 });
 
 describe('M07-UI-04 订单结果页 SSR', () => {
@@ -114,7 +211,7 @@ describe('M07-UI-04 订单结果页 SSR', () => {
     product_version: 3,
     product_title: '蓝色昵称',
     quantity: 1,
-    currency: 'coin',
+    currency_id: 'coin',
     unit_price: 50,
     total_amount: 50,
     status: 'succeeded',
@@ -127,10 +224,10 @@ describe('M07-UI-04 订单结果页 SSR', () => {
     const { body } = render(ShopOrderPage, {
       props: { data: { order, balance: null, error: null } }
     });
-    expect(body).toContain('交易成功');
+    expect(body).toContain('购买成功');
     expect(body).toContain('50');
     expect(body).toContain('COIN');
-    expect(body).toContain('权益已发放');
+    expect(body).toContain('已到账');
     expect(body).toContain('/me/wardrobe');
   });
 
@@ -138,8 +235,8 @@ describe('M07-UI-04 订单结果页 SSR', () => {
     const { body } = render(ShopOrderPage, {
       props: { data: { order: { ...order, entitlement_id: null, entitlement_status: 'pending' }, balance: null, error: null } }
     });
-    expect(body).toContain('权益正在发放中');
-    expect(body).toContain('重复提交不会重复扣款');
+    expect(body).toContain('权益正在发放');
+    expect(body).toContain('不需要重复购买');
   });
 
   it('已退款订单 → 显示退款状态', () => {
@@ -147,6 +244,21 @@ describe('M07-UI-04 订单结果页 SSR', () => {
       props: { data: { order: { ...order, status: 'refunded' }, balance: null, error: null } }
     });
     expect(body).toContain('已退款');
+  });
+
+  it('免费订单（实付 0）→ 实付与单价显示为“免费”，且不泄露 UUID', () => {
+    const freeOrder: ShopOrder = {
+      ...order,
+      unit_price: 0,
+      total_amount: 0,
+      currency_id: '01911fd5-0047-0000-0000-000000000001'
+    };
+    const { body } = render(ShopOrderPage, {
+      props: { data: { order: freeOrder, balance: null, error: null } }
+    });
+    expect(body).toContain('免费');
+    expect(body).not.toContain('01911fd5-0047-0000-0000-000000000001');
+    expect(body).not.toContain('01911FD5-0047-0000-0000-000000000001');
   });
 
   it('错误 → 显示错误横幅，不渲染订单信息', () => {

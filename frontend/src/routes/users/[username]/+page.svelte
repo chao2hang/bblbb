@@ -5,7 +5,7 @@
   //   GAP-FIX 社交统计 post_count/followers/following/is_following），页面
   //   直接渲染 data.user（无 JS 也可读）；
   // - 不存在/已注销/匿名化 → load 抛 error(404)（不泄漏存在性）；
-  // - banned/pending_delete → 后端 200 安全降级投影（bio/signature/头像/
+  // - banned/pending_delete → 后端 200 安全降级投影（signature/头像/
   //   Cover 置空），页面隐藏缺失字段，不输出任何状态字段；
   // - 资料隐私：页面只渲染 allowlist 公开字段；对抗性响应（混入邮箱/状态/
   //   凭据）也不会进入 DOM（客户端兜底路径同守卫，见 user-page-privacy.test）；
@@ -27,14 +27,17 @@
   import { announceTransientProblem } from '$lib/ui/problem-toast';
   import { show } from '$lib/ui/toast';
   import { formatCount, formatRelative } from '$lib/utils';
-  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
   import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
   import LoadFailureState from '$lib/components/LoadFailureState.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import { boardVisuals } from '$lib/board-visuals';
   // M14-SEO-01/02：作者页统一 SEO；banned/pending_delete 降级投影 → noindex。
   import Seo from '$lib/components/Seo.svelte';
-  import type { UserFollowActionData, UserPageData } from './+page.server';
+  import type { UserFollowActionData, UserMessageActionData, UserPageData } from './+page.server';
   import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
   /** GAP-FIX 社交统计扩展：后端 PublicProfile 已附带（BE-1），前端
@@ -51,7 +54,7 @@
     form
   }: {
     data?: (UserPageData | { user: null }) & { site?: SiteCopyView | null };
-    form?: UserFollowActionData | null;
+    form?: (UserFollowActionData | UserMessageActionData) | null;
   } = $props();
 
   let username = $derived(page.params.username ?? '');
@@ -191,11 +194,28 @@
       };
     };
   }
+
+  /** 发私信成功后由 server action 跳入已创建/复用的会话；失败保留在主页。 */
+  function messageEnhance(): SubmitFunction {
+    return () => {
+      return async ({ result, update }) => {
+        if (result.type === 'failure') {
+          show(
+            String((result.data as UserMessageActionData | undefined)?.message ?? '发私信失败，请重试'),
+            'danger'
+          );
+        }
+        await update();
+      };
+    };
+  }
+
+  const actionMessage = $derived(form?.ok ? null : form?.message ?? null);
 </script>
 
 <Seo
   title={`${user?.display_name || user?.username || username} 的主页`}
-  description={user?.bio || `查看 ${user?.username || username} 的公开资料`}
+  description={user?.signature || `查看 ${user?.username || username} 的公开资料`}
   og={{ type: 'profile' }}
   noindex={!user}
   jsonLd={
@@ -213,7 +233,7 @@
   }
 />
 
-<div class="container page-content">
+<div class="container page-content" id="page-user">
 
   {#if loading}
     <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
@@ -223,24 +243,30 @@
     <ProblemState {problem} desc="用户可能已注销或不存在" />
   {:else if user}
     <section class="app-profile">
-      <Avatar name={user.display_name || user.username} size="xl" />
+      <ProfileCover attachmentId={user.cover_attachment_id} label="个人资料背景" />
+      <CosmeticAvatar name={user.display_name || user.username} size="xl" presentation={user.presentation_tokens} avatarAttachmentId={user.avatar_attachment_id} seed={user.username ?? user.id} />
       <div class="app-profile__body">
         <h2>
-          {user.display_name || user.username}
-          <span class="badge badge-level">LV.{user.level}</span>
+          <CosmeticName name={user.display_name || user.username} presentation={user.presentation_tokens} />
+          <span class="badge badge-level">TL{user.level}</span>
         </h2>
         <p class="profile-bio">@ {user.username}</p>
-        {#if user.bio}
-          <p class="profile-bio-text">{user.bio}</p>
-        {/if}
         {#if user.signature}
-          <p class="profile-sig" style="color:var(--color-text-tertiary);font-size:12px;margin-top:4px;">{user.signature}</p>
+          <p class="profile-sig">{user.signature}</p>
         {/if}
         {#if typeof user.post_count === 'number'}
+          <!-- 统计行 → 对应页面（与悬浮卡统计一致）：帖子 → 内容 tab；
+               关注者/正在关注 → 关系列表页。加入时间为纯文本。 -->
           <div class="app-profile__meta">
-            <span><b>{formatCount(user.post_count)}</b> 帖子</span>
-            <span><b>{formatCount(user.followers ?? null)}</b> 关注者</span>
-            <span><b>{formatCount(user.following ?? null)}</b> 正在关注</span>
+            <a class="profile-stat-link" href={`/users/${encodeURIComponent(username)}?tab=posts`}>
+              <b>{formatCount(user.post_count)}</b> 帖子
+            </a>
+            <a class="profile-stat-link" href={`/users/${encodeURIComponent(username)}/followers`}>
+              <b>{formatCount(user.followers ?? null)}</b> 关注者
+            </a>
+            <a class="profile-stat-link" href={`/users/${encodeURIComponent(username)}/following`}>
+              <b>{formatCount(user.following ?? null)}</b> 正在关注
+            </a>
             {#if user.created_at}
               <span>加入于 {formatRelative(toSeconds(user.created_at))}</span>
             {/if}
@@ -249,9 +275,15 @@
       </div>
       <div class="app-profile__actions">
         {#if isOwner}
-          <!-- 本人页：编辑资料入口（客户端 getMe 识别）。 -->
+          <!-- 本人页：4 入口按钮（对齐原型 IA：编辑资料/我的收藏/我的余额/我的装扮）。 -->
           <a class="btn secondary sm" href="/settings">编辑资料</a>
+          <a class="btn secondary sm" href="/favorites">我的收藏</a>
+          <a class="btn secondary sm" href="/me/balance">我的余额</a>
+          <a class="btn secondary sm" href="/me/wardrobe">我的装扮</a>
         {:else if authed}
+          <form method="POST" action="?/message" use:enhance={messageEnhance()}>
+            <button type="submit" class="btn secondary sm">发私信</button>
+          </form>
           {#if user.is_following}
             <form method="POST" action="?/unfollow" use:enhance={followEnhance('已取消关注')}>
               <button type="submit" class="btn ghost sm">已关注 · 取消</button>
@@ -264,35 +296,38 @@
         {:else}
           <!-- 匿名：关注是登录操作，不渲染表单，展示登录引导
                （?next= 登录后回跳本人页；后端 401 兜底不变）。 -->
+          <a class="btn secondary sm" href="/login?next={encodeURIComponent(`/users/${username}`)}">登录后私信</a>
           <a class="btn primary sm" href="/login?next={encodeURIComponent(`/users/${username}`)}">登录后关注</a>
         {/if}
       </div>
+      {#if actionMessage}
+        <p class="input-hint is-error profile-action-message" role="alert">{actionMessage}</p>
+      {/if}
     </section>
 
     <!-- 内容 tabs（?tab=，无 JS 下为普通链接导航）。 -->
-    <nav class="tabs-nav" aria-label="内容分类" style="display:flex;gap:var(--space-1);margin-top:var(--space-5);border-bottom:var(--border-default);flex-wrap:wrap;">
+    <nav class="tabs-nav" aria-label="内容分类" style="display:flex;align-items:center;gap:var(--space-1);margin-top:var(--space-5);border-bottom:var(--border-default);overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap;">
       {#each TABS as item (item.key)}
         <a
           href={tabHref(item.key)}
           class="tab-link"
           aria-current={tab === item.key ? 'page' : undefined}
-          style="padding:var(--space-2) var(--space-3);font-size:var(--text-sm);border-bottom:2px solid {tab === item.key ? 'var(--color-primary)' : 'transparent'};color:{tab === item.key ? 'var(--color-text)' : 'var(--color-text-secondary)'};text-decoration:none;"
+          style="padding:var(--space-2) var(--space-3);font-size:var(--text-sm);border-bottom:2px solid {tab === item.key ? 'var(--color-brand)' : 'transparent'};color:{tab === item.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)'};text-decoration:none;white-space:nowrap;flex-shrink:0;"
         >
           {item.label}
         </a>
       {/each}
+      {#if tab === 'posts' && user.post_count !== undefined && user.post_count !== null}
+        <span class="text-secondary" style="margin-left:auto;font-size:var(--text-sm);padding-right:var(--space-2);white-space:nowrap;">
+          共 {formatCount(user.post_count)} 篇
+        </span>
+      {/if}
     </nav>
 
-    <div class="content-grid" style="margin-top:var(--space-4);">
+    <div class="user-post-content" style="margin-top:var(--space-4);">
       <div class="main-col">
         {#if tab === 'posts'}
           <div class="card">
-            <div class="card-header">
-              <span class="card-title">内容</span>
-              {#if user.post_count !== undefined && user.post_count !== null}
-                <span class="text-secondary" style="font-size:var(--text-sm);">共 {formatCount(user.post_count)} 篇</span>
-              {/if}
-            </div>
             <div class="card-body" style="padding:0;">
               {#if postsLoading}
                 <div class="empty-state"><div class="empty-state-title">帖子加载中…</div></div>
@@ -315,24 +350,42 @@
                   <EmptyState icon="file-text" title="还没有帖子" desc="该用户还没有发布过内容，或者你无权查看" />
                 </div>
               {:else}
-                <div style="display:flex;flex-direction:column;">
+                <div class="app-post-list" role="feed" aria-label="用户发布的帖子">
                   {#each posts as post (post.id)}
-                    <div class="post-row" style="padding:var(--space-3) var(--space-4);border-bottom:var(--border-default);">
-                      <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
-                        <span class="badge badge-neutral">内容</span>
-                        {#if post.board_name}
-                          <span class="text-secondary" style="font-size:var(--text-xs);">{post.board_name}</span>
+                    {@const authorName = post.author?.display_name || post.author_display_name || post.author?.username || post.author_name || user.display_name || user.username}
+                    <div class="app-post-row" data-post-id={post.id}>
+                      <CosmeticAvatar name={authorName} size="md" presentation={user.presentation_tokens} avatarAttachmentId={user.avatar_attachment_id} seed={post.author?.username ?? post.author?.id ?? user.username ?? user.id} />
+                      <div class="app-post-row__main">
+                        <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+                          {#if post.pinned}
+                            <Badge text="置顶" type="pinned" />
+                          {/if}
+                          {#if post.board_slug && post.board_name}
+                            <span class="category-badge" style="--cat-color:{boardVisuals(post.board_slug).color};">
+                              <span class="category-badge-square"></span>
+                              <span>{post.board_name}</span>
+                            </span>
+                          {:else if post.board_name}
+                            <span class="sbadge sb-gray">{post.board_name}</span>
+                          {/if}
+                        </div>
+                        <h3 style="margin-top:var(--space-1);">
+                          <a href="/posts/{encodeURIComponent(post.id)}">{post.title}</a>
+                        </h3>
+                        {#if post.summary}
+                          <p>
+                            {post.summary}
+                          </p>
                         {/if}
-                      </div>
-                      <div style="font-weight:var(--weight-medium);margin-top:var(--space-1);">
-                        <a href="/posts/{encodeURIComponent(post.id)}">{post.title}</a>
-                      </div>
-                      <div class="text-secondary" style="font-size:var(--text-xs);margin-top:2px;display:flex;gap:var(--space-2);flex-wrap:wrap;">
-                        <span>{formatCount(post.reply_count)} 回复</span>
-                        <span>·</span>
-                        <span>{formatCount(post.view_count)} 浏览</span>
-                        <span>·</span>
-                        <span>{formatRelative(toSeconds(post.created_at))}</span>
+                        <div class="app-post-row__meta">
+                          <span>{formatCount(post.reply_count)} 回复</span>
+                          <span>·</span>
+                          <span>{formatCount(post.view_count)} 浏览</span>
+                          {#if post.created_at}
+                            <span>·</span>
+                            <span>{formatRelative(toSeconds(post.created_at))}</span>
+                          {/if}
+                        </div>
                       </div>
                     </div>
                   {/each}
@@ -344,7 +397,6 @@
           <!-- 回复/收藏/动态：后端暂无对应的用户侧列表端点
                明确功能未开放与无数据边界（P3-01），避免误导用户。 -->
           <div class="card">
-            <div class="card-header"><span class="card-title">{TABS.find((t) => t.key === tab)?.label ?? '内容'}</span></div>
             <div class="card-body">
               <EmptyState
                 icon="clock"
@@ -354,24 +406,6 @@
             </div>
           </div>
         {/if}
-      </div>
-      <div class="side-col">
-        <div class="card">
-          <div class="card-header"><span class="card-title">个人资料</span></div>
-          <div class="card-body">
-            <dl class="profile-about-list">
-              <div class="profile-about-item"><dt>昵称</dt><dd>{user.display_name || user.username}</dd></div>
-              <div class="profile-about-item"><dt>用户名</dt><dd>{user.username}</dd></div>
-              <div class="profile-about-item"><dt>等级</dt><dd>LV.{user.level}</dd></div>
-              {#if user.bio}
-                <div class="profile-about-item"><dt>简介</dt><dd>{user.bio}</dd></div>
-              {/if}
-              {#if user.signature}
-                <div class="profile-about-item"><dt>签名</dt><dd>{user.signature}</dd></div>
-              {/if}
-            </dl>
-          </div>
-        </div>
       </div>
     </div>
   {/if}

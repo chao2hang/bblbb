@@ -337,9 +337,36 @@ samp {
 }
 
 .prose img {
-  max-width: 100%;
+  /* 正文/回复图片展示上限：宽度收窄到 480px（窄屏仍 ≤ 容器宽），
+     高度同步封顶，保持纵横比完整显示——不裁剪、不撑满整卡。 */
+  display: block;
+  max-width: min(100%, 480px);
+  max-height: 480px;
+  width: auto;
+  height: auto;
   border-radius: var(--radius-md);
   border: var(--border-default);
+}
+
+.prose .attachment-unavailable {
+  /* 正文引用的附件已删除（M06-QUOTA-09 保留期）：后端读取时把
+     <img>/<a> 整元素替换为本占位（SafeHtml 注入，无客户端处理）。 */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px 10px;
+  border: 1px dashed var(--color-border-strong, var(--color-border));
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  vertical-align: middle;
+}
+
+.prose .attachment-unavailable::before {
+  content: "⊘";
+  font-size: 0.9em;
+  opacity: 0.75;
 }
 
 .prose table {

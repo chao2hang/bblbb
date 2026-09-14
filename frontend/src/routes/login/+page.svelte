@@ -10,6 +10,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { show as showToast } from '$lib/ui/toast';
+  import { assertPasskey, passkeyErrorMessage, passkeySupported } from '$lib/mfa/passkey';
   import { resolveSiteCopy, pageTitle, type SiteCopyView } from '$lib/site/copy';
   import type { LoginActionData } from './+page.server';
 
@@ -23,6 +24,47 @@
   const mfaStep = $derived(form?.mfa_required === true);
   let useRecovery = $state(false);
   let showPassword = $state(false);
+
+  // Passkey 登录（M02-MFA-PK）：与 TOTP/恢复码 OR 共存，任一通过即可。
+  // 断言 JSON 由 JS 写入隐藏字段随 ?/mfa action 提交；无 JS / 不支持环境
+  // 不渲染入口，TOTP 路径不受影响。
+  const passkeyAvailable = $derived(form?.passkey_available === true);
+  let passkeyAssertion = $state('');
+  let passkeyBusy = $state(false);
+
+  async function usePasskey() {
+    if (passkeyBusy) return;
+    const challengeToken = form?.challenge_token ?? '';
+    if (!challengeToken) {
+      showToast('登录状态已失效，请重新登录', 'danger');
+      return;
+    }
+    if (!passkeySupported()) {
+      showToast('当前浏览器不支持 Passkey，请改用验证码登录', 'danger');
+      return;
+    }
+    passkeyBusy = true;
+    try {
+      const optionsRes = await fetch('/login/passkey-options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ challenge_token: challengeToken })
+      });
+      if (!optionsRes.ok) {
+        const problem = (await optionsRes.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(problem?.message || '获取 Passkey 参数失败，请重试');
+      }
+      const assertion = await assertPasskey((await optionsRes.json()) as Parameters<typeof assertPasskey>[0]);
+      passkeyAssertion = JSON.stringify(assertion);
+      const mfaForm = document.getElementById('login-mfa-form') as HTMLFormElement | null;
+      mfaForm?.requestSubmit();
+    } catch (e) {
+      showToast(passkeyErrorMessage(e), 'danger');
+      passkeyAssertion = '';
+    } finally {
+      passkeyBusy = false;
+    }
+  }
 
   const oauthErrorParam = $derived(page.url.searchParams.get('error'));
   const oauthErrorMessage = $derived.by(() => {
@@ -92,7 +134,9 @@
         </div>
         <h1 tabindex="-1">{mfaStep ? '安全验证' : site.loginTitle}</h1>
         <p class="login-subtitle">
-          {mfaStep ? '该账号已启用两步验证保护，请输入 6 位动态验证码。' : site.loginSubtitle}
+          {mfaStep
+            ? '该账号已启用两步验证保护，可用动态验证码、恢复码或 Passkey 任一方式完成。'
+            : site.loginSubtitle}
         </p>
       </div>
 
@@ -105,9 +149,18 @@
         {/if}
 
         {#if mfaStep}
-          <form method="POST" action="?/mfa" use:enhance novalidate class="login-form">
+          <form
+            id="login-mfa-form"
+            method="POST"
+            action="?/mfa"
+            use:enhance
+            novalidate
+            class="login-form"
+          >
             <input type="hidden" name="challenge_token" value={form?.challenge_token ?? ''} />
             <input type="hidden" name="next" value={nextParam} />
+            <input type="hidden" name="passkey_available" value={passkeyAvailable ? '1' : '0'} />
+            <input type="hidden" name="passkey_assertion" value={passkeyAssertion} />
             {#if useRecovery}
               <div class="input-wrapper">
                 <label class="input-label" for="login-recovery">恢复码</label>
@@ -157,6 +210,14 @@
                 </button>
               </div>
             {/if}
+            {#if passkeyAvailable}
+              <div class="mfa-switch-row mfa-passkey-row">
+                <button type="button" class="link-btn" onclick={usePasskey} disabled={passkeyBusy}>
+                  <Icon name="fingerprint" size={14} />
+                  <span>{passkeyBusy ? '等待 Passkey 验证…' : '使用 Passkey 登录'}</span>
+                </button>
+              </div>
+            {/if}
             <div class="submit-wrap">
               <Button text="验证并登录" variant="primary" size="lg" type="submit" block />
             </div>
@@ -194,7 +255,8 @@
                 <button
                   type="button"
                   class="toggle-pwd-btn"
-                  aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                  aria-label={showPassword ? '隐藏输入内容' : '显示输入内容'}
+                  title={showPassword ? '隐藏密码' : '显示密码'}
                   tabindex="-1"
                   onclick={() => (showPassword = !showPassword)}
                 >
@@ -298,7 +360,7 @@
   }
 
   .login-card h1 {
-    font-family: var(--font-family-serif, serif);
+    font-family: var(--font-family-serif);
     font-size: 24px;
     font-weight: 600;
     color: var(--color-text-primary);
@@ -410,7 +472,7 @@
   }
 
   .totp-input {
-    font-family: var(--font-family-mono, monospace);
+    font-family: var(--font-family-mono);
     font-size: 20px;
     font-weight: 600;
     letter-spacing: 0.25em;
@@ -419,7 +481,7 @@
   }
 
   .recovery-input {
-    font-family: var(--font-family-mono, monospace);
+    font-family: var(--font-family-mono);
     font-size: 14px;
     letter-spacing: 0.08em;
   }
@@ -536,12 +598,12 @@
   .oauth-divider-line {
     flex: 1;
     height: 1px;
-    background: var(--color-border, rgba(0, 0, 0, 0.1));
+    background: var(--color-border);
   }
 
   .oauth-divider-text {
     font-size: 12px;
-    color: var(--color-text-secondary, #666);
+    color: var(--color-text-secondary);
     white-space: nowrap;
   }
 
@@ -559,22 +621,22 @@
     gap: 10px;
     width: 100%;
     padding: 8px 16px;
-    border-radius: var(--radius-md, 6px);
-    border: 1px solid var(--color-border, #e5e5e5);
-    background: var(--color-surface, #fff);
-    color: var(--color-text-primary, #111);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-primary);
     font-size: 13px;
     font-weight: 500;
     text-decoration: none;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     cursor: pointer;
     box-sizing: border-box;
   }
 
   .oauth-btn:hover {
-    background: var(--color-bg-secondary, #f8f9fa);
-    border-color: color-mix(in srgb, var(--color-text-primary) 30%, transparent);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
   }
 
   .oauth-icon {

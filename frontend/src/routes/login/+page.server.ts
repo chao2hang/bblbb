@@ -16,6 +16,8 @@ import { loginMfaViaServer, loginViaServer } from '$lib/api/server';
 export interface LoginActionData {
   mfa_required?: boolean;
   challenge_token?: string;
+  /** 该账号注册过 Passkey：第二步展示「使用 Passkey 登录」（M02-MFA-PK） */
+  passkey_available?: boolean;
   message?: string;
   requestId?: string | null;
 }
@@ -48,7 +50,8 @@ export const actions: Actions = {
       if (result.kind === 'mfa') {
         return {
           mfa_required: true,
-          challenge_token: result.challengeToken
+          challenge_token: result.challengeToken,
+          passkey_available: result.passkeyAvailable
         } satisfies LoginActionData;
       }
       return fail(result.status, {
@@ -65,14 +68,30 @@ export const actions: Actions = {
     const challengeToken = String(form.get('challenge_token') ?? '').trim();
     const totpCode = String(form.get('totp_code') ?? '').trim();
     const recoveryCode = String(form.get('recovery_code') ?? '').trim();
+    // Passkey 断言：客户端 JS 把浏览器凭据 JSON 写入隐藏字段（M02-MFA-PK）
+    const passkeyRaw = String(form.get('passkey_assertion') ?? '').trim();
+    let passkeyAssertion: unknown;
+    if (passkeyRaw) {
+      try {
+        passkeyAssertion = JSON.parse(passkeyRaw);
+      } catch {
+        return fail(422, {
+          mfa_required: true,
+          challenge_token: challengeToken,
+          message: 'Passkey 凭据无效，请重试或改用验证码'
+        } satisfies LoginActionData);
+      }
+    }
     if (!challengeToken) {
       return fail(422, { message: '登录状态已失效，请重新登录' } satisfies LoginActionData);
     }
-    if (!totpCode && !recoveryCode) {
+    const methodCount = [totpCode, recoveryCode, passkeyRaw].filter((v) => v).length;
+    if (methodCount !== 1) {
       return fail(422, {
         mfa_required: true,
         challenge_token: challengeToken,
-        message: '请输入验证码或恢复码'
+        passkey_available: form.get('passkey_available') === '1',
+        message: '验证码、恢复码或 Passkey 请任选一种'
       } satisfies LoginActionData);
     }
     try {
@@ -81,7 +100,8 @@ export const actions: Actions = {
         {
           challenge_token: challengeToken,
           totp_code: totpCode || undefined,
-          recovery_code: recoveryCode || undefined
+          recovery_code: recoveryCode || undefined,
+          passkey: passkeyAssertion
         },
         request.headers.get('x-request-id')
       );
@@ -89,6 +109,7 @@ export const actions: Actions = {
       return fail(result.status, {
         mfa_required: true,
         challenge_token: challengeToken,
+        passkey_available: form.get('passkey_available') === '1',
         message: result.message,
         requestId: result.requestId
       } satisfies LoginActionData);
@@ -97,6 +118,7 @@ export const actions: Actions = {
       return fail(503, {
         mfa_required: true,
         challenge_token: challengeToken,
+        passkey_available: form.get('passkey_available') === '1',
         message: '登录服务暂时不可用，请稍后重试'
       } satisfies LoginActionData);
     }

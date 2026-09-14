@@ -101,7 +101,7 @@ async fn anonymize_user_in_tx(
                  delete_requested_at = NULL,
                  deleted_at = ?,
                  status = 'deleted',
-                 level = 1,
+                 trust_level = 0,
                  version = version + 1
              WHERE id = ? AND status != 'deleted'",
         )
@@ -126,7 +126,7 @@ async fn anonymize_user_in_tx(
                  delete_requested_at = NULL,
                  deleted_at = ?,
                  status = 'deleted',
-                 level = 1,
+                 trust_level = 0,
                  version = version + 1
              WHERE id = ? AND status != 'deleted'",
         )

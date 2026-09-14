@@ -10,6 +10,12 @@
   padding: 0 var(--space-5);
 }
 
+@media (max-width: 768px) {
+  .container {
+    padding: 0 var(--space-3);
+  }
+}
+
 .page-wrapper {
   min-height: calc(100vh - var(--header-h));
 }
@@ -250,17 +256,24 @@
 
 .user-menu-wrapper {
   position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .user-avatar-btn {
   display: inline-flex;
-  border-radius: 50%;
-  transition: box-shadow var(--duration-fast) var(--ease-out);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  vertical-align: middle;
+  border-radius: 0;
 }
-
-.user-avatar-btn:hover {
-  box-shadow: 0 0 0 2px var(--color-focus-ring);
-}
+/* 头像按钮不再做 hover 光晕（鼠标放上去出现蓝紫色圈圈）；
+   键盘聚焦指示由全局 :focus-visible 外描边承担（base.css）。 */
 
 @media (max-width: 1100px) {
   .nav-container {
@@ -780,6 +793,13 @@
   align-items: start;
 }
 
+.publish-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
 .publish-main {
   min-width: 0;
 }
@@ -834,6 +854,22 @@
   .publish-layout {
     grid-template-columns: 1fr;
   }
+
+  .publish-actions {
+    position: sticky;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    z-index: var(--z-sticky);
+    margin: var(--space-3) calc(var(--space-3) * -1) 0;
+    padding: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-bg-page) 94%, transparent);
+    backdrop-filter: blur(10px);
+  }
+
+  .publish-actions > div:last-child {
+    flex: 1;
+  }
+
   .publish-title-input.input-field {
     height: 38px;
     padding-right: 68px;

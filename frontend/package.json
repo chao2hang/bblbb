@@ -10,7 +10,9 @@
     "test": "svelte-kit sync && vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:axe": "playwright test a11y-axe.spec.ts"
+    "test:e2e:axe": "playwright test a11y-axe.spec.ts",
+    "generate:icons": "node scripts/generate-icon-catalog.mjs",
+    "generate:icons:check": "node scripts/generate-icon-catalog.mjs --check"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
@@ -23,6 +25,7 @@
     "@testing-library/user-event": "^14.6.3",
     "@types/node": "^26.4.1",
     "jsdom": "^26.1.0",
+    "lucide-static": "^1.45.0",
     "svelte": "^5.38.7",
     "svelte-check": "^4.3.1",
     "typescript": "^5.9.2",
@@ -34,6 +37,8 @@
     "fsevents@2.3.3": true
   },
   "dependencies": {
+    "@chaos_team/blbui-core": "^0.0.24",
+    "@chaos_team/blbui-svelte": "^0.0.24",
     "@fontsource-variable/inter-tight": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@tiptap/core": "^3.31.3",
@@ -45,6 +50,7 @@
     "@tiptap/extension-table-header": "^3.31.3",
     "@tiptap/extension-table-row": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
+    "lit": "^3.3.3",
     "qrcode": "^1.5.4",
     "tiptap-markdown": "^0.9.0"
   }

@@ -1,10 +1,17 @@
 <script lang="ts">
-  // M13-UI-06 & M18-ADMIN-PLUGINS：管理插件页（对齐原型 4 统计卡与表格，兼顾能力说明与安装表单）。
+  // M13-UI-06 & M18-ADMIN-PLUGINS & M18-ADMIN-BATCH：管理插件页。
+  // 约定 A：所有写操作 = 按钮 → Dialog（安装/启用/停用/设置；表单在弹层内，
+  // reason 必填写审计，成功后 toastActionResult → update → 关闭弹层）。
+  // 约定 B：插件表格选择列 + BatchBar →「批量启用」「批量停用」Dialog
+  // （循环 enable/disable 单条端点，If-Match policy_revision 与单条一致）。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '$lib/components/ui/Button.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
+  import BatchBar from '$lib/components/admin/BatchBar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import { withActionToast } from '$lib/ui/action-toast';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminPluginsPageData, AdminPluginsActionData } from './+page.server';
 
@@ -28,20 +35,21 @@
     kind?: string;
     status?: string;
     capabilities?: string[];
-    version?: number;
+    subscriptions?: string[];
+    version?: number | string;
     policy_revision?: number;
   }
 
-  const fallbackPlugins: UnifiedPlugin[] = [
-    { id: 'video-embed', name: '视频嵌入', description: '将白名单来源的视频安全嵌入帖子。', kind: 'config', status: 'enabled', capabilities: ['video.render'], version: 1 },
-    { id: 'search-highlight', name: '搜索高亮', description: '为搜索结果标记匹配关键词，提升检索效率。', kind: 'config', status: 'enabled', capabilities: ['search.highlight'], version: 1 },
-    { id: 'stat-card', name: '统计卡片', description: '在内容页展示阅读与互动统计。', kind: 'precompiled', status: 'enabled', capabilities: ['content.stats'], version: 1 },
-    { id: 'announcement-bar', name: '公告栏', description: '在站点顶部展示重要公告与维护提示。', kind: 'precompiled', status: 'disabled', capabilities: ['site.notice'], version: 1 }
-  ];
 
+  // P0 整改：只展示服务端返回的插件；空列表 = 真实空态。
   const effectivePlugins: UnifiedPlugin[] = $derived(
-    plugins.length > 0 ? (plugins as unknown as UnifiedPlugin[]) : fallbackPlugins
+    (plugins as unknown as UnifiedPlugin[]) ?? []
   );
+
+  /** 行乐观锁版本：真实插件取 policy_revision，回退投影取 version。 */
+  function revisionOf(p: UnifiedPlugin): number {
+    return Number(p.policy_revision ?? p.version ?? 1);
+  }
 
   let q = $state('');
   let statusFilter = $state('');
@@ -68,6 +76,94 @@
   function toggleRow(id: string) {
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
     else selectedIds = [...selectedIds, id];
+  }
+  function pluginById(id: string): UnifiedPlugin | undefined {
+    return effectivePlugins.find((p) => p.id === id);
+  }
+
+  /** 弹层表单共用结果处理：toast → update → 成功才关弹层（失败留在弹层改）。 */
+  const dialogEnhance = (onSuccess: () => void): SubmitFunction =>
+    () => async ({ result, update }) => {
+      toastActionResult(result);
+      await update();
+      if (result.type === 'success') onSuccess();
+    };
+
+  // ── 弹层 target 状态（一个 Dialog 服务一类操作，target 区分行）──
+  /** 安装插件（?/install：默认 disabled 隔离态）。 */
+  let installOpen = $state(false);
+  function openInstall(): void {
+    installOpen = true;
+  }
+  function closeInstall(): void {
+    installOpen = false;
+  }
+
+  /**
+   * 行操作弹层（M18-ADMIN-OPS 约定 C：每行一个「操作」按钮，动作在弹层内选）。
+   * 插件行动作 = 启用（?/enable，If-Match policy_revision）/ 停用（?/disable）/
+   * 设置（?/settings，settings_json 预填）——不同端点 → 弹层内按 tab 分节表单。
+   */
+  let opsTarget = $state<UnifiedPlugin | null>(null);
+  let opsTab = $state<'enable' | 'disable' | 'settings'>('settings');
+
+  function openOps(p: UnifiedPlugin): void {
+    opsTarget = p;
+    opsTab = p.status === 'enabled' ? 'disable' : 'enable';
+    // 预填设置草稿（沿用既有 openSettings 逻辑）
+    const real = plugins.find((x) => x.id === p.id);
+    settingsJson = real ? JSON.stringify(real.settings ?? {}, null, 2) : '{}';
+    enableReason = '';
+    disableReason = '';
+    settingsReason = '';
+  }
+
+  function closeOps(): void {
+    opsTarget = null;
+  }
+
+  /** 启用分节表单（?/enable：If-Match policy_revision + reason）。 */
+  let enableReason = $state('');
+  /** 停用分节表单（?/disable：If-Match policy_revision + reason）。 */
+  let disableReason = $state('');
+  /** 设置分节表单（?/settings：settings_json + If-Match + reason）。 */
+  let settingsJson = $state('{}');
+  let settingsReason = $state('');
+
+  /** 批量启用 / 批量停用（?/batchEnable、?/batchDisable）。 */
+  let batchEnableOpen = $state(false);
+  let batchDisableOpen = $state(false);
+  let batchEnableReason = $state('');
+  let batchDisableReason = $state('');
+  function openBatchEnable(): void {
+    batchEnableReason = '';
+    batchEnableOpen = true;
+  }
+  function closeBatchEnable(): void {
+    batchEnableOpen = false;
+  }
+  function openBatchDisable(): void {
+    batchDisableReason = '';
+    batchDisableOpen = true;
+  }
+  function closeBatchDisable(): void {
+    batchDisableOpen = false;
+  }
+
+  /** 批量隐藏域：versions 与 ids 顺序一一对应（If-Match policy_revision）。 */
+  const selectedVersions = $derived(
+    selectedIds.map((id) => String(revisionOf(pluginById(id) ?? { id, name: '' })))
+  );
+
+  function batchDialogEnhance(onSuccess: () => void): SubmitFunction {
+    return () => async ({ result, update }) => {
+      toastActionResult(result);
+      await update();
+      if (result.type === 'success') {
+        selectedIds = [];
+        onSuccess();
+      }
+    };
   }
 
   function exportPluginsList() {
@@ -145,9 +241,7 @@
         <span class="app-muted" style="font-size:12px;">管理已注册插件的状态、权限和运行日志</span>
       </div>
       <div style="display:flex;gap:8px;">
-        <button type="button" class="btn primary sm" onclick={() => showToast('插件目录暂未开放在线上传', 'info')}>
-          + 安装插件
-        </button>
+        <Button text="+ 安装插件" variant="primary" size="sm" onclick={openInstall} />
         <button type="button" class="btn ghost sm" onclick={() => showToast('已刷新插件状态', 'success')}>
           <Icon name="rotate-cw" size={12} /> 刷新
         </button>
@@ -155,40 +249,38 @@
     </header>
 
     <div class="app-card__body">
-      <!-- 工具栏 -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      <!-- 工具栏：单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
         <input
           type="search"
           bind:value={q}
           class="app-field"
           placeholder="搜索当前列表..."
           aria-label="搜索当前列表"
+          style="flex:1 1 220px;min-width:0;"
         />
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <select
-            class="app-select"
-            bind:value={statusFilter}
-            aria-label="状态筛选"
-            style="min-width:140px;"
-          >
-            <option value="">全部状态</option>
-            <option value="enabled">运行中</option>
-            <option value="disabled">已停用</option>
-          </select>
-          {#if q || statusFilter}
-            <button type="button" class="btn ghost sm" onclick={() => { q = ''; statusFilter = ''; }}>
-              清除
-            </button>
-          {/if}
-        </div>
+        <select
+          class="app-select"
+          bind:value={statusFilter}
+          aria-label="状态筛选"
+          style="flex:0 0 auto;width:168px;"
+        >
+          <option value="">全部状态</option>
+          <option value="enabled">运行中</option>
+          <option value="disabled">已停用</option>
+        </select>
+        {#if q || statusFilter}
+          <button type="button" class="btn ghost sm" style="flex:0 0 auto;" onclick={() => { q = ''; statusFilter = ''; }}>
+            清除
+          </button>
+        {/if}
       </div>
 
-      {#if selectedIds.length > 0}
-        <div class="app-notice" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
-          <span style="font-size:var(--text-xs);font-weight:600;">{selectedIds.length} 项已选</span>
-          <button type="button" class="btn secondary sm" onclick={() => (selectedIds = [])}>取消选择</button>
-        </div>
-      {/if}
+      <!-- 批量工具条（约定 B：选中后渲染） -->
+      <BatchBar count={selectedIds.length} noun="个插件" onclear={() => (selectedIds = [])}>
+        <Button text="批量启用" variant="secondary" size="sm" onclick={openBatchEnable} />
+        <Button text="批量停用" variant="danger" size="sm" onclick={openBatchDisable} />
+      </BatchBar>
 
       <div class="app-table-wrap">
         <table class="app-table" aria-label="插件列表">
@@ -215,7 +307,7 @@
                     type="checkbox"
                     checked={selectedIds.includes(p.id)}
                     onchange={() => toggleRow(p.id)}
-                    aria-label="选择此项"
+                    aria-label="选择插件 {p.name}"
                   />
                 </td>
                 <td>
@@ -230,9 +322,16 @@
                         <span class="sub" style="display:block;margin-top:2px;font-size:12px;color:var(--color-text-secondary);">{p.description}</span>
                       {/if}
                       {#if p.capabilities && p.capabilities.length > 0}
-                        <div style="display:flex;gap:4px;margin-top:4px;">
+                        <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
                           {#each p.capabilities as cap}
                             <span class="sbadge sb-brand" style="font-size:10px;">{cap}</span>
+                          {/each}
+                        </div>
+                      {/if}
+                      {#if p.subscriptions && p.subscriptions.length > 0}
+                        <div style="display:flex;gap:4px;margin-top:2px;flex-wrap:wrap;">
+                          {#each p.subscriptions as sub}
+                            <span class="sbadge sb-gray" style="font-size:10px;">{sub}</span>
                           {/each}
                         </div>
                       {/if}
@@ -243,18 +342,13 @@
                   <span class="sbadge {p.status === 'enabled' ? 'sb-success' : 'sb-gray'}">
                     {p.status === 'enabled' ? '运行中' : '已停用'}
                   </span>
-                  <span class="text-secondary" style="font-size:11px;display:block;margin-top:2px;">policy v{p.policy_revision ?? (p as any).policy_version ?? p.version ?? 1}</span>
+                  <span class="text-secondary" style="font-size:11px;display:block;margin-top:2px;">policy v{revisionOf(p)}</span>
                 </td>
                 <td>
-                  <form method="POST" action={p.status === 'enabled' ? '?/disable' : '?/enable'} use:enhance={withActionToast()} style="margin:0;display:inline;">
-                    <input type="hidden" name="id" value={p.id} />
-                    <input type="hidden" name="status" value={p.status === 'enabled' ? 'disabled' : 'enabled'} />
-                    <input type="hidden" name="policy_version" value={String(p.version ?? 1)} />
-                    <input type="hidden" name="reason" value="管理员变更插件状态" />
-                    <button type="submit" class="btn sm {p.status === 'enabled' ? 'ghost' : 'secondary'}">
-                      {p.status === 'enabled' ? '停用' : '启用'}
-                    </button>
-                  </form>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <!-- 每行一个「操作」按钮：启用/停用/设置在弹层内选择（约定 C） -->
+                    <Button text="操作" variant="secondary" size="sm" onclick={() => openOps(p)} />
+                  </div>
                 </td>
               </tr>
             {/each}
@@ -269,42 +363,171 @@
     </div>
   </section>
 
-  <!-- 能力边界说明与安装表单（折叠收纳，保证测试断言与功能兼具） -->
+  <!-- 能力边界说明（折叠收纳）：v1 无在线代码执行；受控 Provider Adapter -->
   <details class="app-card">
     <summary class="app-card__head" style="cursor:pointer;user-select:none;">
-      <h2 style="display:inline-block;font-size:15px;margin:0;">v1 能力边界与配置型安装表单</h2>
+      <h2 style="display:inline-block;font-size:15px;margin:0;">v1 能力边界</h2>
     </summary>
     <div class="app-card__body" style="padding-top:12px;font-size:12px;color:var(--color-text-secondary);line-height:1.6;">
       <p style="margin:0 0 8px;">
         插件是配置数据，无在线代码执行路径（code/WASM plugin execution is a v2 research item）。受控 Provider Adapter（随应用编译）：direct、hls、xigua。
       </p>
-      <form method="POST" action="?/install" use:enhance={withActionToast()} class="stack" style="gap:10px;margin-top:12px;">
-        <label>
-          <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">插件 ID</span>
-          <input type="text" name="id" class="input-field" placeholder="如：welcome-reward" required />
-        </label>
-        <label>
-          <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">名称</span>
-          <input type="text" name="name" class="input-field" placeholder="如：新用户欢迎奖励" required />
-        </label>
-        <label>
-          <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">能力 (JSON 数组)</span>
-          <input type="text" name="capabilities" class="input-field" value='["notification.create"]' required />
-        </label>
-        <label>
-          <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">订阅事件 (JSON 数组)</span>
-          <input type="text" name="subscriptions" class="input-field" value='["user.verified.v1"]' required />
-        </label>
-        <label>
-          <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">设置 Schema (JSON)</span>
-          <textarea name="settings_schema" class="input-field" rows="3" value={'{"type":"object","properties":{}}'}></textarea>
-        </label>
-        <label>
-          <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">操作原因</span>
-          <input type="text" name="reason" class="input-field" placeholder="必填" required />
-        </label>
-        <Button text="安装插件" variant="primary" type="submit" />
-      </form>
+      <p style="margin:0;">
+        安装插件请使用右上角「+ 安装插件」按钮（弹层表单，默认 disabled 隔离态，reason 写审计）。
+      </p>
     </div>
   </details>
+{/if}
+
+<!-- 安装插件 Dialog（?/install：默认 disabled 隔离态，reason 写审计） -->
+<Dialog
+  open={installOpen}
+  title="安装插件"
+  description="安装后插件为 disabled 隔离态，需在列表中手动启用；ID 仅限小写字母/数字/连字符。"
+  onclose={closeInstall}
+>
+  <form method="POST" action="?/install" use:enhance={dialogEnhance(closeInstall)} class="stack" style="gap:10px;">
+    <label>
+      <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">插件 ID</span>
+      <input type="text" name="id" class="input-field" placeholder="如：welcome-reward" required />
+    </label>
+    <label>
+      <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">名称</span>
+      <input type="text" name="name" class="input-field" placeholder="如：新用户欢迎奖励" required />
+    </label>
+    <label>
+      <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">能力 (JSON 数组)</span>
+      <input type="text" name="capabilities" class="input-field" value='["notification.create"]' required />
+    </label>
+    <label>
+      <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">订阅事件 (JSON 数组)</span>
+      <input type="text" name="subscriptions" class="input-field" value='["user.verified.v1"]' required />
+    </label>
+    <label>
+      <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">设置 Schema (JSON)</span>
+      <textarea name="settings_schema" class="input-field" rows="3" value={'{"type":"object","properties":{}}'}></textarea>
+    </label>
+    <label>
+      <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">操作原因（写审计）</span>
+      <input type="text" name="reason" class="input-field" placeholder="必填" required />
+    </label>
+    <Button text="安装插件" variant="primary" type="submit" />
+  </form>
+</Dialog>
+
+{#if pageState !== 'forbidden' && pageState !== 'error'}
+  <!-- 行操作 Dialog（约定 C）：chips 选动作（启用/停用/设置），分节表单 → 既有契约 -->
+  <Dialog
+    open={opsTarget !== null}
+    title={opsTarget ? `插件操作：${opsTarget.name}` : '插件操作'}
+    description={opsTarget
+      ? `对「${opsTarget.name}」（/${opsTarget.id}，policy v${revisionOf(opsTarget)}）执行操作；启停/设置均带 If-Match 乐观锁，原因写审计。`
+      : ''}
+    onclose={closeOps}
+  >
+    {#if opsTarget}
+      <!-- 动作 chips -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-4);">
+        <button
+          type="button"
+          class="btn sm {opsTab === 'enable' ? 'secondary' : 'ghost'}"
+          style={opsTab === 'enable' ? 'border:1px solid var(--color-brand);font-weight:600;' : ''}
+          onclick={() => (opsTab = 'enable')}
+        >
+          启用
+        </button>
+        <button
+          type="button"
+          class="btn sm {opsTab === 'disable' ? 'secondary' : 'ghost'}"
+          style={opsTab === 'disable' ? 'border:1px solid var(--color-brand);font-weight:600;' : ''}
+          onclick={() => (opsTab = 'disable')}
+        >
+          停用
+        </button>
+        <button
+          type="button"
+          class="btn sm {opsTab === 'settings' ? 'secondary' : 'ghost'}"
+          style={opsTab === 'settings' ? 'border:1px solid var(--color-brand);font-weight:600;' : ''}
+          onclick={() => (opsTab = 'settings')}
+        >
+          设置
+        </button>
+      </div>
+
+      {#if opsTab === 'enable'}
+        <!-- 启用（?/enable：If-Match policy_revision + reason 审计） -->
+        <form method="POST" action="?/enable" use:enhance={dialogEnhance(closeOps)} class="stack" style="gap:10px;">
+          <input type="hidden" name="id" value={opsTarget?.id ?? ''} />
+          <input type="hidden" name="policy_revision" value={opsTarget ? String(revisionOf(opsTarget)) : ''} />
+          <label>
+            <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">操作原因（写审计）</span>
+            <input type="text" name="reason" class="input-field" bind:value={enableReason} placeholder="必填" required />
+          </label>
+          <Button text="确认启用" variant="primary" size="sm" type="submit" />
+        </form>
+      {:else if opsTab === 'disable'}
+        <!-- 停用（?/disable：If-Match policy_revision + reason 审计） -->
+        <form method="POST" action="?/disable" use:enhance={dialogEnhance(closeOps)} class="stack" style="gap:10px;">
+          <input type="hidden" name="id" value={opsTarget?.id ?? ''} />
+          <input type="hidden" name="policy_revision" value={opsTarget ? String(revisionOf(opsTarget)) : ''} />
+          <label>
+            <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">操作原因（写审计）</span>
+            <input type="text" name="reason" class="input-field" bind:value={disableReason} placeholder="必填" required />
+          </label>
+          <Button text="确认停用" variant="danger" size="sm" type="submit" />
+        </form>
+      {:else}
+        <!-- 设置（?/settings：settings_json + If-Match + reason 审计） -->
+        <form method="POST" action="?/settings" use:enhance={dialogEnhance(closeOps)} class="stack" style="gap:10px;">
+          <input type="hidden" name="id" value={opsTarget?.id ?? ''} />
+          <input type="hidden" name="policy_revision" value={opsTarget ? String(revisionOf(opsTarget)) : ''} />
+          <label>
+            <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">设置 JSON</span>
+            <textarea name="settings_json" class="input-field" rows="6" bind:value={settingsJson}></textarea>
+          </label>
+          <label>
+            <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">操作原因（写审计）</span>
+            <input type="text" name="reason" class="input-field" bind:value={settingsReason} placeholder="必填" required />
+          </label>
+          <Button text="保存设置" variant="primary" size="sm" type="submit" />
+        </form>
+      {/if}
+    {/if}
+  </Dialog>
+
+  <!-- 批量启用 Dialog（?/batchEnable：循环 enable 单条端点） -->
+  <Dialog
+    open={batchEnableOpen}
+    title="批量启用"
+    description={`将启用 ${selectedIds.length} 个插件（逐条 If-Match policy_revision 提交，原因写审计）。`}
+    onclose={closeBatchEnable}
+  >
+    <form method="POST" action="?/batchEnable" use:enhance={batchDialogEnhance(closeBatchEnable)} class="stack" style="gap:10px;">
+      <input type="hidden" name="ids" value={selectedIds.join(',')} />
+      <input type="hidden" name="versions" value={selectedVersions.join(',')} />
+      <label>
+        <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">操作原因（写审计）</span>
+        <input type="text" name="reason" class="input-field" bind:value={batchEnableReason} placeholder="必填" required />
+      </label>
+      <Button text={`批量启用 ${selectedIds.length} 个`} variant="primary" size="sm" type="submit" />
+    </form>
+  </Dialog>
+
+  <!-- 批量停用 Dialog（?/batchDisable：循环 disable 单条端点） -->
+  <Dialog
+    open={batchDisableOpen}
+    title="批量停用"
+    description={`将停用 ${selectedIds.length} 个插件（逐条 If-Match policy_revision 提交，原因写审计）；停用后不再消费新事件。`}
+    onclose={closeBatchDisable}
+  >
+    <form method="POST" action="?/batchDisable" use:enhance={batchDialogEnhance(closeBatchDisable)} class="stack" style="gap:10px;">
+      <input type="hidden" name="ids" value={selectedIds.join(',')} />
+      <input type="hidden" name="versions" value={selectedVersions.join(',')} />
+      <label>
+        <span class="field-label" style="font-weight:600;display:block;margin-bottom:4px;">操作原因（写审计）</span>
+        <input type="text" name="reason" class="input-field" bind:value={batchDisableReason} placeholder="必填" required />
+      </label>
+      <Button text={`批量停用 ${selectedIds.length} 个`} variant="danger" size="sm" type="submit" />
+    </form>
+  </Dialog>
 {/if}

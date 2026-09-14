@@ -11,12 +11,16 @@ test.describe('匿名浏览（public read，SSR）', () => {
     ['/tags', '标签'],
     ['/search', '搜索']
   ] as const) {
-    test(`${path} 页面 SSR 渲染标题`, async ({ page }) => {
+    test(`${path} 页面 SSR 渲染标题`, async ({ page }, testInfo) => {
       await page.goto(path);
       await expect(page).toHaveTitle(new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-      // 无 JS 也能读的关键结构：主导航 + 主内容区。
-      await expect(page.getByRole('banner')).toBeVisible();
-      await expect(page.getByRole('main')).toBeVisible();
+      // 桌面保留顶栏 landmark；移动端顶栏按设计隐藏，改验固定底部导航。
+      if (testInfo.project.name === 'mobile-chromium') {
+        await expect(page.getByRole('navigation', { name: '移动端底部导航' })).toBeVisible();
+      } else {
+        await expect(page.getByRole('banner')).toBeVisible();
+      }
+      await expect(page.getByRole('main').first()).toBeVisible();
     });
   }
 
@@ -73,14 +77,18 @@ test.describe('注册（register 表单 action）', () => {
 });
 
 test.describe('登录（login 表单 action）', () => {
-  test('alice 密码登录成功后跳转首页并显示登录态', async ({ page }) => {
+  test('alice 密码登录成功后跳转首页并显示登录态', async ({ page }, testInfo) => {
     await page.goto('/login');
     await stableFill(page, page.getByLabel('用户名或邮箱'), 'alice');
     await stableFill(page, page.getByLabel('密码'), personas().password);
     await page.getByRole('button', { name: /登录/ }).click();
     await expect(page).toHaveURL('/');
-    // 登录态：Navbar 显示用户菜单按钮（getMe 客户端拉取）。
-    await expect(page.getByRole('banner').getByRole('button', { name: '用户菜单' })).toBeVisible();
+    // 桌面通过顶栏用户菜单确认登录态；移动端顶栏隐藏，确认移动底栏「我的」入口。
+    if (testInfo.project.name === 'mobile-chromium') {
+      await expect(page.getByRole('navigation', { name: '移动端底部导航' })).toContainText('我的');
+    } else {
+      await expect(page.getByRole('banner').getByRole('button', { name: '用户菜单' })).toBeVisible();
+    }
   });
 
   test('错误密码显示统一登录失败文案（不泄漏账号状态）', async ({ page }) => {

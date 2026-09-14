@@ -52,6 +52,7 @@ export const actions: Actions = {
     const form = await request.formData();
     const version = Number(form.get('version') ?? 0);
     const siteName = String(form.get('site_name') ?? '').trim();
+    const currencyName = String(form.get('currency_name') ?? '').trim();
     const defaultLang = String(form.get('default_lang') ?? '').trim();
     const publicSource = String(form.get('public_source') ?? '').trim();
     const apiRateLimit = Number(form.get('api_rate_limit') ?? NaN);
@@ -87,6 +88,8 @@ export const actions: Actions = {
 
     // 校验语义与原型 sysValidate 一致（后端另有同语义硬校验兜底）。
     if (!siteName) return fail(422, { message: '站点名称必填' });
+    if (!currencyName) return fail(422, { message: '货币名称必填' });
+    if ([...currencyName].length > 16) return fail(422, { message: '货币名称不能超过 16 个字符' });
     if (!defaultLang) return fail(422, { message: '默认语言必填' });
     if (!/^https?:\/\/\S+\.\S+/.test(publicSource) || publicSource.length > 200) {
       return fail(422, { message: '公开源需为有效的 http(s):// 地址（≤200 字符）' });
@@ -128,6 +131,7 @@ export const actions: Actions = {
       public_rss: form.has('public_rss'),
       maintenance_mode: form.has('maintenance_mode'),
       site_name: siteName,
+      currency_name: currencyName,
       default_lang: defaultLang,
       public_source: publicSource,
       api_rate_limit: apiRateLimit,

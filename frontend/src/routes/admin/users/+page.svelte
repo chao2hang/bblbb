@@ -4,6 +4,13 @@
   // - .app-card > .app-card__head + .app-card__body
   // - .app-toolbar 工具条（搜索框 + 计数）
   // - .app-table-wrap > .app-table 数据表格
+  // M18-ADMIN-DIALOG：写操作弹层化——行内「状态下拉+原因+保存」裸表单改为
+  // 行操作入口 → Dialog（status 预选当前值 + reason 必填，保留 If-Match
+  // version 隐藏字段）；选择列接入 BatchBar + 「批量设置状态」批量 Dialog →
+  // ?/batchUpdate（服务端循环 PATCH /api/v1/admin/users/{id}，versions 与 ids
+  // 一一对应作为 If-Match）。「详情」「调整积分」仍为 GET 链接。
+  // M18-ADMIN-OPS（约定 D）：行内写操作入口改为「⋮」三点菜单——单项
+  // 「设置用户状态」打开既有状态 Dialog（信任等级入口保持原按钮不动）。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -11,79 +18,24 @@
   import { enhance } from '$app/forms';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
+  import BatchBar from '$lib/components/admin/BatchBar.svelte';
+  import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
-  import { withActionToast } from '$lib/ui/action-toast';
+  import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminUsersPageData, AdminUsersActionData, AdminUserItem } from './+page.server';
 
   let { data, form }: { data: AdminUsersPageData; form?: AdminUsersActionData | null } = $props();
 
-  const mockUsers: AdminUserItem[] = [
-    {
-      id: 'u-1',
-      username: 'admin',
-      display_name: '超级管理员',
-      email: 'admin@bblbb.local',
-      email_verified: true,
-      status: 'active',
-      level: 4,
-      roles: ['admin', 'moderator'],
-      coin_balance: 10000,
-      exp_balance: 8500,
-      created_at: 1700000000000,
-      updated_at: 1700000000000,
-      last_login_at: 1700000000000,
-      version: 1
-    },
-    {
-      id: 'u-2',
-      username: 'Alice',
-      display_name: '爱丽丝',
-      email: 'alice@example.com',
-      email_verified: true,
-      status: 'active',
-      level: 3,
-      roles: ['member'],
-      coin_balance: 520,
-      exp_balance: 1200,
-      created_at: 1699000000000,
-      updated_at: 1699000000000,
-      last_login_at: 1699000000000,
-      version: 1
-    },
-    {
-      id: 'u-3',
-      username: 'Bob',
-      display_name: '鲍勃',
-      email: 'bob@example.com',
-      email_verified: false,
-      status: 'pending',
-      level: 1,
-      roles: ['member'],
-      coin_balance: 50,
-      exp_balance: 120,
-      created_at: 1698000000000,
-      updated_at: 1698000000000,
-      last_login_at: 1698000000000,
-      version: 1
-    },
-    {
-      id: 'u-4',
-      username: 'Charlie',
-      display_name: '查理',
-      email: 'charlie@example.com',
-      email_verified: true,
-      status: 'banned',
-      level: 0,
-      roles: ['member'],
-      coin_balance: 0,
-      exp_balance: 10,
-      created_at: 1697000000000,
-      updated_at: 1697000000000,
-      last_login_at: null,
-      version: 1
-    }
+
+  /** 状态选项（与 ?/update / ?/batchUpdate 服务端白名单一致）。 */
+  const STATUS_OPTIONS: { value: string; label: string }[] = [
+    { value: 'active', label: '正常 (active)' },
+    { value: 'restricted', label: '受限 (restricted)' },
+    { value: 'banned', label: '封禁 (banned)' },
+    { value: 'pending', label: '待审 (pending)' }
   ];
 
   const loadState = $derived(data.state);
@@ -112,19 +64,8 @@
   let statusFilter = $state(untrack(() => getUrlParam('status')));
   let selectedIds = $state<string[]>([]);
 
-  function updateFilterParams(qVal: string, statusVal: string) {
-    try {
-      const url = new URL(page.url);
-      if (qVal.trim()) url.searchParams.set('q', qVal.trim());
-      else url.searchParams.delete('q');
-      if (statusVal) url.searchParams.set('status', statusVal);
-      else url.searchParams.delete('status');
-      goto(url.toString(), { replaceState: true, keepFocus: true, noScroll: true });
-    } catch {}
-  }
-
   const filteredItems = $derived.by(() => {
-    let list = items.length > 0 ? items : (data.items === null ? mockUsers : items);
+    let list = items; // 只展示服务端返回的数据；空列表表达真实空态（P0：禁止 Mock 兜底）
     if (searchQ.trim()) {
       const q = searchQ.trim().toLowerCase();
       list = list.filter(
@@ -151,6 +92,97 @@
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
     else selectedIds = [...selectedIds, id];
   }
+
+  /** 单行状态弹层（一个 Dialog 服务一类操作，target 区分行）。 */
+  let statusTarget: AdminUserItem | null = $state(null);
+  let statusDraft = $state('active');
+  let statusReason = $state('');
+
+  function openStatus(item: AdminUserItem): void {
+    statusTarget = item;
+    statusDraft = item.status;
+    statusReason = '';
+  }
+
+  /** 一键随机昵称弹层 */
+  let randomizeTarget: AdminUserItem | null = $state(null);
+  let randomizeReason = $state('管理员一键随机重置违规昵称');
+
+  function openRandomize(item: AdminUserItem): void {
+    randomizeTarget = item;
+    randomizeReason = '管理员一键随机重置违规昵称';
+  }
+
+  /** 昵称黑名单弹层 */
+  let blacklistOpen = $state(false);
+  let blacklistSearch = $state('');
+  let newBlacklistName = $state('');
+  let newBlacklistReason = $state('');
+
+  const blacklistItems = $derived(data.blacklist ?? []);
+  const filteredBlacklist = $derived.by(() => {
+    if (!blacklistSearch.trim()) return blacklistItems;
+    const q = blacklistSearch.trim().toLowerCase();
+    return blacklistItems.filter(
+      (b) =>
+        b.nickname.toLowerCase().includes(q) ||
+        (b.reason && b.reason.toLowerCase().includes(q))
+    );
+  });
+
+  /** 行「⋯」菜单项（约定 D）：设置用户状态 / 一键随机昵称 / 信任等级 / 详情 / 调整积分（GET 导航收进菜单）。 */
+  function rowActions(item: AdminUserItem) {
+    return [
+      {
+        label: '设置用户状态',
+        run: () => openStatus(item)
+      },
+      {
+        label: '一键随机昵称',
+        run: () => openRandomize(item)
+      },
+      { label: '信任', run: () => openTrust(item) },
+      { label: '详情', run: () => goto(`/users/${encodeURIComponent(item.username)}`) },
+      { label: '调整积分', run: () => goto(`/admin/points?username=${encodeURIComponent(item.username)}`) }
+    ];
+  }
+
+  /** M20-TRUST：单行信任等级弹层（TL4 唯一授予入口；原因写审计）。 */
+  const TRUST_OPTIONS = [
+    { value: 0, label: 'TL0 新用户' },
+    { value: 1, label: 'TL1 基本用户' },
+    { value: 2, label: 'TL2 成员' },
+    { value: 3, label: 'TL3 活跃用户' },
+    { value: 4, label: 'TL4 领导者（手动授予）' }
+  ] as const;
+  let trustTarget: AdminUserItem | null = $state(null);
+  let trustDraft = $state(0);
+  let trustReason = $state('');
+
+  function openTrust(item: AdminUserItem): void {
+    trustTarget = item;
+    trustDraft = item.trust_level ?? 0;
+    trustReason = '';
+  }
+
+  /** 批量设置状态弹层（选中行共享同一目标状态）。 */
+  let batchStatusOpen = $state(false);
+  let batchStatus = $state('active');
+  let batchReason = $state('');
+
+  function openBatchStatus(): void {
+    batchStatus = 'active';
+    batchReason = '';
+    batchStatusOpen = true;
+  }
+
+  /** 选中行的乐观锁版本列表（与 selectedIds 顺序一一对应，作为 If-Match）。 */
+  const selectedVersions = $derived(
+    selectedIds.map((id) => {
+      const item = filteredItems.find((u) => u.id === id);
+      return item ? String(item.version) : '';
+    })
+  );
 
   function statusBadgeCls(status: string): string {
     switch (status) {
@@ -203,8 +235,14 @@
 <PageHeader title="用户管理" />
 
 <section class="app-card">
-  <header class="app-card__head">
+  <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:center;">
     <h2>成员列表</h2>
+    <Button
+      text={`昵称黑名单 (${data.blacklistTotal ?? 0})`}
+      variant="secondary"
+      size="sm"
+      onclick={() => (blacklistOpen = true)}
+    />
   </header>
 
   <div class="app-card__body">
@@ -225,40 +263,37 @@
       {#if items.length === 0 && !searchQ && !statusFilter}
         <p class="input-hint">暂无用户数据。</p>
       {:else}
-        <!-- M18：原型对齐工具栏（按用户名过滤 + 全部状态 + 数量） -->
-        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+        <!-- Discourse 式筛选：输入完成后再提交，避免每个字符触发一次 SPA 导航。 -->
+        <form method="GET" action="/admin/users" class="admin-filter-bar">
           <input
             type="search"
+            name="q"
             bind:value={searchQ}
-            oninput={() => updateFilterParams(searchQ, statusFilter)}
             class="app-field"
-            placeholder="按用户名过滤"
+            placeholder="搜索用户名、显示名或邮箱"
             aria-label="按用户名过滤"
           />
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span class="app-muted" style="font-size:var(--text-xs);">共 {filteredItems.length} 名成员</span>
-            <select
-              class="app-select"
-              bind:value={statusFilter}
-              onchange={() => updateFilterParams(searchQ, statusFilter)}
-              aria-label="状态筛选"
-              style="min-width:140px;"
-            >
-              <option value="">全部状态</option>
-              <option value="active">正常</option>
-              <option value="banned">封禁</option>
-              <option value="pending">待验证</option>
-              <option value="restricted">受限</option>
-            </select>
-          </div>
-        </div>
+          <select class="app-select" name="status" bind:value={statusFilter} aria-label="状态筛选">
+            <option value="">全部状态</option>
+            <option value="active">正常</option>
+            <option value="banned">封禁</option>
+            <option value="pending">待验证</option>
+            <option value="restricted">受限</option>
+          </select>
+          <span class="admin-filter-bar__summary">共 {filteredItems.length} 名成员</span>
+          {#if searchQ || statusFilter}
+            <a class="btn ghost sm" href="/admin/users">清除筛选</a>
+          {/if}
+          <button type="submit" class="btn secondary sm">
+            <Icon name="search" size={14} />
+            应用筛选
+          </button>
+        </form>
 
-        {#if selectedIds.length > 0}
-          <div class="app-notice" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
-            <span style="font-size:var(--text-xs);font-weight:600;">{selectedIds.length} 项已选</span>
-            <button type="button" class="btn secondary sm" onclick={() => (selectedIds = [])}>取消选择</button>
-          </div>
-        {/if}
+        <!-- 批量工具条（选中 > 0 时渲染；批量参数在 Dialog 内填写） -->
+        <BatchBar count={selectedIds.length} noun="名成员" onclear={() => (selectedIds = [])}>
+          <Button text="批量设置状态" variant="secondary" size="sm" onclick={openBatchStatus} />
+        </BatchBar>
 
         <div class="app-table-wrap">
           <table class="app-table" aria-label="用户列表">
@@ -275,18 +310,17 @@
                 <th>用户</th>
                 <th>等级</th>
                 <th>B币</th>
-                <th>经验</th>
                 <th>邮箱</th>
                 <th>状态</th>
                 <th>角色</th>
                 <th>最近活动</th>
-                <th style="min-width:280px;">操作</th>
+                <th style="min-width:220px;">操作</th>
               </tr>
             </thead>
             <tbody>
               {#if filteredItems.length === 0}
                 <tr>
-                  <td colspan="10" style="text-align:center;padding:32px;color:var(--color-text-secondary);">
+                  <td colspan="9" style="text-align:center;padding:32px;color:var(--color-text-secondary);">
                     未找到匹配的用户（无结果）
                   </td>
                 </tr>
@@ -298,12 +332,12 @@
                       type="checkbox"
                       checked={selectedIds.includes(item.id)}
                       onchange={() => toggleRow(item.id)}
-                      aria-label="选择此项"
+                      aria-label="选择 {item.username}"
                     />
                   </td>
                   <td>
                     <div style="display:flex;align-items:center;gap:10px;">
-                      <Avatar name={item.display_name || item.username} size="sm" />
+                      <Avatar name={item.display_name || item.username} size="sm" seed={item.username ?? item.id} />
                       <div>
                         <a class="text-link" href="/users/{item.username}" style="font-weight:600;">
                           {item.display_name || item.username}
@@ -311,9 +345,10 @@
                       </div>
                     </div>
                   </td>
-                  <td><span class="lvbadge">LV.{item.level}</span></td>
+                  <td>
+                    <span class="lvbadge" title="社区信任等级">TL{item.trust_level ?? item.level ?? 0}</span>
+                  </td>
                   <td><span style="font-size:12px;white-space:nowrap;">{(item.coin_balance ?? 0).toLocaleString('zh-CN')}</span></td>
-                  <td><span class="text-secondary" style="font-size:12px;white-space:nowrap;">{(item.exp_balance ?? 0).toLocaleString('zh-CN')}</span></td>
                   <td>
                     <span class="text-secondary" style="font-size:13px;">{item.email}</span>
                   </td>
@@ -332,41 +367,13 @@
                     <span class="text-secondary" style="font-size:12px;white-space:nowrap;">{lastActiveLabel(item.last_login_at)}</span>
                   </td>
                   <td>
-                    <div style="display:flex;gap:6px;margin-bottom:6px;">
-                      <a class="btn ghost sm" href="/users/{item.username}">详情</a>
-                      <a class="btn ghost sm" href="/admin/points?username={item.username}">调整积分</a>
-                    </div>
-                    <form
-                      method="POST"
-                      action="?/update"
-                      use:enhance={withActionToast()}
-                      style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"
-                    >
-                      <input type="hidden" name="id" value={item.id} />
-                      <input type="hidden" name="version" value={String(item.version)} />
-                      <select
-                        class="input-field"
-                        name="status"
-                        aria-label="状态"
-                        style="height:32px;padding:0 8px;font-size:12px;width:auto;"
-                      >
-                        <option value="active" selected={item.status === 'active'}>正常 (active)</option>
-                        <option value="restricted" selected={item.status === 'restricted'}>受限 (restricted)</option>
-                        <option value="banned" selected={item.status === 'banned'}>封禁 (banned)</option>
-                        <option value="pending" selected={item.status === 'pending'}>待审 (pending)</option>
-                      </select>
-                      <input
-                        type="text"
-                        class="input-field"
-                        name="reason"
-                        placeholder="原因（审计）"
-                        required
-                        style="height:32px;padding:0 8px;font-size:12px;width:130px;"
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                      <!-- 行内操作有且只有「⋯」菜单（约定 D）：状态/信任/详情/调整积分均在菜单内 -->
+                      <RowActionsMenu
+                        label="更多操作：用户 {item.username}"
+                        actions={rowActions(item)}
                       />
-                      <button type="submit" class="btn primary sm" style="height:32px;padding:0 12px;font-size:12px;">
-                        保存
-                      </button>
-                    </form>
+                    </div>
                   </td>
                 </tr>
               {/each}
@@ -385,7 +392,6 @@
               { key: 'email', label: '邮箱' },
               { key: 'level', label: '等级' },
               { key: 'coin', label: 'B币' },
-              { key: 'exp', label: '经验' },
               { key: 'roles', label: '角色' },
               { key: 'status', label: '状态' },
               { key: 'last', label: '最近活动' }
@@ -396,7 +402,6 @@
                 email: item.email,
                 level: item.level,
                 coin: item.coin_balance ?? 0,
-                exp: item.exp_balance ?? 0,
                 roles: item.roles.join('|'),
                 status: statusLabel(item.status),
                 last: lastActiveLabel(item.last_login_at)
@@ -407,3 +412,256 @@
     {/if}
   </div>
 </section>
+
+<!-- 单行状态 Dialog：id/version（If-Match）隐藏字段 + status 预选当前值 + reason 必填 -->
+<Dialog
+  open={statusTarget !== null}
+  title="设置用户状态"
+  description={statusTarget
+    ? `将调整「${statusTarget.display_name || statusTarget.username}」的状态；原因写入审计日志。`
+    : ''}
+  onclose={() => (statusTarget = null)}
+>
+  <form
+    method="POST"
+    action="?/update"
+    use:enhance={() => {
+      return async ({ result, update }) => {
+        toastActionResult(result);
+        await update();
+        statusTarget = null;
+      };
+    }}
+  >
+    <input type="hidden" name="id" value={statusTarget?.id ?? ''} />
+    <input type="hidden" name="version" value={statusTarget ? String(statusTarget.version) : ''} />
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="user-status-select">状态</label>
+      <select id="user-status-select" name="status" class="input-field" bind:value={statusDraft}>
+        {#each STATUS_OPTIONS as opt (opt.value)}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="user-status-reason">操作原因（写审计）</label>
+      <input
+        id="user-status-reason"
+        name="reason"
+        class="input-field"
+        required
+        bind:value={statusReason}
+        placeholder="必填"
+      />
+    </div>
+    <Button text="保存" variant="primary" size="sm" type="submit" />
+  </form>
+</Dialog>
+
+<!-- M20-TRUST 单行信任等级 Dialog：level 0–4 + reason 必填（TL4 唯一授予入口） -->
+<Dialog
+  open={trustTarget !== null}
+  title="设置信任等级"
+  description={trustTarget
+    ? `将调整「${trustTarget.display_name || trustTarget.username}」的信任等级（TL0–TL4 行为信任标准）；原因写入审计日志。`
+    : ''}
+  onclose={() => (trustTarget = null)}
+>
+  <form
+    method="POST"
+    action="?/setTrust"
+    use:enhance={() => {
+      return async ({ result, update }) => {
+        toastActionResult(result);
+        await update();
+        trustTarget = null;
+      };
+    }}
+  >
+    <input type="hidden" name="id" value={trustTarget?.id ?? ''} />
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="user-trust-select">信任等级</label>
+      <select id="user-trust-select" name="level" class="input-field" bind:value={trustDraft}>
+        {#each TRUST_OPTIONS as opt (opt.value)}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="user-trust-reason">操作原因（写审计）</label>
+      <input
+        id="user-trust-reason"
+        name="reason"
+        class="input-field"
+        required
+        bind:value={trustReason}
+        placeholder="必填"
+      />
+    </div>
+    <Button text="保存" variant="primary" size="sm" type="submit" />
+  </form>
+</Dialog>
+
+<!-- 批量设置状态 Dialog：ids/versions 一一对应（服务端逐条带 If-Match）+ reason 必填 -->
+<Dialog
+  open={batchStatusOpen}
+  title="批量设置状态"
+  description={`将更新 ${selectedIds.length} 名成员的状态；原因写审计，逐条按乐观锁版本提交。`}
+  onclose={() => (batchStatusOpen = false)}
+>
+  <form
+    method="POST"
+    action="?/batchUpdate"
+    use:enhance={() => {
+      return async ({ result, update }) => {
+        toastActionResult(result);
+        await update();
+        selectedIds = [];
+        batchStatusOpen = false;
+      };
+    }}
+  >
+    <input type="hidden" name="ids" value={selectedIds.join(',')} />
+    <input type="hidden" name="versions" value={selectedVersions.join(',')} />
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="user-batch-status">目标状态</label>
+      <select id="user-batch-status" name="status" class="input-field" bind:value={batchStatus}>
+        {#each STATUS_OPTIONS as opt (opt.value)}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="user-batch-reason">操作原因（写审计）</label>
+      <input
+        id="user-batch-reason"
+        name="reason"
+        class="input-field"
+        required
+        bind:value={batchReason}
+        placeholder="必填"
+      />
+    </div>
+    <Button text="确认更新" variant="primary" size="sm" type="submit" />
+  </form>
+</Dialog>
+
+<!-- 一键随机昵称 Dialog -->
+<Dialog
+  open={randomizeTarget !== null}
+  title="一键随机用户昵称"
+  description={randomizeTarget
+    ? `将为「${randomizeTarget.display_name || randomizeTarget.username}」生成合规的随机昵称。原昵称将自动存入黑名单，后续无法再被任何用户创建或使用。`
+    : ''}
+  onclose={() => (randomizeTarget = null)}
+>
+  <form
+    method="POST"
+    action="?/randomizeNickname"
+    use:enhance={() => {
+      return async ({ result, update }) => {
+        toastActionResult(result);
+        await update();
+        randomizeTarget = null;
+      };
+    }}
+  >
+    <input type="hidden" name="id" value={randomizeTarget?.id ?? ''} />
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="randomize-user-reason">操作原因（写审计）</label>
+      <input
+        id="randomize-user-reason"
+        name="reason"
+        class="input-field"
+        required
+        bind:value={randomizeReason}
+        placeholder="必填"
+      />
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <Button text="取消" variant="secondary" size="sm" type="button" onclick={() => (randomizeTarget = null)} />
+      <Button text="确认随机并加入黑名单" variant="danger" size="sm" type="submit" />
+    </div>
+  </form>
+</Dialog>
+
+<!-- 昵称黑名单 Dialog -->
+<Dialog
+  open={blacklistOpen}
+  title="昵称黑名单"
+  description="处于黑名单中的名称无法再被用户用作昵称或用户名注册，有效避免不规范名称复现。"
+  onclose={() => (blacklistOpen = false)}
+>
+  <div style="display:flex;flex-direction:column;gap:14px;max-height:65vh;overflow-y:auto;">
+    <!-- 手动添加黑名单 -->
+    <form
+      method="POST"
+      action="?/addBlacklist"
+      style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:12px;background:var(--color-bg-subtle, #f5f5f5);border-radius:6px;"
+      use:enhance={() => {
+        return async ({ result, update }) => {
+          toastActionResult(result);
+          await update();
+          newBlacklistName = '';
+          newBlacklistReason = '';
+        };
+      }}
+    >
+      <div style="flex:1;min-width:140px;">
+        <label class="input-label" for="bl-new-name" style="font-size:12px;">违规昵称</label>
+        <input id="bl-new-name" name="nickname" class="input-field" required bind:value={newBlacklistName} placeholder="输入要封禁的昵称" />
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <label class="input-label" for="bl-new-reason" style="font-size:12px;">封禁原因</label>
+        <input id="bl-new-reason" name="reason" class="input-field" bind:value={newBlacklistReason} placeholder="可选原因" />
+      </div>
+      <Button text="加入黑名单" variant="secondary" size="sm" type="submit" />
+    </form>
+
+    <!-- 搜索 -->
+    <div>
+      <input
+        type="search"
+        class="input-field"
+        placeholder="搜索黑名单昵称或原因..."
+        bind:value={blacklistSearch}
+      />
+    </div>
+
+    <!-- 列表 -->
+    {#if filteredBlacklist.length === 0}
+      <p class="input-hint" style="text-align:center;padding:16px;">
+        {blacklistItems.length === 0 ? '暂无黑名单条目。' : '未找到匹配的黑名单条目。'}
+      </p>
+    {:else}
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        {#each filteredBlacklist as item (item.id)}
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--color-border, #e5e5e5);border-radius:6px;">
+            <div>
+              <span style="font-weight:600;font-size:14px;">{item.nickname}</span>
+              {#if item.reason}
+                <span class="text-secondary" style="font-size:12px;margin-left:8px;">({item.reason})</span>
+              {/if}
+              <div class="text-secondary" style="font-size:11px;margin-top:2px;">
+                {new Date(item.created_at).toLocaleDateString('zh-CN')} {new Date(item.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+            <form
+              method="POST"
+              action="?/deleteBlacklist"
+              use:enhance={() => {
+                return async ({ result, update }) => {
+                  toastActionResult(result);
+                  await update();
+                };
+              }}
+            >
+              <input type="hidden" name="id" value={item.id} />
+              <Button text="移出" variant="ghost" size="sm" type="submit" />
+            </form>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+</Dialog>

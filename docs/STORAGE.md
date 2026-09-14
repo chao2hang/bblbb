@@ -166,19 +166,20 @@ X-Content-Type-Options: nosniff
 - Bucket 默认私有；“公开链接”指后端鉴权后生成的临时预签名 URL，不代表对象设置为 Public ACL。
 - 管理员在 `/admin/storage` 配置 `BBLBB_S3_SIGNED_URL_TTL_SECONDS`，建议 60–3600 秒，允许范围由部署配置限定。
 - URL 到期后只有该链接失效，附件元数据仍为 `ready`，S3 对象及其 variant 不删除、不占用清理队列。
+- **发布阻断：** 当前 S3 presigned PUT 只签名 object key 与 Content-Type，未绑定 Content-Length/checksum/一次性上传状态；在 URL TTL 内仍可能覆盖已完成对象。生产启用 S3 直传前必须改为不可覆盖的一次性上传策略并补集成测试。
 - 用户再次访问时，Rust 重新检查附件状态、引用内容可见性和 grant，再签发新 URL；不能无条件刷新旧链接。
 - 签名 URL 不进入数据库正文、搜索索引、通知、日志或长期缓存。公开页面也应通过稳定 attachment URL 获取临时跳转，避免把签名参数持久化。
 - 上传预签名 URL 与下载/公开访问 URL 可以使用不同 TTL；两者都只控制临时凭证，不控制对象生命周期。
 
 ### 8.2 后台等级配额
 
-管理员在 `/admin/levels` 为每个等级配置：
+管理员在 `/admin/levels`（等级管理，2026-09 起为 LinuxDo 信任等级单轨页）为每个信任等级（TL0–TL4，档位键 = `users.trust_level`）配置：
 
-- `attachment_max_bytes`：单个原始附件最大字节数。
-- `attachment_total_bytes`：该用户所有计费附件总容量。
-- 可选 `attachment_count` 和每日上传字节数。
+- 单文件上限 `single_file_max_bytes`：单个原始附件最大字节数。
+- 总容量 `total_bytes`：该用户所有计费附件总容量。
+- 每日上传量 `daily_upload_bytes` 与删除保留期 `retention_days`（`quota_policy_revisions`，If-Match 版本化）。
 
-实际单文件大小和总容量分别取站点、用途、板块、等级及处罚规则中的最严格值。上传授权和 `complete` 两个阶段都必须重新读取当前等级与已用容量，不能只信任预签名时的快照。后台保存时要求总容量不小于单附件上限，并记录管理员审计。
+实际单文件大小和总容量分别取站点、用途、板块、信任等级及处罚规则中的最严格值。上传授权和 `complete` 两个阶段都必须重新读取当前信任等级与已用容量，不能只信任预签名时的快照。后台保存时要求总容量不小于单附件上限，并记录管理员审计。
 
 容量口径包括尚未删除的 `pending/processing/ready` 原文件及计费 variant；头像、个人资料 Cover、帖子/文章封面、正文图片和普通附件使用同一个用户附件总容量，不提供独立免费 Cover 空间。Cover 的 `quota_bytes_charged` 按原图及策略规定的计费 variant 计算，更换 Cover 后旧对象在仍被引用或进入延迟清理期间继续占用额度，物理删除并结算计数后才释放。`quarantined` 是否计费由站点策略明确，系统故障产生的对象不应永久占用用户额度。只有对象物理删除并更新计数后才释放容量，防止删除任务失败导致超卖。链接过期不释放容量，因为对象仍然存在。
 

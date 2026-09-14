@@ -9,14 +9,17 @@
   // - 保存成功 → form.user（更新后投影）直接渲染，use:enhance 默认
   //   invalidateAll 使 data 同步新版本；
   // - GAP-FIX 既有页面增强：资料可见性选择器（?/visibility → PATCH /me
-  //   profile_visible_to，后端已支持）、修改密码表单（?/password → POST
-  //   /me/password；TODO(BE-2) 后端端点待接入，当前提交会提示不可用）、
-  //   OAuth 授权应用管理（?/revoke-oauth + DangerConfirm；同 TODO）；
+  //   profile_visible_to）、修改密码表单（?/password → POST /me/password，
+  //   成功后撤销其他会话）、OAuth 授权应用管理（?/revoke-oauth + DangerConfirm）；
   // - 只输出本人公开/账号字段，不输出任何会话 token（SSR 守卫见
   //   settings-nojs.test）。
+  import { tick } from 'svelte';
   import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
+  import AttachmentUploader from '$lib/components/upload/AttachmentUploader.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
@@ -53,9 +56,25 @@
   let activeTab = $state('profile');
   let currentMode = $state<ThemePreference>('system');
   let activeThemeId = $state('default');
+  let currentAvatarId = $state<string | null>(null);
+  let currentCoverId = $state<string | null>(null);
+
+  let initialSyncDone = false;
+  $effect(() => {
+    if (!initialSyncDone) {
+      if (user) {
+        currentAvatarId = user.avatar_attachment_id ?? null;
+      }
+      if (data?.cover !== undefined) {
+        currentCoverId = data.cover?.attachment_id ?? null;
+      }
+      initialSyncDone = true;
+    }
+  });
 
   // ── 通知偏好（从 /notifications 迁移至设置页） ──
   let prefs = $state<NotificationPreference[]>([]);
+  let prefsLoading = $state(false);
   let prefsError = $state<string | null>(null);
 
   const categoryLabels: Record<string, string> = {
@@ -77,12 +96,15 @@
   };
 
   async function loadPrefs() {
+    prefsLoading = true;
+    prefsError = null;
     try {
       const result = await getNotificationPreferences(fetch);
       prefs = result.items;
-      prefsError = null;
     } catch {
       prefsError = '偏好加载失败';
+    } finally {
+      prefsLoading = false;
     }
   }
 
@@ -279,64 +301,105 @@
   function openRevoke(grant: OAuthGrantItem): void {
     revokeTarget = grant;
   }
+
+  // ── 即时持久化头像与封面（无需点击底部“保存修改”） ──
+  let updatingAvatar = $state(false);
+  let updatingCover = $state(false);
+
+  let avatarFormEl: HTMLFormElement | undefined = $state();
+  let coverFormEl: HTMLFormElement | undefined = $state();
+  let instantAvatarInputVal = $state('');
+  let instantCoverInputVal = $state('');
+
+  function instantUpdateAvatar(newAttachmentId: string | null) {
+    if (!user) return;
+    updatingAvatar = true;
+    currentAvatarId = newAttachmentId;
+    const form = document.getElementById('instant-avatar-form') as HTMLFormElement | null;
+    const input = document.getElementById('instant-avatar-input') as HTMLInputElement | null;
+    if (input) {
+      input.value = newAttachmentId ?? '';
+    }
+    form?.requestSubmit();
+  }
+
+  function instantUpdateCover(newAttachmentId: string | null) {
+    if (!user) return;
+    updatingCover = true;
+    currentCoverId = newAttachmentId;
+    const form = document.getElementById('instant-cover-form') as HTMLFormElement | null;
+    const input = document.getElementById('instant-cover-input') as HTMLInputElement | null;
+    if (input) {
+      input.value = newAttachmentId ?? '';
+    }
+    form?.requestSubmit();
+  }
 </script>
 
   <PageTitle title="账号设置" />
 
-<div class="container page-content app-settings-page">
-  <div class="app-route-head">
-    <div class="app-route-head__copy">
-      <span class="app-kicker">ACCOUNT / SETTINGS</span>
-      <h1 tabindex="-1">账号设置</h1>
-      <p>个人资料、安全、设备、通知、OAuth 授权</p>
-    </div>
-  </div>
+<div class="container page-content app-page app-settings-page" id="page-settings">
+  <h1 class="u-visually-hidden">账号设置</h1>
 
   <div class="app-settings-layout">
-    <nav class="app-settings-nav" aria-label="设置导航">
-      <button type="button" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}>
+    <div class="app-settings-nav" role="tablist" aria-label="设置导航">
+      <button type="button" role="tab" aria-selected={activeTab === 'profile'} aria-controls="settings-panel-profile" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}>
         <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="user" size={14} /></span>个人资料
       </button>
-      <button type="button" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}>
+      <button type="button" role="tab" aria-selected={activeTab === 'appearance'} aria-controls="settings-panel-appearance" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}>
         <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="palette" size={14} /></span>外观与主题
       </button>
-      <button type="button" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}>
+      <button type="button" role="tab" aria-selected={activeTab === 'security'} aria-controls="settings-panel-security" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}>
         <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="shield" size={14} /></span>账号安全
       </button>
       <a href="/me#sessions">
         <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="monitor" size={14} /></span>登录设备
       </a>
-      <button type="button" class:is-active={activeTab === 'notifications'} onclick={() => selectTab('notifications')}>
+      <button type="button" role="tab" aria-selected={activeTab === 'notifications'} aria-controls="settings-panel-notifications" class:is-active={activeTab === 'notifications'} onclick={() => selectTab('notifications')}>
         <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="bell" size={14} /></span>通知设置
       </button>
-      <button type="button" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}>
+      <button type="button" role="tab" aria-selected={activeTab === 'oauth'} aria-controls="settings-panel-oauth" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}>
         <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="key" size={14} /></span>OAuth 授权
       </button>
       <a href="/settings/privacy">
         <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="eye-off" size={14} /></span>隐私设置
       </a>
-    </nav>
+    </div>
 
     <div class="settings-content">
       {#if error && !user}
-        <p class="input-hint is-error" role="alert">{error}</p>
+        <div class="app-notice is-danger" role="alert">
+          <span>{error}</span>
+          <a href="/settings">重新加载</a>
+        </div>
       {/if}
 
       {#if user}
         <form
+          id="settings-panel-profile"
           class="card settings-panel settings-panel-profile"
           method="POST"
           action="?/profile"
           class:is-active={activeTab === 'profile'}
           use:enhance={() => {
             return async ({ result, update }) => {
-              await update();
-              // 保存成功（非 fail）→ 刷新 load 数据，让投影与版本保持最新。
-              if (result.type === 'success') await invalidateAll();
+              if (result.type === 'success') {
+                show('个人资料与头像封面已保存', 'success');
+                await update();
+                await invalidateAll();
+              } else {
+                if (result.type === 'failure') {
+                  const data = result.data as SettingsFormResult | undefined;
+                  show(data?.message ?? '保存失败，请检查后重试', 'danger');
+                }
+                await update();
+              }
             };
           }}
         >
           <input type="hidden" name="version" value={user.version} />
+          <input type="hidden" name="avatar_attachment_id" value={currentAvatarId ?? ''} />
+          <input type="hidden" name="cover_attachment_id" value={currentCoverId ?? ''} />
 
           <div class="card-header"><span class="card-title">基本资料</span></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
@@ -352,6 +415,86 @@
               <p class="input-hint is-error" role="alert">{topMessage}</p>
             {/if}
 
+            <!-- 封面设置与实时展示 -->
+            <div class="cover-editor-section" style="display:flex;flex-direction:column;gap:var(--space-2);padding-bottom:var(--space-4);border-bottom:var(--border-default);">
+              <div>
+                <strong style="font-size:var(--text-sm);color:var(--color-text-primary);">个人封面（Cover）</strong>
+                <p class="input-hint" style="margin:2px 0 0;">用于主页与资料卡顶部背景，支持实时预览（上传或更换后立即自动保存并生效）。</p>
+              </div>
+              <div
+                class="cover-preview-wrapper"
+                style="width:100%;height:140px;border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--color-border);position:relative;background:var(--color-bg-subtle);"
+              >
+                <ProfileCover attachmentId={currentCoverId} label="个人资料封面实时预览" class="cover-live-preview" />
+              </div>
+              <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+                <AttachmentUploader
+                  accept="image/*"
+                  label={updatingCover ? "正在保存封面…" : (currentCoverId ? "更换封面" : "上传新封面")}
+                  waitReady={true}
+                  showQuota={false}
+                  autoUpload={true}
+                  onReady={(a) => {
+                    void instantUpdateCover(a.id);
+                  }}
+                />
+                {#if currentCoverId}
+                  <Button
+                    text="恢复默认封面"
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    disabled={updatingCover}
+                    onclick={() => {
+                      void instantUpdateCover(null);
+                    }}
+                  />
+                {/if}
+              </div>
+            </div>
+
+            <!-- 头像设置与上传 -->
+            <div class="avatar-editor-section" style="display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-4);border-bottom:var(--border-default);">
+              <div style="flex-shrink:0;">
+                <Avatar
+                  name={user.display_name || user.username}
+                  size="xl"
+                  attachmentId={currentAvatarId}
+                  seed={user.username ?? user.id}
+                />
+              </div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-2);">
+                <div>
+                  <strong style="font-size:var(--text-sm);color:var(--color-text-primary);">个人头像</strong>
+                  <p class="input-hint" style="margin:2px 0 0;">支持 JPG、PNG、WebP、GIF 等格式图片（上传或更换后立即自动保存并生效）。</p>
+                </div>
+                <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+                  <AttachmentUploader
+                    accept="image/*"
+                    label={updatingAvatar ? "正在保存头像…" : (currentAvatarId ? "更换头像" : "上传新头像")}
+                    waitReady={true}
+                    showQuota={false}
+                    autoUpload={true}
+                    onReady={(a) => {
+                      void instantUpdateAvatar(a.id);
+                    }}
+                  />
+                  {#if currentAvatarId}
+                    <Button
+                      text="恢复默认头像"
+                      variant="secondary"
+                      size="sm"
+                      type="button"
+                      disabled={updatingAvatar}
+                      onclick={() => {
+                        void instantUpdateAvatar(null);
+                      }}
+                    />
+                  {/if}
+                </div>
+              </div>
+            </div>
+
             <div class="input-wrapper">
               <label class="input-label" for="set-display-name">昵称</label>
               <input
@@ -364,19 +507,6 @@
                 maxlength={limit.display_name}
               />
               <p class="input-hint">用于帖子、回复和主页展示；留空则使用用户名（最多 {limit.display_name} 字）。</p>
-            </div>
-
-            <div class="input-wrapper">
-              <label class="input-label" for="set-bio">简介</label>
-              <textarea
-                class="input-field"
-                id="set-bio"
-                name="bio"
-                rows="4"
-                placeholder="简单介绍一下自己"
-                maxlength={limit.bio}
-              >{user.bio ?? ''}</textarea>
-              <p class="input-hint">显示在你的主页；封禁/注销中不对外展示（最多 {limit.bio} 字）。</p>
             </div>
 
             <div class="input-wrapper">
@@ -438,7 +568,7 @@
                 <option value="registered" selected={visibilityValue === 'registered'}>仅注册用户</option>
                 <option value="nobody" selected={visibilityValue === 'nobody'}>私密（仅自己）</option>
               </select>
-              <p class="input-hint">公开资料始终只包含昵称/简介/签名等安全投影；更严格的可见性会限制主页访问范围。</p>
+              <p class="input-hint">公开资料始终只包含昵称/签名等安全投影；更严格的可见性会限制主页访问范围。</p>
             </div>
             <div>
               <Button text="保存可见性" variant="primary" size="sm" type="submit" />
@@ -448,6 +578,7 @@
 
         <!-- 外观与主题设置面板 -->
         <section
+          id="settings-panel-appearance"
           class="card settings-panel settings-panel-appearance"
           class:is-active={activeTab === 'appearance'}
           aria-label="外观与主题"
@@ -548,9 +679,9 @@
           </div>
         </section>
 
-        <!-- GAP-FIX 修改密码：POST /me/password（security 区）。TODO(BE-2)：
-             后端端点尚未注册，当前提交返回失败提示；落地后成功即撤销其他会话。 -->
+        <!-- GAP-FIX 修改密码：POST /me/password（security 区）；成功后撤销其他会话。 -->
         <form
+          id="settings-panel-security"
           class="card settings-panel settings-panel-security"
           method="POST"
           action="?/password"
@@ -632,6 +763,7 @@
         <!-- 通知偏好：类别 × 渠道矩阵（从 /notifications 迁入设置页）。
              桌面三列对齐（列头承载渠道名），移动端隐藏列头、渠道标签随行内显示。 -->
         <section
+          id="settings-panel-notifications"
           class="card settings-panel settings-panel-notifications"
           class:is-active={activeTab === 'notifications'}
           aria-label="通知设置"
@@ -643,7 +775,15 @@
             </div>
           </div>
           <div class="np-body">
-            {#if prefsError}<p class="form-error" role="alert">{prefsError}</p>{/if}
+            {#if prefsError}
+              <div class="app-notice is-danger" role="alert">
+                <span>{prefsError}</span>
+                <Button text="重新加载" variant="secondary" size="sm" onclick={() => void loadPrefs()} />
+              </div>
+            {/if}
+            {#if prefsLoading}
+              <div class="app-empty" role="status">正在加载通知偏好…</div>
+            {:else}
             <div class="np-matrix">
               <div class="np-row np-row-head" aria-hidden="true">
                 <span class="np-cat-head">类别</span>
@@ -677,6 +817,7 @@
                 </div>
               {/each}
             </div>
+            {/if}
           </div>
           <div class="np-foot">
             <Icon name="shield" size={13} />
@@ -685,9 +826,8 @@
         </section>
 
         <!-- GAP-FIX OAuth 授权应用：GET /me/oauth-grants + 每行撤销
-             （DangerConfirm 确认后提交隐藏表单）。TODO(BE-2)：后端端点尚未
-             注册，当前列表恒空（空态说明）；落地后自动显示真实授权。 -->
-        <div class="card settings-panel settings-panel-oauth" class:is-active={activeTab === 'oauth'}>
+             （DangerConfirm 确认后提交隐藏表单）；接口失败时按空态降级。 -->
+        <div id="settings-panel-oauth" class="card settings-panel settings-panel-oauth" role="tabpanel" class:is-active={activeTab === 'oauth'}>
           <div class="card-body">
             {#if revokeResult?.message}
               <p class="input-hint {revokeResult.ok ? '' : 'is-error'}" role="{revokeResult.ok ? 'status' : 'alert'}" style="margin-top:0;">{revokeResult.message}</p>
@@ -732,9 +872,28 @@
           <div class="card-header"><span class="card-title">当前公开投影</span></div>
           <div class="card-body">
             <dl class="profile-about-list">
+              <div class="profile-about-item">
+                <dt>封面</dt>
+                <dd style="display:flex;align-items:center;gap:var(--space-2);">
+                  {#if currentCoverId}
+                    <div style="width:48px;height:24px;border-radius:var(--radius-xs);overflow:hidden;position:relative;">
+                      <ProfileCover attachmentId={currentCoverId} label="封面缩略" />
+                    </div>
+                    <span>已设置自定义封面</span>
+                  {:else}
+                    <span>默认渐变封面</span>
+                  {/if}
+                </dd>
+              </div>
+              <div class="profile-about-item">
+                <dt>头像</dt>
+                <dd style="display:flex;align-items:center;gap:var(--space-2);">
+                  <Avatar name={user.display_name || user.username} size="sm" attachmentId={user.avatar_attachment_id} seed={user.username ?? user.id} />
+                  <span>{user.avatar_attachment_id ? '已设置自定义头像' : '默认首字母头像'}</span>
+                </dd>
+              </div>
               <div class="profile-about-item"><dt>昵称</dt><dd>{user.display_name || user.username}</dd></div>
               <div class="profile-about-item"><dt>用户名</dt><dd>{user.username}</dd></div>
-              {#if user.bio}<div class="profile-about-item"><dt>简介</dt><dd>{user.bio}</dd></div>{/if}
               {#if user.signature}<div class="profile-about-item"><dt>签名</dt><dd>{user.signature}</dd></div>{/if}
             </dl>
             <p class="input-hint">保存后主页与资料卡将按此公开投影展示（版本 v{user.version}）。</p>
@@ -792,6 +951,53 @@
             revokeTarget = null;
           }}
         />
+        <!-- 隐藏表单：专门用于头像和封面的自动即时持久化（通过 use:enhance 自动处理 Cookie/CSRF 与刷新） -->
+        <form
+          id="instant-avatar-form"
+          bind:this={avatarFormEl}
+          method="POST"
+          action="?/update-avatar"
+          style="display:none;"
+          use:enhance={() => {
+            return async ({ result, update }) => {
+              updatingAvatar = false;
+              if (result.type === 'success') {
+                show(currentAvatarId ? '头像已更新并生效' : '已恢复默认头像', 'success');
+                await update();
+                await invalidateAll();
+              } else {
+                show('头像更新失败，请重试', 'danger');
+                await update();
+              }
+            };
+          }}
+        >
+          <input type="hidden" name="version" value={user.version} />
+          <input id="instant-avatar-input" type="hidden" name="avatar_attachment_id" value="" />
+        </form>
+
+        <form
+          id="instant-cover-form"
+          bind:this={coverFormEl}
+          method="POST"
+          action="?/update-cover"
+          style="display:none;"
+          use:enhance={() => {
+            return async ({ result, update }) => {
+              updatingCover = false;
+              if (result.type === 'success') {
+                show(currentCoverId ? '封面已更新并生效' : '已恢复默认封面', 'success');
+                await update();
+                await invalidateAll();
+              } else {
+                show('封面更新失败，请重试', 'danger');
+                await update();
+              }
+            };
+          }}
+        >
+          <input id="instant-cover-input" type="hidden" name="cover_attachment_id" value="" />
+        </form>
       {:else if !error}
         <div class="empty-state"><div class="empty-state-title">加载中…</div></div>
       {/if}
@@ -814,10 +1020,6 @@
 
   .np-body {
     padding: 0;
-  }
-
-  .np-body .form-error {
-    margin: var(--space-4) var(--space-5) 0;
   }
 
   .np-row {

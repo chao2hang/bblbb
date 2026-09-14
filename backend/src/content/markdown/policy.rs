@@ -12,7 +12,12 @@
 pub const RENDERER_VERSION: &str = "markdown-v2";
 
 /// 清洗策略版本（升级 allowlist 时递增，触发重渲染 Job）。
-pub const SANITIZER_VERSION: &str = "ammonia-v1";
+///
+/// v2：站内附件内容端点相对 URL 放行（`/api/v1/attachments/` 前缀作用于
+/// `a[href]`/`img[src]`，见 sanitize.rs）。修复编辑器上传图片/附件插入正文
+/// 后被 `UrlRelative::Deny` 剥掉 `src`/`href` 导致图片无法展示的问题；
+/// 存量 `post_contents`/`post_revisions` 由 `markdown.rerender` Job 重渲染。
+pub const SANITIZER_VERSION: &str = "ammonia-v2";
 
 /// 当前策略组合版本，写入 post_contents/post_revisions.renderer_version。
 ///

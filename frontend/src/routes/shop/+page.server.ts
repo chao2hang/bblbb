@@ -3,7 +3,8 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getAuthed } from '$lib/api/server';
-import type { ActivitySummary, ShopProduct } from '$lib/api/types';
+import { activityCoinBalance } from '$lib/api/types';
+import type { ActivitySummary, ShopProduct, TrustLevelProgress } from '$lib/api/types';
 import type { Money } from '$lib/api/types';
 
 export interface ShopPageData {
@@ -16,7 +17,9 @@ export interface ShopPageData {
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
-  const productsResult = await getAuthed<{ items: ShopProduct[] }>(
+  // 注意：后端 GET /api/v1/shop/products 返回具名数组 { products: [...] }（同 admin 端），
+  // 不是 { items: [...] }——曾致列表恒为空。
+  const productsResult = await getAuthed<{ products: ShopProduct[] }>(
     cookies,
     '/api/v1/shop/products',
     requestId
@@ -26,19 +29,18 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
     return { products: [], balance: null, level: null, error: productsResult.message } satisfies ShopPageData;
   }
 
-  // 余额/等级来自活跃摘要（M07-UI-01 安全投影）；失败不阻断商品列表。
+  // 余额来自活动摘要，等级来自独立的 LinuxDo 式信任等级接口。
   let balance: Money | null = null;
   let level: number | null = null;
-  const summaryResult = await getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId);
-  if (summaryResult.ok) {
-    const summary = summaryResult.data;
-    level = typeof summary.level === 'number' ? summary.level : null;
-    const coin = (summary.balances ?? []).find((b) => b.currency === 'coin');
-    balance = coin ?? null;
-  }
+  const [summaryResult, trustResult] = await Promise.all([
+    getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId),
+    getAuthed<TrustLevelProgress>(cookies, '/api/v1/me/trust-level', requestId)
+  ]);
+  if (summaryResult?.ok) balance = activityCoinBalance(summaryResult.data);
+  if (trustResult?.ok) level = trustResult.data.level;
 
   return {
-    products: productsResult.data.items ?? [],
+    products: productsResult.data.products ?? [],
     balance,
     level,
     error: null

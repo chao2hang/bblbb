@@ -6,10 +6,12 @@
   import Icon from './ui/Icon.svelte';
 
   let {
-    user
+    user,
+    unread = 0
   }: {
     /** 会话投影（由 +layout.svelte 提供）。 */
     user: { username: string; display_name?: string | null; level?: number; roles?: string[] } | null;
+    unread?: number;
   } = $props();
 
   const path = $derived(page.url.pathname);
@@ -24,24 +26,37 @@
     { label: '发现', href: '/discover', icon: 'compass' }
   ];
 
-  const rightTabs = [
-    { label: '消息', href: '/messages', icon: 'mail' },
-    { label: '我的', href: '/me', icon: 'user' }
-  ];
+  const rightTabs = $derived([
+    {
+      label: '消息',
+      href: user ? '/messages' : `/login?next=${encodeURIComponent('/messages')}`,
+      activeMatch: '/messages',
+      icon: 'mail'
+    },
+    {
+      label: user ? '我的' : '登录',
+      href: user ? '/me' : `/login?next=${encodeURIComponent('/me')}`,
+      activeMatch: user ? '/me' : '/login',
+      icon: 'user'
+    }
+  ]);
+
+  const fabHref = $derived(
+    user ? '/editor' : `/login?next=${encodeURIComponent('/editor')}`
+  );
+  const fabLabel = $derived(user ? '发布内容' : '登录后发布');
 
   // 独立认证流程（登录/注册/密码重置/邮箱验证）在手机端为单页流，不展示底部导航
-  const isAuthPage = $derived(
-    path === '/login' ||
-    path.startsWith('/login/') ||
-    path === '/register' ||
-    path.startsWith('/register/') ||
-    path.startsWith('/password-reset') ||
-    path.startsWith('/verify-email')
-  );
+  // 原型对齐：认证页（登录/注册/找回密码/邮箱验证）同样渲染底部导航
+  // （prototype pages/login.html 移动端含 bottom-nav），不再整体摘除。
+  const isAuthPage = $derived(false);
 </script>
 
 {#if !isAuthPage}
-<nav class="bottom-nav" aria-label="移动端底部导航">
+<nav
+  class="bottom-nav"
+  aria-label={unread > 0 ? `移动端底部导航，${unread} 条通知未读` : '移动端底部导航'}
+>
   {#each leftTabs as tab (tab.href)}
     <a href={tab.href} class="bottom-nav-item" aria-current={isActive(tab.href) ? 'page' : undefined}>
       <Icon name={tab.icon} size={22} />
@@ -49,13 +64,15 @@
     </a>
   {/each}
 
-  <a href="/editor" class="bottom-nav-fab" aria-label="发布内容" aria-current={isActive('/editor') ? 'page' : undefined}>
+  <a href={fabHref} class="bottom-nav-fab" aria-label={fabLabel} title={fabLabel} aria-current={path === '/' && page.url.searchParams.get('compose') === '1' ? 'page' : undefined}>
     <Icon name="plus" size={26} />
   </a>
 
   {#each rightTabs as tab (tab.href)}
-    <a href={tab.href} class="bottom-nav-item" aria-current={isActive(tab.href) ? 'page' : undefined}>
-      <Icon name={tab.icon} size={22} />
+    <a href={tab.href} class="bottom-nav-item" aria-current={isActive(tab.activeMatch) ? 'page' : undefined}>
+      <span class="bottom-nav-item__icon">
+        <Icon name={tab.icon} size={22} />
+      </span>
       <span>{tab.label}</span>
     </a>
   {/each}
@@ -101,6 +118,11 @@
     text-decoration: none;
   }
 
+  .bottom-nav-item__icon {
+    position: relative;
+    display: inline-flex;
+  }
+
   .bottom-nav-item[aria-current='page'] {
     color: var(--color-brand);
     font-weight: var(--weight-medium);
@@ -143,9 +165,16 @@
     .bottom-nav {
       display: flex;
     }
+    /* 原型对齐：认证页（登录/注册/找回密码）同样保留底部导航
+       （prototype pages/login.html 移动端含 bottom-nav）。 */
     :global(body:has(#page-login)) .bottom-nav,
     :global(body:has(#page-register)) .bottom-nav,
     :global(body:has(.auth-wrapper)) .bottom-nav {
+      display: flex !important;
+    }
+
+    /* 微信交互模式：手机端进入对话详情页（/messages?c=）时隐藏底部导航 */
+    :global(body:has(#page-messages.in-thread)) .bottom-nav {
       display: none !important;
     }
   }

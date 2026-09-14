@@ -87,19 +87,36 @@ export type User = Omit<
   status: string;
   display_name: string | null;
   mfa_enabled: boolean;
+  presentation_tokens?: PublicPresentationTokens | null;
+  cover_attachment_id?: string | null;
 };
 
 /** 公开用户资料（GET /users/{username}）投影：对应后端 PublicProfile DTO
  *  （M03-PROFILE-01），严格公开字段（不含邮箱/状态/Session/IP）。 */
-export type PublicProfile = ContractPublicUser & {
+export interface PublicPresentationTokens {
+  nickname_color?: string;
+  avatar_frame?: string;
+  avatar_frame_attachment_id?: string;
+  avatar_attachment?: string;
+  profile_effect?: string;
+  post_effect?: string;
+  profile_badges?: string[];
+}
+
+export type PublicProfile = Omit<ContractPublicUser, 'presentation_tokens'> & {
   display_name: string | null;
   bio: string | null;
   avatar_attachment_id: string | null;
   signature: string | null;
+  presentation_tokens?: PublicPresentationTokens | null;
+  /** 已装备成就徽章（社交域·成就墙装备槽）：后端恒返回该键（≤3，
+   *  服务端裁决）；无装备/封禁降级为空数组。 */
+  equipped_achievements: { code: string; name: string }[];
 };
 
-/** 板块（GET /boards）投影：契约 Board（parent_id/visibility/posting_mode/
- * post_count 仅已认证请求方可见，M03-BOARDS-08 防匿名计数/面包屑推断）。
+/** 板块（GET /boards）投影：契约 Board（icon 公开投影即返回；parent_id/
+ * visibility/posting_mode/post_count 仅已认证请求方可见，M03-BOARDS-08
+ * 防匿名计数/面包屑推断）。
  */
 export type Board = Omit<
   ContractBoard,
@@ -107,6 +124,7 @@ export type Board = Omit<
   | 'created_at'
   | 'updated_at'
   | 'description'
+  | 'icon'
   | 'post_count'
   | 'is_active'
   | 'parent_id'
@@ -118,6 +136,8 @@ export type Board = Omit<
   created_at: number;
   updated_at: number;
   description: string | null;
+  /** 板块图标（lucide 图标名；null = 未设置，回退 slug 视觉映射/默认图标）。 */
+  icon: string | null;
   parent_id?: string | null;
   visibility?: 'public' | 'members' | 'restricted' | 'hidden' | null;
   posting_mode?: 'normal' | 'approval' | 'readonly' | 'closed' | null;
@@ -152,6 +172,8 @@ export interface PostAuthor {
   display_name?: string | null;
   level?: number;
   profile_url?: string;
+  avatar_attachment_id?: string | null;
+  presentation_tokens?: PublicPresentationTokens | null;
 }
 
 /** 帖子列表行投影（GET /posts、GET /boards/{slug}/posts、GET /search）；
@@ -163,11 +185,24 @@ export interface PostSummary {
   board_name?: string | null;
   post_type?: 'article' | 'discussion';
   title: string;
-  /** 列表行作者投影（GET /posts、GET /boards/{slug}/posts）。 */
-  author?: { id: string; username?: string | null } | null;
+  /** 列表行作者投影（GET /posts、GET /boards/{slug}/posts）。
+   *  display_name 为作者昵称（缺省回退 username；列表 chip 优先显示昵称）。
+   *  presentation_tokens 为服务端编译的公开装扮投影（列表「参与者」列楼主
+   *  头像渲染已装备头像框；未携带/无装配时缺省）。
+   *  avatar_attachment_id 为用户上传头像的公开附件引用（列表头像直接渲染
+   *  图片；内容经 /attachments/{id} 稳定端点按附件可见性下发）。 */
+  author?: {
+    id: string;
+    username?: string | null;
+    display_name?: string | null;
+    avatar_attachment_id?: string | null;
+    presentation_tokens?: PublicPresentationTokens | null;
+  } | null;
   /** 搜索接口的平面投影（GET /search）。 */
   author_id?: string;
   author_name?: string | null;
+  /** 作者昵称平面投影（与 author.display_name 同源；嵌套缺省时回退）。 */
+  author_display_name?: string | null;
   status?: string;
   reply_count: number;
   view_count: number;
@@ -180,6 +215,17 @@ export interface PostSummary {
   featured_at?: number | null;
   /** 作者手写摘要（≤300 字符；列表卡片展示）。 */
   summary?: string | null;
+  /** 参与者预览（GET /posts、GET /boards/{slug}/posts、推荐流）：该帖已发布
+   *  回复的不同作者（不含楼主），按首评楼层排序，每帖最多 2 个。
+   *  仅公开字段（id/username/display_name/avatar_attachment_id 与服务端
+   *  编译的 presentation_tokens），缺省时列表回退为楼主头像。 */
+  participants?: Array<{
+    id?: string;
+    username?: string | null;
+    display_name?: string | null;
+    avatar_attachment_id?: string | null;
+    presentation_tokens?: PublicPresentationTokens | null;
+  }> | null;
   created_at: number;
   updated_at?: number;
   last_reply_at: number | null;
@@ -209,6 +255,10 @@ export interface PostDetail {
   body_html?: string | null;
   /** 编辑器反显所需的原文 Markdown（契约扩展字段，仅作者/管理员可见）。 */
   markdown?: string | null;
+  /** 所在板块 ID。 */
+  board_id?: string;
+  /** 关联标签。 */
+  tags?: string[];
 }
 
 /** 评论投影（GET /posts/{id}/comments）；契约目标：Comment + body_html +
@@ -248,6 +298,8 @@ export interface Draft {
   search_index_opt_out?: boolean;
   /** M08-INDEX-03：逐帖退出 AI 摘要生成。 */
   ai_summary_opt_out?: boolean;
+  /** 标签列表。 */
+  tags?: string[];
 }
 
 // ── 写请求输入（POST/PATCH body，契约对应 schema）────────────────────────────
@@ -267,6 +319,8 @@ export interface PostCreateInput {
   search_index_opt_out?: boolean;
   /** M08-INDEX-03：作者逐帖退出 AI 摘要生成（管理员策略优先）。 */
   ai_summary_opt_out?: boolean;
+  /** 标签（slug 或名称，≤8 个、每个 1-32 字符）。写入 post_tags 关联。 */
+  tags?: string[];
 }
 
 /** POST /api/v1/posts/{postId}/comments body（契约 CommentCreate）。 */
@@ -295,6 +349,8 @@ export interface DraftCreateInput {
   search_index_opt_out?: boolean;
   /** M08-INDEX-03：逐帖退出 AI 摘要生成。 */
   ai_summary_opt_out?: boolean;
+  /** 标签列表。 */
+  tags?: string[];
 }
 
 /** PATCH /api/v1/drafts/{id} body（契约 DraftPatch，部分更新）。 */
@@ -309,6 +365,8 @@ export interface DraftPatchInput {
   search_index_opt_out?: boolean;
   /** M08-INDEX-03：逐帖退出 AI 摘要生成。 */
   ai_summary_opt_out?: boolean;
+  /** 标签列表。 */
+  tags?: string[];
 }
 
 /** 通用分页投影；契约目标：Page（next_cursor/has_more）+ items。 */
@@ -481,6 +539,8 @@ export interface Attachment {
   /** 计入所有者配额的字节数（含策略计费 variant）。 */
   quota_bytes_charged?: number;
   is_public?: boolean;
+  /** 引用数（attachment_links 计数；后端投影携带，缺省视为 0）。 */
+  ref_count?: number;
   processing_error?: string | null;
   created_at: number;
 }
@@ -518,6 +578,8 @@ export interface AttachmentQuota {
   daily_upload_bytes?: number;
   daily_used_bytes?: number;
   retention_days?: number;
+  /** 站点上传类型策略放行的媒体类型（管理后台可配置；缺省 = 未提供，按全量白名单处理）。 */
+  allowed_media_types?: string[];
 }
 
 /** GET /attachments（本人附件列表 + 配额摘要；后端扩展接口，字段缺失容忍）。 */
@@ -570,12 +632,10 @@ export interface DownloadTransaction {
 export type ProductKind =
   | 'cosmetic_nickname'
   | 'cosmetic_avatar'
-  | 'cosmetic_avatar_attachment'
   | 'cosmetic_badge'
   | 'profile_effect'
   | 'post_effect'
   | 'reaction_pack'
-  | 'title_prefix'
   | 'utility';
 
 export type ProductStatus = 'draft' | 'pending_review' | 'published' | 'disabled' | 'retired';
@@ -593,9 +653,15 @@ export interface ShopProduct {
   description_safe?: string | null;
   icon_token?: string | null;
   presentation_tokens?: string[] | null;
+  /** 管理员上传并通过安全扫描的公开 PNG 资源。 */
+  asset_attachment_id?: string | null;
   slot?: string | null;
-  /** 货币（currency_id 或契约 Money.currency 风格）。 */
-  currency: string;
+  /** 货币 ID（后端 shop 实现字段名为 currency_id；UI 创建默认传 'coin'）。 */
+  currency_id: string;
+  /** 结算货币 code/name（后端 LEFT JOIN currencies 投影；悬空引用缺失容忍）。
+   *  展示一律走 currencyLabel()，禁止直接渲染 currency_id（可能为 UUID）。 */
+  currency_code?: string | null;
+  currency_name?: string | null;
   /** 单价（最小单位，coin 为 1）。 */
   unit_price: number;
   /** 用户限购数量。 */
@@ -630,7 +696,11 @@ export interface ShopOrder {
   product_version: number;
   product_title?: string | null;
   quantity: number;
-  currency: string;
+  /** 货币 ID（后端 order_json 实现字段名为 currency_id）。 */
+  currency_id: string;
+  /** 结算货币 code/name（订单详情投影；缺失容忍）。 */
+  currency_code?: string | null;
+  currency_name?: string | null;
   unit_price: number;
   total_amount: number;
   status: OrderStatus;
@@ -670,6 +740,8 @@ export interface Entitlement {
   equipped_at?: number | null;
   revoked_at?: number | null;
   icon_token?: string | null;
+  /** 头像框/挂件商品的 PNG 素材附件（ready 公共附件 id；其余商品为 null）。 */
+  asset_attachment_id?: string | null;
   presentation_tokens?: string[] | null;
   created_at: number;
 }
@@ -679,12 +751,9 @@ export interface Entitlement {
  *  自身 allowlist（见 lib/components/wardrobe/tokens.ts），绝不解释任意样式。 */
 export interface Presentation {
   version: number;
-  nickname_decoration_id?: string | null;
   nickname_color_id?: string | null;
   avatar_frame_id?: string | null;
-  avatar_attachment_id?: string | null;
   profile_effect_id?: string | null;
-  title_prefix_id?: string | null;
   post_effect_id?: string | null;
   profile_badge_ids?: string[] | null;
   presentation_tokens?: Record<string, string | string[] | null>;
@@ -693,39 +762,9 @@ export interface Presentation {
 
 // ── 活跃与等级（M07-LEVELS） ───────────────────────────────────────────────
 
-/** 活动摘要等级对象（M07-LEVELS 后端实际投影：level 为对象而非数字）。 */
-export interface ActivityLevel {
-  level_id: string;
-  /** 等级名（如 "L1"）。 */
-  name?: string | null;
-  /** 等级序号（1 起）。 */
-  sort_order?: number | null;
-  /** 升级所需经验阈值。 */
-  threshold?: number | null;
-  icon?: string | null;
-  color?: string | null;
-  computed_from_balance?: number | null;
-  benefits?: {
-    badge?: string | null;
-    max_visibility?: number;
-    perks?: string[];
-  } | null;
-  benefits_version?: string | null;
-}
-
-/** 活动摘要（GET /activity/summary）。字段缺失时前端兼容降级。
- *  注意：后端 level 为对象（ActivityLevel）、经验在 experience.balance；
- *  旧字段（level:number / xp / balances）保留为可选以兼容历史投影。 */
+/** 活动摘要（GET /activity/summary）。只描述签到和 B 币余额；等级由
+ * `/me/trust-level` 单独提供，避免把经济活动投影误当作等级来源。 */
 export interface ActivitySummary {
-  /** 后端实际返回：等级对象。旧投影可能为数字。 */
-  level: ActivityLevel | number;
-  level_name?: string | null;
-  /** 当前经验余额（experience 货币，后端实际字段）。 */
-  experience?: { balance: number; currency: string } | null;
-  /** 当前经验余额（旧投影字段）。 */
-  xp?: number;
-  /** 距下一级所需经验；null = 已满级。 */
-  xp_to_next?: number | null;
   /** 签到功能是否开启。 */
   check_in_enabled?: boolean;
   /** 登录/访问自动签到是否开启。 */
@@ -752,19 +791,66 @@ export interface ActivitySummary {
   updated_at?: number;
 }
 
-/** 取活动摘要的等级序号：兼容 level 为对象（sort_order）或数字。 */
-export function activityLevelNumber(level: ActivitySummary['level'] | null | undefined): number | null {
-  if (typeof level === 'number') return level;
-  if (level && typeof level === 'object' && typeof level.sort_order === 'number') return level.sort_order;
-  return null;
+/** 取活动摘要的 coin 余额（balances 按 code 投影；缺失容忍 → null）。
+ *  后端历史投影无 balances 字段时返回 null，调用方按“—”降级。 */
+export function activityCoinBalance(summary: Pick<ActivitySummary, 'balances'> | null | undefined): Money | null {
+  const balances = summary?.balances ?? [];
+  return balances.find((b) => b.currency === 'coin') ?? null;
 }
 
-/** 取活动摘要的经验余额：兼容 experience.balance 与旧 xp 字段。 */
-export function activityXp(summary: Pick<ActivitySummary, 'experience' | 'xp'> | null | undefined): number {
-  if (!summary) return 0;
-  if (summary.experience && typeof summary.experience.balance === 'number') return summary.experience.balance;
-  return typeof summary.xp === 'number' ? summary.xp : 0;
+/** 社区信任等级元数据定义（TL0–TL4 体系） */
+export interface TrustLevelMeta {
+  level: number;
+  code: string;
+  name: string;
+  summary: string;
+  promotion: string;
+  perks: string[];
 }
+
+/** 全站统一社区信任等级阶梯（TL0–TL4） */
+export const LINUXDO_TRUST_LEVELS: TrustLevelMeta[] = [
+  {
+    level: 0,
+    code: 'TL0',
+    name: '新用户',
+    summary: '注册默认等级；拥有基础浏览与发帖交流权限，受反垃圾与频次保护。',
+    promotion: '账号注册成功后默认达到',
+    perks: ['浏览公开话题与讨论楼层', '发表主题帖与基础回复', '享有基础附件存储与上传配额']
+  },
+  {
+    level: 1,
+    code: 'TL1',
+    name: '基本用户',
+    summary: '愿意阅读即可达到的正式用户；解除新用户发帖频次限制与编辑时间限制。',
+    promotion: '累计进入 5 个话题、阅读 30 楼、阅读时长达 10 分钟',
+    perks: ['解除新用户发帖频次限制', '解锁完整个人资料卡与签名展示', '自由参与所有公开板块互动']
+  },
+  {
+    level: 2,
+    code: 'TL2',
+    name: '成员',
+    summary: '持续活跃并积极参与讨论的社区成员；享有更高的附件配额与更长编辑窗口。',
+    promotion: '累计访问 15 天、送出赞与收到赞各 ≥1、回复 3 个话题、进入 20 个话题、阅读 100 楼与 1 小时',
+    perks: ['附件空间扩容至进阶配额档位', '单文件上传大小上限提升', '享有更长的主题与回复编辑窗口']
+  },
+  {
+    level: 3,
+    code: 'TL3',
+    name: '活跃用户',
+    summary: '社区核心活跃骨干；基于近 100 天滚动窗口考核，享有专属板块访问与社区自治特权。',
+    promotion: '100天滚动窗口：访问 50% 天数、回复 10 个话题、阅读 25% 新楼、点赞多样性达标且近 6 个月无禁言',
+    perks: ['顶格附件存储与每日上传配额', '解锁 TL3 专属板块与私密讨论', '协助整理社区话题（改名与分类）', '获得专属活跃用户高亮标识']
+  },
+  {
+    level: 4,
+    code: 'TL4',
+    name: '领导者',
+    summary: '社区杰出管理者与精神领袖；由工作人员人工审核授予，深度参与社区规则治理。',
+    promotion: '仅由社区工作人员人工审核手动授予',
+    perks: ['领导者专属金色尊享徽章', '协助日常管理与社区治理', '置顶/关闭/归档社区话题特权', '永久免除常规频次限制']
+  }
+];
 
 // ── 管理端：存储/配额/下载计费/商城/活跃（M06-UI/M07-UI） ──────────────────
 
@@ -790,6 +876,13 @@ export interface StorageConfig {
   managed_fields?: string[];
   /** 管理方（`deployment` = 环境变量管理，在线修改只做校验与审计）。 */
   managed_by?: string | null;
+  /** 站点上传类型策略（管理后台可配置的类目开关）。 */
+  allowed_upload_types?: {
+    /** 启用的类目（image/pdf/text/office/av）。 */
+    categories: string[];
+    /** 策略放行的完整媒体类型列表（能力白名单子集）。 */
+    media_types: string[];
+  };
   /** 保存（校验）后的说明（如 apply after restart via deployment environment）。 */
   note?: string | null;
   version: number;
@@ -874,7 +967,7 @@ export interface ActivityConfig {
   auto_check_in_enabled?: boolean;
   /** 每日新一天起始时间（0..=23）。 */
   day_reset_hour?: number;
-  /** 签到奖励（exp/coin）。 */
+  /** 签到奖励（B币）。 */
   check_in_reward?: Money;
   /** 签到奖励币种 */
   check_in_currency?: string;
@@ -892,8 +985,6 @@ export interface ActivityConfig {
   };
   /** 连续签到奖励规则（JSON 简化展示）。 */
   streak_bonus_enabled?: boolean;
-  /** 经验货币。 */
-  exp_currency?: string;
   version: number;
   updated_at?: number;
 }
@@ -1485,7 +1576,7 @@ export interface ConversationItem {
   updated_at: number;
 }
 
-/** 私信消息（GET/POST /conversations/{id}/messages；created_at ASC）。 */
+/** 私信消息（GET/POST /conversations/{id}/messages；(created_at,id) ASC）。 */
 export interface ConversationMessage {
   id: string;
   sender_username: string;
@@ -1501,10 +1592,11 @@ export interface AchievementDef {
   name: string;
   description: string;
   category: string;
-  reward_exp: number;
   reward_coin: number;
   is_hidden: boolean;
   sort_order: number;
+  /** 成就图标（后台上传，本地磁盘存储不走 S3）；null = 未上传，回退内置图标。 */
+  icon_url: string | null;
 }
 
 /** 我的成就进度行（GET /me/achievements；未解锁返回 progress/target）。 */
@@ -1605,6 +1697,8 @@ export interface AdminSettingsResult {
     default_lang: string;
     public_source: string;
     api_rate_limit: number;
+    /** 站内核心货币名称/单位（code='coin'；例如“金币”、“B币”）。 */
+    currency_name?: string;
     smtp_enabled?: boolean;
     smtp_host?: string;
     smtp_port?: number;
@@ -1703,18 +1797,9 @@ export interface PointTransactionItem {
   created_at: number;
 }
 
-/** 等级规则行（GET/PATCH /admin/levels；version 供 If-Match）。 */
-export interface AdminLevelItem {
-  level: number;
-  name: string;
-  min_exp: number;
-  daily_post_limit: number;
-  daily_comment_limit: number;
-  attachment_quota: number;
-  is_enabled: boolean;
-  user_count: number;
-  version: number;
-}
+// 2026-09 等级合并单轨：AdminLevelItem（0062 level_rules 存档投影）随
+// GET/PATCH /admin/levels 端点移除一并删除；信任等级规则行见
+// routes/admin/levels/+page.server.ts 的 AdminTrustLevelItem。
 
 // ─── 用户侧：处罚 / OAuth 授权 ───────────────────────────────────────────
 
@@ -1725,6 +1810,7 @@ export interface SanctionItem {
   reason: string;
   created_at: number;
   expires_at: number | null;
+  case_id?: string | null;
 }
 
 /** OAuth 授权记录行（GET /me/oauth-grants）。 */
@@ -1767,4 +1853,43 @@ export interface BroadcastItem {
   recalled?: boolean;
   recalled_at?: number | null;
   created_at: number;
+}
+
+// ─── 信任等级（M20-TRUST，LinuxDo 式 TL0–TL4；见 docs/TRUST-LEVELS.md）───
+
+/** 下一级逐项进度条目。 */
+export interface TrustLevelRequirement {
+  key: string;
+  label: string;
+  current: number;
+  required: number;
+  met: boolean;
+}
+
+/** 下一级摘要（manual_only = 仅可手动授予，如 TL4）。 */
+export interface TrustLevelNext {
+  level: number;
+  name: string;
+  summary?: string | null;
+  manual_only: boolean;
+  eligible: boolean;
+  requirements: TrustLevelRequirement[];
+}
+
+/** GET /me/trust-level 响应：当前等级 + 下一级进度。 */
+export interface TrustLevelProgress {
+  level: number;
+  name: string;
+  summary?: string | null;
+  updated_at?: number | null;
+  /** TL3 降级宽限期截止（Unix 毫秒）；仅 level==3 时返回。 */
+  grace_until?: number | null;
+  window?: { days: number; since: number } | null;
+  next_level?: TrustLevelNext | null;
+}
+
+/** POST /me/trust-level/read-time 响应。 */
+export interface TrustReadTimeResult {
+  credited_seconds: number;
+  day_total_seconds: number;
 }

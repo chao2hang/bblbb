@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 223,
+  "expected_operations": 238,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -19,6 +19,23 @@
         "backend/tests/http.rs::healthz_returns_ok_and_request_id"
       ],
       "evidence": "baseline commit 5e17fa3; /healthz returns ok+version; M17 gate re-verified on 2026-08-08 (cargo test --all-features 0 fail; launch double-run OK)"
+    },
+    {
+      "operation_id": "bootstrapAdmin",
+      "method": "POST",
+      "path": "/api/v1/auth/bootstrap",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
     },
     {
       "operation_id": "getCsrfToken",
@@ -75,6 +92,24 @@
         "backend/tests/auth_crossdb.rs"
       ],
       "evidence": "M02-UX-03: 一次性 challenge + TOTP/恢复码二选一完成登录；challenge 5 分钟只存 hash；错误统一 401；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "loginMfaPasskeyOptions",
+      "method": "POST",
+      "path": "/api/v1/auth/login/mfa/passkey/options",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/passkey.rs::login_mfa_passkey_options",
+      "tests": [
+        "backend/tests/passkey_service.rs",
+        "backend/tests/passkey_schema.rs"
+      ],
+      "evidence": "M02-MFA-PK: Passkey 与 TOTP/恢复码 OR 共存（三选一恰好一个通过）；challenge 服务端生成、state 序列化存 webauthn_challenges（5 分钟一次性）；登录断言绑定 mfa_login_challenges.token_hash 防跨会话重放；服务级测试（软件认证器注册/断言/防重放/撤销 4 passed）+ schema 契约测试；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md、docs/SECURITY.md、docs/AUTH-OIDC.md；跨库迁移等价与 M17 全量 Gate 待 CI 专项复核"
     },
     {
       "operation_id": "mfaDisable",
@@ -167,6 +202,78 @@
         "backend/tests/auth_crossdb.rs"
       ],
       "evidence": "M02-UX-06: 新一组恢复码只展示一次、只存 SHA-256 hash；要求 step-up（403 step_up_required）；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "listPasskeys",
+      "method": "GET",
+      "path": "/api/v1/auth/passkeys",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/passkey.rs::passkey_list",
+      "tests": [
+        "backend/tests/passkey_service.rs",
+        "backend/tests/passkey_schema.rs"
+      ],
+      "evidence": "M02-MFA-PK: Passkey 与 TOTP/恢复码 OR 共存（三选一恰好一个通过）；challenge 服务端生成、state 序列化存 webauthn_challenges（5 分钟一次性）；登录断言绑定 mfa_login_challenges.token_hash 防跨会话重放；服务级测试（软件认证器注册/断言/防重放/撤销 4 passed）+ schema 契约测试；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md、docs/SECURITY.md、docs/AUTH-OIDC.md；跨库迁移等价与 M17 全量 Gate 待 CI 专项复核"
+    },
+    {
+      "operation_id": "beginPasskeyRegistration",
+      "method": "POST",
+      "path": "/api/v1/auth/passkeys",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/passkey.rs::passkey_begin",
+      "tests": [
+        "backend/tests/passkey_service.rs",
+        "backend/tests/passkey_schema.rs"
+      ],
+      "evidence": "M02-MFA-PK: Passkey 与 TOTP/恢复码 OR 共存（三选一恰好一个通过）；challenge 服务端生成、state 序列化存 webauthn_challenges（5 分钟一次性）；登录断言绑定 mfa_login_challenges.token_hash 防跨会话重放；服务级测试（软件认证器注册/断言/防重放/撤销 4 passed）+ schema 契约测试；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md、docs/SECURITY.md、docs/AUTH-OIDC.md；跨库迁移等价与 M17 全量 Gate 待 CI 专项复核"
+    },
+    {
+      "operation_id": "confirmPasskeyRegistration",
+      "method": "POST",
+      "path": "/api/v1/auth/passkeys/confirm",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/passkey.rs::passkey_confirm",
+      "tests": [
+        "backend/tests/passkey_service.rs",
+        "backend/tests/passkey_schema.rs"
+      ],
+      "evidence": "M02-MFA-PK: Passkey 与 TOTP/恢复码 OR 共存（三选一恰好一个通过）；challenge 服务端生成、state 序列化存 webauthn_challenges（5 分钟一次性）；登录断言绑定 mfa_login_challenges.token_hash 防跨会话重放；服务级测试（软件认证器注册/断言/防重放/撤销 4 passed）+ schema 契约测试；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md、docs/SECURITY.md、docs/AUTH-OIDC.md；跨库迁移等价与 M17 全量 Gate 待 CI 专项复核"
+    },
+    {
+      "operation_id": "revokePasskey",
+      "method": "DELETE",
+      "path": "/api/v1/auth/passkeys/{id}",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "backend-auth",
+      "handler": "backend/src/routes/passkey.rs::passkey_revoke",
+      "tests": [
+        "backend/tests/passkey_service.rs",
+        "backend/tests/passkey_schema.rs"
+      ],
+      "evidence": "M02-MFA-PK: Passkey 与 TOTP/恢复码 OR 共存（三选一恰好一个通过）；challenge 服务端生成、state 序列化存 webauthn_challenges（5 分钟一次性）；登录断言绑定 mfa_login_challenges.token_hash 防跨会话重放；服务级测试（软件认证器注册/断言/防重放/撤销 4 passed）+ schema 契约测试；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md、docs/SECURITY.md、docs/AUTH-OIDC.md；跨库迁移等价与 M17 全量 Gate 待 CI 专项复核"
     },
     {
       "operation_id": "requestPasswordReset",
@@ -487,6 +594,57 @@
         "backend/tests/boards_admin.rs"
       ],
       "evidence": "（M03-BOARDS-05/09）update_admin_board：authorize_action board.manage 门 + reason 必填 + If-Match 乐观并发（boards.updated_at 为版本，缺头 400/过期 409 version_conflict/UPDATE rows=0 兜底竞态）+ 部分字段校验+父级循环拒绝（根移到子板块下 400）+ 单事务 UPDATE+admin.board_update 审计（before/after 白名单字段）；x-permission=board.manage；测试：boards_admin（正确 If-Match 200+版本递增+before/after 审计/缺头 400+过期 409/父级循环 400/is_active=false 移出公开列表）；跨库/安全专项证据由 M16 补充；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "listAdminBoardRoles",
+      "method": "GET",
+      "path": "/api/v1/admin/boards/{id}/roles",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "assignAdminBoardRole",
+      "method": "POST",
+      "path": "/api/v1/admin/boards/{id}/roles",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "revokeAdminBoardRole",
+      "method": "DELETE",
+      "path": "/api/v1/admin/boards/{id}/roles/{user_id}/{role_name}",
+      "primary_tag": "Boards",
+      "milestone": "M3",
+      "work_package": "M03-BOARDS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
     },
     {
       "operation_id": "listBoards",
@@ -1489,6 +1647,40 @@
       "evidence": "M05-CASES-03/05: 状态迁移走 CaseStatus::can_transition_to（非法 → 409），写审计 + Outbox moderation.case_changed.v1；自处理/利益冲突在开案与派单服务中阻断并审计；M05-UI 前端页面：notifications/report/appeals/cases + admin/moderation pages（7f97651）；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
+      "operation_id": "getAdminRiskPolicy",
+      "method": "GET",
+      "path": "/api/v1/admin/moderation/risk-policy",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminRiskPolicy",
+      "method": "PATCH",
+      "path": "/api/v1/admin/moderation/risk-policy",
+      "primary_tag": "Moderation",
+      "milestone": "M5",
+      "work_package": "M05-CASES",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
       "operation_id": "listOwnAppeals",
       "method": "GET",
       "path": "/api/v1/appeals",
@@ -1565,13 +1757,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "agent/backend",
       "handler": "backend/src/routes/economy_ext.rs::list_my_sanctions",
       "tests": [
-        "backend/tests/economy_ext.rs"
+        "backend/tests/economy_ext.rs::my_sanctions_lists_own_records"
       ],
-      "evidence": "M17-GAPFIX-03（经济与个人域，迁移 0062_economy_ext）：cargo test --test economy_ext 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+      "evidence": "M18-APPEAL-01: GET /api/v1/me/sanctions 关联案件号 case_id 与处罚类型/原因/过期时间，cargo test --test economy_ext my_sanctions_lists_own_records pass；申诉中心安全隔离与前台展示通过"
     },
     {
       "operation_id": "listOwnReports",
@@ -2275,6 +2467,24 @@
         "backend/tests/favorites_follows.rs"
       ],
       "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "putMeBadges",
+      "method": "PUT",
+      "path": "/api/v1/me/badges",
+      "primary_tag": "Activity",
+      "milestone": "M7",
+      "work_package": "M07-LEVELS",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "verified",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/achievements.rs::update_my_badges",
+      "tests": [
+        "backend/tests/favorites_follows.rs::achievements_public_catalog_and_my_view",
+        "backend/tests/favorites_follows.rs::admin_grant_equip_and_slot_limit"
+      ],
+      "evidence": "M18-ACH-01: PUT /api/v1/me/badges implements batch badge equipping with up-to-3 limit, unlocked verification, tx update, and me.badges.update audit"
     },
     {
       "operation_id": "get_me_favorites",
@@ -3660,6 +3870,57 @@
       "evidence": "M12 complete: reversal-only refund, client service credential or admin (reason+recent-auth); cargo test --test marketplace_refund (9 passed); commit=9c40184"
     },
     {
+      "operation_id": "getAdminFeatureFlags",
+      "method": "GET",
+      "path": "/api/v1/admin/feature-flags",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-ADMIN",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "killAdminFeatureFlags",
+      "method": "POST",
+      "path": "/api/v1/admin/feature-flags/kill-switch",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-ADMIN",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
+      "operation_id": "updateAdminFeatureFlag",
+      "method": "PATCH",
+      "path": "/api/v1/admin/feature-flags/{name}",
+      "primary_tag": "Admin",
+      "milestone": "M13",
+      "work_package": "M13-ADMIN",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "not_started",
+      "owner": "unassigned",
+      "handler": null,
+      "tests": [
+
+      ],
+      "evidence": null
+    },
+    {
       "operation_id": "get_admin_themes",
       "method": "GET",
       "path": "/api/v1/admin/themes",
@@ -3811,13 +4072,16 @@
       "work_package": "M17-GAPFIX",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "agent/backend",
       "handler": "backend/src/routes/conversations.rs::list_conversations",
       "tests": [
-        "backend/tests/conversations.rs"
+        "backend/tests/conversations.rs",
+        "backend/tests/conversations_crossdb.rs",
+        "frontend/src/lib/testing/ssr/social-pages-nojs.test.ts",
+        "frontend/src/routes/users/[username]/load.test.ts"
       ],
-      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+      "evidence": "M17-GAPFIX-07 私信发布级验收：SQLite、MySQL 8、MariaDB 10.11 cross-db 测试通过；CSRF、参与者隔离 404、幂等重放/冲突、复合游标分页、private no-store、通知和隐私投影均有测试证据；/messages 与用户主页发私信入口的 SSR/无 JS 测试通过；reports/mobile-compare/REPORT.md 记录移动端无错误且无横向溢出"
     },
     {
       "operation_id": "post_conversations",
@@ -3828,13 +4092,16 @@
       "work_package": "M17-GAPFIX",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "agent/backend",
       "handler": "backend/src/routes/conversations.rs::create_conversation",
       "tests": [
-        "backend/tests/conversations.rs"
+        "backend/tests/conversations.rs",
+        "backend/tests/conversations_crossdb.rs",
+        "frontend/src/lib/testing/ssr/social-pages-nojs.test.ts",
+        "frontend/src/routes/users/[username]/load.test.ts"
       ],
-      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+      "evidence": "M17-GAPFIX-07 私信发布级验收：SQLite、MySQL 8、MariaDB 10.11 cross-db 测试通过；CSRF、参与者隔离 404、幂等重放/冲突、复合游标分页、private no-store、通知和隐私投影均有测试证据；/messages 与用户主页发私信入口的 SSR/无 JS 测试通过；reports/mobile-compare/REPORT.md 记录移动端无错误且无横向溢出"
     },
     {
       "operation_id": "get_conversations_id_messages",
@@ -3845,13 +4112,16 @@
       "work_package": "M17-GAPFIX",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "agent/backend",
       "handler": "backend/src/routes/conversations.rs::list_messages",
       "tests": [
-        "backend/tests/conversations.rs"
+        "backend/tests/conversations.rs",
+        "backend/tests/conversations_crossdb.rs",
+        "frontend/src/lib/testing/ssr/social-pages-nojs.test.ts",
+        "frontend/src/routes/users/[username]/load.test.ts"
       ],
-      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+      "evidence": "M17-GAPFIX-07 私信发布级验收：SQLite、MySQL 8、MariaDB 10.11 cross-db 测试通过；CSRF、参与者隔离 404、幂等重放/冲突、复合游标分页、private no-store、通知和隐私投影均有测试证据；/messages 与用户主页发私信入口的 SSR/无 JS 测试通过；reports/mobile-compare/REPORT.md 记录移动端无错误且无横向溢出"
     },
     {
       "operation_id": "post_conversations_id_messages",
@@ -3862,13 +4132,16 @@
       "work_package": "M17-GAPFIX",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "agent/backend",
       "handler": "backend/src/routes/conversations.rs::send_message",
       "tests": [
-        "backend/tests/conversations.rs"
+        "backend/tests/conversations.rs",
+        "backend/tests/conversations_crossdb.rs",
+        "frontend/src/lib/testing/ssr/social-pages-nojs.test.ts",
+        "frontend/src/routes/users/[username]/load.test.ts"
       ],
-      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+      "evidence": "M17-GAPFIX-07 私信发布级验收：SQLite、MySQL 8、MariaDB 10.11 cross-db 测试通过；CSRF、参与者隔离 404、幂等重放/冲突、复合游标分页、private no-store、通知和隐私投影均有测试证据；/messages 与用户主页发私信入口的 SSR/无 JS 测试通过；reports/mobile-compare/REPORT.md 记录移动端无错误且无横向溢出"
     },
     {
       "operation_id": "post_conversations_id_read",
@@ -3879,13 +4152,16 @@
       "work_package": "M17-GAPFIX",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "implemented",
+      "implementation_status": "verified",
       "owner": "agent/backend",
       "handler": "backend/src/routes/conversations.rs::mark_read",
       "tests": [
-        "backend/tests/conversations.rs"
+        "backend/tests/conversations.rs",
+        "backend/tests/conversations_crossdb.rs",
+        "frontend/src/lib/testing/ssr/social-pages-nojs.test.ts",
+        "frontend/src/routes/users/[username]/load.test.ts"
       ],
-      "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+      "evidence": "M17-GAPFIX-07 私信发布级验收：SQLite、MySQL 8、MariaDB 10.11 cross-db 测试通过；CSRF、参与者隔离 404、幂等重放/冲突、复合游标分页、private no-store、通知和隐私投影均有测试证据；/messages 与用户主页发私信入口的 SSR/无 JS 测试通过；reports/mobile-compare/REPORT.md 记录移动端无错误且无横向溢出"
     },
     {
       "operation_id": "get_stats",

@@ -16,10 +16,13 @@
     board_name?: string | null;
     author_name?: string | null;
     author_id?: string | null;
-    /** 嵌套作者投影（GET /posts、GET /boards/{slug}/posts）。 */
-    author?: { id?: string; username?: string | null } | null;
+    /** 嵌套作者投影（GET /posts、GET /boards/{slug}/posts）。
+     *  display_name 为作者昵称；chip 优先昵称、缺省回退用户名。 */
+    author?: { id?: string; username?: string | null; display_name?: string | null } | null;
     /** 平面作者用户名投影（搜索等）。 */
     author_username?: string | null;
+    /** 作者昵称平面投影（与 author.display_name 同源）。 */
+    author_display_name?: string | null;
     reply_count?: number;
     view_count?: number;
     like_count?: number;
@@ -40,6 +43,13 @@
   function authorUsername(post: PostRowData): string | null {
     return post.author?.username ?? post.author_username ?? post.author_name ?? null;
   }
+
+  /** 行内展示的作者标签：优先昵称，缺省回退用户名（账号）。 */
+  function authorLabel(post: PostRowData): string {
+    return (
+      post.author?.display_name ?? post.author_display_name ?? authorUsername(post) ?? '匿名'
+    );
+  }
 </script>
 
 {#if !posts || posts.length === 0}
@@ -48,16 +58,23 @@
   <div class="app-post-list" role="feed" aria-label="帖子列表">
     {#each posts as post (post.id)}
       {@const uname = authorUsername(post) ?? '匿名'}
+      {@const account = authorUsername(post)}
+      {@const label = authorLabel(post)}
       <div class="app-post-row" data-post-id={post.id}>
-        <Avatar name={uname} size="md" />
+        {#if account}
+          <!-- 头像即触发链接：hover/focus 出公开资料悬浮卡（UserCard portal），
+               窄屏点击出底部卡；无账号投影（匿名）保持普通头像。 -->
+          <UserCard user={{ username: account, display_name: label }} label="查看 {label} 的个人资料">
+            <Avatar name={uname} size="md" seed={account ?? uname} />
+          </UserCard>
+        {:else}
+          <Avatar name={uname} size="md" seed={account ?? uname} />
+        {/if}
         <a class="app-post-row__main" href="/posts/{post.id}">
           <h3>
             {#if post.pinned}<Badge text="置顶" type="pinned" />{/if}
             {escapeHtml(post.title)}
           </h3>
-          {#if post.summary}
-            <p>{post.summary}</p>
-          {/if}
           <span class="app-post-row__meta">
             {#if post.board_slug && post.board_name}
               <span class="category-badge" style="--cat-color:{boardVisuals(post.board_slug).color};">
@@ -72,7 +89,7 @@
                 <span class="app-tag-subtle">#{tag}</span>
               {/each}
             {/if}
-            <span>· {uname}</span>
+            <span>· {authorLabel(post)}</span>
           </span>
         </a>
         <span class="app-post-row__right">

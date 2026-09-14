@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**223**
-- 唯一 operationId：**223**
-- 实现状态：`implemented` 29；`verified` 194
-- 里程碑分配：`M0` 1；`M2` 22；`M3` 31；`M4` 21；`M5` 22；`M6` 20；`M7` 35；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 8；`M17` 6
+- 契约操作：**238**
+- 唯一 operationId：**238**
+- 实现状态：`implemented` 28；`not_started` 9；`verified` 201
+- 里程碑分配：`M0` 1；`M2` 28；`M3` 34；`M4` 21；`M5` 24；`M6` 20；`M7` 36；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 11；`M17` 6
 
 ## 状态规则
 
@@ -24,14 +24,20 @@
 | operationId | Method | Path | Tag | Milestone / work package | Priority | Status | Owner |
 |---|---:|---|---|---|---:|---|---|
 | `getHealth` | `GET` | `/healthz` | Health | `M0` / `M00-BACKEND` | `P0` | `verified` | `platform/backend` |
+| `bootstrapAdmin` | `POST` | `/api/v1/auth/bootstrap` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `getCsrfToken` | `GET` | `/api/v1/auth/csrf` | Auth | `M2` / `M02-SESSION` | `P0` | `verified` | `backend-auth` |
 | `login` | `POST` | `/api/v1/auth/login` | Auth | `M2` / `M02-SESSION` | `P0` | `verified` | `backend-auth` |
 | `loginMfa` | `POST` | `/api/v1/auth/login/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
+| `loginMfaPasskeyOptions` | `POST` | `/api/v1/auth/login/mfa/passkey/options` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
 | `mfaDisable` | `DELETE` | `/api/v1/auth/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `mfaConfirm` | `POST` | `/api/v1/auth/mfa/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `mfaEnroll` | `POST` | `/api/v1/auth/mfa/enroll` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `mfaCancel` | `DELETE` | `/api/v1/auth/mfa/enrollment` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `mfaRecoveryCodes` | `POST` | `/api/v1/auth/mfa/recovery-codes` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
+| `listPasskeys` | `GET` | `/api/v1/auth/passkeys` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `beginPasskeyRegistration` | `POST` | `/api/v1/auth/passkeys` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `confirmPasskeyRegistration` | `POST` | `/api/v1/auth/passkeys/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
+| `revokePasskey` | `DELETE` | `/api/v1/auth/passkeys/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
 | `requestPasswordReset` | `POST` | `/api/v1/auth/password-reset` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `confirmPasswordReset` | `POST` | `/api/v1/auth/password-reset/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `reAuth` | `POST` | `/api/v1/auth/re-auth` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
@@ -50,6 +56,9 @@
 | `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
 | `getAdminBoard` | `GET` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `updateAdminBoard` | `PATCH` | `/api/v1/admin/boards/{id}` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
+| `listAdminBoardRoles` | `GET` | `/api/v1/admin/boards/{id}/roles` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
+| `assignAdminBoardRole` | `POST` | `/api/v1/admin/boards/{id}/roles` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
+| `revokeAdminBoardRole` | `DELETE` | `/api/v1/admin/boards/{id}/roles/{user_id}/{role_name}` | Boards | `M3` / `M03-BOARDS` | `P1` | `not_started` | `unassigned` |
 | `listBoards` | `GET` | `/api/v1/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
 | `getBoard` | `GET` | `/api/v1/boards/{slug}` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |
 | `delete_boards_slug_follow` | `DELETE` | `/api/v1/boards/{slug}/follow` | Boards | `M3` / `M03-BOARDS` | `P1` | `implemented` | `agent/backend` |
@@ -107,11 +116,13 @@
 | `listModerationCases` | `GET` | `/api/v1/admin/moderation/cases` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-moderation` |
 | `getModerationCase` | `GET` | `/api/v1/admin/moderation/cases/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-moderation` |
 | `updateModerationCase` | `PATCH` | `/api/v1/admin/moderation/cases/{id}` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-moderation` |
+| `getAdminRiskPolicy` | `GET` | `/api/v1/admin/moderation/risk-policy` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
+| `updateAdminRiskPolicy` | `PATCH` | `/api/v1/admin/moderation/risk-policy` | Moderation | `M5` / `M05-CASES` | `P0` | `not_started` | `unassigned` |
 | `listOwnAppeals` | `GET` | `/api/v1/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `verified` | `backend-moderation` |
 | `createAppeal` | `POST` | `/api/v1/appeals` | Moderation | `M5` / `M05-APPEALS` | `P1` | `verified` | `backend-moderation` |
 | `getOwnAppeal` | `GET` | `/api/v1/appeals/{id}` | Moderation | `M5` / `M05-APPEALS` | `P1` | `verified` | `backend-moderation` |
 | `withdrawAppeal` | `POST` | `/api/v1/appeals/{id}/withdraw` | Moderation | `M5` / `M05-APPEALS` | `P1` | `verified` | `backend-content` |
-| `get_me_sanctions` | `GET` | `/api/v1/me/sanctions` | Moderation | `M5` / `M05-CASES` | `P0` | `implemented` | `agent/backend` |
+| `get_me_sanctions` | `GET` | `/api/v1/me/sanctions` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `agent/backend` |
 | `listOwnReports` | `GET` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-content` |
 | `post_reports` | `POST` | `/api/v1/reports` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-moderation` |
 | `withdrawReport` | `POST` | `/api/v1/reports/{id}/withdraw` | Moderation | `M5` / `M05-CASES` | `P0` | `verified` | `backend-content` |
@@ -153,6 +164,7 @@
 | `get_me_achievements` | `GET` | `/api/v1/me/achievements` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
 | `delete_me_achievements_code_equip` | `DELETE` | `/api/v1/me/achievements/{code}/equip` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
 | `put_me_achievements_code_equip` | `PUT` | `/api/v1/me/achievements/{code}/equip` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
+| `putMeBadges` | `PUT` | `/api/v1/me/badges` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `agent/backend` |
 | `get_me_favorites` | `GET` | `/api/v1/me/favorites` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
 | `get_me_following` | `GET` | `/api/v1/me/following` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
 | `get_me_point_transactions` | `GET` | `/api/v1/me/point-transactions` | Activity | `M7` / `M07-LEVELS` | `P1` | `implemented` | `agent/backend` |
@@ -232,6 +244,9 @@
 | `get_marketplace_purchases` | `GET` | `/api/v1/marketplace/purchases` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
 | `get_marketplace_purchases_id_` | `GET` | `/api/v1/marketplace/purchases/{id}` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
 | `post_marketplace_purchases_id_refund` | `POST` | `/api/v1/marketplace/purchases/{id}/refund` | Marketplace | `M12` / `M12-CHECKOUT` | `P0` | `verified` | `platform/marketplace` |
+| `getAdminFeatureFlags` | `GET` | `/api/v1/admin/feature-flags` | Admin | `M13` / `M13-ADMIN` | `P0` | `not_started` | `unassigned` |
+| `killAdminFeatureFlags` | `POST` | `/api/v1/admin/feature-flags/kill-switch` | Admin | `M13` / `M13-ADMIN` | `P0` | `not_started` | `unassigned` |
+| `updateAdminFeatureFlag` | `PATCH` | `/api/v1/admin/feature-flags/{name}` | Admin | `M13` / `M13-ADMIN` | `P0` | `not_started` | `unassigned` |
 | `get_admin_themes` | `GET` | `/api/v1/admin/themes` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
 | `post_admin_themes_data_packages` | `POST` | `/api/v1/admin/themes/data-packages` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
 | `put_admin_themes_default` | `PUT` | `/api/v1/admin/themes/default` | Admin | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
@@ -240,9 +255,9 @@
 | `get_me_preferences_theme` | `GET` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
 | `put_me_preferences_theme` | `PUT` | `/api/v1/me/preferences/theme` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
 | `get_themes_active` | `GET` | `/api/v1/themes/active` | Themes | `M13` / `M13-THEME` | `P1` | `verified` | `platform/frontend-platform` |
-| `get_conversations` | `GET` | `/api/v1/conversations` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
-| `post_conversations` | `POST` | `/api/v1/conversations` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
-| `get_conversations_id_messages` | `GET` | `/api/v1/conversations/{id}/messages` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
-| `post_conversations_id_messages` | `POST` | `/api/v1/conversations/{id}/messages` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
-| `post_conversations_id_read` | `POST` | `/api/v1/conversations/{id}/read` | Messages | `M17` / `M17-GAPFIX` | `P1` | `implemented` | `agent/backend` |
+| `get_conversations` | `GET` | `/api/v1/conversations` | Messages | `M17` / `M17-GAPFIX` | `P1` | `verified` | `agent/backend` |
+| `post_conversations` | `POST` | `/api/v1/conversations` | Messages | `M17` / `M17-GAPFIX` | `P1` | `verified` | `agent/backend` |
+| `get_conversations_id_messages` | `GET` | `/api/v1/conversations/{id}/messages` | Messages | `M17` / `M17-GAPFIX` | `P1` | `verified` | `agent/backend` |
+| `post_conversations_id_messages` | `POST` | `/api/v1/conversations/{id}/messages` | Messages | `M17` / `M17-GAPFIX` | `P1` | `verified` | `agent/backend` |
+| `post_conversations_id_read` | `POST` | `/api/v1/conversations/{id}/read` | Messages | `M17` / `M17-GAPFIX` | `P1` | `verified` | `agent/backend` |
 | `get_stats` | `GET` | `/api/v1/stats` | Stats | `M17` / `M17-GAPFIX` | `P0` | `implemented` | `agent/backend` |

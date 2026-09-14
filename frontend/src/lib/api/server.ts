@@ -280,7 +280,11 @@ export async function getAuthed<T>(
   const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, { headers });
   relaySetCookies(response, cookies);
 
-  if (response.ok) return { ok: true, data: (await response.json()) as T };
+  if (response.ok) {
+    if (response.status === 204) return { ok: true, data: undefined as unknown as T };
+    const data = (await response.json().catch(() => undefined)) as unknown;
+    return { ok: true, data: data as T };
+  }
   const { message, requestId: rid, code } = await parseProblem(response);
   const retryAfterHeader = response.headers.get('Retry-After');
   const retryAfterSecs =
@@ -467,6 +471,59 @@ export async function authedPut<T = unknown>(
   return result;
 }
 
+/**
+ * POST 认证二进制写请求（成就图标上传等原始字节端点）：会话 Cookie +
+ * 会话绑定 CSRF；body 为原始字节（不做 JSON 序列化），contentType 显式指定。
+ * 成功返回响应 JSON（如 icon_url/version）。
+ */
+export async function authedPostBytes<T = unknown>(
+  cookies: Cookies,
+  path: string,
+  body: Uint8Array,
+  contentType: string,
+  requestId: string | null = null
+): Promise<{ ok: true; data: T } | ServerWriteFailure> {
+  let csrf;
+  try {
+    csrf = await prepareSessionCsrf(cookies, requestId);
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      message: '安全校验服务暂不可用，请稍后重试',
+      requestId,
+      retryAfterSecs: null,
+      code: null
+    };
+  }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': contentType,
+    'X-CSRF-Token': csrf.token
+  };
+  if (csrf.cookieValue) headers.Cookie = `${SESSION_COOKIE}=${csrf.cookieValue}`;
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  const response = await fetch(`${INTERNAL_API_ORIGIN}${path}`, {
+    method: 'POST',
+    headers,
+    body: body as unknown as BodyInit
+  });
+  relaySetCookies(response, cookies);
+
+  if (response.ok) {
+    const data = (await response.json().catch(() => undefined)) as unknown;
+    return data === undefined ? { ok: true, data: undefined as T } : { ok: true, data: data as T };
+  }
+  const { message, requestId: rid, code } = await parseProblem(response);
+  const retryAfterHeader = response.headers.get('Retry-After');
+  const retryAfterSecs =
+    retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
+      ? Number(retryAfterHeader)
+      : null;
+  return { ok: false, status: response.status, message, requestId: rid, retryAfterSecs, code };
+}
+
 export interface LoginViaServerInput {
   identifier: string;
   password: string;
@@ -477,7 +534,7 @@ export interface LoginViaServerInput {
 /** POST /api/v1/auth/login 结果（M02-UX-03 两步登录第一步）。 */
 export type LoginServerResult =
   | { kind: 'ok' } // 会话已签发（Set-Cookie 已复制到浏览器）
-  | { kind: 'mfa'; challengeToken: string } // 账号启用 TOTP，需第二步
+  | { kind: 'mfa'; challengeToken: string; passkeyAvailable: boolean } // 需第二步（TOTP/恢复码/Passkey 三选一）
   | { kind: 'error'; status: number; message: string; requestId: string | null };
 
 /** POST /api/v1/auth/login/mfa 结果（M02-UX-03 第二步）。 */
@@ -522,9 +579,17 @@ export async function loginViaServer(
     return { kind: 'error', status: response.status, message, requestId: rid };
   }
 
-  const data = (await response.json()) as { mfa_required?: boolean; challenge_token?: string };
+  const data = (await response.json()) as {
+    mfa_required?: boolean;
+    challenge_token?: string;
+    passkey_available?: boolean;
+  };
   if (data.mfa_required === true && data.challenge_token) {
-    return { kind: 'mfa', challengeToken: data.challenge_token };
+    return {
+      kind: 'mfa',
+      challengeToken: data.challenge_token,
+      passkeyAvailable: data.passkey_available === true
+    };
   }
   return { kind: 'ok' };
 }
@@ -532,11 +597,12 @@ export async function loginViaServer(
 /**
  * POST /api/v1/auth/login/mfa（M02-UX-03 第二步）。
  *
- * 一次性 challenge + TOTP code 或恢复码完成登录，成功签发会话。
+ * 一次性 challenge + TOTP code / 恢复码 / Passkey 断言（三选一，M02-MFA-PK）
+ * 完成登录，成功签发会话。
  */
 export async function loginMfaViaServer(
   cookies: Cookies,
-  input: { challenge_token: string; totp_code?: string; recovery_code?: string },
+  input: { challenge_token: string; totp_code?: string; recovery_code?: string; passkey?: unknown },
   requestId: string | null = null
 ): Promise<LoginMfaServerResult> {
   const result = await postWithCsrf(cookies, '/api/v1/auth/login/mfa', input, requestId);
@@ -547,4 +613,46 @@ export async function loginMfaViaServer(
     message: result.message,
     requestId: result.requestId
   };
+}
+
+/**
+ * POST /api/v1/auth/login/mfa/passkey/options（M02-MFA-PK 登录第二步）。
+ *
+ * 用一次性 MFA challenge 换取 WebAuthn request options（预认证 CSRF 配对，
+ * 与 login/login/mfa 同上下文）。需要读取响应体（options JSON），独立实现
+ * （postWithCsrf 不透传响应体）。
+ */
+export async function passkeyLoginOptionsViaServer(
+  cookies: Cookies,
+  challengeToken: string,
+  requestId: string | null = null
+): Promise<{ ok: true; data: unknown } | ServerWriteFailure> {
+  const csrf = await prepareCsrf(cookies, requestId);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'X-CSRF-Token': csrf.token
+  };
+  if (csrf.cookieValue) headers.Cookie = `${PREAUTH_COOKIE}=${csrf.cookieValue}`;
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  const response = await fetch(`${INTERNAL_API_ORIGIN}/api/v1/auth/login/mfa/passkey/options`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ challenge_token: challengeToken })
+  });
+  relaySetCookies(response, cookies);
+  if (!response.ok) {
+    const { message, requestId: rid, code } = await parseProblem(response);
+    return {
+      ok: false,
+      status: response.status,
+      message,
+      requestId: rid,
+      retryAfterSecs: null,
+      code
+    };
+  }
+  const data = await response.json().catch(() => undefined);
+  return { ok: true, data };
 }

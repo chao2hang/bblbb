@@ -1,0 +1,1022 @@
+/* ============================================================
+   BBLBB Admin Control Room — 独立后台布局与交互系统
+   ============================================================ */
+
+/* 根级独立后台作用域：去除前台页面容器的一切约束与边距 */
+.app-shell.app-shell--admin {
+  padding: 0 !important;
+  padding-bottom: 0 !important;
+  margin: 0 !important;
+  min-height: 100vh !important;
+  background: var(--color-bg-page) !important;
+  width: 100% !important;
+}
+
+.admin-viewport-main {
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 100vh !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.app-admin-page-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#page-admin.app-route-admin,
+#page-admin {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0;
+}
+
+/* 后台主体 Flex 架构（左侧栏 + 右内容区） */
+.app-admin-shell {
+  display: flex !important;
+  flex-direction: row !important;
+  min-height: 100vh !important;
+  width: 100% !important;
+  background: var(--color-bg-page) !important;
+  position: relative !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+}
+
+/* ============================================================
+   左侧后台导航栏 (Rail / Drawer)
+   ============================================================ */
+.app-admin-side {
+  position: sticky !important;
+  top: 0 !important;
+  left: 0 !important;
+  display: flex !important;
+  width: 250px !important;
+  min-width: 250px !important;
+  max-width: 250px !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  box-sizing: border-box;
+  flex-direction: column !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-right: 1px solid var(--color-border) !important;
+  border-radius: 0 !important;
+  background: var(--color-bg-card, #10141a) !important;
+  box-shadow: none !important;
+  z-index: 40;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* 侧栏顶部 Brand */
+#page-admin .app-admin-side .app-admin-side__brand,
+.app-admin-side__brand-header,
+.app-admin-side__brand {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  height: 56px;
+  min-height: 56px;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--color-bg-card) 95%, transparent);
+}
+
+.app-admin-side__brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+.app-admin-brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-brand-soft, rgba(44, 75, 216, 0.16));
+  color: var(--color-brand);
+  border: 1px solid color-mix(in srgb, var(--color-brand) 32%, transparent);
+}
+
+.app-admin-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.app-admin-brand-title {
+  color: var(--color-text-primary);
+  font: 700 13.5px/1.2 var(--font-family-display, sans-serif);
+  letter-spacing: -0.01em;
+}
+
+.app-admin-brand-tag {
+  color: var(--color-text-tertiary);
+  font: 650 8px/1 var(--font-family-mono);
+  letter-spacing: 0.12em;
+}
+
+.app-admin-brand-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-admin-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  font: 600 8.5px/1 var(--font-family-mono);
+  color: #10b981;
+  letter-spacing: 0.06em;
+}
+
+.app-admin-pulse-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 5px rgba(16, 185, 129, 0.85);
+  animation: adminPulse 2.4s infinite ease-in-out;
+}
+
+@keyframes adminPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+.desktop-only {
+  display: inline-flex !important;
+}
+
+.app-admin-drawer-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+@media (max-width: 1023px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+.app-admin-drawer-close:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+/* 侧栏可滚动区域 */
+.app-admin-side__scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  padding: 10px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-admin-side__scroll::-webkit-scrollbar {
+  width: 3px;
+}
+.app-admin-side__scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: 3px;
+}
+
+.app-admin-side__primary {
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+}
+
+.app-admin-nav-item,
+.app-admin-side a {
+  display: flex !important;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px !important;
+  padding: 0 9px !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-decoration: none !important;
+  position: relative;
+  transition: background-color 140ms ease, color 140ms ease;
+  border: 0 !important;
+  box-sizing: border-box;
+}
+
+.app-admin-nav-item:hover,
+.app-admin-nav-item:focus-visible,
+.app-admin-side a:hover,
+.app-admin-side a:focus-visible {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.app-admin-nav-item.is-active,
+.app-admin-side a.is-active {
+  background: var(--color-brand-soft) !important;
+  color: var(--color-text-primary) !important;
+  font-weight: 600;
+  border-left: 2px solid var(--color-brand) !important;
+}
+
+.app-admin-nav-item.is-active .app-admin-nav-icon,
+.app-admin-side a.is-active .icon {
+  color: var(--color-brand) !important;
+}
+
+.app-admin-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+  transition: color 140ms ease;
+}
+
+.app-admin-nav-item:hover .app-admin-nav-icon {
+  color: var(--color-text-primary);
+}
+
+/* 分组样式 */
+.app-admin-side__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-admin-side__group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  margin: 0 !important;
+}
+
+.app-admin-side__label {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--color-text-tertiary) !important;
+  cursor: pointer;
+  font: 650 9.5px/1.2 var(--font-family-mono) !important;
+  letter-spacing: 0.1em !important;
+  text-align: left;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm, 4px);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.app-admin-side__label:hover,
+.app-admin-side__group.is-expanded > .app-admin-side__label {
+  color: var(--color-text-primary) !important;
+}
+
+.app-admin-chevron {
+  transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--color-text-tertiary);
+}
+
+.app-admin-side__group.is-expanded > .app-admin-side__label .app-admin-chevron {
+  transform: rotate(180deg);
+}
+
+.app-admin-side__items {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1px !important;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: max-height 180ms cubic-bezier(0.4, 0, 0.2, 1), opacity 140ms ease, visibility 0s linear 180ms;
+}
+
+.app-admin-side__group.is-expanded > .app-admin-side__items {
+  max-height: 560px;
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+/* 侧栏底部操作区 */
+.app-admin-side__foot {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px;
+  margin-top: auto !important;
+  padding: 12px 14px !important;
+  border-top: 1px solid var(--color-border) !important;
+  background: color-mix(in srgb, var(--color-bg-card) 97%, transparent);
+}
+
+.app-admin-side__exit {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px !important;
+  padding: 0 10px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  background: var(--color-bg-subtle) !important;
+  color: var(--color-text-secondary) !important;
+  font: 500 12px/1.2 var(--font-family-base) !important;
+  text-decoration: none !important;
+  transition: all 140ms ease;
+}
+
+.app-admin-side__exit:hover,
+.app-admin-side__exit:focus-visible {
+  border-color: var(--color-brand) !important;
+  color: var(--color-brand) !important;
+  background: var(--color-brand-soft) !important;
+}
+
+.app-admin-side__foot-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.app-admin-side__foot-badge {
+  color: var(--color-text-secondary);
+  font: 600 10px/1.3 var(--font-family-mono);
+}
+
+.app-admin-side__foot-audit {
+  color: var(--color-text-tertiary);
+  font: 400 9.5px/1.3 var(--font-family-base);
+}
+
+/* ============================================================
+   右侧主区域与专有 Header (Topbar)
+   ============================================================ */
+.app-admin-main-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 56px;
+  min-height: 56px;
+  padding: 0 clamp(16px, 2.5vw, 36px);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-page) 82%, transparent);
+  backdrop-filter: blur(16px);
+  box-sizing: border-box;
+}
+
+.app-admin-topbar__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.app-admin-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 面包屑导航 */
+.app-admin-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-admin-breadcrumb__item {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.app-admin-breadcrumb__root:hover {
+  color: var(--color-text-primary);
+}
+
+.app-admin-breadcrumb__sep {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.app-admin-breadcrumb__item.is-group {
+  color: var(--color-text-tertiary);
+}
+
+.app-admin-breadcrumb__item.is-current {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* 顶部操作图标按钮（主题切换 / 通知） */
+.app-admin-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  position: relative;
+  text-decoration: none;
+  transition: all 140ms ease;
+}
+
+.app-admin-icon-btn:hover {
+  border-color: var(--color-border-strong, #888);
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.app-admin-notif-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-danger, #ef4444);
+  box-shadow: 0 0 0 2px var(--color-bg-page);
+}
+
+/* 返回前台社区按钮 */
+.app-admin-topbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+  transition: all 140ms ease;
+}
+
+.app-admin-topbar__btn:hover {
+  border-color: var(--color-border-strong, #888);
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.app-admin-topbar__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--color-border);
+  margin: 0 4px;
+}
+
+/* 用户状态卡片 */
+.app-admin-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 2px;
+}
+
+.app-admin-user__avatar-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--color-border);
+}
+
+.app-admin-user__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-admin-user__name {
+  color: var(--color-text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.app-admin-user__role-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--color-brand-soft, rgba(44, 75, 216, 0.1));
+  color: var(--color-brand);
+  font: 600 9px/1 var(--font-family-mono);
+  letter-spacing: 0.02em;
+}
+
+.app-admin-user__logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all 140ms ease;
+  margin-left: 2px;
+}
+
+.app-admin-user__logout:hover {
+  border-color: color-mix(in srgb, var(--color-danger, #ef4444) 40%, transparent);
+  background: color-mix(in srgb, var(--color-danger, #ef4444) 10%, transparent);
+  color: var(--color-danger, #ef4444);
+}
+
+/* 主内容容器 */
+.app-admin-main {
+  flex: 1;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+.app-admin-main__inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+  padding: clamp(20px, 2.5vw, 36px) clamp(16px, 3vw, 40px) 60px;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   后台全局组件优化（卡片、表格、表单条）
+   ============================================================ */
+.app-admin-main .app-card {
+  border: 1px solid var(--color-border) !important;
+  background: var(--color-bg-card) !important;
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.app-admin-main .app-card__head {
+  min-height: 48px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-card) 98%, transparent);
+}
+
+.app-admin-main .app-card__body {
+  padding: 18px;
+}
+
+.app-admin-main .app-filter-tabs {
+  scrollbar-width: none;
+}
+
+.app-admin-main .app-filter-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.app-admin-main .app-filter-tabs a {
+  min-height: 38px;
+  flex: 0 0 auto;
+}
+
+.admin-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.admin-filter-bar > .app-field,
+.admin-filter-bar > input[type='search'] {
+  min-width: 220px;
+  flex: 1 1 260px;
+}
+
+.admin-filter-bar > .app-select,
+.admin-filter-bar > select {
+  min-width: 148px;
+  flex: 0 0 auto;
+}
+
+.admin-filter-bar__summary {
+  margin-right: auto;
+  color: var(--color-text-tertiary);
+  font: 11px/1.4 var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-batch-bar {
+  position: static !important;
+  width: auto !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-left: 2px solid var(--color-brand);
+  background: var(--color-brand-soft);
+  color: var(--color-text-primary);
+  border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0;
+}
+
+.admin-batch-bar__count {
+  font: 600 12px/1.4 var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-batch-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-batch-bar__clear {
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.admin-batch-bar__clear:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.app-admin-main .app-table-wrap {
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+
+.app-admin-main .app-table th {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   后台全局代码/标识符/标签规范（修复代码黑底黑字导致不可读）
+   ============================================================ */
+#page-admin code:not(pre code),
+.app-admin-shell code:not(pre code) {
+  display: inline-block;
+  padding: 1.5px 6px !important;
+  border-radius: var(--radius-sm, 4px) !important;
+  background: var(--color-bg-subtle, rgba(125, 125, 125, 0.1)) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 12px !important;
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+#page-admin .att-filename-btn code {
+  color: var(--color-text-primary) !important;
+  background: var(--color-bg-subtle, rgba(125, 125, 125, 0.1)) !important;
+}
+
+#page-admin .att-filename-btn:hover code {
+  color: var(--color-brand) !important;
+  border-color: color-mix(in srgb, var(--color-brand) 40%, var(--color-border)) !important;
+}
+
+/* ============================================================
+   移动端响应式交互
+   ============================================================ */
+.app-admin-menu,
+.app-admin-menu-backdrop {
+  display: none !important;
+}
+
+@media (max-width: 1023px) {
+  .app-admin-shell {
+    flex-direction: column !important;
+  }
+
+  .app-admin-menu {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--color-bg-raised);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    font-size: 12.5px;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+  }
+
+  .app-admin-menu__current {
+    display: none;
+  }
+
+  .app-admin-drawer-close {
+    display: inline-flex;
+  }
+
+  #page-admin .app-admin-menu-backdrop,
+  .app-admin-menu-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1190 !important;
+    display: block !important;
+    border: 0;
+    background: color-mix(in srgb, var(--color-bg-page) 75%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease;
+  }
+
+  #page-admin .app-admin-side,
+  .app-admin-side {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    z-index: 1200 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: min(300px, 85vw) !important;
+    max-width: min(300px, 85vw) !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-right: 1px solid var(--color-border) !important;
+    border-radius: 0 !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: 8px 0 36px rgba(0, 0, 0, 0.45) !important;
+    transform: translateX(-105%) !important;
+    visibility: hidden !important;
+    transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 240ms !important;
+  }
+
+  .app-admin-shell.admin-menu-open .app-admin-side,
+  #page-admin.admin-menu-open .app-admin-side,
+  #page-admin .app-admin-shell.admin-menu-open .app-admin-side {
+    display: flex !important;
+    transform: translateX(0) !important;
+    visibility: visible !important;
+    transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1), visibility 0s !important;
+  }
+
+  .app-admin-shell.admin-menu-open .app-admin-menu-backdrop,
+  #page-admin.admin-menu-open .app-admin-menu-backdrop,
+  #page-admin .app-admin-shell.admin-menu-open .app-admin-menu-backdrop {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  #page-admin .app-admin-side .app-admin-side__brand,
+  .app-admin-side__brand {
+    flex-shrink: 0 !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    padding-top: max(0px, env(safe-area-inset-top)) !important;
+  }
+
+  #page-admin .app-admin-side .app-admin-side__scroll,
+  .app-admin-side__scroll {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 10px 8px 16px !important;
+  }
+
+  #page-admin .app-admin-side .app-admin-side__foot,
+  .app-admin-side__foot {
+    flex-shrink: 0 !important;
+    margin-top: auto !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    background: color-mix(in srgb, var(--color-bg-card) 98%, transparent) !important;
+    border-top: 1px solid var(--color-border) !important;
+    z-index: 10;
+  }
+
+  .app-admin-main__inner {
+    padding: 16px 14px 40px;
+  }
+
+  .app-admin-breadcrumb__root span {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-admin-topbar {
+    height: 52px;
+    min-height: 52px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .app-admin-topbar__left {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .app-admin-topbar__right {
+    gap: 5px;
+  }
+
+  /* 移动端顶栏隐藏返回前台按钮与分隔线（侧栏抽屉底部已有返回前台入口） */
+  .app-admin-topbar .app-admin-topbar__btn,
+  .app-admin-topbar .app-admin-topbar__divider {
+    display: none !important;
+  }
+
+  .app-admin-topbar__btn-label,
+  .app-admin-user__meta {
+    display: none !important;
+  }
+
+  .app-admin-breadcrumb {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .app-admin-breadcrumb__item.is-group,
+  .app-admin-breadcrumb__sep.is-group {
+    display: none !important;
+  }
+
+  .app-admin-breadcrumb__item.is-current {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+
+  .app-admin-main__inner {
+    padding: 12px 10px 32px;
+  }
+
+  /* 通用表格容器：移动端水平惯性滚动与清晰间距 */
+  .app-admin-main .app-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .app-admin-main .app-table {
+    min-width: 580px;
+  }
+
+  /* 表格内单元格合理内边距 */
+  .app-admin-main .app-table th,
+  .app-admin-main .app-table td {
+    padding: 10px 10px;
+  }
+
+  /* 卡片内部紧凑间距 */
+  .app-card__head {
+    padding: 12px 14px !important;
+    min-height: 48px !important;
+  }
+
+  .app-card__body {
+    padding: 12px 12px !important;
+  }
+
+  .admin-filter-bar {
+    align-items: stretch;
+  }
+
+  .admin-filter-bar > .app-field,
+  .admin-filter-bar > input[type='search'],
+  .admin-filter-bar > .app-select,
+  .admin-filter-bar > select {
+    width: 100%;
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .admin-filter-bar__summary {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .admin-batch-bar__actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-admin-menu {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+
+  .app-admin-menu__text {
+    display: none !important;
+  }
+
+  .app-admin-breadcrumb__item.is-current {
+    max-width: 110px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-admin-side__label .icon,
+  .app-admin-chevron,
+  .app-admin-side__items,
+  .app-admin-side a,
+  .app-admin-nav-item,
+  .app-admin-menu-backdrop,
+  .app-admin-side,
+  .app-admin-pulse-dot {
+    transition: none !important;
+    animation: none !important;
+  }
+}

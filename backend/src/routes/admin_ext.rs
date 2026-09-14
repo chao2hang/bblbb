@@ -7,9 +7,11 @@
 //!   created_at DESC keyset 分页，users 左联 actor_username）；
 //! - 系统设置 `GET/PATCH /api/v1/admin/settings`（admin.manage；PATCH 用
 //!   If-Match version 乐观锁 + reason 审计，冲突 409）；
-//! - 帖子管理 `GET /api/v1/admin/posts?status=&board=&q=`（post.moderate）与
-//!   `POST /api/v1/admin/posts/{id}/action`（approve/reject/hide/restore/feature/
-//!   unfeature/pin/unpin/lock/unlock/delete，全部写审计）；
+//! - 帖子管理 `GET /api/v1/admin/posts?status=&board=&q=`（post.moderate）、
+//!   `GET /api/v1/admin/posts/{id}/revisions`（审核版本对比：全量修订快照投影
+//!   含正文，post.moderate）与 `POST /api/v1/admin/posts/{id}/action`
+//!   （approve/reject/hide/restore/feature/unfeature/pin/unpin/lock/unlock/
+//!   delete，全部写审计）；
 //! - 通知广播 `GET /api/v1/admin/notifications/outbox`、`POST .../broadcast`
 //!   （幂等 begin_or_replay，对 active 用户分批 500 插入 type='system' 通知）、
 //!   `POST .../outbox/{id}/recall`（删除该广播未读通知行，已读保留）；
@@ -71,6 +73,10 @@ pub fn router() -> Router<AppState> {
         )
         // 帖子管理（post.moderate）
         .route("/api/v1/admin/posts", get(list_admin_posts))
+        .route(
+            "/api/v1/admin/posts/{id}/revisions",
+            get(list_admin_post_revisions),
+        )
         .route("/api/v1/admin/posts/{id}/action", post(admin_post_action))
         // 通知广播（admin.manage）
         .route(
@@ -928,7 +934,7 @@ pub(crate) struct SiteSettingsRow {
 }
 
 /// 设置 JSON 投影（settings 字段集）。
-fn settings_json(r: &SiteSettingsRow) -> Value {
+fn settings_json(r: &SiteSettingsRow, currency_name: Option<&str>) -> Value {
     json!({
         "open_registration": r.open_registration != 0,
         "email_verification": r.email_verification != 0,
@@ -960,7 +966,21 @@ fn settings_json(r: &SiteSettingsRow) -> Value {
         "github_auth_enabled": r.github_auth_enabled != 0,
         "github_client_id": r.github_client_id,
         "github_client_secret_configured": !r.github_client_secret.is_empty(),
+        "currency_name": currency_name.unwrap_or("金币"),
     })
+}
+
+/// 读取核心货币（code='coin'）名称。
+async fn load_currency_name(
+    pool: &crate::db::DatabasePool,
+    request_id: &str,
+) -> Result<Option<String>, AppError> {
+    let sql = "SELECT name FROM currencies WHERE code = 'coin'";
+    match pool {
+        Either::Left(p) => sqlx::query_scalar::<_, String>(sql).fetch_optional(p).await,
+        Either::Right(p) => sqlx::query_scalar::<_, String>(sql).fetch_optional(p).await,
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))
 }
 
 /// 读取 site_settings 单行（迁移种子保证存在；缺失视为内部错误）。
@@ -1013,10 +1033,11 @@ async fn get_admin_settings(
     require_perm(pool, &user.id, "admin.manage", request_id).await?;
 
     let row = load_site_settings(pool, request_id).await?;
+    let currency_name = load_currency_name(pool, request_id).await?;
     let resp = (
         StatusCode::OK,
         Json(json!({
-            "settings": settings_json(&row),
+            "settings": settings_json(&row, currency_name.as_deref()),
             "version": row.version,
             "updated_at": row.updated_at,
         })),
@@ -1233,13 +1254,18 @@ async fn update_admin_settings(
         }
     }
     // smtp_pass: 敏感凭据。若传非 null 字符串则更新密码（空字符串允许清空密码）；缺字段或 null 保持原值。
+    // P0 整改：落库前用 BBLBB__SETTINGS_ENCRYPTION_KEY 静态加密（enc1: 密文）。
     if let Some(v) = flat.get("smtp_pass") {
         if !v.is_null() {
             let pass = v.as_str().ok_or_else(|| {
                 AppError::bad_request("smtp_pass must be a string or null", request_id, None)
             })?;
-            if next.smtp_pass != pass {
-                next.smtp_pass = pass.to_string();
+            let encrypted = crate::config::secret_crypto::encrypt_setting(
+                &state.config.settings_encryption_key,
+                pass,
+            );
+            if next.smtp_pass != encrypted {
+                next.smtp_pass = encrypted;
                 changed.push("smtp_pass".to_string());
             }
         }
@@ -1350,8 +1376,13 @@ async fn update_admin_settings(
                     None,
                 )
             })?;
-            if !pass.is_empty() && next.google_client_secret != pass {
-                next.google_client_secret = pass.to_string();
+            // P0 整改：落库前静态加密（空串保持清空语义）。
+            let encrypted = crate::config::secret_crypto::encrypt_setting(
+                &state.config.settings_encryption_key,
+                pass,
+            );
+            if !pass.is_empty() && next.google_client_secret != encrypted {
+                next.google_client_secret = encrypted;
                 changed.push("google_client_secret".to_string());
             }
         }
@@ -1374,10 +1405,53 @@ async fn update_admin_settings(
                     None,
                 )
             })?;
-            if !pass.is_empty() && next.github_client_secret != pass {
-                next.github_client_secret = pass.to_string();
+            // P0 整改：落库前静态加密（空串保持清空语义）。
+            let encrypted = crate::config::secret_crypto::encrypt_setting(
+                &state.config.settings_encryption_key,
+                pass,
+            );
+            if !pass.is_empty() && next.github_client_secret != encrypted {
+                next.github_client_secret = encrypted;
                 changed.push("github_client_secret".to_string());
             }
+        }
+    }
+
+    if let Some(v) = flat.get("currency_name") {
+        let name = v.as_str().map(str::trim).ok_or_else(|| {
+            AppError::bad_request("currency_name must be a string", request_id, None)
+        })?;
+        let len = name.chars().count();
+        if !(1..=16).contains(&len) {
+            return Err(AppError::bad_request(
+                "currency_name must be 1-16 characters",
+                request_id,
+                None,
+            ));
+        }
+        let current_name = load_currency_name(pool, request_id).await?;
+        if current_name.as_deref() != Some(name) {
+            let sql = "UPDATE currencies SET name = ?, updated_at = ? WHERE code = 'coin'";
+            let now_sec = now_millis() / 1000;
+            match pool {
+                Either::Left(p) => {
+                    sqlx::query(sql)
+                        .bind(name)
+                        .bind(now_sec)
+                        .execute(p)
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                }
+                Either::Right(p) => {
+                    sqlx::query(sql)
+                        .bind(name)
+                        .bind(now_sec)
+                        .execute(p)
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                }
+            };
+            changed.push("currency_name".to_string());
         }
     }
 
@@ -1488,10 +1562,11 @@ async fn update_admin_settings(
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
     let row = load_site_settings(pool, request_id).await?;
+    let currency_name = load_currency_name(pool, request_id).await?;
     let resp = (
         StatusCode::OK,
         Json(json!({
-            "settings": settings_json(&row),
+            "settings": settings_json(&row, currency_name.as_deref()),
             "version": row.version,
             "updated_at": row.updated_at,
         })),
@@ -1717,6 +1792,71 @@ async fn list_admin_posts(
         Json(json!({ "items": items, "next_cursor": next_cursor, "counts": counts_json })),
     )
         .into_response();
+    Ok(private_no_store(resp))
+}
+
+/// GET /api/v1/admin/posts/{id}/revisions — 帖子审核版本对比（post.moderate）。
+///
+/// 返回帖子全部不可变修订快照（post_revisions；创建写 v1、每次编辑 +1，
+/// M04-POSTS-11）含 body_markdown/body_html，供管理台内容审核页生成
+/// 「修改前/修改后」对比块后放行 approve/reject。与公开端点
+/// `GET /posts/{id}/revisions` 的差异：
+/// - 权限门为 `post.moderate`（公开端点为 `post.read_revision`）；
+/// - 不限制帖子状态：待审草稿（status='draft' AND review_status=
+///   'pending_review'，0046 风险审核）是审核队列的主要对象，而公开端点对
+///   非 published|hidden 一律 404；
+/// - 正文始终返回（修订正文对审核员始终可见，M04-POSTS-11）；
+/// - 列表读取不写审计（与公开修订列表一致）。
+async fn list_admin_post_revisions(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Response, AppError> {
+    let request_id = "list_admin_post_revisions";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_perm(pool, &user.id, "post.moderate", request_id).await?;
+
+    // 帖子存在性（与 admin 动作 load_post_state 同口径：不限状态、含已删除）。
+    let exists = match pool {
+        Either::Left(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM posts WHERE id = ?")
+            .bind(&id)
+            .fetch_one(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM posts WHERE id = ?")
+            .bind(&id)
+            .fetch_one(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    if exists == 0 {
+        return Err(AppError::not_found("post not found", request_id));
+    }
+
+    let revisions = crate::content::repository::list_post_revisions(pool, &id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let items: Vec<Value> = revisions
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.id,
+                "resource_id": r.post_id,
+                "version": r.version,
+                "editor": { "id": r.editor_id },
+                "reason": r.change_reason,
+                "created_at": r.created_at,
+                "body_markdown": r.body_markdown,
+                "body_html": r.body_html,
+            })
+        })
+        .collect();
+
+    let resp = (StatusCode::OK, Json(json!({ "items": items }))).into_response();
     Ok(private_no_store(resp))
 }
 
@@ -2582,6 +2722,16 @@ async fn assign_user_role(
     let Some(role_id) = role_id_by_name(pool, &role_name, request_id).await? else {
         return Err(AppError::not_found("role not found", request_id));
     };
+    // user_roles 只承载全局角色；板块角色必须通过
+    // /admin/boards/{id}/roles 写入 board_role_assignments，避免把
+    // board_moderator 的板块权限提升为全局权限。
+    if matches!(role_name.as_str(), "board_moderator") {
+        return Err(AppError::bad_request(
+            "board-scoped roles must be assigned to a board",
+            request_id,
+            None,
+        ));
+    }
 
     // 幂等：已有分配直接返回（不重复插入、不重复审计）。
     let already: i64 = match pool {
@@ -2675,6 +2825,20 @@ async fn revoke_user_role(
     let Some(role_id) = role_id_by_name(pool, &role_name, request_id).await? else {
         return Err(AppError::not_found("role not found", request_id));
     };
+
+    // 最后管理员保护（docs/AUTHORIZATION.md §10）：不能撤销最后一名
+    // active administrator 的 administrator 角色，否则系统失去可恢复入口。
+    if role_name == "administrator" {
+        let last = crate::bootstrap::is_last_active_admin(pool, &id)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        if last {
+            return Err(AppError::conflict(
+                "cannot revoke the last active administrator",
+                request_id,
+            ));
+        }
+    }
 
     let deleted = match pool {
         Either::Left(p) => sqlx::query("DELETE FROM user_roles WHERE user_id = ? AND role_id = ?")

@@ -1,5 +1,7 @@
 <script lang="ts">
   // M14-COMPONENTS-01：可访问 Table 基础组件。
+  // 使用 blbui aui-table 作为可见外壳；原生 table 保留 caption、scope、SSR
+  // 和无 JS 数据读取语义。
   //
   // - 语义 <table> + <caption>（标题供读屏/全体用户理解表格内容）；
   // - 表头 <th scope="col">（列头语义，读屏逐列播报）；
@@ -40,36 +42,38 @@
   };
 </script>
 
-<div class="data-table-wrapper {klass}">
-  <table class="data-table">
-    {#if caption}<caption class="u-visually-hidden">{caption}</caption>{/if}
-    <thead>
-      <tr>
-        {#each columns as column}
-          <th scope="col" class={alignClass(column.align)} style={column.width ? `width:${column.width};` : ''}>
-            {column.label}
-          </th>
-        {/each}
-      </tr>
-    </thead>
-    <tbody>
-      {#if children}
-        {@render children()}
-      {:else if rows.length > 0}
-        {#each rows as row}
-          <tr>
-            {#each row as cell}
-              <td>{@render cell()}</td>
-            {/each}
-          </tr>
-        {/each}
-      {:else}
+<aui-table class="bblbb-aui-table-host" empty-label={emptyText}>
+  <div class="data-table-wrapper {klass}">
+    <table class="data-table">
+      {#if caption}<caption class="u-visually-hidden">{caption}</caption>{/if}
+      <thead>
         <tr>
-          <td colspan={columns.length || 1} style="text-align:center;color:var(--color-text-tertiary);">
-            {emptyText}
-          </td>
+          {#each columns as column}
+            <th scope="col" class={alignClass(column.align)} style={column.width ? `width:${column.width};` : ''}>
+              {column.label}
+            </th>
+          {/each}
         </tr>
-      {/if}
-    </tbody>
-  </table>
-</div>
+      </thead>
+      <tbody>
+        {#if children}
+          {@render children()}
+        {:else if rows.length > 0}
+          {#each rows as row}
+            <tr>
+              {#each row as cell}
+                <td>{@render cell()}</td>
+              {/each}
+            </tr>
+          {/each}
+        {:else}
+          <tr>
+            <td colspan={columns.length || 1} style="text-align:center;color:var(--color-text-tertiary);">
+              {emptyText}
+            </td>
+          </tr>
+        {/if}
+      </tbody>
+    </table>
+  </div>
+</aui-table>

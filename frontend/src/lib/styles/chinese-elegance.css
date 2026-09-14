@@ -55,9 +55,9 @@ body {
 .avatar.lg,
 .avatar.xl,
 .avatar.xxl {
-  border-radius: 2px !important;
-  background: var(--color-border-strong) !important;
-  color: var(--color-brand) !important;
+  border-radius: 0 !important;
+  background: var(--avatar-bg, var(--color-border-strong));
+  color: var(--avatar-color, var(--color-brand));
   font-weight: 600 !important;
   border: 1px solid var(--color-border) !important;
   box-shadow: none !important;
@@ -71,7 +71,7 @@ h1, h2, h3, h4, h5, h6,
 .page-title,
 .profile-card h2,
 .login-card h1,
-.app-route-head h1,
+.legacy-route-head h1,
 .side-title,
 .dd-head,
 .section-title {
@@ -92,61 +92,71 @@ h1, h2, h3, h4, h5, h6,
   line-height: 1.5 !important;
 }
 
-/* ========== 按钮系统 ========== */
+/* ========== 按钮系统（blbui AdminButton 的原生表单适配） ========== */
 .btn,
 .btn--primary,
 .btn--secondary,
 .btn--ghost,
 .publish,
 button[type="submit"] {
-  font-family: var(--font-family-base) !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
-  border-radius: 2px !important;
-  padding: 8px 20px !important;
-  transition: all 0.15s !important;
+  min-height: var(--aui-control-height) !important;
+  padding: 4px 12px !important;
+  border: 1px solid var(--aui-border) !important;
+  border-radius: var(--aui-radius) !important;
+  background: transparent !important;
+  color: var(--aui-text) !important;
+  font: 700 12px/1.2 var(--aui-font-mono) !important;
+  letter-spacing: -0.025em !important;
   box-shadow: none !important;
   text-transform: none !important;
+  transition: background-color var(--aui-transition), border-color var(--aui-transition), color var(--aui-transition) !important;
 }
 
-/* 主按钮 */
+.btn:hover:not(:disabled),
+.publish:hover,
+button[type="submit"]:hover:not(:disabled) {
+  border-color: var(--aui-border-hover) !important;
+  background: var(--aui-control-bg-hover) !important;
+  color: var(--aui-text-primary) !important;
+}
+
 .btn.primary,
 .btn--primary,
 .publish,
 button[type="submit"]:not(.secondary):not(.ghost) {
-  background: var(--color-brand) !important;
-  color: #FFFFFF !important;
-  border: none !important;
-}
-.btn.primary:hover,
-.btn--primary:hover,
-.publish:hover {
-  background: var(--color-brand-hover) !important;
+  border-color: var(--aui-primary) !important;
+  background: var(--aui-primary) !important;
+  color: var(--aui-primary-content) !important;
 }
 
-/* 次要按钮 */
+.btn.primary:hover:not(:disabled),
+.btn--primary:hover:not(:disabled),
+.publish:hover,
+button[type="submit"]:not(.secondary):not(.ghost):hover:not(:disabled) {
+  border-color: var(--aui-primary) !important;
+  background: var(--aui-primary) !important;
+  color: var(--aui-primary-content) !important;
+}
+
 .btn.secondary,
 .btn--secondary,
 .btn:not(.primary):not(.ghost) {
   background: transparent !important;
-  color: var(--color-text-primary) !important;
-  border: 1px solid var(--color-border-strong) !important;
-}
-.btn.secondary:hover,
-.btn--secondary:hover {
-  background: var(--color-bg-subtle) !important;
+  color: var(--aui-text) !important;
 }
 
-/* 文本按钮 */
 .btn.ghost,
 .btn--ghost {
+  border-color: transparent !important;
   background: transparent !important;
-  color: var(--color-brand) !important;
-  border: none !important;
+  color: var(--aui-text-secondary) !important;
 }
-.btn.ghost:hover {
-  color: var(--color-brand-hover) !important;
-  background: var(--color-brand-soft) !important;
+
+.btn.ghost:hover:not(:disabled),
+.btn--ghost:hover:not(:disabled) {
+  border-color: var(--aui-border-hover) !important;
+  background: var(--aui-control-bg-hover) !important;
+  color: var(--aui-text-primary) !important;
 }
 
 /* ========== Tag / 徽章：优雅圆角胶囊与柔和底色 ========== */
@@ -457,25 +467,6 @@ td,
 
 /* ========== 移动端适配 ========== */
 @media (max-width: 768px) {
-  .mobile-hero {
-    background: var(--color-brand) !important;
-  }
-  
-  .mobile-logo {
-    font-family: var(--font-family-serif) !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.12em !important;
-  }
-  
-  .mobile-theme,
-  .mobile-doc-link {
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    background: rgba(255, 255, 255, 0.18) !important;
-    border-radius: 9999px !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-  }
-  
   .bottom-nav {
     background: var(--color-bg-card) !important;
     border-top: var(--border-default) !important;
@@ -516,10 +507,10 @@ html[data-theme="dark"] textarea:focus {
    Only layout, interaction affordances and responsive behavior.
    ============================================================ */
 
-/* Dynamic route canvas */
+/* Dynamic route canvas —— 与首页 .container 同宽（var(--container-max)） */
 .app-page {
-  width: min(1180px, calc(100% - 48px)) !important;
-  max-width: 1180px !important;
+  width: min(var(--container-max), calc(100% - 48px)) !important;
+  max-width: var(--container-max) !important;
   margin: 0 auto !important;
   padding: 20px 0 88px !important;
 }
@@ -532,7 +523,7 @@ html[data-theme="dark"] textarea:focus {
   min-height: calc(100vh - 164px) !important;
   padding: 0 !important;
   /* 背景改由 body 层铺满整个视口（见下方 body:has 规则），
-     内容列（.app-page max-width 1180px）只负责居中卡片，避免渐变背景只覆盖中间一列。 */
+     内容列（.app-page max-width var(--container-max)）只负责居中卡片，避免渐变背景只覆盖中间一列。 */
   background: transparent;
 }
 /* 登录路由可见时（独立页与 SPA 挂载均命中），把径向渐变背景提到 body 上，
@@ -540,7 +531,7 @@ html[data-theme="dark"] textarea:focus {
 body:has(#page-login:not([hidden])) {
   background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--color-brand) 10%, transparent), transparent 38%), var(--color-bg-page) !important;
 }
-.app-route-head {
+.legacy-route-head {
   display: flex !important;
   align-items: flex-end !important;
   justify-content: space-between !important;
@@ -549,14 +540,14 @@ body:has(#page-login:not([hidden])) {
   padding: 8px 0 0 !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
-.app-route-head__copy { min-width: 0 !important; }
+.legacy-route-head__copy { min-width: 0 !important; }
 .app-kicker {
   color: var(--color-brand) !important;
   font: 600 11px/18px var(--font-family-mono) !important;
   letter-spacing: .12em !important;
   text-transform: uppercase !important;
 }
-.app-route-head h1 {
+.legacy-route-head h1 {
   margin: 7px 0 6px !important;
   color: var(--color-text-primary) !important;
   font-family: var(--font-family-serif) !important;
@@ -565,8 +556,8 @@ body:has(#page-login:not([hidden])) {
   letter-spacing: .02em !important;
   line-height: 1.35 !important;
 }
-.app-route-head p { margin: 0 0 14px !important; color: var(--color-text-secondary) !important; font-size: 13px !important; }
-.app-route-head__actions { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; }
+.legacy-route-head p { margin: 0 0 14px !important; color: var(--color-text-secondary) !important; font-size: 13px !important; }
+.legacy-route-head__actions { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; }
 
 /* Cards and content groups */
 .app-grid, .topic-layout, .app-form-layout, .app-settings-layout, .app-admin-shell, .app-message-layout {
@@ -627,6 +618,19 @@ body:has(#page-login:not([hidden])) {
 /* Topic detail hierarchy */
 .topic-head-card { padding: 20px !important; }
 .topic-head-card h1 { max-width: 840px !important; margin: 10px 0 14px !important; font-family: var(--font-family-serif) !important; font-size: clamp(22px, 3vw, 30px) !important; font-weight: 500 !important; line-height: 1.45 !important; }
+/* 标题行基线：桌面端标题与「内容」徽标同行（缺省 display 下徽标会换行到标题下方）；
+   767px 以下由下方媒体查询折为纵列（徽标在上）。 */
+@media (min-width: 768px) {
+  .topic-head-card .post-title-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap;
+  }
+  .topic-head-card .post-title-row h1 {
+    margin: 0 !important;
+  }
+}
 .topic-body-card { padding: 24px !important; }
 .topic-prose { max-width: 740px !important; color: var(--color-text-primary) !important; font-size: 16px !important; line-height: 1.85 !important; }
 .topic-prose h2 { margin: 30px 0 10px !important; font-family: var(--font-family-serif) !important; font-size: 20px !important; font-weight: 500 !important; }
@@ -636,10 +640,7 @@ body:has(#page-login:not([hidden])) {
 .topic-editor textarea { min-height: 120px !important; width: 100% !important; resize: vertical !important; }
 .topic-restricted { border: 1px dashed var(--color-border-strong) !important; border-radius: 2px !important; background: var(--color-bg-subtle) !important; }
 
-/* Admin efficiency */
-.app-admin-side { position: sticky !important; top: 76px !important; border-radius: 2px !important; box-shadow: none !important; }
-.app-admin-side a { min-height: 36px !important; border-radius: 0 !important; }
-.app-admin-side a.is-active { border-left: 2px solid var(--color-brand) !important; }
+/* Admin table layout */
 .app-table-wrap { overflow-x: auto !important; border: 1px solid var(--color-border) !important; }
 .app-table { min-width: 680px !important; }
 .app-table th { height: 40px !important; background: var(--color-bg-subtle) !important; }
@@ -653,42 +654,31 @@ body:has(#page-login:not([hidden])) {
   .page-wrapper { padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
 }
 
-/* Do not let the Chinese theme destroy functional round controls */
-.avatar, .avatar-sm, .seg-knob, .bottom-nav button, .nav-dot, .dot { border-radius: 50% !important; }
+/* Keep functional round controls round; avatars follow the square contract. */
+.seg-knob, .bottom-nav button, .nav-dot, .dot { border-radius: 50% !important; }
 
 /* Responsive breakpoints */
 @media (max-width: 1199px) {
   .desktop-header { gap: 16px !important; }
   .desktop-header .search { width: clamp(220px, 32vw, 420px) !important; }
   .desktop-nav { gap: 12px !important; }
-  .app-page { width: min(100% - 32px, 1120px) !important; }
+  .app-page { width: min(100% - 32px, var(--container-max)) !important; }
 }
 @media (max-width: 999px) {
-  #page-home, #page-discover { grid-template-columns: minmax(0, 1fr) !important; }
-  #page-home > .category-card, #page-discover > .side-hot { display: none !important; }
-  #page-home > .right-rail, #page-discover > .right-rail { display: none !important; }
+  #page-home, #page-discover, #page-board { grid-template-columns: minmax(0, 1fr) !important; }
+  #page-home > .category-card, #page-discover > .side-hot, #page-board > .category-card { display: none !important; }
+  #page-home > .right-rail, #page-discover > .right-rail, #page-board > .right-rail { display: none !important; }
   .app-grid, .topic-layout, .app-form-layout, .app-settings-layout { grid-template-columns: minmax(0, 1fr) !important; }
   .topic-side { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  .app-admin-shell { grid-template-columns: 190px minmax(0, 1fr) !important; }
 }
 @media (max-width: 767px) {
-  #page-admin .app-admin-shell { position: relative !important; }
-  #page-admin .app-admin-menu { display: flex !important; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin: 0 0 8px; border: 1px solid var(--color-border) !important; border-radius: 2px; background: var(--color-bg-card) !important; color: var(--color-text-primary) !important; font-size: 12px; cursor: pointer; }
-  #page-admin .app-admin-side { display: none !important; position: absolute !important; z-index: 20; top: 52px; left: 0; right: 0; max-height: min(70vh, 520px) !important; overflow-y: auto !important; overflow-x: hidden !important; margin: 0 !important; padding: 10px !important; white-space: normal !important; background: var(--color-bg-card) !important; box-shadow: 0 12px 28px color-mix(in srgb, var(--color-bg-page) 28%, transparent); }
-  #page-admin .app-admin-shell.admin-menu-open .app-admin-side { display: block !important; }
-  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
-  #page-admin .app-admin-side__label { display: block !important; }
-  #page-admin .app-admin-side a { display: flex !important; }
-  #page-admin .app-admin-side__brand, #page-admin .app-admin-side__foot { display: block !important; }
-  #page-admin .app-admin-side__foot { margin-top: 8px; }
-  #page-admin .app-admin-main { position: relative !important; }
   #page-admin .admin-batch-bar { z-index: 10060 !important; }
   .desktop-header { display: none !important; }
   .app-page { width: 100% !important; padding: 20px 0 calc(48px + env(safe-area-inset-bottom)) !important; }
   #page-login.app-page.login-page { min-height: calc(100vh - 104px - env(safe-area-inset-bottom)) !important; padding: 28px 16px 16px !important; }
-  .app-route-head { display: block !important; margin: 0 0 12px !important; padding: 14px 16px !important; background: var(--color-bg-card) !important; }
-  .app-route-head__actions { margin-top: 12px !important; }
-  .app-route-head__actions .btn { flex: 1 1 auto !important; }
+  .legacy-route-head { display: block !important; margin: 0 0 12px !important; padding: 14px 16px !important; background: var(--color-bg-card) !important; }
+  .legacy-route-head__actions { margin-top: 12px !important; }
+  .legacy-route-head__actions .btn { flex: 1 1 auto !important; }
   .app-card { border-left: 0 !important; border-right: 0 !important; }
   .app-card__body { padding: 14px !important; }
   .app-post-row { min-height: 72px !important; padding: 12px 14px !important; }
@@ -704,11 +694,6 @@ body:has(#page-login:not([hidden])) {
   .topic-side { display: block !important; }
   .app-message-layout { grid-template-columns: 1fr !important; }
   .app-conversations { max-height: 220px !important; }
-  .app-admin-shell { display: block !important; }
-  .app-admin-side { position: static !important; display: flex !important; flex-direction: row !important; overflow-x: auto !important; margin: 0 -14px 12px !important; padding: 8px 14px !important; white-space: nowrap !important; }
-  .app-admin-side__brand, .app-admin-side__label, .app-admin-side__foot { display: none !important; }
-  .app-admin-side__group { display: flex !important; flex-direction: row !important; flex: 0 0 auto !important; }
-  .app-admin-side a { flex: 0 0 auto !important; min-height: 40px !important; padding: 0 10px !important; }
   .app-table-wrap { margin: 0 -14px !important; border-left: 0 !important; border-right: 0 !important; }
   .app-modal-backdrop { padding: 10px !important; }
   .app-modal { width: 100% !important; max-height: calc(100vh - 20px) !important; border-radius: 2px !important; }
@@ -719,17 +704,6 @@ body:has(#page-login:not([hidden])) {
   background: color-mix(in srgb, var(--color-bg-page) 72%, transparent) !important;
 }
 
-/* Final mobile admin menu override: the sidebar becomes an actual drawer. */
-@media (max-width: 767px) {
-  #page-admin .app-admin-shell { position: relative !important; }
-  #page-admin .app-admin-menu { display: flex !important; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin: 0 0 8px; border: 1px solid var(--color-border) !important; background: var(--color-bg-card) !important; color: var(--color-text-primary) !important; cursor: pointer; }
-  #page-admin .app-admin-side { display: none !important; position: absolute !important; z-index: 20; top: 52px; left: 0; right: 0; max-height: min(70vh, 520px) !important; overflow-y: auto !important; overflow-x: hidden !important; margin: 0 !important; padding: 10px !important; white-space: normal !important; background: var(--color-bg-card) !important; box-shadow: 0 12px 28px color-mix(in srgb, var(--color-bg-page) 28%, transparent); }
-  #page-admin .app-admin-shell.admin-menu-open .app-admin-side { display: block !important; }
-  #page-admin .app-admin-side__brand, #page-admin .app-admin-side__label, #page-admin .app-admin-side__foot { display: block !important; }
-  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
-  #page-admin .app-admin-side a { display: flex !important; }
-}
-@media (min-width: 768px) { #page-admin .app-admin-menu { display: none !important; } }
 
 /* Mobile messages follow a WeChat-style two-state flow: inbox first, then a
  * full-height conversation after choosing a person. Desktop stays split-view. */
@@ -805,20 +779,6 @@ body:has(#page-login:not([hidden])) {
   #page-messages .app-chat__foot > .btn { flex: 0 0 76px; }
 }
 
-/* Admin sidebar accordion: keep the same vertical interaction on narrow
- * screens instead of reverting to the legacy horizontal tab strip. */
-.app-admin-side__items { min-width: 0; }
-@media (max-width: 767px) {
-  #page-admin .app-admin-side { white-space: normal !important; }
-  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
-  #page-admin .app-admin-side__label { display: flex !important; min-height: 40px !important; padding: 0 8px !important; }
-  #page-admin .app-admin-side__items { display: flex !important; flex-direction: column !important; max-height: 0; }
-  #page-admin .app-admin-side__group.is-expanded > .app-admin-side__items { max-height: 520px; }
-  #page-admin .app-admin-side__items a { display: flex !important; }
-}
-@media (min-width: 768px) {
-  #page-admin .app-admin-menu { display: none !important; }
-}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
@@ -867,15 +827,8 @@ body:has(#page-login:not([hidden])) {
 .closet-preview { color: var(--color-brand) !important; border-color: var(--color-border-strong) !important; }
 .balance-card--coin .balance-card__icon, .balance-card--contribution .balance-card__icon { background: var(--color-bg-subtle) !important; color: var(--color-brand) !important; }
 
-/* Static mobile home: utility actions remain available. */
-.mobile-search-link { display: none; }
 @media (max-width: 767px) {
-  .mobile-hero { padding-top: 48px !important; }
-  .mobile-search-link { position: absolute; top: 14px; right: 58px; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; color: #fff; background: rgba(255,255,255,.18); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,.08); text-decoration: none; }
-  .mobile-theme { right: 14px !important; }
-  .mobile-categories { position: sticky !important; top: 0 !important; z-index: 15 !important; }
-  .mobile-categories .list { min-width: 44px !important; min-height: 44px !important; }
-  .feed-toolbar { display: flex !important; position: sticky !important; top: 53px !important; z-index: 14 !important; height: auto !important; min-height: 44px !important; padding: 0 14px !important; border-top: 0 !important; border-bottom: 1px solid var(--color-border) !important; border-radius: 0 !important; background: var(--color-bg-card) !important; }
+  .feed-toolbar { display: flex !important; position: sticky !important; top: 0 !important; z-index: 14 !important; height: auto !important; min-height: 44px !important; padding: 0 14px !important; border-top: 0 !important; border-bottom: 1px solid var(--color-border) !important; border-radius: 0 !important; background: var(--color-bg-card) !important; }
   .feed-toolbar .filters { width: 100% !important; gap: 12px !important; overflow-x: auto !important; }
   .feed-toolbar .filters > button { min-height: 44px !important; padding: 0 8px !important; }
   .feed-toolbar .publish { display: none !important; }
@@ -903,12 +856,6 @@ body:has(#page-login:not([hidden])) {
   }
 }
 
-/* Admin mobile nav: show a compact current-module strip rather than the entire tree. */
-@media (max-width: 767px) {
-  .app-admin-side { max-height: 58px !important; overflow-x: auto !important; overflow-y: hidden !important; align-items: center !important; gap: 4px !important; }
-  .app-admin-side__group { margin-right: 0 !important; }
-  .app-admin-side a { min-height: 40px !important; }
-}
 
 /* Tabs, toggles and status controls retain a usable hit target. */
 .app-filter-tabs button, .notif-tabs button, .app-settings-nav button { min-height: 44px !important; }
@@ -968,8 +915,8 @@ body:has(#page-login:not([hidden])) {
 #page-messages.app-page[hidden] { display: none !important; }
 
 #page-me.app-page {
-  width: min(1120px, calc(100% - 48px)) !important;
-  max-width: 1120px !important;
+  width: min(var(--container-max), calc(100% - 48px)) !important;
+  max-width: var(--container-max) !important;
 }
 #page-me .app-profile {
   display: grid !important;
@@ -980,10 +927,19 @@ body:has(#page-login:not([hidden])) {
   margin: 0 0 16px !important;
   padding: 24px !important;
 }
-#page-me .app-profile > .avatar {
+/* 头像在页面里由 CosmeticAvatar 包裹（.app-profile > .cosmetic-avatar > .avatar），
+   必须用后代选择器命中；否则 prototype-app 的 `.app-profile .avatar`
+   （width/flex-basis: 88px，无 height 匹配）会把它拉成 88×64 的长方形。 */
+#page-me .app-profile .avatar,
+#page-user .app-profile .avatar,
+#page-me .app-profile .cosmetic-avatar,
+#page-user .app-profile .cosmetic-avatar {
   width: 72px !important;
   height: 72px !important;
   flex-basis: 72px !important;
+}
+#page-me .app-profile .avatar,
+#page-user .app-profile .avatar {
   font-size: 24px !important;
 }
 #page-me .app-profile > div { min-width: 0 !important; }
@@ -1158,7 +1114,7 @@ body:has(#page-login:not([hidden])) {
 #mock-workflow-root {
   color: var(--color-text-primary) !important;
 }
-.app-page .app-route-head,
+.app-page .legacy-route-head,
 #mock-workflow-root .mock-head {
   border-bottom: 1px solid var(--color-border) !important;
 }
@@ -1202,208 +1158,8 @@ body:has(#page-login:not([hidden])) {
   #page-home .feed-toolbar { display: flex !important; }
   #page-home .feed-toolbar .publish { order: 2 !important; }
   #page-home .feed-toolbar .filters { order: 1 !important; }
-#page-home .feed-toolbar .filters > button { flex: 0 0 auto !important; }
+  #page-home .feed-toolbar .filters > button { flex: 0 0 auto !important; }
   #page-home .home-type-menu { z-index: 30 !important; }
-  #page-home .mobile-hero { margin: 0 !important; }
-}
-
-/* Home mobile header: keep utility actions, identity, and stats in clear bands. */
-@media (max-width: 767px) {
-  #page-home .mobile-hero {
-    display: block !important;
-    position: relative !important;
-    height: 160px !important;
-    padding: calc(14px + env(safe-area-inset-top)) 16px 0 !important;
-    background: linear-gradient(168deg, var(--color-brand) 0%, color-mix(in srgb, var(--color-brand) 75%, #000) 100%) !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-  }
-  #page-home .mobile-doc-link {
-    position: absolute !important;
-    top: calc(14px + env(safe-area-inset-top)) !important;
-    left: 16px !important;
-    min-width: 0 !important;
-    width: auto !important;
-    height: 34px !important;
-    padding: 0 13px !important;
-    border-radius: 9999px !important;
-    background: rgba(255, 255, 255, 0.18) !important;
-    border: 1px solid rgba(255, 255, 255, 0.22) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    color: #ffffff !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 5px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
-    text-decoration: none !important;
-  }
-  #page-home .mobile-search-link {
-    position: absolute !important;
-    top: calc(14px + env(safe-area-inset-top)) !important;
-    right: 16px !important;
-    width: 38px !important;
-    height: 38px !important;
-    border-radius: 9999px !important;
-    background: rgba(255, 255, 255, 0.18) !important;
-    border: 1px solid rgba(255, 255, 255, 0.22) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    color: #ffffff !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
-    text-decoration: none !important;
-  }
-  #page-home .mobile-logo {
-    position: absolute !important;
-    top: calc(50px + env(safe-area-inset-top)) !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: auto !important;
-    height: 34px !important;
-    line-height: 34px !important;
-    text-align: center !important;
-    font-size: 28px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.14em !important;
-    color: #ffffff !important;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.16) !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  #page-home .hero-stats {
-    position: absolute !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 12px !important;
-    height: 34px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 8px !important;
-    margin: 0 !important;
-    padding: 0 12px !important;
-    border-top: none !important;
-  }
-  #page-home .hero-stats button {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 4px !important;
-    min-width: 0 !important;
-    height: 30px !important;
-    padding: 0 12px !important;
-    border-radius: 9999px !important;
-    background: rgba(255, 255, 255, 0.14) !important;
-    backdrop-filter: blur(8px) !important;
-    -webkit-backdrop-filter: blur(8px) !important;
-    border: none !important;
-    color: rgba(255, 255, 255, 0.92) !important;
-    font-size: 12px !important;
-    white-space: nowrap !important;
-  }
-  #page-home .hero-stats button + button {
-    border-left: none !important;
-  }
-  #page-home .hero-stats b { color: #fff !important; font-weight: 700 !important; }
-  #page-home .mobile-categories {
-    height: 48px !important;
-    padding: 0 12px !important;
-    gap: 8px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    overflow-x: auto !important;
-    scrollbar-width: none !important;
-    -webkit-overflow-scrolling: touch !important;
-    background: var(--color-bg-card) !important;
-    border-bottom: 1px solid var(--color-border-thin) !important;
-  }
-  #page-home .mobile-categories::-webkit-scrollbar { display: none !important; }
-  #page-home .mobile-categories a,
-  #page-home .mobile-categories button {
-    min-height: 32px !important;
-    height: 32px !important;
-    padding: 0 14px !important;
-    border-radius: 9999px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    border: none !important;
-    background: var(--color-bg-subtle) !important;
-    color: var(--color-text-secondary) !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-    text-decoration: none !important;
-    transition: all 0.15s ease !important;
-  }
-  #page-home .mobile-categories a.active {
-    background: var(--color-brand) !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-brand) 30%, transparent) !important;
-  }
-  #page-home .mobile-categories .list {
-    margin-left: auto !important;
-    min-width: 32px !important;
-    width: 32px !important;
-    height: 32px !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-    display: grid !important;
-    place-items: center !important;
-  }
-  #page-home .feed-toolbar {
-    min-height: 44px !important;
-    height: 44px !important;
-    padding: 0 12px !important;
-    gap: 16px !important;
-    overflow: hidden !important;
-    border-bottom: 1px solid var(--color-border-thin) !important;
-    background: var(--color-bg-card) !important;
-  }
-  #page-home .feed-toolbar .publish {
-    display: none !important;
-  }
-  #page-home .feed-toolbar .filters {
-    min-width: 0 !important;
-    gap: 16px !important;
-    display: flex !important;
-    align-items: center !important;
-    scrollbar-width: none !important;
-    overflow-x: auto !important;
-  }
-  #page-home .feed-toolbar .filters::-webkit-scrollbar { display: none !important; }
-  #page-home .feed-toolbar .filters > a,
-  #page-home .feed-toolbar .filters > button {
-    min-height: 44px !important;
-    height: 44px !important;
-    padding: 0 4px !important;
-    font-size: 14px !important;
-    font-weight: 400 !important;
-    color: var(--color-text-secondary) !important;
-    border: none !important;
-    border-bottom: 2px solid transparent !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    white-space: nowrap !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    text-decoration: none !important;
-    position: relative !important;
-  }
-  #page-home .feed-toolbar .filters > a.active,
-  #page-home .feed-toolbar .filters > button.active {
-    color: var(--color-brand) !important;
-    font-weight: 600 !important;
-    border-bottom-color: var(--color-brand) !important;
-  }
 }
 
 /* Messages: no squeezed off-canvas second column on narrow screens. */
@@ -1417,12 +1173,6 @@ body:has(#page-login:not([hidden])) {
   #page-messages .app-chat__foot { position: sticky !important; bottom: 0 !important; background: var(--color-bg-card) !important; }
 }
 
-/* Administration: a compact horizontal module rail is easier to scan on phones. */
-@media (max-width: 767px) {
-  #page-admin .app-admin-side { width: auto !important; max-width: none !important; margin-left: -10px !important; margin-right: -10px !important; }
-  #page-admin .app-admin-main { width: 100% !important; }
-  #page-admin .app-route-head h1 { font-size: 22px !important; }
-}
 
 
 /* ============================================================
@@ -1483,12 +1233,23 @@ body:has(#page-login:not([hidden])) {
 /* Profile route final polish ------------------------------------------------
    Keep the dynamic profile readable: identity headings use the sans UI face,
    while the compact avatar tones remain visible instead of collapsing to gray. */
-#page-user .app-route-head h1,
+#page-user .legacy-route-head h1,
 #page-user .app-profile h2,
 #page-user .app-post-row__main h3 {
   font-family: var(--font-family-base) !important;
   font-weight: 650 !important;
   letter-spacing: -0.02em !important;
+}
+
+#page-user .app-post-row__main h3 a {
+  color: var(--color-text-primary) !important;
+  text-decoration: none !important;
+}
+
+#page-user .app-post-row:hover .app-post-row__main h3 a,
+#page-user .app-post-row__main h3 a:hover {
+  color: var(--color-brand) !important;
+  text-decoration: underline !important;
 }
 
 #page-user .app-profile {
@@ -1500,25 +1261,29 @@ body:has(#page-login:not([hidden])) {
 }
 
 #page-user .app-profile > .avatar,
-#page-user .app-post-row > .avatar {
+#page-user .app-profile .cosmetic-avatar .avatar,
+#page-user .app-post-row > .avatar,
+#page-user .app-post-row .cosmetic-avatar .avatar {
   flex: 0 0 auto !important;
   display: grid !important;
   place-items: center !important;
-  border-radius: 50% !important;
+  border-radius: 0 !important;
   border: 1px solid color-mix(in srgb, var(--color-brand) 28%, var(--color-border-strong)) !important;
-  background: color-mix(in srgb, var(--color-brand) 72%, var(--color-bg-subtle)) !important;
-  color: var(--color-text-on-brand, #fff) !important;
+  background: var(--avatar-bg, color-mix(in srgb, var(--color-brand) 72%, var(--color-bg-subtle)));
+  color: var(--avatar-color, var(--color-text-on-brand, #fff));
   line-height: 1 !important;
   box-shadow: none !important;
 }
 
-#page-user .app-profile > .avatar {
+#page-user .app-profile > .avatar,
+#page-user .app-profile .cosmetic-avatar .avatar {
   width: 72px !important;
   height: 72px !important;
   font-size: 24px !important;
 }
 
-#page-user .app-post-row > .avatar {
+#page-user .app-post-row > .avatar,
+#page-user .app-post-row .cosmetic-avatar .avatar {
   width: 32px !important;
   height: 32px !important;
   font-size: 13px !important;
@@ -1544,7 +1309,7 @@ body:has(#page-login:not([hidden])) {
 }
 
 #page-user .app-post-row {
-  align-items: center !important;
+  align-items: flex-start !important;
 }
 
 #page-user .app-post-row__main h3 {
@@ -1597,7 +1362,7 @@ body:has(#page-login:not([hidden])) {
   place-items: center !important;
   line-height: 1 !important;
   text-align: center !important;
-  border-radius: 50% !important;
+  border-radius: 0 !important;
 }
 
 .avatar.cyan,
@@ -1768,9 +1533,6 @@ body:has(#page-login:not([hidden])) {
     margin-top: 20px !important;
     padding-top: 20px !important;
   }
-  .topic-actions--side {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
   .topic-actions--side .btn {
     padding-inline: 7px !important;
     font-size: 12px !important;
@@ -1779,19 +1541,19 @@ body:has(#page-login:not([hidden])) {
 
 
 /* Forum reading contract: route headers are compact context bars, not hero panels. */
-.app-route-head--compact {
+.legacy-route-head--compact {
   align-items: center !important;
   min-height: 42px !important;
   margin: 0 0 14px !important;
   padding: 0 2px 10px !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
-.app-route-head--compact .app-route-head__copy {
+.legacy-route-head--compact .legacy-route-head__copy {
   display: flex !important;
   align-items: center !important;
   min-height: 32px !important;
 }
-.app-route-head--compact h1 {
+.legacy-route-head--compact h1 {
   margin: 0 !important;
   color: var(--color-text-primary) !important;
   font-family: var(--font-family-base) !important;
@@ -1800,24 +1562,24 @@ body:has(#page-login:not([hidden])) {
   letter-spacing: -0.02em !important;
   line-height: 1.3 !important;
 }
-.app-route-head--compact .app-route-head__actions {
+.legacy-route-head--compact .legacy-route-head__actions {
   margin: 0 !important;
   align-items: center !important;
 }
-.app-route-head--compact .app-route-head__actions .btn {
+.legacy-route-head--compact .legacy-route-head__actions .btn {
   min-height: 32px !important;
 }
 @media (max-width: 767px) {
-  .app-route-head--compact {
+  .legacy-route-head--compact {
     min-height: 42px !important;
     margin: 0 14px 10px !important;
     padding: 0 0 9px !important;
     background: transparent !important;
   }
-  .app-route-head--compact h1 {
+  .legacy-route-head--compact h1 {
     font-size: 18px !important;
   }
-  .app-route-head--compact .app-route-head__actions {
+  .legacy-route-head--compact .legacy-route-head__actions {
     margin-top: 0 !important;
   }
 }
@@ -1879,24 +1641,24 @@ body:has(#page-login:not([hidden])) {
 
 /* Compact header actions stay inline on narrow screens; only the main content wraps. */
 @media (max-width: 767px) {
-  .app-route-head--compact {
+  .legacy-route-head--compact {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
     gap: 10px !important;
   }
-  .app-route-head--compact .app-route-head__copy {
+  .legacy-route-head--compact .legacy-route-head__copy {
     flex: 1 1 auto !important;
     min-width: 0 !important;
   }
-  .app-route-head--compact .app-route-head__actions {
+  .legacy-route-head--compact .legacy-route-head__actions {
     display: flex !important;
     flex: 0 0 auto !important;
     max-width: 58% !important;
     overflow-x: auto !important;
     white-space: nowrap !important;
   }
-  .app-route-head--compact .app-route-head__actions .btn {
+  .legacy-route-head--compact .legacy-route-head__actions .btn {
     flex: 0 0 auto !important;
   }
 }
@@ -1906,7 +1668,7 @@ body:has(#page-login:not([hidden])) {
    ============================================================ */
 
 #page-publish.app-page {
-  max-width: 1180px !important;
+  max-width: var(--container-max) !important;
   margin: 0 auto !important;
 }
 
@@ -2674,27 +2436,6 @@ body:has(#page-login:not([hidden])) {
 /* 铃铛未读角标：主题规则用 !important 强制显示，这里以更高特异性覆盖 hidden 状态 */
 .desktop-header .icon-btn > #bell-badge[hidden] { display: none !important; }
 
-/* 页头（kicker / 标题 / 简介 / 操作行）恢复显示：
- * 此前“取消所有页面的 app-route-head”的规则会把管理后台每个子页顶部的操作按钮
- * （如 BI 看板的“刷新数据 / 导出 CSV”）一并隐藏，且与 verify.mjs 的 h1 断言冲突。
- * 如需精简前台页头，请改为仅针对前台路由的局部规则，不要全局 display:none。 */
-
-/* Route titles are now announced by a visually-hidden h1. The old title block
- * must stay hidden even for standalone page previews that do not load the SPA
- * cleanup code. Dynamic mounts relocate its actions before removing the block. */
-.app-route-head { display: none !important; }
-
-/* Final mobile admin menu contract (kept last so it wins over legacy polish rules). */
-@media (max-width: 767px) {
-  #page-admin .app-admin-shell { position: relative !important; }
-  #page-admin .app-admin-menu { display: flex !important; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin: 0 0 8px; border: 1px solid var(--color-border) !important; background: var(--color-bg-card) !important; color: var(--color-text-primary) !important; cursor: pointer; }
-  #page-admin .app-admin-side { display: none !important; position: absolute !important; z-index: 20; top: 52px; left: 0; right: 0; max-height: min(70vh, 520px) !important; overflow-y: auto !important; overflow-x: hidden !important; margin: 0 !important; padding: 10px !important; white-space: normal !important; background: var(--color-bg-card) !important; box-shadow: 0 12px 28px color-mix(in srgb, var(--color-bg-page) 28%, transparent); }
-  #page-admin .app-admin-shell.admin-menu-open .app-admin-side { display: block !important; }
-  #page-admin .app-admin-side__brand, #page-admin .app-admin-side__label, #page-admin .app-admin-side__foot { display: block !important; }
-  #page-admin .app-admin-side__group { display: flex !important; flex-direction: column !important; margin: 0 0 8px !important; }
-  #page-admin .app-admin-side a { display: flex !important; }
-}
-@media (min-width: 768px) { #page-admin .app-admin-menu { display: none !important; } }
 
 /* Final chat viewport contract: the message history is the only scrolling
  * surface; chat identity and composer remain fixed in the frame. */
@@ -3260,12 +3001,20 @@ body:has(#page-login:not([hidden])) {
   font-weight: 600 !important;
 }
 
-/* 表格操作列按钮间隙 */
+/* 表格操作列：td 必须保持 table-cell 参与表格行网格——
+   display:flex 会让该单元格脱离表格布局（浏览器将其包进匿名 cell，
+   行边框与行高漂移，操作列整体“掉出”表格行、与表头错位）。
+   按钮间隙由 prototype-app.css 的 .adm-acts .btn margin 及单元格内
+   inline-flex 表单提供，这里只补垂直对齐与不换行。 */
 .adm-acts {
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  flex-wrap: wrap !important;
+  display: table-cell !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+.adm-acts > form,
+.adm-acts > a,
+.adm-acts > button {
+  vertical-align: middle !important;
 }
 .app-link {
   color: var(--color-brand) !important;
@@ -3286,7 +3035,8 @@ body:has(#page-login:not([hidden])) {
 
 @media (max-width: 767px) {
   #main-content > .container#page-home,
-  #main-content > .container#page-discover {
+  #main-content > .container#page-discover,
+  #main-content > .container#page-board {
     width: 100% !important;
     max-width: none !important;
     margin: 0 !important;
@@ -3427,17 +3177,12 @@ body:has(#page-login:not([hidden])) {
   line-height: 26px !important;
 }
 
-/* Final home hero geometry: override legacy #page-home selectors after all imported layers. */
-@media (max-width: 767px) {
-  #page-home .mobile-logo { position: absolute !important; top: calc(50px + env(safe-area-inset-top)) !important; left: 0 !important; right: 0 !important; width: auto !important; height: 34px !important; margin: 0 !important; padding: 0 !important; line-height: 34px !important; }
-  #page-home .hero-stats { position: absolute !important; left: 0 !important; right: 0 !important; bottom: 12px !important; width: auto !important; height: 34px !important; margin: 0 !important; padding: 0 12px !important; box-sizing: border-box !important; display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; border-top: none !important; }
-}
+/* Final home hero geometry: cleaned up to avoid overriding unified responsive layout */
 
 /* ============================================================
    Final manual visual QA: mobile topic and shell contracts
    ============================================================ */
 @media (max-width: 767px) {
-  .navbar { display: none !important; }
   #main-content { margin: 0 !important; }
   #main-content > .container.app-topic {
     display: grid !important;
@@ -3478,7 +3223,7 @@ body:has(#page-login:not([hidden])) {
   .bottom-nav-fab { width: 50px !important; height: 50px !important; min-width: 50px !important; min-height: 50px !important; margin-top: 0 !important; position: relative !important; top: -8px !important; border-radius: 50% !important; }
 }
 @media (min-width: 768px) {
-  #main-content > .container.app-topic { max-width: 1180px !important; margin: 20px auto 0 !important; padding: 0 10px 48px !important; }
+  #main-content > .container.app-topic { max-width: var(--container-max) !important; margin: 20px auto 0 !important; padding: 0 10px 48px !important; }
 }
 
 
@@ -3487,12 +3232,6 @@ body:has(#page-login:not([hidden])) {
 .app-settings-nav a:hover, .app-settings-nav a.is-active { background:var(--color-brand-soft); color:var(--color-brand); }
 .settings-panel { display:none; }
 .settings-panel.is-active { display:block; }
-.app-admin-menu-backdrop { display:none; }
-@media (max-width:767px) {
-  #page-admin .app-admin-menu-backdrop { display:block; position:fixed; inset:0; z-index:19; border:0; background:color-mix(in srgb,var(--color-bg-page) 56%,transparent); opacity:0; pointer-events:none; }
-  #page-admin .app-admin-shell.admin-menu-open .app-admin-menu-backdrop { opacity:1; pointer-events:auto; }
-  #page-admin .app-admin-shell.admin-menu-open .app-admin-side { z-index:20; }
-}
 
 /* 后台管理全局容器拉满视口宽度（云控制台惯例）：宽屏下内容区从侧边栏一直铺到
    视口右侧标准留白，避免居中 1560px 造成的左右大块死区与「左右不规范」观感 */
@@ -3586,141 +3325,19 @@ html[data-theme-preview="true"] .btn.primary,
    ============================================================ */
 @media (max-width: 767px) {
   #page-home {
-    --home-canvas: #f3f5f1;
-    --home-card: #fffefa;
-    --home-forest: #1e3933;
-    --home-forest-deep: #152a27;
-    --home-forest-soft: #e3ece7;
-    --home-line: #dfe6df;
-    --home-muted: #6d7c75;
+    --home-canvas: var(--color-bg-page);
+    --home-card: var(--color-bg-card);
+    --home-forest: var(--color-brand);
+    --home-forest-deep: var(--color-bg-inset);
+    --home-forest-soft: var(--color-brand-soft);
+    --home-line: var(--color-border);
+    --home-muted: var(--color-text-secondary);
     background: var(--home-canvas) !important;
-  }
-
-  #page-home .mobile-hero {
-    height: 184px !important;
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 0 !important;
-    border-radius: 0 0 24px 24px !important;
-    background:
-      radial-gradient(circle at 84% 8%, rgba(178, 223, 69, 0.2), transparent 28%),
-      linear-gradient(156deg, var(--home-forest-deep) 0%, var(--home-forest) 62%, #416056 100%) !important;
-    box-shadow: 0 12px 26px rgba(24, 53, 46, 0.16) !important;
-    overflow: hidden !important;
-  }
-
-  #page-home .mobile-hero::before {
-    content: "";
-    position: absolute;
-    right: -62px;
-    bottom: -94px;
-    width: 220px;
-    height: 220px;
-    border: 1px solid rgba(226, 240, 229, 0.16);
-    border-radius: 50%;
-    box-shadow: 0 0 0 18px rgba(226, 240, 229, 0.04), 0 0 0 38px rgba(226, 240, 229, 0.03);
-    pointer-events: none;
-  }
-
-  #page-home .mobile-doc-link,
-  #page-home .mobile-search-link {
-    border-color: rgba(235, 247, 237, 0.2) !important;
-    background: rgba(233, 248, 237, 0.12) !important;
-    color: #f7fff8 !important;
-    box-shadow: none !important;
-  }
-
-  #page-home .mobile-doc-link {
-    height: 34px !important;
-    padding: 0 12px !important;
-    border-radius: 12px !important;
-    font-size: 11px !important;
-    letter-spacing: 0.02em;
-  }
-
-  #page-home .mobile-search-link {
-    width: 36px !important;
-    height: 36px !important;
-    border-radius: 12px !important;
-  }
-
-  #page-home .mobile-logo {
-    top: calc(54px + env(safe-area-inset-top, 0px)) !important;
-    height: 36px !important;
-    font-family: var(--font-family-serif) !important;
-    font-size: 29px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.08em !important;
-    text-shadow: 0 3px 14px rgba(3, 19, 15, 0.22) !important;
-  }
-
-  #page-home .mobile-logo::after {
-    content: "自由讨论 · 友善交流";
-    display: block;
-    margin-top: 3px;
-    color: rgba(239, 250, 241, 0.74);
-    font-family: var(--font-family-base);
-    font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.18em;
-    line-height: 1.4;
-  }
-
-  #page-home .hero-stats { bottom: 15px !important; gap: 7px !important; }
-
-  #page-home .hero-stats button {
-    height: 29px !important;
-    padding: 0 11px !important;
-    border: 1px solid rgba(236, 250, 240, 0.12) !important;
-    border-radius: 10px !important;
-    background: rgba(235, 248, 239, 0.1) !important;
-    color: rgba(242, 253, 244, 0.82) !important;
-    font-size: 11px !important;
-  }
-
-  #page-home .hero-stats b { color: #d6f36c !important; }
-
-  #page-home .mobile-categories {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 15 !important;
-    height: 58px !important;
-    padding: 11px 16px 9px !important;
-    gap: 8px !important;
-    border-bottom: 0 !important;
-    background: var(--home-canvas) !important;
-  }
-
-  #page-home .mobile-categories a,
-  #page-home .mobile-categories button {
-    height: 34px !important;
-    min-height: 34px !important;
-    padding: 0 14px !important;
-    border: 1px solid var(--home-line) !important;
-    border-radius: 999px !important;
-    background: var(--home-card) !important;
-    color: var(--home-muted) !important;
-    box-shadow: 0 1px 2px rgba(33, 57, 48, 0.04) !important;
-    font-size: 12px !important;
-  }
-
-  #page-home .mobile-categories a.active {
-    border-color: var(--home-forest) !important;
-    background: var(--home-forest) !important;
-    color: #f7fff9 !important;
-    box-shadow: 0 4px 10px rgba(30, 57, 51, 0.16) !important;
-  }
-
-  #page-home .mobile-categories .list {
-    width: 34px !important;
-    min-width: 34px !important;
-    height: 34px !important;
-    padding: 0 !important;
-    border-color: var(--home-line) !important;
-    background: var(--home-card) !important;
   }
 
   #page-home .feed-toolbar {
     position: sticky !important;
-    top: 58px !important;
+    top: 0 !important;
     z-index: 14 !important;
     min-height: 48px !important;
     height: 48px !important;
@@ -3868,37 +3485,25 @@ html[data-theme-preview="true"] .btn.primary,
 }
 
 @media (max-width: 767px) and (prefers-reduced-motion: reduce) {
-  #page-home .mobile-cat-btn,
   #page-home .filter-btn,
   .bottom-nav-fab { transition: none !important; }
 }
 
 html.dark #page-home,
 html[data-theme="dark"] #page-home {
-  --home-canvas: #101d1a;
-  --home-card: #182a26;
-  --home-forest: #a9d65d;
-  --home-forest-deep: #10221f;
-  --home-forest-soft: #263b34;
-  --home-line: #30463e;
-  --home-muted: #99aaa2;
+  --home-canvas: var(--color-bg-page);
+  --home-card: var(--color-bg-card);
+  --home-forest: var(--color-brand);
+  --home-forest-deep: var(--color-bg-inset);
+  --home-forest-soft: var(--color-brand-soft);
+  --home-line: var(--color-border);
+  --home-muted: var(--color-text-secondary);
 }
 
 @media (max-width: 767px) {
-  html.dark #page-home .mobile-hero,
-  html[data-theme="dark"] #page-home .mobile-hero {
-    background:
-      radial-gradient(circle at 84% 8%, rgba(172, 224, 86, 0.2), transparent 28%),
-      linear-gradient(156deg, #0e211d 0%, #17362d 62%, #275044 100%) !important;
-  }
-
-  html.dark #page-home .mobile-categories a,
-  html.dark #page-home .mobile-categories button,
   html.dark #page-home .feed-toolbar .filters > a,
   html.dark #page-home .thread,
   html.dark #page-home .load-more,
-  html[data-theme="dark"] #page-home .mobile-categories a,
-  html[data-theme="dark"] #page-home .mobile-categories button,
   html[data-theme="dark"] #page-home .feed-toolbar .filters > a,
   html[data-theme="dark"] #page-home .thread,
   html[data-theme="dark"] #page-home .load-more {
@@ -3907,21 +3512,32 @@ html[data-theme="dark"] #page-home {
     border-color: var(--home-line) !important;
   }
 
-  html.dark #page-home .mobile-categories a.active,
   html.dark #page-home .feed-toolbar .filters > a.active,
-  html[data-theme="dark"] #page-home .mobile-categories a.active,
   html[data-theme="dark"] #page-home .feed-toolbar .filters > a.active {
     background: var(--home-forest) !important;
     border-color: var(--home-forest) !important;
-    color: #17251f !important;
+    color: var(--color-text-on-brand) !important;
   }
 
   html.dark #page-home .thread-detail-link h2,
   html[data-theme="dark"] #page-home .thread-detail-link h2 { color: var(--color-text-primary) !important; }
 
-  html.dark .bottom-nav,
-  html[data-theme="dark"] .bottom-nav { background: rgba(18, 34, 30, 0.94) !important; border-top-color: #30463e !important; }
+}
 
-  html.dark .bottom-nav-fab,
-  html[data-theme="dark"] .bottom-nav-fab { border-color: #182a26 !important; background: #a9d65d !important; color: #17251f !important; }
+
+@media (max-width: 767px) {
+  .btn,
+  .btn.sm,
+  .btn.md,
+  .btn.lg,
+  .btn-icon,
+  .app-settings-nav button,
+  .app-settings-nav a,
+  .messages-back {
+    min-height: 44px !important;
+  }
+
+  .btn-icon {
+    min-width: 44px !important;
+  }
 }

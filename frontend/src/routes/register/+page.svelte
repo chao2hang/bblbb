@@ -132,7 +132,7 @@
               我已阅读并同意 <a href="/posts/rules" class="text-link" target="_blank" rel="noopener">社区规则</a>
             </label>
           </div>
-          <Button text="创建账号" variant="primary" size="lg" type="submit" block disabled={!agreed} />
+          <Button text="注册" variant="primary" size="lg" type="submit" block disabled={!agreed} />
         </form>
 
         {#if site.googleLoginEnabled || site.githubLoginEnabled}
@@ -181,6 +181,11 @@
     margin: 0;
   }
 
+  .login-signup a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
   .oauth-divider {
     display: flex;
     align-items: center;
@@ -191,12 +196,12 @@
   .oauth-divider-line {
     flex: 1;
     height: 1px;
-    background: var(--color-border, rgba(0, 0, 0, 0.1));
+    background: var(--color-border);
   }
 
   .oauth-divider-text {
     font-size: 12px;
-    color: var(--color-text-secondary, #666);
+    color: var(--color-text-secondary);
     white-space: nowrap;
   }
 
@@ -214,25 +219,36 @@
     gap: 10px;
     width: 100%;
     padding: 8px 16px;
-    border-radius: var(--radius-md, 6px);
-    border: 1px solid var(--color-border, #e5e5e5);
-    background: var(--color-surface, #fff);
-    color: var(--color-text-primary, #111);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-primary);
     font-size: 13px;
     font-weight: 500;
     text-decoration: none;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     cursor: pointer;
     box-sizing: border-box;
   }
 
   .oauth-btn:hover {
-    background: var(--color-bg-secondary, #f8f9fa);
-    border-color: color-mix(in srgb, var(--color-text-primary) 30%, transparent);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
   }
 
   .oauth-icon {
     flex-shrink: 0;
+  }
+
+  @media (max-width: 767px) {
+    /* 注册字段较多，连续排版比把内容均匀拉满视口更易扫描。 */
+    :global(#page-register .login-card) {
+      justify-content: flex-start !important;
+    }
+
+    :global(#page-register .login-signup) {
+      margin-top: var(--space-6);
+    }
   }
 </style>

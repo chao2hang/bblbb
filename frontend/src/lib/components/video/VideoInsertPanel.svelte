@@ -21,12 +21,15 @@
 
   let {
     onResolve,
-    onAccept
+    onAccept,
+    embedded = false
   }: {
     /** 触发后端 resolve；返回任意原始响应，本面板负责白名单挑选。 */
     onResolve: (url: string) => Promise<unknown>;
     /** 用户确认插入；只回调白名单挑选后的 VideoResolveResult。 */
     onAccept: (result: VideoResolveResult) => void;
+    /** 编辑器已处于外层发布 form 时，渲染为 div 分组，避免嵌套 form。 */
+    embedded?: boolean;
   } = $props();
 
   type Phase = 'idle' | 'resolving' | 'preview' | 'error' | 'disabled' | 'accepted';
@@ -48,8 +51,7 @@
 
   const canResolve = $derived(phase !== 'resolving' && url.trim().length > 0 && urlHint === null);
 
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
+  async function handleResolve() {
     if (!canResolve) return;
     error = null;
     notice = null;
@@ -89,7 +91,18 @@
     <span class="card-title" id="video-insert-title">插入视频</span>
   </div>
   <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
-    <form onsubmit={handleSubmit}>
+    <svelte:element
+      this={embedded ? 'div' : 'form'}
+      class="video-insert-form"
+      role="group"
+      aria-labelledby="video-insert-title"
+      onsubmit={(event: SubmitEvent) => {
+        if (!embedded) {
+          event.preventDefault();
+          void handleResolve();
+        }
+      }}
+    >
       <div class="input-wrapper">
         <label class="input-label" for="video-insert-url">视频链接（https）</label>
         <input
@@ -102,6 +115,12 @@
           autocomplete="off"
           aria-describedby={urlHint ? 'video-insert-url-hint' : undefined}
           aria-invalid={urlHint ? 'true' : undefined}
+          onkeydown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              void handleResolve();
+            }
+          }}
         />
         {#if urlHint}
           <p class="input-hint is-error" id="video-insert-url-hint" role="alert">{urlHint}</p>
@@ -113,12 +132,13 @@
             variant="secondary"
             size="sm"
             icon="video"
-            type="submit"
+            type="button"
+             onclick={embedded ? () => void handleResolve() : undefined}
             disabled={phase === 'resolving' || !canResolve}
           />
         </div>
       </div>
-    </form>
+    </svelte:element>
 
     {#if error}
       <p class="input-hint is-error" role="alert" style="margin:0;">{error}</p>

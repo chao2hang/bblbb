@@ -2,12 +2,16 @@
 // 无 JS SSR 基线——页面在 load 数据（含空态/失败态）下可直出，表单在
 // SSR 中可提交（原生 form action）。动作分支由 route-matrix 与后端测试
 // 覆盖，这里只验证渲染不抛错 + 关键内容存在。
+// 另含社交域·关注：/users/{username}/followers|following（用户悬浮卡 /
+// 用户主页统计行「粉丝 / 关注」的跳转目标页）。
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import Messages from '../../../routes/messages/+page.svelte';
 import Favorites from '../../../routes/favorites/+page.svelte';
 import Achievements from '../../../routes/achievements/+page.svelte';
 import ApiKeys from '../../../routes/apikeys/+page.svelte';
+import FollowersPage from '../../../routes/users/[username]/followers/+page.svelte';
+import FollowingPage from '../../../routes/users/[username]/following/+page.svelte';
 
 const TS = 1_700_000_000_000;
 
@@ -215,9 +219,9 @@ describe('GAP-FIX /achievements SSR', () => {
       name: '首发帖',
       description: '发布第一篇帖子',
       category: 'community',
-      rewardExp: 10,
       rewardCoin: 5,
       isHidden: false,
+      iconUrl: '/api/v1/achievements/first_post/icon',
       unlocked: true,
       unlockedAt: TS,
       progress: 1,
@@ -229,9 +233,9 @@ describe('GAP-FIX /achievements SSR', () => {
       name: '连续签到 7 天',
       description: '连续签到一周',
       category: 'activity',
-      rewardExp: 30,
       rewardCoin: 15,
       isHidden: false,
+      iconUrl: null,
       unlocked: true,
       unlockedAt: TS,
       progress: 7,
@@ -243,9 +247,9 @@ describe('GAP-FIX /achievements SSR', () => {
       name: '百帖',
       description: '发布 100 篇帖子',
       category: 'community',
-      rewardExp: 100,
       rewardCoin: 50,
       isHidden: false,
+      iconUrl: null,
       unlocked: false,
       unlockedAt: null,
       progress: 30,
@@ -257,9 +261,9 @@ describe('GAP-FIX /achievements SSR', () => {
       name: '???',
       description: '隐藏成就：达成条件保密，解锁后揭晓',
       category: 'secret',
-      rewardExp: 20,
       rewardCoin: 20,
       isHidden: true,
+      iconUrl: '/api/v1/achievements/secret/icon',
       unlocked: false,
       unlockedAt: null,
       progress: 0,
@@ -291,6 +295,9 @@ describe('GAP-FIX /achievements SSR', () => {
     // 隐藏未解锁：???。
     expect(body).toContain('???');
     expect(body).toContain('隐藏成就：达成条件保密');
+    // 成就图标（后台上传，不走 S3）：已解锁卡渲染；隐藏未解锁卡不渲染（防提前泄露）。
+    expect(body).toContain('/api/v1/achievements/first_post/icon');
+    expect(body).not.toContain('/api/v1/achievements/secret/icon');
   });
 
   it('空态：成就未配置', () => {
@@ -381,5 +388,67 @@ describe('GAP-FIX /apikeys SSR', () => {
       }
     });
     expect(body).toContain('还没有 API 密钥');
+  });
+});
+
+// ── 社交域·关注：/users/{username}/followers|following 无 JS SSR 基线 ──────
+// SSR 直出公开投影行（username/display_name/level/follow created_at），
+// 行链接到用户主页；segmented 切换 + ?after= 加载更多（无 JS 翻页）。
+
+const followRows = [
+  { username: 'alice', display_name: '爱丽丝', level: 7, created_at: TS },
+  { username: 'bob', display_name: null, level: 1, created_at: TS }
+];
+
+describe('社交域 /users/{username}/followers SSR', () => {
+  it('渲染粉丝行（行链接到用户主页）+ TL 徽章 + segmented 切换', () => {
+    const { body } = render(FollowersPage, {
+      props: { data: { username: 'chaos', items: followRows, nextCursor: null, after: null } }
+    });
+    expect(body).toContain('爱丽丝');
+    expect(body).toContain('chaos 的粉丝');
+    // 行 = /users/{username} 链接（无 JS 下每行可跳转）。
+    expect(body).toMatch(/href="\/users\/alice"/);
+    expect(body).toMatch(/href="\/users\/bob"/);
+    expect(body).toContain('TL7');
+    // segmented：粉丝（当前页）/ 正在关注。
+    expect(body).toMatch(/href="\/users\/chaos\/following"/);
+  });
+
+  it('有下一页游标 → 渲染 ?after= 加载更多链接（无 JS 整页翻页）', () => {
+    const { body } = render(FollowersPage, {
+      props: {
+        data: { username: 'chaos', items: followRows, nextCursor: '1699000000000', after: null }
+      }
+    });
+    expect(body).toMatch(/after=1699000000000/);
+    expect(body).toContain('加载更多');
+  });
+
+  it('空态：还没有粉丝', () => {
+    const { body } = render(FollowersPage, {
+      props: { data: { username: 'chaos', items: [], nextCursor: null, after: null } }
+    });
+    expect(body).toContain('还没有粉丝');
+    expect(body).not.toMatch(/href="\/users\/alice"/);
+  });
+});
+
+describe('社交域 /users/{username}/following SSR', () => {
+  it('渲染正在关注行 + segmented 切换（含粉丝页链接）', () => {
+    const { body } = render(FollowingPage, {
+      props: { data: { username: 'chaos', items: followRows, nextCursor: null, after: null } }
+    });
+    expect(body).toContain('爱丽丝');
+    expect(body).toContain('正在关注');
+    expect(body).toMatch(/href="\/users\/chaos\/followers"/);
+    expect(body).toMatch(/href="\/users\/alice"/);
+  });
+
+  it('空态：还没有关注任何人', () => {
+    const { body } = render(FollowingPage, {
+      props: { data: { username: 'chaos', items: [], nextCursor: null, after: null } }
+    });
+    expect(body).toContain('还没有关注任何人');
   });
 });

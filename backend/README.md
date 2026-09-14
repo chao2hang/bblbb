@@ -1,6 +1,6 @@
 # BBLBB backend
 
-Rust + Axum 后端。当前已完成骨架、认证闭环和全量路由挂载；各业务领域按 OpenAPI 契约逐步实现，未完成的操作返回 `501 not_implemented` Problem。
+Rust + Axum 后端。当前已完成骨架、认证闭环和全量路由挂载；OpenAPI 的 233 个 operation 均已分配，覆盖登记为 201 个 `verified`、23 个 `implemented`、9 个 `not_started`。逐项状态见 `todo/openapi-operation-coverage.json`；当前没有以 `501 not_implemented` 作为通用业务占位的路由。
 
 ## 运行
 
@@ -28,7 +28,7 @@ cargo run
 
 - 认证闭环：`/api/v1/auth/csrf`、`register`、`verify-email`、`login`、`session`（登出）、`password-reset` 及其 confirm，基于数据库的密码哈希、Session 和令牌。
 - 数据库：`sqlx` 连接池，支持 SQLite（自动建库、WAL）与 MySQL 8 / MariaDB 10.11；启动默认**不**自动应用迁移（M01-DB-06），显式开启 `BBLBB__AUTO_MIGRATE=true` 或传 `--migrate` 参数时应用 `BBLBB__MIGRATIONS_DIR` 下的待执行迁移（版本 + checksum 校验，失败即退出）。
-- 路由挂载：boards、posts、comments、moderation、storage、economy、ai、video、oidc、marketplace、admin、feeds、search、themes 等领域模块已接入 Router，未实现的操作返回 `501 not_implemented` 占位。
+- 路由挂载：boards、posts、comments、moderation、storage、economy、ai、video、oidc、marketplace、admin、feeds、search、themes、social 等领域模块已接入 Router；仍处于 `implemented` 而未达 `verified` 的 operation 以 coverage manifest 的状态和证据为准。
 - 中间件：请求 ID、安全响应头、请求体 10MB 上限、30s 超时、HTTP 追踪和 CSRF 防护（状态变更请求携带会话 Cookie 时必须提供合法的 `X-CSRF-Token`，否则返回 403 Problem）。
 
 ## 分层

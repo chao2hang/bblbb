@@ -12,7 +12,6 @@ describe('M03-UI-03/04 UserCard 无 JS SSR 基线', () => {
           username: 'alice',
           display_name: '爱丽丝',
           level: 7,
-          bio: '公开简介',
           signature: '公开签名'
         }
       }

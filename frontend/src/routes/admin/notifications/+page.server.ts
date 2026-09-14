@@ -6,6 +6,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed } from '$lib/api/server';
+import { parseBatchIds, batchResult, type BatchOutcome } from '$lib/admin-batch';
 import type { BroadcastItem } from '$lib/api/types';
 
 export type AdminNotificationsState = 'ok' | 'forbidden' | 'not_implemented' | 'error';
@@ -137,5 +138,32 @@ export const actions: Actions = {
     } catch {
       return fail(503, { message: '撤回失败，请稍后重试' });
     }
+  },
+  // M18-ADMIN-BATCH：批量撤回 = 循环调用与单条 recall 完全相同的既有端点
+  // （POST /admin/notifications/outbox/{id}/recall，reason 写审计；该端点无
+  // If-Match 乐观锁，BroadcastItem 亦无 version 字段，故不提交 versions）。
+  batchRecall: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const ids = parseBatchIds(form);
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) return fail(422, { message: '撤回原因必填（写审计）' });
+    if (ids.length === 0) return fail(422, { message: '未选择任何广播' });
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const id of ids) {
+      try {
+        const r = await authedPost<unknown>(
+          cookies,
+          `/api/v1/admin/notifications/outbox/${encodeURIComponent(id)}/recall`,
+          { reason },
+          request.headers.get('x-request-id')
+        );
+        if (r.ok) outcome.okCount++;
+        else outcome.failures.push({ id, message: r.message });
+      } catch {
+        outcome.failures.push({ id, message: '网络错误' });
+      }
+    }
+    const r = batchResult(outcome, '批量撤回广播');
+    return r.ok ? { message: r.message } : fail(r.status, { message: r.message });
   }
 };

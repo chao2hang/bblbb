@@ -82,14 +82,8 @@
 />
 
 <div class="container app-page">
-  <section class="page app-page app-route-search" id="page-search">
-    <div class="app-route-head">
-      <div class="app-route-head__copy">
-        <span class="app-kicker">DISCOVER / SEARCH</span>
-        <h1 tabindex="-1">搜索</h1>
-        <p>搜索帖子、用户或标签</p>
-      </div>
-    </div>
+  <section class="page app-route-search" id="page-search">
+    <h1 class="u-visually-hidden">搜索</h1>
 
     <form class="app-toolbar" role="search" method="get" action="/search" style="margin-bottom:14px;">
       {#if tagSlug}

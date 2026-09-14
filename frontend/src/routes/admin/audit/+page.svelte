@@ -2,8 +2,7 @@
   // M18-ADMIN-AUDIT：审计日志管理页（对齐原型 #admin-audit 不可变紧凑表格与清空按钮）。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
-  import { show as showToast } from '$lib/ui/toast';
-  import type { AdminAuditPageData } from './+page.server';
+    import type { AdminAuditPageData } from './+page.server';
 
   let { data }: { data: AdminAuditPageData } = $props();
 
@@ -12,22 +11,22 @@
     return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
-  function actionFriendlyLabel(action: string | null | undefined, detail: any): string {
-    const act = String(action ?? '');
+  function actionFriendlyLabel(action: string | null | undefined, detail: unknown): string {
+    const act = String(action ?? '').trim();
     if (!act) return '—';
-    if (act.includes('points')) return '积分调整 · +50 B币';
-    if (act.includes('report') || act.includes('case')) return '举报处理 · 禁言 7 天';
-    if (act.includes('theme')) return '主题切换 · 暗色主题';
-    if (act.includes('storage')) return '存储连接测试';
-    if (act.includes('register')) return '用户注册审核通过';
-    if (act.includes('video')) return '视频配置策略调整';
+    if (typeof detail === 'string' && detail.trim()) return `${act} · ${detail.trim()}`;
+    if (detail && typeof detail === 'object') {
+      const serialized = JSON.stringify(detail);
+      if (serialized && serialized !== '{}') return `${act} · ${serialized}`;
+    }
     return act;
   }
 
   let q = $state('');
   let statusFilter = $state('');
   let objFilter = $state('');
-  let selectedIds = $state<string[]>([]);
+  // 审计日志不可变（audit_logs 只增不改，无单条/批量写端点）：
+  // 不提供行选择与批量操作，批量能力 = 导出当前筛选结果 CSV（ExportButton）。
 
   const items = $derived(data.items ?? []);
 
@@ -71,18 +70,6 @@
     }
     return list;
   });
-
-  let allSelected = $derived(
-    displayedItems.length > 0 && selectedIds.length === displayedItems.length
-  );
-  function toggleAll() {
-    if (allSelected) selectedIds = [];
-    else selectedIds = displayedItems.map((i) => i.id);
-  }
-  function toggleRow(id: string) {
-    if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
-    else selectedIds = [...selectedIds, id];
-  }
 </script>
 
 <svelte:head>
@@ -96,33 +83,32 @@
     <h2>审计日志（不可变）</h2>
   </header>
   <div class="app-card__body">
-    <!-- 原型三行式工具栏 -->
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+    <!-- 工具栏：单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
       <input
         type="search"
         bind:value={q}
         class="app-field"
         placeholder="搜索当前列表..."
         aria-label="搜索当前列表"
+        style="flex:1 1 220px;min-width:0;"
       />
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <select
-          class="app-select"
-          bind:value={statusFilter}
-          aria-label="状态筛选"
-          style="min-width:140px;"
-        >
-          <option value="">全部状态</option>
-          <option value="success">成功</option>
-          <option value="rejected">已拒绝</option>
-        </select>
-        {#if q || statusFilter || objFilter}
-          <button type="button" class="btn ghost sm" onclick={() => { q = ''; statusFilter = ''; objFilter = ''; }}>
-            清除
-          </button>
-        {/if}
-      </div>
-      <label class="app-search" style="display:flex;align-items:center;gap:6px;">
+      <select
+        class="app-select"
+        bind:value={statusFilter}
+        aria-label="状态筛选"
+        style="flex:0 0 auto;width:168px;"
+      >
+        <option value="">全部状态</option>
+        <option value="success">成功</option>
+        <option value="rejected">已拒绝</option>
+      </select>
+      {#if q || statusFilter || objFilter}
+        <button type="button" class="btn ghost sm" style="flex:0 0 auto;" onclick={() => { q = ''; statusFilter = ''; objFilter = ''; }}>
+          清除
+        </button>
+      {/if}
+      <label class="app-search" style="display:flex;align-items:center;gap:6px;flex:1 1 200px;min-width:0;">
         <input
           type="search"
           bind:value={objFilter}
@@ -132,30 +118,13 @@
           style="width:100%;"
         />
       </label>
-      <div style="display:flex;justify-content:flex-end;">
-        <span class="app-muted" style="font-size:12px;">共 {displayedItems.length} 条</span>
-      </div>
+      <span class="app-muted" style="font-size:12px;flex:0 0 auto;">共 {displayedItems.length} 条</span>
     </div>
-
-    {#if selectedIds.length > 0}
-      <div class="app-notice" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:10px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
-        <span style="font-size:var(--text-xs);font-weight:600;">{selectedIds.length} 项已选</span>
-        <button type="button" class="btn secondary sm" onclick={() => (selectedIds = [])}>取消选择</button>
-      </div>
-    {/if}
 
     <div class="app-table-wrap">
       <table class="app-table" aria-label="审计日志列表">
         <thead>
           <tr>
-            <th style="width:40px;text-align:center;">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onchange={toggleAll}
-                aria-label="全选当前列表"
-              />
-            </th>
             <th>时间</th>
             <th>操作人</th>
             <th>操作</th>
@@ -164,21 +133,13 @@
         <tbody>
           {#if displayedItems.length === 0}
             <tr>
-              <td colspan="4" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
+              <td colspan="3" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
                 当前筛选下没有审计日志
               </td>
             </tr>
           {:else}
             {#each displayedItems as item (item.id)}
               <tr>
-                <td style="text-align:center;">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(item.id)}
-                    onchange={() => toggleRow(item.id)}
-                    aria-label="选择此项"
-                  />
-                </td>
                 <td><span style="font-size:12px;white-space:nowrap;color:var(--color-text-secondary);">{formatShortTime(item.created_at)}</span></td>
                 <td><b style="font-size:13px;">{item.actor_username || 'Chaos'}</b></td>
                 <td>
@@ -211,9 +172,10 @@
       <button
         type="button"
         class="btn secondary sm"
-        onclick={() => showToast('审计日志不可变，清空操作需由超级管理员在运维终端执行', 'info')}
+        disabled
+        title="审计日志不可变，清理必须由运维流程执行"
       >
-        清空日志
+        审计日志不可清空
       </button>
     </footer>
   </div>

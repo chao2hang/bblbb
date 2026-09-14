@@ -24,7 +24,7 @@ const user: User = {
   version: 3
 };
 
-const updatedUser = { ...user, display_name: '新昵称', bio: '新简介', version: 4 };
+const updatedUser = { ...user, display_name: '新昵称', signature: '新签名', version: 4 };
 
 describe('M03-UI-02 /settings 无 JS SSR 基线', () => {
   it('SSR 输出原生资料编辑表单（POST ?/profile）与隐藏版本字段', () => {
@@ -32,11 +32,14 @@ describe('M03-UI-02 /settings 无 JS SSR 基线', () => {
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/profile"/);
     expect(body).toContain('name="version"');
     expect(body).toContain('value="3"');
+    expect(body).toContain('name="avatar_attachment_id"');
+    expect(body).toContain('个人头像');
     expect(body).toContain('id="set-display-name"');
-    expect(body).toContain('id="set-bio"');
+    // 资料表单现为「签名」单字段（bio 已随页面迭代移除，公开投影不再含简介）。
     expect(body).toContain('id="set-signature"');
+    expect(body).toContain('公开签名');
+    expect(body).not.toContain('id="set-bio"');
     expect(body).toContain('爱丽丝');
-    expect(body).toContain('公开简介');
   });
 
   it('版本冲突 → 提示横幅与“加载最新资料”入口，且保留表单字段值', () => {
@@ -50,12 +53,12 @@ describe('M03-UI-02 /settings 无 JS SSR 基线', () => {
     expect(body).toContain('value="3"');
   });
 
-  it('保存成功 → 渲染更新后投影（新昵称/新简介/新版本）', () => {
+  it('保存成功 → 渲染更新后投影（新昵称/新签名/新版本）', () => {
     const { body } = render(SettingsPage, {
       props: { data: { user, error: null }, form: { ok: true, user: updatedUser } }
     });
     expect(body).toContain('新昵称');
-    expect(body).toContain('新简介');
+    expect(body).toContain('新签名');
     expect(body).toContain('value="4"'); // 隐藏版本已刷新为新版本
     expect(body).toContain('当前公开投影');
   });

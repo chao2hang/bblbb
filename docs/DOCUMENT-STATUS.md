@@ -25,6 +25,11 @@
 | `MARKDOWN.md` | Implementation | 安全/后端/前端 | Markdown 渲染管线、策略版本与升级/缓存/回滚手册（M04-MARKDOWN） |
 | `TESTING.md` | Release gate | 测试 | 自动化、恢复和上线门槛 |
 | `OPERATIONS.md` | Release gate | 运维 | 部署、备份、告警和故障处理 |
+| `ADMIN-MANAGEMENT-MATRIX.md` | Implementation | 运维/前端 | 27 个管理后台页面形态、批量操作模式与判定矩阵（2026-09 盘点） |
+| `TRUST-LEVELS.md` | Implementation | 后端/经济 | 信任等级（LinuxDo 式 TL0–TL4）：行为统计、晋升/降级与手动授予（M20-TRUST，2026-09） |
+| `DESIGN-SYSTEM.md` | Reference | 前端/设计 | 设计系统规范「冷墨 / Cold Ink」（M19 取消后转为局部组件编写与视觉参考） |
+| `BLBUI-DESIGN-SYSTEM.md` | Reference | 前端 | BLBUI 组件与实现边界、设计系统接入原则（作为组件参考） |
+| `MOBILE-SHEET.md` | Implementation | 前端/设计 | 手机端半屏弹层（Bottom Sheet）交互与样式标准：断点、scrim/抓手/下滑关闭、安全区与无障碍（2026-09 确立） |
 | `FRONTEND.md` | Frozen candidate | 前端 | SvelteKit、SSR、SEO、a11y |
 | `CRAWLER-POLICY.md` | Frozen candidate | 搜索/安全 | AI 爬虫、索引投影、批量访问和缓存边界 |
 | `SEARCH.md` | Frozen candidate | 后端/搜索 | 搜索索引存储契约：文档模型、source/policy revision、跨库 FTS 策略 |
@@ -42,7 +47,7 @@
 | `security/scan-report.md` | Release gate | 安全 | 依赖/Secret/许可证/SBOM 扫描记录与漏洞处置（M16-SECURITY-10） |
 | `docs/FIXTURES.md` | Release gate | 测试 | Fixture 约定：Clock/随机 ID/邮件/S3/AI/Video fake/请求 Fixture（M16-HARNESS-01） |
 | `docs/CI-LAYERS.md` | Release gate | 测试/发布 | CI 四层（PR/nightly/RC/prod-smoke）触发/超时/最小复现命令（M16-HARNESS-09） |
-| `reports/rc/*` | Release gate | 发布 | 状态机矩阵/聚合报告/失败模板/人工清单/P0-P1（M16-RELEASE-TEST） |
+| `reports/rc/*` | Historical RC snapshot | 发布 | 2026-08-08 rc.2/M16-M17 验收快照；当前发布前必须按 `reports/rc/README.md` 重新生成，不作为当前状态事实来源 |
 | `reports/perf/machine.md` + `baseline.md` | Release gate | 性能 | 压测机器规格与实测 p95/RSS/DB 基线（M16-PERF） |
 | `bench/gen-synthetic.sh` + `measure.sh` + `thresholds.md` | Release gate | 性能 | 合成数据生成 / 真实请求测量 / 阈值版本化（M16-PERF-02/03/08） |
 | `compat/frozen-client/` | Release gate | 契约 | 上一版本 OpenAPI 冻结 + `check-client-compat.rb` 向后兼容（M16-HARNESS-07） |

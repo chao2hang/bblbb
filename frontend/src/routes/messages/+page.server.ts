@@ -2,7 +2,7 @@
 // 线程（?c=）SSR。
 //
 // - load：未登录 → /login；listConversations（左栏）；URL 带 ?c=<id> 时
-//   listMessages（created_at ASC）并 readConversation 标记已读
+//   listMessages（(created_at,id) ASC）并 readConversation 标记已读
 //   （best-effort，失败只影响角标，不影响线程展示）。
 // - send action：POST sendMessage（body 1-2000 + client_request_id 幂等）；
 //   页面 enhance 回调成功后 invalidateAll 刷新线程并滚到底部。
@@ -10,13 +10,15 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
+  getUser,
   listConversations,
   listMessages,
   newClientRequestId,
   readConversation,
+  recallMessage,
   sendMessage
 } from '$lib/api/client';
-import type { ConversationItem, ConversationMessage } from '$lib/api/types';
+import type { ConversationItem, ConversationMessage, PublicProfile } from '$lib/api/types';
 import { problemMessage, type Problem } from '$lib/errors';
 
 export interface MessagesPageData {
@@ -26,6 +28,8 @@ export interface MessagesPageData {
   /** 选中会话的对方投影（来自列表匹配）。 */
   conversation: ConversationItem | null;
   messages: ConversationMessage[];
+  /** 相关用户的公开资料映射（含装扮 presentation_tokens 与自定义头像 avatar_attachment_id）。 */
+  userProfiles?: Record<string, PublicProfile>;
   /** 会话列表加载失败（Problem 态，整页 ProblemState）。 */
   problem: Problem | null;
   error: string | null;
@@ -82,11 +86,38 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     }
   }
 
+  // 收集需要补齐头像框/装扮的用户（当前对话对方、会话列表各方、消息发送者）
+  const usernamesToFetch = new Set<string>();
+  for (const c of conversations) {
+    if (c.other?.username) usernamesToFetch.add(c.other.username);
+  }
+  for (const m of messages) {
+    if (m.sender_username) usernamesToFetch.add(m.sender_username);
+  }
+  if (conversation?.other?.username) {
+    usernamesToFetch.add(conversation.other.username);
+  }
+
+  const userProfiles: Record<string, PublicProfile> = {};
+  if (usernamesToFetch.size > 0) {
+    const list = Array.from(usernamesToFetch);
+    const results = await Promise.allSettled(
+      list.map((uname) => getUser(fetch, uname))
+    );
+    for (let i = 0; i < list.length; i++) {
+      const res = results[i];
+      if (res.status === 'fulfilled' && res.value) {
+        userProfiles[list[i]] = res.value;
+      }
+    }
+  }
+
   return {
     conversations,
     conversationId,
     conversation,
     messages,
+    userProfiles,
     problem,
     error: problem ? problemMessage(problem) : null,
     threadProblem,
@@ -119,6 +150,24 @@ export const actions: Actions = {
         return fail(401, { message: '登录已过期，请重新登录' } satisfies MessagesActionData);
       }
       return fail(failStatus(p), { message: problemMessage(p) } satisfies MessagesActionData);
+    }
+  },
+  recall: async ({ request, fetch }) => {
+    const form = await request.formData();
+    const conversationId = String(form.get('conversation_id') ?? '').trim();
+    const messageId = String(form.get('message_id') ?? '').trim();
+    if (!conversationId || !messageId) {
+      return fail(422, { message: '缺少消息标识' } satisfies MessagesActionData);
+    }
+    try {
+      await recallMessage(fetch, conversationId, messageId);
+      return { ok: true, message: '已撤回' } satisfies MessagesActionData;
+    } catch (e) {
+      const p = e as Problem;
+      if (p?.status === 401) {
+        return fail(401, { message: '登录已过期，请重新登录' } satisfies MessagesActionData);
+      }
+      return fail(failStatus(p), { message: problemMessage(p) || '撤回失败，超过 2 分钟的消息无法撤回' } satisfies MessagesActionData);
     }
   }
 };

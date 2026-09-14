@@ -60,8 +60,8 @@ async fn insert_user(pool: &DatabasePool, tag: &str, verified: bool) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, email_verified, email_verified_at, created_at, updated_at)
-                 VALUES (?, ?, ?, 'dummy', 'active', ?, ?, ?, ?)",
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
+                 VALUES (?, ?, ?, 'dummy', 'active', 1, ?, ?, ?, ?)",
             )
             .bind(&user_id)
             .bind(format!("{tag}_{}", uuid::Uuid::now_v7().simple()))
@@ -484,16 +484,23 @@ async fn update_draft_happy_path_increments_version() {
         &session,
         &csrf,
         "1",
-        json!({ "title": "更新后的标题", "markdown": "更新后的正文" }),
+        json!({ "title": "更新后的标题", "markdown": "更新后的正文", "tags": ["svelte", "rust"] }),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "更新草稿必须 200: {body}");
     assert_eq!(body["version"], 2, "更新后 version 递增");
     assert_eq!(body["title"], "更新后的标题");
     assert_eq!(body["markdown"], "更新后的正文");
+    assert_eq!(body["tags"], json!(["svelte", "rust"]));
     // 未提交的字段保持不变
     assert_eq!(body["board_id"], BOARD_ID);
     assert_eq!(body["access_policy"], "public");
+
+    // 再次 GET 确认 tags 自动带入
+    let (get_status, get_body) =
+        authed_get(&app, &format!("/api/v1/drafts/{draft_id}"), &session).await;
+    assert_eq!(get_status, StatusCode::OK);
+    assert_eq!(get_body["tags"], json!(["svelte", "rust"]));
 
     close_pool(&pool).await;
     cleanup(&dir);

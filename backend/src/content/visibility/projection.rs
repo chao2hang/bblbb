@@ -52,6 +52,9 @@ pub struct PostFields {
     pub author_username: Option<String>,
     pub author_display_name: Option<String>,
     pub author_level: i64,
+    pub author_presentation_tokens: Option<crate::users::dto::PublicPresentationTokens>,
+    /// 作者上传头像附件 id（公开引用；详情页作者头像直接渲染图片，可空）。
+    pub author_avatar_attachment_id: Option<String>,
     pub post_type: String,
     pub status: String,
     pub board_id: String,
@@ -104,16 +107,27 @@ pub fn project_post(fields: PostFields, grant: AccessGrant, _author_level: u32) 
         map.insert("slug".into(), Value::String(slug));
     }
     let author_username = fields.author_username.clone().unwrap_or_default();
-    map.insert(
-        "author".into(),
-        json!({
-            "id": fields.author_id,
-            "username": author_username,
-            "display_name": fields.author_display_name,
-            "level": fields.author_level,
-            "profile_url": format!("/users/{author_username}"),
-        }),
-    );
+    let mut author_json = json!({
+        "id": fields.author_id,
+        "username": author_username,
+        "display_name": fields.author_display_name,
+        "level": fields.author_level,
+        "profile_url": format!("/users/{author_username}"),
+    });
+    if let Some(attachment_id) = &fields.author_avatar_attachment_id {
+        if let Some(obj) = author_json.as_object_mut() {
+            obj.insert("avatar_attachment_id".into(), json!(attachment_id));
+        }
+    }
+    if let Some(tokens) = fields.author_presentation_tokens {
+        if let Some(obj) = author_json.as_object_mut() {
+            obj.insert(
+                "presentation_tokens".into(),
+                serde_json::to_value(tokens).unwrap_or(Value::Null),
+            );
+        }
+    }
+    map.insert("author".into(), author_json);
     map.insert("reply_count".into(), json!(fields.reply_count));
     map.insert("view_count".into(), json!(fields.view_count));
     map.insert("created_at".into(), json!(fields.created_at));
@@ -255,6 +269,8 @@ mod tests {
             author_username: Some("alice".into()),
             author_display_name: Some("爱丽丝".into()),
             author_level: 5,
+            author_presentation_tokens: None,
+            author_avatar_attachment_id: None,
             post_type: "discussion".into(),
             status: "published".into(),
             board_id: "b1".into(),

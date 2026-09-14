@@ -9,6 +9,10 @@
 //!   无角括号）；
 //! - **说明（description）**：≤ 2000 字符、无控制字符、无富文本角括号；
 //!   链接仅 http/https scheme（防 `javascript:`/`data:` 等）；
+//! - **图标（icon）**：可选；lucide 图标库的 kebab-case 图标名（如 `code`），
+//!   `[a-z0-9-]` 且 ≤ 64 字符（与迁移 0071 `boards.icon` VARCHAR(64) 对齐）；
+//!   空串 = 清除图标（置 NULL）。前台渲染前仍须查图标 allowlist
+//!   （frontend/src/lib/components/ui/icons.ts），未知名静默回退默认图标；
 //! - **排序（sort_order）**：`[-100_000, 100_000]`（同级排序，BIGINT）；
 //! - **状态（is_active）**：布尔（停用 = `is_active: false`，移出活跃投影）；
 //! - **发帖规则（posting_mode）**：`normal/approval/readonly/closed`
@@ -25,6 +29,8 @@ pub const SLUG_MAX: usize = 120;
 pub const NAME_MAX: usize = 100;
 /// 说明（description）最大长度。
 pub const DESCRIPTION_MAX: usize = 2000;
+/// 图标（icon）最大长度（lucide kebab-case 图标名，迁移 0071 VARCHAR(64)）。
+pub const ICON_MAX: usize = 64;
 /// 排序号下限。
 pub const SORT_ORDER_MIN: i64 = -100_000;
 /// 排序号上限。
@@ -48,6 +54,8 @@ pub enum BoardValidationError {
     DescriptionControlChar,
     DescriptionRichText,
     DescriptionDangerousLink { scheme: String },
+    IconTooLong { len: usize },
+    IconInvalidChars,
     SortOrderOutOfRange { value: i64 },
     InvalidPostingMode { value: String },
 }
@@ -86,6 +94,12 @@ impl std::fmt::Display for BoardValidationError {
                     f,
                     "description 仅允许 http/https 链接（当前 scheme: {scheme}）"
                 )
+            }
+            BoardValidationError::IconTooLong { len } => {
+                write!(f, "icon 长度不能超过 {ICON_MAX}（当前 {len}）")
+            }
+            BoardValidationError::IconInvalidChars => {
+                write!(f, "icon 必须是图标库的 kebab-case 图标名（[a-z0-9-]+）")
             }
             BoardValidationError::SortOrderOutOfRange { value } => {
                 write!(
@@ -178,12 +192,36 @@ pub fn validate_posting_mode(mode: &str) -> Result<(), BoardValidationError> {
     }
 }
 
+/// 图标（icon）校验：空串 = 清除（置 NULL）；否则 lucide kebab-case 图标名
+/// （`[a-z0-9-]+`，≤ 64）。仅做命名空间校验；未知名由前端渲染层静默回退
+/// 默认图标（allowlist 查不到时不渲染），不作为 400 错误。
+pub fn validate_icon(icon: Option<&str>) -> Result<(), BoardValidationError> {
+    let Some(icon) = icon else {
+        return Ok(());
+    };
+    if icon.is_empty() {
+        return Ok(());
+    }
+    let len = icon.chars().count();
+    if len > ICON_MAX {
+        return Err(BoardValidationError::IconTooLong { len });
+    }
+    if !icon
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        return Err(BoardValidationError::IconInvalidChars);
+    }
+    Ok(())
+}
+
 /// 创建板块全字段校验。
 #[allow(clippy::too_many_arguments)] // 创建输入：全部字段均显式
 pub fn validate_board_fields(
     slug: &str,
     name: &str,
     description: Option<&str>,
+    icon: Option<&str>,
     sort_order: i64,
     _is_active: bool,
     posting_mode: &str,
@@ -193,6 +231,7 @@ pub fn validate_board_fields(
     if let Some(description) = description {
         validate_description(description)?;
     }
+    validate_icon(icon)?;
     validate_sort_order(sort_order)?;
     // is_active 是布尔，天然合法（无额外约束）
     validate_posting_mode(posting_mode)
@@ -203,6 +242,7 @@ pub fn validate_board_update(
     slug: Option<&str>,
     name: Option<&str>,
     description: Option<&str>,
+    icon: Option<&str>,
     sort_order: Option<i64>,
     posting_mode: Option<&str>,
 ) -> Result<(), BoardValidationError> {
@@ -215,6 +255,7 @@ pub fn validate_board_update(
     if let Some(description) = description {
         validate_description(description)?;
     }
+    validate_icon(icon)?;
     if let Some(sort_order) = sort_order {
         validate_sort_order(sort_order)?;
     }
@@ -348,6 +389,38 @@ mod tests {
     }
 
     #[test]
+    fn icon_rules() {
+        // None = 未提供（保持原值），空串 = 清除，均合法。
+        assert!(validate_icon(None).is_ok());
+        assert_eq!(validate_icon(Some("")), Ok(()));
+        assert!(validate_icon(Some("code")).is_ok());
+        assert!(validate_icon(Some("message-circle")).is_ok());
+        assert!(validate_icon(Some("git-branch-2")).is_ok());
+        assert!(matches!(
+            validate_icon(Some(&"x".repeat(65))),
+            Err(BoardValidationError::IconTooLong { len: 65 })
+        ));
+        // 64 长度边界允许
+        assert!(validate_icon(Some(&"x".repeat(64))).is_ok());
+        assert_eq!(
+            validate_icon(Some("Code")),
+            Err(BoardValidationError::IconInvalidChars)
+        );
+        assert_eq!(
+            validate_icon(Some("my icon")),
+            Err(BoardValidationError::IconInvalidChars)
+        );
+        assert_eq!(
+            validate_icon(Some("<svg>")),
+            Err(BoardValidationError::IconInvalidChars)
+        );
+        assert_eq!(
+            validate_icon(Some("中文")),
+            Err(BoardValidationError::IconInvalidChars)
+        );
+    }
+
+    #[test]
     fn sort_order_rules() {
         assert!(validate_sort_order(0).is_ok());
         assert!(validate_sort_order(SORT_ORDER_MIN).is_ok());
@@ -381,20 +454,30 @@ mod tests {
 
     #[test]
     fn combined_create_validation() {
-        assert!(
-            validate_board_fields("meta", "站务公告", Some("规则与公告"), 0, true, "normal")
-                .is_ok()
-        );
+        assert!(validate_board_fields(
+            "meta",
+            "站务公告",
+            Some("规则与公告"),
+            Some("megaphone"),
+            0,
+            true,
+            "normal"
+        )
+        .is_ok());
         assert_eq!(
-            validate_board_fields("", "站务", None, 0, true, "normal"),
+            validate_board_fields("", "站务", None, None, 0, true, "normal"),
             Err(BoardValidationError::SlugEmpty)
         );
         assert_eq!(
-            validate_board_fields("meta", "", None, 0, true, "normal"),
+            validate_board_fields("meta", "", None, None, 0, true, "normal"),
             Err(BoardValidationError::NameEmpty)
         );
         assert_eq!(
-            validate_board_fields("meta", "站务", None, 0, true, "lockdown"),
+            validate_board_fields("meta", "站务", None, Some("Bad Icon"), 0, true, "normal"),
+            Err(BoardValidationError::IconInvalidChars)
+        );
+        assert_eq!(
+            validate_board_fields("meta", "站务", None, None, 0, true, "lockdown"),
             Err(BoardValidationError::InvalidPostingMode {
                 value: "lockdown".to_string()
             })
@@ -404,20 +487,24 @@ mod tests {
     #[test]
     fn partial_update_validation() {
         assert!(
-            validate_board_update(None, None, None, None, None).is_ok(),
+            validate_board_update(None, None, None, None, None, None).is_ok(),
             "空更新合法"
         );
-        assert!(validate_board_update(Some("meta"), None, None, None, None).is_ok());
+        assert!(validate_board_update(Some("meta"), None, None, None, None, None).is_ok());
         assert_eq!(
-            validate_board_update(Some("META"), None, None, None, None),
+            validate_board_update(Some("META"), None, None, None, None, None),
             Err(BoardValidationError::SlugInvalidChars)
         );
         assert_eq!(
-            validate_board_update(None, Some(""), None, None, None),
+            validate_board_update(None, Some(""), None, None, None, None),
             Err(BoardValidationError::NameEmpty)
         );
+        assert_eq!(
+            validate_board_update(None, None, Some(""), Some("UPPER"), None, None),
+            Err(BoardValidationError::IconInvalidChars)
+        );
         assert!(matches!(
-            validate_board_update(None, None, None, Some(1_000_000), None),
+            validate_board_update(None, None, None, None, Some(1_000_000), None),
             Err(BoardValidationError::SortOrderOutOfRange { .. })
         ));
     }

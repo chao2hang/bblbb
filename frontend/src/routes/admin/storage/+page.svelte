@@ -6,12 +6,20 @@
   import type { ActionResult } from '@sveltejs/kit';
   import Button from '$lib/components/ui/Button.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
+  import MetricGroup from '$lib/components/ui/MetricGroup.svelte';
+  import PanelSection from '$lib/components/ui/PanelSection.svelte';
   import { show as showToast } from '$lib/ui/toast';
   import type { AdminStorageActionData, AdminStoragePageData } from './+page.server';
 
   let { data, form }: { data: AdminStoragePageData; form?: AdminStorageActionData | null } = $props();
 
   const config = $derived(data.config);
+  const storageMetrics = $derived([
+    { label: '后端类型', value: config?.backend === 's3' ? 'S3 兼容' : '本地磁盘' },
+    { label: '已用空间', value: '暂无统计' },
+    { label: '上次测试', value: '未测试' },
+    { label: '状态', value: config ? '已加载' : '未知' }
+  ]);
   const loadError = $derived(data.loadError);
   const message = $derived(form?.message ?? null);
   const messageKind = $derived(form?.messageKind ?? 'error');
@@ -21,6 +29,18 @@
     return Boolean(config?.managed_fields?.includes(key));
   }
 
+  // 站点上传类型类目开关（与后端 UPLOAD_TYPE_CATEGORIES 镜像）。
+  const UPLOAD_CATEGORIES: { id: string; label: string }[] = [
+    { id: 'image', label: '图片（JPG/PNG/WebP/GIF/AVIF）' },
+    { id: 'pdf', label: 'PDF 文档' },
+    { id: 'text', label: '文本（TXT/MD/CSV/JSON/XML）' },
+    { id: 'office', label: 'Office 文档（DOCX/XLSX/PPTX）' },
+    { id: 'av', label: '音视频（MP4/M4V/MP3/WebM）' }
+  ];
+  const enabledUploadCategories = $derived(
+    config?.allowed_upload_types?.categories ?? ['image', 'pdf', 'text', 'office', 'av']
+  );
+
   function maskSecret(): string {
     return config?.secret_configured ? '••••••••••' : '未配置';
   }
@@ -29,15 +49,18 @@
   let activeTab = $state<'local' | 's3'>(untrack(() => data.config?.backend === 's3' ? 's3' : 'local'));
 
   // 表单草稿：响应式跟随 data.config 变化，支持页面刷新与配置热加载
+  // 初始快照显式 untrack，后续变化由下方 effect 同步，避免 Svelte 把 data
+  // 的初始引用误判为未响应式状态。
+  const initialConfig = untrack(() => data.config);
   let draft = $state({
-    local_path: data.config?.local_path ?? '/data/bblbb/uploads',
-    max_size_mb: Math.round((data.config?.upload_max_bytes ?? 20971520) / 1048576),
-    s3_endpoint: data.config?.s3_endpoint ?? '',
-    s3_bucket: data.config?.s3_bucket ?? '',
-    s3_public_base_url: data.config?.s3_public_base_url ?? '',
-    s3_region: data.config?.s3_region ?? '',
-    s3_path_style: data.config?.s3_path_style ?? false,
-    signed_url_ttl_seconds: data.config?.signed_url_ttl_seconds ?? 300
+    local_path: initialConfig?.local_path ?? '/data/bblbb/uploads',
+    max_size_mb: Math.round((initialConfig?.upload_max_bytes ?? 20971520) / 1048576),
+    s3_endpoint: initialConfig?.s3_endpoint ?? '',
+    s3_bucket: initialConfig?.s3_bucket ?? '',
+    s3_public_base_url: initialConfig?.s3_public_base_url ?? '',
+    s3_region: initialConfig?.s3_region ?? '',
+    s3_path_style: initialConfig?.s3_path_style ?? false,
+    signed_url_ttl_seconds: initialConfig?.signed_url_ttl_seconds ?? 300
   });
 
   $effect(() => {
@@ -65,6 +88,10 @@
     hasJs = true;
   });
 
+  // 配置编辑弹窗（约定 A：写操作 = 按钮 → Dialog；表单移入弹层，
+  // 页面常驻内容保留只读运行状态与迁移说明）。
+  let editOpen = $state(false);
+
   // 新一轮 step-up 请求（新 form 实例）到达时重置取消标记，
   // 避免上一次「取消」永久压制弹窗；取消本身不改 form，不会触发重开。
   $effect(() => {
@@ -74,6 +101,7 @@
   // 提交后保留用户输入：默认 enhance 会在成功后 reset 表单（清掉刚填的
   // S3 凭据/路径）；这里改为 update({ reset: false })，仅应用 action 结果；
   // 结果同时用全局 Toast 提示（产品约定：提醒用浮窗，不占页面主体）。
+  // 保存成功（非“测试连接”结果）→ 关闭编辑弹层；失败保留弹层便于修正重试。
   function storageFormEnhance() {
     return (_e: unknown) => async ({
       result,
@@ -100,6 +128,10 @@
         }
       }
       await update({ reset: false });
+      if (result.type === 'success') {
+        const d = result.data as AdminStorageActionData | null;
+        if (d && !d.testResult) editOpen = false;
+      }
     };
   }
 </script>
@@ -143,105 +175,56 @@
   </div>
 {/if}
 
-<!-- step-up 重新验证（M02-MFA-07）：save/test 命中 403 step_up_required 时展示 -->
-<!-- step-up 重新验证（M02-MFA-07）：save/test 命中 403 step_up_required 时弹窗（模态）。
-     无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
-<Dialog
-  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
-  title="需要重新验证身份"
-  description="存储配置的保存与测试属于高风险管理操作，要求近期重新认证（登录已超过有效期）。输入当前账号密码完成重新验证后，将保留当前表单并可继续保存。"
-  onclose={() => (reauthCancelled = true)}
->
-  {#if reauthError}
-    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
-      {reauthError}
-    </div>
-  {/if}
-  <form
-    method="POST"
-    action="?/reauth"
-    use:enhance={() => {
-      reauthLoading = true;
-      reauthError = null;
-      return async ({ result, update }) => {
-        reauthLoading = false;
-        if (result.type === 'success') {
-          showToast((result.data as { message?: string } | null)?.message ?? '身份重新验证成功，请继续保存设置或测试连接', 'success');
-        } else if (result.type === 'failure') {
-          reauthError = (result.data as any)?.message ?? '密码验证失败，请重试';
-        }
-        await update({ reset: false });
-      };
-    }}
-    class="stack"
-    style="gap:10px;"
-  >
-    <label>
-      <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">当前密码</span>
-      <input
-        type="password"
-        name="password"
-        class="input-field"
-        required
-        autocomplete="current-password"
-        style="width:100%;"
-      />
-    </label>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
-      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
-    </div>
-  </form>
-</Dialog>
-
 <!-- 卡片 1：当前后端（原型 2x2 大字统计卡 + 状态徽标与掩码） -->
 <section class="app-card" style="margin-bottom:14px;">
   <header class="app-card__head">
     <h2>当前后端</h2>
   </header>
   <div class="app-card__body">
-    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:14px;margin-bottom:14px;">
-      <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-        <div class="text-secondary" style="font-size:12px;margin-bottom:6px;">后端类型</div>
-        <div style="font-size:22px;font-weight:700;">{config?.backend === 's3' ? 'S3 兼容' : '本地磁盘'}</div>
-      </div>
-      <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-        <div class="text-secondary" style="font-size:12px;margin-bottom:6px;">已用空间</div>
-        <div style="font-size:22px;font-weight:700;">12.4 GB</div>
-      </div>
-      <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-        <div class="text-secondary" style="font-size:12px;margin-bottom:6px;">上次测试</div>
-        <div style="font-size:22px;font-weight:700;">今天 12:00</div>
-      </div>
-      <div class="app-card" style="padding:14px;border:1px solid var(--color-border);">
-        <div class="text-secondary" style="font-size:12px;margin-bottom:6px;">状态</div>
-        <div style="font-size:22px;font-weight:700;">已配置</div>
-      </div>
-    </div>
+    <MetricGroup items={storageMetrics} />
 
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12px;">
-      <span class="badge {config?.source === 'env' ? 'badge-neutral' : 'badge-success'}">
-        {config?.backend === 's3' ? 'S3 实时运行中（全站生效）' : '本地存储运行中（全站生效）'}
-      </span>
-      <span class="badge {config?.source === 'db' ? 'badge-primary' : 'badge-neutral'}">
-        {config?.source === 'db' ? '来源：后台在线配置' : '来源：部署环境（只读）'}
-      </span>
-      <span class="text-secondary">Secret 状态：{maskSecret()}</span>
-    </div>
+    <PanelSection label="运行状态" description="当前生效的后端、来源和密钥状态">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12px;">
+        <span class="badge {config?.source === 'env' ? 'badge-neutral' : 'badge-success'}">
+          {config?.backend === 's3' ? 'S3 实时运行中（全站生效）' : '本地存储运行中（全站生效）'}
+        </span>
+        <span class="badge {config?.source === 'db' ? 'badge-primary' : 'badge-neutral'}">
+          {config?.source === 'db' ? '来源：后台在线配置' : '来源：部署环境（只读）'}
+        </span>
+        <span class="text-secondary">Secret 状态：{maskSecret()}</span>
+      </div>
 
-    <div style="background:var(--color-bg-subtle, rgba(0,0,0,0.03));padding:12px 14px;border-radius:var(--radius-sm);font-size:12px;color:var(--color-text-secondary);line-height:1.5;">
-      本地 ↔ S3 切换不会自动搬运对象，必须先迁移、hash 校验和准备回滚。
-    </div>
+      <div style="background:var(--color-bg-subtle, rgba(0,0,0,0.03));padding:12px 14px;border-radius:var(--radius-sm);font-size:12px;color:var(--color-text-secondary);line-height:1.5;">
+        本地 ↔ S3 切换不会自动搬运对象，必须先迁移、hash 校验和准备回滚。
+      </div>
+    </PanelSection>
   </div>
 </section>
 
-<!-- 卡片 2：存储配置（原型双 Tab 切换表单） -->
+<!-- 卡片 2：存储配置（约定 A：编辑入口按钮 → 弹层表单；页面常驻只读状态） -->
 <section class="app-card" style="margin-bottom:14px;">
-  <header class="app-card__head">
+  <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
     <h2>存储配置</h2>
+    <Button text="编辑配置" variant="secondary" size="sm" onclick={() => (editOpen = true)} />
   </header>
   <div class="app-card__body">
-    <div class="tabs" role="tablist" aria-label="存储后端切换" style="margin-bottom:16px;border-bottom:1px solid var(--color-border);padding:0;">
+    <p class="text-secondary" style="margin:0;font-size:12px;line-height:1.6;">
+      本地磁盘 / S3 兼容参数、允许上传的类型与操作原因在「编辑配置」弹层中填写；
+      保存后立即热生效，测试连接结果以浮窗提示。
+    </p>
+  </div>
+</section>
+
+<!-- 配置编辑弹层（约定 A）：保存 ?/save 与测试连接 ?/test 都在弹层表单内；
+     无 JS 时弹层不渲染（写操作为客户端交互——运营界面产品决策），页面仅保留只读状态。 -->
+<Dialog
+  open={editOpen}
+  title="编辑存储配置"
+  description="本地 ↔ S3 切换不会自动搬运对象，必须先迁移、hash 校验和准备回滚。"
+  size="lg"
+  onclose={() => (editOpen = false)}
+>
+  <div class="tabs" role="tablist" aria-label="存储后端切换" style="margin-bottom:16px;border-bottom:1px solid var(--color-border);padding:0;">
       <button
         type="button"
         role="tab"
@@ -433,6 +416,27 @@
           />
         </label>
       </fieldset>
+
+      <fieldset style="border:1px solid var(--color-border);border-radius:8px;padding:12px;margin:0 0 12px;">
+        <legend style="font-size:13px;font-weight:600;padding:0 6px;">允许上传的类型（站点策略，保存后立即全站生效）</legend>
+        <input type="hidden" name="allowed_upload_types_submitted" value="1" />
+        <div style="display:flex;flex-wrap:wrap;gap:10px 18px;">
+          {#each UPLOAD_CATEGORIES as cat (cat.id)}
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+              <input
+                type="checkbox"
+                name="allowed_upload_types"
+                value={cat.id}
+                checked={enabledUploadCategories.includes(cat.id)}
+              />
+              <span>{cat.label}</span>
+            </label>
+          {/each}
+        </div>
+        <p class="text-secondary" style="font-size:12px;margin:8px 0 0;">
+          至少保留一类；可执行文件、压缩包与宏文档始终拒绝（安全白名单不受此配置影响）。
+        </p>
+      </fieldset>
     </div>
 
       <label style="margin-top:4px;">
@@ -463,8 +467,7 @@
         </div>
       </div>
     </form>
-  </div>
-</section>
+</Dialog>
 
 <!-- 迁移与生命周期说明（SSR 断言要求） -->
 <section class="app-card">
@@ -473,10 +476,57 @@
   </header>
   <div class="app-card__body" style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;">
     <p style="margin:0 0 8px;">TTL 修改只影响新签发的 URL；已有附件不受影响。</p>
-    <p style="margin:0 0 10px;">迁移流程需在维护窗口按 Runbook 执行，必须先进行预演并验证 hash。</p>
-    <div style="display:flex;gap:8px;">
-      <button type="button" class="btn secondary sm" disabled>预演</button>
-      <button type="button" class="btn ghost sm" disabled>切换后端</button>
-    </div>
+    <p style="margin:0 0 10px;">迁移流程需在维护窗口按 Runbook 执行（`bblbb` 管理流程），必须先进行预演并验证 hash；当前版本暂不提供页面内切换入口。</p>
   </div>
 </section>
+
+<!-- step-up 重新验证（M02-MFA-07）：save/test 命中 403 step_up_required 时弹窗（模态）。
+     置于文件末尾：与编辑配置弹层同用 var(--z-modal)，后出现的 DOM 在上层，
+     保证保存/测试命中 step-up 时重新验证弹窗覆盖在编辑弹层之上。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="存储配置的保存与测试属于高风险管理操作，要求近期重新认证（登录已超过有效期）。输入当前账号密码完成重新验证后，将保留当前表单并可继续保存。"
+  onclose={() => (reauthCancelled = true)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'success') {
+          showToast((result.data as { message?: string } | null)?.message ?? '身份重新验证成功，请继续保存设置或测试连接', 'success');
+        } else if (result.type === 'failure') {
+          reauthError = (result.data as any)?.message ?? '密码验证失败，请重试';
+        }
+        await update({ reset: false });
+      };
+    }}
+    class="stack"
+    style="gap:10px;"
+  >
+    <label>
+      <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">当前密码</span>
+      <input
+        type="password"
+        name="password"
+        class="input-field"
+        required
+        autocomplete="current-password"
+        style="width:100%;"
+      />
+    </label>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
+    </div>
+  </form>
+</Dialog>

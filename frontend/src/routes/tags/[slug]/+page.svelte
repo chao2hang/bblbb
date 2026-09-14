@@ -1,6 +1,6 @@
 <script lang="ts">
   // 标签聚合页（公开 SSR）：标签标题 + 该标签下的帖子列表 + 空态引导 +
-  // 分页。标签帖子端点未就绪时（unavailable）渲染空态，不报错。
+  // 分页。标签端点临时失败时（unavailable）渲染安全降级空态，不报错。
   import PostList from '$lib/components/PostList.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
@@ -9,9 +9,19 @@
   import { formatCount } from '$lib/utils';
   import type { TagDetailPageData } from './+page.server';
   import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
+  import { page } from '$app/state';
 
   // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
   let { data }: { data: TagDetailPageData & { site?: SiteCopyView | null } } = $props();
+
+  const user = $derived.by(() => {
+    try {
+      return page.data?.user ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const authed = $derived(Boolean(user));
 
   const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
@@ -70,11 +80,16 @@
         />
         {#if data.unavailable}
           <p class="text-secondary" style="text-align:center;font-size:var(--text-sm);">
-            标签内容聚合接口尚未开放，稍后再来看看。
+            标签内容暂时加载失败，请稍后重试。
           </p>
         {/if}
         <div style="text-align:center;margin-top:var(--space-3);">
-          <Button text="去发布" variant="secondary" icon="pen-line" href="/editor" />
+          <Button
+            text={authed ? '去发布' : '登录后发布'}
+            variant="secondary"
+            icon={authed ? 'pen-line' : 'log-in'}
+            href={authed ? '/editor' : `/login?next=${encodeURIComponent('/editor')}`}
+          />
         </div>
       </div>
     </div>

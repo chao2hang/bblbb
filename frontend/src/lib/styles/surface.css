@@ -22,9 +22,10 @@
    ============================================================ */
 
 /* ============================================================
-   §1 表面归零：把所有内容容器摊平回页面底色
+   §1 三层表面：L1 模块容器 / L2 条目 / L3 浮层
    ============================================================ */
 
+/* L1：一个列表或功能模块一个面；不投影，不做盒中盒。 */
 .card,
 .panel,
 .category-card,
@@ -39,11 +40,6 @@
 .settings-section,
 .editor-container,
 .app-form-card,
-.app-profile,
-.app-account-card,
-.app-stat,
-.app-settings-nav,
-.app-admin-side,
 .topic-head-card,
 .topic-body-card,
 .topic-editor,
@@ -57,54 +53,90 @@
 .admin-content-table,
 .board-header,
 .profile-header,
+.thread-list,
+.report-bulk-toolbar,
+.feed-toolbar {
+  background: var(--color-bg-card) !important;
+  border: var(--border-default) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: none !important;
+}
+
+/* L1 的内容槽保留统一内缩；只有明确的 flush 变体才贴到边缘。
+   旧版这里把左右 padding 全部清零，导致板块信息、作者卡、消息标题等内容
+   直接贴到边框。 */
+.app-card,
+.card,
+.panel {
+  overflow: hidden;
+}
+
+.card-header,
+.app-card__head,
+.panel__head {
+  padding-inline: var(--space-4) !important;
+}
+
+.card-body,
+.app-card__body,
+.panel__body {
+  padding-inline: var(--space-4) !important;
+}
+
+.card-footer,
+.app-card__foot,
+.panel__foot {
+  padding-inline: var(--space-4) !important;
+}
+
+/* 列表/表格等需要与 L1 边缘对齐的内容显式 opt-in flush。 */
+.card-body[style*='padding:0'],
+.app-card__body[style*='padding:0'],
+.card-body--flush,
+.app-card__body--flush,
+.panel__body--flush {
+  padding: 0 !important;
+}
+
+/* L2：条目只用发丝线与整行 hover，不再长成独立卡片。 */
 .app-board-card,
 .app-article-card,
 .app-user-card,
 .board-card,
 .article-card,
-.thread-list,
-.app-post-list,
-.report-bulk-toolbar,
-.feed-toolbar {
-  /* 用 --color-bg-card 而不是 transparent：默认主题下它与 --color-bg-page
-     同值（于是完全摊平），而自定义数据型主题若声明了独立的 surface 色，
-     仍能表达出来——去掉的是「盒子」，不是主题的表面语义。 */
-  background: var(--color-bg-card) !important;
+.app-account-card,
+.app-stat {
+  background: transparent !important;
   border: 0 !important;
+  border-bottom: 1px solid var(--color-border-muted) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
 
-/* 面板头/脚：不再是卡片的横隔条，而是一条发丝线上的标签行 */
+/* 面板头/脚保留分隔线；内缩由上面的 L1 内容槽规则统一负责。 */
 .app-card__head,
 .panel__head,
 .card-header {
-  padding-left: 0 !important;
-  padding-right: 0 !important;
   border-bottom: 1px solid var(--color-border) !important;
-}
-
-.app-card__body,
-.card-body,
-.panel__body {
-  padding-left: 0 !important;
-  padding-right: 0 !important;
 }
 
 .app-card__foot,
 .card-footer,
 .panel__foot {
-  padding-left: 0 !important;
-  padding-right: 0 !important;
   border-top: 1px solid var(--color-border) !important;
 }
 
-/* 相邻面板之间用留白与发丝线分节，而不是两个盒子的边框互相顶着 */
-.app-admin-main .app-card + .app-card,
+/* 相邻面板只使用父级 gap；不再叠加 margin、padding-top 和第二条边框。 */
 .app-stack > .app-card + .app-card {
-  margin-top: var(--space-8) !important;
-  padding-top: var(--space-6) !important;
-  border-top: 1px solid var(--color-border) !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+
+.app-admin-main > .app-card + .app-card {
+  margin-top: var(--space-5) !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
 }
 
 /* ============================================================
@@ -146,7 +178,7 @@ h6,
 .page-title,
 .profile-card h2,
 .login-card h1,
-.app-route-head h1,
+.legacy-route-head h1,
 .dd-head,
 .topic-head-card h1,
 .topic-prose h2 {
@@ -155,7 +187,7 @@ h6,
 }
 
 h1,
-.app-route-head h1,
+.legacy-route-head h1,
 .topic-head-card h1,
 .thread-detail h1,
 .login-card h1 {
@@ -296,7 +328,7 @@ h4 {
 .app-user-card,
 .board-card,
 .article-card {
-  padding: var(--space-4) 0 !important;
+  padding: var(--space-4) !important;
   border-top: 1px solid var(--color-border) !important;
   transition: none !important;
 }
@@ -459,12 +491,17 @@ textarea:focus,
 .avatar.lg,
 .avatar.xl,
 .avatar.xxl {
-  border-radius: var(--radius-sm) !important;
+  border-radius: 0 !important;
   border: 1px solid var(--color-border) !important;
-  background: var(--color-bg-subtle) !important;
-  color: var(--color-text-secondary) !important;
+  background: var(--avatar-bg, var(--color-bg-subtle));
+  color: var(--avatar-color, var(--color-text-secondary));
   font-family: var(--font-family-mono) !important;
   font-weight: 500 !important;
+}
+
+/* 已装备头像框接管头像边框，避免基础边框与鎏金之环等装扮叠加。 */
+.cosmetic-avatar.has-frame > .avatar {
+  border: 0 !important;
 }
 
 /* ============================================================
@@ -615,4 +652,666 @@ textarea:focus,
   background: transparent !important;
   border-radius: 0 !important;
   color: var(--color-text-secondary) !important;
+}
+
+/* ============================================================
+   §11 移动壳与内容安全区
+   ------------------------------------------------------------
+   移动底栏是固定浮层，页面末端必须预留安全区；底栏自身消费语义
+   surface token，避免旧原型层把暗色主题刷成亮色。
+   ============================================================ */
+@media (max-width: 767px) {
+  body:has(.bottom-nav) .page-wrapper,
+  body:has(.bottom-nav) .page-wrapper:has(#page-home) {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .bottom-nav {
+    background: var(--color-bg-raised) !important;
+    border-top: 1px solid var(--color-border) !important;
+    box-shadow: 0 -8px 24px color-mix(in srgb, var(--color-bg-page) 18%, transparent) !important;
+  }
+
+  .bottom-nav-item {
+    color: var(--color-text-secondary) !important;
+  }
+
+  .bottom-nav-item[aria-current='page'] {
+    color: var(--color-brand) !important;
+  }
+
+  .bottom-nav-fab {
+    border-color: var(--color-bg-raised) !important;
+    background: var(--color-brand) !important;
+    color: var(--color-text-on-brand) !important;
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--color-brand) 28%, transparent) !important;
+  }
+
+  /* 首页信息流遵循 L1 列表容器 + L2 行，不在窄屏恢复条目级卡片。 */
+  #page-home .thread-list {
+    gap: 0 !important;
+    margin: 0 12px 12px !important;
+    padding: 0 !important;
+    border: 1px solid var(--color-border) !important;
+    background: var(--color-bg-card) !important;
+  }
+
+  #page-home .thread {
+    margin: 0 !important;
+    padding: var(--space-4) var(--space-3) !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--color-border-muted) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  #page-home .thread:last-child {
+    border-bottom: 0 !important;
+  }
+
+  #page-home .thread:hover {
+    background: var(--color-surface-hover) !important;
+  }
+
+  #page-home .thread-detail-link h2 {
+    color: var(--color-text-primary) !important;
+  }
+
+  #page-home .thread-detail-link p {
+    color: var(--color-text-secondary) !important;
+  }
+
+  /* 个人中心的编辑动作包在 .app-profile__actions 中，不能用旧的直系 .btn 选择器。 */
+  #page-me .app-profile {
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+  }
+
+  #page-me .app-profile__actions {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    justify-self: start !important;
+    margin-top: 2px !important;
+  }
+
+  /* 设置项多于一屏时保留横向滚动，并给末端留出可见的滚动空间。 */
+  .app-settings-layout .app-settings-nav {
+    flex-direction: row !important;
+    gap: 0 !important;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+    padding: 0 18px 0 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+    scrollbar-width: thin;
+  }
+
+  .app-settings-layout .app-settings-nav > button,
+  .app-settings-layout .app-settings-nav > a {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* ============================================================
+   §12 后台窄屏操作与表格
+   ------------------------------------------------------------
+   后台保留表格语义，但在 390px 只展示决策所需字段；操作列收窄并
+   纵向排列，避免关键动作被推到不可见的横向区域。
+   ============================================================ */
+@media (max-width: 767px) {
+  #page-admin .admin-action-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch !important;
+    gap: var(--space-2) !important;
+  }
+
+  #page-admin .admin-action-row > .text-link {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  #page-admin .admin-action-row > div {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ============================================================
+   §13 统一列表内层级
+   ------------------------------------------------------------
+   论坛回复与成就目录的外层已经是 L1 模块，内部条目只保留 L2
+   分隔线，避免每一条内容再次生成独立卡片。
+   ============================================================ */
+.topic-comments__head {
+  padding: var(--space-4) var(--space-4) var(--space-3) !important;
+  margin-bottom: 0 !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.topic-comments .comment-list {
+  gap: 0 !important;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.topic-comments .comment-list > .card,
+#page-achievements .achievement-grid > .achievement-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--color-border-muted) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.topic-comments .comment-list > .card:last-child,
+#page-achievements .achievement-grid > .achievement-card:last-child {
+  border-bottom: 0 !important;
+}
+
+.topic-comments .comment-list > .card .card-body {
+  padding-inline: var(--space-4) !important;
+}
+
+@media (max-width: 767px) {
+  .topic-comments__head {
+    padding: var(--space-3) !important;
+  }
+
+  .topic-comments .comment-list > .card .card-body {
+    padding-inline: var(--space-3) !important;
+  }
+}
+
+#page-achievements .achievement-grid {
+  grid-template-columns: 1fr !important;
+  gap: 0 !important;
+  padding: 0 var(--space-4) !important;
+  border: var(--border-default) !important;
+  background: var(--color-bg-card) !important;
+}
+
+#page-achievements .achievement-grid > .achievement-card .card-body {
+  padding: var(--space-4) 0 !important;
+}
+
+/* 768–1099px 平板壳：收起桌面导航，避免大屏搜索宽度挤出账号动作。 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .navbar .nav-container {
+    display: flex !important;
+    gap: var(--space-3) !important;
+    padding-inline: var(--space-4) !important;
+  }
+
+  .navbar .nav-left {
+    display: flex !important;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .navbar .mobile-menu-btn {
+    display: inline-flex !important;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .navbar .nav-items {
+    display: none !important;
+  }
+
+  .navbar .nav-center {
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-width: 0;
+    width: auto !important;
+  }
+
+  .navbar .search-form {
+    width: 100% !important;
+  }
+
+  .navbar .nav-right {
+    flex: 0 0 auto;
+    margin-left: auto !important;
+  }
+}
+
+/* 状态文字保留语义背景，同时使用主文字保证 warning 标签对比度。 */
+.sb-hot {
+  background: var(--color-warning-soft) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* 自绘后台弹窗也必须遵守 L3 浮层和主题/滚动安全契约。 */
+body:has(.modal-backdrop),
+body:has(.app-modal-backdrop) {
+  overflow: hidden;
+}
+
+.modal-backdrop,
+.app-modal-backdrop {
+  z-index: var(--z-modal) !important;
+  background: var(--color-overlay) !important;
+  padding: var(--space-4) !important;
+}
+
+.modal-backdrop > [role='dialog'],
+.app-modal-backdrop > .app-card {
+  max-height: calc(100dvh - 32px) !important;
+  overflow-y: auto !important;
+  background: var(--color-bg-raised) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-modal) !important;
+}
+
+@media (max-width: 767px) {
+  .modal-backdrop,
+  .app-modal-backdrop {
+    padding: 10px !important;
+  }
+
+  .modal-backdrop > [role='dialog'],
+  .app-modal-backdrop > .app-card {
+    max-height: calc(100dvh - 20px) !important;
+  }
+
+  /* FeedThread 从路由 scoped CSS 中抽出后，发现页仍保持原有窄屏行内距。 */
+  .proto-discover .thread {
+    padding: 14px 12px !important;
+  }
+}
+
+/* Home topic avatars follow the global square avatar contract. */
+#page-home .topic-row .avatar {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* 后台 OAuth 表的状态操作在窄屏仍保持可见，其他列可横向浏览。 */
+@media (max-width: 1023px) {
+  #page-admin .app-admin-main table[aria-label='客户端列表'] th:last-child,
+  #page-admin .app-admin-main table[aria-label='客户端列表'] td:last-child {
+    position: sticky !important;
+    right: 0;
+    z-index: 2;
+    min-width: 92px !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: -8px 0 12px -12px var(--color-text-primary);
+  }
+
+  #page-admin .app-admin-main table[aria-label='客户端列表'] th:last-child {
+    border-left: 1px solid var(--color-border) !important;
+  }
+}
+
+/* 用户主页 Cover：占据资料卡整行，头像和身份信息从 Cover 下方开始排列。 */
+#page-user .app-profile > .profile-cover,
+#page-me .app-profile > .profile-cover {
+  grid-column: 1 / -1 !important;
+  width: calc(100% + 40px) !important;
+  min-height: 140px !important;
+  margin: -20px -20px 0 !important;
+}
+
+@media (max-width: 767px) {
+  #page-user .app-profile > .profile-cover,
+  #page-me .app-profile > .profile-cover {
+    width: calc(100% + 28px) !important;
+    min-height: 112px !important;
+    margin: -14px -14px 0 !important;
+  }
+}
+
+/* ============================================================
+   Final spacing contracts
+   ------------------------------------------------------------
+   These selectors are intentionally last: the repository still contains
+   legacy route CSS, but spacing ownership must be unambiguous at the actual
+   DOM boundaries used by the Svelte routes.
+   ============================================================ */
+
+/* Profile actions are wrapped, so the old direct-child button selector cannot
+   keep them in the profile grid on narrow screens. */
+.app-profile__actions {
+  display: flex !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: var(--space-2) !important;
+  flex-wrap: wrap !important;
+}
+
+#page-user .app-profile__actions {
+  justify-self: end !important;
+}
+
+/* 统计行链接（用户主页 meta）：帖子/关注者/正在关注 → 对应页面。
+   还原链接默认样式，hover 品牌色 + 下划线给出可点反馈；数值 b 色不变。 */
+.profile-stat-link {
+  color: inherit !important;
+  text-decoration: none !important;
+  border-radius: var(--radius-sm, 6px);
+  transition: color 0.15s ease;
+}
+.profile-stat-link b {
+  color: var(--title);
+}
+.profile-stat-link:hover,
+.profile-stat-link:focus-visible {
+  color: var(--color-brand) !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+.profile-stat-link:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1000px) {
+  #page-user .app-profile__actions {
+    grid-column: 1 / -1 !important;
+    justify-self: start !important;
+    justify-content: flex-start !important;
+  }
+}
+
+/* Home feed: the same mobile row model must apply at 555px and 690px; do not
+   leave a squeezed four-column metric tail between two mobile states. */
+@media (max-width: 767px) {
+  #main-content > .container#page-home,
+  #main-content > .container#page-board {
+    padding-inline: var(--space-3) !important;
+  }
+
+  #page-home .topic-list {
+    margin-inline: 0 !important;
+  }
+
+  #page-home .topic-list-head {
+    display: none !important;
+  }
+
+  #page-home .topic-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: var(--space-2) !important;
+    min-height: 64px !important;
+    padding: 13px var(--space-3) 12px var(--space-4) !important;
+  }
+
+  #page-home .topic-row__participants,
+  #page-home .topic-row__metric {
+    display: none !important;
+  }
+
+  #page-home .topic-row__mobile-stats {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--space-3) !important;
+    overflow: hidden !important;
+    color: var(--color-text-tertiary) !important;
+    font: 11px/1.35 var(--font-family-mono) !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* One bottom-navigation owner: the wrapper reserves the fixed bar, while a
+   route shell only keeps ordinary content breathing room. */
+@media (max-width: 767px) {
+  :root {
+    --bottom-nav-offset: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .page-wrapper,
+  body:has(.bottom-nav) .page-wrapper {
+    padding-bottom: var(--bottom-nav-offset) !important;
+  }
+
+  .page-wrapper > main > .container.app-page {
+    padding-bottom: var(--space-8) !important;
+  }
+
+  #page-search,
+  #page-notifications,
+  #page-settings,
+  #page-market,
+  #page-billing {
+    padding-bottom: var(--space-8) !important;
+  }
+}
+
+/* Wide layout must expand both dimensions; changing only max-width leaves the
+   earlier base width clamp in control. */
+@media (max-width: 1023px) {
+  /* .app-topic 与 .topic-layout 挂在同一个根节点，不能写成后代选择器；
+     否则 768–900px 平板仍会保留两列，侧栏挤进窄主列。 */
+  .app-topic.topic-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: var(--space-4) !important;
+  }
+
+  .app-topic.topic-layout > .side-col {
+    margin-top: var(--space-4) !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  #page-admin .app-admin-shell {
+    display: block !important;
+    position: relative !important;
+  }
+
+  #page-admin .app-admin-main {
+    width: 100% !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* wide 布局下与首页 .container 同宽（min(1760px, 95vw)，见 theme-layout.css） */
+  .app-shell[data-theme-layout='wide'] .app-page {
+    width: min(1760px, 95vw) !important;
+    max-width: min(1760px, 95vw) !important;
+  }
+}
+
+/* ============================================================
+   移动端原型对齐（prototype/pages/*.html ≤767px 口径）
+   ------------------------------------------------------------
+   原型在移动端的内容模型与桌面表格不同：thread 卡片 = 头像 + 作者行 +
+   标题 + 摘要 + (板块 chip + ♥/💬)。此前移动端只是把桌面表格逐列隐藏，
+   丢失了原型的卡片解剖。这里按原型的移动结构重排共享 TopicRow，
+   并对齐首页分类条 / 工具条 / 登录卡的移动细节。
+   ============================================================ */
+
+@media (max-width: 767px) {
+  /* ---- 帖子卡片（home / discover / board 详情共用 TopicRow） ---- */
+  #main-content .topic-list .topic-row {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 12px !important;
+    row-gap: 0 !important;
+    align-items: start !important;
+    padding: 14px 12px 13px 14px !important;
+    border-bottom: 1px solid var(--color-border-muted) !important;
+  }
+
+  /* 原型卡片无左侧未读色条（读态信号由标题字重/摘要呈现） */
+  #main-content .topic-list .topic-row::before {
+    display: none !important;
+  }
+
+  #main-content .topic-list .topic-row__main {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+  }
+
+  /* 头像列：只保留首枚（作者），放大到原型 40px */
+  #main-content .topic-list .topic-row__participants {
+    display: block !important;
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+    margin-top: 2px !important;
+  }
+
+  #main-content .topic-list .topic-row__avatar .avatar {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    font-size: 16px !important;
+    border-radius: 0 !important;
+  }
+
+  /* 旧移动统计行（回复/浏览/活动）被原型页脚取代 */
+  #main-content .topic-list .topic-row__mobile-stats {
+    display: none !important;
+  }
+
+  /* 原型页脚：板块 chip + ♥赞 + 💬回复，对齐在内容列下方 */
+  #main-content .topic-list .topic-row__mobile-footer {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-top: 10px !important;
+  }
+
+  #main-content .topic-list .topic-row__footer-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    max-width: 55% !important;
+    padding: 3px 10px !important;
+    overflow: hidden !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: var(--radius-sm) !important;
+    background: transparent !important;
+    color: var(--color-text-secondary) !important;
+    font: 400 11px/1.5 var(--font-family-base) !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  #main-content .topic-list .topic-row__footer-stat {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    color: var(--color-text-tertiary) !important;
+    font: 500 12px/1.3 var(--font-family-mono) !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  #main-content .topic-list .topic-row__footer-stat .icon {
+    color: var(--color-text-tertiary) !important;
+  }
+
+  #main-content .topic-list .topic-row__title {
+    font-weight: 600 !important;
+  }
+
+  /* ---- 首页分类条 → 原型 mobile-categories（下划线 tab） ---- */
+  #page-home .home-category-bar {
+    display: flex !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    margin: 4px 0 0 !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    background: transparent !important;
+    scrollbar-width: none !important;
+  }
+
+  #page-home .home-category-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  #page-home .home-cat-chip {
+    flex: 0 0 auto !important;
+    padding: 11px 16px 9px !important;
+    border: 0 !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--color-text-secondary) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+  }
+
+  #page-home .home-cat-chip.active {
+    border-bottom-color: var(--color-brand) !important;
+    color: var(--color-text-primary) !important;
+    font-weight: 600 !important;
+  }
+
+  /* 原型 tab 不展示计数徽标 */
+  #page-home .home-cat-chip__count {
+    display: none !important;
+  }
+
+  /* ---- 工具条：筛选 + 发布内容同排（原型 feed-toolbar） ---- */
+  #main-content .feed-toolbar {
+    gap: 10px !important;
+  }
+
+  #main-content .feed-toolbar .filters {
+    width: auto !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  #main-content .feed-toolbar .publish {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    align-items: center !important;
+    min-height: 34px !important;
+    padding: 0 14px !important;
+    border-radius: var(--radius-sm) !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  /* ---- 登录页：紧凑居中卡片（原型 login.html） ---- */
+  #main-content .login-page.auth-wrapper, body:has(.login-page) .login-page.auth-wrapper {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: calc(100dvh - var(--bottom-nav-offset, 84px)) !important;
+    padding: 24px 16px !important;
+  }
+
+  /* 覆盖旧「移动端全幅沉浸式」外壳：外壳不再撑满视口 */
+  #main-content .login-page .login-shell {
+    width: 100% !important;
+    max-width: 420px !important;
+    height: auto !important;
+    max-height: none !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  #main-content .login-page .login-card.auth-card {
+    width: 100% !important;
+    max-width: 420px !important;
+    padding: 26px 22px !important;
+    background: var(--color-bg-card) !important;
+    border: var(--border-default) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-pop) !important;
+  }
+
+  /* 卡内页脚（注册引导）回到卡片内部流式排布 */
+  #main-content .login-page .login-footer-zone {
+    margin-top: 18px !important;
+    padding: 0 !important;
+    text-align: center !important;
+  }
 }

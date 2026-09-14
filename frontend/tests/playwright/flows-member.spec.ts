@@ -28,7 +28,7 @@ test.describe('member 发帖（editor → 发布）', () => {
     // bind:value 输入事件会丢失（Svelte state 保持空，DOM 值残留），必须先
     // 等 onMount 完成再填写。
     await expect(page.locator('#publish-board')).toHaveValue(/\S/, { timeout: 10_000 });
-    await stableFill(page, page.getByLabel('标题'), title);
+    await stableFill(page, page.getByLabel('标题', { exact: true }), title);
     await stableFill(page, page.locator('#publish-content'), '这是一篇由 Playwright 发布的 E2E 帖子。');
     // 校验标题 state 已绑定：char counter 反映 Svelte state（而非 DOM 残留值）。
     await expect(page.getByText(`${title.length} / 200`)).toBeVisible({ timeout: 5_000 });

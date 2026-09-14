@@ -1,6 +1,6 @@
-// M06-UI-02：附件容量摘要组件——展示当前等级单文件上限、总容量、已用/预留
-// 与剩余额度（数据来自 GET /attachments 的 quota 摘要，字段缺失时降级）。
 <script lang="ts">
+  // M06-UI-02：附件容量摘要组件——展示当前等级单文件上限、总容量、已用/预留
+  // 与剩余额度（数据来自 GET /attachments 的 quota 摘要，字段缺失时降级）。
   import type { AttachmentQuota } from '$lib/api/types';
   import { formatBytes } from './formatBytes';
 

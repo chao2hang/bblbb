@@ -1,4 +1,6 @@
-// M13-UI-06/PLUGIN-07：管理插件页 SSR 快照（无 JS 退化 + 能力边界 + 隐私守卫）。
+// M13-UI-06/PLUGIN-07 & M18-ADMIN-BATCH：管理插件页 SSR 快照
+// （无 JS 退化 + 按钮→弹层新契约 + 能力边界 + 隐私守卫）。
+// 弹层（安装/启用/停用/设置/批量）为客户端交互，无 JS 只渲染触发按钮与列表。
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import AdminPluginsPage from '../../../routes/admin/plugins/+page.svelte';
@@ -37,7 +39,7 @@ const okData: AdminPluginsPageData = {
 };
 
 describe('M13-UI-06 管理插件 SSR', () => {
-  it('ok → 插件列表 + 能力徽章 + 订阅 + policy 版本 + 启停按钮', () => {
+  it('ok → 插件列表 + 能力徽章 + 订阅 + policy 版本 + 启停/设置触发按钮', () => {
     const { body } = render(AdminPluginsPage, { props: { data: okData, form: null } });
     expect(body).toContain('新用户欢迎奖励');
     expect(body).toContain('/welcome-reward');
@@ -45,7 +47,14 @@ describe('M13-UI-06 管理插件 SSR', () => {
     expect(body).toContain('points.award');
     expect(body).toContain('user.verified.v1');
     expect(body).toContain('policy v3');
-    expect(body).toContain('action="?/disable"');
+    // 约定 C 新契约：每行唯一「操作」按钮（启用/停用/设置在弹层内选择），
+    // 旧平铺行按钮不再出现在 SSR body。
+    expect(body).toContain('<span>操作</span>');
+    expect(body).not.toContain('<span>停用</span>');
+    expect(body).not.toContain('<span>设置</span>');
+    expect(body).not.toContain('action="?/disable"');
+    // 行选择列 aria 标签（批量操作契约）
+    expect(body).toContain('aria-label="选择插件 新用户欢迎奖励"');
   });
 
   it('ok → 能力边界说明（v1 无在线代码执行；受控 Provider Adapter）', () => {
@@ -56,13 +65,13 @@ describe('M13-UI-06 管理插件 SSR', () => {
     expect(body).toContain('xigua');
   });
 
-  it('安装表单：ID/能力/订阅/schema/reason 全部原生表单（无 JS 可用）', () => {
+  it('安装改按钮+弹层：头部触发按钮渲染，弹层表单无 JS 不渲染', () => {
     const { body } = render(AdminPluginsPage, { props: { data: okData, form: null } });
-    expect(body).toContain('action="?/install"');
-    expect(body).toContain('name="capabilities"');
-    expect(body).toContain('name="subscriptions"');
-    expect(body).toContain('name="settings_schema"');
-    expect(body).toContain('name="reason"');
+    // 触发按钮（?/install Dialog）
+    expect(body).toContain('+ 安装插件');
+    // 弹层表单本体不再直接暴露在页面上（无 JS 不执行写操作）
+    expect(body).not.toContain('action="?/install"');
+    expect(body).not.toContain('name="settings_schema"');
   });
 
   it('403 → 无权限态不泄漏插件数据', () => {

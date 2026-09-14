@@ -46,7 +46,7 @@ describe('M03-UI-03 用户资料卡', () => {
     expect(document.querySelector('.user-card-popover')).toBeNull();
   });
 
-  it('mouseenter 打开浮层，显示公开字段（姓名/LV/简介）', async () => {
+  it('mouseenter 打开浮层，显示公开字段（姓名/LV/签名）', async () => {
     renderCard();
     const trigger = screen.getByRole('link', { name: '查看 爱丽丝 的个人资料' });
     await fireEvent.mouseEnter(trigger);
@@ -54,8 +54,10 @@ describe('M03-UI-03 用户资料卡', () => {
     expect(card).not.toBeNull();
     expect(card).toHaveAttribute('role', 'dialog');
     expect(card!.textContent).toContain('爱丽丝');
-    expect(card!.textContent).toContain('LV.7');
-    expect(card!.textContent).toContain('公开简介');
+    expect(card!.textContent).toContain('TL7');
+    // 产品约定：只保留签名（signature），不再展示简介（bio）字段。
+    expect(card!.textContent).toContain('公开签名');
+    expect(card!.textContent).not.toContain('公开简介');
   });
 
   it('mouseleave 延迟关闭（250ms），浮层 mouseenter 取消关闭', async () => {

@@ -10,7 +10,9 @@
 - pnpm 管理依赖并提交锁文件。
 - 使用原生 `fetch` 和薄 API 客户端，不在 v1 引入大型全局状态框架。
 - 样式使用 CSS Token、CSS Modules/scoped CSS 和少量无样式基础组件。
-- 图标可使用 `lucide-svelte` 按需加载。
+- 图标体系以 lucide 为源：`Icon.svelte` 渲染固定 allowlist（手写表 +
+  `lucide-static` 生成的图标目录，`npm run generate:icons`）；
+  可挑选场景（如板块图标）用 `IconPicker.svelte` 浏览目录精选集。
 - OpenAPI 是接口事实来源，`openapi-typescript` 生成请求/响应类型。
 
 前端依赖使用精确版本或受控范围，升级须通过测试，文档不写“最新版本”作为可复现规格。
@@ -176,7 +178,27 @@ src/lib/
 
 详见 [`THEME.md`](THEME.md) 与 [`PLUGIN.md`](PLUGIN.md)。
 
-## 10. 可访问性与国际化
+## 10. 字体与排版规范（Typography）
+
+全站前端遵循严格的三级字体体系（定义于 `fonts.css`、`tokens.css` 与 `theme-tokens.css`）：
+
+1. **基础界面与正文（`--font-family-base` / `--font-family-display`）**：
+   - 拉丁文本：随包自托管 `@fontsource-variable/inter-tight`（紧凑无衬线，免外链 CDN、零网络隐私泄露）；
+   - CJK 汉字：回退至系统字体栈（PingFang SC / MiSans / HarmonyOS Sans SC / Noto Sans SC / 微软雅黑）；严禁下发数 MB 的 Web 中文字体以保护首屏性能；
+   - 适用范围：页面主体、标题、表单输入、按钮、对话框、文章正文。
+2. **等宽与元信息数据（`--font-family-mono`）**：
+   - 优先随包自托管 `@fontsource/ibm-plex-mono`，回退至系统等宽字体栈；
+   - 适用范围：时间戳、计数值、板块 kicker、代码块、ID 流水号、金额、数据表格；
+   - **对齐要求**：所有展示数字与指标的 mono 元素必须同时声明 `font-variant-numeric: tabular-nums`，确保等宽等长纵向对齐。
+3. **人文衬线（`--font-family-serif`）**：
+   - 统一栈：`Georgia, "Songti SC", "Noto Serif SC", serif`；
+   - 适用范围：仅用于名言金句、特定典雅引语，严禁在常规功能界面滥用。
+4. **统一纪律**：
+   - 严禁在 CSS/Svelte 中直接编写硬编码字族（如 `font-family: monospace` 或 `Georgia, serif`）；
+   - 严禁发明不存在的变量名（如历史残留的 `--font-family-ui` 或 `--font-family-body`）；
+   - UI 库组件样式映射必须通过 `--aui-font-ui` 与 `--aui-font-mono` 桥接，保持一致。
+
+## 11. 可访问性与国际化
 
 v1 目标为 WCAG 2.2 AA：
 
@@ -277,4 +299,4 @@ v1 目标为 WCAG 2.2 AA：
   - 会话与 CSRF Cookie 采用 `__Host-session` 与 `__Host-bblbb_csrf`，按标准必须携带 `Secure` 属性；
   - **网络限制**：现代浏览器仅对 `localhost` 允许在 HTTP 下存储带 `Secure` 的 Cookie；通过 IP 地址（如 `10.10.10.10`、`192.168.*`）或非 localhost 域名访问时，明文 HTTP 会直接**静默丢弃 Cookie**，导致登录态无法建立；
   - **开发环境支持**：`vite.config.ts` 自动检测 `dev/certs/dev.crt` 与 `dev/certs/dev.key`（或环境变量 `BBLBB_DEV_TLS_CERT`/`BBLBB_DEV_TLS_KEY`），命中时默认以 HTTPS 模式启动，并配置 Node.js SSR 内部请求信任开发自签证书；
-  - **启动命令**：前端 `npm run dev -- --host 0.0.0.0 --port 5173`（自动 HTTPS 监听）；后端 `BBLBB__BIND_ADDRESS=0.0.0.0:8080 cargo run`。
+  - **启动命令**：前端 `npm run dev -- --host 0.0.0.0 --port 5173`（`vite.config.ts` 默认启用 HTTPS 并监听所有接口，自动加载仓库 `dev/certs/dev.crt` 与 `dev/certs/dev.key`，也可用 `BBLBB_DEV_TLS_CERT`/`BBLBB_DEV_TLS_KEY` 覆盖）；远程访问 `https://10.10.10.10:5173/`。后端 `BBLBB__BIND_ADDRESS=0.0.0.0:8080 cargo run`。首次访问自签名证书需在浏览器中接受警告。

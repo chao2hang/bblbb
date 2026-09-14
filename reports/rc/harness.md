@@ -1,5 +1,7 @@
 # BBLBB — M16 测试基线与报告（M16-HARNESS-08）
 
+> 历史快照：rc.2 / 2026-08-08。本文的测试数量、迁移版本和环境只代表当次验收，不代表当前工作区。
+
 > 本报告记录测试日志、DB 版本、迁移 checksum、commit 与 artifact 地址，
 > 供 RC 聚合（`reports/rc/release-test.md`）引用。全部为真实命令输出。
 

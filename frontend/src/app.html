@@ -2,7 +2,12 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 移动端禁用双指缩放/双击放大（应用式页面，2026-09 站点统一决策）；
+         viewport-fit=cover 供 env(safe-area-inset-*) 在刘海屏生效。 -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#F7F8F8" id="theme-color" />
     <!-- 全局壳·主题防闪烁（照原型各页面 head 内联脚本的模式）：
          首帧前同步读取 localStorage `bblbb-theme`（light/dark/system，默认

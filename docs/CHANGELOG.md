@@ -1,3 +1,205 @@
+## Unreleased — 手机端浮层标准化（Bottom Sheet 交互规范）
+
+> 确立「手机端弹层 = 底部上滑约半屏（50dvh）Bottom Sheet」为全站标准：scrim +
+> 抓手 + 72px 阈值下滑关闭 + 底部安全区 + aria-modal；桌面 ≥768px 保持锚定浮层不变。
+> 规范：[`MOBILE-SHEET.md`](MOBILE-SHEET.md)（已登记 DOCUMENT-STATUS）。
+
+- 共享实现：`mobile.css` 末段「§ 手机端半屏弹层」样式层（`.app-sheet-backdrop`/`.app-sheet-grab`
+  共享类 + 各浮层 sheet 化规则）+ `lib/utils/sheet-drag.ts` 下滑关闭手势 action
+  （断点常量 `SHEET_MEDIA_QUERY` 为 CSS/JS 唯一事实来源；`utils/sheet-drag.test.ts` 单测）。
+- 接入浮层：发帖页「发布设置 / 视频引用 / AI 助手」3 个面板（`TopicComposer`）、
+  「收到的表情」明细弹窗与「添加互动表态」选择器（`ReactionBar`）、
+  用户资料卡窄屏形态由浮动卡对齐为全宽贴底 + scrim（`UserCard`）；
+  导航用户菜单 Bottom Sheet（既有）作为设计参照。
+- 导航收敛：移动端抽屉菜单移除个人链接区（我的主页/我的等级/积分明细/我的收藏/
+  发布内容/账号设置/通知，与右侧头像用户菜单重复），抽屉仅保留退出登录；
+  个人相关入口统一由头像菜单（Bottom Sheet）提供。
+
+## Unreleased — 2026-09-12（复核修正：M18 后端批量/导出未完成，安全审计发现待修复项）
+
+> 二次复核撤销上一轮对 M18-ADMIN-BATCH-01/02 的完成结论：当前代码只有前端 server action 逐条调用单条端点，`ExportButton` 只导出当前已加载数据；后端原子批量、全量流式 CSV、权限/审计端点尚未完成。
+>
+> 同轮审计确认并进入修复：幂等重放跨用户 IDOR、附件状态重签下载、S3 私有重定向缓存、个人/通知/下载响应缓存隔离、板块角色全局授予、board_mute 与 fail-open sanction lookup、管理员 step-up 及上传隔离对象清理等问题。
+
+## Unreleased — 2026-09-12（产品决策：取消 M19 设计系统重做）
+
+> 经产品所有者确认，当前默认主题视觉与组件体验符合需求，取消 M19「冷墨」全站三层表面重做与 Panel 组件重构。
+
+- 执行册收敛：M19（5 工作包、42 叶子任务）正式下线并归档至 `todo/archived-M19-design-system.md`；路线图校验器与仪表盘收敛至 M0–M18。
+- 任务总数由 865 调整为 823 项；该条记录保留当时快照，当前状态以 `TODO.md` 为准。
+
+## Unreleased — 2026-09-12（后台表格化与批量盘点收口：levels 配额批量 + 管理矩阵）
+
+> 全量盘点 27 个 admin 页面：列表型实体均已是表格形态 + 约定 B 批量
+> （14 页此前已接通：users/posts/attachments/notifications/boards/tags/
+> plugins/marketplace/oauth/achievements/ai/assignments/moderation-cases/
+> shop）；本轮补齐 /admin/levels 配额批量并产出管理矩阵文档
+> [`ADMIN-MANAGEMENT-MATRIX.md`](ADMIN-MANAGEMENT-MATRIX.md)（每页形态/
+> 批量/端点/类型判定；只读流水、配置单例、主题预览卡等按类型注明不批量
+> 理由）。
+
+- /admin/levels 附件配额补约定 B：行复选框 + 全选 + `BatchBar` +
+  「批量设置配额」Dialog（`?/batchQuota`）。服务端逐档 PATCH（每档各自
+  If-Match=打开时快照的 policy_version + reason 审计 + step-up）；
+  **单档 409 冲突不阻塞其余档**，返回 207 按档汇总（成功 TLx / 冲突 TLy）。
+  批量均为前端循环调用既有单条端点（同 M18-ADMIN-BATCH 先例），无新增契约端点。
+- TL 规则不做批量（各级语义互异），逐级编辑/reset 保留行「⋮」菜单入口。
+- 证据：`npm run check` 0 错误 0 警告；SSR 用例补批量断言后 16/16；
+  vitest 全量 821/821；`cargo clippy --workspace` 0 警告。
+
+## Unreleased — 2026-09-12（等级规则可配置化：TL 规则后台编辑 + 停用语义修复）
+
+> 承接等级合并单轨：/admin/levels 的信任等级规则从只读种子升级为管理端
+> 可配置（名称/摘要/启用/全部阈值条件），并修复「停用实际不生效」的语义漏洞。
+
+- 后端新增 `PATCH /api/v1/admin/trust-levels/{level}`（level.manage + CSRF +
+  If-Match=version 乐观锁 + reason 审计 `admin.trust_level_rules.update`）：
+  全量更新 name（1–50 字）/summary（≤200 字）/is_enabled/requirements_json。
+  requirements 校验：未知键拒绝（防拼写错误静默失效）、负数/越界拒绝
+  （ratio ∈ [0,1]、window_days ≤ 3650）、TL0 禁止条件、TL1–TL3 禁
+  manual_only、TL4 强制 manual_only=true。新增
+  `POST /api/v1/admin/trust-levels/{level}/reset`（reason 审计
+  `admin.trust_level_rules.reset`）恢复内置 LinuxDo 默认（含 name/summary）。
+- 停用语义修复：`load_rules` 原只取 is_enabled=1 行，而 parse_rules 对缺失
+  等级回填代码默认值——停用某级后引擎实际仍按默认规则评估。现改为全量行
+  加载 + 引擎感知：停用级不参与自动晋升目标选择；TL3 停用时不做自动降级
+  （存量用户保持不动）；手动授予不受停用影响；/me/trust-level 的
+  next_level 跳过停用级（不展示不可达条件）。管理列表随之可见停用行。
+- 前端 /admin/levels：每行「⋮」→「编辑规则」弹层（名称/摘要/启用开关 +
+  逐条阈值条件增删改：比例按 % 输入、TL0 空条件提示、TL4 manual_only 固定；
+  「保存规则」= PATCH，「恢复默认」= reset，共用 reason 审计字段），保存后
+  invalidateAll 即时刷新。
+- 登记与测试：route-coverage 增 `admin/trust-levels/{p}` PATCH 与
+  `admin/trust-levels/{p}/reset` POST；trust_levels 集成测试新增 3 例
+  （PATCH 鉴权/校验/冲突/审计矩阵、编辑对评估引擎双向生效、reset 恢复默认
+  与 TL3 停用不降级）。
+- 文档同步：TRUST-LEVELS §3/§4/§5/§5.1、SCHEMA §9（version/is_enabled 语义）、
+  API/OPERATIONS 端点登记。
+- 证据：`cargo test --test trust_levels` 10/10；`cargo check`/`clippy
+  --workspace` 0 警告；`npm run check`（svelte-check）0 错误 0 警告
+  （顺手修 RowActionsMenu role=menu 缺 tabindex 的 a11y 警告）；
+  `ruby scripts/check-route-coverage.rb` OK。
+
+## Unreleased — 2026-09-12（等级管理合并单轨：/admin/levels = LinuxDo 信任等级）
+
+> 产品决策：等级体系统一为 LinuxDo 式信任等级（TL0–TL4），后台单入口。
+> 体系对照见 `TRUST-LEVELS.md` §1.1；经验方案表（0050）保留为契约字段
+> （`PublicUser.level`/`visibility_level`/商城 `required_level`）的内部同步来源。
+
+- 后端移除等级存档/方案端点：`GET /api/v1/admin/levels`（0062 `level_rules`
+  存档 CRUD，运行时无消费点）、`PATCH /api/v1/admin/levels/{level}`、
+  `GET /api/v1/admin/levels/scheme`（0050 方案表投影）及对应处理器、辅助函数
+  与集成测试；`scripts/check-route-coverage.rb` 同步注销（双向校验通过，
+  后端路由 224 条）。0062 表保留为历史存档（不新增迁移）。
+- 附件配额档位键切换：`users.level`（经验等级 1–10）→ `users.trust_level`
+  （TL0–4）。`upload.rs`（create/complete 重检）、`storage.rs`
+  （GET /attachments quota 摘要）、`quota.rs`（`retention_days_for_owner`）
+  全部改读信任等级；`default_policy_for_level` 五档化（TL0 2MB/100MB/20MB →
+  TL4 20MB/2GB/400MB，单调放宽、TL3–TL4 单文件 20MB 平台期），
+  `GET/PATCH /api/v1/admin/levels/{id}/attachment-quota`（冻结契约）端点
+  形状不变、`{id}` 语义改为 TL。
+- 前端 /admin/levels 重写为信任等级单轨页：TL0–TL4 规则/用户数表
+  （`GET /admin/trust-levels`）+ 手动设置信任等级卡（`?/setLevel`，TL4 唯一
+  授予通道）+ 按信任等级取档的附件配额（`?/updateQuota`，If-Match + reason
+  审计 + step-up）。原 /admin/trust-levels 独立路由删除、导航合一；
+  client.ts/types.ts 移除存档 CRUD 死函数与 `AdminLevelItem`。
+- 徽章主题安全化：晋升条件/停用/「5 级」徽章原用主题未定义的
+  `--color-surface-2`/`--color-info-soft`（回退浅色底 + `color:inherit`，
+  暗色主题下文字不可读），改用主题原生 `sbadge sb-gray`/`sb-brand`/
+  `sb-danger`；等级列加 nowrap 修「TL0 新用户」折行。Playwright 对运行中
+  dev 栈实测暗/浅两主题截图目检通过（临时验证脚本与铸造会话用后即删）。
+- 文档同步：`TRUST-LEVELS.md` §1.1/§5.1（合并单轨后体系定位与后台入口）、
+  `SCHEMA.md` §9（level_rules 端点下线、配额档位键）、`API.md`（端点登记与
+  quota 口径）、`OPERATIONS.md` §19.8、`STORAGE.md` §8.2、
+  `PROTOTYPE-IA.md` §1.4/§2.10。
+- 证据：`cargo test --test economy_ext --test storage_quota --test
+  storage_upload --test trust_levels` 全通过（含新增
+  `default_policy_tiers_follow_trust_levels` 五档互异/单调用例；
+  policy-follows 测试改写信任等级）；`cargo clippy --workspace`、
+  `cargo check` 0 警告；`npm run check`（svelte-check）0 错误；SSR 空安全
+  测试改写至新数据形状后 vitest 21/21 通过；`ruby
+  scripts/check-route-coverage.rb` OK。
+
+## Unreleased — 2026-09-12（消息页移动端适配：实测校准 + 禁用缩放）
+
+> 纯前端布局修复，无契约/后端变更；经 Playwright 注入测试会话在
+> 390×844 / 436×948 实测校准（测量用临时脚本/截图/临时会话行已清理）。
+
+- /messages 移动端（≤767px）撑满视口：页面根覆写主题遗留的
+  `#page-messages.app-page { height: calc(100dvh - 64px) }`（旧 chrome 口径，
+  实测多出 46px 造成整页滚动）与 `display: block !important`
+  （chinese-elegance 行 1210；级联中 !important 无视优先级，display 需同加
+  `!important` 才能取胜），改为 `height: calc(100dvh - 110px - safe-area)` +
+  `display: flex`（110 = 实测顶栏 52 + 底部 Tab 58）。实测 `scrollH = dvh`、
+  卡片底贴 Tab 顶（gap = 0），空态（还没有私信 / 会话还没有消息）在卡片内
+  垂直居中。桌面双栏布局不变。
+- 断点对齐：组件移动分支由 ≤768 收敛为 ≤767（与 `styles/mobile.css` 的消息页
+  owning 规则一致，消除 768px 宽度的双方都不管缝隙）；删除与 mobile.css 竞争
+  的线程样式——线程视图继续由 mobile.css 管理（单一滚动宿主、输入框安全区、
+  16px 字号防 iOS 缩放）。
+- 移动端禁用缩放：`app.html` viewport meta 增加
+  `maximum-scale=1, user-scalable=no, viewport-fit=cover`（站点统一决策；
+  刘海屏 safe-area 变量随之生效）。
+- 证据：`npm run check`（svelte-check）0 错误；`vitest` 全量 801/801；
+  Playwright 实测 `scrollable=false`、`gap_card_to_nav=0`（截图目检通过）。
+
+## Unreleased — 2026-09-12（管理后台工具栏统一单行布局）
+
+> 纯前端布局修复，无契约/后端变更。
+
+- 管理后台 7 个列表页（posts / attachments / boards / plugins / marketplace / notifications / audit）的「搜索 + 状态筛选 + 清除」工具条由两行全宽堆叠（`.app-field`/`.app-select` 默认 `width:100%`，`space-between` 行把「清除」挤到右缘裁切换行）统一为单行 flex：搜索框 `flex:1` 撑满、筛选下拉定宽 168px、「清除」为 `btn ghost sm`；窄屏自动换行。posts/attachments 的「清除」由裸文本链接升级为按钮样式（保留 no-JS GET 重置语义）。
+- 证据：`npm run check`（svelte-check）0 错误；`vitest` 全量 801/801 通过。
+
+## Unreleased — 2026-09-12（等级管理对齐：/admin/levels 改读真实经验方案阶梯）
+
+> 背景：/admin/levels 页面原展示 0062 `level_rules` 存档表（运行时无消费点，
+> 接口失败还回退硬编码 mock），与真实等级体系（经验方案 10 级 + 信任等级
+> TL0–TL4）不一致。本轮按 docs/TRUST-LEVELS.md §1.1 的体系定位对齐。
+
+- 后端新增 `GET /api/v1/admin/levels/scheme`（documented non-contract，
+  `level.manage`，`private, no-store`）：活跃 `level_schemes` 方案 + `levels`
+  等级行（level=sort_order，与 `users.level` 同语义）+ `users.level` 每级
+  用户数（GROUP BY 聚合，status='active' 未删除）；无活跃方案返回
+  `scheme:null` 空态而非 404。登记 `scripts/check-route-coverage.rb`。
+- 前端 /admin/levels 重写：等级列表改为真实经验方案阶梯（等级/阈值/用户数/
+  每级附件配额摘要），删除 `level_rules` 存档展示、硬编码 mock 回退与死
+  `update` action；附件空间配额（If-Match + reason 审计 + step-up）保持不变，
+  等级档位改由方案阶梯驱动；页面增加指向 /admin/trust-levels 的引导。
+- 文档同步：TRUST-LEVELS.md §1.1（三张等级表角色对照）、SCHEMA.md §9（补记
+  0062 `level_rules` 与新端点）、API.md / OPERATIONS.md（non-contract 登记 +
+  存档状态说明）、PROTOTYPE-IA.md §1.4/§1.5/§2.10（实现差异）。
+- 证据：`cargo test --test economy_ext admin_levels_scheme`（新增集成测试：
+  403 矩阵、空方案空态、默认方案 10 级阶梯与每级用户数）通过；
+  `npm run check`（svelte-check）0 错误；SSR 空安全测试更新至新数据形状。
+  余项：`cargo clippy --workspace`、`cargo check`、vitest 全量见 TODO 收口。
+
+## Unreleased — 2026-09-12（文档对齐：等级管理以信任等级为准）
+
+> 纯文档修订（同日并入上一条的代码对齐）；保留原文档盘点结论。
+
+- `TRUST-LEVELS.md` 新增 §1.1「体系定位」：三张等级表运行时角色对照——`trust_level_rules`（0070，等级管理主线，/admin/trust-levels）、`level_schemes`+`levels`（0050 经验等级权威，同步 `users.level`）、`level_rules`（0062，管理端存档，运行时无消费点）。
+- `SCHEMA.md` §9 补记 0062 `level_rules` 表（结构、种子、仅 `/admin/levels` CRUD、阈值/限额运行时无消费点）。
+- `API.md` / `OPERATIONS.md` 为 `GET/PATCH /api/v1/admin/levels` 标注「管理端存档 CRUD」状态说明。
+- `PROTOTYPE-IA.md` §1.4/§1.5/§2.10 补实现差异：/admin/levels 已实现形态（规则存档列表 + 每级附件配额）、原型的晋升路径可视化未实现、新增 /admin/trust-levels（LinuxDo 式 TL0–TL4，等级管理主线）。
+
+## Unreleased — 2026-09-11（M06-UPLOAD 上传类型策略化）
+
+> 工作区收口记录，尚未对应 release tag；发布状态以 [`../TODO.md`](../TODO.md) 为准。
+
+- 附件上传类型不再写死：`site_settings` 新增 `storage_allowed_upload_types`（迁移 0068，三方言），管理后台「文件存储」按类目 `image/pdf/text/office/av` 开关，PATCH `/api/v1/admin/storage/config` 保存后立即生效（create 实时读库）；能力白名单仍是安全下限，压缩包/可执行/宏文档始终拒绝。
+- 能力白名单在图片/PDF/纯文本基础上扩展：OOXML 文档（docx/xlsx/pptx，含 OPC 包结构校验防 zip 改名绕过）、文本族（csv/json/xml/markdown）与音视频（mp4/m4v/mp3/webm，ftyp/ID3/EBML 魔法检测）。
+- `GET /api/v1/attachments` 的 `quota` 摘要新增 `allowed_media_types` 投影；前端共享 `lib/upload/mediaTypes.ts`（扩展名权威归一化 + 策略缓存），编辑器与上传器选文件即预校验，不再把任意文件送到后端撞「存储请求参数有误」；该报错文案同步改为明确指出类型/大小不符。
+- 证据：`cargo test --test storage_upload`（20 pass，含策略 fail-open/OOXML/音视频魔法用例）、`cargo test --test storage_quota`（13 pass）、`cargo clippy --workspace` 0 警告、`vitest` upload 相关 24 pass、`svelte-check` 0 错误；E2E 实测 docx/mp4/csv 经 S3 预签名上传 ready，管理端关闭 office 类目后 docx create 即刻 400、恢复后放行。
+
+## Unreleased — 2026-09-09（M17-GAPFIX-07 私信验收）
+
+> 工作区收口记录，尚未对应 release tag；发布状态以 [`../TODO.md`](../TODO.md) 为准。
+
+- 私信完成发布级验收：SQLite、MySQL 8、MariaDB 10.11 跨库语义，CSRF、参与者隔离、幂等重放/冲突、复合游标分页、`private, no-store`、通知和隐私投影均有证据；`/messages` 与用户主页发私信入口通过 SSR/无 JS 和移动端对比验证。
+- 5 个 Messages operation 从 `implemented` 升为 `verified`；当前 OpenAPI 覆盖为 223/223，`verified=199`、`implemented=24`。
+- 清理已完成的 `prototype/todo.md` 与旧 `prototype/.verify/` 生成快照；正式对比报告和历史 RC 审计资料保留。
+- 内容审核页恢复可用（M18-ADMIN-CONTENT-01）：新增 `GET /api/v1/admin/posts/{id}/revisions`（管理域 documented non-contract，post.moderate，不限帖子状态）投影全量不可变修订；`/admin/content` 改为待审队列 + 最后两版「修改前/后」对比块，对比可用才放行通过/驳回（驳回理由改原生 details 展开，无 JS 可用），并修复 403/错误态误显示“没有待审核的内容”空态的问题。
+
 ## v1.0.0-rc.8 — 2026-09-07（全站文案统一：站点文案后台可配）
 
 > 基线 commit 待发布时补记。rc.7 之后的增量：站点级文案（站点名称/描述、

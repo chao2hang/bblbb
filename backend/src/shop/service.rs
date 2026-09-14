@@ -42,6 +42,8 @@ pub enum ShopError {
     PurchaseLimitExceeded,
     /// 同幂等键不同请求摘要。
     IdempotencyConflict,
+    /// 展示版本冲突。
+    VersionConflict,
     /// 权益不属于本人或不可装备。
     EntitlementNotOwned,
     /// 装备槽冲突（slot 互斥 / 徽章超过 3 个）。
@@ -81,6 +83,7 @@ impl std::fmt::Display for ShopError {
             Self::NotInSaleWindow => write!(f, "not in sale window"),
             Self::PurchaseLimitExceeded => write!(f, "purchase limit exceeded"),
             Self::IdempotencyConflict => write!(f, "idempotency key reused"),
+            Self::VersionConflict => write!(f, "presentation version conflict"),
             Self::EntitlementNotOwned => write!(f, "entitlement not owned or invalid"),
             Self::SlotConflict => write!(f, "equipment slot conflict"),
             Self::NotRefundable => write!(f, "order is not refundable"),
@@ -104,6 +107,7 @@ impl ShopError {
             Self::NotInSaleWindow => "product_unavailable",
             Self::PurchaseLimitExceeded => "shop_purchase_limit_exceeded",
             Self::IdempotencyConflict => "idempotency_conflict",
+            Self::VersionConflict => "version_conflict",
             Self::EntitlementNotOwned => "entitlement_not_usable",
             Self::SlotConflict => "presentation_slot_conflict",
             Self::NotRefundable => "refund_not_allowed",
@@ -123,8 +127,12 @@ pub struct ProductRow {
     pub description_safe: Option<String>,
     pub icon_token: Option<String>,
     pub presentation_tokens_json: Option<String>,
+    pub asset_attachment_id: Option<String>,
     pub slot: String,
     pub currency_id: String,
+    /// 结算货币 code/name（LEFT JOIN currencies；悬空引用容忍为 None）。
+    pub currency_code: Option<String>,
+    pub currency_name: Option<String>,
     pub unit_price: i64,
     pub quantity_limit: i64,
     pub stock_remaining: Option<i64>,
@@ -149,8 +157,11 @@ fn product_row_from(row: &sqlx::sqlite::SqliteRow) -> ProductRow {
         description_safe: row.get("description_safe"),
         icon_token: row.get("icon_token"),
         presentation_tokens_json: row.get("presentation_tokens_json"),
+        asset_attachment_id: row.get("asset_attachment_id"),
         slot: row.get("slot"),
         currency_id: row.get("currency_id"),
+        currency_code: row.get("currency_code"),
+        currency_name: row.get("currency_name"),
         unit_price: row.get("unit_price"),
         quantity_limit: row.get("quantity_limit"),
         stock_remaining: row.get("stock_remaining"),
@@ -176,8 +187,11 @@ fn product_row_from_mysql(row: &sqlx::mysql::MySqlRow) -> ProductRow {
         description_safe: row.get("description_safe"),
         icon_token: row.get("icon_token"),
         presentation_tokens_json: row.get("presentation_tokens_json"),
+        asset_attachment_id: row.get("asset_attachment_id"),
         slot: row.get("slot"),
         currency_id: row.get("currency_id"),
+        currency_code: row.get("currency_code"),
+        currency_name: row.get("currency_name"),
         unit_price: row.get("unit_price"),
         quantity_limit: row.get("quantity_limit"),
         stock_remaining: row.get("stock_remaining"),
@@ -193,10 +207,13 @@ fn product_row_from_mysql(row: &sqlx::mysql::MySqlRow) -> ProductRow {
     }
 }
 
-const PRODUCT_COLUMNS: &str = "id, kind, status, slug, title, description_safe, icon_token, \
-     presentation_tokens_json, slot, currency_id, unit_price, quantity_limit, stock_remaining, \
-     required_level, validity_seconds, sale_start_at, sale_end_at, refund_policy, version, \
-     created_by, created_at, updated_at";
+/// 商品列 + 结算货币投影（LEFT JOIN currencies；货币被删除时不阻断商品展示）。
+const PRODUCT_SELECT: &str = "SELECT p.id, p.kind, p.status, p.slug, p.title, p.description_safe, p.icon_token, \
+     p.presentation_tokens_json, p.asset_attachment_id, p.slot, p.currency_id, \
+     c.code AS currency_code, c.name AS currency_name, p.unit_price, p.quantity_limit, p.stock_remaining, \
+     p.required_level, p.validity_seconds, p.sale_start_at, p.sale_end_at, p.refund_policy, p.version, \
+     p.created_by, p.created_at, p.updated_at \
+     FROM shop_products p LEFT JOIN currencies c ON c.id = p.currency_id";
 
 fn product_json(p: &ProductRow) -> Value {
     json!({
@@ -208,8 +225,11 @@ fn product_json(p: &ProductRow) -> Value {
         "description_safe": p.description_safe,
         "icon_token": p.icon_token,
         "presentation_tokens": p.presentation_tokens_json.as_deref().and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+        "asset_attachment_id": p.asset_attachment_id,
         "slot": p.slot,
         "currency_id": p.currency_id,
+        "currency_code": p.currency_code,
+        "currency_name": p.currency_name,
         "unit_price": p.unit_price,
         "quantity_limit": p.quantity_limit,
         "stock_remaining": p.stock_remaining,
@@ -252,13 +272,11 @@ async fn load_product(
     conn: &mut sqlx::SqliteConnection,
     id: &str,
 ) -> Result<ProductRow, ShopError> {
-    let row = sqlx::query(&format!(
-        "SELECT {PRODUCT_COLUMNS} FROM shop_products WHERE id = ?"
-    ))
-    .bind(id)
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or_else(|| ShopError::NotFound(format!("product {id}")))?;
+    let row = sqlx::query(&format!("{PRODUCT_SELECT} WHERE p.id = ?"))
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await?
+        .ok_or_else(|| ShopError::NotFound(format!("product {id}")))?;
     Ok(product_row_from(&row))
 }
 
@@ -267,19 +285,17 @@ async fn load_product_mysql(
     conn: &mut sqlx::MySqlConnection,
     id: &str,
 ) -> Result<ProductRow, ShopError> {
-    let row = sqlx::query(&format!(
-        "SELECT {PRODUCT_COLUMNS} FROM shop_products WHERE id = ?"
-    ))
-    .bind(id)
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or_else(|| ShopError::NotFound(format!("product {id}")))?;
+    let row = sqlx::query(&format!("{PRODUCT_SELECT} WHERE p.id = ?"))
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await?
+        .ok_or_else(|| ShopError::NotFound(format!("product {id}")))?;
     Ok(product_row_from_mysql(&row))
 }
 
-/// 当前用户等级（users.level 缓存，可重建）。
+/// 当前用户信任等级（users.trust_level 缓存，可重建）。
 async fn user_level(conn: &mut sqlx::SqliteConnection, user_id: &str) -> Result<i64, ShopError> {
-    let level: i64 = sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+    let level: i64 = sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
         .bind(user_id)
         .fetch_optional(&mut *conn)
         .await?
@@ -291,7 +307,7 @@ async fn user_level_mysql(
     conn: &mut sqlx::MySqlConnection,
     user_id: &str,
 ) -> Result<i64, ShopError> {
-    let level: i64 = sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+    let level: i64 = sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
         .bind(user_id)
         .fetch_optional(&mut *conn)
         .await?
@@ -320,9 +336,9 @@ pub fn validate_tokens(
             return Err(ShopError::Invalid("too many presentation tokens".into()));
         }
         for t in &tokens {
-            if !is_safe_token(t) {
+            if !is_registered_presentation_token(t) {
                 return Err(ShopError::Invalid(format!(
-                    "unsafe presentation token: {t}"
+                    "unsafe or unregistered presentation token: {t}"
                 )));
             }
         }
@@ -332,14 +348,35 @@ pub fn validate_tokens(
 
 /// 注册的安全 Token 前缀（白名单枚举）。
 const SAFE_TOKEN_PREFIXES: &[&str] = &[
-    "nickname.decoration.",
     "nickname.color.",
     "avatar.frame.",
     "profile.effect.",
     "post.effect.",
     "badge.",
-    "title.prefix.",
     "reaction.pack.",
+];
+
+const VALID_SLOTS: &[&str] = &[
+    "nickname_color",
+    "avatar_frame",
+    "profile_badges",
+    "profile_badge", // 兼容早期种子数据；新商品使用 profile_badges。
+    "profile_effect",
+    "post_effect",
+];
+
+const NICKNAME_COLOR_VALUES: &[&str] = &[
+    "blue",
+    "purple",
+    "green",
+    "gold",
+    "red",
+    "teal",
+    "pink",
+    "rainbow",
+    "gradient_sunset",
+    "gradient_ocean",
+    "gradient_aurora",
 ];
 
 fn is_safe_token(t: &str) -> bool {
@@ -358,16 +395,76 @@ fn is_safe_token(t: &str) -> bool {
     SAFE_TOKEN_PREFIXES.iter().any(|p| t.starts_with(p))
 }
 
+fn is_registered_presentation_token(t: &str) -> bool {
+    if !is_safe_token(t) {
+        return false;
+    }
+    if let Some(value) = t.strip_prefix("nickname.color.") {
+        return NICKNAME_COLOR_VALUES.contains(&value);
+    }
+    true
+}
+
+fn is_valid_slot(slot: &str) -> bool {
+    VALID_SLOTS.contains(&slot)
+}
+
+fn validate_asset_kind_slot(kind: &str, slot: &str) -> Result<(), ShopError> {
+    if !matches!((kind, slot), ("cosmetic_avatar", "avatar_frame")) {
+        return Err(ShopError::Invalid(
+            "PNG assets are only supported for avatar frame products".into(),
+        ));
+    }
+    Ok(())
+}
+
+async fn validate_asset_attachment(
+    pool: &DatabasePool,
+    asset_attachment_id: &str,
+) -> Result<(), ShopError> {
+    if asset_attachment_id.is_empty()
+        || asset_attachment_id.len() > 64
+        || !asset_attachment_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err(ShopError::Invalid("invalid asset_attachment_id".into()));
+    }
+    let ready_png: Option<i64> = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar(
+                "SELECT 1 FROM attachments
+             WHERE id = ? AND status = 'ready' AND media_type = 'image/png' AND is_public = 1",
+            )
+            .bind(asset_attachment_id)
+            .fetch_optional(p)
+            .await?
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar(
+                "SELECT 1 FROM attachments
+             WHERE id = ? AND status = 'ready' AND media_type = 'image/png' AND is_public = 1",
+            )
+            .bind(asset_attachment_id)
+            .fetch_optional(p)
+            .await?
+        }
+    };
+    if ready_png != Some(1) {
+        return Err(ShopError::Invalid(
+            "asset_attachment_id must reference a ready public PNG attachment".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// 公开商品列表（只返回 published；admin 传 include_all 返回全部）。
 pub async fn list_products(pool: &DatabasePool, include_all: bool) -> Result<Value, ShopError> {
     match pool {
         Either::Left(p) => {
-            let rows = sqlx::query(&format!(
-                "SELECT {PRODUCT_COLUMNS} FROM shop_products \
-                 ORDER BY created_at DESC"
-            ))
-            .fetch_all(p)
-            .await?;
+            let rows = sqlx::query(&format!("{PRODUCT_SELECT} ORDER BY p.created_at DESC"))
+                .fetch_all(p)
+                .await?;
             let items: Vec<Value> = rows
                 .iter()
                 .map(product_row_from)
@@ -377,12 +474,9 @@ pub async fn list_products(pool: &DatabasePool, include_all: bool) -> Result<Val
             Ok(json!({ "products": items }))
         }
         Either::Right(p) => {
-            let rows = sqlx::query(&format!(
-                "SELECT {PRODUCT_COLUMNS} FROM shop_products \
-                 ORDER BY created_at DESC"
-            ))
-            .fetch_all(p)
-            .await?;
+            let rows = sqlx::query(&format!("{PRODUCT_SELECT} ORDER BY p.created_at DESC"))
+                .fetch_all(p)
+                .await?;
             let items: Vec<Value> = rows
                 .iter()
                 .map(product_row_from_mysql)
@@ -442,6 +536,30 @@ fn order_json(o: &OrderRow) -> Value {
     })
 }
 
+/// 购买响应兼容层：旧调用方读取顶层 order_id，新调用方读取 order.id。
+/// 两者指向同一条已提交订单事实，避免成功响应被误判成“处理中”。
+fn order_create_result(mut value: Value) -> Value {
+    let order_id = value
+        .get("id")
+        .cloned()
+        .or_else(|| value.get("order_id").cloned());
+    let Some(order_id) = order_id else {
+        return value;
+    };
+
+    if value.get("id").is_none() {
+        value["id"] = order_id.clone();
+    }
+    let mut order = value.clone();
+    if let Some(object) = order.as_object_mut() {
+        object.remove("order");
+        object.remove("order_id");
+    }
+    value["order"] = order;
+    value["order_id"] = order_id;
+    value
+}
+
 /// 购买商品（核心事务；M07-SHOP-01..04）。
 ///
 /// 服务端重算全部定价/库存/门槛；同事务完成锁库存+账本扣款+订单+权益+
@@ -454,7 +572,7 @@ pub async fn buy_product(
     quantity: i64,
     idempotency_key: &str,
 ) -> Result<Value, ShopError> {
-    if quantity <= 0 || quantity > 100 {
+    if quantity <= 0 {
         return Err(ShopError::Invalid("quantity out of range".into()));
     }
     if idempotency_key.is_empty() || idempotency_key.len() > 64 {
@@ -468,6 +586,22 @@ pub async fn buy_product(
             let mut conn = p.acquire().await?;
             sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
             let outcome: Result<Value, ShopError> = async {
+                // 站点商城配置（0073 shop_site_config）：总开关 + 单笔数量上限
+                // 由购买路径真实消费（P0 整改；此前硬编码 100）。
+                let cfg: Option<(i64, i64)> = sqlx::query_as(
+                    "SELECT enabled, max_quantity_per_order FROM shop_site_config WHERE id = 'singleton'",
+                )
+                .fetch_optional(&mut *conn)
+                .await?;
+                let (shop_enabled, max_qty) = cfg.unwrap_or((1, 100));
+                if shop_enabled == 0 {
+                    return Err(ShopError::Forbidden("shop is disabled".into()));
+                }
+                if quantity > max_qty {
+                    return Err(ShopError::Invalid(
+                        "quantity exceeds site order limit".into(),
+                    ));
+                }
                 let product = load_product(&mut *conn, product_id).await?;
                 let level = user_level(&mut *conn, user_id).await?;
                 purchasable(&product, level, now)?;
@@ -492,7 +626,7 @@ pub async fn buy_product(
                     .bind(existing.get::<String, _>("id"))
                     .fetch_one(&mut *conn)
                     .await?;
-                    let mut v = order_json(&row_to_order(&row));
+                    let mut v = order_create_result(order_json(&row_to_order(&row)));
                     v["order_id"] = v["id"].clone();
                     return Ok(v);
                 }
@@ -590,7 +724,7 @@ pub async fn buy_product(
                             if stored_hash != request_hash {
                                 return Err(ShopError::IdempotencyConflict);
                             }
-                            let mut v = order_json(&row_to_order(&row));
+                            let mut v = order_create_result(order_json(&row_to_order(&row)));
                             // 与首次成功响应同构：额外提供 order_id 别名。
                             v["order_id"] = v["id"].clone();
                             return Ok(v);
@@ -645,18 +779,20 @@ pub async fn buy_product(
                 )
                 .await?;
 
-                Ok(json!({
+                Ok(order_create_result(json!({
                     "order_id": order_id,
                     "product_id": product.id,
                     "product_version": product.version,
+                    "currency_id": product.currency_id,
                     "quantity": quantity,
                     "unit_price": product.unit_price,
                     "total_amount": total,
                     "status": "succeeded",
                     "entitlement_id": entitlement_id,
+                     "entitlement_status": "granted",
                     "balance_after": op.transactions[0].balance_after,
                     "created_at": now,
-                }))
+                })))
             }
             .await;
             match outcome {
@@ -673,6 +809,22 @@ pub async fn buy_product(
         Either::Right(p) => {
             let mut tx = p.begin().await?;
             let outcome: Result<Value, ShopError> = async {
+                // 站点商城配置（0073 shop_site_config）：总开关 + 单笔数量上限
+                // 由购买路径真实消费（与 SQLite 分支同语义）。
+                let cfg: Option<(i64, i64)> = sqlx::query_as(
+                    "SELECT enabled, max_quantity_per_order FROM shop_site_config WHERE id = 'singleton'",
+                )
+                .fetch_optional(&mut *tx)
+                .await?;
+                let (shop_enabled, max_qty) = cfg.unwrap_or((1, 100));
+                if shop_enabled == 0 {
+                    return Err(ShopError::Forbidden("shop is disabled".into()));
+                }
+                if quantity > max_qty {
+                    return Err(ShopError::Invalid(
+                        "quantity exceeds site order limit".into(),
+                    ));
+                }
                 let product = load_product_mysql(&mut tx, product_id).await?;
                 let level = user_level_mysql(&mut tx, user_id).await?;
                 purchasable(&product, level, now)?;
@@ -696,7 +848,7 @@ pub async fn buy_product(
                     .bind(&existing_id)
                     .fetch_one(&mut *tx)
                     .await?;
-                    let mut v = order_json(&row_to_order_mysql(&row));
+                    let mut v = order_create_result(order_json(&row_to_order_mysql(&row)));
                     v["order_id"] = v["id"].clone();
                     return Ok(v);
                 }
@@ -791,7 +943,7 @@ pub async fn buy_product(
                             if stored_hash != request_hash {
                                 return Err(ShopError::IdempotencyConflict);
                             }
-                            let mut v = order_json(&row_to_order_mysql(&row));
+                            let mut v = order_create_result(order_json(&row_to_order_mysql(&row)));
                             v["order_id"] = v["id"].clone();
                             return Ok(v);
                         }
@@ -844,18 +996,20 @@ pub async fn buy_product(
                 )
                 .await?;
 
-                Ok(json!({
+                Ok(order_create_result(json!({
                     "order_id": order_id,
                     "product_id": product.id,
                     "product_version": product.version,
+                    "currency_id": product.currency_id,
                     "quantity": quantity,
                     "unit_price": product.unit_price,
                     "total_amount": total,
                     "status": "succeeded",
                     "entitlement_id": entitlement_id,
+                     "entitlement_status": "granted",
                     "balance_after": op.transactions[0].balance_after,
                     "created_at": now,
-                }))
+                })))
             }
             .await;
             match outcome {
@@ -932,8 +1086,13 @@ pub async fn get_order(
     match pool {
         Either::Left(p) => {
             let row = sqlx::query(
-                "SELECT id, user_id, product_id, product_version, quantity, currency_id, unit_price, total_amount, point_operation_id, status, idempotency_key, created_at
-                 FROM shop_orders WHERE id = ?",
+                "SELECT o.id, o.user_id, o.product_id, o.product_version, o.quantity, o.currency_id, o.unit_price, o.total_amount, o.point_operation_id, o.status, o.idempotency_key, o.created_at, o.updated_at,
+                         p.title AS product_title, c.code AS currency_code, c.name AS currency_name,
+                         e.id AS entitlement_id, e.status AS entitlement_status
+                 FROM shop_orders o LEFT JOIN shop_products p ON p.id = o.product_id
+                 LEFT JOIN currencies c ON c.id = o.currency_id
+                 LEFT JOIN user_entitlements e ON e.order_id = o.id
+                 WHERE o.id = ?",
             )
             .bind(order_id)
             .fetch_optional(p)
@@ -945,12 +1104,46 @@ pub async fn get_order(
                     return Err(ShopError::Forbidden("not your order".into()));
                 }
             }
-            Ok(order_json(&row_to_order(&row)))
+            let mut value = order_json(&row_to_order(&row));
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert(
+                    "product_title".into(),
+                    json!(row.get::<Option<String>, _>("product_title")),
+                );
+                obj.insert(
+                    "currency_code".into(),
+                    json!(row.get::<Option<String>, _>("currency_code")),
+                );
+                obj.insert(
+                    "currency_name".into(),
+                    json!(row.get::<Option<String>, _>("currency_name")),
+                );
+                obj.insert("updated_at".into(), json!(row.get::<i64, _>("updated_at")));
+                obj.insert(
+                    "entitlement_id".into(),
+                    json!(row.get::<Option<String>, _>("entitlement_id")),
+                );
+                let entitlement_status = match row
+                    .get::<Option<String>, _>("entitlement_status")
+                    .as_deref()
+                {
+                    Some("revoked") => "revoked",
+                    Some(_) => "granted",
+                    None => "pending",
+                };
+                obj.insert("entitlement_status".into(), json!(entitlement_status));
+            }
+            Ok(value)
         }
         Either::Right(p) => {
             let row = sqlx::query(
-                "SELECT id, user_id, product_id, product_version, quantity, currency_id, unit_price, total_amount, point_operation_id, status, idempotency_key, created_at
-                 FROM shop_orders WHERE id = ?",
+                "SELECT o.id, o.user_id, o.product_id, o.product_version, o.quantity, o.currency_id, o.unit_price, o.total_amount, o.point_operation_id, o.status, o.idempotency_key, o.created_at, o.updated_at,
+                         p.title AS product_title, c.code AS currency_code, c.name AS currency_name,
+                         e.id AS entitlement_id, e.status AS entitlement_status
+                 FROM shop_orders o LEFT JOIN shop_products p ON p.id = o.product_id
+                 LEFT JOIN currencies c ON c.id = o.currency_id
+                 LEFT JOIN user_entitlements e ON e.order_id = o.id
+                 WHERE o.id = ?",
             )
             .bind(order_id)
             .fetch_optional(p)
@@ -962,7 +1155,36 @@ pub async fn get_order(
                     return Err(ShopError::Forbidden("not your order".into()));
                 }
             }
-            Ok(order_json(&row_to_order_mysql(&row)))
+            let mut value = order_json(&row_to_order_mysql(&row));
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert(
+                    "product_title".into(),
+                    json!(row.get::<Option<String>, _>("product_title")),
+                );
+                obj.insert(
+                    "currency_code".into(),
+                    json!(row.get::<Option<String>, _>("currency_code")),
+                );
+                obj.insert(
+                    "currency_name".into(),
+                    json!(row.get::<Option<String>, _>("currency_name")),
+                );
+                obj.insert("updated_at".into(), json!(row.get::<i64, _>("updated_at")));
+                obj.insert(
+                    "entitlement_id".into(),
+                    json!(row.get::<Option<String>, _>("entitlement_id")),
+                );
+                let entitlement_status = match row
+                    .get::<Option<String>, _>("entitlement_status")
+                    .as_deref()
+                {
+                    Some("revoked") => "revoked",
+                    Some(_) => "granted",
+                    None => "pending",
+                };
+                obj.insert("entitlement_status".into(), json!(entitlement_status));
+            }
+            Ok(value)
         }
     }
 }
@@ -973,8 +1195,10 @@ pub async fn list_my_entitlements(pool: &DatabasePool, user_id: &str) -> Result<
     match pool {
         Either::Left(p) => {
             let rows = sqlx::query(
-                "SELECT id, product_id, status, quantity, remaining_quantity, valid_from, expires_at, equipped_at, revoked_at, created_at
-                 FROM user_entitlements WHERE user_id = ? ORDER BY created_at DESC",
+                "SELECT e.id, e.product_id, e.status, e.quantity, e.remaining_quantity, e.valid_from, e.expires_at, e.equipped_at, e.revoked_at, e.created_at,
+                         p.title AS product_title, p.kind, p.slot, p.icon_token, p.presentation_tokens_json, p.asset_attachment_id
+                 FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
+                  WHERE e.user_id = ? ORDER BY e.created_at DESC",
             )
             .bind(user_id)
             .fetch_all(p)
@@ -990,6 +1214,12 @@ pub async fn list_my_entitlements(pool: &DatabasePool, user_id: &str) -> Result<
                     json!({
                         "id": row.get::<String,_>("id"),
                         "product_id": row.get::<String,_>("product_id"),
+                        "product_title": row.get::<String,_>("product_title"),
+                        "kind": row.get::<String,_>("kind"),
+                        "slot": row.get::<String,_>("slot"),
+                        "icon_token": row.get::<Option<String>,_>("icon_token"),
+                        "presentation_tokens": row.get::<Option<String>,_>("presentation_tokens_json").as_deref().and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+                        "asset_attachment_id": row.get::<Option<String>,_>("asset_attachment_id"),
                         "status": status,
                         "quantity": row.get::<i64,_>("quantity"),
                         "remaining_quantity": row.get::<i64,_>("remaining_quantity"),
@@ -1005,8 +1235,10 @@ pub async fn list_my_entitlements(pool: &DatabasePool, user_id: &str) -> Result<
         }
         Either::Right(p) => {
             let rows = sqlx::query(
-                "SELECT id, product_id, status, quantity, remaining_quantity, valid_from, expires_at, equipped_at, revoked_at, created_at
-                 FROM user_entitlements WHERE user_id = ? ORDER BY created_at DESC",
+                "SELECT e.id, e.product_id, e.status, e.quantity, e.remaining_quantity, e.valid_from, e.expires_at, e.equipped_at, e.revoked_at, e.created_at,
+                         p.title AS product_title, p.kind, p.slot, p.icon_token, p.presentation_tokens_json, p.asset_attachment_id
+                 FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
+                  WHERE e.user_id = ? ORDER BY e.created_at DESC",
             )
             .bind(user_id)
             .fetch_all(p)
@@ -1022,6 +1254,12 @@ pub async fn list_my_entitlements(pool: &DatabasePool, user_id: &str) -> Result<
                     json!({
                         "id": row.get::<String,_>("id"),
                         "product_id": row.get::<String,_>("product_id"),
+                        "product_title": row.get::<String,_>("product_title"),
+                        "kind": row.get::<String,_>("kind"),
+                        "slot": row.get::<String,_>("slot"),
+                        "icon_token": row.get::<Option<String>,_>("icon_token"),
+                        "presentation_tokens": row.get::<Option<String>,_>("presentation_tokens_json").as_deref().and_then(|s| serde_json::from_str::<Vec<String>>(s).ok()),
+                        "asset_attachment_id": row.get::<Option<String>,_>("asset_attachment_id"),
                         "status": status,
                         "quantity": row.get::<i64,_>("quantity"),
                         "remaining_quantity": row.get::<i64,_>("remaining_quantity"),
@@ -1034,6 +1272,142 @@ pub async fn list_my_entitlements(pool: &DatabasePool, user_id: &str) -> Result<
                 })
                 .collect();
             Ok(json!({ "entitlements": items }))
+        }
+    }
+}
+
+#[allow(dead_code)]
+async fn rebuild_presentation_sqlite(
+    conn: &mut sqlx::SqliteConnection,
+    user_id: &str,
+    now: i64,
+) -> Result<(), ShopError> {
+    let rows = sqlx::query(
+        "SELECT e.id, p.slot FROM user_entitlements e
+         JOIN shop_products p ON p.id = e.product_id
+         WHERE e.user_id = ? AND e.status = 'equipped'
+           AND (e.expires_at IS NULL OR e.expires_at > ?)",
+    )
+    .bind(user_id)
+    .bind(now)
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut values: [Option<String>; 4] = Default::default();
+    let mut badges = Vec::new();
+    for row in rows {
+        let id: String = row.get("id");
+        let slot: String = row.get("slot");
+        match slot.as_str() {
+            "nickname_color" => values[0] = Some(id),
+            "avatar_frame" => values[1] = Some(id),
+            "profile_effect" => values[2] = Some(id),
+            "post_effect" => values[3] = Some(id),
+            "profile_badge" | "profile_badges" if badges.len() < 3 => badges.push(id),
+            _ => {}
+        }
+    }
+    let badges_json = (!badges.is_empty())
+        .then(|| serde_json::to_string(&badges).unwrap_or_else(|_| "[]".into()));
+    sqlx::query(
+        "INSERT OR IGNORE INTO user_presentations (user_id, version, updated_at, created_at)
+         VALUES (?, 1, ?, ?)",
+    )
+    .bind(user_id)
+    .bind(now)
+    .bind(now)
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query(
+        "UPDATE user_presentations SET nickname_decoration_id = NULL, nickname_color_id = ?,
+         avatar_frame_id = ?, avatar_attachment_id = NULL, profile_effect_id = ?,
+         title_prefix_id = NULL, profile_badge_ids_json = ?, post_effect_id = ?,
+         version = version + 1, updated_at = ? WHERE user_id = ?",
+    )
+    .bind(&values[0])
+    .bind(&values[1])
+    .bind(&values[2])
+    .bind(badges_json)
+    .bind(&values[3])
+    .bind(now)
+    .bind(user_id)
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
+#[allow(dead_code)]
+async fn rebuild_presentation_mysql(
+    conn: &mut sqlx::MySqlConnection,
+    user_id: &str,
+    now: i64,
+) -> Result<(), ShopError> {
+    let rows = sqlx::query(
+        "SELECT e.id, p.slot FROM user_entitlements e
+         JOIN shop_products p ON p.id = e.product_id
+         WHERE e.user_id = ? AND e.status = 'equipped'
+           AND (e.expires_at IS NULL OR e.expires_at > ?)",
+    )
+    .bind(user_id)
+    .bind(now)
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut values: [Option<String>; 4] = Default::default();
+    let mut badges = Vec::new();
+    for row in rows {
+        let id: String = row.get("id");
+        let slot: String = row.get("slot");
+        match slot.as_str() {
+            "nickname_color" => values[0] = Some(id),
+            "avatar_frame" => values[1] = Some(id),
+            "profile_effect" => values[2] = Some(id),
+            "post_effect" => values[3] = Some(id),
+            "profile_badge" | "profile_badges" if badges.len() < 3 => badges.push(id),
+            _ => {}
+        }
+    }
+    let badges_json = (!badges.is_empty())
+        .then(|| serde_json::to_string(&badges).unwrap_or_else(|_| "[]".into()));
+    sqlx::query(
+        "INSERT IGNORE INTO user_presentations (user_id, version, updated_at, created_at)
+         VALUES (?, 1, ?, ?)",
+    )
+    .bind(user_id)
+    .bind(now)
+    .bind(now)
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query(
+        "UPDATE user_presentations SET nickname_decoration_id = NULL, nickname_color_id = ?,
+         avatar_frame_id = ?, avatar_attachment_id = NULL, profile_effect_id = ?,
+         title_prefix_id = NULL, profile_badge_ids_json = ?, post_effect_id = ?,
+         version = version + 1, updated_at = ? WHERE user_id = ?",
+    )
+    .bind(&values[0])
+    .bind(&values[1])
+    .bind(&values[2])
+    .bind(badges_json)
+    .bind(&values[3])
+    .bind(now)
+    .bind(user_id)
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
+#[allow(clippy::explicit_auto_deref)]
+async fn rebuild_presentation(
+    pool: &DatabasePool,
+    user_id: &str,
+    now: i64,
+) -> Result<(), ShopError> {
+    match pool {
+        Either::Left(p) => {
+            let mut conn = p.acquire().await?;
+            rebuild_presentation_sqlite(&mut *conn, user_id, now).await
+        }
+        Either::Right(p) => {
+            let mut conn = p.acquire().await?;
+            rebuild_presentation_mysql(&mut *conn, user_id, now).await
         }
     }
 }
@@ -1045,12 +1419,26 @@ pub async fn equip(
     user_id: &str,
     entitlement_id: &str,
 ) -> Result<Value, ShopError> {
+    equip_with_version(pool, user_id, entitlement_id, None).await
+}
+
+pub async fn equip_with_version(
+    pool: &DatabasePool,
+    user_id: &str,
+    entitlement_id: &str,
+    expected_version: Option<i64>,
+) -> Result<Value, ShopError> {
     let now = now_millis();
     match pool {
         Either::Left(p) => {
             let mut conn = p.acquire().await?;
             sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
             let outcome: Result<Value, ShopError> = async {
+                if let Some(expected) = expected_version {
+                    let actual: i64 = sqlx::query_scalar("SELECT COALESCE(version, 1) FROM user_presentations WHERE user_id = ?")
+                        .bind(user_id).fetch_optional(&mut *conn).await?.unwrap_or(1);
+                    if actual != expected { return Err(ShopError::VersionConflict); }
+                }
                 let row = sqlx::query(
                     "SELECT e.id, e.product_id, e.status, e.expires_at, e.quantity, e.remaining_quantity, p.slot, p.kind
                      FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
@@ -1072,10 +1460,10 @@ pub async fn equip(
                     return Err(ShopError::EntitlementNotOwned);
                 }
                 // 徽章 slot 最多 3 个 equipped。
-                if slot == "profile_badge" {
+                if slot == "profile_badge" || slot == "profile_badges" {
                     let equipped: i64 = sqlx::query_scalar(
                         "SELECT COUNT(*) FROM user_entitlements WHERE user_id = ? AND status = 'equipped' AND id IN
-                         (SELECT e.id FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id WHERE p.slot = 'profile_badge')",
+                         (SELECT e.id FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id WHERE p.slot IN ('profile_badge', 'profile_badges'))",
                     )
                     .bind(user_id)
                     .fetch_one(&mut *conn)
@@ -1104,8 +1492,10 @@ pub async fn equip(
                 .bind(user_id)
                 .execute(&mut *conn)
                 .await?;
+                rebuild_presentation_sqlite(&mut conn, user_id, now).await?;
                 let _ = kind;
-                Ok(json!({ "entitlement_id": entitlement_id, "slot": slot, "status": "equipped" }))
+                Ok(json!({ "entitlement_id": entitlement_id,
+                     "slot": slot, "status": "equipped" }))
             }
             .await;
             match outcome {
@@ -1122,6 +1512,11 @@ pub async fn equip(
         Either::Right(p) => {
             let mut tx = p.begin().await?;
             let outcome: Result<Value, ShopError> = async {
+                if let Some(expected) = expected_version {
+                    let actual: i64 = sqlx::query_scalar("SELECT COALESCE(version, 1) FROM user_presentations WHERE user_id = ?")
+                        .bind(user_id).fetch_optional(&mut *tx).await?.unwrap_or(1);
+                    if actual != expected { return Err(ShopError::VersionConflict); }
+                }
                 let row = sqlx::query(
                     "SELECT e.id, e.product_id, e.status, e.expires_at, p.slot, p.kind
                      FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
@@ -1141,10 +1536,10 @@ pub async fn equip(
                 if status == "expired" || expires_at.is_some_and(|e| e < now) {
                     return Err(ShopError::EntitlementNotOwned);
                 }
-                if slot == "profile_badge" {
+                if slot == "profile_badge" || slot == "profile_badges" {
                     let equipped: i64 = sqlx::query_scalar(
                         "SELECT COUNT(*) FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
-                         WHERE e.user_id = ? AND e.status = 'equipped' AND p.slot = 'profile_badge'",
+                         WHERE e.user_id = ? AND e.status = 'equipped' AND p.slot IN ('profile_badge', 'profile_badges')",
                     )
                     .bind(user_id)
                     .fetch_one(&mut *tx)
@@ -1172,7 +1567,9 @@ pub async fn equip(
                 .bind(user_id)
                 .execute(&mut *tx)
                 .await?;
-                Ok(json!({ "entitlement_id": entitlement_id, "slot": slot, "status": "equipped" }))
+                rebuild_presentation_mysql(&mut tx, user_id, now).await?;
+                Ok(json!({ "entitlement_id": entitlement_id,
+                     "slot": slot, "status": "equipped" }))
             }
             .await;
             match outcome {
@@ -1195,7 +1592,26 @@ pub async fn unequip(
     user_id: &str,
     entitlement_id: &str,
 ) -> Result<Value, ShopError> {
+    unequip_with_version(pool, user_id, entitlement_id, None).await
+}
+
+pub async fn unequip_with_version(
+    pool: &DatabasePool,
+    user_id: &str,
+    entitlement_id: &str,
+    expected_version: Option<i64>,
+) -> Result<Value, ShopError> {
     let now = now_millis();
+    if let Some(expected) = expected_version {
+        let actual = get_presentation(pool, user_id)
+            .await?
+            .get("version")
+            .and_then(Value::as_i64)
+            .unwrap_or(1);
+        if actual != expected {
+            return Err(ShopError::VersionConflict);
+        }
+    }
     match pool {
         Either::Left(p) => {
             let affected = sqlx::query(
@@ -1210,7 +1626,9 @@ pub async fn unequip(
             if affected != 1 {
                 return Err(ShopError::EntitlementNotOwned);
             }
-            Ok(json!({ "entitlement_id": entitlement_id, "status": "owned" }))
+            rebuild_presentation(pool, user_id, now).await?;
+            Ok(json!({ "entitlement_id": entitlement_id,
+                     "status": "owned" }))
         }
         Either::Right(p) => {
             let affected = sqlx::query(
@@ -1225,7 +1643,9 @@ pub async fn unequip(
             if affected != 1 {
                 return Err(ShopError::EntitlementNotOwned);
             }
-            Ok(json!({ "entitlement_id": entitlement_id, "status": "owned" }))
+            rebuild_presentation(pool, user_id, now).await?;
+            Ok(json!({ "entitlement_id": entitlement_id,
+                     "status": "owned" }))
         }
     }
 }
@@ -1233,10 +1653,11 @@ pub async fn unequip(
 /// 我的 presentation（只输出后端安全 Token；无权/过期 → 默认展示）。
 pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Value, ShopError> {
     let now = now_millis();
+    let compiled_tokens = get_public_presentation_tokens(pool, user_id).await?;
     match pool {
         Either::Left(p) => {
             let row = sqlx::query(
-                "SELECT nickname_decoration_id, nickname_color_id, avatar_frame_id, avatar_attachment_id, profile_effect_id, title_prefix_id, profile_badge_ids_json, post_effect_id, version
+                "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, version
                  FROM user_presentations WHERE user_id = ?",
             )
             .bind(user_id)
@@ -1254,20 +1675,18 @@ pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Valu
             Ok(json!({
                 "user_id": user_id,
                 "version": version,
-                "nickname_decoration_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("nickname_decoration_id")),
                 "nickname_color_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("nickname_color_id")),
                 "avatar_frame_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("avatar_frame_id")),
-                "avatar_attachment_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("avatar_attachment_id")),
                 "profile_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("profile_effect_id")),
-                "title_prefix_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("title_prefix_id")),
                 "post_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("post_effect_id")),
                 "profile_badge_ids": badges,
+                "presentation_tokens": compiled_tokens.clone(),
                 "now": now,
             }))
         }
         Either::Right(p) => {
             let row = sqlx::query(
-                "SELECT nickname_decoration_id, nickname_color_id, avatar_frame_id, avatar_attachment_id, profile_effect_id, title_prefix_id, profile_badge_ids_json, post_effect_id, version
+                "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, version
                  FROM user_presentations WHERE user_id = ?",
             )
             .bind(user_id)
@@ -1285,18 +1704,215 @@ pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Valu
             Ok(json!({
                 "user_id": user_id,
                 "version": version,
-                "nickname_decoration_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("nickname_decoration_id")),
                 "nickname_color_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("nickname_color_id")),
                 "avatar_frame_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("avatar_frame_id")),
-                "avatar_attachment_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("avatar_attachment_id")),
                 "profile_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("profile_effect_id")),
-                "title_prefix_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("title_prefix_id")),
                 "post_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("post_effect_id")),
                 "profile_badge_ids": badges,
+                "presentation_tokens": compiled_tokens.clone(),
                 "now": now,
             }))
         }
     }
+}
+
+/// `user_presentations` 装配行（5 个有效槽位列，与 get_public_presentation_tokens 对应）。
+type PresentationSlotRow = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
+/// 公开装扮投影（M07-SHOP-SCHEMA-06）：衣柜装配 → 白名单 Token 投影。
+///
+/// 语义约定：
+/// - 只读 `user_presentations` 当前装配（过期/卸下由 equip/unequip 流程
+///   裁决，本投影不做权益状态机裁决）；
+/// - 商品仅取 `status='published'`；`presentation_tokens` 取首个匹配槽位
+///   前缀的注册 Token 并剥离前缀（`avatar.frame.gold_ring` → `gold_ring`）；
+/// - 未装配 / 商品缺失 / Token 不合法 → 该槽位跳过；全部为空返回 None；
+/// - 封禁/注销中的整体置空由调用方（users::get_public_user）负责。
+pub async fn get_public_presentation_tokens(
+    pool: &DatabasePool,
+    user_id: &str,
+) -> Result<Option<crate::users::dto::PublicPresentationTokens>, ShopError> {
+    let row: Option<PresentationSlotRow> = match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id \
+             FROM user_presentations WHERE user_id = ?",
+        )
+        .bind(user_id)
+        .fetch_optional(p)
+        .await?,
+        Either::Right(p) => sqlx::query_as(
+            "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id \
+             FROM user_presentations WHERE user_id = ?",
+        )
+        .bind(user_id)
+        .fetch_optional(p)
+        .await?,
+    };
+    let Some((
+        nickname_color_id,
+        avatar_frame_id,
+        profile_effect_id,
+        profile_badge_ids_json,
+        post_effect_id,
+    )) = row
+    else {
+        return Ok(None);
+    };
+
+    let mut tokens = crate::users::dto::PublicPresentationTokens::default();
+
+    if let Some(id) = nickname_color_id.as_deref() {
+        if let Some((product_id, _)) =
+            active_equipped_product(pool, user_id, id, "nickname_color").await?
+        {
+            if let Some(v) = first_public_token(pool, &product_id, "nickname.color.").await? {
+                tokens.nickname_color = Some(v);
+            }
+        }
+    }
+    if let Some(id) = avatar_frame_id.as_deref() {
+        if let Some((product_id, asset_id)) =
+            active_equipped_product(pool, user_id, id, "avatar_frame").await?
+        {
+            if let Some(v) = first_public_token(pool, &product_id, "avatar.frame.").await? {
+                tokens.avatar_frame = Some(v);
+            }
+            tokens.avatar_frame_attachment_id = asset_id;
+        }
+    }
+    if let Some(id) = profile_effect_id.as_deref() {
+        if let Some((product_id, _)) =
+            active_equipped_product(pool, user_id, id, "profile_effect").await?
+        {
+            if let Some(v) = first_public_token(pool, &product_id, "profile.effect.").await? {
+                tokens.profile_effect = Some(v);
+            }
+        }
+    }
+    if let Some(id) = post_effect_id.as_deref() {
+        if let Some((product_id, _)) =
+            active_equipped_product(pool, user_id, id, "post_effect").await?
+        {
+            if let Some(v) = first_public_token(pool, &product_id, "post.effect.").await? {
+                tokens.post_effect = Some(v);
+            }
+        }
+    }
+    // 佩戴徽章（≤3，与 equip 流程的上限一致）
+    if let Some(json_str) = profile_badge_ids_json {
+        if let Ok(ids) = serde_json::from_str::<Vec<String>>(&json_str) {
+            let mut arr = Vec::new();
+            for id in ids.iter().take(3) {
+                if let Some((product_id, _)) =
+                    active_equipped_product(pool, user_id, id, "profile_badges").await?
+                {
+                    if let Some(v) = first_public_token(pool, &product_id, "badge.").await? {
+                        arr.push(v);
+                    }
+                }
+            }
+            if !arr.is_empty() {
+                tokens.profile_badges = Some(arr);
+            }
+        }
+    }
+
+    if tokens.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(tokens))
+    }
+}
+
+/// 校验 user_presentations 中的 entitlement 仍归属于本人、已装备、未过期，
+/// 并返回商品 ID 与可用 PNG 资源 ID。公开投影不信任物化槽位中的孤立 ID。
+async fn active_equipped_product(
+    pool: &DatabasePool,
+    user_id: &str,
+    entitlement_id: &str,
+    slot: &str,
+) -> Result<Option<(String, Option<String>)>, ShopError> {
+    let now = now_millis();
+    match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT e.product_id, a.id
+             FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
+             LEFT JOIN attachments a ON a.id = p.asset_attachment_id
+               AND a.status = 'ready' AND a.media_type = 'image/png' AND a.is_public = 1
+             WHERE e.id = ? AND e.user_id = ? AND e.status = 'equipped'
+               AND (e.expires_at IS NULL OR e.expires_at > ?)
+               AND (p.slot = ? OR (? = 'profile_badges' AND p.slot = 'profile_badge'))
+               AND p.status = 'published'",
+        )
+        .bind(entitlement_id)
+        .bind(user_id)
+        .bind(now)
+        .bind(slot)
+        .bind(slot)
+        .fetch_optional(p)
+        .await
+        .map_err(ShopError::from),
+        Either::Right(p) => sqlx::query_as(
+            "SELECT e.product_id, a.id
+             FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
+             LEFT JOIN attachments a ON a.id = p.asset_attachment_id
+               AND a.status = 'ready' AND a.media_type = 'image/png' AND a.is_public = 1
+             WHERE e.id = ? AND e.user_id = ? AND e.status = 'equipped'
+               AND (e.expires_at IS NULL OR e.expires_at > ?)
+               AND (p.slot = ? OR (? = 'profile_badges' AND p.slot = 'profile_badge'))
+               AND p.status = 'published'",
+        )
+        .bind(entitlement_id)
+        .bind(user_id)
+        .bind(now)
+        .bind(slot)
+        .bind(slot)
+        .fetch_optional(p)
+        .await
+        .map_err(ShopError::from),
+    }
+}
+
+/// 取商品（published）的 presentation_tokens 中首个匹配槽位前缀的 Token，
+/// 剥离前缀返回裸值；商品缺失/未发布/解析失败/无匹配 → None。
+async fn first_public_token(
+    pool: &DatabasePool,
+    product_id: &str,
+    prefix: &str,
+) -> Result<Option<String>, ShopError> {
+    let json_str: Option<Option<String>> = match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT presentation_tokens_json FROM shop_products WHERE id = ? AND status = 'published'",
+        )
+        .bind(product_id)
+        .fetch_optional(p)
+        .await?,
+        Either::Right(p) => sqlx::query_scalar(
+            "SELECT presentation_tokens_json FROM shop_products WHERE id = ? AND status = 'published'",
+        )
+        .bind(product_id)
+        .fetch_optional(p)
+        .await?,
+    };
+    let Some(json_str) = json_str else {
+        return Ok(None);
+    };
+    let Some(json_str) = json_str else {
+        return Ok(None);
+    };
+    let Ok(tokens) = serde_json::from_str::<Vec<String>>(&json_str) else {
+        return Ok(None);
+    };
+    Ok(tokens
+        .into_iter()
+        .find(|t| t.len() > prefix.len() && t.starts_with(prefix))
+        .map(|t| t[prefix.len()..].to_string()))
 }
 
 // ─── Admin ───────────────────────────────────────────────────────────────
@@ -1350,8 +1966,12 @@ pub async fn create_product(
                 .map(|s| s.to_string())
         });
     validate_tokens(icon_token, presentation_tokens.as_deref())?;
-    if !is_safe_token(slot) {
-        return Err(ShopError::Invalid("unsafe slot".into()));
+    if !is_valid_slot(slot) {
+        return Err(ShopError::Invalid("invalid presentation slot".into()));
+    }
+    if let Some(asset_attachment_id) = input.get("asset_attachment_id").and_then(|v| v.as_str()) {
+        validate_asset_kind_slot(kind, slot)?;
+        validate_asset_attachment(pool, asset_attachment_id).await?;
     }
 
     let now = now_millis();
@@ -1397,8 +2017,8 @@ pub async fn create_product(
         Either::Left(p) => {
             sqlx::query(
                 "INSERT INTO shop_products
-                     (id, kind, status, slug, title, description_safe, icon_token, presentation_tokens_json, slot, currency_id, unit_price, quantity_limit, stock_remaining, required_level, validity_seconds, sale_start_at, sale_end_at, refund_policy, version, created_by, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
+                     (id, kind, status, slug, title, description_safe, icon_token, presentation_tokens_json, asset_attachment_id, slot, currency_id, unit_price, quantity_limit, stock_remaining, required_level, validity_seconds, sale_start_at, sale_end_at, refund_policy, version, created_by, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
             )
             .bind(&id)
             .bind(kind)
@@ -1408,6 +2028,8 @@ pub async fn create_product(
             .bind(input.get("description_safe").and_then(|v| v.as_str()))
             .bind(icon_token)
             .bind(presentation_tokens.as_deref())
+             .bind(input.get("asset_attachment_id").and_then(|v| v.as_str()))
+             .bind(input.get("slot").and_then(|v| v.as_str()))
             .bind(slot)
             .bind(currency_id)
             .bind(unit_price)
@@ -1427,8 +2049,8 @@ pub async fn create_product(
         Either::Right(p) => {
             sqlx::query(
                 "INSERT INTO shop_products
-                     (id, kind, status, slug, title, description_safe, icon_token, presentation_tokens_json, slot, currency_id, unit_price, quantity_limit, stock_remaining, required_level, validity_seconds, sale_start_at, sale_end_at, refund_policy, version, created_by, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
+                     (id, kind, status, slug, title, description_safe, icon_token, presentation_tokens_json, asset_attachment_id, slot, currency_id, unit_price, quantity_limit, stock_remaining, required_level, validity_seconds, sale_start_at, sale_end_at, refund_policy, version, created_by, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
             )
             .bind(&id)
             .bind(kind)
@@ -1438,6 +2060,8 @@ pub async fn create_product(
             .bind(input.get("description_safe").and_then(|v| v.as_str()))
             .bind(icon_token)
             .bind(presentation_tokens.as_deref())
+             .bind(input.get("asset_attachment_id").and_then(|v| v.as_str()))
+             .bind(input.get("slot").and_then(|v| v.as_str()))
             .bind(slot)
             .bind(currency_id)
             .bind(unit_price)
@@ -1476,6 +2100,38 @@ pub async fn update_product(
                 .map(|s| s.to_string())
         });
     validate_tokens(icon_token, presentation_tokens.as_deref())?;
+    if let Some(slot) = input.get("slot").and_then(|v| v.as_str()) {
+        if !is_valid_slot(slot) {
+            return Err(ShopError::Invalid("invalid presentation slot".into()));
+        }
+    }
+    if let Some(asset_attachment_id) = input.get("asset_attachment_id").and_then(|v| v.as_str()) {
+        let current: Option<(String, String)> = match pool {
+            Either::Left(p) => {
+                sqlx::query_as("SELECT kind, slot FROM shop_products WHERE id = ?")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await?
+            }
+            Either::Right(p) => {
+                sqlx::query_as("SELECT kind, slot FROM shop_products WHERE id = ?")
+                    .bind(id)
+                    .fetch_optional(p)
+                    .await?
+            }
+        };
+        let Some((kind, current_slot)) = current else {
+            return Err(ShopError::NotFound(format!("product {id}")));
+        };
+        validate_asset_kind_slot(
+            &kind,
+            input
+                .get("slot")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&current_slot),
+        )?;
+        validate_asset_attachment(pool, asset_attachment_id).await?;
+    }
     let unit_price = input.get("unit_price").and_then(|v| v.as_i64());
     if unit_price.is_some_and(|v| v < 0) {
         return Err(ShopError::Invalid("unit_price must be >= 0".into()));
@@ -1488,6 +2144,8 @@ pub async fn update_product(
                      description_safe = COALESCE(?, description_safe),
                      icon_token = COALESCE(?, icon_token),
                      presentation_tokens_json = COALESCE(?, presentation_tokens_json),
+                     asset_attachment_id = COALESCE(?, asset_attachment_id),
+                     slot = COALESCE(?, slot),
                      unit_price = COALESCE(?, unit_price),
                      stock_remaining = COALESCE(?, stock_remaining),
                      required_level = COALESCE(?, required_level),
@@ -1502,6 +2160,8 @@ pub async fn update_product(
             .bind(input.get("description_safe").and_then(|v| v.as_str()))
             .bind(icon_token)
             .bind(presentation_tokens.as_deref())
+            .bind(input.get("asset_attachment_id").and_then(|v| v.as_str()))
+            .bind(input.get("slot").and_then(|v| v.as_str()))
             .bind(unit_price)
             .bind(input.get("stock_remaining").and_then(|v| v.as_i64()))
             .bind(input.get("required_level").and_then(|v| v.as_i64()))
@@ -1525,6 +2185,8 @@ pub async fn update_product(
                      description_safe = COALESCE(?, description_safe),
                      icon_token = COALESCE(?, icon_token),
                      presentation_tokens_json = COALESCE(?, presentation_tokens_json),
+                     asset_attachment_id = COALESCE(?, asset_attachment_id),
+                     slot = COALESCE(?, slot),
                      unit_price = COALESCE(?, unit_price),
                      stock_remaining = COALESCE(?, stock_remaining),
                      required_level = COALESCE(?, required_level),
@@ -1539,6 +2201,8 @@ pub async fn update_product(
             .bind(input.get("description_safe").and_then(|v| v.as_str()))
             .bind(icon_token)
             .bind(presentation_tokens.as_deref())
+            .bind(input.get("asset_attachment_id").and_then(|v| v.as_str()))
+            .bind(input.get("slot").and_then(|v| v.as_str()))
             .bind(unit_price)
             .bind(input.get("stock_remaining").and_then(|v| v.as_i64()))
             .bind(input.get("required_level").and_then(|v| v.as_i64()))
@@ -1575,6 +2239,33 @@ async fn set_product_status(
     status: &str,
 ) -> Result<Value, ShopError> {
     let now = now_millis();
+    if status == "published" {
+        let info: Option<(String, String, Option<String>)> = match pool {
+            Either::Left(p) => {
+                sqlx::query_as(
+                    "SELECT kind, slot, asset_attachment_id FROM shop_products WHERE id = ?",
+                )
+                .bind(id)
+                .fetch_optional(p)
+                .await?
+            }
+            Either::Right(p) => {
+                sqlx::query_as(
+                    "SELECT kind, slot, asset_attachment_id FROM shop_products WHERE id = ?",
+                )
+                .bind(id)
+                .fetch_optional(p)
+                .await?
+            }
+        };
+        let Some((kind, slot, asset_attachment_id)) = info else {
+            return Err(ShopError::NotFound(format!("product {id}")));
+        };
+        if let Some(asset_id) = asset_attachment_id {
+            validate_asset_kind_slot(&kind, &slot)?;
+            validate_asset_attachment(pool, &asset_id).await?;
+        }
+    }
     match pool {
         Either::Left(p) => {
             let affected = sqlx::query(
@@ -1613,8 +2304,10 @@ pub async fn list_admin_orders(pool: &DatabasePool) -> Result<Value, ShopError> 
     match pool {
         Either::Left(p) => {
             let rows = sqlx::query(
-                "SELECT id, user_id, product_id, product_version, quantity, currency_id, unit_price, total_amount, point_operation_id, status, idempotency_key, created_at
-                 FROM shop_orders ORDER BY created_at DESC",
+                "SELECT o.id, o.user_id, o.product_id, o.product_version, o.quantity, o.currency_id, o.unit_price, o.total_amount, o.point_operation_id, o.status, o.idempotency_key, o.created_at, p.title AS product_title, c.code AS currency_code, c.name AS currency_name
+                 FROM shop_orders o LEFT JOIN shop_products p ON p.id = o.product_id
+                 LEFT JOIN currencies c ON c.id = o.currency_id
+                 ORDER BY o.created_at DESC",
             )
             .fetch_all(p)
             .await?;
@@ -1624,6 +2317,18 @@ pub async fn list_admin_orders(pool: &DatabasePool) -> Result<Value, ShopError> 
                     let mut v = order_json(&row_to_order(row));
                     if let Some(obj) = v.as_object_mut() {
                         obj.insert("user_id".into(), json!(row.get::<String, _>("user_id")));
+                        obj.insert(
+                            "product_title".into(),
+                            json!(row.get::<Option<String>, _>("product_title")),
+                        );
+                        obj.insert(
+                            "currency_code".into(),
+                            json!(row.get::<Option<String>, _>("currency_code")),
+                        );
+                        obj.insert(
+                            "currency_name".into(),
+                            json!(row.get::<Option<String>, _>("currency_name")),
+                        );
                     }
                     v
                 })
@@ -1632,8 +2337,10 @@ pub async fn list_admin_orders(pool: &DatabasePool) -> Result<Value, ShopError> 
         }
         Either::Right(p) => {
             let rows = sqlx::query(
-                "SELECT id, user_id, product_id, product_version, quantity, currency_id, unit_price, total_amount, point_operation_id, status, idempotency_key, created_at
-                 FROM shop_orders ORDER BY created_at DESC",
+                "SELECT o.id, o.user_id, o.product_id, o.product_version, o.quantity, o.currency_id, o.unit_price, o.total_amount, o.point_operation_id, o.status, o.idempotency_key, o.created_at, p.title AS product_title, c.code AS currency_code, c.name AS currency_name
+                 FROM shop_orders o LEFT JOIN shop_products p ON p.id = o.product_id
+                 LEFT JOIN currencies c ON c.id = o.currency_id
+                 ORDER BY o.created_at DESC",
             )
             .fetch_all(p)
             .await?;
@@ -1643,6 +2350,18 @@ pub async fn list_admin_orders(pool: &DatabasePool) -> Result<Value, ShopError> 
                     let mut v = order_json(&row_to_order_mysql(row));
                     if let Some(obj) = v.as_object_mut() {
                         obj.insert("user_id".into(), json!(row.get::<String, _>("user_id")));
+                        obj.insert(
+                            "product_title".into(),
+                            json!(row.get::<Option<String>, _>("product_title")),
+                        );
+                        obj.insert(
+                            "currency_code".into(),
+                            json!(row.get::<Option<String>, _>("currency_code")),
+                        );
+                        obj.insert(
+                            "currency_name".into(),
+                            json!(row.get::<Option<String>, _>("currency_name")),
+                        );
                     }
                     v
                 })
@@ -1893,6 +2612,7 @@ pub fn shop_error_to_app(e: ShopError, request_id: &str) -> AppError {
         | ShopError::NotInSaleWindow
         | ShopError::PurchaseLimitExceeded
         | ShopError::IdempotencyConflict
+        | ShopError::VersionConflict
         | ShopError::EntitlementNotOwned
         | ShopError::SlotConflict
         | ShopError::NotRefundable => (StatusCode::CONFLICT, "Conflict"),

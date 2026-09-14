@@ -8,6 +8,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
+import { parseBatchEntries, batchResult, type BatchOutcome } from '$lib/admin-batch';
 
 export interface AdminPluginItem {
   id: string;
@@ -156,6 +157,32 @@ export const actions: Actions = {
       return fail(503, { message: '操作失败，请稍后重试' });
     }
   },
+  /** 批量启用（M18-ADMIN-BATCH）：循环调用 enable 单条端点（同 If-Match
+   * policy_revision 语义），逐条汇总成败。 */
+  batchEnable: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const entries = parseBatchEntries(form);
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const e of entries) {
+      try {
+        const r = await authedPost<{ plugin: AdminPluginItem }>(
+          cookies,
+          `/api/v1/admin/plugins/${encodeURIComponent(e.id)}/enable`,
+          { reason },
+          request.headers.get('x-request-id'),
+          { 'If-Match': String(e.version ?? 0) }
+        );
+        if (r.ok) outcome.okCount++;
+        else outcome.failures.push({ id: e.id, message: r.message });
+      } catch {
+        outcome.failures.push({ id: e.id, message: '网络错误' });
+      }
+    }
+    const r = batchResult(outcome, '批量启用');
+    return r.ok ? { message: r.message } : fail(r.status, { message: r.message });
+  },
   disable: async ({ request, cookies }) => {
     const form = await request.formData();
     const { id, reason, revision } = readCommon(form);
@@ -176,6 +203,32 @@ export const actions: Actions = {
     } catch {
       return fail(503, { message: '操作失败，请稍后重试' });
     }
+  },
+  /** 批量停用（M18-ADMIN-BATCH）：循环调用 disable 单条端点（同 If-Match
+   * policy_revision 语义），同一原因逐条写审计。 */
+  batchDisable: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const entries = parseBatchEntries(form);
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const e of entries) {
+      try {
+        const r = await authedPost<{ plugin: AdminPluginItem }>(
+          cookies,
+          `/api/v1/admin/plugins/${encodeURIComponent(e.id)}/disable`,
+          { reason },
+          request.headers.get('x-request-id'),
+          { 'If-Match': String(e.version ?? 0) }
+        );
+        if (r.ok) outcome.okCount++;
+        else outcome.failures.push({ id: e.id, message: r.message });
+      } catch {
+        outcome.failures.push({ id: e.id, message: '网络错误' });
+      }
+    }
+    const r = batchResult(outcome, '批量停用');
+    return r.ok ? { message: r.message } : fail(r.status, { message: r.message });
   },
   settings: async ({ request, cookies }) => {
     const form = await request.formData();

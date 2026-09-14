@@ -1,6 +1,6 @@
 //! M03-AUTHZ-01：`resource.action` 权限注册表与数据库未知权限拒绝。
 //!
-//! - 注册表是 v1 全部权限名的唯一事实来源（68 项，取自
+//! - 注册表是 v1 全部权限名的唯一事实来源（71 项，取自
 //!   docs/PERMISSION-MATRIX.md §2-8 动作表 + 附录 operation 级 x-permission
 //!   注册表；`public`/`authenticated` 是身份级标记，不是权限）；
 //! - 权限名格式强制 `resource[.sub].action`：至少一个点、无空段、
@@ -95,7 +95,7 @@ pub fn parse_permission_name(name: &str) -> Result<(), PermissionNameError> {
     }
 }
 
-/// v1 权限注册表（68 项，唯一事实来源）。
+/// v1 权限注册表（71 项，唯一事实来源）。
 pub static PERMISSION_REGISTRY: &[Permission] = &[
     // ── 会话 / 用户 / MFA（§1 身份和标记 + 附录）──────────────────────────
     Permission {
@@ -151,6 +151,24 @@ pub static PERMISSION_REGISTRY: &[Permission] = &[
         risk_level: RiskLevel::Normal,
         is_system: false,
         description: "近期重新认证/step-up",
+    },
+    Permission {
+        name: "passkey.read_own",
+        risk_level: RiskLevel::Normal,
+        is_system: false,
+        description: "读取本人 Passkey 列表",
+    },
+    Permission {
+        name: "passkey.enroll",
+        risk_level: RiskLevel::Normal,
+        is_system: false,
+        description: "Passkey 注册开始/确认",
+    },
+    Permission {
+        name: "passkey.revoke",
+        risk_level: RiskLevel::Normal,
+        is_system: false,
+        description: "撤销本人 Passkey（近期认证）",
     },
     Permission {
         name: "user.manage",
@@ -642,7 +660,7 @@ mod tests {
 
     #[test]
     fn registry_covers_expected_v1_permission_set() {
-        // 68 项：PERMISSION-MATRIX §2-8 动作表 + 附录 operation 级注册表
+        // 71 项：PERMISSION-MATRIX §2-8 动作表 + 附录 operation 级注册表
         // （不含 public/authenticated 身份标记）
         let expected = [
             "session.revoke_own",

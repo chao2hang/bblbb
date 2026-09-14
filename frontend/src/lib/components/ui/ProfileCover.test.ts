@@ -35,4 +35,13 @@ describe('M03-UI-05 ProfileCover', () => {
     expect(container.querySelector('.profile-cover')!.getAttribute('aria-hidden')).toBeNull();
     expect(container.querySelector('.profile-cover')!.getAttribute('role')).toBe('img');
   });
+
+  it('有 attachmentId → 通过 attachmentContentUrl 渲染稳定内容端点', () => {
+    const { container } = render(ProfileCover, {
+      props: { attachmentId: 'att-cover-999', label: '个人资料背景' }
+    });
+    const img = container.querySelector('img.profile-cover-img');
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('src')).toBe('/api/v1/attachments/att-cover-999/content');
+  });
 });

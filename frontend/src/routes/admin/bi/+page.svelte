@@ -24,58 +24,20 @@
 
   const currentPeriod = $derived(getPeriod());
 
-  const PERIOD_FIXTURES: Record<string, { metrics: any[]; generatedAt: number }> = {
-    day: {
-      generatedAt: 1700000000000,
-      metrics: [
-        { key: 'active_members', label: '活跃成员', value: 421, target: 1284, delta_pct: 2.6 },
-        { key: 'new_posts', label: '新增内容', value: 56, target: 200, delta_pct: 8.1 },
-        { key: 'point_flow', label: '积分流水', value: 1830, target: 5000, delta_pct: 3.4 },
-        { key: 'moderation_pass_rate', label: '审核通过率', value: 88, target: 100, delta_pct: 1.2 }
-      ]
-    },
-    week: {
-      generatedAt: 1699500000000,
-      metrics: [
-        { key: 'active_members', label: '活跃成员', value: 1840, target: 3000, delta_pct: 5.4 },
-        { key: 'new_posts', label: '新增内容', value: 312, target: 500, delta_pct: 12.0 },
-        { key: 'point_flow', label: '积分流水', value: 12450, target: 25000, delta_pct: -1.8 },
-        { key: 'moderation_pass_rate', label: '审核通过率', value: 92, target: 100, delta_pct: 3.5 }
-      ]
-    },
-    month: {
-      generatedAt: 1698000000000,
-      metrics: [
-        { key: 'active_members', label: '活跃成员', value: 6200, target: 10000, delta_pct: 14.2 },
-        { key: 'new_posts', label: '新增内容', value: 1420, target: 2000, delta_pct: 18.5 },
-        { key: 'point_flow', label: '积分流水', value: 54300, target: 80000, delta_pct: 9.1 },
-        { key: 'moderation_pass_rate', label: '审核通过率', value: 95, target: 100, delta_pct: 2.0 }
-      ]
-    },
-    year: {
-      generatedAt: 1675000000000,
-      metrics: [
-        { key: 'active_members', label: '活跃成员', value: 28400, target: 50000, delta_pct: 42.0 },
-        { key: 'new_posts', label: '新增内容', value: 15600, target: 20000, delta_pct: 31.2 },
-        { key: 'point_flow', label: '积分流水', value: 489000, target: 600000, delta_pct: 24.6 },
-        { key: 'moderation_pass_rate', label: '审核通过率', value: 96, target: 100, delta_pct: 4.1 }
-      ]
-    }
-  };
 
   const isRealData = $derived(
     Boolean(data.metrics && Array.isArray(data.metrics.metrics) && data.metrics.metrics.length > 0)
   );
 
+  // P0 整改：API 无数据/失败必须显示空态，禁止伪造 KPI（此前回退固定演示快照）。
   const activeMetricsData = $derived.by(() => {
-    if (data.metrics && Array.isArray(data.metrics.metrics)) {
+    if (data.state === 'ok' && data.metrics && Array.isArray(data.metrics.metrics)) {
       return {
         metrics: data.metrics.metrics,
         generatedAt: data.metrics.generated_at
       };
     }
-    const fixture = PERIOD_FIXTURES[currentPeriod] ?? PERIOD_FIXTURES.day;
-    return fixture;
+    return { metrics: [], generatedAt: 0 };
   });
 
   const displayList = $derived(

@@ -182,7 +182,7 @@ async fn login_wrong_password_increments_failure_count() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     let body: serde_json::Value =
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
-    assert_eq!(body["code"], "unauthorized");
+    assert_eq!(body["code"], "invalid_credentials");
     assert!(body["detail"]
         .as_str()
         .unwrap()
@@ -208,7 +208,7 @@ async fn login_unknown_account_returns_unified_401() {
     );
     let body: serde_json::Value =
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
-    assert_eq!(body["code"], "unauthorized");
+    assert_eq!(body["code"], "invalid_credentials");
 
     let sessions: i64 = match &pool {
         Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM user_sessions")
@@ -275,7 +275,7 @@ async fn login_banned_account_returns_unified_401() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     let body: serde_json::Value =
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
-    assert_eq!(body["code"], "unauthorized");
+    assert_eq!(body["code"], "invalid_credentials");
     assert!(
         !body["detail"].as_str().unwrap().contains("banned"),
         "不得泄漏封禁状态"

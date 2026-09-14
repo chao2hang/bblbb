@@ -1002,21 +1002,25 @@ pub async fn apply_post_action(
 /// 读取作者等级与创建时间（restore 风险复查用；行缺失按老用户/等级 1 兜底）。
 async fn load_author_risk_context(pool: &DatabasePool, author_id: &str) -> (Option<i64>, i64) {
     let row: Option<(i64, i64)> = match pool {
-        Either::Left(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
-            .bind(author_id)
-            .fetch_optional(p)
-            .await
-            .ok()
-            .flatten(),
-        Either::Right(p) => sqlx::query_as("SELECT created_at, level FROM users WHERE id = ?")
-            .bind(author_id)
-            .fetch_optional(p)
-            .await
-            .ok()
-            .flatten(),
+        Either::Left(p) => {
+            sqlx::query_as("SELECT created_at, trust_level AS level FROM users WHERE id = ?")
+                .bind(author_id)
+                .fetch_optional(p)
+                .await
+                .ok()
+                .flatten()
+        }
+        Either::Right(p) => {
+            sqlx::query_as("SELECT created_at, trust_level AS level FROM users WHERE id = ?")
+                .bind(author_id)
+                .fetch_optional(p)
+                .await
+                .ok()
+                .flatten()
+        }
     };
     row.map(|(created_at, level)| (Some(created_at), level))
-        .unwrap_or((None, 1))
+        .unwrap_or((None, 0))
 }
 
 /// 写内容动作记录（只追加 `moderation_actions`）+ 审计。

@@ -1,0 +1,1079 @@
+/* Flarum-inspired topic composer: a focused single-column window.
+   Structure: titlebar → scrollable body (title / meta / editor) → footer
+   action bar with popover panels (settings / video / AI). */
+
+body:has(#page-publish) {
+  overflow: hidden;
+}
+
+html:has(#page-publish) {
+  scrollbar-gutter: auto;
+}
+
+#page-publish.linuxdo-composer-page {
+  position: fixed;
+  inset: var(--header-h, 56px) 0 0;
+  z-index: var(--z-modal, 1000);
+  pointer-events: none;
+  overflow: hidden;
+  --composer-accent: var(--color-brand);
+  --composer-accent-soft: var(--color-brand-soft, color-mix(in srgb, var(--color-brand) 12%, transparent));
+  --composer-stage: var(--color-overlay, rgba(0, 0, 0, 0.65));
+  --composer-surface: var(--color-bg-card);
+  --composer-panel: var(--color-bg-page);
+  --composer-line: var(--color-border);
+  --composer-muted: var(--color-text-tertiary);
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#main-content > #page-publish.linuxdo-composer-page {
+  inset: var(--header-h, 56px) 0 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#page-publish .composer-stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 24px;
+  overflow: hidden;
+  background: var(--composer-stage);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+#page-publish .composer-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--composer-stage);
+  pointer-events: none;
+}
+
+#page-publish .composer-window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, 88vw);
+  height: min(860px, 76vh);
+  max-height: min(860px, calc(100% - 18px));
+  min-height: min(560px, calc(100% - 18px));
+  overflow: hidden;
+  background: var(--composer-surface);
+  border: 1px solid var(--composer-line);
+  border-bottom: 0;
+  border-radius: var(--radius-lg, 8px) var(--radius-lg, 8px) 0 0;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+  cursor: default;
+}
+
+/* ---- Titlebar ---- */
+
+#page-publish .composer-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 8px 12px 8px 18px;
+  background: var(--composer-surface);
+  border-bottom: 1px solid var(--composer-line);
+}
+
+#page-publish .composer-titlebar__identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--composer-accent);
+  font-size: 14px;
+}
+
+#page-publish .composer-titlebar__identity strong {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#page-publish .composer-titlebar__meta {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+#page-publish .composer-draft-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--composer-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+#page-publish .composer-draft-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  background: transparent;
+  border: 1px solid var(--composer-muted);
+  border-radius: 50%;
+}
+
+#page-publish .composer-draft-status.is-active::before {
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+#page-publish .composer-window-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 2px);
+  cursor: pointer;
+  transition: all var(--duration-fast, 150ms);
+}
+
+#page-publish .composer-window-close:hover {
+  color: var(--color-text-primary);
+  background: var(--composer-accent-soft);
+  border-color: color-mix(in srgb, var(--composer-accent) 50%, var(--composer-line));
+  text-decoration: none;
+}
+
+#page-publish .composer-window-close:focus-visible {
+  outline: 2px solid var(--composer-accent);
+  outline-offset: 2px;
+}
+
+/* ---- Form skeleton: body scrolls, footer pinned ---- */
+
+#page-publish .composer-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#page-publish .composer-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px 22px 20px;
+  overflow-y: auto;
+}
+
+/* ---- Notices (errors / conflicts / delegated edit / published) ---- */
+
+#page-publish .composer-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--composer-panel);
+  border: 1px solid var(--composer-line);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+#page-publish .composer-notice p {
+  flex: 1;
+  margin: 0;
+}
+
+#page-publish .composer-notice--danger {
+  border-color: var(--color-danger);
+}
+
+#page-publish .composer-notice--warning {
+  border-color: var(--color-warning);
+}
+
+#page-publish .composer-notice--brand {
+  display: block;
+  border-color: color-mix(in srgb, var(--composer-accent) 55%, var(--composer-line));
+}
+
+#page-publish .composer-notice--brand .input-label {
+  color: var(--composer-accent);
+  font-weight: 600;
+}
+
+#page-publish .composer-notice--brand .input-field {
+  margin-top: 6px;
+  background: var(--composer-surface) !important;
+  border: 1px solid var(--composer-line) !important;
+  border-radius: 4px !important;
+}
+
+#page-publish .composer-notice__actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+/* ---- Title: large borderless input, Flarum-style ---- */
+
+#page-publish .publish-title-field {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+}
+
+#page-publish .publish-title-field > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+#page-publish .publish-title-control {
+  position: relative;
+  min-width: 0;
+}
+
+/* chinese-elegance 主题层对全局文本输入使用 !important；编辑器标题要恢复
+   Flarum 式无边框大字号，必须以同优先级覆盖。 */
+#page-publish .publish-title-input.input-field {
+  height: 52px;
+  padding: 0 74px 0 2px !important;
+  color: var(--color-text-primary);
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--composer-line) !important;
+  border-radius: 0 !important;
+  font-size: 20px !important;
+  font-weight: 650;
+  box-shadow: none !important;
+}
+
+#page-publish .publish-title-input.input-field:hover {
+  border-bottom-color: color-mix(in srgb, var(--composer-line) 60%, var(--color-text-primary)) !important;
+}
+
+#page-publish .publish-title-input.input-field:focus {
+  border-bottom-color: var(--composer-accent) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+#page-publish .publish-title-hint {
+  right: 2px;
+  color: var(--composer-muted);
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+}
+
+/* ---- Meta row: board + tags, single instance each ---- */
+
+#page-publish .composer-meta-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.6fr) minmax(0, 1.4fr);
+  gap: 10px;
+  margin: 0;
+}
+
+#page-publish .composer-meta-field {
+  min-width: 0;
+}
+
+#page-publish .composer-meta-field > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 5px;
+  color: var(--composer-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#page-publish .composer-meta-field > label span {
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+}
+
+#page-publish .composer-meta-field .input-field {
+  width: 100%;
+  min-height: 38px;
+  color: var(--color-text-primary);
+  background: var(--composer-panel) !important;
+  border: 1px solid var(--composer-line) !important;
+  border-radius: var(--radius-sm, 2px) !important;
+  font-size: 13px !important;
+}
+
+#page-publish .composer-meta-field .input-field:focus {
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 2px var(--color-brand-soft) !important;
+}
+
+/* ---- Custom Select Styling with Proper Margin & Alignment ---- */
+
+#page-publish .composer-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+#page-publish .composer-select-wrapper select.input-field {
+  width: 100%;
+  min-height: 38px;
+  padding-left: 12px !important;
+  padding-right: 36px !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  cursor: pointer !important;
+  background: var(--composer-panel) !important;
+  border: 1px solid var(--composer-line) !important;
+  border-radius: var(--radius-sm, 2px) !important;
+  color: var(--color-text-primary) !important;
+  font-size: 13px !important;
+}
+
+#page-publish .composer-select-wrapper select.input-field:focus {
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 2px var(--color-brand-soft) !important;
+  outline: none !important;
+}
+
+#page-publish .composer-select-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+  line-height: 1;
+  transition: color var(--duration-fast, 150ms);
+}
+
+#page-publish .composer-select-wrapper:hover .composer-select-icon {
+  color: var(--color-text-primary);
+}
+
+/* ---- Tag input box (interactive, Enter to create) ---- */
+
+#page-publish .composer-tag-input-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 4px 8px;
+  background: var(--composer-panel) !important;
+  border: 1px solid var(--composer-line) !important;
+  border-radius: 4px !important;
+  cursor: text;
+}
+
+#page-publish .composer-tag-input-box.is-focused,
+#page-publish .composer-tag-input-box:focus-within {
+  border-color: var(--composer-accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--composer-accent) 20%, transparent) !important;
+}
+
+#page-publish .composer-tag-input {
+  flex: 1 1 120px;
+  min-width: 90px;
+  height: 26px;
+  padding: 2px 4px !important;
+  color: var(--color-text-primary);
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+}
+
+#page-publish .composer-tag-input::placeholder {
+  color: var(--composer-muted);
+}
+
+#page-publish .composer-tag-input-box .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--composer-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--composer-accent) 40%, var(--composer-line));
+  border-radius: 3px;
+  padding: 1px 4px 1px 6px;
+  font-size: 12px;
+}
+
+#page-publish .composer-tag-input-box .tag aui-status-tag {
+  color: var(--composer-accent);
+}
+
+#page-publish .composer-tag-input-box .tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin-left: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: var(--composer-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+#page-publish .composer-tag-input-box .tag-chip-remove:hover {
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+}
+
+#page-publish .composer-tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+#page-publish .composer-tag-suggestions__label {
+  color: var(--composer-muted);
+  font-size: 11px;
+}
+
+#page-publish .composer-tag-suggestion-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  color: var(--composer-muted);
+  background: transparent;
+  border: 1px dashed var(--composer-line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all var(--duration-fast, 150ms);
+}
+
+#page-publish .composer-tag-suggestion-pill:hover {
+  color: var(--composer-accent);
+  background: var(--composer-accent-soft);
+  border-color: var(--composer-accent);
+}
+
+#page-publish .composer-tag-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: -6px;
+}
+
+/* ---- Editor ---- */
+
+#page-publish .composer-editor {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#page-publish .composer-editor .rich-editor-wrapper {
+  overflow: hidden;
+  background: var(--composer-panel);
+  border-color: var(--composer-line);
+  border-radius: 4px;
+}
+
+#page-publish .rich-editor-header {
+  min-height: 46px;
+  padding: 8px 10px;
+  background: var(--composer-panel);
+  border-bottom-color: var(--composer-line);
+}
+
+#page-publish .rich-editor-toolbar {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 1px;
+}
+
+#page-publish .toolbar-btn {
+  width: 29px;
+  height: 30px;
+  color: var(--composer-muted);
+  border-radius: 4px;
+}
+
+#page-publish .toolbar-btn:hover:not(:disabled),
+#page-publish .toolbar-btn.is-active {
+  color: var(--composer-accent);
+  background: var(--composer-accent-soft);
+}
+
+#page-publish .toolbar-sep {
+  height: 20px;
+  background: var(--composer-line);
+}
+
+#page-publish .rich-editor-mode-switch {
+  flex-shrink: 0;
+  border-color: var(--composer-line);
+  border-radius: 4px;
+  background: var(--composer-surface);
+}
+
+#page-publish .mode-btn {
+  min-height: 28px;
+  color: var(--composer-muted);
+  border-radius: 3px;
+}
+
+#page-publish .mode-btn.is-active {
+  color: var(--color-text-primary);
+  background: var(--composer-accent-soft);
+  box-shadow: none;
+}
+
+#page-publish .rich-editor-body,
+#page-publish .prosemirror-mount,
+#page-publish .source-textarea {
+  min-height: clamp(220px, 30vh, 360px);
+}
+
+#page-publish .prosemirror-mount .ProseMirror,
+#page-publish .source-textarea {
+  color: var(--color-text-primary);
+  background: var(--composer-panel);
+}
+
+#page-publish .prosemirror-mount .ProseMirror {
+  padding: 18px;
+  font-size: 14px;
+}
+
+#page-publish .source-textarea {
+  padding: 18px;
+  border: 0;
+  font-size: 13px;
+}
+
+#page-publish .composer-editor__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 2px 0;
+  color: var(--composer-muted);
+  font-size: 11px;
+}
+
+#page-publish .composer-editor__status-right {
+  margin-left: auto;
+}
+
+#page-publish .input-hint {
+  color: var(--composer-muted);
+  font-size: 11px;
+}
+
+/* ---- Footer action bar ---- */
+
+#page-publish .composer-footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--composer-surface);
+  border-top: 1px solid var(--composer-line);
+}
+
+#page-publish .composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+#page-publish .composer-tool-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--composer-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#page-publish .composer-tool-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--composer-panel);
+}
+
+#page-publish .composer-tool-btn.is-active {
+  color: var(--composer-accent);
+  background: var(--composer-accent-soft);
+  border-color: color-mix(in srgb, var(--composer-accent) 45%, transparent);
+}
+
+#page-publish .composer-tool-btn:focus-visible {
+  outline: 2px solid var(--composer-accent);
+  outline-offset: 1px;
+}
+
+#page-publish .composer-tool-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--composer-accent);
+  border-radius: 50%;
+}
+
+#page-publish .composer-tool-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  color: var(--color-text-on-brand, #ffffff);
+  background: var(--color-brand);
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+#page-publish .composer-drafts-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  margin-left: 6px;
+  padding: 0 8px;
+  color: var(--composer-muted);
+  border-left: 1px solid var(--composer-line);
+  border-radius: 0;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#page-publish .composer-drafts-link:hover {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+#page-publish .composer-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+#page-publish .composer-actions .btn-primary,
+#page-publish .composer-actions button[type="submit"] {
+  min-height: 38px;
+  padding-inline: 22px;
+  color: var(--color-text-on-brand, #ffffff) !important;
+  background: var(--color-brand) !important;
+  border: none !important;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 2px) !important;
+}
+
+#page-publish .composer-actions .btn-primary:hover:not(:disabled),
+#page-publish .composer-actions button[type="submit"]:hover:not(:disabled) {
+  background: var(--color-brand-hover) !important;
+  color: var(--color-text-on-brand, #ffffff) !important;
+}
+
+#page-publish .composer-actions .btn-primary:active:not(:disabled),
+#page-publish .composer-actions button[type="submit"]:active:not(:disabled) {
+  background: var(--color-brand-pressed) !important;
+}
+
+/* ---- Popover panels (open above the footer bar) ---- */
+
+#page-publish .composer-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(520px, calc(100dvh - 140px));
+  overflow: hidden;
+  background: var(--composer-panel);
+  border: 1px solid var(--composer-line);
+  border-radius: 6px;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 38%);
+}
+
+/* 编辑器锚定弹层（视频引用）：定位上下文是 .rich-editor-header（position:relative），
+   top:100% 使面板始终出现在工具栏行正下方，工具栏换行/模式切换堆叠时也能贴住。 */
+#page-publish .composer-popover--editor {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+
+#page-publish .composer-popover__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--composer-line);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#page-publish .composer-popover__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--composer-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#page-publish .composer-popover__close:hover {
+  color: var(--color-text-primary);
+  background: var(--composer-accent-soft);
+}
+
+#page-publish .composer-popover__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+#page-publish .composer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+#page-publish .composer-field .input-label {
+  color: var(--composer-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#page-publish .composer-field__opt {
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+}
+
+#page-publish .composer-field__sub {
+  margin-top: 8px;
+}
+
+#page-publish .composer-field .input-field {
+  width: 100%;
+  min-height: 36px;
+  color: var(--color-text-primary);
+  background: var(--composer-surface) !important;
+  border: 1px solid var(--composer-line) !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+}
+
+#page-publish .composer-field .input-field:focus {
+  border-color: var(--composer-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--composer-accent) 20%, transparent);
+}
+
+#page-publish .composer-field textarea.input-field {
+  min-height: 64px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+#page-publish .composer-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#page-publish .composer-checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#page-publish .composer-popover__legal {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--composer-line) 70%, transparent);
+  color: var(--composer-muted);
+  font-size: 11px;
+}
+
+/* Visibility segmented options */
+
+#page-publish .vis-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#page-publish .vis-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--color-text-secondary);
+  background: var(--composer-surface);
+  border: 1px solid var(--composer-line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+}
+
+#page-publish .vis-option:hover {
+  border-color: color-mix(in srgb, var(--composer-accent) 55%, var(--composer-line));
+}
+
+#page-publish .vis-option.is-active {
+  color: var(--composer-accent);
+  background: var(--composer-accent-soft);
+  border-color: var(--composer-accent);
+  font-weight: 600;
+}
+
+#page-publish .vis-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#page-publish .vis-option:has(input:focus-visible) {
+  outline: 2px solid var(--composer-accent);
+  outline-offset: 2px;
+}
+
+/* Video reference list inside the video popover */
+
+#page-publish .composer-video-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#page-publish .composer-video-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--composer-line);
+  border-radius: 4px;
+}
+
+#page-publish .composer-video-list__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The embedded sub-panels already render their own cards; flatten them so the
+   popover reads as one panel instead of cards-in-a-card. */
+#page-publish .composer-popover__body > .card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+#page-publish .composer-popover__body > .card > .card-header {
+  display: none;
+}
+
+#page-publish .composer-popover__body > .card > .card-body {
+  padding: 0;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 900px) {
+  #main-content > #page-publish.linuxdo-composer-page {
+    inset: 0 !important;
+  }
+
+  .app-shell:has(#page-publish) .bottom-nav {
+    display: none !important;
+  }
+
+  #page-publish .composer-window {
+    max-height: calc(100dvh - 28px);
+    min-height: calc(100dvh - 28px);
+  }
+
+  #page-publish .composer-popover {
+    max-height: min(70vh, calc(100dvh - 96px));
+  }
+}
+
+@media (max-width: 560px) {
+  #page-publish .composer-stage {
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+  }
+
+  #page-publish .composer-window {
+    width: 100%;
+    height: calc(100dvh - 18px);
+    max-height: calc(100dvh - 18px);
+    min-height: calc(100dvh - 18px);
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  #page-publish .composer-titlebar {
+    min-height: 52px;
+    padding: 6px 10px 6px 14px;
+  }
+
+  #page-publish .composer-draft-status {
+    display: none;
+  }
+
+  #page-publish .composer-titlebar__meta {
+    gap: 4px;
+  }
+
+  #page-publish .composer-body {
+    gap: 12px;
+    padding: 12px 14px 16px;
+  }
+
+  #page-publish .publish-title-input.input-field {
+    font-size: 17px;
+  }
+
+  #page-publish .composer-meta-row {
+    grid-template-columns: 1fr;
+  }
+
+  #page-publish .rich-editor-header {
+    align-items: flex-start;
+  }
+
+  #page-publish .rich-editor-toolbar {
+    max-width: 100%;
+  }
+
+  #page-publish .rich-editor-mode-switch {
+    width: 100%;
+  }
+
+  #page-publish .mode-btn {
+    flex: 1;
+  }
+
+  #page-publish .composer-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  #page-publish .composer-tools {
+    order: 2;
+    width: 100%;
+  }
+
+  #page-publish .composer-actions {
+    order: 1;
+    width: 100%;
+  }
+
+  #page-publish .composer-actions .btn,
+  #page-publish .composer-actions button {
+    flex: 1;
+  }
+
+  #page-publish .composer-tool-btn span,
+  #page-publish .composer-drafts-link span {
+    display: none;
+  }
+
+  #page-publish .composer-drafts-link {
+    margin-left: auto;
+    border-left: 0;
+  }
+
+  #page-publish .composer-popover {
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #page-publish .composer-window-close,
+  #page-publish .toolbar-btn,
+  #page-publish .composer-tool-btn,
+  #page-publish .publish-title-input.input-field {
+    transition: none;
+  }
+}

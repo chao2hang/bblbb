@@ -71,7 +71,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> (String, String) {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 5, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -438,11 +438,11 @@ async fn admin_points_ledger_filters_and_pagination() {
     let (_m1, u1, _s, _c) = member_ctx(&app, &pool, "u1").await;
     let (_m2, u2, _s2, _c2) = member_ctx(&app, &pool, "u2").await;
 
-    // 3 笔 coin + 1 笔 exp（不同 key）。
+    // 所有积分流水均为 coin（不同 key）。
     for (i, (username, currency, amount)) in [
         (&u1, "coin", 10),
         (&u1, "coin", 20),
-        (&u1, "exp", 5),
+        (&u1, "coin", 5),
         (&u2, "coin", 30),
     ]
     .into_iter()
@@ -467,6 +467,25 @@ async fn admin_points_ledger_filters_and_pagination() {
         assert_eq!(status, StatusCode::CREATED, "{body}");
     }
 
+    // 非法 exp 货币 → 400。
+    let (status, _) = authed(
+        &app,
+        "POST",
+        "/api/v1/admin/points/adjust",
+        &admin_session,
+        &admin_csrf,
+        json!({
+            "username": u1,
+            "currency": "exp",
+            "amount": 1,
+            "reason": "非法经验调整",
+            "client_request_id": "crid-ledger-exp-rejected-000001",
+        }),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
     // username 过滤。
     let (status, body) = authed(
         &app,
@@ -480,8 +499,13 @@ async fn admin_points_ledger_filters_and_pagination() {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["items"].as_array().unwrap().len(), 3);
+    assert!(body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|item| item["currency"] == json!("coin")));
 
-    // asset=coin + kind=adjust 组合过滤（u1 只有 2 笔 coin）。
+    // asset=coin + kind=adjust 组合过滤（u1 的 coin 流水）。
     let (status, body) = authed(
         &app,
         "GET",
@@ -494,7 +518,7 @@ async fn admin_points_ledger_filters_and_pagination() {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let items = body["items"].as_array().unwrap();
-    assert_eq!(items.len(), 2);
+    assert_eq!(items.len(), 3);
     assert!(items.iter().all(|i| i["currency"] == json!("coin")));
 
     // 非法 kind → 400。
@@ -581,7 +605,7 @@ async fn my_point_transactions_visible_only_to_self() {
             &admin_csrf,
             json!({
                 "username": username,
-                "currency": "exp",
+                "currency": "coin",
                 "amount": amount,
                 "reason": "可见性测试",
                 "client_request_id": format!("crid-mytx-{i}-000000000000001"),
@@ -599,7 +623,7 @@ async fn my_point_transactions_visible_only_to_self() {
         &admin_csrf,
         json!({
             "username": _u2,
-            "currency": "exp",
+            "currency": "coin",
             "amount": 3,
             "reason": "可见性测试",
             "client_request_id": "crid-mytx-u2-000000000000001",
@@ -623,7 +647,7 @@ async fn my_point_transactions_visible_only_to_self() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let items = body["items"].as_array().unwrap();
     assert_eq!(items.len(), 2);
-    assert!(items.iter().all(|i| i["currency"] == json!("exp")));
+    assert!(items.iter().all(|i| i["currency"] == json!("coin")));
     assert_eq!(items[0]["amount"], json!(9), "created_at DESC");
 
     // 他人（u2）只看到自己的 1 笔。
@@ -653,114 +677,6 @@ async fn my_point_transactions_visible_only_to_self() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-
-    close_pool(&pool).await;
-    cleanup(&dir);
-}
-
-// ─── 等级规则 ────────────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn admin_levels_list_and_patch_if_match() {
-    let (pool, dir) = sqlite_pool_with_migrations().await;
-    let app = app_with(pool.clone());
-    let (admin_id, admin_session, admin_csrf) = admin_ctx(&app, &pool).await;
-    let (member_id, _mu, m_session, m_csrf) = member_ctx(&app, &pool, "lvl").await;
-    let _ = member_id;
-
-    // 成员 → 403。
-    let (status, _) = authed(
-        &app,
-        "GET",
-        "/api/v1/admin/levels",
-        &m_session,
-        &m_csrf,
-        Value::Null,
-        &[],
-    )
-    .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-
-    // 列表：5 级种子 + user_count（admin 是 level 5）。
-    let (status, body) = authed(
-        &app,
-        "GET",
-        "/api/v1/admin/levels",
-        &admin_session,
-        &admin_csrf,
-        Value::Null,
-        &[],
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    let items = body["items"].as_array().unwrap();
-    assert_eq!(items.len(), 5, "seeded level rules");
-    assert_eq!(items[0]["level"], json!(1));
-    assert_eq!(items[0]["min_exp"], json!(0));
-    let level5 = items.iter().find(|i| i["level"] == json!(5)).unwrap();
-    // admin_ctx 与 member_ctx 的 insert_user 都写 level=5。
-    assert_eq!(
-        level5["user_count"],
-        json!(2),
-        "both test users are level 5"
-    );
-    assert_eq!(level5["version"], json!(1));
-
-    // PATCH：缺 If-Match → 400。
-    let (status, _) = authed(
-        &app,
-        "PATCH",
-        "/api/v1/admin/levels/3",
-        &admin_session,
-        &admin_csrf,
-        json!({ "name": "Lv3 常客改", "reason": "调整等级规则" }),
-        &[],
-    )
-    .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-
-    // PATCH：If-Match 正确 → 200 + version 递增。
-    let (status, body) = authed(
-        &app,
-        "PATCH",
-        "/api/v1/admin/levels/3",
-        &admin_session,
-        &admin_csrf,
-        json!({ "name": "Lv3 常客改", "daily_post_limit": 25, "reason": "调整等级规则" }),
-        &[("if-match", "1")],
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["name"], json!("Lv3 常客改"));
-    assert_eq!(body["daily_post_limit"], json!(25));
-    assert_eq!(body["version"], json!(2));
-
-    // 旧版本再 PATCH → 409。
-    let (status, _) = authed(
-        &app,
-        "PATCH",
-        "/api/v1/admin/levels/3",
-        &admin_session,
-        &admin_csrf,
-        json!({ "name": "again", "reason": "再次调整" }),
-        &[("if-match", "1")],
-    )
-    .await;
-    assert_eq!(status, StatusCode::CONFLICT);
-
-    // 不存在的等级 → 404。
-    let (status, _) = authed(
-        &app,
-        "PATCH",
-        "/api/v1/admin/levels/99",
-        &admin_session,
-        &admin_csrf,
-        json!({ "name": "x", "reason": "r" }),
-        &[("if-match", "1")],
-    )
-    .await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-    let _ = admin_id;
 
     close_pool(&pool).await;
     cleanup(&dir);

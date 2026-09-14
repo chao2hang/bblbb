@@ -13,8 +13,7 @@ use bblbb_backend::outbox::now_millis;
 use bblbb_backend::storage::model::{AttachmentStatus, QuotaCounters, StorageBackend};
 use bblbb_backend::storage::quota::{self, get_counters, get_policy_for_level, update_level_quota};
 use bblbb_backend::storage::upload::{
-    self, scan_for_safety, CompleteOutcome, CreateAttachmentInput, NoopVirusScan, ScanVerdict,
-    UploadTransport, VirusScan,
+    self, scan_for_safety, CompleteOutcome, CreateAttachmentInput, UploadTransport,
 };
 use bblbb_backend::storage::StorageService;
 use sqlx::Either;
@@ -65,7 +64,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str, level: i64) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', ?, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -88,6 +87,21 @@ async fn insert_user(pool: &DatabasePool, tag: &str, level: i64) -> String {
 async fn scalar_sqlite(pool: &DatabasePool, sql: &str) -> i64 {
     match pool {
         Either::Left(p) => sqlx::query_scalar(sql).fetch_one(p).await.unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    }
+}
+
+/// 设置用户信任等级（users.trust_level；配额档位键，2026-09 等级合并单轨）。
+async fn set_user_trust_level(pool: &DatabasePool, user_id: &str, level: i64) {
+    match pool {
+        Either::Left(p) => {
+            sqlx::query("UPDATE users SET trust_level = ? WHERE id = ?")
+                .bind(level)
+                .bind(user_id)
+                .execute(p)
+                .await
+                .unwrap();
+        }
         Either::Right(_) => panic!("SQLite only"),
     }
 }
@@ -129,16 +143,10 @@ async fn upload_ready(
     )
     .await
     .unwrap();
-    let outcome = upload::complete_attachment(
-        pool,
-        storage,
-        &created.attachment.id,
-        user_id,
-        &NoopVirusScan,
-        now_millis(),
-    )
-    .await
-    .unwrap();
+    let outcome =
+        upload::complete_attachment(pool, storage, &created.attachment.id, user_id, now_millis())
+            .await
+            .unwrap();
     assert_eq!(outcome, CompleteOutcome::Ready);
     upload::load_attachment(pool, &created.attachment.id)
         .await
@@ -386,16 +394,10 @@ async fn complete_is_idempotent_and_never_double_charges() {
     let attachment = upload_ready(&pool, &storage, &owner, "note.txt", b"hello world").await;
 
     // 第二次 complete：ready 重放成功，不重复结算/发事件
-    let outcome = upload::complete_attachment(
-        &pool,
-        &storage,
-        &attachment.id,
-        &owner,
-        &NoopVirusScan,
-        now_millis(),
-    )
-    .await
-    .unwrap();
+    let outcome =
+        upload::complete_attachment(&pool, &storage, &attachment.id, &owner, now_millis())
+            .await
+            .unwrap();
     assert_eq!(outcome, CompleteOutcome::Ready);
 
     let counters = counters_async(&pool, &owner).await;
@@ -443,7 +445,6 @@ async fn complete_quarantines_on_head_size_mismatch_and_rolls_back_reserved() {
         &storage,
         &created.attachment.id,
         &owner,
-        &NoopVirusScan,
         now_millis(),
     )
     .await
@@ -495,7 +496,6 @@ async fn complete_quarantines_dangerous_html_and_dangerous_extension() {
         &storage,
         &created.attachment.id,
         &owner,
-        &NoopVirusScan,
         now_millis(),
     )
     .await
@@ -548,7 +548,6 @@ async fn complete_quarantines_dangerous_html_and_dangerous_extension() {
         &storage,
         &created2.attachment.id,
         &owner,
-        &NoopVirusScan,
         now_millis(),
     )
     .await
@@ -563,84 +562,14 @@ async fn complete_quarantines_dangerous_html_and_dangerous_extension() {
     cleanup(&dir);
 }
 
-/// 确定性病毒扫描 mock（M06-UPLOAD-05）。
-struct InfectedScan;
-impl VirusScan for InfectedScan {
-    fn scan(&self, _data: &[u8]) -> ScanVerdict {
-        ScanVerdict::Infected
-    }
-}
-
-#[tokio::test]
-async fn complete_quarantines_on_virus_scan_mock() {
-    let (pool, dir, storage) = setup().await;
-    let owner = insert_user(&pool, "owner", 1).await;
-
-    let created = upload::create_attachment(
-        &pool,
-        &storage,
-        &owner,
-        CreateAttachmentInput {
-            owner_id: owner.clone(),
-            original_name: Some("note.txt".to_string()),
-            media_type: "text/plain".to_string(),
-            size_bytes: 11,
-            is_public: false,
-        },
-        now_millis(),
-    )
-    .await
-    .unwrap();
-    upload::stream_upload(
-        &pool,
-        &storage,
-        &created.attachment.id,
-        &owner,
-        b"hello world",
-        None,
-    )
-    .await
-    .unwrap();
-    let outcome = upload::complete_attachment(
-        &pool,
-        &storage,
-        &created.attachment.id,
-        &owner,
-        &InfectedScan,
-        now_millis(),
-    )
-    .await
-    .unwrap();
-    assert_eq!(outcome, CompleteOutcome::Quarantined);
-    let attachment = upload::load_attachment(&pool, &created.attachment.id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(attachment.status, AttachmentStatus::Quarantined);
-
-    // quarantined 不可再 complete（状态机非法迁移防护）
-    let err = upload::complete_attachment(
-        &pool,
-        &storage,
-        &created.attachment.id,
-        &owner,
-        &InfectedScan,
-        now_millis(),
-    )
-    .await
-    .unwrap_err();
-    assert_eq!(err.code(), "storage_state_error");
-
-    close_pool(&pool).await;
-    cleanup(&dir);
-}
-
 #[tokio::test]
 async fn complete_quarantines_when_policy_downgraded_below_commitment() {
     let (pool, dir, storage) = setup().await;
     let owner = insert_user(&pool, "owner", 1).await;
+    // 配额档位键 = 信任等级（TL1，与下方 level 1 策略修订同档）
+    set_user_trust_level(&pool, &owner, 1).await;
 
-    // create 时等级 1 默认总容量 100 MiB，预留 11 字节成功
+    // create 时 TL1 默认总容量 250 MiB，预留 11 字节成功
     let created = upload::create_attachment(
         &pool,
         &storage,
@@ -667,7 +596,7 @@ async fn complete_quarantines_when_policy_downgraded_below_commitment() {
     .await
     .unwrap();
 
-    // 管理员把等级 1 总容量压到 8 字节（当前版本 1 → 新版本 2）
+    // 管理员把 TL1 总容量压到 8 字节（当前版本 1 → 新版本 2）
     let policy = update_level_quota(&pool, 1, 8, 8, 8, 30, 1, &owner, now_millis())
         .await
         .unwrap();
@@ -679,7 +608,6 @@ async fn complete_quarantines_when_policy_downgraded_below_commitment() {
         &storage,
         &created.attachment.id,
         &owner,
-        &NoopVirusScan,
         now_millis(),
     )
     .await
@@ -753,7 +681,6 @@ async fn complete_strips_exif_rewrites_object_and_recomputes_sha256() {
         &storage,
         &created.attachment.id,
         &owner,
-        &NoopVirusScan,
         now_millis(),
     )
     .await
@@ -1064,7 +991,9 @@ async fn sweep_orphans_removes_stale_but_keeps_recent_and_in_use() {
 async fn concurrent_create_reserve_only_one_succeeds_at_capacity() {
     let (pool, dir, storage) = setup().await;
     let owner = insert_user(&pool, "owner", 1).await;
-    // 先把等级 1 收窄到恰好 2 MiB（single == total == daily）
+    // 配额档位键 = 信任等级（TL1，与下方 level 1 策略修订同档）
+    set_user_trust_level(&pool, &owner, 1).await;
+    // 先把 TL1 收窄到恰好 2 MiB（single == total == daily）
     let total = 2 * 1024 * 1024;
     get_policy_for_level(&pool, 1, &owner).await.unwrap();
     update_level_quota(&pool, 1, total, total, total, 30, 1, &owner, now_millis())
@@ -1103,12 +1032,12 @@ async fn concurrent_create_reserve_only_one_succeeds_at_capacity() {
 async fn scan_for_safety_rejects_svg_polyglot_and_mime_spoofing() {
     // 默认拒绝 SVG
     let svg = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script/></svg>";
-    let err = scan_for_safety(svg, "image/jpeg", Some("x.jpg"), &NoopVirusScan).unwrap_err();
+    let err = scan_for_safety(svg, "image/jpeg", Some("x.jpg")).unwrap_err();
     assert!(err.summary().contains("svg"), "{}", err.summary());
 
     // 扩展名/内容欺骗：声明 jpeg、实为 PNG
     let png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x00\x00\x00\x00\x00IEND\xaeB\x60\x82";
-    let err = scan_for_safety(png, "image/jpeg", Some("x.jpg"), &NoopVirusScan).unwrap_err();
+    let err = scan_for_safety(png, "image/jpeg", Some("x.jpg")).unwrap_err();
     assert_eq!(
         err,
         upload::ScanError::TypeMismatch {
@@ -1119,10 +1048,268 @@ async fn scan_for_safety_rejects_svg_polyglot_and_mime_spoofing() {
 
     // 可执行 shebang
     let script = b"#!/bin/sh\necho pwned";
-    let err = scan_for_safety(script, "text/plain", Some("x.txt"), &NoopVirusScan).unwrap_err();
+    let err = scan_for_safety(script, "text/plain", Some("x.txt")).unwrap_err();
     assert!(err.summary().contains("executable"), "{}", err.summary());
 
     // 正常文本放行
-    let ok = scan_for_safety(b"hello world", "text/plain", Some("x.txt"), &NoopVirusScan).unwrap();
+    let ok = scan_for_safety(b"hello world", "text/plain", Some("x.txt")).unwrap();
     assert_eq!(ok.sha256.len(), 64);
+}
+
+/// 构造仅含未压缩条目名的伪 OOXML 容器（扫描层只做字节级包结构校验）。
+fn fake_ooxml(part_dir: &[u8]) -> Vec<u8> {
+    let mut v = b"PK\x03\x04".to_vec();
+    v.extend_from_slice(b"\x00\x00\x00\x00");
+    v.extend_from_slice(b"[Content_Types].xml");
+    v.extend_from_slice(part_dir);
+    v
+}
+
+#[tokio::test]
+async fn scan_for_safety_accepts_document_and_av_media() {
+    // OOXML：docx/xlsx/pptx 容器放行
+    for (declared, dir, ext) in [
+        (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            &b"word/"[..],
+            "docx",
+        ),
+        (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            &b"xl/"[..],
+            "xlsx",
+        ),
+        (
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            &b"ppt/"[..],
+            "pptx",
+        ),
+    ] {
+        let data = fake_ooxml(dir);
+        let ok = scan_for_safety(&data, declared, Some(&format!("x.{ext}")))
+            .unwrap_or_else(|e| panic!("{declared} should pass: {}", e.summary()));
+        assert_eq!(ok.width, None);
+    }
+
+    // 通用 zip 仍拒绝（白名单外）
+    let err = scan_for_safety(
+        b"PK\x03\x04not-an-office-package",
+        "application/zip",
+        Some("x.zip"),
+    )
+    .unwrap_err();
+    assert!(err.summary().contains("not allowed"), "{}", err.summary());
+
+    // 任意 zip 改名 .docx：无 OPC 部件 → 拒绝
+    let err = scan_for_safety(
+        b"PK\x03\x04random-zip-content-without-opc",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        Some("x.docx"),
+    )
+    .unwrap_err();
+    assert!(
+        err.summary().contains("not a valid OOXML"),
+        "{}",
+        err.summary()
+    );
+
+    // xlsx 声明但内容是 word 包 → 拒绝
+    let err = scan_for_safety(
+        &fake_ooxml(b"word/"),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        Some("x.xlsx"),
+    )
+    .unwrap_err();
+    assert!(
+        err.summary().contains("not a valid OOXML"),
+        "{}",
+        err.summary()
+    );
+
+    // 文本族按族匹配：csv/json/xml/md 内容均为近似纯文本
+    for (declared, name, body) in [
+        ("text/csv", "x.csv", &b"a,b,c\n1,2,3\n"[..]),
+        ("application/json", "x.json", &b"{\"k\": [1, 2]}"[..]),
+        (
+            "application/xml",
+            "x.xml",
+            &b"<?xml version=\"1.0\"?><a/>"[..],
+        ),
+        ("text/markdown", "x.md", "# 标题\n正文 Chinese\n".as_bytes()),
+        ("text/plain", "x.log", &b"2026-09-11 INFO ok\n"[..]),
+    ] {
+        let ok = scan_for_safety(body, declared, Some(name))
+            .unwrap_or_else(|e| panic!("{declared} should pass: {}", e.summary()));
+        assert_eq!(ok.width, None);
+    }
+
+    // MP4（ftyp isom）
+    let mut mp4 = b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00".to_vec();
+    mp4.extend_from_slice(&[0u8; 16]);
+    let ok = scan_for_safety(&mp4, "video/mp4", Some("x.mp4"))
+        .unwrap_or_else(|e| panic!("mp4 should pass: {}", e.summary()));
+    assert_eq!(ok.width, None);
+
+    // MP3（ID3v2）
+    let mut mp3 = b"ID3\x04\x00\x00\x00\x00\x00\x00".to_vec();
+    mp3.extend_from_slice(&[0u8; 32]);
+    scan_for_safety(&mp3, "audio/mpeg", Some("x.mp3"))
+        .unwrap_or_else(|e| panic!("mp3 should pass: {}", e.summary()));
+
+    // WebM（EBML + DocType webm）
+    let mut webm = [0x1Au8, 0x45, 0xDF, 0xA3].to_vec();
+    webm.extend_from_slice(b"\x01\x00\x00\x00\x00\x00\x00\x00\x1f\x42\x86\x81\x01\x42\xf7\x81\x01\x42\xf2\x81\x04\x42\xf3\x81\x08\x42\x82\x84webm");
+    webm.extend_from_slice(&[0u8; 16]);
+    scan_for_safety(&webm, "video/webm", Some("x.webm"))
+        .unwrap_or_else(|e| panic!("webm should pass: {}", e.summary()));
+
+    // MIME 欺骗：mp4 内容声明为 webm → TypeMismatch
+    let err = scan_for_safety(&mp4, "video/webm", Some("x.webm")).unwrap_err();
+    assert_eq!(
+        err,
+        upload::ScanError::TypeMismatch {
+            declared: "video/webm".to_string(),
+            detected: "video/mp4".to_string(),
+        }
+    );
+
+    // 压缩包族仍默认拒绝：gzip/7z/OLE（扩展名合法，按内容拦截）
+    for (body, name, declared) in [
+        (&b"\x1f\x8b\x08\x00junk"[..], "x.txt", "text/plain"),
+        (&b"7z\xbc\xaf\x27\x1cjunk"[..], "x.txt", "text/plain"),
+        (&b"\xd0\xcf\x11\xe0junk123"[..], "x.txt", "text/plain"),
+    ] {
+        let err = scan_for_safety(body, declared, Some(name)).unwrap_err();
+        assert!(
+            err.summary().contains("content blocked"),
+            "{name}: {}",
+            err.summary()
+        );
+    }
+}
+
+#[test]
+fn upload_type_policy_parses_csv_and_fails_open() {
+    use bblbb_backend::storage::upload::{UploadTypePolicy, UPLOAD_TYPE_CATEGORIES};
+
+    // 空/空白/全未知 token → 全类目（fail-open 到能力白名单）
+    for raw in ["", "  ", "bogus", ",,"] {
+        let p = UploadTypePolicy::parse_csv(raw);
+        assert_eq!(p, UploadTypePolicy::all(), "raw={raw:?}");
+        assert_eq!(p.enabled_categories(), UPLOAD_TYPE_CATEGORIES);
+    }
+    // 混合：合法 token 保留，未知 token 忽略
+    let mixed = UploadTypePolicy::parse_csv("image,bogus-only");
+    assert_eq!(mixed.enabled_categories(), &["image"]);
+    // 正常解析：去空格、未知 token 忽略（保持输入顺序，故按集合比较）
+    let p = UploadTypePolicy::parse_csv("office, image , av");
+    let mut got = p.enabled_categories().to_vec();
+    got.sort_unstable();
+    assert_eq!(got, ["av", "image", "office"]);
+    assert!(p.allows("image/png"));
+    assert!(p.allows("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+    assert!(p.allows("video/mp4"));
+    assert!(!p.allows("application/pdf"));
+    assert!(!p.allows("text/plain"));
+    // 能力白名单外的类型永远不放行
+    assert!(!p.allows("application/zip"));
+    // allowed_media_types 投影 = 能力白名单 ∩ 策略
+    let types = p.allowed_media_types();
+    assert!(types.contains(&"image/png") && types.contains(&"video/mp4"));
+    assert!(!types.contains(&"application/pdf"));
+    // to_csv ↔ parse_csv 往返
+    assert_eq!(UploadTypePolicy::parse_csv(&p.to_csv()), p);
+}
+
+#[tokio::test]
+async fn create_attachment_respects_site_upload_type_policy() {
+    let (pool, dir, storage) = setup().await;
+    let owner = insert_user(&pool, "owner", 1).await;
+
+    let set_policy = |csv: &'static str| {
+        let pool = pool.clone();
+        async move {
+            match &pool {
+                Either::Left(p) => {
+                    sqlx::query(
+                        "UPDATE site_settings SET storage_allowed_upload_types = ? WHERE id = 'singleton'",
+                    )
+                    .bind(csv)
+                    .execute(p)
+                    .await
+                    .unwrap();
+                }
+                Either::Right(p) => {
+                    sqlx::query(
+                        "UPDATE site_settings SET storage_allowed_upload_types = ? WHERE id = 'singleton'",
+                    )
+                    .bind(csv)
+                    .execute(p)
+                    .await
+                    .unwrap();
+                }
+            }
+        }
+    };
+
+    // 默认（空 CSV）= 全类目：office 文档可创建
+    let mk = |mt: &str, name: &str| CreateAttachmentInput {
+        owner_id: owner.clone(),
+        original_name: Some(name.to_string()),
+        media_type: mt.to_string(),
+        size_bytes: 1024,
+        is_public: false,
+    };
+    upload::create_attachment(
+        &pool,
+        &storage,
+        &owner,
+        mk(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "a.docx",
+        ),
+        now_millis(),
+    )
+    .await
+    .expect("office category enabled by default");
+
+    // 关闭 image：图片 create 被站点策略拒绝
+    set_policy("pdf,text").await;
+    let err = upload::create_attachment(
+        &pool,
+        &storage,
+        &owner,
+        mk("image/png", "a.png"),
+        now_millis(),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), "invalid_storage_request");
+    assert!(err.to_string().contains("site policy"), "{}", err);
+
+    // 能力白名单内的 pdf 仍可创建
+    upload::create_attachment(
+        &pool,
+        &storage,
+        &owner,
+        mk("application/pdf", "a.pdf"),
+        now_millis(),
+    )
+    .await
+    .expect("pdf category enabled");
+
+    // 策略损坏（乱码）→ fail-open 全类目，不致全站不可上传
+    set_policy("garbage").await;
+    upload::create_attachment(
+        &pool,
+        &storage,
+        &owner,
+        mk("image/png", "b.png"),
+        now_millis(),
+    )
+    .await
+    .expect("corrupt policy fails open to all categories");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
 }

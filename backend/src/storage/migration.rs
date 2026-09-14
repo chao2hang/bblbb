@@ -153,13 +153,12 @@ pub async fn run_migration(
             update_backend(pool, &entry.attachment_id, target_backend).await?;
             continue;
         }
-        // 复制（可重试）。
+        // 复制（可重试）。P0/P1 整改修复：跨后端复制必须 source read →
+        // target write；此前错误调用 `source.copy_object(key, key)`
+        // （同后端内复制），导致目标永远为空、后续 hash 校验必然失败。
         let mut attempt = 0;
         loop {
-            match source
-                .copy_object(&entry.object_key, &entry.object_key)
-                .await
-            {
+            match copy_cross_backend(&source, &target, &entry.object_key).await {
                 Ok(()) => break,
                 Err(e) if e.is_retryable() && attempt < 3 => {
                     attempt += 1;
@@ -188,6 +187,24 @@ pub async fn run_migration(
         update_backend(pool, &entry.attachment_id, target_backend).await?;
     }
     Ok(report)
+}
+
+/// 跨后端复制：source read → target write（保留 content_type）。
+async fn copy_cross_backend(
+    source: &dyn crate::storage::adapter::StorageAdapter,
+    target: &dyn crate::storage::adapter::StorageAdapter,
+    key: &str,
+) -> Result<(), StorageError> {
+    let head = source.head_object(key).await?;
+    if !head.exists {
+        return Err(StorageError::NotFound(format!(
+            "copy source missing: {key}"
+        )));
+    }
+    let data = source.read_object(key).await?;
+    target
+        .write_object(key, &data, head.content_type.as_deref())
+        .await
 }
 
 /// 校验目标对象 hash（读取并计算 sha256）。
@@ -260,11 +277,10 @@ pub async fn rollback(
                 entry.object_key
             )));
         }
-        // 目标 → 源复制（对象本身；key 相同）。
+        // 目标 → 源复制（对象本身；key 相同）。P1 整改修复：跨后端复制用
+        // source read → target write（此前错误调用 source 同后端 copy）。
         let target = storage.adapter(entry.source_backend)?;
-        target
-            .copy_object(&entry.object_key, &entry.object_key)
-            .await?;
+        copy_cross_backend(&source, &target, &entry.object_key).await?;
         let verified =
             verify_hash(storage, source_backend, &entry.object_key, &entry.sha256).await?;
         if !verified {

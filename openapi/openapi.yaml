@@ -107,7 +107,7 @@ paths:
       - Auth
       operationId: loginMfa
       security: *1
-      summary: Complete two-step MFA login (TOTP or recovery code)
+      summary: Complete two-step MFA login (TOTP, recovery code, or passkey)
       x-permission: public
       x-csrf: true
       x-csrf-context: preauth
@@ -279,6 +279,169 @@ paths:
           "$ref": "#/components/responses/StepUpRequired"
         '404':
           "$ref": "#/components/responses/NotFound"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/passkeys":
+    get:
+      tags:
+      - Auth
+      operationId: listPasskeys
+      security:
+      - sessionCookie: []
+      x-permission: passkey.read_own
+      summary: List the current user's registered passkeys
+      x-csrf: false
+      responses:
+        '200':
+          description: Registered passkeys (credential secrets never returned)
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PasskeyListResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+    post:
+      tags:
+      - Auth
+      operationId: beginPasskeyRegistration
+      security:
+      - sessionCookie: []
+      x-permission: passkey.enroll
+      summary: Begin passkey registration (returns WebAuthn creation options)
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          description: WebAuthn PublicKeyCredentialCreationOptions (passkey mode)
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PasskeyRegistrationOptions"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/passkeys/confirm":
+    post:
+      tags:
+      - Auth
+      operationId: confirmPasskeyRegistration
+      security:
+      - sessionCookie: []
+      x-permission: passkey.enroll
+      summary: Confirm passkey registration with the browser credential response
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PasskeyConfirmRequest"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/passkeys/{id}":
+    delete:
+      tags:
+      - Auth
+      operationId: revokePasskey
+      security:
+      - sessionCookie: []
+      x-permission: passkey.revoke
+      summary: Revoke one of the current user's passkeys (recent auth required)
+      x-csrf: true
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: Passkey 记录 ID（GET /auth/passkeys 返回的内部 id）
+        schema:
+          type: string
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/StepUpRequired"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/auth/login/mfa/passkey/options":
+    post:
+      tags:
+      - Auth
+      operationId: loginMfaPasskeyOptions
+      security: *1
+      x-permission: public
+      summary: Get WebAuthn request options for the passkey step of a two-step login
+      description: 用第一步 /login 返回的一次性 challenge 换取 PublicKeyCredentialRequestOptions（仅当该账号注册过 Passkey 时可用）。
+      x-csrf: true
+      x-csrf-context: preauth
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PasskeyLoginOptionsRequest"
+      responses:
+        '200':
+          description: WebAuthn PublicKeyCredentialRequestOptions（allowCredentials 限定该账号凭据）
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PasskeyRequestOptions"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/CsrfFailed"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
         '429':
           "$ref": "#/components/responses/RateLimited"
   "/api/v1/auth/re-auth":
@@ -5375,6 +5538,420 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/PolicyPatch"
+  "/api/v1/auth/bootstrap":
+    post:
+      tags:
+      - Auth
+      operationId: bootstrapAdmin
+      summary: Bootstrap first administrator with one-time token
+      security: []
+      x-permission: public
+      x-csrf: false
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '201':
+          description: First administrator created
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericSuccess"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, username, email, password]
+              properties:
+                token:
+                  type: string
+                  description: 一次性 bootstrap token（--bootstrap 生成，24h 有效，消费一次后失效）
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+  "/api/v1/admin/feature-flags":
+    get:
+      tags:
+      - Admin
+      operationId: getAdminFeatureFlags
+      summary: List runtime feature flags
+      security: *3
+      x-permission: admin.manage
+      x-csrf: false
+      parameters: []
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [flags, kill_switch]
+                properties:
+                  flags:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, enabled, effective_at, version, updated_at]
+                      properties:
+                        name:
+                          type: string
+                          enum: [ai, video, download_billing, oidc, marketplace]
+                        enabled:
+                          type: boolean
+                        effective_at:
+                          type: integer
+                          format: int64
+                        version:
+                          type: integer
+                        updated_by:
+                          type: [string, 'null']
+                        updated_at:
+                          type: integer
+                          format: int64
+                  kill_switch:
+                    type: boolean
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+  "/api/v1/admin/feature-flags/kill-switch":
+    post:
+      tags:
+      - Admin
+      operationId: killAdminFeatureFlags
+      summary: Emergency kill switch for all optional capabilities
+      security: *3
+      x-permission: admin.manage
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: All optional capabilities disabled
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+  "/api/v1/admin/feature-flags/{name}":
+    patch:
+      tags:
+      - Admin
+      operationId: updateAdminFeatureFlag
+      summary: Enable or disable one feature flag
+      security: *3
+      x-permission: admin.manage
+      x-csrf: true
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [ai, video, download_billing, oidc, marketplace]
+      - "$ref": "#/components/parameters/IfMatch"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Flag updated and runtime snapshot reloaded
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled, expected_version, reason]
+              properties:
+                enabled:
+                  type: boolean
+                expected_version:
+                  type: integer
+                effective_at:
+                  type: integer
+                  format: int64
+                  description: 定时生效（Unix 毫秒）；缺省 = 立即生效
+                reason:
+                  type: string
+  "/api/v1/admin/moderation/risk-policy":
+    get:
+      tags:
+      - Moderation
+      operationId: getAdminRiskPolicy
+      summary: Get current versioned risk policy
+      security: *3
+      x-permission: admin.manage
+      x-csrf: false
+      parameters: []
+      responses:
+        '200':
+          description: Current policy (version 0 = builtin defaults)
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/RiskPolicyView"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+    patch:
+      tags:
+      - Moderation
+      operationId: updateAdminRiskPolicy
+      summary: Update risk policy (new version, audited)
+      security: *3
+      x-permission: admin.manage
+      x-csrf: true
+      parameters: []
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: New policy version created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/RiskPolicyView"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [thresholds, expected_version, reason]
+              properties:
+                thresholds:
+                  "$ref": "#/components/schemas/RiskThresholds"
+                expected_version:
+                  type: integer
+                reason:
+                  type: string
+  "/api/v1/admin/boards/{id}/roles":
+    get:
+      tags:
+      - Boards
+      operationId: listAdminBoardRoles
+      summary: List board role assignments
+      security: *3
+      x-permission: role.manage
+      x-csrf: false
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Board role assignments
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [board_id, assignments]
+                properties:
+                  board_id:
+                    type: string
+                  assignments:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/BoardRoleAssignment"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+    post:
+      tags:
+      - Boards
+      operationId: assignAdminBoardRole
+      summary: Assign a board-scoped role to a user
+      security: *3
+      x-permission: role.manage
+      x-csrf: true
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          description: Assignment created
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BoardRoleAssignment"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, role_name, reason]
+              properties:
+                user_id:
+                  type: string
+                role_name:
+                  type: string
+                  description: 仅允许板块范围角色（board_* 前缀）
+                expires_at:
+                  type: integer
+                  format: int64
+                  description: 临时授权到期时间（Unix 毫秒）；缺省 = 永久
+                reason:
+                  type: string
+  "/api/v1/admin/boards/{id}/roles/{user_id}/{role_name}":
+    delete:
+      tags:
+      - Boards
+      operationId: revokeAdminBoardRole
+      summary: Revoke a board role assignment
+      security: *3
+      x-permission: role.manage
+      x-csrf: true
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: role_name
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Revocation result (revoked=false when not held)
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked:
+                    type: boolean
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
   "/api/v1/admin/activity/config":
     get:
       tags:
@@ -6569,11 +7146,53 @@ paths:
       - sessionCookie: []
       x-permission: authenticated
       x-csrf: false
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [unlocked, in_progress, hidden]
       responses:
         '200':
           "$ref": "#/components/responses/GenericSuccess"
         '401':
           "$ref": "#/components/responses/AuthenticationRequired"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/badges":
+    put:
+      tags:
+      - Activity
+      operationId: putMeBadges
+      summary: 批量设置已装备成就徽章（最多 3 枚）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                badges:
+                  type: array
+                  items:
+                    type: string
+                  description: 徽章 code 列表（最多 3 枚）
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '409':
+          "$ref": "#/components/responses/Conflict"
         '429':
           "$ref": "#/components/responses/RateLimited"
   "/api/v1/me/achievements/{code}/equip":
@@ -7403,6 +8022,7 @@ components:
     After:
       name: after
       in: query
+      description: Opaque base64url composite cursor issued by the endpoint; private message and conversation cursors include timestamp and id for stable pagination.
       schema:
         type: string
     IfMatch:
@@ -7691,6 +8311,49 @@ components:
           type:
           - string
           - 'null'
+        presentation_tokens:
+          description: 公开装扮投影（M07-SHOP-SCHEMA-06）：服务端编译的白名单 Token 集合；无装配或封禁/注销降级时为 null。key 为展示槽位，value 只能是后端注册白名单 Token（profile_badges 为字符串数组 ≤3）；禁用任意 CSS/HTML/URL。
+          type:
+          - object
+          - 'null'
+          additionalProperties: false
+          properties:
+            nickname_color:
+              type: string
+            avatar_frame:
+              type: string
+            avatar_frame_attachment_id:
+              type: string
+              description: 已发布商品绑定的 ready PNG 附件 UUID
+            avatar_attachment:
+              type: string
+            avatar_attachment_attachment_id:
+              type: string
+              description: 已发布商品绑定的 ready PNG 附件 UUID
+            profile_effect:
+              type: string
+            post_effect:
+              type: string
+            profile_badges:
+              type: array
+              maxItems: 3
+              items:
+                type: string
+        equipped_achievements:
+          description: 已装备成就徽章（社交域·成就墙装备槽 user_achievements.equipped）：仅 code/name 公开字段，≤3，服务端裁决；无装备或封禁/注销降级时为空数组。资料卡「佩戴徽章」行的真实数据来源。
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - code
+            - name
+            properties:
+              code:
+                type: string
+              name:
+                type: string
         created_at:
           type: integer
           format: int64
@@ -7735,15 +8398,19 @@ components:
       required:
       - mfa_required
       - challenge_token
+      - passkey_available
       properties:
         mfa_required:
           type: boolean
           const: true
-          description: 账号启用 TOTP：密码已验证，需第二步 /login/mfa 完成登录
+          description: 账号启用了第二因素（TOTP 或 Passkey）：密码已验证，需第二步 /login/mfa 完成登录
         challenge_token:
           type: string
           writeOnly: true
           description: 一次性 MFA login challenge（5 分钟过期，只出现一次）
+        passkey_available:
+          type: boolean
+          description: 该账号是否注册过 Passkey——true 时第二步可用 POST /login/mfa/passkey/options 走 Passkey 断言，或继续用 TOTP/恢复码（二选一）
     LoginMfaRequest:
       type: object
       additionalProperties: false
@@ -7756,16 +8423,266 @@ components:
         totp_code:
           type: string
           pattern: "^[0-9]{6}$"
-          description: 6 位 TOTP code（totp_code 与 recovery_code 二选一）
+          description: 6 位 TOTP code（totp_code / recovery_code / passkey 三选一）
         recovery_code:
           type: string
           pattern: "^[A-Z2-7]{16}$"
-          description: 恢复码（totp_code 与 recovery_code 二选一）
+          description: 恢复码（totp_code / recovery_code / passkey 三选一）
+        passkey:
+          "$ref": "#/components/schemas/PasskeyAssertion"
+    PasskeyAssertion:
+      type: object
+      description: navigator.credentials.get() 返回的 PublicKeyCredential（浏览器原始 JSON，base64url 字段由服务端解析校验）
+      required:
+      - id
+      - rawId
+      - type
+      - response
+      properties:
+        id:
+          type: string
+          description: base64url 编码的 credential id
+        rawId:
+          type: string
+          description: 同 id（base64url）
+        type:
+          type: string
+          enum:
+          - public-key
+        response:
+          type: object
+          required:
+          - authenticatorData
+          - clientDataJSON
+          - signature
+          properties:
+            authenticatorData:
+              type: string
+            clientDataJSON:
+              type: string
+            signature:
+              type: string
+            userHandle:
+              type: string
+              nullable: true
+        clientExtensionResults:
+          type: object
+          additionalProperties: true
+        authenticatorAttachment:
+          type: string
+      additionalProperties: true
+    PasskeyLoginOptionsRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - challenge_token
+      properties:
+        challenge_token:
+          type: string
+          description: 第一步 /login 返回的一次性 MFA challenge
+    PasskeyRegistrationOptions:
+      type: object
+      description: WebAuthn PublicKeyCredentialCreationOptions（透传给 navigator.credentials.create()）
+      required:
+      - publicKey
+      properties:
+        publicKey:
+          type: object
+          required:
+          - rp
+          - user
+          - challenge
+          - pubKeyCredParams
+          properties:
+            rp:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: base64url 编码的服务端用户标识
+                name:
+                  type: string
+                displayName:
+                  type: string
+            challenge:
+              type: string
+              description: base64url 编码的服务端 challenge
+            pubKeyCredParams:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  alg:
+                    type: integer
+            timeout:
+              type: integer
+            excludeCredentials:
+              type: array
+              description: 该账号已注册凭据（防重复注册同一认证器）
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  id:
+                    type: string
+                  transports:
+                    type: array
+                    items:
+                      type: string
+            authenticatorSelection:
+              type: object
+              properties:
+                residentKey:
+                  type: string
+                requireResidentKey:
+                  type: boolean
+                userVerification:
+                  type: string
+            attestation:
+              type: string
+          additionalProperties: true
+      additionalProperties: false
+    PasskeyConfirmRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - credential
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 用户可读标签（如「MacBook 指纹」）；缺省为「Passkey」
+        credential:
+          "$ref": "#/components/schemas/PasskeyRegistration"
+    PasskeyRegistration:
+      type: object
+      description: navigator.credentials.create() 返回的 PublicKeyCredential（浏览器原始 JSON）
+      required:
+      - id
+      - rawId
+      - type
+      - response
+      properties:
+        id:
+          type: string
+        rawId:
+          type: string
+        type:
+          type: string
+          enum:
+          - public-key
+        response:
+          type: object
+          required:
+          - clientDataJSON
+          - attestationObject
+          properties:
+            clientDataJSON:
+              type: string
+            attestationObject:
+              type: string
+            transports:
+              type: array
+              items:
+                type: string
+        clientExtensionResults:
+          type: object
+          additionalProperties: true
+        authenticatorAttachment:
+          type: string
+      additionalProperties: true
+    PasskeyRequestOptions:
+      type: object
+      description: WebAuthn PublicKeyCredentialRequestOptions（透传给 navigator.credentials.get()）
+      required:
+      - publicKey
+      properties:
+        publicKey:
+          type: object
+          required:
+          - challenge
+          properties:
+            rpId:
+              type: string
+            challenge:
+              type: string
+              description: base64url 编码的服务端 challenge
+            timeout:
+              type: integer
+            allowCredentials:
+              type: array
+              description: 该账号已注册的 Passkey（服务端按登录 challenge 绑定生成）
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  id:
+                    type: string
+                  transports:
+                    type: array
+                    items:
+                      type: string
+            userVerification:
+              type: string
+          additionalProperties: true
+      additionalProperties: false
+    PasskeyCredentialInfo:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - created_at
+      properties:
+        id:
+          type: string
+          description: Passkey 记录内部 ID（DELETE /auth/passkeys/{id} 使用）
+        name:
+          type: string
+        aaguid:
+          type: string
+          nullable: true
+          description: 认证器型号 GUID（未知为 null）
+        backup_eligible:
+          type: boolean
+        backed_up:
+          type: boolean
+        created_at:
+          type: integer
+          format: int64
+          description: 注册时间（Unix 毫秒）
+        last_used_at:
+          type: integer
+          format: int64
+          nullable: true
+          description: 最近一次断言成功时间（Unix 毫秒；尚未使用为 null）
+    PasskeyListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - passkeys
+      properties:
+        passkeys:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PasskeyCredentialInfo"
     LoginResult:
       oneOf:
       - "$ref": "#/components/schemas/Me"
       - "$ref": "#/components/schemas/LoginMfaChallenge"
-      description: 未启用 TOTP → Me（含会话 Cookie）；启用 TOTP → 第一步仅返回 MFA challenge
+      description: 未启用第二因素 → Me（含会话 Cookie）；启用（TOTP/Passkey）→ 第一步仅返回 MFA challenge
     ProfilePatch:
       type: object
       additionalProperties: false
@@ -7801,6 +8718,11 @@ components:
           - everyone
           - registered
           - nobody
+        avatar_attachment_id:
+          type:
+          - string
+          - 'null'
+          description: 头像附件 UUID 引用（为 null 时清除头像）
     PostCreate:
       type: object
       additionalProperties: false
@@ -7896,6 +8818,16 @@ components:
           - after_reply
           - level
           - paid
+        tags:
+          type:
+          - array
+          - 'null'
+          maxItems: 8
+          items:
+            type: string
+            minLength: 1
+            maxLength: 32
+          description: 标签 slug/名称列表。
     CommentCreate:
       type: object
       additionalProperties: false
@@ -7956,6 +8888,13 @@ components:
         profile_url:
           type: string
           format: uri
+        presentation_tokens:
+          "$ref": "#/components/schemas/PublicUser/properties/presentation_tokens"
+        avatar_attachment_id:
+          type:
+          - string
+          - 'null'
+          description: 头像附件 UUID 引用（列表行作者投影；公开引用，内容经 /api/v1/attachments/{id} 稳定端点下发）
     Me:
       allOf:
       - "$ref": "#/components/schemas/ResourceMeta"
@@ -8017,7 +8956,14 @@ components:
               type: string
           mfa_enabled:
             type: boolean
-            description: 两步验证（TOTP）是否已启用
+            description: 两步验证第二因素（TOTP 或 Passkey）是否已启用（M02-MFA-PK：任一通过即视为已启用）
+          presentation_tokens:
+            "$ref": "#/components/schemas/PublicUser/properties/presentation_tokens"
+          avatar_attachment_id:
+            type:
+            - string
+            - 'null'
+            description: 头像附件 UUID 引用
     AdminUser:
       type: object
       required:
@@ -8091,6 +9037,11 @@ components:
           description:
             type: string
             nullable: true
+          icon:
+            description: 板块图标（lucide 图标库 kebab-case 图标名，如 code；
+              管理端从图标库选择；null = 未设置，前台回退默认视觉）
+            type: string
+            nullable: true
           parent_id:
             description: 父板块 id（软自引用层级，根板块为 null，M03-BOARDS-01）
             type: string
@@ -8149,6 +9100,11 @@ components:
             type: array
             items:
               type: string
+          tags:
+            type: array
+            items:
+              type: string
+            description: 关联标签列表。
     Comment:
       allOf:
       - "$ref": "#/components/schemas/ResourceMeta"
@@ -8290,6 +9246,21 @@ components:
           - idempotency_conflict
           - version_conflict
           - unauthorized
+          - invalid_credentials
+          - mfa_code_invalid
+          - mfa_challenge_invalid
+          - mfa_confirm_invalid
+          - mfa_enrollment_invalid
+          - passkey_not_configured
+          - passkey_unavailable
+          - passkey_challenge_invalid
+          - passkey_registration_invalid
+          - passkey_limit_reached
+          - reauth_password_invalid
+          - verification_token_invalid
+          - reset_token_invalid
+          - validation_failed
+          - invalid_current_password
           - forbidden
           - step_up_required
           - not_found
@@ -8316,6 +9287,12 @@ components:
           - presentation_slot_conflict
           - activity_already_claimed
           - activity_not_eligible
+          - invalid_price_coin
+          - post_not_paid
+          - price_not_configured
+          - self_reaction
+          - cannot_follow_self
+          - cannot_message_self
           - download_url_unavailable
           - ai_consent_required
           - ai_budget_exceeded
@@ -8677,6 +9654,16 @@ components:
           - string
           - 'null'
           format: date-time
+        tags:
+          type:
+          - array
+          - 'null'
+          maxItems: 8
+          items:
+            type: string
+            minLength: 1
+            maxLength: 32
+          description: 标签列表。
     DraftPreviewRequest:
       type: object
       additionalProperties: false
@@ -8739,6 +9726,11 @@ components:
             - string
             - 'null'
             format: date-time
+          tags:
+            type: array
+            items:
+              type: string
+            description: 标签列表。
     Revision:
       allOf:
       - "$ref": "#/components/schemas/ResourceMeta"
@@ -9226,6 +10218,83 @@ components:
         changes:
           type: object
           additionalProperties: true
+    RiskThresholds:
+      type: object
+      additionalProperties: false
+      required:
+      - new_user_max_posts
+      - new_user_grace_secs
+      - max_links
+      - sensitive_words
+      - max_frequency_posts
+      - frequency_window_secs
+      - duplicate_window_secs
+      properties:
+        new_user_max_posts:
+          type: integer
+          minimum: 0
+        new_user_grace_secs:
+          type: integer
+          minimum: 0
+        max_links:
+          type: integer
+          minimum: 0
+        sensitive_words:
+          type: array
+          items:
+            type: string
+        max_frequency_posts:
+          type: integer
+          minimum: 0
+        frequency_window_secs:
+          type: integer
+          minimum: 1
+        duplicate_window_secs:
+          type: integer
+          minimum: 1
+    RiskPolicyView:
+      type: object
+      additionalProperties: false
+      required:
+      - version
+      - thresholds
+      properties:
+        version:
+          type: integer
+          description: 0 = 内置默认策略；≥1 = 管理员版本化更新
+        thresholds:
+          "$ref": "#/components/schemas/RiskThresholds"
+    BoardRoleAssignment:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - board_id
+      - user_id
+      - role_id
+      - role_name
+      - granted_at
+      properties:
+        id:
+          type: string
+        board_id:
+          type: string
+        user_id:
+          type: string
+        username:
+          type: string
+        role_id:
+          type: string
+        role_name:
+          type: string
+        granted_by:
+          type: [string, 'null']
+        granted_at:
+          type: integer
+          format: int64
+        expires_at:
+          type: [integer, 'null']
+          format: int64
     InteractionDecision:
       type: object
       additionalProperties: false

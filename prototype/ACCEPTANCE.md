@@ -2,13 +2,13 @@
 
 > **重要声明：原型通过不等于生产上线。** 本文件只验收 prototype/index.html 单入口原型及 hash 路由、交互、视觉和无障碍。原型中的数据、登录、权限、通知、积分、支付、邮件、上传和 OAuth 可能是 Mock 或本地状态；任何通过仅表示指定原型环境中的可重复证据。未执行或无证据项目必须标记为未验证，不得声称数字全绿。
 
-## 0. 当前 Mock 运行时（2026-08-29）
+## 0. 历史 Mock 运行时证据（2026-08-29）
 
 > **状态注记（2026-09-06 复验）**：自单入口 Hash SPA 替换（commit abb4bda）起，`prototype/index.html` 不再加载 `assets/mock-runtime.js` / `assets/mock-runtime.css`（git 历史中该入口从未引用此层；当前仅引擎的重置逻辑清理其 localStorage key）。`verify-mock-runtime.mjs` 对当前入口不可复现（干净树同样卡在 `#messages` 的 `[data-message-fail]` 超时，与 2026-09-06 转场加载条改动无关，A/B 已验证）。本节 29/29 结论为当时入口仍加载 mock 层的历史证据，不应视为当前入口证据。
 
-- 当前活动入口为 `prototype/index.html`，追加加载 `assets/mock-runtime.js` 与 `assets/mock-runtime.css`；该层用 `localStorage` key `bblbb:mock-runtime:v1` 保存演示状态，并同步既有原型守卫状态。
-- 本层覆盖登录、内容发布/草稿/附件、评论解锁、付费解锁、通知已读、消息失败、MFA、下载账单、商城、收藏、账户设置、申诉、结算/API 密钥，以及 AI/视频/主题/插件/存储/市场/举报/积分/审计后台流程。
-- 执行 `node prototype/verify-mock-runtime.mjs`：29/29 通过、0 浏览器错误；证据 `prototype/.verify/mock-2026-08-29-00-26-45/report.json`。
+- 旧版入口曾追加加载 `assets/mock-runtime.js` 与 `assets/mock-runtime.css`；该层使用 `localStorage` key `bblbb:mock-runtime:v1` 保存演示状态，并同步既有原型守卫状态。
+- 旧层覆盖登录、内容发布/草稿/附件、评论解锁、付费解锁、通知已读、消息失败、MFA、下载账单、商城、收藏、账户设置、申诉、结算/API 密钥，以及 AI/视频/主题/插件/存储/市场/举报/积分/审计后台流程。
+- 2026-08-29 执行 `node prototype/verify-mock-runtime.mjs`：29/29 通过、0 浏览器错误；对应生成报告已清理。当前入口不加载该层，脚本不属于当前验收命令。
 - **边界**：该层不发起 API 请求、不处理真实支付/上传/MFA/邮件/OAuth；所有“成功”均为可演示的本地 Mock 状态。
 
 ## 1. 验收边界与证据
@@ -119,8 +119,8 @@
 - [x] 1440：自动路由回归无横向溢出、重叠；信息密度仍需人工视觉签核。
 - [x] 1024、768：自动路由回归无横向溢出；侧栏/筛选视觉仍需人工签核。
 - [x] 390：自动路由回归无横向溢出；聊天、回复、发布、Modal 热区仍需人工/无障碍签核。
-- [x] 自动覆盖 1440/1024/768/390 的亮/暗路由回归且无 JS 错误；最近基础报告见 prototype/.verify/spa-2026-09-06-23-32-47/（182/182，含转场加载条上线后回归），深度报告见 prototype/.verify/spa-2026-08-28-14-26-23/；人工视觉/无障碍签核仍未完成。
-- [x] 页面转场加载条（RouteProgress，2026-09-06 新增）：顶栏下缘 fixed 2px 细线，纯黑白灰 Token（--route-progress-*：亮 #1A1A1A / 暗 #E8E8E8，轨道近透明），亮/暗主题自动适配；hash 路由开始 0→72%（500ms）、最短显示 450ms、完成补 100%（240ms）淡出（340ms）、运行中重复 start 不重置、守卫拦截 cancel 直接淡出、prefers-reduced-motion 无横向位移；触发点覆盖 SPA route() 起止、启动拉取页面片段、独立页站内跳转（跳转前 start）。证据：prototype/.verify/progress-bar/（light-mid / dark-mid / mobile-dark-mid 截图，含 2 倍放大条带）+ 专项脚本 16/16 通过、0 console/page 错误（2026-09-06，1440/390 视口、亮暗双主题）；全量回归 182/182 见上一条报告。
+- [x] 自动覆盖 1440/1024/768/390 的亮/暗路由回归且无 JS 错误；最近一次 182/182 结果由 `cd prototype && node verify.mjs` 生成，报告为本地生成物，已清理且不入库；人工视觉/无障碍签核仍未完成。
+- [x] 页面转场加载条（RouteProgress，2026-09-06 新增）：顶栏下缘 fixed 2px 细线，纯黑白灰 Token（--route-progress-*：亮 #1A1A1A / 暗 #E8E8E8，轨道近透明），亮/暗主题自动适配；hash 路由开始 0→72%（500ms）、最短显示 450ms、完成补 100%（240ms）淡出（340ms）、运行中重复 start 不重置、守卫拦截 cancel 直接淡出、prefers-reduced-motion 无横向位移；触发点覆盖 SPA route() 起止、启动拉取页面片段、独立页站内跳转（跳转前 start）。证据：专项脚本 16/16 通过、0 console/page 错误（2026-09-06，1440/390 视口、亮暗双主题）；截图为本地生成物，已清理；全量回归 182/182 见上一条命令。
 - [ ] 颜色、边框、阴影、圆角、字号、间距使用 UI 语义 Token；组件适用状态覆盖 normal/hover/focus/disabled/loading/error。
 - [ ] 键盘完成九条关键路径，无陷阱；focus 顺序正确；图标按钮有 aria-label/可见文本。
 - [ ] 页面标题、label、role=alert/aria-live、aria-checked、aria-selected 正确；动态状态可读。
@@ -137,7 +137,7 @@
 | 认证会话 | 未登录重定向、退出清本地演示状态 | Secure/HttpOnly/SameSite、CSRF、MFA、rotation、撤销 |
 | 权限 | 不能仅凭 hash 获得管理权限 | 每个 operationId 后端 RBAC/ABAC、拒绝默认、step-up、审计 |
 | 限流 | 登录/回复限频不可复现则未验证 | 服务端限流、429 Retry-After、告警 |
-| 上传下载 | 不把 Toast 当安全证据 | MIME、病毒扫描、隔离存储、签名 URL、权限 |
+| 上传下载 | 不把 Toast 当安全证据 | MIME、魔数/扩展名、隔离存储、签名 URL、权限 |
 | OAuth | 第三方按钮不得宣称接入 | PKCE、redirect 白名单、Secret 轮换/撤销、TTL、审计 |
 | 支付积分 | 余额变化只算视觉演示 | 原子事务、幂等、不可变账本、Outbox、对账、退款 |
 | 管理操作 | Confirm 和原因字段 | 二次授权、不可抵赖审计、审批/申诉、回滚 |
@@ -147,10 +147,10 @@
 
 - [x] 活动脚本确认：prototype/assets/prototype-app.js 已由 prototype/index.html 在 body 结束前加载；旧版逻辑仅保留在 template 参考区。
 - [x] 入口重建记录（2026-08-28 晚）：此前的 SPA 入口 index.html 被行号前缀污染并在会话间丢失；已按 prototype-app.js 的挂载契约重建（壳层 + 静态 #page-home/#page-discover/#page-loading/#page-design，sprite 补齐 admin 图标），且 #design 页含设计规范速览。旧多页残留备份于 /tmp/stale-index-multidoc-backup.html。
-- [x] 页面拆分记录（2026-09-02）：index.html 缩为约 2KB 薄壳；57 个 pages/*.html 承载全部路由标记（完整文档、可独立打开、CSS 共用）；共享骨架（SVG sprite/顶栏/底部导航/Toast）抽取到 assets/page-chrome.js；assets/page-loader.js 只负责首屏三页 + 动态加载引擎；引擎新增 TPL()/mountTpl() 惰性取模板（TPL_TOKEN 防过期渲染），全部渲染器改为“模板挂载 + 区域状态同步 + 事件绑定”。回归证据：verify.mjs 182/182（.verify/spa-2026-09-01-23-40-16）；后台 23 路由 + 13 项交互冒烟全过（封禁/审计/帖子审核/BI 周期/系统设置/建板块/标签合并/市场上架/全员广播/角色权限/附件扫描均持久化）；pages/*.html 直开（独立模式）抽样全过、无控制台报错。
+- [x] 页面拆分记录（2026-09-02）：index.html 缩为约 2KB 薄壳；57 个 pages/*.html 承载全部路由标记（完整文档、可独立打开、CSS 共用）；共享骨架（SVG sprite/顶栏/底部导航/Toast）抽取到 assets/page-chrome.js；assets/page-loader.js 只负责首屏三页 + 动态加载引擎；引擎新增 TPL()/mountTpl() 惰性取模板（TPL_TOKEN 防过期渲染），全部渲染器改为“模板挂载 + 区域状态同步 + 事件绑定”。回归证据：`cd prototype && node verify.mjs` 182/182；报告为本地生成物，已清理；后台 23 路由 + 13 项交互冒烟全过（封禁/审计/帖子审核/BI 周期/系统设置/建板块/标签合并/市场上架/全员广播/角色权限/附件扫描均持久化）；pages/*.html 直开（独立模式）抽样全过、无控制台报错。
 - [x] 真实交互复测：顶部搜索、首页分类/点赞、登录回跳、回复解锁、付费确认、消息失败重试、设备下线、OAuth 撤销、MFA 验证码校验、管理员 RBAC 均已执行。
 - [x] 持久化修复：发布草稿/高级字段、回复、点赞、通知已读、消息、关注、设备和 OAuth 状态写入本地原型状态并可重绘恢复。
-- [x] 自动回归：prototype/verify.mjs 通过 182/182 项；console/pageerror/requestfailed 均为 0（最近报告见 prototype/.verify/spa-2026-08-28-16-16-11/）。
+- [x] 自动回归：`cd prototype && node verify.mjs` 通过 182/182 项；console/pageerror/requestfailed 均为 0；报告为本地生成物，已清理。
 - [x] 视觉主题：chinese-elegance.css 已修复并新增组件对齐层（列表金线分隔、宋体行标题、空心方标签、印章式空态、搜索焦点环、表头金线、代码块/引用/下拉/焦点环对齐）；板块页、首页、亮暗四视口截图复核通过。
 - [ ] 真实后端未接入：当前仍是 Mock/localStorage；以下生产阻塞不能由原型结果替代。
 
@@ -159,7 +159,7 @@
 1. **邮件发送器/通知投递**：注册验证、找回密码、通知/摘要需要真实 sender、队列、重试、幂等键、死信、告警和投递追踪；原型“已发送” Toast 不是证据。
 2. **原型与后端边界**：当前 prototype/assets/prototype-app.js 没有 fetch/XMLHttpRequest/WebSocket，也没有 /api/v1 调用；因此本轮所有“可操作”均是本地 Mock 状态，不得写成后端已接入。
 3. **真实认证会话**：登录/MFA/CSRF、设备撤销、密码策略、锁定和 429 必须后端集成与浏览器安全测试。
-4. **存储附件**：本地/S3、签名 URL、私有 bucket、配额、病毒扫描、迁移校验、回滚、过期链接语义待证。
+4. **存储附件**：本地/S3、签名 URL、私有 bucket、配额、魔数/扩展名校验、迁移校验、回滚、过期链接语义待证。
 5. **受限内容**：回复/等级/支付解锁必须服务端授权；前端隐藏 DOM 不构成访问控制。
 6. **积分商城市场**：扣款、权益、订单、Webhook、Outbox、对账、退款、并发幂等必须故障测试；市场不能直接改余额。
 7. **举报处罚申诉**：状态机、权限、处罚、审计时间线、申诉和通知必须可追溯；当前 hash 未形成完整后台 IA。

@@ -32,6 +32,7 @@ Rust：身份、权限、CSRF、内容可见性、业务事务和协议边界
 - 管理员账号建议强制 TOTP；恢复码只保存哈希。
 - 管理员失去 TOTP 设备的受控恢复必须双人复核并全程不可删除审计，流程见 [`OPERATIONS.md`](OPERATIONS.md) §18（M02-MFA-10）。
 - **强制 TOTP enrollment（M02-MFA-05/06）**：administrator / moderator / 高风险账务账号（持 `sensitive`/`system` 权限）必须完成 TOTP enrollment——未完成时 `aggregate_permissions` 将其降级为 member 基线：会话与 `/me` 不宣称高权限，elevated 操作一律 403（fail-closed，实时生效）；普通 member 保持可选。
+- **Passkey 第二因素（M02-MFA-PK）**：Passkey（WebAuthn/FIDO2）作为 MFA 登录第二步的第三选项，与 TOTP/恢复码 OR 共存——恰好一个通过即签发会话；纯增量，未注册用户路径不变。安全约定：challenge 一律由服务端生成（webauthn-rs state 序列化存 `webauthn_challenges`，5 分钟过期、一次性消费），绝不信任客户端回传；登录断言 challenge 绑定该次两步登录的 `mfa_login_challenges.token_hash`（防跨会话重放）；签名/origin/rpIdHash/counter 校验与强制 user verification 由 webauthn-rs 完成，服务端再显式断言 UV；Passkey 不放宽 M02-MFA-05——elevated 角色仍必须完成 TOTP enrollment。
 
 ## 3. Session Cookie
 
@@ -165,7 +166,16 @@ Content-Security-Policy: default-src 'self'; ...
 - URL 签发失败不得再次扣费，客户端通过原幂等键查询已提交授权并重试签发。
 - 详见 [`DOWNLOAD-BILLING.md`](DOWNLOAD-BILLING.md)。
 
-## 13. 公开市场交易
+## 13. 二次复核发布阻断（2026-09-12）
+
+以下问题已由代码审计复现并已在路线图标记为阻塞，修复前不得声明生产就绪：
+
+- S3 presigned PUT 当前未绑定 Content-Length/checksum/一次性不可覆盖约束，URL 有效期内存在覆盖已扫描对象的风险。
+- M18-ADMIN-BATCH-01/02 目前只有前端逐条批量 action 与当前页浏览器导出，后端原子批量和全量流式导出仍未实现。
+
+已完成的二次复核修复包括：跨用户附件幂等重放归属校验、已删除附件禁止重签、隔离附件清理、私有响应 no-store、板块角色作用域限制、board_mute 账号门与 sanction 查询失败关闭、管理员余额/附件删除 recent-auth、最后管理员原子保护。
+
+## 14. 公开市场交易
 
 - 普通 `openid/profile/email` scope 永远不能扣款；市场交易使用独立高风险 scope、管理员批准和用户单独同意。
 - 仅 Confidential Client 可获得购买/退款能力；Secret 只存安全 hash，业务 API 使用短期 opaque Access Token。
@@ -175,7 +185,7 @@ Content-Security-Policy: default-src 'self'; ...
 - Webhook 在提交后通过 Outbox 投递，使用每 Client 独立可轮换密钥签名，并执行 SSRF 防护；它不是账务事实来源。
 - 禁止直接修改历史交易；退款使用受限的补偿交易。完整协议见 [`MARKETPLACE.md`](MARKETPLACE.md)。
 
-## 14. 大模型与外部 Provider
+## 15. 大模型与外部 Provider
 
 - 浏览器、插件和用户配置不能直连模型 Provider；所有调用经过 Rust AI Gateway 和已批准适配器。
 - API Base URL 必须 HTTPS、精确域名白名单，阻断私网/loopback/链路本地地址、DNS 重绑定、任意重定向和超大响应，防止 SSRF。
@@ -186,7 +196,7 @@ Content-Security-Policy: default-src 'self'; ...
 - AI 任务异步、幂等、可取消、有限重试并带预算/并发/熔断；Provider 故障不能绕过安全规则，也不应阻塞普通发帖。
 - 详见 [`AI.md`](AI.md)。
 
-## 15. 视频嵌入与第三方媒体
+## 16. 视频嵌入与第三方媒体
 
 - 视频 URL 只能经 Rust Video Service 解析为结构化引用；禁止用户提交任意 iframe/HTML，禁止 `javascript:`, `data:`, userinfo、非 HTTPS、私网和 loopback 地址。
 - 出站探测使用精确 Host 白名单、TLS、DNS 重绑定防护、重定向限制、超时、响应大小和并发限制，防止 SSRF。
@@ -196,7 +206,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 受限、审核中或不可见帖子不加载第三方播放器，避免内容存在性和用户阅读权限泄漏。
 - 完整协议见 [`VIDEO-PLUGIN.md`](VIDEO-PLUGIN.md)。
 
-## 16. 限流与反滥用
+## 17. 限流与反滥用
 
 限流按多信号组合：IP/网段、账号、Session、动作和设备风险；User-Agent 只作为弱信号。
 
@@ -215,7 +225,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 代理 IP 只信任 Caddy 注入且来自 loopback/配置的可信代理。
 - 429 返回 `Retry-After`。
 
-## 17. 秘密与供应链
+## 18. 秘密与供应链
 
 - `.env` 不进入版本库；生产使用 systemd credentials、Docker secrets 或权限受限的秘密文件。
 - OIDC 私钥、SMTP 密码、S3 secret 必须支持轮换。
@@ -227,7 +237,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 发布产物生成 SBOM 和校验和；容器使用非 root、只读根文件系统和固定基础镜像 digest。
 - 数据型主题/插件配置包按不可信压缩包处理；代码型扩展按完整供应链代码处理。
 
-## 18. 隐私、日志与审计
+## 19. 隐私、日志与审计
 
 - 普通日志不记录密码、Cookie、Authorization、OAuth code/token、完整邮箱、隐藏正文和附件签名 URL。
 - 日志使用结构化字段和 request ID；安全审计与应用调试日志分开保留。
@@ -249,7 +259,7 @@ Content-Security-Policy: default-src 'self'; ...
   不用 OFFSET 深翻页；游标 base64url 不透明编码，非法游标返回 400。
 - OIDC Client 所得 claim 受 scope 和同意控制。
 
-## 19. 部署加固
+## 20. 部署加固
 
 - Caddy、SvelteKit、Rust 均以独立非 root 用户/容器运行。
 - Rust 和数据库只监听 loopback/内部网络。
@@ -258,7 +268,7 @@ Content-Security-Policy: default-src 'self'; ...
 - 数据库、附件、配置和 OIDC 私钥都进入加密备份和恢复演练。
 - `/healthz` 不泄漏内部信息；`/readyz` 只对受控网络或内部探针开放详细状态。
 
-## 20. 安全验收
+## 21. 安全验收
 
 发布前至少覆盖：
 
@@ -271,7 +281,7 @@ Content-Security-Policy: default-src 'self'; ...
 
 完整矩阵见 [`TESTING.md`](TESTING.md)。
 
-## 21. M16 安全验收落地（2026-08-08 追加）
+## 22. M16 安全验收落地（2026-08-08 追加）
 
 - **OWASP ASVS v4.0.3 基线映射**：`security/ASVS-BASELINE.md`（V1–V14 控制 →
   状态 → 证据 → 排除项；负责人 platform/application-security）。状态变更必须

@@ -446,11 +446,11 @@ async fn error_paths_and_log_diagnostics_are_token_free() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let body = body_without_token(resp, &bogus).await;
     assert!(body.contains("invalid or expired reset token"));
 
-    // verify 用无效 token → 400，detail 固定
+    // verify 用无效 token → 422，detail 固定
     // M02-SESSION-08：verify-email 属预认证写路径（预认证状态 TTL 内可复用）
     let resp = app
         .clone()
@@ -467,7 +467,7 @@ async fn error_paths_and_log_diagnostics_are_token_free() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     body_without_token(resp, &bogus).await;
 
     // 日志/错误文本脱敏：任何含 token 的日志字符串都必须经 redact_token

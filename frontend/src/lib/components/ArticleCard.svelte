@@ -34,7 +34,7 @@
       <div class="article-card-author">
         {#if author_name}
           <span class="author-hover-trigger" aria-label="查看 {author_name} 的个人资料">
-            <Avatar name={author_name} size="xs" />
+            <Avatar name={author_name} size="xs" seed={author_name} />
           </span>
           <span class="author-hover-name-trigger">{escapeHtml(author_name)}</span>
         {/if}

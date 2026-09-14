@@ -101,4 +101,30 @@ describe('RichTextEditor', () => {
     const attachBtn = screen.getByRole('button', { name: '上传附件' });
     expect(attachBtn).toBeDisabled();
   });
+
+  it('未传 oninsertvideo 时不渲染视频按钮；传入后点击触发回调并显示待发布徽标', async () => {
+    // 默认：底部工具条模式（无视频入口），工具栏不含视频按钮
+    const { container, unmount } = render(RichTextEditor, {
+      value: '',
+      id: 'test-editor'
+    });
+    await waitForProseMirror(container);
+    expect(screen.queryByRole('button', { name: '插入视频' })).toBeNull();
+    unmount();
+
+    // 传入入口回调：按钮出现，点击触发，且待发布数量渲染为徽标
+    const oninsertvideo = vi.fn();
+    const video = render(RichTextEditor, {
+      value: '',
+      id: 'test-editor-video',
+      oninsertvideo,
+      videoBadge: 2
+    });
+    await waitForProseMirror(video.container);
+
+    const videoBtn = screen.getByRole('button', { name: '插入视频' });
+    await userEvent.click(videoBtn);
+    expect(oninsertvideo).toHaveBeenCalledTimes(1);
+    expect(video.container.querySelector('.toolbar-badge')?.textContent).toBe('2');
+  });
 });

@@ -38,6 +38,20 @@ export interface PublicUser {
   avatar_attachment_id?: string | null;
   cover_attachment_id?: string | null;
   signature?: string | null;
+  presentation_tokens?: {
+    nickname_color?: string;
+    avatar_frame?: string;
+    avatar_frame_attachment_id?: string;
+    avatar_attachment?: string;
+    avatar_attachment_attachment_id?: string;
+    profile_effect?: string;
+    post_effect?: string;
+    profile_badges?: Array<string>;
+  } | null;
+  equipped_achievements?: Array<{
+    code: string;
+    name: string;
+  }>;
   created_at: number;
 }
 export type GenericSuccess = Record<string, unknown>;
@@ -68,6 +82,7 @@ export interface ProfilePatch {
   theme?: "default" | "dark" | "light";
   email_visible_to?: "everyone" | "registered" | "nobody";
   profile_visible_to?: "everyone" | "registered" | "nobody";
+  avatar_attachment_id?: string | null;
 }
 export interface PostCreate {
   type: "article" | "discussion";
@@ -87,6 +102,7 @@ export interface PostPatch {
   markdown?: string;
   visibility_level?: number;
   access_policy?: "public" | "logged_in" | "after_reply" | "level" | "paid";
+  tags?: Array<string> | null;
 }
 export interface CommentCreate {
   markdown: string;
@@ -104,6 +120,8 @@ export interface Author {
   display_name: string | null;
   level: number;
   profile_url: string;
+  presentation_tokens?: unknown /* unresolvable: #/components/schemas/PublicUser/properties/presentation_tokens */;
+  avatar_attachment_id?: string | null;
 }
 export type Me = ResourceMeta & {
   username: string;
@@ -120,6 +138,8 @@ export type Me = ResourceMeta & {
   level: number;
   roles: Array<string>;
   mfa_enabled?: boolean;
+  presentation_tokens?: unknown /* unresolvable: #/components/schemas/PublicUser/properties/presentation_tokens */;
+  avatar_attachment_id?: string | null;
 };
 export interface AdminUser {
   id: string;
@@ -140,6 +160,7 @@ export type Board = ResourceMeta & {
   slug: string;
   name: string;
   description?: string;
+  icon?: string;
   parent_id?: string;
   visibility?: "public" | "members" | "restricted" | "hidden";
   posting_mode?: "normal" | "approval" | "readonly" | "closed";
@@ -154,6 +175,7 @@ export type Post = ResourceMeta & {
   body_html?: string;
   access_summary: AccessSummary;
   capabilities: Array<string>;
+  tags?: Array<string>;
 };
 export type Comment = ResourceMeta & {
   author: Author;
@@ -195,7 +217,7 @@ export interface Problem {
   type: string;
   title: string;
   status: number;
-  code: "invalid_request" | "visibility_level_exceeds_author" | "invalid_url" | "idempotency_conflict" | "version_conflict" | "unauthorized" | "forbidden" | "step_up_required" | "not_found" | "csrf_failed" | "origin_not_allowed" | "host_not_allowed" | "rate_limited" | "crawler_denied" | "challenge_required" | "temporarily_banned" | "feature_disabled" | "insufficient_funds" | "daily_limit_exceeded" | "checkout_interaction_invalid" | "checkout_user_mismatch" | "checkout_intent_expired" | "checkout_intent_consumed" | "offer_version_changed" | "refund_not_allowed" | "product_unavailable" | "shop_purchase_limit_exceeded" | "shop_stock_exhausted" | "entitlement_not_usable" | "presentation_slot_conflict" | "activity_already_claimed" | "activity_not_eligible" | "download_url_unavailable" | "ai_consent_required" | "ai_budget_exceeded" | "ai_suggestion_stale" | "invalid_storage_request" | "storage_partial_upload" | "storage_forbidden" | "storage_auth_failed" | "storage_rate_limited" | "quota_exceeded" | "storage_conflict" | "storage_state_error" | "storage_verification_failed" | "storage_network_error" | "storage_upstream_error" | "theme_invalid" | "theme_incompatible" | "theme_not_found" | "theme_conflict" | "plugin_invalid" | "plugin_incompatible" | "plugin_not_found" | "plugin_conflict" | "marketplace_disabled" | "marketplace_invalid_client" | "refund_exceeds_purchase" | "merchant_balance_insufficient" | "webhook_invalid_signature" | "bad_request" | "conflict" | "video_insecure_scheme" | "video_invalid_url" | "video_host_invalid" | "video_port_not_allowed" | "video_private_ip" | "video_signed_url" | "video_userinfo_not_allowed" | "video_fragment_not_allowed" | "video_unsupported_type" | "video_not_video_page" | "video_invalid" | "video_mime_mismatch" | "video_no_embed_permission" | "video_takedown" | "video_provider_disabled" | "video_provider_host_not_allowed" | "video_provider_ratelimited" | "video_provider_unavailable" | "video_policy_changed" | "video_policy_version_conflict" | "video_poster_attachment_invalid" | "video_resolution_expired" | "video_embed_not_found" | "video_embed_referenced" | "video_target_conflict" | "video_target_forbidden" | "video_target_not_found" | "video_version_conflict" | "video_egress_http_error" | "video_egress_private_ip" | "video_egress_timeout" | "video_egress_too_large" | "video_egress_too_many_redirects" | "video_egress_unavailable" | "video_hls_invalid" | "video_hls_depth_exceeded" | "video_hls_segment_count_exceeded" | "video_hls_duration_exceeded" | "video_hls_cross_origin_segment" | "video_hls_key_not_allowed" | "video_hls_map_not_allowed" | "video_hls_signed_uri" | "internal_error";
+  code: "invalid_request" | "visibility_level_exceeds_author" | "invalid_url" | "idempotency_conflict" | "version_conflict" | "unauthorized" | "invalid_credentials" | "mfa_code_invalid" | "mfa_challenge_invalid" | "mfa_confirm_invalid" | "mfa_enrollment_invalid" | "reauth_password_invalid" | "verification_token_invalid" | "reset_token_invalid" | "validation_failed" | "invalid_current_password" | "forbidden" | "step_up_required" | "not_found" | "csrf_failed" | "origin_not_allowed" | "host_not_allowed" | "rate_limited" | "crawler_denied" | "challenge_required" | "temporarily_banned" | "feature_disabled" | "insufficient_funds" | "daily_limit_exceeded" | "checkout_interaction_invalid" | "checkout_user_mismatch" | "checkout_intent_expired" | "checkout_intent_consumed" | "offer_version_changed" | "refund_not_allowed" | "product_unavailable" | "shop_purchase_limit_exceeded" | "shop_stock_exhausted" | "entitlement_not_usable" | "presentation_slot_conflict" | "activity_already_claimed" | "activity_not_eligible" | "invalid_price_coin" | "post_not_paid" | "price_not_configured" | "self_reaction" | "cannot_follow_self" | "cannot_message_self" | "download_url_unavailable" | "ai_consent_required" | "ai_budget_exceeded" | "ai_suggestion_stale" | "invalid_storage_request" | "storage_partial_upload" | "storage_forbidden" | "storage_auth_failed" | "storage_rate_limited" | "quota_exceeded" | "storage_conflict" | "storage_state_error" | "storage_verification_failed" | "storage_network_error" | "storage_upstream_error" | "theme_invalid" | "theme_incompatible" | "theme_not_found" | "theme_conflict" | "plugin_invalid" | "plugin_incompatible" | "plugin_not_found" | "plugin_conflict" | "marketplace_disabled" | "marketplace_invalid_client" | "refund_exceeds_purchase" | "merchant_balance_insufficient" | "webhook_invalid_signature" | "bad_request" | "conflict" | "video_insecure_scheme" | "video_invalid_url" | "video_host_invalid" | "video_port_not_allowed" | "video_private_ip" | "video_signed_url" | "video_userinfo_not_allowed" | "video_fragment_not_allowed" | "video_unsupported_type" | "video_not_video_page" | "video_invalid" | "video_mime_mismatch" | "video_no_embed_permission" | "video_takedown" | "video_provider_disabled" | "video_provider_host_not_allowed" | "video_provider_ratelimited" | "video_provider_unavailable" | "video_policy_changed" | "video_policy_version_conflict" | "video_poster_attachment_invalid" | "video_resolution_expired" | "video_embed_not_found" | "video_embed_referenced" | "video_target_conflict" | "video_target_forbidden" | "video_target_not_found" | "video_version_conflict" | "video_egress_http_error" | "video_egress_private_ip" | "video_egress_timeout" | "video_egress_too_large" | "video_egress_too_many_redirects" | "video_egress_unavailable" | "video_hls_invalid" | "video_hls_depth_exceeded" | "video_hls_segment_count_exceeded" | "video_hls_duration_exceeded" | "video_hls_cross_origin_segment" | "video_hls_key_not_allowed" | "video_hls_map_not_allowed" | "video_hls_signed_uri" | "internal_error";
   detail: string;
   instance?: string;
   request_id: string;
@@ -275,6 +297,7 @@ export interface DraftPatch {
   visibility_level?: number;
   access_policy?: "public" | "logged_in" | "after_reply" | "level" | "paid";
   scheduled_at?: string | null;
+  tags?: Array<string> | null;
 }
 export interface DraftPreviewRequest {
   markdown: string;
@@ -293,6 +316,7 @@ export type Draft = ResourceMeta & {
   visibility_level: number;
   access_policy: string;
   scheduled_at?: string | null;
+  tags?: Array<string>;
 };
 export type Revision = ResourceMeta & {
   resource_id: string;
@@ -424,6 +448,30 @@ export interface PolicyPatch {
   expected_version: number;
   reason: string;
   changes: Record<string, unknown>;
+}
+export interface RiskThresholds {
+  new_user_max_posts: number;
+  new_user_grace_secs: number;
+  max_links: number;
+  sensitive_words: Array<string>;
+  max_frequency_posts: number;
+  frequency_window_secs: number;
+  duplicate_window_secs: number;
+}
+export interface RiskPolicyView {
+  version: number;
+  thresholds: RiskThresholds;
+}
+export interface BoardRoleAssignment {
+  id: string;
+  board_id: string;
+  user_id: string;
+  username?: string;
+  role_id: string;
+  role_name: string;
+  granted_by?: string | null;
+  granted_at: number;
+  expires_at?: number | null;
 }
 export interface InteractionDecision {
   decision: "allow" | "deny";

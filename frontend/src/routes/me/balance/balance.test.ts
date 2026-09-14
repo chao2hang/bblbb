@@ -11,8 +11,6 @@ vi.mock('$lib/api/server', () => ({
 const getAuthedMock = getAuthed as unknown as ReturnType<typeof vi.fn>;
 
 const summary = {
-  level: 7,
-  xp: 320,
   checked_in_today: true,
   streak_days: 4,
   balances: [{ currency: 'coin', amount: 1500 }]

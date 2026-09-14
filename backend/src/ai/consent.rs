@@ -335,7 +335,7 @@ mod tests {
             Either::Right(_) => panic!("SQLite only"),
         };
         let _ = sqlx::query(
-            "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level,
+            "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level,
                 email_verified, email_verified_at, created_at, updated_at)
              VALUES ('u-1', 'u1', 'u1@example.com', 'dummy', 'active', 5, 1, ?, ?, ?)",
         )

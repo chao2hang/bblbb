@@ -3,6 +3,8 @@
   //
   // - label/error/hint 与控件通过稳定 id 关联（aria-describedby / aria-invalid）；
   // - 默认 type="text"，支持 type="email"/"password" 等原生语义；
+  // - 视觉与 blbui AdminInput 使用同一组 --aui-* token；保留原生 input
+  //   以确保 label、SSR、无 JS 提交和浏览器原生校验语义不被破坏；
   // - 只接收白名单 prop（安全投影，无任意属性穿透，M14-COMPONENTS-06）。
   import type { Snippet } from 'svelte';
   import type { HTMLInputAttributes } from 'svelte/elements';

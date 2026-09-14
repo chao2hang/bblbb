@@ -177,6 +177,8 @@ pub struct CommentProjection {
     pub author_name: Option<String>,
     pub author_display_name: Option<String>,
     pub author_level: Option<i64>,
+    /// 作者上传头像附件 id（公开引用；前台回复头像直接渲染图片，可空）。
+    pub author_avatar_attachment_id: Option<String>,
 }
 
 /// 投影查询公共列（三库一致）。
@@ -184,30 +186,42 @@ const PROJECTION_COLUMNS: &str =
     "c.id, c.post_id, c.author_id, c.parent_id, c.floor, c.version, c.status, c.content, \
      c.created_at, c.updated_at, \
      u.username_normalized AS author_name, u.display_name AS author_display_name, \
-     u.level AS author_level";
+     u.trust_level AS author_level, u.avatar_attachment_id AS author_avatar_attachment_id";
 
 /// 评论 → Comment schema JSON（`body_html` 读取时渲染；非 published → null）。
 ///
 /// OpenAPI Comment = ResourceMeta(id/version/created_at/updated_at) + Author(
 /// username/display_name/level/profile_url) + status + body_html + parent_id +
 /// floor + post_id。
-pub fn comment_json(c: &CommentProjection) -> Value {
+///
+/// `unavailable_attachments`：本条评论正文引用、但当前不可用（已删除/行缺失/
+/// 非 ready）的附件 id——引用它们的 `<img>`/`<a>` 读取时渲染为「附件已删除」
+/// 占位（M06-QUOTA-09 展示端，见 [`crate::content::attachments`]），
+/// 不再留死链/碎图；Markdown 原文与落库内容不变。
+pub fn comment_json(c: &CommentProjection, unavailable_attachments: &[String]) -> Value {
     let username = c.author_name.clone().unwrap_or_default();
+    let mut author = json!({
+        "username": username,
+        "display_name": c.author_display_name,
+        "level": c.author_level.unwrap_or(0),
+        "profile_url": format!("/users/{username}"),
+    });
+    if let Some(attachment_id) = &c.author_avatar_attachment_id {
+        author["avatar_attachment_id"] = json!(attachment_id);
+    }
     json!({
         "id": c.id,
         "post_id": c.post_id,
-        "author": {
-            "username": username,
-            "display_name": c.author_display_name,
-            "level": c.author_level.unwrap_or(1),
-            "profile_url": format!("/users/{username}"),
-        },
+        "author": author,
         "parent_id": c.parent_id,
         "floor": c.floor,
         "version": c.version,
         "status": c.status,
         "body_html": if c.status == "published" {
-            Value::String(render_and_sanitize(&c.content))
+            Value::String(crate::content::attachments::replace_unavailable_attachments(
+                &render_and_sanitize(&c.content),
+                unavailable_attachments,
+            ))
         } else {
             Value::Null
         },

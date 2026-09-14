@@ -122,6 +122,8 @@ describe('M07-UI-07 ReactionBar', () => {
     const { getByRole, findByRole } = render(ReactionBar, { props: baseProps });
     const pickerBtn = getByRole('button', { name: '添加表情反应' });
     await fireEvent.click(pickerBtn);
+    // portal 到 body：弹层不被卡片 overflow:hidden 祖先裁剪（弹窗在父元素内的回归防护）
+    expect(document.querySelector('.reaction-picker-popover')?.parentElement).toBe(document.body);
     const dogeBtn = await findByRole('button', { name: '狗头' });
     await fireEvent.click(dogeBtn);
     await waitFor(() => expect(mocked.addPostReaction).toHaveBeenCalledWith(expect.anything(), 'post-1', 'doge'));
@@ -246,45 +248,40 @@ describe('M07-UI-07 ReactionBar', () => {
   });
 
   it('未登录 → 提示登录且不发请求', async () => {
-    const { getByRole, findByRole } = render(ReactionBar, {
+    const { getByRole, queryByRole, findByText } = render(ReactionBar, {
       props: { ...baseProps, authed: false }
     });
-    await fireEvent.click(getByRole('button', { name: '添加表情反应' }));
-    await fireEvent.click(await findByRole('button', { name: '点赞' }));
-    const alert = await findByRole('alert');
-    expect(alert.textContent).toContain('请先登录');
+    await fireEvent.click(getByRole('button', { name: '登录后添加表情反应' }));
+    expect(await findByText('登录后即可给内容添加表情互动')).toBeTruthy();
+    expect(queryByRole('button', { name: '点赞' })).toBeNull();
     expect(mocked.addPostReaction).not.toHaveBeenCalled();
   });
 
-  it('非作者视角：仅提示反应可能通知作者，不提供通知设置控制链接', () => {
+  it('任何视角都不渲染通知提示（产品移除「可在通知设置中关闭」）', () => {
     const { container } = render(ReactionBar, { props: baseProps });
     expect(container.querySelectorAll('button.rx-pill').length).toBe(2);
-    expect(container.textContent).toContain('反应可能通知作者');
+    expect(container.textContent).not.toContain('反应可能通知作者');
     expect(container.textContent).not.toContain('通知设置');
+    expect(container.textContent).not.toContain('收到反应会向你发送通知');
     expect(container.querySelector('a[href="/settings#settings-notifications"]')).toBeNull();
-  });
-
-  it('作者视角：提示收到反应会向其发送通知，并提供通知设置关闭链接', () => {
-    const { container } = render(ReactionBar, { props: { ...baseProps, isAuthor: true } });
-    expect(container.textContent).toContain('通知设置');
-    expect(container.textContent).toContain('收到反应会向你发送通知');
-    expect(container.querySelector('a[href="/settings#settings-notifications"]')).not.toBeNull();
   });
 
   it('弹窗内 Tab 切换过滤用户（所有 / 单表情）', async () => {
     mocked.getPostReactions.mockResolvedValueOnce(detailFixture);
-    const { container, getByRole, findByRole, findByText } = render(ReactionBar, { props: baseProps });
+    const { getByRole, findByRole, findByText } = render(ReactionBar, { props: baseProps });
     await fireEvent.click(getByRole('button', { name: /查看 点赞 反应明细/ }));
     await findByRole('dialog', { name: '收到的表情' });
+    // 弹层 portal 到 body（组件容器外），内容断言用 document.body
+    const bodyText = () => document.body.textContent ?? '';
     // 默认在 👍 Tab：只见 lyfmya
     expect(await findByText('lyfmya')).toBeTruthy();
-    expect(container.textContent).not.toContain('尘埃落定');
+    expect(bodyText()).not.toContain('尘埃落定');
     // 切到 所有：两个用户都在
     await fireEvent.click(getByRole('button', { name: '所有' }));
     expect(await findByText('尘埃落定')).toBeTruthy();
-    expect(container.textContent).toContain('lyfmya');
+    expect(bodyText()).toContain('lyfmya');
     // 切到 🎉 Tab：只剩 尘埃落定
     await fireEvent.click(getByRole('button', { name: '庆祝（1 次）' }));
-    expect(container.textContent).not.toContain('lyfmya');
+    expect(bodyText()).not.toContain('lyfmya');
   });
 });

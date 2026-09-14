@@ -42,6 +42,8 @@ describe('系统设置页 SSR（原型 app-card 布局对齐）', () => {
     expect(body).toMatch(/<form[^>]*action="\?\/save"/);
     expect(body).toContain('name="version" value="7"');
     expect(body).toContain('name="site_name"');
+    expect(body).toContain('name="currency_name"');
+    expect(body).toContain('货币名称（单位）');
     expect(body).toContain('name="default_lang"');
     expect(body).toContain('name="public_source"');
     expect(body).toContain('value="https://bblbb.local"');

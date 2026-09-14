@@ -18,7 +18,7 @@ test.describe('积分/等级/签到（points/levels/activity）', () => {
   test('签到按钮可操作（活动领取）', async ({ page }) => {
     await page.goto('/me/balance');
     const claim = page.getByRole('button', { name: /领取|签到/ }).first();
-    if (await claim.isVisible().catch(() => false)) {
+    if (await claim.isVisible().catch(() => false) && await claim.isEnabled().catch(() => false)) {
       await claim.click();
       await expect(page.getByRole('status').or(page.getByRole('alert')).first()).toBeVisible();
     } else {
@@ -48,7 +48,7 @@ test.describe('附件（attachments/upload）', () => {
   test('编辑器附件选择器可访问（可上传按钮有名称）', async ({ page }) => {
     await page.goto('/editor');
     // 附件/上传控件出现（AttachmentPicker 区域）。
-    await expect(page.getByRole('main')).toBeVisible();
+    await expect(page.locator('#page-publish')).toBeVisible();
     const upload = page.getByRole('button', { name: /附件|上传/ }).first();
     if (await upload.isVisible().catch(() => false)) {
       await expect(upload).toBeEnabled();

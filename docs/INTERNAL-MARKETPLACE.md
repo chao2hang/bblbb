@@ -24,23 +24,21 @@
 |---|---|---|---|
 | `cosmetic_nickname` | 蓝色昵称、彩虹昵称 | 永久/限时 | 同一槽位一件 |
 | `cosmetic_avatar` | 圆环、发光边框 | 永久/限时 | `avatar_frame` 槽位 |
-| `cosmetic_avatar_attachment` | 小猫、星球、徽章挂件 | 永久/限时 | `avatar_attachment` 槽位 |
 | `cosmetic_badge` | 论坛贡献者、早期成员 | 永久 | `profile_badge` 多选有限 |
 | `profile_effect` | 个人主页背景纹理 | 永久/限时 | 同一槽位一件 |
 | `post_effect` | 首帖高亮、感谢卡片 | 消耗品/限时 | 发帖或互动时使用 |
 | `reaction_pack` | 鼓掌、围观、庆祝反应 | 数量型 | 回复/帖子 Reaction |
-| `title_prefix` | “夜猫子”“热心居民” | 永久/限时 | 昵称前缀槽位 |
 | `utility` | 改名卡、撤回编辑卡 | 消耗品 | 受严格规则限制 |
 
 商品内容使用安全 JSON/Token，不保存用户可执行代码。商品可以有 `required_level`、`start_at`、`end_at`、库存和购买次数限制。
 
+昵称颜色 Token 使用固定白名单：`blue`、`purple`、`green`、`gold`、`red`、`teal`、`pink`、`rainbow`、`gradient_sunset`、`gradient_ocean`、`gradient_aurora`；渐变与彩虹由客户端固定样式渲染，管理员不能提交 CSS。头像框可绑定一个经附件安全扫描的 `image/png` 资源，管理员在商城商品表单中通过两阶段上传后保存附件 UUID；公开用户投影只返回 ready/public 资源 UUID，前端通过稳定内容端点读取。
+
 ## 3. 展示槽位
 
 ```text
-nickname_decoration
 nickname_color
 avatar_frame
-avatar_attachment
 profile_badges
 profile_effect
 post_author_effect

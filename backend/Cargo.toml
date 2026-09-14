@@ -10,6 +10,9 @@ axum = { version = "0.8", features = ["macros"] }
 axum-extra = { version = "0.10", features = ["cookie", "typed-header"] }
 async-trait = "0.1"
 config = "0.15"
+# .env（dotenv 语法）加载：config 0.15 不含 dotenv 格式（default features 无
+# dotenv，且点开头文件名 `.env` 的 extension 为空无法格式推断），见 config.rs
+dotenvy = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
@@ -40,11 +43,17 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 aws-config = { version = "1", default-features = false, features = ["rustls"] }
 aws-sdk-s3 = { version = "1", default-features = false, features = ["rustls", "rt-tokio"] }
 aws-credential-types = { version = "1", default-features = false }
+# Passkey/WebAuthn（M02-MFA-PK）：MFA 第二步的第三选项（与 TOTP/恢复码 OR 共存）。
+# danger-allow-state-serialisation：注册/认证 state 序列化后存 `webauthn_challenges`
+# （challenge 始终由服务端生成并保存在 state 内，不信任客户端回传）。
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 
 [dev-dependencies]
 tower = "0.5"
 http-body-util = "0.1"
 tokio = { version = "1", features = ["test-util", "sync"] }
+# M02-MFA-PK：软件 Passkey 认证器（softpasskey），端到端生成注册/断言响应
+webauthn-authenticator-rs = { version = "0.5", features = ["softpasskey"] }
 
 # M05-SCHEMA 测试（嵌套目录不参与自动发现，需显式注册）
 [[test]]

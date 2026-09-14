@@ -776,3 +776,83 @@ async fn patch_me_validates_text_rules() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+/// 头像更新与清除：PATCH /api/v1/me 设置 avatar_attachment_id，
+/// 校验归属/状态/图片类型，关联 attachment_links 并更新 users 表；设置为 null 时清除。
+#[tokio::test]
+async fn patch_me_updates_and_clears_avatar() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with_key(pool.clone());
+    let (session, csrf) = register_and_login(&app, "ava").await;
+    let (_, me) = request(&app, "GET", "/api/v1/me", &session, "", None, None).await;
+    let user_id = me["id"].as_str().unwrap().to_string();
+    let version = me["version"].as_i64().unwrap();
+
+    // 1. 创建一个 ready 图片附件
+    let att_id = uuid::Uuid::now_v7().to_string();
+    let now = bblbb_backend::outbox::now_millis();
+    if let Either::Left(p) = &pool {
+        sqlx::query(
+            "INSERT INTO attachments (id, owner_id, storage_backend, storage_key, original_name, media_type, size_bytes, sha256, status, quota_bytes_charged, is_public, ref_count, created_at)
+             VALUES (?, ?, 'local', ?, 'avatar.png', 'image/png', 2048, 'hash', 'ready', 2048, 0, 0, ?)",
+        )
+        .bind(&att_id)
+        .bind(&user_id)
+        .bind(format!("avatar/{att_id}.png"))
+        .bind(now)
+        .execute(p)
+        .await
+        .unwrap();
+    }
+
+    // 2. PATCH /api/v1/me 设置头像
+    let (status, updated) = request(
+        &app,
+        "PATCH",
+        "/api/v1/me",
+        &session,
+        &csrf,
+        Some(&version.to_string()),
+        Some(json!({ "avatar_attachment_id": att_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "PATCH 头像必须 200: {updated}");
+    assert_eq!(updated["avatar_attachment_id"], att_id);
+    assert_eq!(updated["version"], version + 1);
+
+    // 验证 attachment_links
+    let link_count = db_scalar(
+        &pool,
+        "SELECT COUNT(*) FROM attachment_links WHERE attachment_id = ? AND target_type = 'user'",
+        &att_id,
+    )
+    .await;
+    assert_eq!(link_count, 1, "头像必须建立 attachment_links");
+
+    // 3. PATCH /api/v1/me 设置为 null 清除头像
+    let next_version = updated["version"].as_i64().unwrap();
+    let (status, cleared) = request(
+        &app,
+        "PATCH",
+        "/api/v1/me",
+        &session,
+        &csrf,
+        Some(&next_version.to_string()),
+        Some(json!({ "avatar_attachment_id": null })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "清除头像必须 200: {cleared}");
+    assert!(cleared["avatar_attachment_id"].is_null());
+    assert_eq!(cleared["version"], next_version + 1);
+
+    let link_count_after = db_scalar(
+        &pool,
+        "SELECT COUNT(*) FROM attachment_links WHERE attachment_id = ? AND target_type = 'user'",
+        &att_id,
+    )
+    .await;
+    assert_eq!(link_count_after, 0, "清除头像后解除 attachment_links");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

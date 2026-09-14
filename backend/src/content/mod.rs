@@ -4,6 +4,7 @@
 //! 板块内 slug、乐观并发版本与发布时间），M04-SCHEMA-02 起加入 post_contents/
 //! revisions，M04-SCHEMA-04 加入 comments 楼层模型。
 
+pub mod attachments;
 pub mod markdown;
 pub mod mentions;
 pub mod model;

@@ -8,9 +8,14 @@
 //!   economy ledger service 的 adjust 操作**（`apply_operation`，kind=
 //!   Adjust）+ 幂等 begin_or_replay，不裸写 UPDATE；写审计 + 通知被调整用户）；
 //! - 本人流水 `GET /api/v1/me/point-transactions`（登录）；
-//! - 等级规则 `GET /api/v1/admin/levels`（level.manage）与
-//!   `PATCH /api/v1/admin/levels/{level}`（If-Match version 乐观锁；level_rules
-//!   表，0062 迁移——0050 的 levels 是方案阈值表，语义不同，见迁移注释）；
+//! - 等级规则存档 CRUD `GET/PATCH /api/v1/admin/levels*` 与经验方案投影
+//!   `GET /api/v1/admin/levels/scheme` 于 2026-09 移除（等级体系合并为
+//!   LinuxDo 信任等级单轨：/admin/levels 页面改读 /admin/trust-levels 数据；
+//!   0062 `level_rules` 与 0050 经验等级表仅作历史迁移兼容，运行时已退役；
+//!   冻结的 PublicUser.level/visibility_level/商城 required_level 字段继续保留，
+//!   其用户当前等级来源统一为 users.trust_level；等级附件配额
+//!   GET/PATCH /api/v1/admin/levels/{id}/attachment-quota 保留于 admin_storage，
+//!   档位键为 users.trust_level 0–4）；
 //! - 我的处罚 `GET /api/v1/me/sanctions`（登录；读 sanctions 表——
 //!   moderation_actions 是案件维度的审核动作日志（0042），0043 的 sanctions
 //!   才是「用户被处罚」记录表（user_id/kind/reason/starts_at/ends_at），
@@ -49,11 +54,12 @@
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
-    http::{header, HeaderMap, HeaderValue, StatusCode},
+    http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
+use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Either;
@@ -65,7 +71,7 @@ use crate::authz::decision::{DenyReason, AUTHZ_POLICY_VERSION};
 use crate::authz::enforce::{authorize_action, denied_reason, deny_to_error};
 use crate::economy::ledger::service::{
     apply_operation, apply_operation_in_mysql_tx, apply_operation_in_sqlite_tx, LedgerCommand,
-    LedgerError, LedgerKind, CURRENCY_COIN, CURRENCY_EXP,
+    LedgerError, LedgerKind, CURRENCY_COIN,
 };
 use crate::error::AppError;
 use crate::idempotency::{
@@ -93,12 +99,6 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/v1/me/point-transactions",
             get(list_my_point_transactions),
-        )
-        // 等级规则（level.manage；level_rules 表）
-        .route("/api/v1/admin/levels", get(list_admin_levels))
-        .route(
-            "/api/v1/admin/levels/{level}",
-            axum::routing::patch(update_admin_level),
         )
         // 我的处罚（登录；sanctions 表）
         .route("/api/v1/me/sanctions", get(list_my_sanctions))
@@ -178,25 +178,6 @@ fn parse_time_bound(raw: &Option<String>, request_id: &str) -> Result<Option<i64
     }
 }
 
-/// 解析 If-Match 头为整数版本（裸整数，与 tags/boards 约定一致）。
-#[allow(clippy::result_large_err)]
-fn parse_if_match(headers: &HeaderMap, request_id: &str) -> Result<i64, AppError> {
-    headers
-        .get("if-match")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::bad_request("If-Match header is required", request_id, None))?
-        .trim()
-        .trim_matches('"')
-        .parse::<i64>()
-        .map_err(|_| {
-            AppError::bad_request(
-                "If-Match must be the current version integer",
-                request_id,
-                None,
-            )
-        })
-}
-
 /// LIKE 通配符转义（`!` 转义符，三方言一致）。
 fn like_escape(input: &str) -> String {
     input
@@ -265,14 +246,13 @@ async fn insert_system_notification(
     result.map_err(|e| AppError::internal(e.to_string(), request_id))
 }
 
-/// 货币代码（exp/coin）→ currencies.id（0047 种子固定 UUID）。
+/// B 币代码（coin/b_coin）→ currencies.id（0047 种子固定 UUID）。
 #[allow(clippy::result_large_err)]
 fn currency_id(code: &str, request_id: &str) -> Result<String, AppError> {
     match code {
-        "exp" => Ok(CURRENCY_EXP.to_string()),
         "coin" => Ok(CURRENCY_COIN.to_string()),
         other => Err(AppError::bad_request(
-            format!("currency must be 'exp' or 'coin', got: {other}"),
+            format!("currency must be 'coin', got: {other}"),
             request_id,
             None,
         )),
@@ -306,7 +286,7 @@ struct PointsLedgerQuery {
     /// 用户名精确过滤（username_normalized）。
     #[serde(default)]
     username: Option<String>,
-    /// 资产过滤：exp | coin（currencies.code）。
+    /// 资产过滤：coin（currencies.code）。
     #[serde(default)]
     asset: Option<String>,
     /// 操作类型过滤（point_operations.kind，值域与账本 CHECK 一致）。
@@ -381,9 +361,9 @@ async fn list_admin_points_ledger(
     let kind = query.kind.filter(|s| !s.is_empty());
 
     if let Some(a) = &asset {
-        if !matches!(a.as_str(), "exp" | "coin") {
+        if a != "coin" {
             return Err(AppError::bad_request(
-                "asset must be 'exp' or 'coin'",
+                "asset must be 'coin'",
                 request_id,
                 None,
             ));
@@ -408,7 +388,7 @@ async fn list_admin_points_ledger(
          JOIN users u ON u.id = t.user_id
          JOIN point_operations op ON op.id = t.operation_id
          JOIN currencies c ON c.id = t.currency_id
-         WHERE 1 = 1",
+         WHERE c.code = 'coin'",
     );
     if username.is_some() {
         sql.push_str(" AND u.username_normalized = ?");
@@ -518,6 +498,7 @@ struct PointsAdjustRequest {
 /// （title「积分调整」）。
 async fn admin_points_adjust(
     State(state): State<AppState>,
+    jar: CookieJar,
     auth: AuthSession,
     body: Bytes,
 ) -> Result<Response, AppError> {
@@ -528,6 +509,7 @@ async fn admin_points_adjust(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     require_perm(pool, &user.id, "points.adjust", request_id).await?;
+    crate::routes::admin::require_recent_auth(&state, &jar, request_id).await?;
 
     let req: PointsAdjustRequest = serde_json::from_slice(&body)
         .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
@@ -647,11 +629,7 @@ async fn admin_points_adjust(
 
             // 通知被调整用户（best-effort：通知失败不回滚账本——资金变动
             // 已入账且可从流水追溯，通知属于提醒性质）。
-            let currency_label = if req.currency == "exp" {
-                "经验"
-            } else {
-                "金币"
-            };
+            let currency_label = "金币";
             let sign = if req.amount > 0 { "+" } else { "" };
             let _ = insert_system_notification(
                 pool,
@@ -803,7 +781,7 @@ async fn list_my_point_transactions(
          FROM point_transactions t
          JOIN point_operations op ON op.id = t.operation_id
          JOIN currencies c ON c.id = t.currency_id
-         WHERE t.user_id = ? AND (? IS NULL OR t.created_at < ?)
+         WHERE t.user_id = ? AND c.code = 'coin' AND (? IS NULL OR t.created_at < ?)
          ORDER BY t.created_at DESC, t.id DESC LIMIT ?";
     let fetch_limit = limit + 1;
     let rows: Vec<MyTxRow> = match pool {
@@ -844,265 +822,6 @@ async fn list_my_point_transactions(
     Ok(private_no_store(resp))
 }
 
-// ─── 等级规则（admin） ───────────────────────────────────────────────────────
-
-/// level_rules 行投影（0062 迁移结构）。
-#[derive(sqlx::FromRow, Clone)]
-struct LevelRuleRow {
-    level: i64,
-    name: String,
-    min_exp: i64,
-    daily_post_limit: i64,
-    daily_comment_limit: i64,
-    attachment_quota: i64,
-    is_enabled: i64,
-    version: i64,
-}
-
-fn level_rule_json(r: &LevelRuleRow, user_count: i64) -> Value {
-    json!({
-        "level": r.level,
-        "name": r.name,
-        "min_exp": r.min_exp,
-        "daily_post_limit": r.daily_post_limit,
-        "daily_comment_limit": r.daily_comment_limit,
-        "attachment_quota": r.attachment_quota,
-        "is_enabled": r.is_enabled != 0,
-        "user_count": user_count,
-        "version": r.version,
-    })
-}
-
-/// 读取单条等级规则（不存在 → None）。
-async fn load_level_rule(
-    pool: &crate::db::DatabasePool,
-    level: i64,
-    request_id: &str,
-) -> Result<Option<LevelRuleRow>, AppError> {
-    let sql = "SELECT level, name, min_exp, daily_post_limit, daily_comment_limit,
-         attachment_quota, is_enabled, version
-         FROM level_rules WHERE level = ?";
-    let row = match pool {
-        Either::Left(p) => sqlx::query_as::<_, LevelRuleRow>(sql)
-            .bind(level)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-        Either::Right(p) => sqlx::query_as::<_, LevelRuleRow>(sql)
-            .bind(level)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-    };
-    Ok(row)
-}
-
-/// 该等级的活跃用户数（users.level，0019 列）。
-async fn level_user_count(
-    pool: &crate::db::DatabasePool,
-    level: i64,
-    request_id: &str,
-) -> Result<i64, AppError> {
-    let count: i64 = match pool {
-        Either::Left(p) => {
-            sqlx::query_scalar(
-                "SELECT COUNT(*) FROM users WHERE level = ? AND status = 'active' AND deleted_at IS NULL",
-            )
-            .bind(level)
-            .fetch_one(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        }
-        Either::Right(p) => {
-            sqlx::query_scalar(
-                "SELECT COUNT(*) FROM users WHERE level = ? AND status = 'active' AND deleted_at IS NULL",
-            )
-            .bind(level)
-            .fetch_one(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        }
-    };
-    Ok(count)
-}
-
-/// GET /api/v1/admin/levels — 等级规则列表（level.manage）。
-async fn list_admin_levels(
-    State(state): State<AppState>,
-    auth: AuthSession,
-) -> Result<Response, AppError> {
-    let request_id = "list_admin_levels";
-    let user = auth.require_auth(request_id)?;
-    let pool = state
-        .db
-        .as_deref()
-        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    require_perm(pool, &user.id, "level.manage", request_id).await?;
-
-    let sql = "SELECT level, name, min_exp, daily_post_limit, daily_comment_limit,
-         attachment_quota, is_enabled, version
-         FROM level_rules ORDER BY level";
-    let rows: Vec<LevelRuleRow> = match pool {
-        Either::Left(p) => sqlx::query_as::<_, LevelRuleRow>(sql)
-            .fetch_all(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-        Either::Right(p) => sqlx::query_as::<_, LevelRuleRow>(sql)
-            .fetch_all(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-    };
-
-    let mut items = Vec::with_capacity(rows.len());
-    for r in &rows {
-        let count = level_user_count(pool, r.level, request_id).await?;
-        items.push(level_rule_json(r, count));
-    }
-
-    let resp = (StatusCode::OK, Json(json!({ "items": items }))).into_response();
-    Ok(private_no_store(resp))
-}
-
-/// PATCH /api/v1/admin/levels/{level} — 更新等级规则（level.manage，If-Match）。
-async fn update_admin_level(
-    State(state): State<AppState>,
-    auth: AuthSession,
-    Path(level): Path<i64>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> Result<Response, AppError> {
-    let request_id = "update_admin_level";
-    let user = auth.require_auth(request_id)?;
-    let pool = state
-        .db
-        .as_deref()
-        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    require_perm(pool, &user.id, "level.manage", request_id).await?;
-
-    let if_match = parse_if_match(&headers, request_id)?;
-    let patch: Value = serde_json::from_slice(&body)
-        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
-    let reason = required_reason(&patch, request_id)?;
-
-    let current = load_level_rule(pool, level, request_id)
-        .await?
-        .ok_or_else(|| AppError::not_found("level rule not found", request_id))?;
-    if if_match != current.version {
-        return Err(AppError::conflict(
-            "level rule version mismatch (reload and retry)",
-            request_id,
-        ));
-    }
-
-    // 部分更新（缺省保持原值）。
-    let mut next = current.clone();
-    let mut changed: Vec<String> = Vec::new();
-    if let Some(v) = patch.get("name") {
-        let name = v
-            .as_str()
-            .map(str::trim)
-            .ok_or_else(|| AppError::bad_request("name must be a string", request_id, None))?;
-        let len = name.chars().count();
-        if !(1..=50).contains(&len) {
-            return Err(AppError::bad_request(
-                "name must be 1-50 characters",
-                request_id,
-                None,
-            ));
-        }
-        if next.name != name {
-            next.name = name.to_string();
-            changed.push("name".to_string());
-        }
-    }
-    for (key, slot) in [
-        ("min_exp", &mut next.min_exp),
-        ("daily_post_limit", &mut next.daily_post_limit),
-        ("daily_comment_limit", &mut next.daily_comment_limit),
-        ("attachment_quota", &mut next.attachment_quota),
-    ] {
-        if let Some(v) = patch.get(key).and_then(Value::as_i64) {
-            if v < 0 {
-                return Err(AppError::bad_request(
-                    format!("{key} must be >= 0"),
-                    request_id,
-                    None,
-                ));
-            }
-            if *slot != v {
-                *slot = v;
-                changed.push(key.to_string());
-            }
-        }
-    }
-    if let Some(v) = patch.get("is_enabled").and_then(Value::as_bool) {
-        let v = v as i64;
-        if next.is_enabled != v {
-            next.is_enabled = v;
-            changed.push("is_enabled".to_string());
-        }
-    }
-
-    // 全列 UPDATE + version 乐观锁（0 行 → 并发冲突 409）。
-    let sql = "UPDATE level_rules
-         SET name = ?, min_exp = ?, daily_post_limit = ?, daily_comment_limit = ?,
-             attachment_quota = ?, is_enabled = ?, version = version + 1, updated_at = ?
-         WHERE level = ? AND version = ?";
-    let now = now_millis();
-    let affected = match pool {
-        Either::Left(p) => sqlx::query(sql)
-            .bind(&next.name)
-            .bind(next.min_exp)
-            .bind(next.daily_post_limit)
-            .bind(next.daily_comment_limit)
-            .bind(next.attachment_quota)
-            .bind(next.is_enabled)
-            .bind(now)
-            .bind(level)
-            .bind(if_match)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?
-            .rows_affected(),
-        Either::Right(p) => sqlx::query(sql)
-            .bind(&next.name)
-            .bind(next.min_exp)
-            .bind(next.daily_post_limit)
-            .bind(next.daily_comment_limit)
-            .bind(next.attachment_quota)
-            .bind(next.is_enabled)
-            .bind(now)
-            .bind(level)
-            .bind(if_match)
-            .execute(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?
-            .rows_affected(),
-    };
-    if affected == 0 {
-        return Err(AppError::conflict(
-            "level rule version mismatch (reload and retry)",
-            request_id,
-        ));
-    }
-
-    AuditEntry::user_action(&user.id, "admin.level.update")
-        .with_target("level", &level.to_string())
-        .with_reason(&reason)
-        .with_policy_version(AUTHZ_POLICY_VERSION)
-        .with_metadata(json!({ "changed": changed }))
-        .record(pool)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-
-    let updated = load_level_rule(pool, level, request_id)
-        .await?
-        .ok_or_else(|| AppError::internal("level rule disappeared after update", request_id))?;
-    let count = level_user_count(pool, level, request_id).await?;
-    let resp = (StatusCode::OK, Json(level_rule_json(&updated, count))).into_response();
-    Ok(private_no_store(resp))
-}
-
 // ─── 我的处罚 ────────────────────────────────────────────────────────────────
 
 /// GET /api/v1/me/sanctions — 本人被处罚记录（登录）。
@@ -1123,12 +842,20 @@ async fn list_my_sanctions(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
-    let sql = "SELECT id, kind, reason, created_at, ends_at
-         FROM sanctions
-         WHERE user_id = ? AND status != 'revoked'
-         ORDER BY created_at DESC, id DESC";
-    /// (id, kind, reason, created_at, ends_at)
-    type SanctionRow = (String, String, Option<String>, i64, Option<i64>);
+    let sql = "SELECT s.id, s.kind, s.reason, s.created_at, s.ends_at, ma.case_id
+         FROM sanctions s
+         LEFT JOIN moderation_actions ma ON ma.action = 'issue_sanction' AND ma.target_id = s.id
+         WHERE s.user_id = ? AND s.status != 'revoked'
+         ORDER BY s.created_at DESC, s.id DESC";
+    /// (id, kind, reason, created_at, ends_at, case_id)
+    type SanctionRow = (
+        String,
+        String,
+        Option<String>,
+        i64,
+        Option<i64>,
+        Option<String>,
+    );
     let rows: Vec<SanctionRow> = match pool {
         Either::Left(p) => sqlx::query_as::<_, SanctionRow>(sql)
             .bind(&user.id)
@@ -1151,6 +878,7 @@ async fn list_my_sanctions(
                 "reason": r.2,
                 "created_at": r.3,
                 "expires_at": r.4,
+                "case_id": r.5,
             })
         })
         .collect();
@@ -1656,6 +1384,7 @@ async fn list_admin_attachments(
 /// 'deleted'（值域内）；存储对象回收由既有清理 Job 负责，此处只改元数据。
 async fn delete_admin_attachment(
     State(state): State<AppState>,
+    jar: CookieJar,
     auth: AuthSession,
     Path(id): Path<String>,
     body: Bytes,
@@ -1667,10 +1396,34 @@ async fn delete_admin_attachment(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     require_perm(pool, &user.id, "storage.manage", request_id).await?;
+    crate::routes::admin::require_recent_auth(&state, &jar, request_id).await?;
 
     let body_value: Value = serde_json::from_slice(&body)
         .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
     let reason = required_reason(&body_value, request_id)?;
+
+    let shop_ref_count: i64 = match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT COUNT(*) FROM shop_products WHERE asset_attachment_id = ? AND status <> 'retired'",
+        )
+        .bind(&id)
+        .fetch_one(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar(
+            "SELECT COUNT(*) FROM shop_products WHERE asset_attachment_id = ? AND status <> 'retired'",
+        )
+        .bind(&id)
+        .fetch_one(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    if shop_ref_count > 0 {
+        return Err(AppError::conflict(
+            "attachment is still used by a shop product",
+            request_id,
+        ));
+    }
 
     let now = now_millis();
     let sql = "UPDATE attachments SET deleted_at = ?, status = 'deleted'

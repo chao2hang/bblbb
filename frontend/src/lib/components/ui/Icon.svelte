@@ -30,6 +30,8 @@
       <path {...node.attrs} />
     {:else if node.tag === 'circle'}
       <circle {...node.attrs} />
+    {:else if node.tag === 'ellipse'}
+      <ellipse {...node.attrs} />
     {:else if node.tag === 'rect'}
       <rect {...node.attrs} />
     {:else if node.tag === 'line'}

@@ -6,7 +6,7 @@
   import { toasts, dismiss } from '$lib/ui/toast';
 </script>
 
-<div class="toast-container" aria-live="polite" aria-label="全局提示">
+<div class="toast-container" aria-live="polite">
   {#each $toasts as item (item.id)}
     <Toast message={item.message} detail={item.detail} type={item.type} onclose={() => dismiss(item.id)} />
   {/each}

@@ -1,5 +1,7 @@
 # BBLBB — 全角色 RC 冒烟报告（M17-SMOKE-01..09）
 
+> 历史快照：rc.2 / 2026-08-08。本文的用例数和冒烟结果只代表当次 RC，不代表当前工作区。
+
 > 执行：platform/quality-release；日期：2026-08-08。
 > 自动化覆盖来源：`frontend/tests/playwright/*`（194 用例，desktop+mobile，真实后端 +
 > seeded personas）、`frontend/src/lib/testing/ssr/*`（vitest no-JS）、`backend/tests/**`

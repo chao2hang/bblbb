@@ -12,6 +12,18 @@ use serde::Serialize;
 use crate::auth::session::SessionUser;
 use crate::users::profile::ProfileFields;
 
+/// 公开成就徽章（社交域·成就装备槽投影）：仅 code/name 两个公开字段。
+///
+/// 来源：`user_achievements.equipped = 1` JOIN `achievements`（仅启用成就），
+/// 服务端裁决数量（≤ [`crate::achievements::MAX_EQUIPPED_SLOTS`]）。
+/// 已装备 = 用户已解锁并主动佩戴，公开其 code/name 即佩戴语义本身；
+/// 不含进度/条件/奖励等内部字段。
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicEquippedAchievement {
+    pub code: String,
+    pub name: String,
+}
+
 /// 公开用户投影允许的字段（M03-PROFILE-01/02/05）。
 ///
 /// 显式 allowlist，公开投影只能包含这些字段；排除邮箱、IP、Session、
@@ -19,6 +31,7 @@ use crate::users::profile::ProfileFields;
 /// 必须与该常量一致（`backend/tests/user_dto.rs` 断言）。
 /// GAP-FIX 社交域追加公开社交统计：post_count/followers/following 与
 /// 请求方视角的 is_following（匿名恒 false）。
+/// 社交域·成就：equipped_achievements 为已装备成就徽章（≤3，服务端裁决）。
 pub const PUBLIC_PROFILE_ALLOWLIST: &[&str] = &[
     "id",
     "username",
@@ -33,7 +46,41 @@ pub const PUBLIC_PROFILE_ALLOWLIST: &[&str] = &[
     "followers",
     "following",
     "is_following",
+    "presentation_tokens",
+    "equipped_achievements",
 ];
+
+/// 公开装扮投影（M07-SHOP-SCHEMA-06）：服务端从衣柜装配编译的白名单
+/// Token 集合。key 为展示槽位，value 只能是后端注册的白名单 Token 值
+/// （`profile_badges` 为字符串数组，≤3）；禁用任意 CSS/HTML/URL。字段
+/// 缺省即该槽位未装配，不渲染。封禁/注销中整体置空（降级投影）。
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PublicPresentationTokens {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nickname_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_frame: Option<String>,
+    /// 已发布商品绑定的 ready PNG 附件 UUID；前端通过稳定 content 端点读取。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_frame_attachment_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_effect: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_effect: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_badges: Option<Vec<String>>,
+}
+
+impl PublicPresentationTokens {
+    pub fn is_empty(&self) -> bool {
+        self.nickname_color.is_none()
+            && self.avatar_frame.is_none()
+            && self.avatar_frame_attachment_id.is_none()
+            && self.profile_effect.is_none()
+            && self.post_effect.is_none()
+            && self.profile_badges.is_none()
+    }
+}
 
 /// 公开用户资料（作者卡 / 公开主页）。对应 OpenAPI `PublicUser`。
 ///
@@ -61,6 +108,12 @@ pub struct PublicProfile {
     pub following: i64,
     /// 请求者是否关注该用户（未登录恒 false）。
     pub is_following: bool,
+    /// 公开装扮投影（M07-SHOP-SCHEMA-06）：白名单 Token 集合；无装配/
+    /// 降级（banned/pending_delete）时为 null。
+    pub presentation_tokens: Option<PublicPresentationTokens>,
+    /// 已装备成就徽章（社交域·成就，成就墙装备槽）：≤3，服务端裁决；
+    /// 无装备或降级（banned/pending_delete）时为空数组。
+    pub equipped_achievements: Vec<PublicEquippedAchievement>,
 }
 
 /// 作者资料卡（文章/讨论列表的作者行）。对应 OpenAPI `Author`。
@@ -73,6 +126,8 @@ pub struct Author {
     pub display_name: Option<String>,
     pub level: i64,
     pub profile_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_tokens: Option<PublicPresentationTokens>,
 }
 
 impl Author {
@@ -83,6 +138,7 @@ impl Author {
             display_name: profile.display_name.clone(),
             level: profile.level,
             profile_url: format!("/users/{}", profile.username),
+            presentation_tokens: profile.presentation_tokens.clone(),
         }
     }
 }
@@ -111,11 +167,19 @@ pub struct Me {
     pub mfa_enabled: bool,
     /// 乐观并发版本（users.version；If-Match 更新来源，M03-PROFILE-04）。
     pub version: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_tokens: Option<PublicPresentationTokens>,
+    pub avatar_attachment_id: Option<String>,
 }
 
 impl Me {
     /// 从会话用户 + 资料字段显式构建本人投影（避免直接序列化会话/数据库实体）。
-    pub fn from_session(user: &SessionUser, mfa_enabled: bool, profile: &ProfileFields) -> Self {
+    pub fn from_session(
+        user: &SessionUser,
+        mfa_enabled: bool,
+        profile: &ProfileFields,
+        presentation_tokens: Option<PublicPresentationTokens>,
+    ) -> Self {
         Self {
             id: user.id.clone(),
             username: user.username.clone(),
@@ -133,6 +197,8 @@ impl Me {
             roles: user.roles.clone(),
             mfa_enabled,
             version: profile.version,
+            presentation_tokens,
+            avatar_attachment_id: profile.avatar_attachment_id.clone(),
         }
     }
 }

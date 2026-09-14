@@ -1,5 +1,6 @@
 <script lang="ts">
   // GAP-FIX（M17-GAPFIX-07·组件封装）：客户端导出按钮（CSV/JSON）。
+  // 保留原生按钮以支持客户端下载，视觉 token 与 blbui AdminButton 对齐。
   // 统一各页「导出」实现：CSV 带 UTF-8 BOM（Excel 兼容），JSON 含导出时间。
   import { show as showToast } from '$lib/ui/toast';
 

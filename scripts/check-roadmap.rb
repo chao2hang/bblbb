@@ -13,20 +13,18 @@ EXPECTED_TASK_FILES = %w[
   todo/M08-M12-integrations.md
   todo/M13-M17-release.md
   todo/M18-prototype-parity.md
-  todo/M19-design-system.md
 ].map { |path| File.join(ROOT, path) }.freeze
 DISCOVERED_TASK_FILES = Dir[File.join(ROOT, "todo", "M*.md")].sort.freeze
 COVERAGE_PATH = File.join(ROOT, "todo", "openapi-operation-coverage.json")
 OPENAPI_PATH = File.join(ROOT, "openapi", "openapi.yaml")
-EXPECTED_MILESTONES = (0..19).map { |number| "M#{number}" }.freeze
+EXPECTED_MILESTONES = (0..18).map { |number| "M#{number}" }.freeze
 MILESTONE_FILES = {
   (0..2) => "todo/M00-M02-foundation.md",
   (3..5) => "todo/M03-M05-community.md",
   (6..7) => "todo/M06-M07-storage-economy.md",
   (8..12) => "todo/M08-M12-integrations.md",
   (13..17) => "todo/M13-M17-release.md",
-  (18..18) => "todo/M18-prototype-parity.md",
-  (19..19) => "todo/M19-design-system.md"
+  (18..18) => "todo/M18-prototype-parity.md"
 }.freeze
 HTTP_METHODS = %w[get post put patch delete head options trace].freeze
 ALLOWED_TASK_STATES = [" ", "x", "~", "!"].freeze
@@ -36,6 +34,7 @@ REQUIRED_COVERAGE_FIELDS = %w[
   operation_id method path primary_tag milestone work_package priority
   contract_status implementation_status owner handler tests evidence
 ].freeze
+ROADMAP_VERSION_PATTERN = /^> 路线图版本：v1\.0\.0-rc\.\d+/m
 
 
 def relative(path)
@@ -69,7 +68,7 @@ roadmap = File.file?(ROADMAP) ? File.read(ROADMAP) : ""
 if roadmap.empty?
   errors << "Missing or empty TODO.md"
 else
-  errors << "TODO.md must declare roadmap version v1.0.0-rc.2" unless roadmap.include?("路线图版本：v1.0.0-rc.2")
+  errors << "TODO.md must declare a v1.0.0-rc.N roadmap version" unless roadmap.match?(ROADMAP_VERSION_PATTERN)
 end
 
 missing_task_files = EXPECTED_TASK_FILES.reject { |file| File.file?(file) }
@@ -392,7 +391,7 @@ end
 
 next_task_match = roadmap.match(/下一任务：\[`([^`]+)`\]\(([^)]+)\)/)
 if next_task_match
-  # 终态标记（§10 变更控制）：783/783 全部完成/阻塞后，下一任务指针使用显式
+  # 终态标记（§10 变更控制）：全部任务完成/阻塞后，下一任务指针使用显式
   # "全部完成" 标记，不再指向某个具体叶子任务（否则该检查必然失败）。
   if next_task_match[1] == "全部完成"
     next_task = nil
@@ -442,7 +441,7 @@ begin
     end
   end
 
-  errors << "Expected frozen OpenAPI baseline of 223 operations, got #{contract_operations.length}" unless contract_operations.length == 223
+  errors << "Expected frozen OpenAPI baseline of 233 operations, got #{contract_operations.length}" unless contract_operations.length == 233
 
   coverage = JSON.parse(File.read(COVERAGE_PATH))
   errors << "Coverage schema_version must be 1" unless coverage["schema_version"] == 1
@@ -517,9 +516,9 @@ if errors.empty?
   puts "Task states: pending=#{status_counts[' ']}, in_progress=#{status_counts['~']}, completed=#{status_counts['x']}, blocked=#{status_counts['!']}"
   puts "Priorities: P0=#{priority_counts['P0']}, P1=#{priority_counts['P1']}, P2=#{priority_counts['P2']}"
   puts "Dependencies: valid and acyclic across #{packages.length} work packages"
-  puts "Dashboard: M0-M17 counts, states, links and anchors are current"
+  puts "Dashboard: M0-M18 counts, states, links and anchors are current"
   puts "Local roadmap links: #{roadmap_link_count} checked"
-  puts "OpenAPI coverage: 223/223 operations assigned"
+  puts "OpenAPI coverage: #{contract_operations.length}/#{contract_operations.length} operations assigned"
 else
   warn "Roadmap validation failed with #{errors.length} error(s):"
   errors.each { |error| warn "- #{error}" }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, untrack, type Snippet } from 'svelte';
   import { Editor } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
   import { Markdown } from 'tiptap-markdown';
@@ -19,7 +19,13 @@
     disabled = false,
     id = 'publish-content',
     name = 'markdown',
-    onchange
+    onchange,
+    /** 视频引用面板（由父级通过 snippet 传入），锚定在工具栏正下方渲染。 */
+    insertPanel,
+    /** 插入视频引用：点击工具栏视频按钮时触发（未传则不渲染该按钮）。 */
+    oninsertvideo,
+    videoOpen = false,
+    videoBadge = 0
   }: {
     value?: string;
     placeholder?: string;
@@ -28,6 +34,10 @@
     id?: string;
     name?: string;
     onchange?: (val: string) => void;
+    insertPanel?: Snippet;
+    oninsertvideo?: () => void;
+    videoOpen?: boolean;
+    videoBadge?: number;
   } = $props();
 
   let mounted = $state(false);
@@ -253,14 +263,23 @@
         });
       },
       onSelectionUpdate: () => {
-        activeStateTick++;
+        untrack(() => {
+          activeStateTick++;
+        });
       },
       onTransaction: () => {
-        activeStateTick++;
+        untrack(() => {
+          activeStateTick++;
+        });
       }
     });
 
     editor = ed;
+    const editableElement = el.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (editableElement) {
+      editableElement.id = id;
+      editableElement.setAttribute('aria-label', '正文内容');
+    }
 
     return () => {
       ed.destroy();
@@ -575,6 +594,25 @@
           >
             <Icon name="paperclip" size={15} />
           </button>
+          {#if oninsertvideo}
+            <button
+              type="button"
+              class="toolbar-btn"
+              class:is-active={videoOpen}
+              title="插入视频引用（支持直接链接/HLS/西瓜视频页面链接）"
+              aria-label="插入视频"
+              aria-haspopup="dialog"
+              aria-expanded={videoOpen}
+              aria-controls="composer-panel-video"
+              disabled={disabled || isUploading}
+              onclick={oninsertvideo}
+            >
+              <Icon name="video" size={15} />
+              {#if videoBadge > 0}
+                <b class="toolbar-badge">{videoBadge > 99 ? '99+' : videoBadge}</b>
+              {/if}
+            </button>
+          {/if}
           <button
             type="button"
             class="toolbar-btn"
@@ -618,12 +656,17 @@
           Markdown
         </button>
       </div>
+
+      <!-- 编辑器锚定弹层（视频引用）：挂在 header 内，top:100% 定位到工具栏正下方 -->
+      {#if insertPanel}
+        {@render insertPanel()}
+      {/if}
     </div>
 
     <!-- 上传中提示条 -->
     {#if isUploading}
       <div class="upload-progress-banner" role="status" aria-live="polite">
-        <span class="upload-spinner" aria-hidden="true"></span>
+        <span class="upload-spinner" aria-hidden="true"><i></i><i></i><i></i></span>
         <span class="upload-text">{uploadStatusText}</span>
       </div>
     {/if}
@@ -678,6 +721,7 @@
   }
 
   .rich-editor-header {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -702,6 +746,7 @@
   }
 
   .toolbar-btn {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -716,6 +761,25 @@
     border-radius: var(--radius-sm, 4px);
     cursor: pointer;
     transition: background-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
+  }
+
+  /* 视频引用计数徽标：待发布引用 > 0 时显示在按钮右上角 */
+  .toolbar-badge {
+    position: absolute;
+    top: -4px;
+    right: -5px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    color: var(--color-text-on-brand, #ffffff);
+    background: var(--color-brand, #b23e2a);
+    border-radius: 7px;
+    font-size: 9px;
+    font-weight: 700;
+    font-style: normal;
+    line-height: 14px;
+    text-align: center;
+    pointer-events: none;
   }
 
   .toolbar-btn:hover:not(:disabled) {
@@ -791,18 +855,38 @@
     font-size: var(--text-xs, 12px);
   }
 
+  /* 三个变形方块（与 aui-spinner 同一视觉语言），替代旋转圆环 */
   .upload-spinner {
-    width: 13px;
-    height: 13px;
-    border: 2px solid rgba(178, 62, 42, 0.3);
-    border-top-color: var(--color-primary, #b23e2a);
-    border-radius: 50%;
-    animation: editor-spin 0.8s linear infinite;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 10px;
   }
 
-  @keyframes editor-spin {
-    to {
-      transform: rotate(360deg);
+  .upload-spinner i {
+    width: 3px;
+    height: 100%;
+    background: currentColor;
+    animation: editor-blocks-pulse 800ms ease-in-out infinite;
+  }
+
+  .upload-spinner i:nth-child(2) {
+    animation-delay: 100ms;
+  }
+
+  .upload-spinner i:nth-child(3) {
+    animation-delay: 200ms;
+  }
+
+  @keyframes editor-blocks-pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+      transform: scaleY(0.7);
+    }
+    50% {
+      opacity: 1;
+      transform: scaleY(1);
     }
   }
 

@@ -282,6 +282,13 @@ impl AppError {
         }
     }
 
+    /// 附加字段级错误（`Problem.errors[]`，供前端 `fieldError` 按字段渲染）。
+    /// `value` 须为数组：`[{ "field": "...", "code"/"message_key": "..." }]`。
+    pub fn with_errors(mut self, value: Option<serde_json::Value>) -> Self {
+        self.errors = value;
+        self
+    }
+
     /// 清理错误详情中的敏感信息
     ///
     /// 集中清除：SQL 语句、栈/回溯、密码、Token、Secret、API Key、

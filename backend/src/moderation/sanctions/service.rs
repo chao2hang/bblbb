@@ -313,6 +313,9 @@ pub async fn create_sanction(
         }),
     )
     .await;
+    // 信任等级钩子（best-effort，M20-TRUST）：mute/ban 触发重评估（TL3
+    // 「近 6 个月无禁言/封禁」条件变化）；失败只 warn。
+    crate::trust::on_sanction_changed(pool, &sanction.user_id).await;
     Ok(sanction)
 }
 
@@ -437,6 +440,8 @@ pub async fn revoke_sanction(
         json!({ "sanction_id": sanction_id, "kind": kind, "status": "revoked" }),
     )
     .await;
+    // 信任等级钩子（best-effort，M20-TRUST）：处罚撤销后重评估。
+    crate::trust::on_sanction_changed(pool, &target_user_id).await;
     Ok(())
 }
 

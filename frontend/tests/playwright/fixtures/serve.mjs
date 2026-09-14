@@ -29,6 +29,8 @@ const VITE_BIN = join(FRONTEND, 'node_modules', '.bin', 'vite');
 
 const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8080);
 const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 4173);
+const PUBLIC_ORIGIN = process.env.E2E_PUBLIC_ORIGIN ?? `https://localhost:${FRONTEND_PORT}`;
+const ALLOWED_ORIGINS = process.env.E2E_ALLOWED_ORIGINS ?? PUBLIC_ORIGIN;
 const HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/healthz`;
 
 const children = [];
@@ -97,7 +99,8 @@ async function main() {
         ...process.env,
         BBLBB__DATABASE_URL: `sqlite://${DB_PATH}`,
         BBLBB__MFA_ENCRYPTION_KEY: 'e2e-mfa-encryption-key-0000',
-        BBLBB__PUBLIC_ORIGIN: `http://127.0.0.1:${FRONTEND_PORT}`,
+        BBLBB__PUBLIC_ORIGIN: PUBLIC_ORIGIN,
+         BBLBB__ALLOWED_ORIGINS: ALLOWED_ORIGINS,
         // 绑定地址跟随 BACKEND_PORT（默认 127.0.0.1:8080 与旧行为一致）。
         BBLBB__BIND_ADDRESS: `127.0.0.1:${BACKEND_PORT}`,
         BBLBB__LOG_FILTER: 'info'
@@ -136,7 +139,8 @@ async function main() {
     cwd: FRONTEND,
     env: {
       ...process.env,
-      INTERNAL_API_ORIGIN: `http://127.0.0.1:${BACKEND_PORT}`
+      INTERNAL_API_ORIGIN: `http://127.0.0.1:${BACKEND_PORT}`,
+       E2E_API_TARGET: `http://127.0.0.1:${BACKEND_PORT}`
     }
   });
   await new Promise((r) => setTimeout(r, 4000));

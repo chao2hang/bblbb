@@ -8,7 +8,8 @@
 #
 # 端口（可用环境变量覆盖）:
 #   后端 http://127.0.0.1:8080   (BBLBB__BIND_ADDRESS)
-#   前端 http://127.0.0.1:5173   (PORT)
+#   前端 http://127.0.0.1:5173   (PORT；存在 dev/certs 证书时为 https；
+#                                默认绑定 0.0.0.0 供局域网访问，BBLBB_DEV_HOST 可覆盖)
 #
 # 前置: cargo / npm / curl；Node 版本见 .nvmrc（22）。
 #
@@ -37,9 +38,28 @@ DB_FILE="${BBLBB_DB:-$ROOT_DIR/data/bblbb.sqlite}"
 BACKEND_BIND="${BBLBB__BIND_ADDRESS:-127.0.0.1:8080}"
 BACKEND_URL="http://$BACKEND_BIND"
 HEALTH_URL="$BACKEND_URL/healthz"
-FRONTEND_HOST="127.0.0.1"
+# 绑定地址与 frontend/vite.config.ts 默认一致（0.0.0.0，支持局域网/远程联调，
+# 如 https://10.10.10.10:5173）；BBLBB_DEV_HOST 可收窄为 127.0.0.1。
+FRONTEND_HOST="${BBLBB_DEV_HOST:-0.0.0.0}"
 FRONTEND_PORT="${PORT:-5173}"
-FRONTEND_URL="http://$FRONTEND_HOST:$FRONTEND_PORT"
+# 探活地址：通配绑定时用 loopback，否则用绑定的具体地址。
+case "$FRONTEND_HOST" in
+  0.0.0.0|"::"|"*") FRONTEND_PROBE_HOST="127.0.0.1" ;;
+  *)                FRONTEND_PROBE_HOST="$FRONTEND_HOST" ;;
+esac
+# 与 frontend/vite.config.ts 的证书探测保持一致：
+# BBLBB_DEV_TLS_CERT/KEY 均指定，或默认证书 dev/certs/{dev.crt,dev.key} 均存在时，
+# Vite 以 HTTPS 启动；探活必须使用相同 scheme（自签证书加 -k）。
+if [[ -n "${BBLBB_DEV_TLS_CERT:-}" && -n "${BBLBB_DEV_TLS_KEY:-}" ]] \
+  || { [[ -z "${BBLBB_DEV_TLS_CERT:-}" && -z "${BBLBB_DEV_TLS_KEY:-}" ]] \
+    && [[ -f "$ROOT_DIR/dev/certs/dev.crt" && -f "$ROOT_DIR/dev/certs/dev.key" ]]; }; then
+  FRONTEND_SCHEME="https"
+  CURL_TLS_FLAGS=(-k)
+else
+  FRONTEND_SCHEME="http"
+  CURL_TLS_FLAGS=()
+fi
+FRONTEND_URL="$FRONTEND_SCHEME://$FRONTEND_PROBE_HOST:$FRONTEND_PORT"
 
 BACKEND_PID=""
 FRONTEND_PID=""
@@ -58,7 +78,7 @@ require_cmd() {
 }
 
 backend_alive()  { curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; }
-frontend_alive() { curl -fsS --max-time 2 "$FRONTEND_URL" >/dev/null 2>&1; }
+frontend_alive() { curl -fsS "${CURL_TLS_FLAGS[@]}" --max-time 2 "$FRONTEND_URL" >/dev/null 2>&1; }
 
 cleanup() {
   local code=$?
@@ -187,6 +207,10 @@ fi
 
 printf "\n\033[1m  BBLBB 开发环境已就绪\033[0m\n"
 printf "    前端  %s\n" "$FRONTEND_URL"
+if [[ "$FRONTEND_HOST" == "0.0.0.0" || "$FRONTEND_HOST" == "::" ]]; then
+  lan_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' | head -1)"
+  [[ -n "$lan_ip" ]] && printf "    局域网  %s://%s:%s\n" "$FRONTEND_SCHEME" "$lan_ip" "$FRONTEND_PORT"
+fi
 printf "    后端  %s   (健康检查 %s)\n" "$BACKEND_URL" "$HEALTH_URL"
 printf "    按 Ctrl-C 同时停止前后端\n\n"
 

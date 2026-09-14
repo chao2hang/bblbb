@@ -1,5 +1,7 @@
 # BBLBB — RC 发布聚合报告（M16-RELEASE-TEST-02）
 
+> 历史快照：rc.2 / 2026-08-08。本文聚合的是当次 RC 资料，不代表当前发布状态；新 RC 应重新生成聚合报告。
+
 > 聚合 OpenAPI、Rust、前端、原型、三数据库、Playwright、axe、安全与性能报告。
 > 命令与结果的完整日志见 `reports/rc/harness.md`；失败登记见 `failure-template.md`；
 > P0/P1 见 `p0-p1.md`。

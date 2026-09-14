@@ -1,8 +1,12 @@
 <script lang="ts">
   // M18-MFA-01：独立两步验证页（对齐原型 #mfa 页面布局与流程）。
+  // M02-MFA-PK：Passkey 与 TOTP 共存——列表/注册/撤销管理卡片。
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { show as showToast } from '$lib/ui/toast';
+  import { registerPasskey, passkeyErrorMessage, passkeySupported } from '$lib/mfa/passkey';
   import type { MfaActionData, MfaPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
 
@@ -11,18 +15,59 @@
   const user = $derived(data.user);
   const mfaStep = $derived(form?.mfa);
   let isEnabled = $derived(user?.mfa_enabled === true && mfaStep?.kind !== 'disabled');
+
+  // Passkey 注册（客户端浏览器凭据生成 → /mfa/passkey/confirm 落库）
+  let passkeyName = $state('');
+  let passkeyBusy = $state(false);
+
+  function formatMs(ms: number | null): string {
+    if (!ms) return '—';
+    return new Date(ms).toLocaleString();
+  }
+
+  async function addPasskey() {
+    if (passkeyBusy) return;
+    if (!passkeySupported()) {
+      showToast('当前浏览器不支持 Passkey（需 HTTPS 与较新浏览器）', 'danger');
+      return;
+    }
+    passkeyBusy = true;
+    try {
+      const beginRes = await fetch('/mfa/passkey/begin', {
+        method: 'POST',
+        headers: { Accept: 'application/json' }
+      });
+      if (!beginRes.ok) {
+        const problem = (await beginRes.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(problem?.message || '开始注册失败，请重试');
+      }
+      const credential = await registerPasskey(
+        (await beginRes.json()) as Parameters<typeof registerPasskey>[0]
+      );
+      const confirmRes = await fetch('/mfa/passkey/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ name: passkeyName.trim() || undefined, credential })
+      });
+      if (!confirmRes.ok) {
+        const problem = (await confirmRes.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(problem?.message || '确认注册失败，请重试');
+      }
+      showToast('Passkey 已添加', 'success');
+      passkeyName = '';
+      await invalidateAll();
+    } catch (e) {
+      showToast(passkeyErrorMessage(e), 'danger');
+    } finally {
+      passkeyBusy = false;
+    }
+  }
 </script>
 
   <PageTitle title="两步验证" />
 
 <div class="container page-content">
-  <div class="app-route-head">
-    <div class="app-route-head__copy">
-      <span class="app-kicker">SECURITY / MFA</span>
-      <h1 tabindex="-1">两步验证</h1>
-      <p>使用 TOTP 身份验证器（如 Google Authenticator、1Password）保护账号安全</p>
-    </div>
-  </div>
+  <h1 class="u-visually-hidden">两步验证</h1>
 
   {#if data.error}
     <p class="input-hint is-error" role="alert">{data.error}</p>
@@ -141,6 +186,68 @@
       {/if}
     </div>
   </div>
+
+  {#if data.passkeyEnabled}
+    <div class="card" style="margin-top:var(--space-4);">
+      <div class="card-header" style="display:flex;align-items:center;gap:var(--space-2);">
+        <Icon name="fingerprint" size={16} />
+        <span class="card-title">Passkey（指纹 / Face ID / 屏幕锁）</span>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
+        <p class="text-secondary" style="margin:0;line-height:1.6;">
+          注册 Passkey 后，登录第二步可直接用本设备的指纹 / Face ID / 屏幕锁通过验证，
+          无需再输入 6 位动态验证码（两步验证的两种方式任一通过即可）。
+        </p>
+
+        {#if form?.message && !form?.mfa}
+          <p class="input-hint is-error" role="alert" style="margin:0;">{form.message}</p>
+        {/if}
+        {#if data.passkeysError}
+          <p class="input-hint is-error" role="alert" style="margin:0;">{data.passkeysError}</p>
+        {/if}
+
+        {#if data.passkeys.length > 0}
+          <ul class="passkey-list" role="list">
+            {#each data.passkeys as item (item.id)}
+              <li class="passkey-item">
+                <div class="passkey-item__meta">
+                  <strong>{item.name}</strong>
+                  <span class="text-secondary">注册于 {formatMs(item.created_at)}</span>
+                  <span class="text-secondary">最近使用 {formatMs(item.last_used_at)}</span>
+                  {#if item.backed_up}
+                    <span class="badge badge-success">已云同步</span>
+                  {/if}
+                </div>
+                <form method="POST" action="?/passkeyRevoke" use:enhance>
+                  <input type="hidden" name="id" value={item.id} />
+                  <Button text="撤销" variant="ghost" size="sm" type="submit" />
+                </form>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="text-secondary" style="margin:0;">尚未注册任何 Passkey。</p>
+        {/if}
+
+        <div class="passkey-add-row">
+          <input
+            type="text"
+            class="input-field passkey-name-input"
+            placeholder="名称（可选，如「MacBook 指纹」）"
+            maxlength="64"
+            bind:value={passkeyName}
+            aria-label="Passkey 名称"
+          />
+          <Button
+            text={passkeyBusy ? '等待认证器…' : '添加 Passkey'}
+            variant="secondary"
+            onclick={addPasskey}
+            disabled={passkeyBusy}
+          />
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -229,5 +336,41 @@
     font-size: var(--text-lg);
     letter-spacing: 3px;
     text-align: center;
+  }
+
+  /* M02-MFA-PK：Passkey 管理卡片 */
+  .passkey-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .passkey-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-subtle);
+    border-radius: var(--radius-sm);
+  }
+  .passkey-item__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
+  }
+  .passkey-add-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .passkey-name-input {
+    flex: 1;
+    min-width: 200px;
   }
 </style>

@@ -16,6 +16,7 @@ const board = {
   slug: 'tech',
   name: '技术',
   description: '技术讨论',
+  icon: null,
   version: 1,
   created_at: TS,
   updated_at: TS,
@@ -23,13 +24,10 @@ const board = {
 };
 
 describe('GAP-FIX /discover SSR', () => {
-  it('三区块：热门标签 chip + 活跃内容 PostList + 板块卡片', () => {
+  it('推荐流：为你推荐 + 帖子行（无标签入口、无排序 tab）', () => {
     const { body } = render(Discover, {
       props: {
         data: {
-          tags: [
-            { id: 't1', slug: 'rust', name: 'Rust', description: null, color: '#f97316', group_id: null, usage_count: 12 }
-          ],
           posts: [
             {
               id: 'p1',
@@ -51,15 +49,18 @@ describe('GAP-FIX /discover SSR', () => {
         }
       }
     });
-    expect(body).toContain('发现社区里的热门内容与活跃成员');
-    expect(body).toMatch(/href="\/tags\/rust"/);
+    expect(body).toContain('为你推荐');
     expect(body).toContain('热门讨论');
-    expect(body).toContain('技术讨论');
+    expect(body).toContain('技术');
+    // 算法推送产品决策：不再有手动排序 tab 与热门标签入口
+    expect(body).not.toMatch(/href="\/discover\?sort=/);
+    expect(body).not.toMatch(/href="\/tags\//);
+    expect(body).not.toContain('热门标签');
   });
 
-  it('空态：三区块均空不抛错', () => {
-    const { body } = render(Discover, { props: { data: { tags: [], posts: [], boards: [], error: null } } });
-    expect(body).toContain('暂无热门标签');
+  it('空态：推荐流为空不抛错（给出发布引导）', () => {
+    const { body } = render(Discover, { props: { data: { posts: [], boards: [], error: null } } });
+    expect(body).toContain('还没有可推荐的内容');
   });
 });
 
@@ -89,7 +90,9 @@ describe('GAP-FIX /tags/[slug] SSR', () => {
       props: { data: { slug: 'gone', tag: null, posts: [], hasMore: false, nextCursor: null, unavailable: true } }
     });
     expect(body).toContain('这个标签下还没有内容');
-    expect(body).toContain('聚合接口尚未开放');
+    expect(body).toContain('标签内容暂时加载失败');
+    expect(body).toContain('登录后发布');
+    expect(body).toMatch(/href="\/login\?next=%2Feditor"/);
   });
 });
 
@@ -153,7 +156,7 @@ describe('GAP-FIX /me/billing SSR', () => {
     const { body } = render(Billing, {
       props: {
         data: {
-          summary: { level: 3, xp: 100, checked_in_today: true, streak_days: 2, balances: [{ currency: 'coin', amount: 328 }] },
+          summary: { checked_in_today: true, streak_days: 2, balances: [{ currency: 'coin', amount: 328 }] },
           rows: [row],
           totals: { count: 1, spentCoin: 10, lastAt: TS },
           error: null

@@ -39,7 +39,7 @@ pub async fn close_pool(pool: &DatabasePool) {
 pub async fn insert_user(pool: &DatabasePool, tag: &str) -> String {
     let user_id = uuid::Uuid::now_v7().to_string();
     let now = now_millis();
-    let sql = "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+    let sql = "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                VALUES (?, ?, ?, 'dummy', 'active', 1, 1, ?, ?, ?)";
     match pool {
         Either::Left(p) => {

@@ -86,8 +86,9 @@
 
 | Token 名 | 值 | 用途 |
 |---|---|---|
-| --font-family-base | -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif | 全站正文与界面 |
-| --font-family-mono | "SF Mono", "JetBrains Mono", Consolas, monospace | 代码、Client ID、数值流水号 |
+| --font-family-base | "Inter Tight Variable", "Inter Tight", -apple-system, "PingFang SC", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif | 全站正文与界面（拉丁自托管，CJK 系统回退） |
+| --font-family-mono | "IBM Plex Mono", "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace | 元信息、计数值、时间戳、代码、Client ID、数值流水号（配 tabular-nums） |
+| --font-family-serif | Georgia, "Songti SC", "Noto Serif SC", serif | 名言金句与典雅引语排版 |
 | --text-xs | 12px / 行高 18px | Badge、Tag、辅助标注、列表次级列 |
 | --text-sm | 13px / 行高 20px | 列表元信息、摘要、侧栏内容、按钮小号 |
 | --text-base | 14px / 行高 22px | 界面正文、表单、按钮默认 |

@@ -17,6 +17,7 @@
 pub mod classify;
 pub mod dispatch;
 pub mod metrics;
+pub mod outbox_consumer;
 pub mod payload;
 pub mod retry;
 pub mod worker;

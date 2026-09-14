@@ -30,7 +30,7 @@ test.describe('无 JS 公开阅读（public read）', () => {
   });
 
   test('帖子详情正文可读（无 JS）', async ({ noJsPage }) => {
-    await noJsPage.goto('/boards/general');
+    await noJsPage.goto('/');
     const link = noJsPage.locator('a[href^="/posts/"]').first();
     await link.waitFor({ state: 'visible', timeout: 10_000 });
     const href = await link.getAttribute('href');
@@ -75,8 +75,9 @@ test.describe('无 JS 登录（login 表单 action）', () => {
     await noJsPage.getByLabel('用户名或邮箱').fill('alice');
     await noJsPage.getByLabel('密码').fill('E2e-test-pass-123!');
     await noJsPage.getByRole('button', { name: /登录/ }).click();
-    // 无 JS 登录成功 → 303 redirect 到首页（HTTP 跳转，非客户端路由）。
-    await expect(noJsPage).toHaveURL('http://localhost:4173/');
+    // 无 JS 登录成功 → 303 redirect 到首页（真实 fixture 使用 HTTPS）。
+    const origin = new URL(noJsPage.url()).origin;
+    await expect(noJsPage).toHaveURL(`${origin}/`);
   });
 });
 

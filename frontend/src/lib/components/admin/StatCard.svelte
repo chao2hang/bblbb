@@ -1,18 +1,31 @@
 <script lang="ts">
-  // GAP-FIX（M17-GAPFIX-07·组件封装）：统计卡（原型 .app-stat 同构）。
-  // 替代各页重复的 `.app-stat` markup；note 为底部补充说明（增量/状态）。
+  // 统计项保留原生 SSR 标记，并消费 blbui --aui-* token；aui-stat 的
+  // shadow DOM 不提供图标/无 JS 退化，因此不再渲染隐藏宿主。
   import Icon from '$lib/components/ui/Icon.svelte';
 
   let {
     value,
     label,
     icon = '',
-    note = ''
-  }: { value: string | number; label: string; icon?: string; note?: string } = $props();
+    note = '',
+    unit = '',
+    trend = '',
+    tone = ''
+  }: {
+    value: string | number;
+    label: string;
+    icon?: string;
+    note?: string;
+    unit?: string;
+    trend?: string;
+    tone?: string;
+  } = $props();
+
+  const detail = $derived(trend || note);
 </script>
 
-<div class="app-stat">
-  <b>{value}</b>
+<div class="app-stat" data-tone={tone || undefined}>
+  <b>{value}{#if unit}<small>{unit}</small>{/if}</b>
   <span>{#if icon}<Icon name={icon} size={13} />{/if}{label}</span>
-  {#if note}<em>{note}</em>{/if}
+  {#if detail}<em>{detail}</em>{/if}
 </div>

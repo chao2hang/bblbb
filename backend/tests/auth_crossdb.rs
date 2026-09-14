@@ -284,17 +284,17 @@ async fn auth_crossdb_flow(pool: &DatabasePool, app: &Router) {
     let user_count: i64 = count_users_by_email(pool, &email).await;
     assert_eq!(user_count, 1, "重复注册不得产生重复行");
 
-    // ── 2. 登录：错误密码 401 unauthorized；正确 200 + Me 投影 ──
+    // ── 2. 登录：错误密码 401 invalid_credentials；正确 200 + Me 投影 ──
     let (status, body, _) = login_full(app, &email, "wrong-password").await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
-    assert_eq!(body["code"], "unauthorized", "Problem code 必须一致");
+    assert_eq!(body["code"], "invalid_credentials", "Problem code 必须一致");
     // 触发失败计数后立即正确登录成功（重置计数，证明无锁死泄漏）
     let (status, _) = login_session(app, &email, PASSWORD).await;
     assert_eq!(status, StatusCode::OK, "错误一次后正确登录应成功: {status}");
     let (status, _) = login_session(app, &email, PASSWORD).await;
     assert_eq!(status, StatusCode::OK, "正确登录应 200");
 
-    // ── 3. verify-email 无效 token → 400 bad_request ──
+    // ── 3. verify-email 无效 token → 422 verification_token_invalid ──
     let (status, body) = post_json(
         app,
         "/api/v1/auth/verify-email",
@@ -304,10 +304,10 @@ async fn auth_crossdb_flow(pool: &DatabasePool, app: &Router) {
         IP,
     )
     .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert_eq!(body["code"], "bad_request");
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(body["code"], "verification_token_invalid");
 
-    // ── 4. password-reset 未知邮箱 → 统一 202；confirm 无效 token → 400 ──
+    // ── 4. password-reset 未知邮箱 → 统一 202；confirm 无效 token → 422 ──
     let (status, body) = post_json(
         app,
         "/api/v1/auth/password-reset",
@@ -327,8 +327,8 @@ async fn auth_crossdb_flow(pool: &DatabasePool, app: &Router) {
         IP,
     )
     .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert_eq!(body["code"], "bad_request");
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(body["code"], "reset_token_invalid");
 
     // ── 5. password-reset IP 限流 → 429 rate_limited（第 6 次命中） ──
     // 每请求用不同邮箱，避免每账号冷却/日上限干扰；IP 限流 5/小时。

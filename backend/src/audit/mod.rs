@@ -495,6 +495,7 @@ pub const AUDIT_FIELD_ALLOWLIST: &[&str] = &[
     "slug",
     "name",
     "description",
+    "icon",
     "parent_id",
     "sort_order",
     "posting_mode",

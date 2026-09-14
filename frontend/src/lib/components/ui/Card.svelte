@@ -16,16 +16,16 @@
   } = $props();
 </script>
 
-<div class="card {klass}">
+<!--
+  Card 是兼容旧调用点的薄适配层，实际表面由 blbui aui-card 渲染。
+  页面级布局不要继续新增 Card；列表/模块优先使用 Panel。
+-->
+<aui-card class="bblbb-aui-card {klass}">
   {#if title}
-    <div class="card-header">
-      <div class="card-title">{title}</div>
-    </div>
+    <span slot="header" class="card-title">{title}</span>
   {:else if header}
-    <div class="card-header">{@render header()}</div>
+    <span slot="header" class="card-header-content">{@render header()}</span>
   {/if}
-  {#if children}<div class="card-body">{@render children()}</div>{/if}
-  {#if footer}
-    <div class="card-footer">{@render footer()}</div>
-  {/if}
-</div>
+  {#if children}{@render children()}{/if}
+  {#if footer}<span slot="footer" class="card-footer-content">{@render footer()}</span>{/if}
+</aui-card>

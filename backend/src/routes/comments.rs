@@ -16,6 +16,7 @@ use crate::{
     auth::session::AuthSession,
     authz::decision::AUTHZ_POLICY_VERSION,
     authz::enforce::authorize_action,
+    content::attachments::{extract_attachment_content_ids, load_unavailable_attachment_ids},
     content::comments::service::{
         comment_json, load_comment_projection, soft_delete_comment,
         update_comment as service_update_comment, EditCommentError, EditCommentInput,
@@ -163,7 +164,17 @@ async fn update_comment(
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?
         .ok_or_else(|| AppError::not_found("comment not found", request_id))?;
-    let resp = (StatusCode::OK, Json(comment_json(&projection))).into_response();
+    // 附件占位（M06-QUOTA-09 展示端）：编辑后响应与列表口径一致，引用已
+    // 删除/不可用附件的部分渲染「附件已删除」占位。
+    let candidate_ids = extract_attachment_content_ids(&projection.content);
+    let unavailable = load_unavailable_attachment_ids(pool, &candidate_ids)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let resp = (
+        StatusCode::OK,
+        Json(comment_json(&projection, &unavailable)),
+    )
+        .into_response();
     Ok(private_no_store(resp))
 }
 
@@ -341,17 +352,19 @@ async fn create_comment_reaction(
     {
         Ok(summary) => summary,
         Err(crate::reactions::ReactionError::AlreadyExists) => {
-            return crate::reactions::service::remove_reaction(
+            let removed = crate::reactions::service::remove_reaction(
                 pool, &user.id, "comment", &id, &reaction,
             )
             .await
-            .map(Json)
-            .map_err(|e| map_reaction_error(e, request_id));
+            .map_err(|e| map_reaction_error(e, request_id))?;
+            // 信任等级钩子（best-effort，M20-TRUST）：撤赞影响双方统计。
+            let author = comment_author(pool, &id, request_id).await?;
+            crate::trust::on_reaction_changed(pool, &user.id, author.as_deref()).await;
+            return Ok(Json(removed));
         }
         Err(e) => return Err(map_reaction_error(e, request_id)),
     };
-    // 成就钩子（best-effort）：reaction_received 类成就按**评论作者**判定
-    // （被赞方）；失败只 warn 不阻断反应本身。
+    // 作者查询（被赞方；供成就与活跃奖励钩子共用）。
     let author: Option<String> = match pool {
         Either::Left(p) => sqlx::query_scalar("SELECT author_id FROM comments WHERE id = ?")
             .bind(&id)
@@ -364,12 +377,56 @@ async fn create_comment_reaction(
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
     };
+    // 活跃奖励钩子（best-effort，M07-LEVELS）：reaction 类规则奖励**表态方**
+    // （引擎内排除自赞、同目标+反应去重）；失败只 warn 不阻断反应本身。
+    if let Some(author_id) = author.as_deref() {
+        if let Err(e) = crate::economy::activity::service::claim_reaction_reward(
+            pool,
+            &user.id,
+            author_id,
+            "comment",
+            &id,
+            &reaction,
+            crate::outbox::now_millis(),
+        )
+        .await
+        {
+            tracing::warn!(user_id = %user.id, error = %e, "activity reaction reward failed (comment)");
+        }
+    }
+    // 信任等级钩子（best-effort，M20-TRUST）：反应变化影响表态方与被赞方统计。
+    crate::trust::on_reaction_changed(pool, &user.id, author.as_deref()).await;
+    // 成就钩子（best-effort）：reaction_received 类成就按**评论作者**判定
+    // （被赞方）；失败只 warn 不阻断反应本身。
     if let Some(author_id) = author {
         if let Err(e) = crate::achievements::evaluate(pool, &author_id).await {
             tracing::warn!(user_id = %author_id, error = %e, "achievement evaluate failed (comment reaction)");
         }
     }
     Ok(Json(summary))
+}
+
+/// 评论作者查询（信任等级钩子用；查不到返回 None，不阻塞主流程）。
+async fn comment_author(
+    pool: &DatabasePool,
+    comment_id: &str,
+    request_id: &str,
+) -> Result<Option<String>, AppError> {
+    match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT author_id FROM comments WHERE id = ?")
+                .bind(comment_id)
+                .fetch_optional(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar("SELECT author_id FROM comments WHERE id = ?")
+                .bind(comment_id)
+                .fetch_optional(p)
+                .await
+        }
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))
 }
 
 /// DELETE /api/v1/comments/{id}/reactions/{reaction} — 移除评论反应
@@ -384,10 +441,14 @@ async fn delete_comment_reaction(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    crate::reactions::service::remove_reaction(pool, &user.id, "comment", &id, &reaction)
-        .await
-        .map(Json)
-        .map_err(|e| map_reaction_error(e, request_id))
+    let removed =
+        crate::reactions::service::remove_reaction(pool, &user.id, "comment", &id, &reaction)
+            .await
+            .map_err(|e| map_reaction_error(e, request_id))?;
+    // 信任等级钩子（best-effort）：撤赞同样影响双方统计。
+    let author = comment_author(pool, &id, request_id).await?;
+    crate::trust::on_reaction_changed(pool, &user.id, author.as_deref()).await;
+    Ok(Json(removed))
 }
 
 /// 反应错误 → AppError（不泄漏目标细节）。

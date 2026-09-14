@@ -2,8 +2,10 @@
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
   import { formatRelative } from '$lib/utils';
-  import { withActionToast } from '$lib/ui/action-toast';
+  import { toastActionResult } from '$lib/ui/action-toast';
 
   let { data, form }: { data: PageData; form: any } = $props();
 
@@ -16,6 +18,9 @@
   $effect(() => {
     hasJs = true;
   });
+
+  // 复核决定：按钮 → Dialog 弹层内完成（决定 + 理由必填，expected_version 乐观锁）。
+  let decideOpen = $state(false);
 
   const statusLabels: Record<string, string> = {
     submitted: '待复核',
@@ -43,8 +48,6 @@
 <svelte:head>
   <title>复核申诉 — BBLBB</title>
 </svelte:head>
-
-<div class="container page-content">
 
   {#if data.forbidden}
     <div class="app-card">
@@ -92,25 +95,45 @@
       <div class="app-card" style="margin-top:var(--space-4);">
         <div class="app-card__head"><h2>作出决定</h2></div>
         <div class="app-card__body">
-          <!-- 成功结果在 form.ok（okMessage 同源），失败在 form.message -->
-          <form method="POST" action="?/decide" use:enhance={withActionToast({ message: (d) => (d?.message ?? d?.ok) as string | null })} class="stack">
-            <label>
-              <span class="field-label">决定</span>
-              <select name="decision" required>
-                {#each decisions as d}
-                  <option value={d.value}>{d.label}</option>
-                {/each}
-              </select>
-            </label>
-            <label>
-              <span class="field-label">理由（必填，1–2000 字）</span>
-              <textarea name="reason" rows="4" maxlength="2000" required></textarea>
-            </label>
-            <input type="hidden" name="expected_version" value={appeal?.updated_at ?? ''} />
-            <button type="submit" class="btn btn-primary" data-testid="decide-appeal">提交决定</button>
-          </form>
+          <p class="text-secondary" style="margin:0 0 var(--space-3);font-size:var(--text-sm);">
+            复核决定（支持 / 部分支持 / 驳回）需填写理由（必填，1–2000 字），并携带版本号防止并发冲突。
+          </p>
+          <Button text="作出复核决定" variant="primary" size="sm" onclick={() => (decideOpen = true)} />
         </div>
       </div>
     {/if}
   {/if}
-</div>
+
+  <!-- 复核决定：Dialog 内表单（decision + reason → ?/decide）。 -->
+  <Dialog
+    open={decideOpen}
+    title="作出复核决定"
+    description="选择决定并填写理由（必填，1–2000 字，写入审计）。"
+    onclose={() => (decideOpen = false)}
+  >
+    <form
+      method="POST"
+      action="?/decide"
+      use:enhance={() => async ({ result, update }) => {
+        toastActionResult(result, { message: (d) => (d?.message ?? d?.ok) as string | null });
+        await update();
+        decideOpen = false;
+      }}
+      class="stack"
+    >
+      <label>
+        <span class="field-label">决定</span>
+        <select name="decision" required>
+          {#each decisions as d}
+            <option value={d.value}>{d.label}</option>
+          {/each}
+        </select>
+      </label>
+      <label>
+        <span class="field-label">理由（必填，1–2000 字）</span>
+        <textarea name="reason" rows="4" maxlength="2000" required></textarea>
+      </label>
+      <input type="hidden" name="expected_version" value={appeal?.updated_at ?? ''} />
+      <button type="submit" class="btn btn-primary" data-testid="decide-appeal">提交决定</button>
+    </form>
+  </Dialog>

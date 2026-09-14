@@ -48,6 +48,25 @@ async fn effective_global_roles(pool: &crate::db::DatabasePool, user_id: &str) -
         .unwrap_or_default()
 }
 
+async fn current_trust_level(pool: &crate::db::DatabasePool, user_id: &str) -> i64 {
+    match pool {
+        sqlx::Either::Left(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_optional(p)
+            .await
+            .ok()
+            .flatten(),
+        sqlx::Either::Right(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_optional(p)
+            .await
+            .ok()
+            .flatten(),
+    }
+    .unwrap_or(0)
+    .clamp(0, 4)
+}
+
 // ─── DTO ─────────────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -61,7 +80,7 @@ pub struct LoginRequest {
     pub remember: Option<bool>,
 }
 
-/// 第二步 MFA 登录请求（M02-UX-03）：totp_code 与 recovery_code 二选一。
+/// 第二步 MFA 登录请求（M02-UX-03）：totp_code / recovery_code / passkey 三选一。
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LoginMfaRequest {
@@ -69,6 +88,9 @@ pub struct LoginMfaRequest {
     pub challenge_token: String,
     pub totp_code: Option<String>,
     pub recovery_code: Option<String>,
+    /// 浏览器 navigator.credentials.get() 的原始 JSON（M02-MFA-PK，
+    /// Passkey 作为第二因素与 TOTP/恢复码 OR 共存——恰好一个通过即可）
+    pub passkey: Option<Value>,
 }
 
 /// 第一步登录的 MFA challenge 响应（M02-UX-03）：密码已验证，等待第二因素。
@@ -76,6 +98,9 @@ pub struct LoginMfaRequest {
 struct LoginMfaChallenge {
     mfa_required: bool,
     challenge_token: String,
+    /// 该账号是否注册过 Passkey（true 时第二步可用 Passkey 断言，
+    /// 也可继续用 TOTP/恢复码；M02-MFA-PK）
+    passkey_available: bool,
 }
 
 #[derive(Deserialize)]
@@ -127,6 +152,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/login/mfa", post(login_mfa))
+        .route("/api/v1/auth/bootstrap", post(bootstrap_admin))
         .route("/api/v1/auth/session", delete(logout))
         .route(
             "/api/v1/auth/sessions",
@@ -231,8 +257,23 @@ async fn register(
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     let request_id = "register";
 
-    let registration = validate_register(&req)
-        .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?;
+    // 领域校验（M02-IDENTITY-03）→ 422 `validation_failed` + 字段级
+    // errors[]（field/message_key），前端按字段渲染中文提示（契约
+    // /auth/register 仅声明 201/422/429，不再返回 400 bad_request）。
+    let registration = validate_register(&req).map_err(|e| {
+        AppError::with_code(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validation_failed",
+            "Unprocessable Entity",
+            e.to_string(),
+            request_id,
+        )
+        .with_errors(Some(json!([{
+            "field": e.field(),
+            "code": "validation_failed",
+            "message_key": e.message_key(),
+        }])))
+    })?;
 
     // 双维度限流（先校验，再消费额度；超限不执行任何昂贵操作）
     let now_ms = crate::outbox::now_millis();
@@ -275,6 +316,17 @@ async fn register(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
+    if crate::users::blacklist::is_nickname_blacklisted(pool, &registration.username)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+    {
+        return Err(AppError::bad_request(
+            "该名称已被列入黑名单，禁止注册",
+            request_id,
+            None,
+        ));
+    }
+
     match register_user(pool, &registration, request_id).await {
         Ok(_) => Ok((StatusCode::CREATED, Json(json!({ "ok": true })))),
         // 不泄漏用户名/邮箱是否已存在：与成功响应完全一致
@@ -284,6 +336,130 @@ async fn register(
         Err(RegisterUserError::PasswordHashFailed(e)) => Err(AppError::internal(e, request_id)),
         Err(RegisterUserError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
+}
+
+/// POST /api/v1/auth/bootstrap — 首管理员引导（P0 整改）。
+///
+/// 匿名 + 一次性 bootstrap token（`--bootstrap` 生成）。校验顺序：
+/// token 有效 → 实例未初始化（无 active administrator）→ 注册形状
+/// （复用注册校验与密码强度）。成功创建 active administrator 并永久
+/// 消费 token；重复初始化 409；无效 token 统一 422 防枚举。
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BootstrapRequest {
+    pub token: String,
+    pub username: String,
+    pub email: String,
+    pub password: String,
+}
+
+/// bootstrap 端点限流：每 IP 5 次 / 小时（防 token 暴力猜测）。
+const BOOTSTRAP_IP_LIMIT: u32 = 5;
+/// bootstrap 端点限流窗口：1 小时。
+const BOOTSTRAP_WINDOW_MS: i64 = 60 * 60 * 1000;
+
+async fn bootstrap_admin(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<BootstrapRequest>,
+) -> Result<Response, AppError> {
+    let request_id = "auth_bootstrap";
+    let now = crate::outbox::now_millis();
+    let ip = client_ip(&headers);
+    let limit = state.limiter.check(
+        &format!("bootstrap:ip:{ip}"),
+        BOOTSTRAP_IP_LIMIT,
+        BOOTSTRAP_WINDOW_MS,
+        now,
+    );
+    if !limit.allowed {
+        return Err(AppError::rate_limited(
+            "too many bootstrap attempts, try again later",
+            request_id,
+            limit.retry_after_secs,
+            limit.limit,
+            limit.remaining,
+            limit.reset_at_ms / 1000,
+        ));
+    }
+
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let Some(token_row_id) = crate::bootstrap::validate_bootstrap_token(pool, &req.token, now)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+    else {
+        return Err(AppError::with_code(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "bootstrap_token_invalid",
+            "Unprocessable Entity",
+            "invalid, expired or already used bootstrap token",
+            request_id,
+        ));
+    };
+
+    if crate::bootstrap::has_active_administrator(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+    {
+        return Err(AppError::conflict(
+            "bootstrap already completed: an active administrator exists",
+            request_id,
+        ));
+    }
+
+    // 注册形状校验 + 规范化（与 /auth/register 同规则同错误形状）。
+    let registration = validate_register(&RegisterRequest {
+        username: req.username.clone(),
+        email: req.email.clone(),
+        password: req.password.clone(),
+    })
+    .map_err(|e| {
+        AppError::with_code(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validation_failed",
+            "Unprocessable Entity",
+            e.to_string(),
+            request_id,
+        )
+        .with_errors(Some(json!([{
+            "field": e.field(),
+            "code": "validation_failed",
+            "message_key": e.message_key(),
+        }])))
+    })?;
+    let password_hash = hash_password(&registration.password)
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let user_id = crate::bootstrap::consume_and_create_admin(
+        pool,
+        &token_row_id,
+        &crate::bootstrap::BootstrapAdminInput {
+            username: registration.username_normalized.clone(),
+            email: registration.email_normalized.clone(),
+            password_hash,
+            display_name: Some(registration.username.clone()),
+        },
+        now,
+    )
+    .await
+    .map_err(|e| AppError::conflict(&e, request_id))?;
+
+    tracing::info!(user_id = %user_id, "first administrator created via bootstrap");
+    // 响应携带新建账号数据：私有数据不缓存（M00-FRONTEND-06，契约已声明）。
+    let mut resp = (
+        StatusCode::CREATED,
+        Json(json!({ "ok": true, "user_id": user_id })),
+    )
+        .into_response();
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("private, no-store"),
+    );
+    Ok(resp)
 }
 
 /// POST /api/v1/auth/verify-email — 验证邮箱
@@ -309,11 +485,14 @@ async fn verify_email(
             tracing::info!("email verified successfully");
             Ok(Json(GenericSuccess { ok: true }))
         }
-        // 不存在/已消费/过期统一错误（防 token 枚举）
-        Err(VerifyEmailError::InvalidOrExpired) => Err(AppError::bad_request(
+        // 不存在/已消费/过期统一错误（防 token 枚举）；
+        // 422 `verification_token_invalid`（契约 /auth/verify-email 仅声明 422）
+        Err(VerifyEmailError::InvalidOrExpired) => Err(AppError::with_code(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "verification_token_invalid",
+            "Unprocessable Entity",
             "invalid or expired verification token",
             request_id,
-            None,
         )),
         Err(VerifyEmailError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
@@ -333,11 +512,8 @@ async fn resend_verification(
 
     let email_normalized = crate::auth::normalize_email(req.email.trim());
     if !valid_email_shape(&email_normalized) {
-        return Err(AppError::bad_request(
-            "invalid email format",
-            request_id,
-            Some(json!({ "field": "email" })),
-        ));
+        // 422 `validation_failed`（契约仅声明 202/422/429）+ email 字段提示
+        return Err(email_validation_error(request_id));
     }
 
     // IP 维度防刷
@@ -436,8 +612,8 @@ async fn login(
     .await
     {
         Ok(outcome) => {
-            // 启用 TOTP：第一步只签发一次性 challenge（不写会话 Cookie），
-            // 前端进入第二步 /auth/login/mfa（M02-UX-03）。
+            // 启用第二因素（TOTP 或 Passkey，M02-MFA-PK）：第一步只签发一次性
+            // challenge（不写会话 Cookie），前端进入第二步 /auth/login/mfa。
             if outcome.mfa_required {
                 let challenge_token = crate::auth::start_mfa_login(
                     pool,
@@ -446,22 +622,29 @@ async fn login(
                 )
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                // Passkey 入口提示：仅当服务端已配置且该账号有有效 Passkey
+                let passkey_available = !state.config.passkey_rp_id.is_empty()
+                    && crate::auth::passkey::has_active_passkey(pool, &outcome.user_id)
+                        .await
+                        .unwrap_or(false);
                 return Ok((
                     StatusCode::OK,
                     [(header::CACHE_CONTROL, "private, no-store")],
                     Json(LoginMfaChallenge {
                         mfa_required: true,
                         challenge_token,
+                        passkey_available,
                     }),
                 )
                     .into_response());
             }
 
             let cookie = build_session_cookie(&outcome.session_token);
-            let mfa_enabled = crate::auth::has_confirmed_totp(pool, &outcome.user_id)
+            let mfa_enabled = crate::auth::passkey::has_second_factor(pool, &outcome.user_id)
                 .await
                 .unwrap_or(false);
             let roles = effective_global_roles(pool, &outcome.user_id).await;
+            let trust_level = current_trust_level(pool, &outcome.user_id).await;
 
             // 登录后自动签到（若配置开启）：
             if let Ok(cfg) = crate::economy::activity::service::get_activity_config(pool).await {
@@ -487,10 +670,12 @@ async fn login(
                 theme_name: None,
                 email_visible_to: "nobody".to_string(),
                 profile_visible_to: "everyone".to_string(),
-                level: 1,
+                level: trust_level,
                 roles,
                 mfa_enabled,
                 version: 1,
+                presentation_tokens: None,
+                avatar_attachment_id: None,
             };
             Ok((
                 StatusCode::OK,
@@ -499,10 +684,16 @@ async fn login(
             )
                 .into_response())
         }
-        // 不区分账号不存在/密码错误/账号被禁（防枚举）
-        Err(LoginError::InvalidCredentials) => {
-            Err(AppError::unauthorized("invalid credentials", request_id))
-        }
+        // 不区分账号不存在/密码错误/账号被禁（防枚举）；
+        // 稳定码 invalid_credentials（ERROR-CODES.md）——前端渲染
+        // 「用户名或密码不正确」，不再落入 unauthorized 的「请先登录」文案。
+        Err(LoginError::InvalidCredentials) => Err(AppError::with_code(
+            StatusCode::UNAUTHORIZED,
+            "invalid_credentials",
+            "Unauthorized",
+            "invalid credentials",
+            request_id,
+        )),
         Err(LoginError::RateLimited {
             retry_after_secs,
             limit,
@@ -523,13 +714,14 @@ async fn login(
 /// POST /api/v1/auth/login/mfa — 第二步 MFA 登录（M02-UX-03）
 ///
 /// 用一次性 challenge + TOTP code 或恢复码完成登录：
-/// - challenge 不存在/已消费/过期 → 400（统一，防枚举）；
-/// - TOTP/恢复码错误 → 401 统一 invalid credentials（不泄漏细节）；
+/// - challenge 不存在/已消费/过期 → 422 `mfa_challenge_invalid`（统一，防枚举）；
+/// - TOTP/恢复码错误 → 401 统一 `mfa_code_invalid`（不泄漏细节）；
 /// - 成功 → 200 Me + 会话 Cookie。
 ///
 /// 会话签发即 auth_verified_at=now（step-up 即刻满足，M02-MFA-07）。
 async fn login_mfa(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<LoginMfaRequest>,
 ) -> Result<Response, AppError> {
     let request_id = "login-mfa";
@@ -537,6 +729,11 @@ async fn login_mfa(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    // 会话需记录设备 UA（设备列表展示 / 首见设备判定），与一步登录一致
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok());
 
     let has_code = req
         .totp_code
@@ -550,9 +747,14 @@ async fn login_mfa(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .is_some();
-    // 二选一：都不给或都给 → 统一 401（不泄漏校验规则细节）
-    if has_code == has_recovery {
-        return Err(AppError::unauthorized(
+    let has_passkey = req.passkey.as_ref().map(|v| !v.is_null()).unwrap_or(false);
+    // 三选一（M02-MFA-PK）：都不给或给多个 → 统一 401（不泄漏校验规则细节；
+    // 稳定码 mfa_code_invalid——与第二因素错误同一语义，防组合枚举）
+    if has_code as u8 + has_recovery as u8 + has_passkey as u8 != 1 {
+        return Err(AppError::with_code(
+            StatusCode::UNAUTHORIZED,
+            "mfa_code_invalid",
+            "Unauthorized",
             "invalid MFA credentials",
             request_id,
         ));
@@ -565,12 +767,19 @@ async fn login_mfa(
         ));
     }
 
+    // Passkey 实例：未配置（rp_id 为空）→ None，complete_mfa_login 内部统一
+    // 以 InvalidCode 失败（不向未通过密码步的调用方泄漏服务端配置状态）
+    let webauthn = crate::auth::passkey::build_webauthn(&state.config);
+
     match crate::auth::complete_mfa_login(
         pool,
         &req.challenge_token,
         req.totp_code.as_deref(),
         req.recovery_code.as_deref(),
+        req.passkey.as_ref(),
+        ua,
         state.config.mfa_encryption_key.as_bytes(),
+        webauthn.as_ref(),
         request_id,
     )
     .await
@@ -579,6 +788,7 @@ async fn login_mfa(
             let cookie = build_session_cookie(&completed.session_token);
             // 第二步完成时 TOTP 必然已启用（mfa_required 由 has_confirmed_totp 判定）
             let roles = effective_global_roles(pool, &completed.user_id).await;
+            let trust_level = current_trust_level(pool, &completed.user_id).await;
 
             // 登录后自动签到（若配置开启）：
             if let Ok(cfg) = crate::economy::activity::service::get_activity_config(pool).await {
@@ -604,10 +814,12 @@ async fn login_mfa(
                 theme_name: None,
                 email_visible_to: "nobody".to_string(),
                 profile_visible_to: "everyone".to_string(),
-                level: 1,
+                level: trust_level,
                 roles,
                 mfa_enabled: true,
                 version: 1,
+                presentation_tokens: None,
+                avatar_attachment_id: None,
             };
             Ok((
                 StatusCode::OK,
@@ -616,12 +828,22 @@ async fn login_mfa(
             )
                 .into_response())
         }
-        Err(crate::auth::MfaLoginError::InvalidChallenge) => Err(AppError::bad_request(
+        // challenge 不存在/已消费/过期 → 422（契约仅声明 401/422/429）：
+        // 稳定码 mfa_challenge_invalid——前端提示从第一步重新登录。
+        Err(crate::auth::MfaLoginError::InvalidChallenge) => Err(AppError::with_code(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "mfa_challenge_invalid",
+            "Unprocessable Entity",
             "invalid or expired MFA challenge",
             request_id,
-            None,
         )),
-        Err(crate::auth::MfaLoginError::InvalidCode) => Err(AppError::unauthorized(
+        // TOTP/恢复码错误 → 401 统一（不泄漏第二因素细节）；
+        // 稳定码 mfa_code_invalid——前端提示「验证码不正确或已过期」，
+        // 不再落入 unauthorized 的「请先登录」文案（M02-UX-03 用户反馈）。
+        Err(crate::auth::MfaLoginError::InvalidCode) => Err(AppError::with_code(
+            StatusCode::UNAUTHORIZED,
+            "mfa_code_invalid",
+            "Unauthorized",
             "invalid MFA credentials",
             request_id,
         )),
@@ -726,11 +948,8 @@ async fn request_password_reset(
 
     let email_normalized = crate::auth::normalize_email(req.email.trim());
     if !valid_email_shape(&email_normalized) {
-        return Err(AppError::bad_request(
-            "invalid email format",
-            request_id,
-            Some(json!({ "field": "email" })),
-        ));
+        // 422 `validation_failed`（契约仅声明 202/422/429）+ email 字段提示
+        return Err(email_validation_error(request_id));
     }
 
     // IP 维度限流
@@ -811,11 +1030,14 @@ async fn confirm_password_reset(
             tracing::info!(user_id = %outcome.user_id, "password reset successful");
             Ok(Json(GenericSuccess { ok: true }))
         }
-        // 不存在/已消费/过期统一错误（防 token 枚举）
-        Err(ConfirmResetError::InvalidOrExpired) => Err(AppError::bad_request(
+        // 不存在/已消费/过期统一错误（防 token 枚举）；
+        // 422 `reset_token_invalid`（契约 /auth/password-reset/confirm 仅声明 422）
+        Err(ConfirmResetError::InvalidOrExpired) => Err(AppError::with_code(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "reset_token_invalid",
+            "Unprocessable Entity",
             "invalid or expired reset token",
             request_id,
-            None,
         )),
         Err(ConfirmResetError::Database(e)) => Err(AppError::internal(e.to_string(), request_id)),
     }
@@ -825,21 +1047,57 @@ async fn confirm_password_reset(
 
 #[allow(clippy::result_large_err)] // AppError 为全 handler 统一错误类型，体积固定可接受
 fn validate_password(password: &str, request_id: &str) -> Result<(), AppError> {
+    // 422 `validation_failed`（契约 /auth/password-reset/confirm 仅声明 422），
+    // 附字段级 errors[] 供前端在 password 字段渲染中文提示。
     if password.len() < 8 {
-        return Err(AppError::bad_request(
+        return Err(password_validation_error(
+            "password_length",
             "password must be at least 8 characters",
             request_id,
-            Some(json!({ "field": "password" })),
         ));
     }
     if password.len() > 256 {
-        return Err(AppError::bad_request(
+        return Err(password_validation_error(
+            "password_length",
             "password must be at most 256 characters",
             request_id,
-            Some(json!({ "field": "password" })),
         ));
     }
     Ok(())
+}
+
+/// 密码字段校验失败 → 422 `validation_failed` + password 字段 message_key。
+#[allow(clippy::result_large_err)]
+fn password_validation_error(message_key: &str, detail: &str, request_id: &str) -> AppError {
+    AppError::with_code(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "validation_failed",
+        "Unprocessable Entity",
+        detail,
+        request_id,
+    )
+    .with_errors(Some(json!([{
+        "field": "password",
+        "code": "validation_failed",
+        "message_key": message_key,
+    }])))
+}
+
+/// 邮箱字段校验失败 → 422 `validation_failed` + email 字段 message_key。
+#[allow(clippy::result_large_err)]
+fn email_validation_error(request_id: &str) -> AppError {
+    AppError::with_code(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "validation_failed",
+        "Unprocessable Entity",
+        "invalid email format",
+        request_id,
+    )
+    .with_errors(Some(json!([{
+        "field": "email",
+        "code": "validation_failed",
+        "message_key": "email_invalid",
+    }])))
 }
 
 /// 基础邮箱格式检查（规范化后：恰好一个 @、本地/域名非空、域名含 `.`）。

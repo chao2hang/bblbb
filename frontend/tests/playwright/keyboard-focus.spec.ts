@@ -104,11 +104,15 @@ test.describe('减少动效（reduced motion）', () => {
 });
 
 test.describe('键盘登录流程（member 会话）', () => {
-  test('登录态下 Tab 可达导航链接', async ({ page }) => {
+  test('登录态下 Tab 可达导航链接', async ({ page }, testInfo) => {
     await loginAs(page, 'alice');
     await page.goto('/');
-    // banner 内链接可聚焦。
-    await expect(page.getByRole('banner')).toBeVisible();
+    // 桌面顶栏、移动底栏都提供可聚焦导航；移动端顶栏按设计隐藏。
+    if (testInfo.project.name === 'mobile-chromium') {
+      await expect(page.getByRole('navigation', { name: '移动端底部导航' })).toBeVisible();
+    } else {
+      await expect(page.getByRole('banner')).toBeVisible();
+    }
     await page.keyboard.press('Tab');
     // Tab 后焦点应落在文档内可聚焦元素（skip link 或导航链接）。
     const focusedTag = await page.evaluate(() => document.activeElement?.tagName ?? '');

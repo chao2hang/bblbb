@@ -398,7 +398,7 @@ async fn other_preauth_write_paths_require_csrf() {
         );
     }
 
-    // 携带正确预认证 CSRF 后放行（verify 走到 token 校验 → 400 统一错误，
+    // 携带正确预认证 CSRF 后放行（verify 走到 token 校验 → 422 统一错误，
     // password-reset 统一 202）
     let (cookie, csrf) = common::fetch_preauth(&app).await;
     let cookie_value = cookie.split(';').next().unwrap();
@@ -418,8 +418,8 @@ async fn other_preauth_write_paths_require_csrf() {
         .unwrap();
     assert_eq!(
         verify.status(),
-        StatusCode::BAD_REQUEST,
-        "放行后由 token 校验统一返回 400"
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "放行后由 token 校验统一返回 422"
     );
 
     let reset = app

@@ -4,10 +4,10 @@
   - 单激活语义：一人对同一目标只保留一个激活反应；选择器中点击不同表情即切换
     （先移除旧反应再添加新反应，后端事务内原子完成），响应含完整 counts 时以服务端回同步。
   - 右侧「+ 表情」选择器负责添加/切换/撤销反应（选择器内已激活项高亮，点击即撤销）。
-  - onReactionMutated 回调把变更结果回传父级，联动行内并行动作按钮（侧栏赞/狗头）。
+  - onReactionMutated 回调把变更结果回传父级，联动行内快捷动作按钮（侧栏赞）。
   - 429 限流：显示 Retry-After 秒数并禁用按钮（冷却倒计时）。
   - 403 目标权限错误 / 401 未登录：分别给出指引。
-  - 通知偏好：仅作者提示可在 /settings#settings-notifications 偏好中关闭；非作者提示反应可能通知作者。
+  - 通知偏好：不渲染任何通知提示（产品移除「可在通知设置中关闭」作者提示）。
   - 键盘与无障碍：原生 <button>（Enter/Space 激活，Esc 关闭弹窗）。
 -->
 <script lang="ts">
@@ -28,16 +28,15 @@
   import HuajiIcon from '$lib/components/ui/HuajiIcon.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import { AVAILABLE_REACTIONS, getReactionDef } from '$lib/reactions';
+  import { SHEET_MEDIA_QUERY, sheetDrag } from '$lib/utils/sheet-drag';
 
   let {
     targetType,
     targetId,
     reactions = [],
     authed = true,
-    isAuthor = false,
     currentUser = null,
     fetchFn = fetch,
-    notificationUrl = '/settings#settings-notifications',
     onReactionMutated,
     rightActions
   }: {
@@ -46,11 +45,9 @@
     /** 初始计数 [{reaction, count, active}]；父级随服务端结果更新时组件同步种子项。 */
     reactions?: Array<{ reaction: string; count: number; active?: boolean }>;
     authed?: boolean;
-    isAuthor?: boolean;
     currentUser?: { id?: string; username?: string; display_name?: string | null } | null;
     fetchFn?: typeof fetch;
-    notificationUrl?: string;
-    /** 本组件完成一次添加/撤销后回传结果，供父级同步并行动作按钮（如侧栏赞/狗头）。 */
+    /** 本组件完成一次添加/撤销后回传结果，供父级同步行内快捷动作按钮（如侧栏赞）。 */
     onReactionMutated?: (payload: {
       reaction: string;
       active: boolean;
@@ -91,6 +88,79 @@
   let detailLoaded = $state(false);
 
   let barContainer: HTMLElement | null = $state(null);
+
+  // ── 弹层 portal（对齐 UserCard M03-UI-04 方案）──
+  // 卡片/面板（.card/.app-card）带 overflow:hidden，弹层原来用 absolute 向上展开时
+  // 会被父卡片裁剪（截半）。改为：弹层挂到 document.body（portal）+ fixed 定位，
+  // 依据触发元素矩形定位（优先上方，上方空间不足自动翻到下方，并夹紧在视口内），
+  // 彻底避免被 overflow/transform 祖先裁剪。Svelte 5 委托事件同时挂在 document 上，
+  // 移动节点不影响 onclick（见 svelte render.js root 事件监听注释）。
+  let pickerBtn: HTMLButtonElement | null = $state(null);
+  let detailTrigger: HTMLElement | null = $state(null);
+  let pickerPopEl: HTMLElement | null = $state(null);
+  let detailPopEl: HTMLElement | null = $state(null);
+
+  // 手机端断点（≤767px）：弹层以 Bottom Sheet 模态呈现（docs/MOBILE-SHEET.md）。
+  let isNarrow = $state(false);
+  $effect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(SHEET_MEDIA_QUERY);
+    isNarrow = mq.matches;
+    const onChange = (e: MediaQueryListEvent) => (isNarrow = e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  });
+
+  const POPLAYER_EDGE = 8;
+
+  function positionPopover(
+    pop: HTMLElement | null,
+    trigger: HTMLElement | null,
+    align: 'left' | 'right'
+  ) {
+    if (!pop || !trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const popRect = pop.getBoundingClientRect();
+    const popW = popRect.width || pop.offsetWidth || 290;
+    const popH = popRect.height || pop.offsetHeight || 160;
+    // 优先在触发元素上方展开（与原 bottom: calc(100% + 8px) 一致）；上方放不下翻到下方
+    let top = rect.top - popH - POPLAYER_EDGE;
+    if (top < POPLAYER_EDGE) top = rect.bottom + POPLAYER_EDGE;
+    const maxTop = Math.max(POPLAYER_EDGE, window.innerHeight - popH - POPLAYER_EDGE);
+    top = Math.max(POPLAYER_EDGE, Math.min(top, maxTop));
+    // 选择器右对齐触发按钮（原 right:0），明细弹窗左对齐触发 Pill（原 left:0）
+    let left = align === 'right' ? rect.right - popW : rect.left;
+    left = Math.max(POPLAYER_EDGE, Math.min(left, window.innerWidth - popW - POPLAYER_EDGE));
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(top)}px`;
+  }
+
+  function positionActivePopovers() {
+    positionPopover(pickerPopEl, pickerBtn, 'right');
+    positionPopover(detailPopEl, detailTrigger, 'left');
+  }
+
+  /** portal action：把弹层节点移入 document.body 并定位；销毁时还原清理。 */
+  function portalPopover(node: HTMLElement, params: {
+    getTrigger: () => HTMLElement | null;
+    align: 'left' | 'right';
+    register: (el: HTMLElement | null) => void;
+  }) {
+    document.body.appendChild(node);
+    params.register(node);
+    positionPopover(node, params.getTrigger(), params.align);
+    // 二次定位：等待首帧字体/内容最终度量，修正微小偏差
+    const raf = requestAnimationFrame(() =>
+      positionPopover(node, params.getTrigger(), params.align)
+    );
+    return {
+      destroy() {
+        cancelAnimationFrame(raf);
+        params.register(null);
+        node.remove();
+      }
+    };
+  }
 
   $effect(() => {
     if (cooldownUntil <= Date.now()) return;
@@ -165,14 +235,20 @@
   });
 
   // 点击左侧反应图标：打开明细弹窗并定位到对应 Tab；已打开且 Tab 相同时再次点击收起
-  function openDetail(reaction: string) {
+  function openDetail(reaction: string, trigger?: EventTarget | null) {
     pickerOpen = false;
+    if (trigger instanceof HTMLElement) detailTrigger = trigger;
     if (detailOpen && activeTab === reaction) {
       detailOpen = false;
       return;
     }
+    const wasOpen = detailOpen;
     activeTab = reaction;
     detailOpen = true;
+    if (wasOpen) {
+      // 已展开时点击另一 Pill 切 Tab：跟随新触发元素重新定位
+      positionPopover(detailPopEl, detailTrigger, 'left');
+    }
     loadDetail();
   }
 
@@ -329,14 +405,21 @@
   function handleWindowClick(event: MouseEvent) {
     if (!barContainer) return;
     const target = event.target as Node | null;
-    if (target && !barContainer.contains(target)) {
-      pickerOpen = false;
-      detailOpen = false;
-    }
+    if (!target) return;
+    if (barContainer.contains(target)) return;
+    // 弹层经 portal 挂在 body 下：弹层内部的点击（选表情/切 Tab）不视为「外部点击」
+    if (pickerPopEl?.contains(target) || detailPopEl?.contains(target)) return;
+    pickerOpen = false;
+    detailOpen = false;
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} onclick={handleWindowClick} />
+<svelte:window
+  onkeydown={handleKeydown}
+  onclick={handleWindowClick}
+  onscroll={positionActivePopovers}
+  onresize={positionActivePopovers}
+/>
 
 <div class="reaction-bar" bind:this={barContainer}>
   {#if errorText}
@@ -357,7 +440,7 @@
               aria-label="查看 {def.label} 反应明细（{item.count} 次）"
               aria-haspopup="dialog"
               aria-expanded={detailOpen && activeTab === item.reaction}
-              onclick={() => openDetail(item.reaction)}
+              onclick={(e) => openDetail(item.reaction, e.currentTarget)}
             >
               {#if def.customIcon === 'doge'}
                 <DogeIcon size={16} />
@@ -372,13 +455,29 @@
         </div>
       {/if}
 
+      {#if pickerOpen || detailOpen}
+        <!-- 手机端 Bottom Sheet scrim（桌面 display:none，docs/MOBILE-SHEET.md） -->
+        <button
+          type="button"
+          class="app-sheet-backdrop"
+          aria-label="关闭弹层"
+          onclick={() => {
+            pickerOpen = false;
+            detailOpen = false;
+          }}
+        ></button>
+      {/if}
+
       {#if detailOpen}
         <!-- 反应用户明细弹窗（Tab 切换 + 用户列表） -->
         <div
           class="reaction-detail-popover"
           role="dialog"
           aria-label="收到的表情"
+          aria-modal={isNarrow ? 'true' : undefined}
+          use:portalPopover={{ getTrigger: () => detailTrigger, align: 'left', register: (el) => (detailPopEl = el) }}
         >
+          <div class="app-sheet-grab" aria-hidden="true" use:sheetDrag={{ onClose: () => (detailOpen = false) }}></div>
           <!-- 顶部 Tab 切换：所有 + 收到各表情 -->
           <div class="rx-popover-header">
             <button
@@ -419,7 +518,7 @@
                 {@const def = getDef(u.reaction)}
                 <div class="rx-user-row">
                   <div class="rx-user-meta">
-                    <Avatar name={u.display_name || u.username} size="sm" />
+                    <Avatar name={u.display_name || u.username} size="sm" seed={u.username ?? u.user_id} />
                     <div class="rx-user-names">
                       <span class="rx-user-display-name">{u.display_name || u.username}</span>
                       <span class="rx-user-handle">@{u.username}</span>
@@ -448,18 +547,19 @@
         <button
           type="button"
           class="reaction-add-btn {pickerOpen ? 'is-open' : ''}"
-          aria-label="添加表情反应"
-          title="选择表情互动（含滑稽狗头、滑稽脸等）"
+          aria-label={authed ? '添加表情反应' : '登录后添加表情反应'}
+          title={authed ? '选择表情互动（含滑稽狗头、滑稽脸等）' : '登录后可参与表情互动'}
           aria-haspopup="dialog"
           aria-expanded={pickerOpen}
           disabled={busyReaction !== null || cooldownLeft > 0}
+          bind:this={pickerBtn}
           onclick={() => {
             pickerOpen = !pickerOpen;
             if (pickerOpen) detailOpen = false;
           }}
         >
           <Icon name="smile" size={15} />
-          <span class="reaction-add-label">+ 表情</span>
+          <span class="reaction-add-label">{authed ? '+ 表情' : '表情'}</span>
         </button>
 
         {#if pickerOpen}
@@ -467,35 +567,53 @@
             class="reaction-picker-popover"
             role="dialog"
             aria-label="选择表情"
+            aria-modal={isNarrow ? 'true' : undefined}
+            use:portalPopover={{ getTrigger: () => pickerBtn, align: 'right', register: (el) => (pickerPopEl = el) }}
           >
+            <div class="app-sheet-grab" aria-hidden="true" use:sheetDrag={{ onClose: () => (pickerOpen = false) }}></div>
             <div class="reaction-picker-header">
               <span class="reaction-picker-title">添加互动表态</span>
             </div>
-            <div class="reaction-picker-grid">
-              {#each AVAILABLE_REACTIONS as r (r.key)}
-                {@const active = items.find(
-                  (i) => (i.reaction === r.key || i.reaction === r.emoji) && i.active
-                )}
-                <button
-                  type="button"
-                  class="reaction-picker-item {active ? 'is-active' : ''}"
-                  title="{r.label} ({r.desc})"
-                  aria-label="{r.label}"
-                  onclick={() => pickReaction(r.key)}
+            {#if !authed}
+              <div style="padding: 16px 14px; text-align: center;">
+                <p style="margin: 0 0 10px; font-size: var(--text-sm); color: var(--color-text-secondary);">
+                  登录后即可给内容添加表情互动
+                </p>
+                <a
+                  class="btn primary sm"
+                  href="/login?next={encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname + window.location.search : '')}"
+                  style="text-decoration: none; display: inline-flex;"
                 >
-                  <span class="reaction-picker-icon">
-                    {#if r.customIcon === 'doge'}
-                      <DogeIcon size={26} />
-                    {:else if r.customIcon === 'huaji'}
-                      <HuajiIcon size={26} />
-                    {:else}
-                      <span class="reaction-picker-emoji">{r.emoji}</span>
-                    {/if}
-                  </span>
-                  <span class="reaction-picker-name">{r.label}</span>
-                </button>
-              {/each}
-            </div>
+                  去登录
+                </a>
+              </div>
+            {:else}
+              <div class="reaction-picker-grid">
+                {#each AVAILABLE_REACTIONS as r (r.key)}
+                  {@const active = items.find(
+                    (i) => (i.reaction === r.key || i.reaction === r.emoji) && i.active
+                  )}
+                  <button
+                    type="button"
+                    class="reaction-picker-item {active ? 'is-active' : ''}"
+                    title="{r.label} ({r.desc})"
+                    aria-label="{r.label}"
+                    onclick={() => pickReaction(r.key)}
+                  >
+                    <span class="reaction-picker-icon">
+                      {#if r.customIcon === 'doge'}
+                        <DogeIcon size={26} />
+                      {:else if r.customIcon === 'huaji'}
+                        <HuajiIcon size={26} />
+                      {:else}
+                        <span class="reaction-picker-emoji">{r.emoji}</span>
+                      {/if}
+                    </span>
+                    <span class="reaction-picker-name">{r.label}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -507,16 +625,6 @@
       {/if}
     </div>
   </div>
-
-  {#if isAuthor}
-    <p class="input-hint">
-      收到反应会向你发送通知，可在<a href={notificationUrl}>通知设置</a>中关闭
-    </p>
-  {:else}
-    <p class="input-hint">
-      反应可能通知作者
-    </p>
-  {/if}
 </div>
 
 <style>
@@ -572,10 +680,12 @@
     gap: 6px;
     height: 28px;
     padding: 0 10px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-default, #e5e3db);
-    background: var(--color-bg-subtle, #f5f4ef);
-    color: var(--color-text-secondary, #53605b);
+    /* 圆角跟随主题 radius.control（--radius-sm），与「+ 表情」按钮及全局控件一致；
+       不再硬编码 999px 胶囊形——零圆角主题下保持直角。 */
+    border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--color-border, #DFE3E7);
+    background: var(--color-bg-subtle, #F1F3F5);
+    color: var(--color-text-secondary, #545C68);
     font-size: 13px;
     font-weight: var(--weight-medium, 500);
     cursor: pointer;
@@ -584,13 +694,12 @@
 
   .rx-pill:hover,
   .rx-pill.is-open {
-    background: var(--color-surface-hover, #ebe9df);
-    border-color: var(--color-border-strong, #c8c5b9);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    background: var(--color-surface-hover, #F1F3F5);
+    border-color: var(--color-border-strong, #B8C0C9);
   }
 
   .rx-pill:focus-visible {
-    outline: 2px solid var(--color-focus-ring, #b23e2a);
+    outline: 2px solid var(--color-brand, #2C4BD8);
     outline-offset: 1px;
   }
 
@@ -603,31 +712,27 @@
   .rx-pill-count {
     font-size: 12px;
     font-weight: 600;
-    color: var(--color-text-secondary, #53605b);
+    color: var(--color-text-secondary, #545C68);
   }
 
-  /* 参考截图的表情详情弹窗 */
+  /* 参考截图的表情详情弹窗（portal 到 body + fixed 定位，left/top 由 JS 按触发元素写入）。
+     浮层表面统一走语义 token：下拉/模态用 --color-bg-raised（tokens.css 设计约定），
+     边框/阴影/文字全部跟随日夜与数据型主题，不再硬编码暗色覆盖。 */
   .reaction-detail-popover {
-    position: absolute;
-    bottom: calc(100% + 8px);
+    position: fixed;
     left: 0;
+    top: 0;
     width: 290px;
     max-width: 90vw;
-    background: var(--color-bg-card, #ffffff);
-    border: 1px solid var(--color-border-default, #e5e3db);
+    background: var(--color-bg-raised, #FFFFFF);
+    border: 1px solid var(--color-border, #DFE3E7);
     border-radius: var(--radius-md, 10px);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.08);
-    z-index: 70;
+    box-shadow: var(--shadow-pop, 0 12px 32px rgba(0, 0, 0, 0.16));
+    z-index: var(--z-dropdown, 100);
     padding: 8px 0;
     display: flex;
     flex-direction: column;
     animation: popoverFadeIn 0.15s ease-out;
-  }
-
-  :global([data-theme='dark']) .reaction-detail-popover {
-    background: #1e2424;
-    border-color: #313b3b;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
   }
 
   @keyframes popoverFadeIn {
@@ -647,13 +752,9 @@
     align-items: center;
     gap: 4px;
     padding: 2px 8px 8px 8px;
-    border-bottom: 1px solid var(--color-border-subtle, #edece6);
+    border-bottom: 1px solid var(--color-border-muted, #E7EAEE);
     overflow-x: auto;
     scrollbar-width: none;
-  }
-
-  :global([data-theme='dark']) .rx-popover-header {
-    border-bottom-color: #2b3535;
   }
 
   .rx-popover-header::-webkit-scrollbar {
@@ -668,7 +769,7 @@
     border-radius: var(--radius-sm, 6px);
     border: none;
     background: transparent;
-    color: var(--color-text-secondary, #53605b);
+    color: var(--color-text-secondary, #545C68);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -677,28 +778,14 @@
   }
 
   .rx-popover-tab:hover {
-    background: var(--color-surface-hover, #edece6);
-    color: var(--color-text-primary, #17211f);
+    background: var(--color-surface-hover, #F1F3F5);
+    color: var(--color-text-primary, #10141A);
   }
 
-  /* 选中 Tab：参考截图中的高亮样式 */
+  /* 选中 Tab：品牌色当前态（双模式自适应——亮底深强调白字 / 深底浅强调深字） */
   .rx-popover-tab.is-active {
-    background: #0e637a;
-    color: #ffffff !important;
-  }
-
-  :global([data-theme='dark']) .rx-popover-tab {
-    color: #9bb0a8;
-  }
-
-  :global([data-theme='dark']) .rx-popover-tab:hover {
-    background: #2b3535;
-    color: #ffffff;
-  }
-
-  :global([data-theme='dark']) .rx-popover-tab.is-active {
-    background: #14809e;
-    color: #ffffff !important;
+    background: var(--color-brand, #2C4BD8);
+    color: var(--color-text-on-brand, #FFFFFF);
   }
 
   .rx-tab-count {
@@ -716,7 +803,7 @@
   .rx-popover-status {
     padding: 16px;
     text-align: center;
-    color: var(--color-text-tertiary, #8a9994);
+    color: var(--color-text-tertiary, #737373);
     font-size: 12px;
   }
 
@@ -730,11 +817,7 @@
   }
 
   .rx-user-row:hover {
-    background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
-  }
-
-  :global([data-theme='dark']) .rx-user-row:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-surface-hover, #F1F3F5);
   }
 
   .rx-user-meta {
@@ -754,19 +837,15 @@
   .rx-user-display-name {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color-text-primary, #17211f);
+    color: var(--color-text-primary, #10141A);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  :global([data-theme='dark']) .rx-user-display-name {
-    color: #f0f2f1;
-  }
-
   .rx-user-handle {
     font-size: 11px;
-    color: var(--color-text-tertiary, #8a9994);
+    color: var(--color-text-tertiary, #737373);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -795,10 +874,10 @@
     gap: 5px;
     height: 32px;
     padding: 0 10px;
-    border: 1px solid var(--color-border-default, #e5e3db);
+    border: 1px solid var(--color-border, #DFE3E7);
     border-radius: var(--radius-sm, 6px);
     background: transparent;
-    color: var(--color-text-secondary, #53605b);
+    color: var(--color-text-secondary, #545C68);
     cursor: pointer;
     font-size: 13px;
     transition: all 0.15s;
@@ -806,9 +885,9 @@
 
   .reaction-add-btn:hover,
   .reaction-add-btn.is-open {
-    border-color: var(--color-brand, #b23e2a);
-    color: var(--color-brand, #b23e2a);
-    background: var(--color-surface-hover, #edece6);
+    border-color: var(--color-brand, #2C4BD8);
+    color: var(--color-brand, #2C4BD8);
+    background: var(--color-surface-hover, #F1F3F5);
   }
 
   .reaction-add-label {
@@ -816,42 +895,32 @@
     font-weight: 500;
   }
 
-  /* 快速表情选择弹窗 */
+  /* 快速表情选择弹窗（portal 到 body + fixed 定位，left/top 由 JS 按触发元素写入） */
   .reaction-picker-popover {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
+    position: fixed;
+    left: 0;
+    top: 0;
     width: 290px;
     max-width: 90vw;
-    background: var(--color-bg-card, #ffffff);
-    border: 1px solid var(--color-border-default, #e5e3db);
+    background: var(--color-bg-raised, #FFFFFF);
+    border: 1px solid var(--color-border, #DFE3E7);
     border-radius: var(--radius-md, 8px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-    z-index: 70;
+    box-shadow: var(--shadow-pop, 0 10px 25px rgba(0, 0, 0, 0.16));
+    z-index: var(--z-dropdown, 100);
     padding: 10px;
     animation: popoverFadeIn 0.15s ease-out;
-  }
-
-  :global([data-theme='dark']) .reaction-picker-popover {
-    background: #1e2424;
-    border-color: #313b3b;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
   }
 
   .reaction-picker-header {
     padding-bottom: 6px;
     margin-bottom: 6px;
-    border-bottom: 1px solid var(--color-border-subtle, #edece6);
-  }
-
-  :global([data-theme='dark']) .reaction-picker-header {
-    border-bottom-color: #2b3535;
+    border-bottom: 1px solid var(--color-border-muted, #E7EAEE);
   }
 
   .reaction-picker-title {
     font-size: 12px;
     font-weight: 600;
-    color: var(--color-text-secondary, #53605b);
+    color: var(--color-text-secondary, #545C68);
   }
 
   .reaction-picker-grid {
@@ -875,24 +944,14 @@
   }
 
   .reaction-picker-item:hover {
-    background: var(--color-surface-hover, #edece6);
-    border-color: var(--color-border-subtle, #edece6);
+    background: var(--color-surface-hover, #F1F3F5);
+    border-color: var(--color-border, #DFE3E7);
     transform: translateY(-1px);
   }
 
-  :global([data-theme='dark']) .reaction-picker-item:hover {
-    background: #2b3535;
-    border-color: #3b4747;
-  }
-
   .reaction-picker-item.is-active {
-    background: var(--color-brand-surface, #fdf0ed);
-    border-color: var(--color-brand, #b23e2a);
-  }
-
-  :global([data-theme='dark']) .reaction-picker-item.is-active {
-    background: rgba(178, 62, 42, 0.2);
-    border-color: var(--color-brand, #f27759);
+    background: var(--color-brand-soft, #F1F3F5);
+    border-color: var(--color-brand, #2C4BD8);
   }
 
   .reaction-picker-icon {
@@ -910,14 +969,14 @@
 
   .reaction-picker-name {
     font-size: 11px;
-    color: var(--color-text-secondary, #53605b);
+    color: var(--color-text-secondary, #545C68);
     white-space: nowrap;
   }
 
   .input-hint {
     margin-top: 6px;
     font-size: 12px;
-    color: var(--color-text-tertiary, #8a9994);
+    color: var(--color-text-tertiary, #737373);
   }
 
   .input-hint.is-error {

@@ -23,14 +23,8 @@
   <link rel="canonical" href={canonical} />
 </svelte:head>
 
-<div class="container page-content app-settings-page">
-  <div class="app-route-head">
-    <div class="app-route-head__copy">
-      <span class="app-kicker">ACCOUNT / PRIVACY</span>
-      <h1 tabindex="-1">隐私设置</h1>
-      <p>控制公开资料、搜索引擎与 AI 摘要的索引边界</p>
-    </div>
-  </div>
+<div class="container page-content app-page app-settings-page" id="page-settings-privacy">
+  <h1 class="u-visually-hidden">隐私设置</h1>
 
   <div class="app-settings-layout">
     <nav class="app-settings-nav" aria-label="设置导航">
@@ -44,21 +38,23 @@
 
     <div class="settings-content">
       {#if error && !user}
-        <p class="input-hint is-error" role="alert">{error}</p>
+        <div class="app-notice is-danger" role="alert">
+          <span>{error}</span>
+          <a href="/settings/privacy">重新加载</a>
+        </div>
       {/if}
 
       {#if user}
-        <Card>
-          <div class="card-header"><span class="card-title">搜索引擎与 AI 摘要（逐帖退出）</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
-            <p style="margin:0;">
+        <Card title="搜索引擎与 AI 摘要（逐帖退出）">
+          <div class="privacy-copy">
+            <p>
               你可以<strong>逐帖</strong>选择是否允许该内容进入公开搜索引擎索引
               （<code>search_index_opt_out</code>）以及是否允许生成 AI 摘要
               （<code>ai_summary_opt_out</code>）。这两个开关在
               <a href="/editor" class="text-link">发布/编辑</a>每篇帖子时设置，
               随草稿与发布内容一并保存；修改后索引 Job 会异步重建该帖索引。
             </p>
-            <p style="margin:0;">
+            <p>
               只有<strong>明确允许索引的公开内容</strong>才会出现在搜索结果、
               摘要、OpenGraph 或 JSON-LD 投影中；隐藏、审核中、删除、付费或
               回复可见的正文永远不会进入任何公开投影。
@@ -66,10 +62,9 @@
           </div>
         </Card>
 
-        <Card>
-          <div class="card-header"><span class="card-title">管理员策略优先级</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
-            <p style="margin:0;">
+        <Card title="管理员策略优先级">
+          <div class="privacy-copy">
+            <p>
               管理员可以按<strong>全站或板块</strong>强制关闭搜索索引与 AI 摘要
               （M08-INDEX-03 管理员策略优先）。在此情况下，即使你未勾选退出，
               相关内容也不会进入索引或摘要生成；你的逐帖设置不会绕过管理员策略。
@@ -81,10 +76,9 @@
           </div>
         </Card>
 
-        <Card>
-          <div class="card-header"><span class="card-title">搜索引擎索引状态</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
-            <ul style="margin:0;padding-left:var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);">
+        <Card title="搜索引擎索引状态">
+          <div class="privacy-copy">
+            <ul>
               <li>搜索结果页默认输出 <code>noindex,follow,noarchive</code>（不会被收录），但带 canonical 与 OpenGraph 供分享预览。</li>
               <li>完全公开且未被排除的内容会输出 canonical、OpenGraph、Twitter Card 与结构化数据（JSON-LD）。</li>
               <li>robots.txt、页面 meta 与 <code>X-Robots-Tag</code> 按当前配置动态生成，并随管理员策略变更在配置传播窗口内更新。</li>
@@ -92,10 +86,9 @@
           </div>
         </Card>
 
-        <Card>
-          <div class="card-header"><span class="card-title">robots 与抓取边界</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
-            <p style="margin:0;">
+        <Card title="robots 与抓取边界">
+          <div class="privacy-copy">
+            <p>
               robots.txt、页面 meta 与响应头是<strong>协作性声明</strong>，用于告知
               合规的搜索引擎与分享抓取器如何访问；它们<strong>不能阻止恶意或
               无视规则的抓取</strong>。真正的边界是服务端授权、内容可见性过滤、
@@ -114,3 +107,21 @@
     </div>
   </div>
 </div>
+
+<style>
+  .privacy-copy {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .privacy-copy p,
+  .privacy-copy ul {
+    margin: 0;
+  }
+
+  .privacy-copy ul {
+    display: grid;
+    gap: var(--space-2);
+    padding-left: var(--space-4);
+  }
+</style>

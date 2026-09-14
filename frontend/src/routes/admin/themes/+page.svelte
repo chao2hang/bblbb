@@ -5,6 +5,9 @@
   import { enhance } from '$app/forms';
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
+  import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
+  import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { show as showToast } from '$lib/ui/toast';
   import { withActionToast, toastActionResult } from '$lib/ui/action-toast';
@@ -337,6 +340,69 @@
 
   let setDefaultTheme = $state<AdminThemeItem | null>(null);
   let deleteTargetTheme = $state<AdminThemeItem | null>(null);
+  let deleteReason = $state('');
+  let deleteForm: HTMLFormElement | undefined = $state();
+
+  /**
+   * 主题卡「⋮」动作菜单（M18-ADMIN-OPS 约定 D）：每张主题卡一个三点按钮，
+   * 菜单项直接触发对应专用弹层流（编辑 Token → openEditModal、设为默认 →
+   * setDefaultTheme、删除 → deleteTargetTheme）——Token 编辑器是约 200 行的
+   * 专用可视化弹层，卡片入口唯一，所有写操作仍在弹层内完成（reason 写审计）。
+   * 旧「主题操作」选择 Dialog 已删除。
+   */
+  function themeRowActions(theme: AdminThemeItem) {
+    const actions: { label: string; danger?: boolean; run: () => void }[] = [
+      { label: '编辑 Token', run: () => openEditModal(theme) }
+    ];
+    if (!theme.is_default) {
+      actions.push({ label: '设为站点默认', run: () => (setDefaultTheme = theme) });
+    }
+    if (theme.name !== 'default' && !theme.is_default) {
+      actions.push({
+        label: '删除主题',
+        danger: true,
+        run: () => {
+          deleteReason = '';
+          deleteTargetTheme = theme;
+        }
+      });
+    }
+    return actions;
+  }
+
+  // ── 上传主题（约定 A：按钮 → Dialog；file input 载入 JSON 到 Token 文本域）──
+  let uploadOpen = $state(false);
+  let uploadName = $state('');
+  let uploadDisplayName = $state('');
+  let uploadTokens = $state('');
+  let uploadReason = $state('');
+  let uploadFileName = $state('');
+
+  function openUpload(): void {
+    uploadName = '';
+    uploadDisplayName = '';
+    uploadTokens = tokensJson(fallbackDefaultTheme().tokens);
+    uploadReason = '';
+    uploadFileName = '';
+    uploadOpen = true;
+  }
+  function closeUpload(): void {
+    uploadOpen = false;
+  }
+
+  /** 读取本地 JSON 主题包（.json）填入 Token 文本域（仅客户端；无 JS 时可直接粘贴 JSON）。 */
+  async function handleTokenFileChange(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      uploadTokens = await file.text();
+      uploadFileName = file.name;
+      showToast(`已载入「${file.name}」，请检查 Token JSON 后提交`, 'info');
+    } catch {
+      showToast('读取文件失败，请直接粘贴 Token JSON', 'danger');
+    }
+  }
   let previewPending = $state<string | null>(null);
 
   // 激活全局实时预览
@@ -384,6 +450,68 @@
     editTheme = null;
   }
 
+  const modalOpen = $derived(showcaseOpen || editTheme !== null);
+  const MODAL_FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  let previousModalFocus: HTMLElement | null = null;
+  let modalWasOpen = false;
+
+  function trapModalFocus(event: KeyboardEvent): void {
+    if (!modalOpen || event.key !== 'Tab' || typeof document === 'undefined') return;
+    const dialog = document.querySelector<HTMLElement>('.modal-backdrop [role="dialog"]');
+    if (!dialog) return;
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function handleModalKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Tab') {
+      trapModalFocus(event);
+      return;
+    }
+    if (event.key !== 'Escape') return;
+    if (showcaseOpen) {
+      showcaseOpen = false;
+    } else if (editTheme) {
+      closeEditModal();
+    }
+    // 设为默认 / 删除 / 上传弹层使用共享 Dialog/DangerConfirm，Escape 由组件内部处理
+  }
+
+  // 打开任意主题弹窗后把焦点移入 dialog，关闭后回到触发控件。
+  $effect(() => {
+    if (typeof document === 'undefined') return;
+    if (!modalOpen) {
+      if (modalWasOpen) {
+        modalWasOpen = false;
+        previousModalFocus?.focus();
+        previousModalFocus = null;
+      }
+      return;
+    }
+
+    if (!modalWasOpen) {
+      modalWasOpen = true;
+      previousModalFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    const timer = window.setTimeout(() => {
+      document.querySelector<HTMLElement>('.modal-backdrop [role="dialog"]')?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  });
+
   // 页面销毁时恢复当前站点默认主题（而非仅清空）：
   // 根 layout 复用时 activeTheme 数据不变不会重跑 effect，只 clear 会把
   // 正式主题（含结构布局）冲掉后不恢复——离开预览必须显式回放已生效主题。
@@ -398,6 +526,8 @@
 
   const activeTheme = $derived(rawThemes.find((t) => t.is_default && t.status === 'active') ?? rawThemes[0]);
 </script>
+
+<svelte:window onkeydown={handleModalKeydown} />
 
 <svelte:head>
   <title>主题管理 — BBLBB Admin</title>
@@ -504,9 +634,12 @@
         <h2>已安装主题列表</h2>
         <p class="text-secondary" style="font-size:12px;margin:2px 0 0 0;">共 {rawThemes.length} 个主题，数据型主题均通过封闭 Token Schema 安全沙箱隔离。</p>
       </div>
-      <button type="button" class="btn sm secondary" onclick={() => (showcaseOpen = true)}>
-        打开组件库预览
-      </button>
+      <div style="display:flex;gap:8px;">
+        <Button text="上传主题" variant="primary" size="sm" onclick={openUpload} />
+        <button type="button" class="btn sm secondary" onclick={() => (showcaseOpen = true)}>
+          打开组件库预览
+        </button>
+      </div>
     </header>
     <div class="app-card__body">
       <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:16px;">
@@ -564,39 +697,15 @@
                 >
                   {previewPending === theme.name ? '加载预览…' : previewTheme?.name === theme.name ? '预览中' : '预览'}
                 </button>
-                <button
-                  type="button"
-                  class="btn sm secondary"
-                  onclick={() => openEditModal(theme)}
-                >
-                  编辑
-                </button>
+                <!-- 编辑 Token 入口收敛至卡片「⋮」动作菜单（约定 D） -->
               </div>
 
               <div style="display:flex;gap:6px;">
-                {#if theme.is_default}
-                  <button type="button" class="btn sm ghost" disabled>
-                    已是默认
-                  </button>
-                {:else}
-                  <button
-                    type="button"
-                    class="btn sm primary"
-                    onclick={() => (setDefaultTheme = theme)}
-                  >
-                    设为默认
-                  </button>
-                {/if}
-
-                {#if theme.name !== 'default' && !theme.is_default}
-                  <button
-                    type="button"
-                    class="btn sm danger"
-                    onclick={() => (deleteTargetTheme = theme)}
-                  >
-                    删除
-                  </button>
-                {/if}
+                <!-- 每卡一个「⋮」动作菜单（约定 D）：菜单项直接触发专用弹层流 -->
+                <RowActionsMenu
+                  label="更多操作：主题 {theme.name}"
+                  actions={themeRowActions(theme)}
+                />
               </div>
             </div>
           </div>
@@ -669,7 +778,7 @@
                   <input type="hidden" name="name" value={preset.name} />
                   <input type="hidden" name="display_name" value={preset.display_name} />
                   <input type="hidden" name="tokens_json" value={JSON.stringify(preset.tokens)} />
-                  <input type="hidden" name="reason" value={`安装官方预置主题：${preset.display_name}`} />
+                  <input type="hidden" name="reason" value={`安装官方预置主题：${preset.display_name}`} required />
                   <button type="submit" class="btn sm secondary">
                     一键安装
                   </button>
@@ -682,51 +791,8 @@
     </div>
   </section>
 
-  <!-- 卡片 4：自定义上传主题与底层 Token 契约表单（包含 SSR 测试断言契约） -->
-  <details class="app-card" style="margin-bottom:16px;">
-    <summary class="app-card__head" style="cursor:pointer;user-select:none;">
-      <h2 style="display:inline-block;font-size:15px;margin:0;">上传新主题与高级 Token 维护</h2>
-      <span class="text-secondary" style="font-size:12px;margin-left:8px;">（支持导入/编辑 JSON Token 数据包与审计日志）</span>
-    </summary>
-    <div class="app-card__body" style="padding-top:14px;">
-      <h3 style="font-size:14px;margin-bottom:8px;">上传自定义数据型主题</h3>
-      <form method="POST" action="?/upload" use:enhance={withActionToast()} class="stack" style="gap:12px;max-width:600px;">
-        <label>
-          <span class="field-label">主题代号（name）</span>
-          <input type="text" name="name" class="input-field" placeholder="例如：my-dark-theme（仅限小写字母/数字/连字符）" pattern="[a-z0-9-]{'{'}1,64{'}'}" required />
-        </label>
-        <label>
-          <span class="field-label">显示名称（display_name）</span>
-          <input type="text" name="display_name" class="input-field" placeholder="例如：极客黑金" />
-        </label>
-        <label>
-          <span class="field-label">Token 配置 JSON</span>
-          <textarea name="tokens_json" class="input-field" rows="5" placeholder={`{ "color.background": "#f5f3ed", "color.surface": "#fffefb", "color.accent": "#b23e2a", "color.background.dark": "#101b19", "color.accent.dark": "#f27759", ... }`}>{tokensJson(fallbackDefaultTheme().tokens)}</textarea>
-        </label>
-        <label>
-          <span class="field-label">操作原因（写审计日志，必填）</span>
-          <input type="text" name="reason" id="settings-reason" class="input-field" required placeholder="必填：如上传新版社区定制暗色主题" />
-        </label>
-        <Button text="上传主题" variant="primary" type="submit" />
-      </form>
-
-      <hr style="margin:20px 0;border:0;border-top:1px solid var(--color-border);" />
-
-      <h3 style="font-size:14px;margin-bottom:8px;">各主题底层 Token 契约设置（带 revision 乐观锁）</h3>
-      {#each rawThemes as t (t.name)}
-        <div style="margin-top:14px;padding:12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);">
-          <strong style="font-size:13px;">{t.display_name} (/{t.name}) — revision v{t.revision}</strong>
-          <form method="POST" action="?/save-settings" use:enhance={withActionToast()} class="stack" style="gap:10px;margin-top:8px;">
-            <input type="hidden" name="name" value={t.name} />
-            <input type="hidden" name="revision" value={t.revision} />
-            <textarea name="tokens" class="input-field" rows="4">{tokensJson(t.tokens)}</textarea>
-            <input type="text" name="reason" class="input-field" required placeholder="修改原因（写审计）" />
-            <Button text="保存 Token 设置" variant="secondary" type="submit" />
-          </form>
-        </div>
-      {/each}
-    </div>
-  </details>
+  <!-- 卡片 4（已下线）：自定义上传移入「上传主题」Dialog（file input + Token JSON），
+       逐主题 Token 维护复用主题卡「编辑」弹层（?/save-settings，带 revision 乐观锁）。 -->
 {/if}
 
 <!-- 弹窗 1：全套 UI 组件库效果展示 Showcase -->
@@ -735,6 +801,7 @@
     <div
       class="app-card theme-preview-scope"
       role="dialog"
+       aria-modal="true"
       tabindex="-1"
       aria-labelledby="showcase-title"
       onkeydown={(e) => { if (e.key === 'Escape') showcaseOpen = false; }}
@@ -828,6 +895,7 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
     <div
       class="app-card"
       role="dialog"
+       aria-modal="true"
       tabindex="-1"
       aria-labelledby="edit-title"
       onkeydown={(e) => { if (e.key === 'Escape') closeEditModal(); }}
@@ -1051,91 +1119,127 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
   </div>
 {/if}
 
-<!-- 弹窗 3：设为站点默认确认 Modal -->
-{#if setDefaultTheme}
-  <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;">
-    <div
-      class="app-card"
-      role="dialog"
-      tabindex="-1"
-      aria-labelledby="default-title"
-      onkeydown={(e) => { if (e.key === 'Escape') setDefaultTheme = null; }}
-      style="max-width:480px;width:100%;border-radius:var(--radius-md);box-shadow:var(--shadow-modal);background:var(--color-bg-card);"
-    >
-      <header class="app-card__head">
-        <h2 id="default-title" style="margin:0;font-size:16px;">设为站点默认主题</h2>
-      </header>
-      <form
-        method="POST"
-        action="?/set-default"
-        use:enhance={() => {
-          const target = setDefaultTheme;
-          return async ({ result, update }) => {
-            // 动作结果 → 全局 Toast（成功服务端文案“主题 x 已设为站点默认并激活”/ 失败红）；
-            // 顶部横幅为无 JS 回退，失败提示同样靠 Toast，避免结果不可见。
-            toastActionResult(result);
-            await update();
-            if (result.type === 'success' && target) {
-              setDefaultTheme = null;
-              if (target.name !== 'default') {
-                applyThemeTokens(toThemeView(target));
-              } else {
-                clearThemeTokens();
-              }
-            }
-          };
-        }}
-        class="app-card__body stack"
-        style="gap:12px;"
-      >
-        <input type="hidden" name="name" value={setDefaultTheme.name} />
-        <p style="font-size:13px;line-height:1.5;margin:0;">
-          确定将主题<strong>「{setDefaultTheme.display_name}」</strong>设为站点默认主题吗？该操作将激活此主题并对全站未设置个人偏好的用户生效。
-        </p>
-        <label>
-          <span class="field-label">操作原因（写入审计日志，必填）</span>
-          <input type="text" name="reason" class="input-field" required placeholder="如：切换为春季新版默认视觉" />
-        </label>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
-          <button type="button" class="btn ghost" onclick={() => (setDefaultTheme = null)}>取消</button>
-          <button type="submit" class="btn primary">确认并激活</button>
-        </div>
-      </form>
-    </div>
-  </div>
-{/if}
+<!-- 弹窗 3：设为站点默认确认（共享 Dialog，reason 写审计） -->
+<Dialog
+  open={setDefaultTheme !== null}
+  title="设为站点默认主题"
+  description={setDefaultTheme ? `将「${setDefaultTheme.display_name}」（/${setDefaultTheme.name}）设为站点默认并对全站未设置个人偏好的用户生效。` : ''}
+  onclose={() => (setDefaultTheme = null)}
+>
+  <form
+    method="POST"
+    action="?/set-default"
+    use:enhance={() => {
+      const target = setDefaultTheme;
+      return async ({ result, update }) => {
+        // 动作结果 → 全局 Toast（成功服务端文案“主题 x 已设为站点默认并激活”/ 失败红）；
+        // 顶部横幅为无 JS 回退，失败提示同样靠 Toast，避免结果不可见。
+        toastActionResult(result);
+        await update();
+        if (result.type === 'success' && target) {
+          setDefaultTheme = null;
+          if (target.name !== 'default') {
+            applyThemeTokens(toThemeView(target));
+          } else {
+            clearThemeTokens();
+          }
+        }
+      };
+    }}
+    class="stack"
+    style="gap:12px;"
+  >
+    <input type="hidden" name="name" value={setDefaultTheme?.name ?? ''} />
+    <label>
+      <span class="field-label">操作原因（写入审计日志，必填）</span>
+      <input type="text" name="reason" class="input-field" required placeholder="如：切换为春季新版默认视觉" />
+    </label>
+    <Button text="确认并激活" variant="primary" size="sm" type="submit" />
+  </form>
+</Dialog>
 
-<!-- 弹窗 4：删除主题确认 Modal -->
-{#if deleteTargetTheme}
-  <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;">
-    <div
-      class="app-card"
-      role="dialog"
-      tabindex="-1"
-      aria-labelledby="delete-title"
-      onkeydown={(e) => { if (e.key === 'Escape') deleteTargetTheme = null; }}
-      style="max-width:480px;width:100%;border-radius:var(--radius-md);box-shadow:var(--shadow-modal);background:var(--color-bg-card);"
-    >
-      <header class="app-card__head">
-        <h2 id="delete-title" class="danger-heading">删除主题确认</h2>
-      </header>
-      <form method="POST" action="?/delete" use:enhance={withActionToast()} class="app-card__body stack" style="gap:12px;">
-        <input type="hidden" name="name" value={deleteTargetTheme.name} />
-        <p style="font-size:13px;line-height:1.5;margin:0;">
-          确定要彻底删除主题<strong>「{deleteTargetTheme.display_name}」</strong>（<code>/{deleteTargetTheme.name}</code>）吗？此操作不可逆，所有使用该主题的设置将被清理。
-        </p>
-        <label>
-          <span class="field-label">删除原因（写入审计日志，必填）</span>
-          <input type="text" name="reason" class="input-field" required placeholder="如：下线旧版试验主题" />
-        </label>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
-          <button type="button" class="btn ghost" onclick={() => (deleteTargetTheme = null)}>取消</button>
-          <button type="submit" class="btn danger">确认删除</button>
-        </div>
-      </form>
+<!-- 删除主题：DangerConfirm + 隐藏表单 requestSubmit（name + reason 写审计）。 -->
+<form
+  method="POST"
+  action="?/delete"
+  bind:this={deleteForm}
+  use:enhance={() => async ({ result, update }) => {
+    toastActionResult(result);
+    await update();
+    deleteTargetTheme = null;
+  }}
+>
+  <input type="hidden" name="name" value={deleteTargetTheme?.name ?? ''} />
+  <input type="hidden" name="reason" value={deleteReason} />
+</form>
+
+<DangerConfirm
+  open={deleteTargetTheme !== null}
+  title="删除主题"
+  description={deleteTargetTheme ? `确认彻底删除主题「${deleteTargetTheme.display_name}」（/${deleteTargetTheme.name}）？此操作不可逆，所有使用该主题的设置将被清理。` : ''}
+  confirmText="确认删除"
+  oncancel={() => (deleteTargetTheme = null)}
+  onconfirm={() => deleteForm?.requestSubmit()}
+>
+  <label class="input-label" for="theme-del-reason">删除原因（写入审计日志）</label>
+  <input id="theme-del-reason" class="input-field" bind:value={deleteReason} placeholder="必填：如下线旧版试验主题" required />
+</DangerConfirm>
+
+<!-- 主题卡「主题操作」选择 Dialog 已删除（约定 D）：菜单项直接触发
+     编辑 Token Modal / 设为默认 Dialog / 删除 DangerConfirm 三个专用流。 -->
+
+<!-- 上传主题 Dialog（?/upload：file input 载入 JSON + Token 文本域 + reason 审计） -->
+<Dialog
+  open={uploadOpen}
+  title="上传主题"
+  description="上传数据型主题包（.json）；上传后为 disabled 隔离态，需设为默认才会生效。"
+  onclose={closeUpload}
+>
+  <form
+    method="POST"
+    action="?/upload"
+    use:enhance={() => async ({ result, update }) => {
+      toastActionResult(result);
+      await update();
+      if (result.type === 'success') closeUpload();
+    }}
+    class="stack"
+    style="gap:12px;"
+  >
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+      <label>
+        <span class="field-label">主题代号（name）</span>
+        <input type="text" name="name" class="input-field" bind:value={uploadName} placeholder="例如：my-dark-theme（仅限小写字母/数字/连字符）" pattern="[a-z0-9-]{'{'}1,64{'}'}" required />
+      </label>
+      <label>
+        <span class="field-label">显示名称（display_name）</span>
+        <input type="text" name="display_name" class="input-field" bind:value={uploadDisplayName} placeholder="例如：极客黑金" />
+      </label>
     </div>
-  </div>
-{/if}
+    <label>
+      <span class="field-label">主题包文件（.json，选中后自动载入下方 Token 文本域）</span>
+      <input
+        type="file"
+        accept=".json,application/json"
+        onchange={handleTokenFileChange}
+        aria-label="选择主题 Token JSON 文件"
+        style="display:block;font-size:var(--text-sm);"
+      />
+      {#if uploadFileName}
+        <span class="text-secondary" style="font-size:11px;">已载入：{uploadFileName}</span>
+      {/if}
+    </label>
+    <label>
+      <span class="field-label">Token 配置 JSON</span>
+      <textarea name="tokens_json" class="input-field" rows="6" bind:value={uploadTokens}></textarea>
+    </label>
+    <label>
+      <span class="field-label">操作原因（写审计日志，必填）</span>
+      <input type="text" name="reason" class="input-field" bind:value={uploadReason} required placeholder="必填：如上传新版社区定制暗色主题" />
+    </label>
+    <Button text="上传主题" variant="primary" size="sm" type="submit" />
+  </form>
+</Dialog>
 
 <style>
   @keyframes pulse {
@@ -1218,11 +1322,5 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
     font-size: 12px;
     color: var(--color-text-primary);
     margin: 0;
-  }
-
-  .danger-heading {
-    margin: 0;
-    font-size: 16px;
-    color: var(--color-danger);
   }
 </style>

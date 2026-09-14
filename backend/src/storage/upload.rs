@@ -2,7 +2,7 @@
 //!
 //! 生命周期：`create`（预留容量 + pending 行 + object key）→ 传输
 //! （local Rust stream / S3 presigned PUT）→ `complete`（服务端 HEAD 复检 +
-//! 内容安全 worker：magic/hash/病毒/图片重解码 + EXIF 剥离）→ `ready` /
+//! 内容安全 worker：magic/hash/图片重解码 + EXIF 剥离）→ `ready` /
 //! `quarantined`。
 //!
 //! 安全约定（M06-UPLOAD-05/06）：默认拒绝 SVG、HTML/脚本、可执行文件、
@@ -45,7 +45,134 @@ pub const ALLOWED_MEDIA_TYPES: &[&str] = &[
     "image/avif",
     "application/pdf",
     "text/plain",
+    "text/csv",
+    "text/markdown",
+    "application/json",
+    "application/xml",
+    "text/xml",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "video/mp4",
+    "audio/mpeg",
+    "video/webm",
 ];
+
+/// 文本族媒体类型：魔法检测同为「近似纯文本」，声明类型与检测值按族匹配。
+pub const TEXT_MEDIA_TYPES: &[&str] = &[
+    "text/plain",
+    "text/csv",
+    "text/markdown",
+    "application/json",
+    "application/xml",
+    "text/xml",
+];
+
+/// OOXML（Office Open XML）媒体类型：容器为 zip（PK 魔法），需包结构校验。
+pub const OOXML_MEDIA_TYPES: &[&str] = &[
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+
+/// 上传类型类目（管理后台可配置开关；`site_settings.storage_allowed_upload_types`）。
+pub const UPLOAD_TYPE_CATEGORIES: &[&str] = &["image", "pdf", "text", "office", "av"];
+
+/// 媒体类型 → 所属类目（不在能力白名单内 → `None`）。
+pub fn category_for_media_type(media_type: &str) -> Option<&'static str> {
+    if media_type.starts_with("image/") {
+        return Some("image");
+    }
+    match media_type {
+        "application/pdf" => Some("pdf"),
+        "video/mp4" | "audio/mpeg" | "video/webm" => Some("av"),
+        other => {
+            if TEXT_MEDIA_TYPES.contains(&other) {
+                Some("text")
+            } else if OOXML_MEDIA_TYPES.contains(&other) {
+                Some("office")
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// 站点上传类型策略：启用类目集合。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UploadTypePolicy {
+    enabled: Vec<&'static str>,
+}
+
+impl UploadTypePolicy {
+    pub fn all() -> Self {
+        Self {
+            enabled: UPLOAD_TYPE_CATEGORIES.to_vec(),
+        }
+    }
+
+    pub fn parse_csv(raw: &str) -> Self {
+        let enabled: Vec<&'static str> = raw
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .filter_map(|c| UPLOAD_TYPE_CATEGORIES.iter().copied().find(|k| *k == c))
+            .collect();
+        if enabled.is_empty() {
+            Self::all()
+        } else {
+            Self { enabled }
+        }
+    }
+
+    pub fn to_csv(&self) -> String {
+        self.enabled.join(",")
+    }
+
+    pub fn enabled_categories(&self) -> &[&'static str] {
+        &self.enabled
+    }
+
+    pub fn allows(&self, media_type: &str) -> bool {
+        category_for_media_type(media_type).is_some_and(|c| self.enabled.contains(&c))
+    }
+
+    pub fn allowed_media_types(&self) -> Vec<&'static str> {
+        ALLOWED_MEDIA_TYPES
+            .iter()
+            .copied()
+            .filter(|t| self.allows(t))
+            .collect()
+    }
+}
+
+impl Default for UploadTypePolicy {
+    fn default() -> Self {
+        Self::all()
+    }
+}
+
+pub async fn load_upload_type_policy(
+    pool: &DatabasePool,
+) -> Result<UploadTypePolicy, StorageError> {
+    let raw: Option<String> = match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT storage_allowed_upload_types FROM site_settings WHERE id = 'singleton'",
+        )
+        .fetch_optional(p)
+        .await
+        .map_err(|e| StorageError::Db(e.to_string()))?,
+        Either::Right(p) => sqlx::query_scalar(
+            "SELECT storage_allowed_upload_types FROM site_settings WHERE id = 'singleton'",
+        )
+        .fetch_optional(p)
+        .await
+        .map_err(|e| StorageError::Db(e.to_string()))?,
+    };
+    Ok(raw
+        .map(|s| UploadTypePolicy::parse_csv(&s))
+        .unwrap_or_default())
+}
 
 /// 各媒体类型的合法扩展名（扩展名欺骗判定）。
 fn extensions_for(media_type: &str) -> &'static [&'static str] {
@@ -74,7 +201,7 @@ pub fn is_allowed_media_type(media_type: &str) -> bool {
     ALLOWED_MEDIA_TYPES.contains(&media_type)
 }
 
-/// 进程内上传并发信号量（M06-UPLOAD-03：限制传输/扫描并发，防小机器 OOM）。
+/// 进程内上传并发信号量（M06-UPLOAD-03：限制传输并发，防小机器 OOM）。
 static UPLOAD_SEMAPHORE: std::sync::OnceLock<std::sync::Arc<tokio::sync::Semaphore>> =
     std::sync::OnceLock::new();
 
@@ -86,30 +213,6 @@ pub fn acquire_upload_permit() -> Result<tokio::sync::OwnedSemaphorePermit, Stor
         .clone()
         .try_acquire_owned()
         .map_err(|_| StorageError::RateLimited("upload concurrency limit reached".to_string()))
-}
-
-// ────────────────────────── 病毒扫描占位 ───────────────────────────────────
-
-/// 病毒扫描结论。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScanVerdict {
-    Clean,
-    Infected,
-}
-
-/// 病毒扫描接口：生产可接 ClamAV；默认占位恒 `Clean`，测试注入确定性 mock
-/// （M06-UPLOAD-05）。
-pub trait VirusScan: Send + Sync {
-    fn scan(&self, data: &[u8]) -> ScanVerdict;
-}
-
-/// 默认病毒扫描占位（未接 ClamAV 时恒干净；接产后在服务层替换）。
-pub struct NoopVirusScan;
-
-impl VirusScan for NoopVirusScan {
-    fn scan(&self, _data: &[u8]) -> ScanVerdict {
-        ScanVerdict::Clean
-    }
 }
 
 // ────────────────────────── 内容安全检查 ──────────────────────────────────
@@ -137,8 +240,6 @@ pub enum ScanError {
     ImageTooLarge { width: i64, height: i64 },
     /// 图片结构损坏（无法解析尺寸）。
     CorruptImage(String),
-    /// 病毒扫描命中。
-    VirusDetected(String),
 }
 
 impl ScanError {
@@ -154,7 +255,6 @@ impl ScanError {
                 format!("image dimensions {width}x{height} exceed limits")
             }
             Self::CorruptImage(reason) => format!("image corrupt: {reason}"),
-            Self::VirusDetected(reason) => format!("virus scan failed: {reason}"),
         }
     }
 }
@@ -168,6 +268,10 @@ enum MagicKind {
     Gif,
     Avif,
     Pdf,
+    Zip,
+    Mp4,
+    Mp3,
+    Webm,
     PlainText,
 }
 
@@ -180,6 +284,10 @@ impl MagicKind {
             Self::Gif => "image/gif",
             Self::Avif => "image/avif",
             Self::Pdf => "application/pdf",
+            Self::Zip => "application/zip",
+            Self::Mp4 => "video/mp4",
+            Self::Mp3 => "audio/mpeg",
+            Self::Webm => "video/webm",
             Self::PlainText => "text/plain",
         }
     }
@@ -208,6 +316,18 @@ fn detect_magic(data: &[u8]) -> Option<MagicKind> {
     if data.len() >= 5 && &data[..5] == b"%PDF-" {
         return Some(MagicKind::Pdf);
     }
+    if data.len() >= 4 && &data[..4] == b"PK\x03\x04" {
+        return Some(MagicKind::Zip);
+    }
+    if data.len() >= 12 && &data[4..8] == b"ftyp" {
+        return Some(MagicKind::Mp4);
+    }
+    if data.len() >= 3 && &data[..3] == b"ID3" {
+        return Some(MagicKind::Mp3);
+    }
+    if data.len() >= 4 && data[..4] == [0x1A, 0x45, 0xDF, 0xA3] {
+        return Some(MagicKind::Webm);
+    }
     if is_probably_text(data) {
         return Some(MagicKind::PlainText);
     }
@@ -226,6 +346,27 @@ fn is_probably_text(data: &[u8]) -> bool {
 }
 
 /// 危险内容判定（SVG/HTML/脚本/可执行/宏/压缩包，M06-UPLOAD-06）。
+fn valid_ooxml_package(data: &[u8], declared_media_type: &str) -> bool {
+    if !data.starts_with(b"PK\x03\x04")
+        || !data
+            .windows(b"[Content_Types].xml".len())
+            .any(|w| w == b"[Content_Types].xml")
+    {
+        return false;
+    }
+    let required = match declared_media_type {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+            b"word/".as_slice()
+        }
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => b"xl/".as_slice(),
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" => {
+            b"ppt/".as_slice()
+        }
+        _ => return false,
+    };
+    data.windows(required.len()).any(|w| w == required)
+}
+
 fn dangerous_content_kind(data: &[u8]) -> Option<&'static str> {
     let head = &data[..data.len().min(512)];
     let ascii = String::from_utf8_lossy(head);
@@ -486,13 +627,12 @@ fn sha256_hex(data: &[u8]) -> String {
     hex::encode(Sha256::digest(data))
 }
 
-/// 内容安全扫描（M06-UPLOAD-05/06）：魔法 + 扩展名 + MIME 一致性 + 病毒 +
+/// 内容安全校验（M06-UPLOAD-05/06）：魔法 + 扩展名 + MIME 一致性 +
 /// 图片重解码/像素限制 + EXIF/GPS 剥离。失败返回 [`ScanError`]（安全摘要）。
 pub fn scan_for_safety(
     data: &[u8],
     declared_media_type: &str,
     filename: Option<&str>,
-    virus: &dyn VirusScan,
 ) -> Result<ScanOutcome, ScanError> {
     if !is_allowed_media_type(declared_media_type) {
         return Err(ScanError::UnsupportedType(declared_media_type.to_string()));
@@ -516,26 +656,31 @@ pub fn scan_for_safety(
         }
     }
 
-    // 危险内容（SVG/HTML/脚本/可执行/宏/压缩包）
+    // 危险内容（SVG/HTML/脚本/可执行/宏/压缩包）；合法 OOXML 容器进入
+    // 后续结构校验，普通 zip 仍然拒绝。
     if let Some(kind) = dangerous_content_kind(data) {
-        return Err(ScanError::DangerousContent(kind.to_string()));
+        let valid_ooxml_decl = OOXML_MEDIA_TYPES.contains(&declared_media_type);
+        if kind != "zip archive" || !valid_ooxml_decl {
+            return Err(ScanError::DangerousContent(kind.to_string()));
+        }
     }
 
-    // 病毒扫描占位（生产接 ClamAV；测试用确定性 mock）
-    if virus.scan(data) == ScanVerdict::Infected {
-        return Err(ScanError::VirusDetected(
-            "deterministic test mock".to_string(),
-        ));
-    }
-
-    // 魔法字节与 MIME 一致性
+    // 魔法字节与 MIME 一致性；OOXML 使用 zip 容器魔数并继续做 OPC 目录校验。
     let magic = detect_magic(data)
         .ok_or_else(|| ScanError::DangerousContent("unknown binary content".to_string()))?;
-    if magic.as_str() != declared_media_type {
+    let magic_matches_declared = magic.as_str() == declared_media_type
+        || (magic == MagicKind::PlainText && TEXT_MEDIA_TYPES.contains(&declared_media_type))
+        || (magic == MagicKind::Zip && OOXML_MEDIA_TYPES.contains(&declared_media_type));
+    if !magic_matches_declared {
         return Err(ScanError::TypeMismatch {
             declared: declared_media_type.to_string(),
             detected: magic.as_str().to_string(),
         });
+    }
+    if magic == MagicKind::Zip && !valid_ooxml_package(data, declared_media_type) {
+        return Err(ScanError::DangerousContent(
+            "not a valid OOXML package".to_string(),
+        ));
     }
 
     // 图片：尺寸解析 + 像素限制 + 元数据剥离
@@ -739,6 +884,12 @@ pub async fn create_attachment(
             "media type not allowed: {media_type}"
         )));
     }
+    let upload_policy = load_upload_type_policy(pool).await?;
+    if !upload_policy.allows(&media_type) {
+        return Err(StorageError::Invalid(format!(
+            "site policy disabled media type category: {media_type}"
+        )));
+    }
     if input.size_bytes <= 0 {
         return Err(StorageError::Invalid(
             "attachment size must be positive".to_string(),
@@ -835,23 +986,23 @@ fn clean_filename(raw: Option<&str>) -> Option<String> {
     })
 }
 
-/// 读取用户当前等级（users.level；缺省 1）。
+/// 读取用户当前信任等级（users.trust_level；缺省 TL0）。
 async fn current_level(pool: &DatabasePool, user_id: &str) -> Result<i64, StorageError> {
     let level: Option<i64> = match pool {
         Either::Left(p) => {
-            sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
                 .bind(user_id)
                 .fetch_optional(p)
                 .await?
         }
         Either::Right(p) => {
-            sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
                 .bind(user_id)
                 .fetch_optional(p)
                 .await?
         }
     };
-    Ok(level.unwrap_or(1).max(1))
+    Ok(level.unwrap_or(0).clamp(0, 4))
 }
 
 /// 插入附件行 + 审计（同一事务；失败时调用方回滚预留）。
@@ -1022,7 +1173,6 @@ pub async fn complete_attachment(
     storage: &StorageService,
     attachment_id: &str,
     user_id: &str,
-    virus: &dyn VirusScan,
     now: i64,
 ) -> Result<CompleteOutcome, StorageError> {
     let _permit = acquire_upload_permit()?;
@@ -1057,6 +1207,7 @@ pub async fn complete_attachment(
         // 用户降级/容量占满：拒绝且不超卖（隔离 + 回滚 reserved）
         quarantine_attachment(
             pool,
+            storage,
             &attachment,
             "quota insufficient after policy re-check",
             now,
@@ -1072,29 +1223,35 @@ pub async fn complete_attachment(
     let key = attachment.storage_key.clone();
     let head = adapter.head_object(&key).await?;
     if !head.exists {
-        quarantine_attachment(pool, &attachment, "object missing at complete", now).await?;
+        quarantine_attachment(
+            pool,
+            storage,
+            &attachment,
+            "object missing at complete",
+            now,
+        )
+        .await?;
         return Err(StorageError::Verification(
             "uploaded object does not exist".to_string(),
         ));
     }
     if let Err(verification) = verify_head(&head, &attachment) {
-        quarantine_attachment(pool, &attachment, &verification.to_string(), now).await?;
+        quarantine_attachment(pool, storage, &attachment, &verification.to_string(), now).await?;
         return Err(verification);
     }
 
     // 读取对象字节（内容安全 worker 输入；S3 经 GetObject 流式读取）
     let bytes = adapter.read_object(&key).await?;
 
-    // 内容安全 worker：magic/hash/病毒/图片重解码（M06-UPLOAD-05/09）
+    // 内容安全 worker：magic/hash/图片重解码（M06-UPLOAD-05/09）
     let scan = scan_for_safety(
         &bytes,
         &attachment.media_type,
         attachment.original_name.as_deref(),
-        virus,
     );
     let outcome = match scan {
         Err(err) => {
-            quarantine_attachment(pool, &attachment, &err.summary(), now).await?;
+            quarantine_attachment(pool, storage, &attachment, &err.summary(), now).await?;
             return Ok(CompleteOutcome::Quarantined);
         }
         Ok(outcome) => outcome,
@@ -1158,6 +1315,7 @@ fn verify_head(head: &ObjectHead, attachment: &AttachmentRecord) -> Result<(), S
 /// （M06-UPLOAD-05；SQLite BEGIN IMMEDIATE / MySQL 事务）。
 async fn quarantine_attachment(
     pool: &DatabasePool,
+    storage: &StorageService,
     attachment: &AttachmentRecord,
     summary: &str,
     now: i64,
@@ -1246,6 +1404,9 @@ async fn quarantine_attachment(
     match tx {
         Either::Left(t) => t.commit().await?,
         Either::Right(t) => t.commit().await?,
+    }
+    if let Ok(adapter) = storage.adapter(attachment.storage_backend) {
+        let _ = adapter.delete_object(&attachment.storage_key).await;
     }
     Ok(())
 }
@@ -1531,19 +1692,19 @@ pub async fn delete_attachment(
 
 // ────────────────────────── 中断上传清理（M06-UPLOAD-10）──────────────────
 
-/// 清理超时未完成的 upload（`pending`/`processing` 超过 24h）：
-/// 删除对象（如存在）、回滚预留、删除行。返回清理条数。
+/// 清理超时未完成或已隔离的 upload（`pending`/`processing`/`quarantined` 超过 24h）：
+/// 删除对象（如存在）、按状态回滚预留、删除行。返回清理条数。
 pub async fn reap_stale_uploads(
     pool: &DatabasePool,
     storage: &StorageService,
     now: i64,
 ) -> Result<usize, StorageError> {
     let cutoff = now - STALE_UPLOAD_MS;
-    let rows: Vec<(String, String, String, String, i64)> = match pool {
+    let rows: Vec<(String, String, String, String, i64, String)> = match pool {
         Either::Left(p) => {
             sqlx::query_as(
-                "SELECT id, owner_id, storage_backend, storage_key, size_bytes
-             FROM attachments WHERE status IN ('pending', 'processing') AND created_at < ?",
+                "SELECT id, owner_id, storage_backend, storage_key, size_bytes, status
+             FROM attachments WHERE status IN ('pending', 'processing', 'quarantined') AND created_at < ?",
             )
             .bind(cutoff)
             .fetch_all(p)
@@ -1551,8 +1712,8 @@ pub async fn reap_stale_uploads(
         }
         Either::Right(p) => {
             sqlx::query_as(
-                "SELECT id, owner_id, storage_backend, storage_key, size_bytes
-             FROM attachments WHERE status IN ('pending', 'processing') AND created_at < ?",
+                "SELECT id, owner_id, storage_backend, storage_key, size_bytes, status
+             FROM attachments WHERE status IN ('pending', 'processing', 'quarantined') AND created_at < ?",
             )
             .bind(cutoff)
             .fetch_all(p)
@@ -1560,7 +1721,7 @@ pub async fn reap_stale_uploads(
         }
     };
     let mut reaped = 0;
-    for (id, owner_id, backend_str, key, size) in rows {
+    for (id, owner_id, backend_str, key, size, status) in rows {
         let backend = match StorageBackend::parse(&backend_str) {
             Some(b) => b,
             None => continue,
@@ -1572,7 +1733,9 @@ pub async fn reap_stale_uploads(
                 }
             }
         }
-        release_reserved(pool, &owner_id, size, now).await?;
+        if status == "pending" || status == "processing" {
+            release_reserved(pool, &owner_id, size, now).await?;
+        }
         match pool {
             Either::Left(p) => {
                 sqlx::query("DELETE FROM attachments WHERE id = ?")

@@ -36,7 +36,7 @@ fn build_router(engine: AntibotEngine) -> Router {
     let state = AppState {
         config: Arc::new(AppConfig::default()),
         db: None,
-        flags: FeatureFlags::default(),
+        flags: Arc::new(std::sync::RwLock::new(FeatureFlags::default())),
         limiter: Arc::new(RateLimiter::new()),
         storage: None,
         antibot: Arc::new(engine),

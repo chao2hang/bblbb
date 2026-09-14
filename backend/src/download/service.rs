@@ -720,6 +720,9 @@ pub async fn sign_url(
             }
             let attachment_id: String = auth.get("attachment_id");
             let attachment = load_attachment_sqlite(&mut conn, &attachment_id).await?;
+            if attachment.status != AttachmentStatus::Ready {
+                return Err(DownloadError::Forbidden("attachment is not ready".into()));
+            }
             let policy = resolve_policy_sqlite(&mut conn, &attachment).await?;
             sign_url_impl(&mut conn, storage, user_id, auth_id, &policy).await
         }
@@ -741,6 +744,9 @@ pub async fn sign_url(
             }
             let attachment_id: String = auth.get("attachment_id");
             let attachment = load_attachment_mysql(&mut tx, &attachment_id).await?;
+            if attachment.status != AttachmentStatus::Ready {
+                return Err(DownloadError::Forbidden("attachment is not ready".into()));
+            }
             let _policy = resolve_policy_mysql(&mut tx, &attachment).await?;
             sign_url_mysql(&mut tx, storage, user_id, auth_id).await
         }

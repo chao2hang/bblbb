@@ -1,11 +1,15 @@
-use std::{net::SocketAddr, path::PathBuf};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 
-use config::{Config, ConfigError, Environment, File};
+use config::{Config, ConfigError, Environment};
 use serde::Deserialize;
 
 use crate::db::pool::{validate_database_url, DbOptions};
 
 pub mod flags;
+pub mod secret_crypto;
 pub mod secrets;
 pub mod store;
 
@@ -261,6 +265,47 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    // Passkey/WebAuthn RP ID（M02-MFA-PK；空 = Passkey 关闭）。站点根域，
+    // 必须与 public_origin 的 host 一致或为其可注册父域；注册后不可变更
+    // （变更使全部已注册 Passkey 失效）。
+    ConfigEntry {
+        env_var: "BBLBB__PASSKEY_RP_ID",
+        field: "passkey_rp_id",
+        default: "",
+        scope: "all",
+        reload: "restart",
+    },
+    // Passkey/WebAuthn 展示名（浏览器凭据管理器中显示）。
+    ConfigEntry {
+        env_var: "BBLBB__PASSKEY_RP_NAME",
+        field: "passkey_rp_name",
+        default: "BBLBB",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__SETTINGS_ENCRYPTION_KEY",
+        field: "settings_encryption_key",
+        default: "",
+        scope: "all",
+        reload: "restart",
+    },
+    // OIDC 签名私钥加密主密钥（M11-CONSENT-03；空 = OIDC 密钥生成/轮换失败）。
+    ConfigEntry {
+        env_var: "BBLBB__OIDC_KEY_ENCRYPTION_KEY",
+        field: "oidc_key_encryption_key",
+        default: "",
+        scope: "all",
+        reload: "restart",
+    },
+    // Marketplace Webhook Secret 加密主密钥（M12-REFUND-05；空 = 轮换失败）。
+    ConfigEntry {
+        env_var: "BBLBB__MARKETPLACE_WEBHOOK_ENCRYPTION_KEY",
+        field: "marketplace_webhook_encryption_key",
+        default: "",
+        scope: "all",
+        reload: "restart",
+    },
 ];
 
 /// 允许的运行环境
@@ -342,6 +387,21 @@ pub struct AppConfig {
     /// 与备份隔离存储）
     #[serde(default)]
     pub mfa_encryption_key: String,
+    /// Passkey/WebAuthn RP ID（M02-MFA-PK）：站点根域（如 "example.com"），
+    /// 必须等于 public_origin 的 host 或为其可注册父域；空 = Passkey 关闭
+    /// （MFA 第二步仅 TOTP/恢复码，OR 语义不受影响）。注册后不可变更——
+    /// 变更使全部已注册 Passkey 失效。
+    #[serde(default)]
+    pub passkey_rp_id: String,
+    /// Passkey/WebAuthn 展示名（浏览器凭据管理器中显示；默认 BBLBB）。
+    #[serde(default = "default_passkey_rp_name")]
+    pub passkey_rp_name: String,
+    /// 站点设置 Secret 静态加密主密钥（P0 整改）：AES-256-GCM 加密
+    /// `site_settings` 中 SMTP 密码 / OAuth Client Secret / S3 Secret Key
+    /// 等敏感列（密文带 `enc1:` 前缀）。空 = 明文兼容模式（读取历史明文，
+    /// 写入不再加密并记 warn）；生产模式必须配置，与数据库备份分离存储。
+    #[serde(default)]
+    pub settings_encryption_key: String,
     /// OIDC 签名私钥加密主密钥（M11-CONSENT-03）：AES-256-GCM 加密
     /// `oauth_signing_keys.private_key_ciphertext`；空 = OIDC 密钥生成/轮换
     /// 直接失败（不临时生成新 key 掩盖丢失，readiness 失败）。生产必须配置，
@@ -383,12 +443,38 @@ fn environment_source() -> Environment {
         .with_list_parse_key("allowed_origins")
 }
 
+/// 加载 dotenv 语法的 `.env` 文件（cwd 相对）到进程环境。
+///
+/// 为什么不用 `config` crate 的 `File::with_name(".env")`：config 0.15 的
+/// default features 不含 dotenv 格式，且 `.env` 是点开头文件名
+/// （`Path::extension()` 为 `None`），exact-match 分支的格式推断必然失败，
+/// 错误还会被 `required(false)` 静默吞掉——表现为 `.env` 从不生效且无任何
+/// 报错。故改用 `dotenvy` 显式加载：已存在的环境变量优先（dotenv 标准语义）。
+///
+/// - 文件不存在：放行（配置全部来自环境变量/默认值，本地与 CI 均无 `.env`）；
+/// - 解析失败：返回错误，启动快速失败（`AppConfig::load` 的两个调用方均为
+///   启动入口，此时进程尚未开始服务）。
+fn load_dotenv_file(path: &Path) -> Result<(), ConfigError> {
+    if let Err(e) = dotenvy::from_path(path) {
+        if e.not_found() {
+            return Ok(());
+        }
+        return Err(ConfigError::Message(format!(
+            "加载 {} 失败: {e}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
 impl AppConfig {
     pub fn load() -> Result<Self, ConfigError> {
-        let config = Config::builder()
-            .add_source(File::with_name(".env").required(false))
-            .add_source(environment_source())
-            .build()?;
+        // .env（dotenv 语法，cwd 相对，通常为 backend/.env）：真实环境变量优先，
+        // 文件值不覆盖已存在的环境变量。缺失放行（全部走环境变量/默认值），
+        // 解析失败快速失败（避免又一次「配置静默不生效」）。
+        load_dotenv_file(Path::new(".env"))?;
+
+        let config = Config::builder().add_source(environment_source()).build()?;
 
         // M01-CONFIG-02：生产模式拒绝未知配置键。
         let env_value = config.get_string("env").unwrap_or_else(|_| default_env());
@@ -478,6 +564,15 @@ impl AppConfig {
             );
         }
 
+        // P0 整改：生产必须配置站点设置 Secret 静态加密主密钥
+        // （SMTP/OAuth/S3 凭据不得明文落库）。
+        if self.settings_encryption_key.is_empty() {
+            errors.push(
+                "settings_encryption_key must be configured in production (site settings secrets must not be stored in plaintext)"
+                    .to_owned(),
+            );
+        }
+
         if errors.is_empty() {
             Ok(())
         } else {
@@ -490,6 +585,59 @@ impl AppConfig {
         validate_database_url(&self.database_url)?;
         let options = self.db_options();
         options.validate()
+    }
+
+    /// Passkey/WebAuthn 配置校验（M02-MFA-PK）：启动时调用，非法配置立即失败。
+    ///
+    /// - 未配置 rp_id = Passkey 关闭，MFA 第二步仅 TOTP/恢复码（合法）；
+    /// - 配置 rp_id 时：小写主机名（无 scheme/port/path），且 public_origin
+    ///   必须为 https（loopback 例外）且 host 等于 rp_id 或为其子域——
+    ///   WebAuthn 浏览器端按 RP ID 匹配 origin 域，不一致则注册/断言全部失败。
+    pub fn validate_passkey_config(&self) -> Result<(), String> {
+        if self.passkey_rp_id.is_empty() {
+            return Ok(());
+        }
+        let rp_id = self.passkey_rp_id.trim().to_lowercase();
+        if rp_id.is_empty()
+            || rp_id.starts_with('.')
+            || rp_id.ends_with('.')
+            || rp_id.contains("..")
+            || rp_id.contains('/')
+            || rp_id.contains(':')
+            || rp_id.contains(' ')
+        {
+            return Err(format!(
+                "invalid passkey_rp_id: {:?} (expected a bare hostname like example.com)",
+                self.passkey_rp_id
+            ));
+        }
+        if rp_id != self.passkey_rp_id {
+            return Err(format!(
+                "passkey_rp_id must be lowercase (got {:?})",
+                self.passkey_rp_id
+            ));
+        }
+        if self.public_origin.trim().is_empty() {
+            return Err(
+                "passkey_rp_id is set but public_origin is empty: passkey requires a fixed public origin"
+                    .to_owned(),
+            );
+        }
+        let origin = url::Url::parse(self.public_origin.trim())
+            .map_err(|e| format!("public_origin is not a valid URL: {e}"))?;
+        let host = origin.host_str().unwrap_or_default().to_lowercase();
+        if !is_secure_origin(origin.as_ref()) {
+            return Err(
+                "public_origin must be https:// (or loopback http) for passkey: WebAuthn requires a secure context"
+                    .to_owned(),
+            );
+        }
+        if host != rp_id && !host.ends_with(&format!(".{rp_id}")) {
+            return Err(format!(
+                "passkey_rp_id ({rp_id}) must equal the public_origin host ({host}) or be one of its parent domains"
+            ));
+        }
+        Ok(())
     }
 
     /// 将 db_* 字段组装为连接池参数。
@@ -548,6 +696,9 @@ impl Default for AppConfig {
             totp_window_steps: default_totp_window_steps(),
             step_up_window_secs: default_step_up_window_secs(),
             mfa_encryption_key: String::new(),
+            passkey_rp_id: String::new(),
+            passkey_rp_name: default_passkey_rp_name(),
+            settings_encryption_key: String::new(),
             oidc_key_encryption_key: String::new(),
             marketplace_webhook_encryption_key: String::new(),
             public_origin: String::new(),
@@ -569,6 +720,10 @@ fn default_log_filter() -> String {
 
 fn default_log_format() -> String {
     "text".to_owned()
+}
+
+fn default_passkey_rp_name() -> String {
+    "BBLBB".to_owned()
 }
 
 fn default_openapi_path() -> PathBuf {
@@ -741,6 +896,56 @@ fn is_loopback_address(addr: &std::net::SocketAddr) -> bool {
 mod tests {
     use super::*;
 
+    /// 独立临时路径（不与并行测试共用文件名）。
+    fn dotenv_test_path(tag: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!("bblbb-dotenv-{}-{}.env", std::process::id(), tag));
+        path
+    }
+
+    #[test]
+    fn dotenv_missing_file_is_ok() {
+        let path = dotenv_test_path("missing");
+        let _ = std::fs::remove_file(&path);
+        assert!(load_dotenv_file(&path).is_ok());
+    }
+
+    #[test]
+    fn dotenv_loads_key_value_pairs() {
+        let path = dotenv_test_path("valid");
+        std::fs::write(&path, "# 注释\nDOTENV_SELFTEST_MARKER=42\n\n").unwrap();
+        assert!(load_dotenv_file(&path).is_ok());
+        assert_eq!(std::env::var("DOTENV_SELFTEST_MARKER").as_deref(), Ok("42"));
+        std::env::remove_var("DOTENV_SELFTEST_MARKER");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn dotenv_malformed_file_fails_fast() {
+        let path = dotenv_test_path("malformed");
+        // dotenv 语法：无 `=` 的裸行 → 解析错误（快速失败而非静默忽略）
+        std::fs::write(&path, "NOT_A_VALID_DOTENV_LINE\n").unwrap();
+        let result = load_dotenv_file(&path);
+        std::env::remove_var("NOT_A_VALID_DOTENV_LINE");
+        let _ = std::fs::remove_file(&path);
+        assert!(result.is_err(), "malformed .env 必须报错而不是静默跳过");
+    }
+
+    #[test]
+    fn dotenv_existing_env_wins_over_file() {
+        let path = dotenv_test_path("precedence");
+        std::fs::write(&path, "DOTENV_SELFTEST_PRECEDENCE=from-file\n").unwrap();
+        std::env::set_var("DOTENV_SELFTEST_PRECEDENCE", "from-env");
+        assert!(load_dotenv_file(&path).is_ok());
+        // dotenv 标准语义：已存在的环境变量不被文件覆盖
+        assert_eq!(
+            std::env::var("DOTENV_SELFTEST_PRECEDENCE").as_deref(),
+            Ok("from-env")
+        );
+        std::env::remove_var("DOTENV_SELFTEST_PRECEDENCE");
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn defaults_are_runnable() {
         let config = AppConfig::default();
@@ -839,10 +1044,14 @@ mod tests {
             "feature_kill_switch",
             "log_filter",
             "log_format",
+            "marketplace_webhook_encryption_key",
             "mfa_encryption_key",
             "migrations_dir",
             "new_user_cooldown_secs",
+            "oidc_key_encryption_key",
             "openapi_path",
+            "passkey_rp_id",
+            "passkey_rp_name",
             "s3_access_key_id",
             "s3_bucket",
             "s3_endpoint",
@@ -852,6 +1061,7 @@ mod tests {
             "s3_session_token",
             "secrets_dir",
             "secrets_systemd_unit",
+            "settings_encryption_key",
             "step_up_window_secs",
             "storage_backend",
             "storage_dir",
@@ -906,9 +1116,24 @@ mod tests {
             allowed_origins: vec!["https://forum.example.com".to_owned()],
             bind_address: "127.0.0.1:8080".parse().unwrap(),
             database_url: "mysql://user:real-secret@db.internal:3306/bblbb".to_owned(),
+            // P0 整改：生产必须配置站点设置 Secret 静态加密主密钥。
+            settings_encryption_key: "prod-settings-key-material".to_owned(),
             ..AppConfig::default()
         };
         assert!(config.validate_production().is_ok());
+    }
+
+    #[test]
+    fn production_requires_settings_encryption_key() {
+        let config = AppConfig {
+            env: "production".to_owned(),
+            allowed_origins: vec!["https://forum.example.com".to_owned()],
+            bind_address: "127.0.0.1:8080".parse().unwrap(),
+            database_url: "mysql://user:real-secret@db.internal:3306/bblbb".to_owned(),
+            ..AppConfig::default()
+        };
+        let err = config.validate_production().unwrap_err();
+        assert!(err.contains("settings_encryption_key"), "{err}");
     }
 
     #[test]
@@ -944,6 +1169,7 @@ mod tests {
                 "https://forum.example.com".to_owned(),
                 "http://localhost:5173".to_owned(),
             ],
+            settings_encryption_key: "prod-settings-key-material".to_owned(),
             ..AppConfig::default()
         };
         assert!(ok.validate_production().is_ok());

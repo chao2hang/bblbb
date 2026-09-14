@@ -22,7 +22,8 @@ use crate::{app::AppState, error::AppError};
 
 /// Board 公开投影字段（匿名请求恒不含；M03-BOARDS-08 防计数/面包屑推断）：
 /// 板块自身的可见性/发帖模式/计数只对已认证请求方暴露。
-/// GAP-FIX 社交域：authed 计数追加 today_post_count（UTC 日界线内新帖）。
+/// icon 为装饰性视觉标识（非敏感），匿名同样投影；authed 计数追加
+/// today_post_count（UTC 日界线内新帖）。
 fn board_json(b: &BoardRow, authed: bool, visible_parents: &[String]) -> Value {
     let mut v = json!({
         "id": b.id,
@@ -32,6 +33,7 @@ fn board_json(b: &BoardRow, authed: bool, visible_parents: &[String]) -> Value {
         "slug": b.slug,
         "name": b.name,
         "description": b.description,
+        "icon": b.icon,
     });
     if authed {
         v["visibility"] = json!(b.visibility);
@@ -122,14 +124,14 @@ async fn list_boards(
     let boards =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
                  ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
             .fetch_all(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
                  ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
@@ -227,14 +229,14 @@ async fn get_board(
     let row =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
             .fetch_optional(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
@@ -451,6 +453,8 @@ async fn list_board_posts(
     };
     let mut sql = String::from(
         "SELECT p.id, p.title, p.author_id, u.username_normalized AS author_name,
+                u.display_name AS author_display_name,
+                u.avatar_attachment_id AS avatar_attachment_id,
                 p.reply_count, p.view_count, p.pinned, p.created_at, p.last_reply_at
          FROM posts p
          LEFT JOIN users u ON u.id = p.author_id
@@ -485,13 +489,55 @@ async fn list_board_posts(
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
     let has_more = posts.len() as i64 > limit;
-    let page = posts.into_iter().take(limit as usize);
+    let page: Vec<_> = posts.into_iter().take(limit as usize).collect();
+    // 参与者预览（一页一查询）：楼主之外已发布回复的不同作者，每帖 ≤2 个。
+    let post_ids: Vec<String> = page.iter().map(|p| p.id.clone()).collect();
+    let participants =
+        crate::routes::posts::fetch_post_participants(pool, &post_ids, request_id).await?;
+    // 作者装扮投影（作者去重后逐个查询）：与首页列表行同构（已装备头像框）。
+    let author_ids: Vec<String> = page.iter().map(|p| p.author_id.clone()).collect();
+    let author_tokens =
+        crate::routes::posts::fetch_author_presentation_tokens(pool, &author_ids).await;
+    let empty_participants: Vec<crate::routes::posts::PostParticipantRow> = Vec::new();
     let items: Vec<Value> = page
+        .iter()
         .map(|p| {
+            let participants_json: Vec<Value> = participants
+                .get(&p.id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&empty_participants)
+                .iter()
+                .map(|u| {
+                    let mut value = json!({
+                        "id": u.user_id,
+                        "username": u.username,
+                        "display_name": u.display_name,
+                    });
+                    if let Some(attachment_id) = &u.avatar_attachment_id {
+                        value["avatar_attachment_id"] = json!(attachment_id);
+                    }
+                    if let Some(tokens) = &u.presentation_tokens {
+                        value["presentation_tokens"] = json!(tokens);
+                    }
+                    value
+                })
+                .collect();
+            let mut author = json!({
+                "id": p.author_id,
+                "username": p.author_name,
+                "display_name": p.author_display_name,
+            });
+            if let Some(attachment_id) = &p.avatar_attachment_id {
+                author["avatar_attachment_id"] = json!(attachment_id);
+            }
+            if let Some(tokens) = author_tokens.get(&p.author_id) {
+                author["presentation_tokens"] = json!(tokens);
+            }
             json!({
                 "id": p.id,
                 "title": p.title,
-                "author": { "id": p.author_id, "username": p.author_name },
+                "author": author,
+                "participants": participants_json,
                 "reply_count": p.reply_count,
                 "view_count": p.view_count,
                 "pinned": p.pinned != 0,
@@ -596,6 +642,7 @@ async fn list_tag_posts(
     let fetch_limit = limit + 1;
     let sql = String::from(
         "SELECT p.id, p.title, p.author_id, u.username_normalized AS author_name,
+                u.display_name AS author_display_name,
                 p.reply_count, p.view_count, p.summary, p.created_at, p.last_reply_at,
                 b.slug AS board_slug, b.name AS board_name
          FROM post_tags pt
@@ -640,7 +687,11 @@ async fn list_tag_posts(
             json!({
                 "id": r.id,
                 "title": r.title,
-                "author": { "id": r.author_id, "username": r.author_name },
+                "author": {
+                    "id": r.author_id,
+                    "username": r.author_name,
+                    "display_name": r.author_display_name,
+                },
                 "reply_count": r.reply_count,
                 "view_count": r.view_count,
                 "summary": r.summary,
@@ -681,6 +732,8 @@ struct TagPostRow {
     title: String,
     author_id: String,
     author_name: Option<String>,
+    /// 作者昵称（users.display_name；前台列表优先显示昵称，缺省回退用户名）。
+    author_display_name: Option<String>,
     reply_count: i64,
     view_count: i64,
     summary: Option<String>,
@@ -700,6 +753,8 @@ struct BoardRow {
     slug: String,
     name: String,
     description: Option<String>,
+    /// 板块图标（lucide 图标名；NULL = 未设置，前台回退默认视觉）。
+    icon: Option<String>,
     parent_id: Option<String>,
     sort_order: i64,
     visibility: String,
@@ -715,6 +770,10 @@ struct PostListRow {
     title: String,
     author_id: String,
     author_name: Option<String>,
+    /// 作者昵称（users.display_name；前台列表优先显示昵称，缺省回退用户名）。
+    author_display_name: Option<String>,
+    /// 作者上传头像附件 id（公开引用；参与者列楼主头像渲染用，可空）。
+    avatar_attachment_id: Option<String>,
     reply_count: i64,
     view_count: i64,
     pinned: i64,

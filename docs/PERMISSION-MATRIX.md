@@ -125,11 +125,11 @@
 
 ## 附录：operation 级 x-permission 注册表
 
-> 由 `openapi/openapi.yaml` 的 `x-permission` 扩展直接导出，并由 `ruby scripts/check-permission-matrix.rb` 三方校验：**OpenAPI → 本矩阵**（每个取值都必须在本注册表或上文动作表出现）、**OpenAPI → 权限注册表**（`backend/src/authz/mod.rs::PERMISSION_REGISTRY`，身份级标记除外）、**注册表 ↔ 本矩阵**（注册表权限必须在本文档出现，本附录行必须是已注册权限）。新增 operation 必须先登记 permission；新增权限必须先注册 `PERMISSION_REGISTRY`。`public` 与 `authenticated` 是身份级标记：`public` = 匿名可访问；`authenticated` = 任意已登录用户，对象级判定（作者/所有者/板块范围）在 handler 内完成。下表"使用数"来自 223 个 operation；operationId 只列代表，完整映射以 openapi.yaml 为准。
+> 由 `openapi/openapi.yaml` 的 `x-permission` 扩展直接导出，并由 `ruby scripts/check-permission-matrix.rb` 三方校验：**OpenAPI → 本矩阵**（每个取值都必须在本注册表或上文动作表出现）、**OpenAPI → 权限注册表**（`backend/src/authz/mod.rs::PERMISSION_REGISTRY`，身份级标记除外）、**注册表 ↔ 本矩阵**（注册表权限必须在本文档出现，本附录行必须是已注册权限）。新增 operation 必须先登记 permission；新增权限必须先注册 `PERMISSION_REGISTRY`。`public` 与 `authenticated` 是身份级标记：`public` = 匿名可访问；`authenticated` = 任意已登录用户，对象级判定（作者/所有者/板块范围）在 handler 内完成。下表"使用数"来自 238 个 operation；operationId 只列代表，完整映射以 openapi.yaml 为准。
 
 | x-permission | 使用数 | 代表 operationId | 关联矩阵小节 |
 |---|---:|---|---|
-| `public` | 21 | getHealth、login、listBoards、listPosts、getCsrfToken、register、searchPublicContent、listTagPosts、get_achievements、get_stats、getPublicRssFeed、getPublicAtomFeed 等 | §1 身份和标记；社交与个人域 |
+| `public` | 23 | getHealth、login、listBoards、listPosts、getCsrfToken、register、searchPublicContent、listTagPosts、get_achievements、get_stats、getPublicRssFeed、getPublicAtomFeed、loginMfaPasskeyOptions 等 | §1 身份和标记；社交与个人域 |
 | `authenticated` | 90 | get_attachments_id_、post_me_profile_cover、post_attachments_id_download、get_notifications、post_shop_orders、post_ai_drafts_draft_id_format、post_video_embeds、post_users_username_follow、post_posts_id_favorite、get_conversations、get_me_favorites、post_me_api_keys、put_me_achievements_code_equip、post_me_password、post_posts_id_unlock 等 | §1 身份和标记；社交与个人域 |
 | `session.revoke_own` | 3 | logout、logoutAll、revokeSession | §1 身份和标记 |
 | `session.read_own` | 1 | listSessions | §1 身份和标记 |
@@ -140,6 +140,9 @@
 | `mfa.recovery_codes` | 1 | mfaRecoveryCodes | §1 身份和标记（近期认证） |
 | `mfa.disable` | 1 | mfaDisable | §1 身份和标记（近期认证） |
 | `mfa.reauth` | 1 | reAuth | §1 身份和标记 |
+| `passkey.read_own` | 1 | listPasskeys | §1 身份和标记 |
+| `passkey.enroll` | 2 | beginPasskeyRegistration、confirmPasskeyRegistration | §1 身份和标记 |
+| `passkey.revoke` | 1 | revokePasskey | §1 身份和标记（近期认证） |
 | `user.manage` | 4 | listAdminUsers、createAdminUser、getAdminUser、updateAdminUser | §1 身份和标记（管理员） |
 | `role.manage` | 4 | listAdminRoles、createAdminRole、getAdminRole、updateAdminRole | §1 身份和标记（管理员） |
 | `board.read` | 1 | getBoard | §2 核心论坛 |
@@ -179,7 +182,7 @@
 
 ## 9. 权限注册表（Rust 事实来源，M03-AUTHZ-01）
 
-- 唯一事实来源：`backend/src/authz/mod.rs::PERMISSION_REGISTRY`——68 项 v1
+- 唯一事实来源：`backend/src/authz/mod.rs::PERMISSION_REGISTRY`——71 项 v1
   权限 = 上文 §2-8 动作表 + 附录 operation 级注册表（不含 `public`/
   `authenticated` 身份标记）。
 - 名称格式强制 `resource.action`（恰好一个点、两段非空、小写字母数字
@@ -208,7 +211,7 @@
 - `board_moderator` 通过 `board_role_assignments` **按板块生效**（板块范围
   内容审核：`post.moderate`/`moderation.review`/`moderation.sanction`）；
   `global_moderator` 与 `administrator` 通过 `user_roles` 全局生效；
-  `administrator` = 注册表全部 68 项（`RolePermissions::All`）。
+  `administrator` = 注册表全部 71 项（`RolePermissions::All`）。
 - 聚合公式：`aggregate_permissions(user_id, board_id)` = member 基线 ∪
   `user_roles` 生效全局角色 ∪ `board_role_assignments` 生效板块角色；
   自定义角色与内置角色走同一 `roles`/`role_permissions` 路径。生效判断

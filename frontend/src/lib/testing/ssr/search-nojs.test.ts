@@ -34,11 +34,11 @@ describe('M08-UI-05 搜索页 SSR head', () => {
   it('输出 canonical、noindex、OG/Twitter 与 JSON-LD（WebSite + SearchAction）', () => {
     const { body, head } = render(SearchPage, { props: { data: baseData({ q: '测试', searched: true }) } });
     expect(head).toContain('<link rel="canonical"');
-    expect(head).toContain(`href="http://test.local/search?q=${encodeURIComponent('测试')}"`);
+    expect(head).toContain(`href="http://test.local/?q=${encodeURIComponent('测试')}"`);
     expect(head).toContain('name="robots" content="noindex, noarchive, nofollow"');
     expect(head).toContain('property="og:type" content="website"');
     expect(head).toContain('property="og:title"');
-    expect(head).toContain(`property="og:url" content="http://test.local/search?q=${encodeURIComponent('测试')}"`);
+    expect(head).toContain(`property="og:url" content="http://test.local/?q=${encodeURIComponent('测试')}"`);
     expect(head).toContain('name="twitter:card" content="summary"');
     // JSON-LD 经 Seo 统一生成器输出：script 位于正文树（schema.org 允许
     // JSON-LD 出现在 DOM 任意位置；M14-SEO-01 统一 head + JSON-LD 注入）。
@@ -126,7 +126,7 @@ describe('M08-UI-01/02 搜索页 SSR 结果', () => {
         })
       }
     });
-    expect(body).toContain(`href="/search?q=${encodeURIComponent('测试')}&amp;after=cursor-1"`);
+    expect(body).toContain(`href="/?q=${encodeURIComponent('测试')}&amp;after=cursor-1"`);
     expect(body).toContain('下一页');
     expect(body).toContain('返回第一页');
     expect(body).toContain('aria-label="搜索结果分页"');
@@ -150,13 +150,13 @@ describe('M08-UI-01/02 搜索页 SSR 结果', () => {
 });
 
 describe('M08-UI-06 429/挑战 SSR 回退', () => {
-  it('429 → ChallengeGate：role=alert、重试按钮与返回搜索首页链接', () => {
+  it('429 → ChallengeGate：role=alert、重试按钮与返回首页链接', () => {
     const { body } = render(SearchPage, {
       props: { data: baseData({ q: 'x', searched: true, rateLimited: { retryAfterSecs: 30 } }) }
     });
     expect(body).toContain('role="alert"');
     expect(body).toContain('搜索过于频繁');
-    expect(body).toContain('href="/search"');
+    expect(body).toContain('href="/"');
     expect(body).toContain('重新搜索');
   });
 
@@ -166,6 +166,6 @@ describe('M08-UI-06 429/挑战 SSR 回退', () => {
     });
     expect(body).toContain('需要完成验证');
     expect(body).toContain('href="/challenge/abc"');
-    expect(body).toContain('返回搜索首页');
+    expect(body).toContain('返回首页');
   });
 });

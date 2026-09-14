@@ -1,15 +1,17 @@
 use axum::{
-    extract::{Path, State},
-    http::HeaderMap,
+    extract::{Path, Query, State},
+    http::{header, HeaderMap},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Either;
 
 use crate::storage::model::{AttachmentRecord, AttachmentStatus};
 use crate::users::dto::Me;
+use crate::users::dto::PublicEquippedAchievement;
 use crate::users::dto::PublicProfile;
 use crate::users::profile::{load_profile_fields, update_profile, ProfileUpdate};
 use crate::{app::AppState, auth::session::AuthSession, error::AppError};
@@ -30,6 +32,15 @@ type PublicUserRow = (
     String,
 );
 
+fn private_no_store<T: IntoResponse>(response: T) -> Response {
+    let mut response = response.into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    response
+}
+
 /// 用户路由：个人资料、公开用户、Cover
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -38,6 +49,7 @@ pub fn router() -> Router<AppState> {
             "/api/v1/me/preferences/theme",
             get(get_theme_pref).put(update_theme_pref),
         )
+        .route("/api/v1/users/suggest", get(suggest_mention_users))
         .route("/api/v1/users/{username}", get(get_public_user))
         .route(
             "/api/v1/me/profile-cover",
@@ -306,20 +318,28 @@ async fn get_user_profile_cover(
 }
 
 /// GET /api/v1/me — 获取当前用户（本人投影 DTO，M03-PROFILE-01/03）
-async fn get_me(State(state): State<AppState>, auth: AuthSession) -> Result<Json<Me>, AppError> {
+async fn get_me(State(state): State<AppState>, auth: AuthSession) -> Result<Response, AppError> {
     let request_id = "get_me";
     let user = auth.require_auth(request_id)?;
     let pool = state
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    let mfa_enabled = crate::auth::has_confirmed_totp(pool, &user.id)
+    let mfa_enabled = crate::auth::passkey::has_second_factor(pool, &user.id)
         .await
         .unwrap_or(false);
     let profile = load_profile_fields(pool, user)
         .await
         .map_err(|e| AppError::internal(e, request_id))?;
-    Ok(Json(Me::from_session(user, mfa_enabled, &profile)))
+    let presentation_tokens = crate::shop::service::get_public_presentation_tokens(pool, &user.id)
+        .await
+        .unwrap_or(None);
+    Ok(private_no_store(Json(Me::from_session(
+        user,
+        mfa_enabled,
+        &profile,
+        presentation_tokens,
+    ))))
 }
 
 /// PATCH /api/v1/me — 更新当前用户资料（昵称/简介/签名/时区/主题/隐私；
@@ -330,7 +350,7 @@ async fn update_me(
     auth: AuthSession,
     headers: HeaderMap,
     Json(body): Json<Value>,
-) -> Result<Json<Me>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "update_me";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -350,6 +370,81 @@ async fn update_me(
             None,
         )
     })?;
+
+    let avatar_attachment_id: Option<Option<String>> = match body.get("avatar_attachment_id") {
+        Some(Value::Null) => Some(None),
+        Some(Value::String(s)) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                Some(None)
+            } else {
+                Some(Some(trimmed.to_string()))
+            }
+        }
+        Some(_) => {
+            return Err(AppError::bad_request(
+                "avatar_attachment_id must be a UUID string or null",
+                request_id,
+                None,
+            ));
+        }
+        None => None,
+    };
+
+    let mut old_avatar_id: Option<String> = None;
+    if let Some(ref new_opt) = avatar_attachment_id {
+        old_avatar_id = match pool {
+            Either::Left(p) => {
+                sqlx::query_scalar("SELECT avatar_attachment_id FROM users WHERE id = ?")
+                    .bind(&user.id)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            }
+            Either::Right(p) => {
+                sqlx::query_scalar("SELECT avatar_attachment_id FROM users WHERE id = ?")
+                    .bind(&user.id)
+                    .fetch_optional(p)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            }
+        };
+
+        if let Some(ref new_id) = new_opt {
+            uuid::Uuid::parse_str(new_id).map_err(|_| {
+                AppError::bad_request("avatar_attachment_id must be a UUID", request_id, None)
+            })?;
+            let attachment = crate::storage::upload::load_attachment(pool, new_id)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+                .ok_or_else(|| AppError::not_found("attachment not found", request_id))?;
+            if attachment.owner_id != user.id {
+                return Err(AppError::bad_request(
+                    "attachment does not belong to you",
+                    request_id,
+                    None,
+                ));
+            }
+            if attachment.status != crate::storage::AttachmentStatus::Ready {
+                return Err(AppError::bad_request(
+                    "attachment is not ready",
+                    request_id,
+                    None,
+                ));
+            }
+            if !attachment.media_type.starts_with("image/") {
+                return Err(AppError::bad_request(
+                    "avatar attachment must be an image",
+                    request_id,
+                    None,
+                ));
+            }
+            let now = crate::outbox::now_millis();
+            crate::storage::quota::link_attachment(pool, new_id, "user", &user.id, "avatar", now)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        }
+    }
 
     let update = ProfileUpdate {
         display_name: body
@@ -380,10 +475,23 @@ async fn update_me(
             .get("profile_visible_to")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
+        avatar_attachment_id: avatar_attachment_id.clone(),
     };
     update
         .validate()
         .map_err(|msg| AppError::bad_request(msg, request_id, None))?;
+    if let Some(ref dn) = update.display_name {
+        if crate::users::blacklist::is_nickname_blacklisted(pool, dn)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        {
+            return Err(AppError::bad_request(
+                "该昵称已被列入黑名单，禁止使用",
+                request_id,
+                None,
+            ));
+        }
+    }
     // M13-THEME-07：PATCH /me 的 theme 也必须是 default 或已安装且激活的
     // 数据主题（服务端再次校验；未知/停用/损坏 → 400）。
     if let Some(theme_name) = update.theme_name.as_deref() {
@@ -395,24 +503,47 @@ async fn update_me(
                 })?;
         }
     }
-    update_profile(pool, &user.id, update, if_match)
-        .await
-        .map_err(|e| match e {
+    if let Err(e) = update_profile(pool, &user.id, update, if_match).await {
+        if let Some(Some(ref new_id)) = avatar_attachment_id {
+            if old_avatar_id.as_deref() != Some(new_id.as_str()) {
+                let _ =
+                    crate::storage::quota::unlink_attachment(pool, new_id, "user", &user.id).await;
+            }
+        }
+        return Err(match e {
             crate::users::profile::ProfileUpdateError::VersionConflict => {
                 AppError::version_conflict("profile version conflict", request_id)
             }
             crate::users::profile::ProfileUpdateError::Database(msg) => {
                 AppError::internal(msg, request_id)
             }
-        })?;
+        });
+    }
 
-    let mfa_enabled = crate::auth::has_confirmed_totp(pool, &user.id)
+    if let Some(ref new_opt) = avatar_attachment_id {
+        if let Some(ref old_id) = old_avatar_id {
+            if new_opt.as_deref() != Some(old_id.as_str()) {
+                let _ =
+                    crate::storage::quota::unlink_attachment(pool, old_id, "user", &user.id).await;
+            }
+        }
+    }
+
+    let mfa_enabled = crate::auth::passkey::has_second_factor(pool, &user.id)
         .await
         .unwrap_or(false);
     let profile = load_profile_fields(pool, user)
         .await
         .map_err(|e| AppError::internal(e, request_id))?;
-    Ok(Json(Me::from_session(user, mfa_enabled, &profile)))
+    let presentation_tokens = crate::shop::service::get_public_presentation_tokens(pool, &user.id)
+        .await
+        .unwrap_or(None);
+    Ok(private_no_store(Json(Me::from_session(
+        user,
+        mfa_enabled,
+        &profile,
+        presentation_tokens,
+    ))))
 }
 
 /// GET /api/v1/users/{username} — 获取公开用户资料（公开投影 DTO，
@@ -421,11 +552,13 @@ async fn update_me(
 ///
 /// GAP-FIX 社交域：追加 post_count/followers/following 公开计数与
 /// is_following（请求者视角，未登录恒 false）。
+/// 社交域·成就：追加 equipped_achievements（已装备成就徽章 ≤3，服务端
+/// 裁决；降级用户为空数组）——资料卡「佩戴徽章」行的真实数据来源。
 async fn get_public_user(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(username): Path<String>,
-) -> Result<Json<PublicProfile>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_public_user";
     let pool = state
         .db
@@ -437,7 +570,7 @@ async fn get_public_user(
     let row: Option<PublicUserRow> = match pool {
         Either::Left(p) => {
             sqlx::query_as(
-                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at, status
+                "SELECT id, username_normalized, display_name, bio, trust_level AS level, avatar_attachment_id, cover_attachment_id, signature, created_at, status
                  FROM users WHERE username_normalized = ?",
             )
             .bind(&username_normalized)
@@ -446,7 +579,7 @@ async fn get_public_user(
         }
         Either::Right(p) => {
             sqlx::query_as(
-                "SELECT id, username_normalized, display_name, bio, level, avatar_attachment_id, cover_attachment_id, signature, created_at, status
+                "SELECT id, username_normalized, display_name, bio, trust_level AS level, avatar_attachment_id, cover_attachment_id, signature, created_at, status
                  FROM users WHERE username_normalized = ?",
             )
             .bind(&username_normalized)
@@ -483,7 +616,35 @@ async fn get_public_user(
                     .await
                     .map_err(|e| AppError::internal(e, request_id))?;
 
-            Ok(Json(PublicProfile {
+            // 装扮公开投影（M07-SHOP-SCHEMA-06）：白名单 Token 编译，best-effort
+            // （失败不阻塞资料页）；封禁/注销中随其他公开字段一并置空。
+            let presentation_tokens = if degraded {
+                None
+            } else {
+                match crate::shop::service::get_public_presentation_tokens(pool, &id).await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!(
+                            user_id = %id,
+                            error = %e,
+                            "public presentation tokens compile failed"
+                        );
+                        None
+                    }
+                }
+            };
+
+            // 已装备成就徽章（社交域·成就墙装备槽）：≤3，服务端裁决；
+            // 封禁/注销中降级为空数组（与装扮置空同策略）。
+            let equipped_achievements = if degraded {
+                Vec::new()
+            } else {
+                load_equipped_achievements(pool, &id)
+                    .await
+                    .map_err(|e| AppError::internal(e, request_id))?
+            };
+
+            Ok(private_no_store(Json(PublicProfile {
                 id,
                 username,
                 display_name,
@@ -497,7 +658,9 @@ async fn get_public_user(
                 followers,
                 following,
                 is_following,
-            }))
+                presentation_tokens,
+                equipped_achievements,
+            })))
         }
         None => Err(AppError::not_found("user not found", request_id)),
     }
@@ -557,6 +720,37 @@ async fn load_public_social_stats(
     Ok((post_count, followers, following, is_following))
 }
 
+/// 已装备成就徽章（社交域·成就墙装备槽，≤ [`MAX_EQUIPPED_SLOTS`]）。
+///
+/// 只取启用成就的 code/name（公开佩戴语义）；按目录排序（sort_order,
+/// code）稳定输出。SQL 跨方言 `?` 占位符，LIMIT 常量内联。
+async fn load_equipped_achievements(
+    pool: &sqlx::Either<sqlx::SqlitePool, sqlx::MySqlPool>,
+    user_id: &str,
+) -> Result<Vec<PublicEquippedAchievement>, String> {
+    let sql = "SELECT a.code, a.name FROM user_achievements ua
+               JOIN achievements a ON a.id = ua.achievement_id
+               WHERE ua.user_id = ? AND ua.equipped = 1 AND a.is_enabled = 1
+               ORDER BY a.sort_order ASC, a.code ASC";
+    let rows: Vec<(String, String)> = match pool {
+        Either::Left(p) => sqlx::query_as(sql)
+            .bind(user_id)
+            .fetch_all(p)
+            .await
+            .map_err(|e| e.to_string())?,
+        Either::Right(p) => sqlx::query_as(sql)
+            .bind(user_id)
+            .fetch_all(p)
+            .await
+            .map_err(|e| e.to_string())?,
+    };
+    Ok(rows
+        .into_iter()
+        .take(crate::achievements::MAX_EQUIPPED_SLOTS as usize)
+        .map(|(code, name)| PublicEquippedAchievement { code, name })
+        .collect())
+}
+
 /// 单条 COUNT 聚合（社交统计共用）。
 async fn social_scalar(
     pool: &sqlx::Either<sqlx::SqlitePool, sqlx::MySqlPool>,
@@ -584,7 +778,7 @@ async fn social_scalar(
 async fn get_theme_pref(
     State(state): State<AppState>,
     auth: AuthSession,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_theme_pref";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -594,11 +788,11 @@ async fn get_theme_pref(
     let view = crate::theme::user_theme_preference(pool, &user.id)
         .await
         .map_err(|e| crate::routes::themes::theme_error_to_app(e, request_id))?;
-    Ok(Json(json!({
+    Ok(private_no_store(Json(json!({
         "theme": view.theme,
         "revision": view.revision,
         "effective": view.effective,
-    })))
+    }))))
 }
 
 /// PUT /api/v1/me/preferences/theme — 更新主题偏好（M13-THEME-07）。
@@ -656,4 +850,154 @@ async fn update_theme_pref(
         axum::http::HeaderValue::from_static("private, no-store"),
     );
     Ok(response)
+}
+
+#[derive(Deserialize)]
+pub struct SuggestMentionUsersQuery {
+    #[serde(default)]
+    pub q: String,
+    #[serde(default = "default_suggest_limit")]
+    pub limit: i64,
+}
+
+fn default_suggest_limit() -> i64 {
+    5
+}
+
+/// GET /api/v1/users/suggest — 回复/发帖 @提及用户模糊搜索（默认展示 5 个最相近用户）
+async fn suggest_mention_users(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(query): Query<SuggestMentionUsersQuery>,
+) -> Result<Response, AppError> {
+    let request_id = "suggest_mention_users";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let raw_q = query.q.trim().trim_start_matches('@').trim();
+    let limit = query.limit.clamp(1, 20);
+
+    let items: Vec<Value> = if raw_q.is_empty() {
+        // 无关键词时默认推荐 5 个用户（按等级与近期更新排序，排除本人与已删除账号）
+        let sql = "SELECT username_normalized, display_name, trust_level AS level
+                   FROM users
+                   WHERE id <> ?
+                     AND status NOT IN ('deleted', 'pending_delete')
+                   ORDER BY trust_level DESC, updated_at DESC
+                   LIMIT ?";
+        let rows: Vec<(String, Option<String>, i64)> = match pool {
+            Either::Left(p) => sqlx::query_as(sql)
+                .bind(&user.id)
+                .bind(limit)
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            Either::Right(p) => sqlx::query_as(sql)
+                .bind(&user.id)
+                .bind(limit)
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        };
+        rows.into_iter()
+            .map(|(username, display_name, level)| {
+                json!({
+                    "username": username,
+                    "display_name": display_name,
+                    "level": level,
+                })
+            })
+            .collect()
+    } else {
+        let q_lower = raw_q.to_lowercase();
+        let escaped = q_lower
+            .replace('!', "!!")
+            .replace('%', "!%")
+            .replace('_', "!_");
+        let pattern = format!("%{escaped}%");
+
+        let sql = "SELECT username_normalized, display_name, trust_level AS level
+                   FROM users
+                   WHERE id <> ?
+                     AND status NOT IN ('deleted', 'pending_delete')
+                     AND (username_normalized LIKE ? ESCAPE '!' OR (display_name IS NOT NULL AND LOWER(display_name) LIKE ? ESCAPE '!'))
+                   LIMIT 50";
+        let rows: Vec<(String, Option<String>, i64)> = match pool {
+            Either::Left(p) => sqlx::query_as(sql)
+                .bind(&user.id)
+                .bind(&pattern)
+                .bind(&pattern)
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+            Either::Right(p) => sqlx::query_as(sql)
+                .bind(&user.id)
+                .bind(&pattern)
+                .bind(&pattern)
+                .fetch_all(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        };
+
+        // 相似度打分分级：
+        // 0: username 完全匹配
+        // 1: display_name 完全匹配
+        // 2: username 前缀匹配
+        // 3: display_name 前缀匹配
+        // 4: username 包含子串
+        // 5: display_name 包含子串
+        let mut scored: Vec<(u32, usize, String, Option<String>, i64)> = rows
+            .into_iter()
+            .map(|(username, display_name, level)| {
+                let u_lower = username.to_lowercase();
+                let d_lower = display_name.as_deref().unwrap_or("").to_lowercase();
+                let tier = if u_lower == q_lower {
+                    0
+                } else if !d_lower.is_empty() && d_lower == q_lower {
+                    1
+                } else if u_lower.starts_with(&q_lower) {
+                    2
+                } else if !d_lower.is_empty() && d_lower.starts_with(&q_lower) {
+                    3
+                } else if u_lower.contains(&q_lower) {
+                    4
+                } else {
+                    5
+                };
+                (tier, username.len(), username, display_name, level)
+            })
+            .collect();
+
+        scored.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then_with(|| a.1.cmp(&b.1))
+                .then_with(|| a.2.cmp(&b.2))
+        });
+
+        scored
+            .into_iter()
+            .take(limit as usize)
+            .map(|(_, _, username, display_name, level)| {
+                json!({
+                    "username": username,
+                    "display_name": display_name,
+                    "level": level,
+                })
+            })
+            .collect()
+    };
+
+    let body = json!({ "items": items });
+    Ok((
+        axum::http::StatusCode::OK,
+        [
+            (axum::http::header::CACHE_CONTROL, "private, no-store"),
+            (axum::http::header::CONTENT_TYPE, "application/json"),
+        ],
+        Json(body),
+    )
+        .into_response())
 }

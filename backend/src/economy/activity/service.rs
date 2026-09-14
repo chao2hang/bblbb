@@ -31,9 +31,7 @@ use crate::economy::activity::checkin::{
 };
 use crate::economy::ledger::service::{
     apply_operation, get_account, reversal, LedgerCommand, LedgerError, LedgerKind, CURRENCY_COIN,
-    CURRENCY_EXP,
 };
-use crate::economy::levels;
 use crate::events::types::ACTIVITY_CLAIMED;
 use crate::outbox::{enqueue, now_millis};
 
@@ -73,12 +71,6 @@ impl From<sqlx::Error> for ActivityError {
 impl From<LedgerError> for ActivityError {
     fn from(e: LedgerError) -> Self {
         Self::Ledger(e.to_string())
-    }
-}
-
-impl From<levels::LevelError> for ActivityError {
-    fn from(e: levels::LevelError) -> Self {
-        Self::Db(e.to_string())
     }
 }
 
@@ -331,11 +323,8 @@ fn build_config_from_rule(rule: &ActivityRuleRow) -> ActivityConfig {
         .get("rewards_enabled")
         .and_then(Value::as_bool)
         .unwrap_or(true);
-    let check_in_currency = if rule.currency_id == CURRENCY_COIN || rule.currency_id == "coin" {
-        "coin".to_string()
-    } else {
-        "exp".to_string()
-    };
+    // 经验货币已下线；活动奖励统一使用 B 币。
+    let check_in_currency = "coin".to_string();
     ActivityConfig {
         site_timezone,
         timezone_version: TIMEZONE_VERSION.to_string(),
@@ -367,9 +356,6 @@ pub async fn ensure_default_activity_config(
     pool: &DatabasePool,
     now: i64,
 ) -> Result<ActivityConfig, ActivityError> {
-    levels::ensure_default_scheme(pool, now)
-        .await
-        .map_err(ActivityError::from)?;
     let conditions = json!({
         "config": true,
         "site_timezone": DEFAULT_SITE_TIMEZONE,
@@ -399,7 +385,7 @@ pub async fn ensure_default_activity_config(
                          VALUES (?, 'check_in', ?, 10, 1, NULL, ?, 1, 1, ?, ?)",
                     )
                     .bind(uuid::Uuid::now_v7().to_string())
-                    .bind(CURRENCY_EXP)
+                    .bind(CURRENCY_COIN)
                     .bind(&conditions_str)
                     .bind(now)
                     .bind(now)
@@ -431,7 +417,7 @@ pub async fn ensure_default_activity_config(
                  )",
             )
             .bind(uuid::Uuid::now_v7().to_string())
-            .bind(CURRENCY_EXP)
+            .bind(CURRENCY_COIN)
             .bind(&conditions_str)
             .bind(now)
             .bind(now)
@@ -618,6 +604,11 @@ pub async fn claim_rule(
 ) -> Result<ClaimOutcome, ActivityError> {
     if !rule.is_enabled {
         return Err(ActivityError::NotEligible("rule disabled".to_string()));
+    }
+    if rule.currency_id != CURRENCY_COIN && rule.currency_id != "coin" {
+        return Err(ActivityError::Invalid(
+            "activity rewards must use coin currency".to_string(),
+        ));
     }
     check_user_eligible(pool, user_id).await?;
 
@@ -937,11 +928,6 @@ pub async fn claim_check_in(
         }
     }
 
-    if any_claimed {
-        // 等级重建：只写 user_levels 缓存与 level_events，不改账本与历史。
-        let _ = levels::recompute_level(pool, user_id, "activity.check_in", now).await;
-    }
-
     let checked_in_today = any_claimed || claimed_on_day(pool, user_id, &activity_day).await?;
     // 重放/并发场景：返回原领取的流水号（OpenAPI point_operation_id）。
     if first_operation.is_none() && checked_in_today {
@@ -1160,7 +1146,48 @@ pub async fn revoke_claim(
 
 // ─── 汇总投影（M07-LEVELS-01/02/09）──────────────────────────────────
 
-/// 活动汇总：今日签到状态、连续天数、等级（服务端裁决权益）、经验余额。
+/// 今日已入账奖励列表（按币种汇总）。
+pub async fn list_today_earned(
+    pool: &DatabasePool,
+    user_id: &str,
+    activity_day: &str,
+) -> Result<Vec<Value>, ActivityError> {
+    let sql = "SELECT c.code, COALESCE(SUM(pt.delta_balance), 0) AS total
+         FROM activity_claims ac
+         JOIN point_transactions pt ON pt.operation_id = ac.point_operation_id
+         JOIN currencies c ON c.id = pt.currency_id
+         WHERE ac.user_id = ? AND ac.activity_day = ? AND ac.status = 'granted'
+           AND ac.point_operation_id NOT LIKE 'pending:%'
+           AND ac.point_operation_id NOT LIKE 'zero:%'
+           AND c.code != 'exp'
+         GROUP BY c.code
+         ORDER BY c.code";
+    let rows: Vec<(String, i64)> = match pool {
+        Either::Left(p) => sqlx::query_as(sql)
+            .bind(user_id)
+            .bind(activity_day)
+            .fetch_all(p)
+            .await
+            .map_err(|e| ActivityError::Db(e.to_string()))?,
+        Either::Right(p) => sqlx::query_as(sql)
+            .bind(user_id)
+            .bind(activity_day)
+            .fetch_all(p)
+            .await
+            .map_err(|e| ActivityError::Db(e.to_string()))?,
+    };
+    Ok(rows
+        .into_iter()
+        .map(|(code, amount)| {
+            json!({
+                "currency": code,
+                "amount": amount,
+            })
+        })
+        .collect())
+}
+
+/// 活动汇总：今日签到状态、连续天数、今日奖励与 B 币余额。
 pub async fn activity_summary(
     pool: &DatabasePool,
     user_id: &str,
@@ -1171,18 +1198,16 @@ pub async fn activity_summary(
     let effective_now = now - config.day_reset_hour.clamp(0, 23) * 3_600_000;
     let activity_day = activity_day_for(tz.offset_secs, effective_now);
 
-    // 等级新鲜度：以 exp 余额重建缓存（幂等，缓存失效不改账本与历史）。
-    let _ = levels::recompute_level(pool, user_id, "activity.summary", now).await;
-    let level = levels::level_projection(pool, user_id)
-        .await
-        .map_err(ActivityError::from)?;
-    let checked_in_today = claimed_on_day(pool, user_id, &activity_day).await?;
-    let streak = streak_days(pool, user_id, &activity_day).await?;
-    let balance = match get_account(pool, user_id, CURRENCY_EXP).await {
+    let coin_balance = match get_account(pool, user_id, CURRENCY_COIN).await {
         Ok(account) => account.balance,
         Err(LedgerError::NotFound(_)) => 0,
         Err(_) => 0,
     };
+    let checked_in_today = claimed_on_day(pool, user_id, &activity_day).await?;
+    let streak = streak_days(pool, user_id, &activity_day).await?;
+    let today_earned = list_today_earned(pool, user_id, &activity_day)
+        .await
+        .unwrap_or_default();
 
     Ok(json!({
         "activity_day": activity_day,
@@ -1190,11 +1215,10 @@ pub async fn activity_summary(
         "check_in_enabled": config.check_in_enabled,
         "auto_check_in_enabled": config.auto_check_in_enabled,
         "streak_days": streak,
-        "level": level,
-        "experience": {
-            "currency": "exp",
-            "balance": balance,
-        },
+        "today_earned": today_earned,
+        "balances": [
+            { "currency": "coin", "amount": coin_balance },
+        ],
         "config": {
             "site_timezone": config.site_timezone,
             "timezone_version": TIMEZONE_VERSION,
@@ -1257,6 +1281,11 @@ fn validate_task_input(input: &TaskInput) -> Result<(), ActivityError> {
             )));
         }
     }
+    if let Some(currency) = input.currency_id.as_deref() {
+        if currency != CURRENCY_COIN && currency != "coin" && currency != "b_coin" {
+            return Err(ActivityError::Invalid("currency must be coin".to_string()));
+        }
+    }
     if let Some(amount) = input.amount {
         if amount < 0 {
             return Err(ActivityError::Invalid("amount must be >= 0".to_string()));
@@ -1296,10 +1325,10 @@ pub async fn create_activity_task(
         .clone()
         .ok_or_else(|| ActivityError::Invalid("kind is required".to_string()))?;
     let amount = input.amount.unwrap_or(0);
-    let currency_id = input
-        .currency_id
-        .clone()
-        .unwrap_or_else(|| CURRENCY_EXP.to_string());
+    let currency_id = match input.currency_id.as_deref() {
+        None | Some("coin") | Some("b_coin") | Some(CURRENCY_COIN) => CURRENCY_COIN.to_string(),
+        Some(_) => unreachable!("validate_task_input rejects non-coin currencies"),
+    };
     let daily_limit = input.daily_limit;
     let cooldown_seconds = input.cooldown_seconds;
     let conditions_json = input.conditions_json.clone();
@@ -1395,7 +1424,11 @@ pub async fn update_activity_task(
     let current = load_rule(pool, task_id).await?;
     let kind = input.kind.clone().unwrap_or(current.kind);
     let amount = input.amount.unwrap_or(current.amount);
-    let currency_id = input.currency_id.clone().unwrap_or(current.currency_id);
+    let currency_id = match input.currency_id.as_deref() {
+        None => current.currency_id,
+        Some("coin") | Some("b_coin") | Some(CURRENCY_COIN) => CURRENCY_COIN.to_string(),
+        Some(_) => unreachable!("validate_task_input rejects non-coin currencies"),
+    };
     let daily_limit = input.daily_limit.or(current.daily_limit);
     let cooldown_seconds = input.cooldown_seconds.or(current.cooldown_seconds);
     let conditions_json = input.conditions_json.clone().or(current.conditions_json);
@@ -1531,9 +1564,13 @@ pub async fn update_activity_config(
         .ok_or_else(|| ActivityError::NotFound("activity config not initialized".to_string()))?;
     let rule_id = rule.id;
     let new_currency_id = match input.check_in_currency.as_deref() {
-        Some("coin") => CURRENCY_COIN.to_string(),
-        Some("exp") => CURRENCY_EXP.to_string(),
-        _ => rule.currency_id,
+        Some("coin") | Some("b_coin") => CURRENCY_COIN.to_string(),
+        Some(other) => {
+            return Err(ActivityError::Invalid(format!(
+                "currency must be coin, got {other}"
+            )))
+        }
+        None => CURRENCY_COIN.to_string(),
     };
 
     match pool {

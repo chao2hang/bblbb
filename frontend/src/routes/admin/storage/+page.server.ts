@@ -77,6 +77,11 @@ function buildPatch(form: FormData, current: StorageConfig | null): Record<strin
   if (accessKey) set('s3_access_key_id', accessKey, true);
   const secret = String(form.get('s3_secret_access_key') ?? '').trim();
   if (secret) set('s3_secret_access_key', secret, true);
+  // 站点上传类型类目开关（image/pdf/text/office/av；全不勾 = 仅保底，后端拒绝空集）。
+  const categories = form.getAll('allowed_upload_types').map((v) => String(v).trim()).filter(Boolean);
+  if (form.has('allowed_upload_types_submitted')) {
+    set('allowed_upload_types', categories);
+  }
   return patch;
 }
 

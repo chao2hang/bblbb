@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode},
+    http::{header::CACHE_CONTROL, HeaderMap, Request, StatusCode},
     Router,
 };
 use bblbb_backend::authz::roles::seed_builtin_roles;
@@ -60,7 +60,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> (String, String) {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 5, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -82,6 +82,45 @@ fn app_with(pool: DatabasePool) -> Router {
     build_router(AppConfig::default(), Some(pool))
 }
 
+/// 发起请求并保留响应头；测试私有缓存和 CSRF/幂等边界时使用。
+async fn request_with_headers(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    session: Option<&str>,
+    csrf: Option<&str>,
+    idempotency_key: Option<&str>,
+    body: Value,
+) -> (StatusCode, HeaderMap, Value) {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("content-type", "application/json");
+    if let Some(session) = session {
+        builder = builder.header("cookie", session);
+    }
+    if let Some(csrf) = csrf {
+        builder = builder.header("x-csrf-token", csrf);
+    }
+    if let Some(idempotency_key) = idempotency_key {
+        builder = builder.header("idempotency-key", idempotency_key);
+    }
+    let resp = app
+        .clone()
+        .oneshot(builder.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    let status = resp.status();
+    let headers = resp.headers().clone();
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let value: Value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+    };
+    (status, headers, value)
+}
+
 /// 任意方法的已认证请求（会话 + CSRF）；返回 (status, body)。
 async fn authed(
     app: &Router,
@@ -91,28 +130,32 @@ async fn authed(
     csrf: &str,
     body: Value,
 ) -> (StatusCode, Value) {
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method(method)
-                .uri(uri)
-                .header("content-type", "application/json")
-                .header("x-csrf-token", csrf)
-                .header("cookie", session)
-                .body(Body::from(body.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    let status = resp.status();
-    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
-    let value: Value = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
-    };
+    let idempotency_key = body
+        .get("client_request_id")
+        .and_then(Value::as_str)
+        .unwrap_or("test-idempotency-key-0001")
+        .to_owned();
+    let (status, _, value) = request_with_headers(
+        app,
+        method,
+        uri,
+        Some(session),
+        Some(csrf),
+        Some(&idempotency_key),
+        body,
+    )
+    .await;
     (status, value)
+}
+
+fn assert_private_no_store(headers: &HeaderMap) {
+    assert_eq!(
+        headers
+            .get(CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok()),
+        Some("private, no-store"),
+        "私信响应必须禁止共享缓存"
+    );
 }
 
 async fn session_csrf(app: &Router, session: &str) -> String {
@@ -178,13 +221,14 @@ async fn conversation_create_reuse_and_send_flow() {
         "/api/v1/conversations",
         &alice.session,
         &alice.csrf,
-        json!({ "username": bob.username, "client_request_id": "conv-1" }),
+        json!({ "username": bob.username, "client_request_id": "conv-request-0001" }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "开会话必须 201: {body}");
     let conv_id = body["id"].as_str().unwrap().to_string();
     assert_eq!(body["other"]["username"], bob.username.as_str());
     assert!(body["other"]["level"].is_number());
+    assert!(body["other"].get("email").is_none(), "other 不得泄露 email");
 
     // 复用：两人已有会话返回既有 id
     let (status, body2) = authed(
@@ -193,7 +237,7 @@ async fn conversation_create_reuse_and_send_flow() {
         "/api/v1/conversations",
         &bob.session,
         &bob.csrf,
-        json!({ "username": alice.username, "client_request_id": "conv-2" }),
+        json!({ "username": alice.username, "client_request_id": "conv-request-0002" }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "复用会话必须 201");
@@ -212,7 +256,7 @@ async fn conversation_create_reuse_and_send_flow() {
         &format!("/api/v1/conversations/{conv_id}/messages"),
         &alice.session,
         &alice.csrf,
-        json!({ "body": "你好，Bob！", "client_request_id": "msg-1" }),
+        json!({ "body": "你好，Bob！", "client_request_id": "message-request-0001" }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "发消息必须 201: {body}");
@@ -228,7 +272,7 @@ async fn conversation_create_reuse_and_send_flow() {
         &format!("/api/v1/conversations/{conv_id}/messages"),
         &alice.session,
         &alice.csrf,
-        json!({ "body": "你好，Bob！", "client_request_id": "msg-1" }),
+        json!({ "body": "你好，Bob！", "client_request_id": "message-request-0001" }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "同 key+同 body 重放 201");
@@ -243,7 +287,7 @@ async fn conversation_create_reuse_and_send_flow() {
         &format!("/api/v1/conversations/{conv_id}/messages"),
         &alice.session,
         &alice.csrf,
-        json!({ "body": "不同的内容", "client_request_id": "msg-1" }),
+        json!({ "body": "不同的内容", "client_request_id": "message-request-0001" }),
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "同 key 不同 body 必须 409");
@@ -263,6 +307,10 @@ async fn conversation_create_reuse_and_send_flow() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["id"], conv_id.as_str());
     assert_eq!(items[0]["other"]["username"], alice.username.as_str());
+    assert!(
+        items[0]["other"].get("email").is_none(),
+        "列表 other 不得泄露 email"
+    );
     assert_eq!(items[0]["unread_count"], 1, "bob 有 1 条未读");
     assert_eq!(items[0]["last_message"]["body"], "你好，Bob！");
     assert_eq!(
@@ -332,6 +380,299 @@ async fn conversation_create_reuse_and_send_flow() {
         "通知标题必须为「{{sender}} 给你发来私信」: {notify_title}"
     );
 
+    // 撤回测试：bob 不能撤回 alice 的消息（403）
+    let (status, _) = authed(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conv_id}/messages/{msg_id}/recall"),
+        &bob.session,
+        &bob.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "不能撤回他人的消息");
+
+    // alice 撤回自己的消息（200）
+    let (status, recall_body) = authed(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conv_id}/messages/{msg_id}/recall"),
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "2 分钟内本人撤回必须 200");
+    assert_eq!(recall_body["ok"], true);
+    assert_eq!(recall_body["recalled_id"], msg_id);
+
+    // 再次撤回已撤回的消息（404）
+    let (status, _) = authed(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conv_id}/messages/{msg_id}/recall"),
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "已撤回消息再次撤回返回 404");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn conversation_private_headers_and_projection_contract() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let alice = user_ctx(&app, &pool, "alice").await;
+    let bob = user_ctx(&app, &pool, "bob").await;
+
+    let (status, headers, body) = request_with_headers(
+        &app,
+        "POST",
+        "/api/v1/conversations",
+        Some(&alice.session),
+        Some(&alice.csrf),
+        Some("private-conversation-0001"),
+        json!({ "username": bob.username, "client_request_id": "private-conversation-0001" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_private_no_store(&headers);
+    assert!(body["other"].get("email").is_none());
+    let conversation_id = body["id"].as_str().unwrap().to_owned();
+
+    let message_body = json!({
+        "body": "private header check",
+        "client_request_id": "private-message-0001"
+    });
+    let (status, headers, first_message) = request_with_headers(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conversation_id}/messages"),
+        Some(&alice.session),
+        Some(&alice.csrf),
+        Some("private-message-0001"),
+        message_body.clone(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_private_no_store(&headers);
+
+    let (status, headers, replayed) = request_with_headers(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conversation_id}/messages"),
+        Some(&alice.session),
+        Some(&alice.csrf),
+        Some("private-message-0001"),
+        message_body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_private_no_store(&headers);
+    assert_eq!(replayed["id"], first_message["id"]);
+
+    let (status, headers, conversations) = request_with_headers(
+        &app,
+        "GET",
+        "/api/v1/conversations",
+        Some(&bob.session),
+        None,
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_private_no_store(&headers);
+    assert!(conversations["items"][0]["other"].get("email").is_none());
+
+    let (status, headers, messages) = request_with_headers(
+        &app,
+        "GET",
+        &format!("/api/v1/conversations/{conversation_id}/messages"),
+        Some(&bob.session),
+        None,
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_private_no_store(&headers);
+    assert_eq!(messages["items"].as_array().unwrap().len(), 1);
+
+    let (status, headers, _) = request_with_headers(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conversation_id}/read"),
+        Some(&bob.session),
+        Some(&bob.csrf),
+        Some("private-read-0000001"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_private_no_store(&headers);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn conversation_csrf_and_idempotency_headers_are_enforced() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let alice = user_ctx(&app, &pool, "alice").await;
+    let bob = user_ctx(&app, &pool, "bob").await;
+
+    let create_body = json!({
+        "username": bob.username,
+        "client_request_id": "header-contract-0001"
+    });
+    for csrf in [None, Some("wrong-csrf-token")] {
+        let (status, _, _) = request_with_headers(
+            &app,
+            "POST",
+            "/api/v1/conversations",
+            Some(&alice.session),
+            csrf,
+            Some("header-contract-0001"),
+            create_body.clone(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "缺失/错误 CSRF 必须 403");
+    }
+
+    let (status, _, _) = request_with_headers(
+        &app,
+        "POST",
+        "/api/v1/conversations",
+        Some(&alice.session),
+        Some(&alice.csrf),
+        None,
+        create_body.clone(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "缺失幂等头必须 400");
+
+    let (status, _, _) = request_with_headers(
+        &app,
+        "POST",
+        "/api/v1/conversations",
+        Some(&alice.session),
+        Some(&alice.csrf),
+        Some("different-header-key-0001"),
+        create_body,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "幂等头与 body 不一致必须 400"
+    );
+
+    let (status, body) = authed(
+        &app,
+        "POST",
+        "/api/v1/conversations",
+        &alice.session,
+        &alice.csrf,
+        json!({ "username": bob.username, "client_request_id": "header-contract-0002" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let conversation_id = body["id"].as_str().unwrap().to_owned();
+    let send_body = json!({
+        "body": "header contract",
+        "client_request_id": "header-message-0001"
+    });
+
+    for csrf in [None, Some("wrong-csrf-token")] {
+        let (status, _, _) = request_with_headers(
+            &app,
+            "POST",
+            &format!("/api/v1/conversations/{conversation_id}/messages"),
+            Some(&alice.session),
+            csrf,
+            Some("header-message-0001"),
+            send_body.clone(),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::FORBIDDEN,
+            "发消息缺失/错误 CSRF 必须 403"
+        );
+    }
+
+    let (status, _, _) = request_with_headers(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conversation_id}/messages"),
+        Some(&alice.session),
+        Some(&alice.csrf),
+        None,
+        send_body.clone(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "发消息缺失幂等头必须 400");
+
+    let (status, _, _) = request_with_headers(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conversation_id}/messages"),
+        Some(&alice.session),
+        Some(&alice.csrf),
+        Some("different-message-key-0001"),
+        send_body.clone(),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "发消息幂等头不一致必须 400"
+    );
+
+    let (status, _, _) = request_with_headers(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conversation_id}/messages"),
+        Some(&alice.session),
+        Some(&alice.csrf),
+        Some("header-message-0001"),
+        send_body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    for csrf in [None, Some("wrong-csrf-token")] {
+        let (status, _, _) = request_with_headers(
+            &app,
+            "POST",
+            &format!("/api/v1/conversations/{conversation_id}/read"),
+            Some(&bob.session),
+            csrf,
+            Some("header-read-0000001"),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "已读缺失/错误 CSRF 必须 403");
+    }
+
+    let (status, _, _) = request_with_headers(
+        &app,
+        "POST",
+        &format!("/api/v1/conversations/{conversation_id}/read"),
+        Some(&bob.session),
+        Some(&bob.csrf),
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "已读缺失幂等头必须 400");
+
     close_pool(&pool).await;
     cleanup(&dir);
 }
@@ -351,7 +692,7 @@ async fn conversation_self_404_and_participant_gates() {
         "/api/v1/conversations",
         &alice.session,
         &alice.csrf,
-        json!({ "username": alice.username, "client_request_id": "self" }),
+        json!({ "username": alice.username, "client_request_id": "self-request-0001" }),
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "自谈必须 422");
@@ -363,7 +704,7 @@ async fn conversation_self_404_and_participant_gates() {
         "/api/v1/conversations",
         &alice.session,
         &alice.csrf,
-        json!({ "username": "no_such_user", "client_request_id": "x" }),
+        json!({ "username": "no_such_user", "client_request_id": "missing-user-0001" }),
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -375,7 +716,7 @@ async fn conversation_self_404_and_participant_gates() {
         "/api/v1/conversations",
         &alice.session,
         &alice.csrf,
-        json!({ "username": bob.username, "client_request_id": "conv" }),
+        json!({ "username": bob.username, "client_request_id": "conversation-0001" }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -386,7 +727,7 @@ async fn conversation_self_404_and_participant_gates() {
         &format!("/api/v1/conversations/{conv_id}/messages"),
         &alice.session,
         &alice.csrf,
-        json!({ "body": "hi", "client_request_id": "m1" }),
+        json!({ "body": "hi", "client_request_id": "message-request-0002" }),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -410,7 +751,7 @@ async fn conversation_self_404_and_participant_gates() {
         &format!("/api/v1/conversations/{conv_id}/messages"),
         &carol.session,
         &carol.csrf,
-        json!({ "body": "intrude", "client_request_id": "m2" }),
+        json!({ "body": "intrude", "client_request_id": "message-request-0003" }),
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "非参与者发必须 404");
@@ -434,7 +775,7 @@ async fn conversation_self_404_and_participant_gates() {
         &format!("/api/v1/conversations/{conv_id}/messages"),
         &alice.session,
         &alice.csrf,
-        json!({ "body": "", "client_request_id": "m3" }),
+        json!({ "body": "", "client_request_id": "message-request-0004" }),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "空 body 必须 400");
@@ -445,7 +786,7 @@ async fn conversation_self_404_and_participant_gates() {
         &format!("/api/v1/conversations/{conv_id}/messages"),
         &alice.session,
         &alice.csrf,
-        json!({ "body": long_body, "client_request_id": "m4" }),
+        json!({ "body": long_body, "client_request_id": "message-request-0005" }),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "超长 body 必须 400");
@@ -476,6 +817,226 @@ async fn conversation_self_404_and_participant_gates() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn conversation_pagination_is_stable_for_same_millisecond_and_concurrent_sends() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let alice = user_ctx(&app, &pool, "alice").await;
+    let bob = user_ctx(&app, &pool, "bob").await;
+    let carol = user_ctx(&app, &pool, "carol").await;
+    let dave = user_ctx(&app, &pool, "dave").await;
+    let alice_csrf = alice.csrf.clone();
+
+    let create_conversation = |username: String, key: &'static str| {
+        let app = app.clone();
+        let alice = alice.session.clone();
+        let csrf = alice_csrf.clone();
+        async move {
+            authed(
+                &app,
+                "POST",
+                "/api/v1/conversations",
+                &alice,
+                &csrf,
+                json!({ "username": username, "client_request_id": key }),
+            )
+            .await
+        }
+    };
+
+    // 创建 3 个会话；随后把排序时间统一到同一毫秒，验证会话游标的 id
+    // tie-breaker，不依赖 wall clock 恰好碰撞。
+    let (status, body_bob) = authed(
+        &app,
+        "POST",
+        "/api/v1/conversations",
+        &alice.session,
+        &alice.csrf,
+        json!({ "username": bob.username, "client_request_id": "conversation-page-0001" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let bob_conversation = body_bob["id"].as_str().unwrap().to_owned();
+    let (status, body_carol) =
+        create_conversation(carol.username.clone(), "conversation-page-0002").await;
+    assert_eq!(status, StatusCode::CREATED);
+    let carol_conversation = body_carol["id"].as_str().unwrap().to_owned();
+    let (status, body_dave) =
+        create_conversation(dave.username.clone(), "conversation-page-0003").await;
+    assert_eq!(status, StatusCode::CREATED);
+    let dave_conversation = body_dave["id"].as_str().unwrap().to_owned();
+
+    let fixed_at = now_millis();
+    match &pool {
+        Either::Left(p) => {
+            for conversation_id in [&bob_conversation, &carol_conversation, &dave_conversation] {
+                sqlx::query("UPDATE conversations SET last_message_at = ? WHERE id = ?")
+                    .bind(fixed_at)
+                    .bind(conversation_id)
+                    .execute(p)
+                    .await
+                    .unwrap();
+            }
+
+            // 三条消息刻意使用相同 created_at；id 的升序是唯一的分页 tie-breaker。
+            for (suffix, sender_id, body) in [
+                ("0001", &alice.id, "same-ms-1"),
+                ("0002", &bob.id, "same-ms-2"),
+                ("0003", &alice.id, "same-ms-3"),
+            ] {
+                let message_id = format!("00000000-0000-7000-8000-00000000{suffix}");
+                sqlx::query(
+                    "INSERT INTO messages (id, conversation_id, sender_id, body, created_at, deleted_at)
+                     VALUES (?, ?, ?, ?, ?, NULL)",
+                )
+                .bind(message_id)
+                .bind(&bob_conversation)
+                .bind(sender_id)
+                .bind(body)
+                .bind(fixed_at)
+                .execute(p)
+                .await
+                .unwrap();
+            }
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+
+    let (status, first_page) = authed(
+        &app,
+        "GET",
+        "/api/v1/conversations?limit=1",
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(first_page["items"].as_array().unwrap().len(), 1);
+    assert!(first_page["next_cursor"].is_string());
+    let first_conversation = first_page["items"][0]["id"].as_str().unwrap().to_owned();
+    let cursor = first_page["next_cursor"].as_str().unwrap();
+
+    let (status, second_page) = authed(
+        &app,
+        "GET",
+        &format!("/api/v1/conversations?limit=1&after={cursor}"),
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let second_conversation = second_page["items"][0]["id"].as_str().unwrap();
+    assert_ne!(second_conversation, first_conversation, "会话分页不能重复");
+
+    let (status, first_messages) = authed(
+        &app,
+        "GET",
+        &format!("/api/v1/conversations/{bob_conversation}/messages?limit=2"),
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let first_ids: Vec<&str> = first_messages["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(first_ids.len(), 2);
+    let message_cursor = first_messages["next_cursor"].as_str().unwrap();
+    let (status, second_messages) = authed(
+        &app,
+        "GET",
+        &format!(
+            "/api/v1/conversations/{bob_conversation}/messages?limit=2&after={message_cursor}"
+        ),
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let second_ids: Vec<&str> = second_messages["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(second_ids.len(), 1);
+    assert!(first_ids.iter().all(|id| !second_ids.contains(id)));
+    assert_eq!(second_ids[0], "00000000-0000-7000-8000-000000000003");
+
+    // 两个不同幂等键并发发送都应成功；随后分页应恰好看到两条且不重复。
+    let send_uri = format!("/api/v1/conversations/{dave_conversation}/messages");
+    let (send_a, send_b) = tokio::join!(
+        authed(
+            &app,
+            "POST",
+            &send_uri,
+            &alice.session,
+            &alice.csrf,
+            json!({ "body": "concurrent-a", "client_request_id": "concurrent-message-0001" }),
+        ),
+        authed(
+            &app,
+            "POST",
+            &send_uri,
+            &alice.session,
+            &alice.csrf,
+            json!({ "body": "concurrent-b", "client_request_id": "concurrent-message-0002" }),
+        )
+    );
+    assert_eq!(
+        send_a.0,
+        StatusCode::CREATED,
+        "并发消息 A 必须成功: {:?}",
+        send_a.1
+    );
+    assert_eq!(
+        send_b.0,
+        StatusCode::CREATED,
+        "并发消息 B 必须成功: {:?}",
+        send_b.1
+    );
+    let (status, concurrent_messages) = authed(
+        &app,
+        "GET",
+        &format!("/api/v1/conversations/{dave_conversation}/messages?limit=1"),
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(concurrent_messages["items"].as_array().unwrap().len(), 1);
+    let concurrent_cursor = concurrent_messages["next_cursor"].as_str().unwrap();
+    let (status, concurrent_second_page) = authed(
+        &app,
+        "GET",
+        &format!(
+            "/api/v1/conversations/{dave_conversation}/messages?limit=1&after={concurrent_cursor}"
+        ),
+        &alice.session,
+        &alice.csrf,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(concurrent_second_page["items"].as_array().unwrap().len(), 1);
+    assert_ne!(
+        concurrent_messages["items"][0]["id"], concurrent_second_page["items"][0]["id"],
+        "并发消息的复合游标不能重复"
+    );
+    assert!(concurrent_second_page["next_cursor"].is_null());
 
     close_pool(&pool).await;
     cleanup(&dir);

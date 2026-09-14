@@ -69,7 +69,7 @@
 
     <p class="input-hint" style="margin:0;">
       验证不会解除服务端的内容授权边界；若仍无法访问，可稍后再试或
-      <a href="/search" class="text-link">返回搜索首页</a>。
+      <a href="/" class="text-link">返回首页</a>。
     </p>
   </div>
 </div>

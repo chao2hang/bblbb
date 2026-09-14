@@ -165,7 +165,7 @@ reconcile/balance），路由在 `backend/src/routes/marketplace.rs` 与管理�
   fail closed），签名时解密；不使用不可逆 hash（HMAC 需要明文密钥）。
 - 管理端扩展接口（Client 注册、scope 审批、Offers、Webhook 投递与重放、
   对账运行、紧急停用、requested 退款重试）为内部管理端点，不在冻结的
-  193-op OpenAPI 契约中；OpenAPI 已登记的市场/Admin marketplace 操作全部
+  223-op OpenAPI 契约中；OpenAPI 已登记的市场/Admin marketplace 操作全部
   `verified`。
 - v1.0 结算等待期为 7 天（`SETTLEMENT_DELAY_MS`）；`settle_pending` 由
   定时任务调用（pending→available 不改变总额，version 条件更新 + 审计）。

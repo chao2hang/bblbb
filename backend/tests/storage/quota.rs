@@ -14,9 +14,7 @@ use bblbb_backend::storage::quota::{
     unlink_attachment, update_level_quota, verify_reference_candidate, DEFAULT_RETENTION_DAYS,
     SITE_SINGLE_FILE_HARD_LIMIT_BYTES, SITE_TOTAL_HARD_LIMIT_BYTES,
 };
-use bblbb_backend::storage::upload::{
-    self, CompleteOutcome, CreateAttachmentInput, NoopVirusScan, ScanVerdict, VirusScan,
-};
+use bblbb_backend::storage::upload::{self, CompleteOutcome, CreateAttachmentInput};
 use bblbb_backend::storage::{StorageError, StorageService};
 use sqlx::Either;
 
@@ -66,7 +64,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str, level: i64) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', ?, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -117,16 +115,10 @@ async fn upload_ready(
     )
     .await
     .unwrap();
-    let outcome = upload::complete_attachment(
-        pool,
-        storage,
-        &created.attachment.id,
-        user_id,
-        &NoopVirusScan,
-        now_millis(),
-    )
-    .await
-    .unwrap();
+    let outcome =
+        upload::complete_attachment(pool, storage, &created.attachment.id, user_id, now_millis())
+            .await
+            .unwrap();
     assert_eq!(outcome, CompleteOutcome::Ready);
     upload::load_attachment(pool, &created.attachment.id)
         .await
@@ -138,10 +130,11 @@ async fn counters(pool: &DatabasePool, user_id: &str) -> QuotaCounters {
     get_counters(pool, user_id).await.unwrap()
 }
 
-async fn set_user_level(pool: &DatabasePool, user_id: &str, level: i64) {
+/// 设置用户信任等级（users.trust_level；配额档位键，2026-09 等级合并单轨）。
+async fn set_user_trust_level(pool: &DatabasePool, user_id: &str, level: i64) {
     match pool {
         Either::Left(p) => {
-            sqlx::query("UPDATE users SET level = ? WHERE id = ?")
+            sqlx::query("UPDATE users SET trust_level = ? WHERE id = ?")
                 .bind(level)
                 .bind(user_id)
                 .execute(p)
@@ -176,6 +169,31 @@ async fn default_policy_is_seeded_lazily_and_stable() {
 
     close_pool(&pool).await;
     cleanup(&dir);
+}
+
+// 档位键 = 信任等级（TL0–TL4，2026-09 等级合并单轨）：默认档五档互异且单调放宽。
+#[test]
+fn default_policy_tiers_follow_trust_levels() {
+    const MB: i64 = 1024 * 1024;
+    let tiers: Vec<(i64, i64, i64)> = (0..=4)
+        .map(|tl| {
+            let (single, total, daily, _) = quota::default_policy_for_level(tl);
+            (single, total, daily)
+        })
+        .collect();
+    // 五档互异
+    for i in 0..tiers.len() {
+        for j in (i + 1)..tiers.len() {
+            assert_ne!(tiers[i], tiers[j], "TL{i} 与 TL{j} 默认档相同");
+        }
+    }
+    // 单调放宽（单文件上限 TL3→TL4 为 20MB 平台期，允许相等）
+    for w in tiers.windows(2) {
+        assert!(w[0].0 <= w[1].0 && w[0].1 < w[1].1 && w[0].2 < w[1].2);
+    }
+    // TL0 为最小档（新用户），TL4 为最宽档
+    assert_eq!(tiers[0], (2 * MB, 100 * MB, 20 * MB));
+    assert_eq!(tiers[4], (20 * MB, 2 * 1024 * MB, 400 * MB));
 }
 
 #[tokio::test]
@@ -346,6 +364,8 @@ async fn reserve_rejects_when_total_or_daily_exhausted() {
     let (pool, dir, storage) = setup().await;
     let user = insert_user(&pool, "user", 1).await;
     let actor = insert_user(&pool, "admin", 1).await;
+    // 用户信任等级 TL1：配额档位键为 trust_level（2026-09 等级合并单轨）
+    set_user_trust_level(&pool, &user, 1).await;
     get_policy_for_level(&pool, 1, &actor).await.unwrap();
 
     // Phase A：total 收紧到 100 字节（daily 同 100）→ 第二次 create 总容量超卖
@@ -456,7 +476,6 @@ async fn verify_reference_candidate_requires_own_ready_attachment() {
         &storage,
         &pending.attachment.id,
         &owner,
-        &NoopVirusScan,
         now_millis(),
     )
     .await
@@ -688,14 +707,14 @@ async fn policy_follows_current_level_and_quotas_are_per_user() {
     let user = insert_user(&pool, "user", 1).await;
     let actor = insert_user(&pool, "admin", 1).await;
 
-    // 升级到等级 3（默认总容量 500 MiB）
-    set_user_level(&pool, &user, 3).await;
+    // 升级到信任等级 TL3（默认总容量 1024 MiB——配额档位键为信任等级）
+    set_user_trust_level(&pool, &user, 3).await;
     let p3 = get_policy_for_level(&pool, 3, &user).await.unwrap();
     let (_, total3, _, _) = quota::default_policy_for_level(3);
     assert_eq!(p3.total_bytes, total3);
     assert_eq!(p3.level, 3);
 
-    // create 走等级 3 策略：500 MiB 单文件内可创建
+    // create 走 TL3 策略：1024 MiB 单文件内可创建
     let created = upload::create_attachment(
         &pool,
         &storage,
@@ -721,7 +740,7 @@ async fn policy_follows_current_level_and_quotas_are_per_user() {
         10 * 1024 * 1024
     );
 
-    // 管理员收紧等级 3（降级处罚场景）
+    // 管理员收紧 TL3（降级处罚场景）
     update_level_quota(
         &pool,
         3,
@@ -744,15 +763,6 @@ async fn policy_follows_current_level_and_quotas_are_per_user() {
     cleanup(&dir);
 }
 
-// ────────────────────────── 病毒扫描占位（与 upload 共用）──────────────
-
-struct InfectedScan;
-impl VirusScan for InfectedScan {
-    fn scan(&self, _data: &[u8]) -> ScanVerdict {
-        ScanVerdict::Infected
-    }
-}
-
 #[tokio::test]
 async fn quarantine_rolls_back_reserved_without_touching_charged() {
     let (pool, dir, storage) = setup().await;
@@ -761,14 +771,14 @@ async fn quarantine_rolls_back_reserved_without_touching_charged() {
     let ready = upload_ready(&pool, &storage, &owner, b"hello world").await;
     assert_eq!(ready.status, AttachmentStatus::Ready);
 
-    // 第二个附件：病毒命中 → quarantined
+    // 第二个附件：危险扩展名 → quarantined
     let created = upload::create_attachment(
         &pool,
         &storage,
         &owner,
         CreateAttachmentInput {
             owner_id: owner.clone(),
-            original_name: Some("bad.txt".to_string()),
+            original_name: Some("bad.html".to_string()),
             media_type: "text/plain".to_string(),
             size_bytes: 11,
             is_public: false,
@@ -792,7 +802,6 @@ async fn quarantine_rolls_back_reserved_without_touching_charged() {
         &storage,
         &created.attachment.id,
         &owner,
-        &InfectedScan,
         now_millis(),
     )
     .await

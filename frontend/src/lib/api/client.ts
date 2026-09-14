@@ -95,12 +95,13 @@ import type {
   AdminPostActionResult,
   PointsLedgerItem,
   PointTransactionItem,
-  AdminLevelItem,
   SanctionItem,
   OAuthGrantItem,
   AdminAttachmentItem,
   AdminDownloadTxItem,
-  BroadcastItem
+  BroadcastItem,
+  TrustLevelProgress,
+  TrustReadTimeResult
 } from './types';
 import type { Problem } from '../errors';
 import { normalizeSearchPage } from '../search';
@@ -186,7 +187,11 @@ export type {
   VideoProviderTestResult,
   VideoResolveRequest,
   VideoEmbedCreate,
-  VideoEmbedPatch
+  VideoEmbedPatch,
+  // M20-TRUST：信任等级（LinuxDo 式 TL0–TL4）
+  TrustLevelProgress,
+  TrustLevelNext,
+  TrustLevelRequirement
 } from './types';
 export type { Problem, ProblemFieldError } from '../errors';
 export type { DownloadResult, EntitlementEquip, Money, ShopOrderCreate } from './types';
@@ -314,6 +319,34 @@ export async function getMe(fetchFn: typeof fetch): Promise<User | null> {
   }
 }
 
+// ─── Trust level（M20-TRUST：LinuxDo 式 TL0–TL4，见 docs/TRUST-LEVELS.md）──
+
+/** 当前信任等级 + 下一级逐项进度（后端惰性评估；未登录/失败返回 null）。 */
+export async function getMyTrustLevel(
+  fetchFn: typeof fetch
+): Promise<TrustLevelProgress | null> {
+  try {
+    return await request<TrustLevelProgress>(fetchFn, '/me/trust-level');
+  } catch {
+    return null;
+  }
+}
+
+/** 阅读时长心跳（服务端钳制：单请求 ≤60s、每人每日 ≤7200s）；失败返回 null。 */
+export async function recordTrustReadTime(
+  fetchFn: typeof fetch,
+  seconds: number
+): Promise<TrustReadTimeResult | null> {
+  try {
+    return await request<TrustReadTimeResult>(fetchFn, '/me/trust-level/read-time', {
+      method: 'POST',
+      body: JSON.stringify({ seconds })
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyEmail(
   fetchFn: typeof fetch,
   token: string
@@ -382,6 +415,7 @@ export async function createPost(
 export interface PostUpdateInput {
   title?: string;
   markdown?: string;
+  tags?: string[];
   reason?: string;
 }
 
@@ -908,7 +942,7 @@ export async function getPresentation(fetchFn: typeof fetch): Promise<Presentati
 
 // ─── 活跃与等级（M07-LEVELS） ────────────────────────────────────────────
 
-/** GET /api/v1/activity/summary：等级/经验/签到/余额安全投影。 */
+/** GET /api/v1/activity/summary：信任等级/签到/B币余额安全投影。 */
 export async function getActivitySummary(fetchFn: typeof fetch): Promise<ActivitySummary> {
   return request(fetchFn, '/activity/summary');
 }
@@ -1225,7 +1259,6 @@ export function productKindLabel(kind: ProductKind | undefined): string {
   const map: Record<string, string> = {
     cosmetic_nickname: '昵称装扮',
     cosmetic_avatar: '头像框',
-    cosmetic_avatar_attachment: '头像挂件',
     cosmetic_badge: '徽章',
     profile_effect: '主页装饰',
     post_effect: '帖子装饰',
@@ -1246,6 +1279,67 @@ export function productStatusLabel(status: ProductStatus | undefined): string {
     retired: '已下架'
   };
   return status ? (map[status] ?? status) : '';
+}
+
+// ── 货币展示（商城/余额/订单共用）─────────────────────────────────────────
+// 后端投影里 currency_id 可能是 UUID 形态，直接 toUpperCase() 渲染会在页面上出现整段 UUID。
+// 展示只识别 B 币；未知短代码安全降级为大写，未知 UUID 不原样外露。
+
+const KNOWN_CURRENCY_CODES: Record<string, string> = {
+  coin: 'COIN',
+  'b_coin': 'COIN',
+  '01911fd5-0047-0000-0000-000000000002': 'COIN'
+};
+
+function isCurrencyCode(value: string): boolean {
+  return /^[a-z0-9_-]{1,16}$/i.test(value);
+}
+
+/** 货币展示标签（不带金额）。支持对象或字符串标识；将内置货币（含 UUID）归一化，未知 UUID 引用返回 ''。 */
+export function currencyLabel(
+  input:
+    | {
+        id?: string | null;
+        code?: string | null;
+        name?: string | null;
+      }
+    | string
+    | null
+    | undefined
+): string {
+  if (!input) return '';
+  if (typeof input === 'string') {
+    const raw = input.trim();
+    const lower = raw.toLowerCase();
+    return KNOWN_CURRENCY_CODES[lower] ?? (isCurrencyCode(raw) ? raw.toUpperCase() : '');
+  }
+  const name = input.name?.trim();
+  if (name) return name;
+  const code = input.code?.trim();
+  if (code) {
+    const lower = code.toLowerCase();
+    return KNOWN_CURRENCY_CODES[lower] ?? code.toUpperCase();
+  }
+  const id = input.id?.trim() ?? '';
+  if (!id) return '';
+  const lower = id.toLowerCase();
+  if (KNOWN_CURRENCY_CODES[lower]) return KNOWN_CURRENCY_CODES[lower];
+  return isCurrencyCode(id) ? id.toUpperCase() : '';
+}
+
+/** 金额 + 货币标签（“100 COIN”；free: true 且金额为 0 时返回 “免费”；无标签时只渲染金额）。 */
+export function formatMoney(
+  amount: number,
+  input:
+    | { id?: string | null; code?: string | null; name?: string | null }
+    | string
+    | null
+    | undefined,
+  opts: { free?: boolean } = {}
+): string {
+  if (opts.free && amount === 0) return '免费';
+  const label = currencyLabel(input);
+  return label ? `${amount} ${label}` : `${amount}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1713,7 +1807,7 @@ export async function listMyFollowing(
 
 // ─── 社交域：私信（conversations.rs） ─────────────────────────────────────
 
-/** GET /api/v1/conversations：我的会话列表（last_message_at DESC）。 */
+/** GET /api/v1/conversations：我的会话列表（(last_message_at,id) DESC）。 */
 export async function listConversations(
   fetchFn: typeof fetch,
   after?: string | null,
@@ -1736,8 +1830,8 @@ export async function createConversation(
   });
 }
 
-/** GET /api/v1/conversations/{id}/messages：会话消息（created_at ASC，
- *  after=上一页最后一条 created_at）。 */
+/** GET /api/v1/conversations/{id}/messages：会话消息（(created_at,id) ASC，
+ *  after 为服务端签发的不透明复合游标）。 */
 export async function listMessages(
   fetchFn: typeof fetch,
   conversationId: string,
@@ -1765,14 +1859,32 @@ export async function sendMessage(
   });
 }
 
-/** POST /api/v1/conversations/{id}/read：标记会话已读（204）。 */
+/** POST /api/v1/conversations/{id}/read：标记会话已读（204；带幂等头）。 */
 export async function readConversation(
   fetchFn: typeof fetch,
   conversationId: string
 ): Promise<void> {
+  const clientRequestId = newClientRequestId();
   return request(fetchFn, `/conversations/${encodeURIComponent(conversationId)}/read`, {
-    method: 'POST'
+    method: 'POST',
+    headers: idemHeaders(clientRequestId),
+    body: JSON.stringify({ client_request_id: clientRequestId })
   });
+}
+
+/** POST /api/v1/conversations/{id}/messages/{message_id}/recall：撤回私信消息（2 分钟内、本人）。 */
+export async function recallMessage(
+  fetchFn: typeof fetch,
+  conversationId: string,
+  messageId: string
+): Promise<{ ok: boolean; recalled_id: string; recalled_at: number }> {
+  return request(
+    fetchFn,
+    `/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/recall`,
+    {
+      method: 'POST'
+    }
+  );
 }
 
 // ─── 社交域：成就（achievements.rs） ──────────────────────────────────────
@@ -1966,10 +2078,10 @@ export async function listAdminPointsLedger(
   );
 }
 
-/** POST /api/v1/admin/points/adjust：手工调整积分（幂等；写审计+通知用户）。 */
+/** POST /api/v1/admin/points/adjust：手工调整 B 币（幂等；写审计+通知用户）。 */
 export async function adminPointsAdjust(
   fetchFn: typeof fetch,
-  input: { username: string; currency: 'exp' | 'coin'; amount: number; reason: string },
+  input: { username: string; currency: 'coin'; amount: number; reason: string },
   clientRequestId: string
 ): Promise<{ username: string; currency: string; amount: number; balance: number }> {
   return request(fetchFn, '/admin/points/adjust', {
@@ -1990,29 +2102,8 @@ export async function listMyPointTransactions(
 
 // ─── 管理域：等级规则 ──────────────────────────────────────────────────────
 
-/** GET /api/v1/admin/levels：等级规则列表。 */
-export async function listAdminLevels(fetchFn: typeof fetch): Promise<{ items: AdminLevelItem[] }> {
-  return request(fetchFn, '/admin/levels');
-}
-
-/** PATCH /api/v1/admin/levels/{level}：更新等级规则（If-Match version 守卫）。 */
-export async function updateAdminLevel(
-  fetchFn: typeof fetch,
-  level: number,
-  patch: Partial<
-    Pick<
-      AdminLevelItem,
-      'name' | 'min_exp' | 'daily_post_limit' | 'daily_comment_limit' | 'is_enabled'
-    >
-  > & { reason?: string },
-  ifMatch: number
-): Promise<AdminLevelItem> {
-  return request(fetchFn, `/admin/levels/${encodeURIComponent(String(level))}`, {
-    method: 'PATCH',
-    headers: { 'If-Match': String(ifMatch) },
-    body: JSON.stringify(patch)
-  });
-}
+// 2026-09 等级合并单轨：信任等级管理与等级附件配额客户端函数保留，
+// 旧等级方案投影端点已移除。
 
 // ─── 用户侧：处罚 / 账号 / OAuth 授权 ─────────────────────────────────────
 

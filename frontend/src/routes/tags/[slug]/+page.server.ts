@@ -1,13 +1,7 @@
 // 标签聚合页（公开 SSR，GAP-FIX-SPEC 四节：/tags/[slug]）。
 //
-// 数据路径（按后端实际实现，grep backend/src/routes/）：
-// 1. 主路径：GET /api/v1/tags/{slug}/posts?after=&limit=——**后端当前未实现**
-//    （backend/src/routes/tags.rs 不存在，/api/v1/tags 列表在 boards.rs，
-//    无按标签取帖子的路由）。失败时（404 等）不抛 500，走退化路径；
-// 2. 退化路径：GET /api/v1/search?tag={slug}——/search 的 SearchQuery 只接受
-//    q/limit/after（无 tag 参数，q 必填），当前同样失败 → 页面渲染空态
-//    （「这个标签下还没有内容」+ 发布引导），不 500。
-// 后端补齐任一端点后本页自动启用真实数据（双形状归一化见下）。
+// 数据路径：GET /api/v1/tags/{slug}/posts?after=&limit=；后端
+// boards.rs::list_tag_posts 已实现。端点暂时失败时不抛 500，保留安全空态。
 //
 // 标签元信息（名称/描述/颜色）来自 GET /api/v1/tags 按 slug 匹配；列表
 // 失败或未命中时以 slug 兜底渲染（不泄漏存在性，也不 404）。
@@ -69,23 +63,8 @@ export const load: PageServerLoad = async ({ params, url, cookies, request }) =>
     hasMore = data.has_more ?? data.page?.has_more ?? false;
     nextCursor = data.next_cursor ?? data.page?.next_cursor ?? null;
   } else {
-    // 退化路径：GET /search?tag=（后端未实现 tag 参数时同样失败 → 空态）。
-    const searchParams = new URLSearchParams({ tag: slug, limit: String(limit) });
-    const searchResult = await getAuthed<PostsPage>(
-      cookies,
-      `/api/v1/search?${searchParams}`,
-      requestId
-    );
-    if (searchResult.ok) {
-      const data = searchResult.data;
-      posts = data.items ?? [];
-      hasMore = data.has_more ?? data.page?.has_more ?? false;
-      nextCursor = data.next_cursor ?? data.page?.next_cursor ?? null;
-    } else {
-      // 主路径 + 退化路径均失败：不抛 500，渲染空态 + 引导（error 保持
-      // null——这是预期的降级态而非服务错误）。
-      unavailable = true;
-    }
+    // 真实端点暂时不可用：不抛 500，渲染空态 + 普通重试提示。
+    unavailable = true;
   }
 
   return {

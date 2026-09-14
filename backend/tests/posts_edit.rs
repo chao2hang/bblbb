@@ -59,7 +59,7 @@ async fn insert_author(pool: &DatabasePool, tag: &str) -> String {
     match pool {
         Either::Left(p) => {
             sqlx::query(
-                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level, email_verified, email_verified_at, created_at, updated_at)
+                "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, email_verified_at, created_at, updated_at)
                  VALUES (?, ?, ?, 'dummy', 'active', 5, 1, ?, ?, ?)",
             )
             .bind(&user_id)
@@ -406,6 +406,80 @@ async fn admin_delegated_edit_requires_reason_stepup_and_audits() {
         Either::Right(_) => panic!("SQLite only"),
     };
     assert_eq!(reason, "按举报复核代改", "审计记录 reason");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn owner_edit_updates_tags() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let author = insert_author(&pool, "owner").await;
+    let session = common::direct_session_cookie(&pool, &author).await;
+    let csrf = session_csrf(&app, &session).await;
+    let post_id = publish_post(&pool, &author).await;
+
+    let now = now_millis();
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query(
+                "INSERT INTO tags (id, name, slug, usage_count, is_active, created_at, updated_at) VALUES (?, ?, ?, 0, 1, ?, ?)",
+            )
+            .bind("t-rust")
+            .bind("rust")
+            .bind("rust")
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO tags (id, name, slug, usage_count, is_active, created_at, updated_at) VALUES (?, ?, ?, 0, 1, ?, ?)",
+            )
+            .bind("t-axum")
+            .bind("axum")
+            .bind("axum")
+            .bind(now)
+            .bind(now)
+            .execute(p)
+            .await
+            .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+
+    let (status, body) = authed_patch(
+        &app,
+        &format!("/api/v1/posts/{post_id}"),
+        &session,
+        &csrf,
+        "1",
+        json!({
+            "title": "更新标题",
+            "tags": ["rust", "axum"]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "编辑带标签必须 200: {body}");
+    assert_eq!(body["tags"], json!(["rust", "axum"]));
+
+    // 再次 GET 详情确认 tags 自动返回
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(&format!("/api/v1/posts/{post_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let detail: Value =
+        serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(detail["tags"], json!(["rust", "axum"]));
 
     close_pool(&pool).await;
     cleanup(&dir);

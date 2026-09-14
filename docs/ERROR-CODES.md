@@ -18,6 +18,21 @@
 | `idempotency_conflict` | 409 | 同一幂等键对应不同请求 | 使用新业务请求 ID |
 | `version_conflict` | 409 | If-Match/version 过期 | 重新读取后合并 |
 | `unauthorized` | 401 | 缺少或失效身份（Session 缺失/过期/Bearer 无效，M16-HARNESS-04 对齐实现） | 重新登录/刷新令牌 |
+| `invalid_credentials` | 401 | 登录：用户名/密码错误或账号被禁（统一，防枚举，M02-SESSION-03） | 核对用户名与密码后重试 |
+| `mfa_code_invalid` | 401 | MFA 登录第二步：TOTP/恢复码错误或二选一参数缺失（统一，不泄漏第二因素细节，M02-UX-03） | 重新输入 6 位验证码或改用恢复码 |
+| `mfa_challenge_invalid` | 422 | MFA 登录 challenge 不存在/已消费/过期（统一，防枚举） | 从第一步重新登录 |
+| `mfa_confirm_invalid` | 400 | TOTP enrollment 确认：验证码格式或数值错误 | 重新输入 6 位数字验证码 |
+| `mfa_enrollment_invalid` | 400 | 无进行中的 TOTP enrollment/已确认/TOTP 未启用 | 重新开始两步验证设置 |
+| `passkey_not_configured` | 500 | 服务端未配置 Passkey（`passkey_rp_id` 为空，功能关闭） | 改用验证码/恢复码；联系管理员配置 |
+| `passkey_unavailable` | 400 | 登录 options：该账号未注册任何有效 Passkey | 改用验证码/恢复码，或先在两步验证页注册 Passkey |
+| `passkey_challenge_invalid` | 400 | Passkey 注册确认：无进行中的 WebAuthn challenge/已消费/过期（统一，防枚举） | 重新开始注册 |
+| `passkey_registration_invalid` | 400 | Passkey 注册确认：凭据响应校验失败或 credential id 已被注册（统一，防枚举） | 重新注册；重复出现改用其他认证器 |
+| `passkey_limit_reached` | 400 | 每用户 Passkey 数量达上限（10 把） | 先撤销不再使用的 Passkey |
+| `reauth_password_invalid` | 401 | step-up 重认证：当前会话密码错误（不泄漏内部状态） | 重新输入密码 |
+| `verification_token_invalid` | 422 | 邮箱验证 token 不存在/已消费/过期（统一，防枚举） | 重新获取验证邮件 |
+| `reset_token_invalid` | 422 | 密码重置 token 不存在/已消费/过期（统一，防枚举） | 重新发起找回密码 |
+| `validation_failed` | 422 | 表单字段未通过校验（`errors[]` 附 field/message_key） | 按字段级提示修正后重试 |
+| `invalid_current_password` | 401 | 修改密码：当前密码错误（POST /api/v1/me/password） | 重新输入当前密码 |
 | `forbidden` | 403 | 无权限但资源存在 | 不重试 |
 | `step_up_required` | 403 | 高风险操作要求近期重认证（M02-MFA-07） | 经 `/api/v1/auth/re-auth` 重认证后重试 |
 | `not_found` | 404 | 资源不存在或按策略隐藏 | 不枚举重试 |
@@ -49,7 +64,12 @@
 | `presentation_slot_conflict` | 409 | 装备版本或槽位冲突 | 重新读取衣柜 |
 | `activity_already_claimed` | 409 | 当日自动签到/任务已领取 | 刷新活动摘要；页面访问无需报错或重试 |
 | `activity_not_eligible` | 409 | 未达到任务条件或命中风控 | 展示安全原因 |
+| `invalid_price_coin` | 422 | 付费内容定价非法（超出 1–1000、非 paid 策略携带或缺失 price_coin） | 修正定价后重试 |
+| `post_not_paid` | 422 | 目标内容不是付费内容（购买/解锁仅适用 paid 帖） | 不重试 |
+| `price_not_configured` | 422 | 付费内容未配置价格，无法购买 | 联系作者配置价格 |
 | `self_reaction` | 400 | 反应目标为自己发布的内容（M07-REACTIONS 自赞排除） | 展示「不能对自己发布的内容表态」，不重试 |
+| `cannot_follow_self` | 422 | 关注目标为自己 | 不重试 |
+| `cannot_message_self` | 422 | 私信会话对象为自己 | 不重试 |
 | `download_url_unavailable` | 503 | 已有授权但暂时无法签发 URL | 查询授权，不重复扣费 |
 | `ai_consent_required` | 403 | AI 数据发送缺少独立同意 | 展示同意页 |
 | `ai_budget_exceeded` | 409 | Provider/用途/用户预算超出 | 等待周期或改用人工 |

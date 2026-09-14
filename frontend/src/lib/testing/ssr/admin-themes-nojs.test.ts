@@ -72,13 +72,25 @@ describe('M13-UI-06 管理主题 SSR', () => {
     expect(body).toContain('/midnight');
   });
 
-  it('ok → 上传表单（reason 必填）+ Token 编辑（If-Match revision）', () => {
+  it('ok → 上传改按钮+弹层：触发按钮 + 预置一键安装表单（reason 审计）+ 主题卡「⋮」菜单触发按钮', () => {
     const { body } = render(AdminThemesPage, { props: { data: okData, form: null } });
+    // 新契约：自定义上传 = 「上传主题」按钮 → Dialog（?/upload），弹层无 JS 不渲染；
+    // 官方预置包一键安装仍为隐藏字段直提交表单（无裸输入，reason 预填写审计）
+    expect(body).toContain('上传主题');
     expect(body).toContain('action="?/upload"');
     expect(body).toContain('name="reason"');
-    expect(body).toContain('action="?/save-settings"');
-    expect(body).toContain('name="revision"');
-    expect(body).toContain('value="2"');
+    // 约定 D 新契约：每张主题卡唯一「⋮」三点触发按钮（aria-label 含行语义；
+    // 编辑 Token/设为默认/删除由菜单项直接触发专用流），旧平铺行按钮与
+    // 「主题操作」选择 Dialog 均不再出现；关闭态菜单列表不进 SSR HTML。
+    expect(body).toContain('aria-label="更多操作：主题 midnight"');
+    expect(body).toContain('aria-label="更多操作：主题 paper"');
+    expect(body).not.toContain('aria-label="操作主题 ');
+    expect(body).not.toContain('主题操作：');
+    expect(body).not.toContain('aria-label="编辑主题 ');
+    expect(body).not.toContain('aria-label="设为默认主题 ');
+    expect(body).not.toContain('aria-label="删除主题 ');
+    expect(body).not.toContain('role="menu"');
+    expect(body).toContain('revision v2');
   });
 
   it('官方预置包：日/夜双模式徽章 + 夜间色板进入安装表单（v1.1）', () => {
@@ -140,9 +152,9 @@ describe('M13-UI-06 管理主题 SSR', () => {
     // 非封闭 key（provider_secret/internal_body）在前端投影被过滤，绝不进入 HTML
     expect(body).not.toContain('ADMIN-THEME-SSR-SECRET');
     expect(body).not.toContain('ADMIN-THEME-SSR-BODY');
-    // 封闭 key 的异常值只出现在 textarea 值里且被 HTML 转义（不产生原始标签）
+    // 封闭 key 的异常值不产生原始标签（Token 编辑弹层未打开时不渲染任何 Token 文本）
     expect(body).not.toContain('</style><svg');
-    expect(body).toContain('&lt;/style>');
+    expect(body).not.toContain('<svg onload');
     expect(body).not.toContain('style="color:'); // 不从 token 生成内联样式
   });
 });

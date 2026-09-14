@@ -316,6 +316,8 @@ struct FavoritePostRow {
     last_reply_at: Option<i64>,
     pinned_at: Option<i64>,
     author_name: Option<String>,
+    /// 作者昵称（users.display_name；前台列表优先显示昵称，缺省回退用户名）。
+    author_display_name: Option<String>,
     favorited_at: i64,
 }
 
@@ -343,7 +345,8 @@ async fn list_my_favorites(
     // 只返回收藏时仍可见（published/hidden 未删除）的帖子；软删帖自动消失。
     let sql = "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
                       p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
-                      p.pinned_at, u.username_normalized AS author_name, f.created_at AS favorited_at
+                      p.pinned_at, u.username_normalized AS author_name,
+                      u.display_name AS author_display_name, f.created_at AS favorited_at
                FROM favorites f
                JOIN posts p ON p.id = f.post_id
                LEFT JOIN users u ON u.id = p.author_id
@@ -392,7 +395,11 @@ async fn list_my_favorites(
             json!({
                 "id": p.id,
                 "board_id": p.board_id,
-                "author": { "id": p.author_id, "username": p.author_name },
+                "author": {
+                    "id": p.author_id,
+                    "username": p.author_name,
+                    "display_name": p.author_display_name,
+                },
                 "post_type": p.post_type,
                 "title": p.title,
                 "status": p.status,

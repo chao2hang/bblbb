@@ -13,7 +13,8 @@
   //   /moderation/report?post= 预填）、付费解锁（unlockPost 幂等）；
   // - 评论排序（最新/最早/只看作者——后端 ListQuery 无 sort，纯前端）；
   // - 代码块复制按钮（$effect 挂载，reduced-motion 无动画）；
-  // - 侧栏「关于作者」/「所在板块」卡。
+  // - 侧栏「关于作者」卡 + 「板块导航」（共享 BoardNav：所在板块高亮，
+  //   读帖时可跳转其他板块）。
   // 交互均为客户端渐进增强（与既有评论编辑/删除同模式）：锁帖 SSR 输出
   // 保持零 POST 表单（M04-UI-09 回归测试约束），收藏/解锁需 JS 属可接受
   // 退化（分享/举报无 JS 仍可用：链接文本 + 普通链接）。
@@ -34,6 +35,7 @@
     addPostReaction,
     removePostReaction,
     getPostReactions,
+    recordTrustReadTime,
     type Comment,
     type User
   } from '$lib/api/client';
@@ -44,8 +46,10 @@
     type Problem
   } from '$lib/errors';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
+  import type { PublicPresentationTokens } from '$lib/api/types';
   import Button from '$lib/components/ui/Button.svelte';
-  import DogeIcon from '$lib/components/ui/DogeIcon.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import ReactionBar from '$lib/components/ReactionBar.svelte';
@@ -54,20 +58,39 @@
   import SimpleCommentEditor from '$lib/components/editor/SimpleCommentEditor.svelte';
   // M14-SEO-01/02/03：文章/讨论页统一 SEO；未发布/未解锁内容 noindex。
   import Seo from '$lib/components/Seo.svelte';
+  import BoardNav from '$lib/components/forum/BoardNav.svelte';
+  import { markPostRead } from '$lib/readState.svelte';
   import { show } from '$lib/ui/toast';
-  import { formatTime, formatRelative, charCount, formatCount } from '$lib/utils';
+  import { formatDate, formatRelative, charCount, formatCount } from '$lib/utils';
   import type { PostDetailPageData } from './+page.server';
 
   let { data }: { data: PostDetailPageData } = $props();
 
   const post = $derived(data.post);
-  const authed = $derived(data.authed);
   const loadError = $derived(data.error);
   const locked = $derived(Boolean(post?.closed_at));
   const authorName = $derived(post?.author?.display_name || post?.author?.username || '匿名');
   const statusNotice = $derived(postStatusNotice(post?.status));
   const authorCard = $derived(data.author);
+  const authorPresentation = $derived<PublicPresentationTokens | null>(
+    (authorCard?.presentation_tokens as PublicPresentationTokens | null | undefined) ??
+    (post?.author?.presentation_tokens as PublicPresentationTokens | null | undefined) ??
+    null
+  );
+
+  function commentPresentation(c: Comment): PublicPresentationTokens | null {
+    if (c.author?.username && c.author.username === post?.author?.username) {
+      return authorPresentation;
+    }
+    if (c.author?.username && (c.author.username === user?.username || c.author.username === sessionUser?.username)) {
+      return (user?.presentation_tokens ?? sessionUser?.presentation_tokens) ?? null;
+    }
+    return (c.author?.presentation_tokens as PublicPresentationTokens | null | undefined) ?? null;
+  }
   const boardCard = $derived(data.board);
+  /** 侧栏板块导航行（与 board 同源反查；空数组 → BoardNav 整卡不渲染）。
+   *  帖子所在板块经 activeSlug 高亮，读帖时可直接跳转其他板块。 */
+  const navBoards = $derived(data.boards ?? []);
 
   /** 正文不可见时的可访问占位（M04-UI-07 的简化版；正文绝不放进 DOM）。 */
   const accessPlaceholder = $derived.by(() => {
@@ -89,13 +112,57 @@
 
   // ── 客户端态（SSR 阶段为空；hydration 后 onMount 拉取，渐进增强） ──
   let user = $state<User | null>(null);
+
+  // ── 会话判定（修复「未登录也渲染回复表单」）──
+  // 只信任 /me 验证过的会话：SSR 首帧用根 layout 的服务端 user（
+  // +layout.server.ts 调 /me 校验，失效/被吊销的 Cookie 得 null，SvelteKit
+  // 将其并入页面 data）；hydration 后叠加客户端 getMe 结果。不再用「会话
+  // Cookie 是否存在」判定（旧 data.authed）——过期 Cookie 曾让匿名访客
+  // 看到完整回复表单（导航栏已是登录/注册，表单提交必 401）。
+  const sessionUser = $derived(data.user ?? null);
+  const authed = $derived(Boolean(sessionUser || user));
+  const replyHref = $derived(
+    !authed
+      ? `/login?next=${encodeURIComponent(`/posts/${post?.id ?? ''}#comment-input`)}`
+      : locked
+        ? '#comments-title'
+        : '#comment-input'
+  );
+
   const isAuthor = $derived(Boolean(user && post?.author?.username && user.username === post.author.username));
   const canEdit = $derived(Boolean(user && (isAuthor || user.roles?.includes('admin') || user.roles?.includes('moderator') || user.roles?.includes('administrator'))));
   let comments = $state<Comment[]>([]);
   let commentsLoaded = $state(false);
+  let commentsProblem = $state<Problem | null>(null);
   /** 本次会话内新增/删除的回复数（对服务端 reply_count 的增量修正）。 */
   let replyDelta = $state(0);
   const replyCount = $derived((post?.reply_count ?? 0) + replyDelta);
+
+  // ── 主贴底部统计行：回复过的用户（头像栈）──
+  // 浏览量/回复数/参与用户从标题行下移到主贴底部（截图对齐）；回复者从
+  // 已加载评论去重派生（保序、客户端加载后出现，属渐进增强）。头像最多
+  // 展示 8 个，超出折叠为 +N。key 用 id/username 兜底，匿名聚合为一个。
+  const MAX_REPLY_AVATARS = 8;
+  type PostReplier = { key: string; name: string; username: string | null; level?: number };
+  const repliers = $derived.by<PostReplier[]>(() => {
+    const seen = new Set<string>();
+    const list: PostReplier[] = [];
+    for (const c of comments) {
+      const a = c.author;
+      const key = a?.id || a?.username || a?.display_name || '匿名';
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push({
+        key,
+        name: a?.display_name || a?.username || '匿名',
+        username: a?.username || null,
+        level: a?.level
+      });
+    }
+    return list;
+  });
+  const shownRepliers = $derived(repliers.slice(0, MAX_REPLY_AVATARS));
+  const hiddenRepliers = $derived(Math.max(0, repliers.length - shownRepliers.length));
 
   // 回复表单
   let newComment = $state('');
@@ -154,14 +221,50 @@
     shareUrl = window.location.href;
   });
 
-  async function copyShare() {
+  // ── M20-TRUST：阅读时长心跳（best-effort）──
+  // 登录用户在详情页每 30s 上报一次阅读时长（页面不可见时暂停）；服务端
+  // 钳制（单请求 ≤60s、每人每日 ≤7200s），失败静默。SSR 阶段不执行。
+  onMount(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    void (async () => {
+      try {
+        const me = await getMe(fetch);
+        if (!me) return;
+        timer = setInterval(() => {
+          if (document.visibilityState === 'visible') {
+            void recordTrustReadTime(fetch, 30);
+          }
+        }, 30_000);
+      } catch {
+        /* 心跳为增强功能；任何失败忽略 */
+      }
+    })();
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  });
+
+  async function copyShare(event?: MouseEvent) {
+    event?.preventDefault();
     const url = shareUrl || (typeof window !== 'undefined' ? window.location.href : '');
     if (!url) return;
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: post?.title ?? '帖子', url });
+        show('已打开分享面板', 'success');
+        return;
+      } catch (error) {
+        // 用户关闭系统分享面板时不再弹出失败提示，继续尝试复制链接。
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
     try {
       await navigator.clipboard.writeText(url);
       show('链接已复制', 'success');
     } catch {
-      show('复制失败，请手动复制链接文本', 'warning');
+      show('复制失败，请长按分享按钮复制链接', 'warning');
     }
   }
 
@@ -220,6 +323,17 @@
     }
     return commentSort === 'latest' ? [...list].reverse() : list;
   });
+
+  // ── 引用回复展示（M04-UI-06 补全）──
+  // 「引用」创建的回复带 parent_id，但列表此前只渲染 body_html，被引用楼层
+  // 完全不可见（引用无效果）。这里按 parent_id 反查同帖评论，在回复卡片
+  // 顶部渲染被引用楼层的紧凑引用块；被引用楼层不在当前数据（软删/受限）
+  // 时不渲染，避免悬空引用。
+  const commentsById = $derived(new Map(comments.map((c) => [c.id, c])));
+  function quotedParentOf(c: Comment): Comment | null {
+    if (!c.parent_id) return null;
+    return commentsById.get(c.parent_id) ?? null;
+  }
 
   // ── 互动点赞与狗头表态（点赞、狗头等反应支持）：本地乐观更新 ──
   let commentLikes = $state<Record<string, { active: boolean; count: number }>>({});
@@ -345,11 +459,10 @@
     }
   }
 
-  // ── 帖子点赞与狗头表态：侧栏与正文下方反应区联动 ──
+  // ── 帖子反应状态：侧栏快捷赞与正文 ReactionBar 联动 ──
   let postLike = $state<{ active: boolean; count: number }>({ active: false, count: 0 });
   let postLikeBusy = $state(false);
   let postDoge = $state<{ active: boolean; count: number }>({ active: false, count: 0 });
-  let postDogeBusy = $state(false);
   // 本地是否已发起过帖子反应变更（为 true 时跳过挂载水合，防止旧快照覆盖）
   let postReactionsTouched = false;
 
@@ -435,56 +548,13 @@
     }
   }
 
-  async function togglePostDoge() {
-    if (!post) return;
-    if (!user && !authed) {
-      goto('/login');
-      return;
-    }
-    if (postDogeBusy) return;
-    postDogeBusy = true;
-    postReactionsTouched = true;
-    try {
-      if (postDoge.active) {
-        const result = await removePostReaction(fetch, post.id, 'doge');
-        applyPostReactionMutation({
-          reaction: 'doge',
-          active: false,
-          count: typeof result?.count === 'number' ? result.count : Math.max(0, postDoge.count - 1),
-          counts: result?.counts
-        });
-      } else {
-        // 单激活：点赞激活中时先乐观切换（失败回滚）
-        const likeSnapshot = { ...postLike };
-        if (postLike.active) postLike = { active: false, count: Math.max(0, postLike.count - 1) };
-        try {
-          const result = await addPostReaction(fetch, post.id, 'doge');
-          applyPostReactionMutation({
-            reaction: 'doge',
-            active: result.active,
-            count: result.count,
-            counts: result.counts
-          });
-        } catch (err) {
-          postLike = likeSnapshot;
-          throw err;
-        }
-      }
-    } catch (err: unknown) {
-      const problem = err as Problem;
-      if (problem?.status === 401) {
-        goto('/login');
-        return;
-      }
-      show(problemMessage(problem) || '表态失败，请稍后重试', 'danger');
-    } finally {
-      postDogeBusy = false;
-    }
-  }
-
   onMount(async () => {
     user = await getMe(fetch);
-    if (post) await loadComments();
+    if (post) {
+      // 进入详情页即本地标记已读（首页列表左侧色条「未读亮 / 已读暗」依据）
+      markPostRead(post.id);
+      await loadComments();
+    }
     // 行内赞/狗头初始态水合（ ReactionBar 的 Pill 由自身 loadDetail 独立水合）。
     // 单激活：viewer_reactions 至多一项；若本地已发起过变更则跳过，避免旧快照覆盖。
     if (post && !postReactionsTouched) {
@@ -504,11 +574,14 @@
 
   async function loadComments() {
     if (!post) return;
+    commentsLoaded = false;
+    commentsProblem = null;
     try {
       const result = await listComments(fetch, post.id);
       comments = result.items;
-    } catch {
+    } catch (err: unknown) {
       comments = [];
+      commentsProblem = err as Problem;
     } finally {
       commentsLoaded = true;
     }
@@ -528,6 +601,21 @@
   function clearQuote() {
     parentId = null;
     quoteOf = null;
+  }
+
+  // 楼层锚点平滑滚动（楼层编号链接与引用块共用）：替代浏览器瞬时跳转。
+  // - 目标楼层不在 DOM（如「只看作者」过滤后）→ 不拦截，退回默认锚点行为；
+  // - prefers-reduced-motion 用户保持瞬时定位（不做动画）；
+  // - 用 history.replaceState 同步 URL hash（不产生瞬时跳转、不污染历史）。
+  function scrollToFloor(event: MouseEvent, floor: number) {
+    const el = document.getElementById(`floor-${floor}`);
+    if (!el) return;
+    event.preventDefault();
+    const reduced =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+    history.replaceState(null, '', `#floor-${floor}`);
   }
 
   async function handleSubmit(e: SubmitEvent) {
@@ -684,24 +772,28 @@
 
 <div class="container app-page app-topic topic-layout">
   <div class="main-col">
-    <nav class="topic-context" aria-label="讨论位置">
-      <a href="/">首页</a>
-      <span aria-hidden="true">/</span>
-      {#if boardCard}
-        <a href="/boards/{encodeURIComponent(boardCard.slug)}">{boardCard.name}</a>
-        <span aria-hidden="true">/</span>
-      {/if}
-      <span class="topic-context__current">内容详情</span>
-    </nav>
-
     {#if loadError && !post}
       <p class="input-hint is-error" role="alert">{loadError}</p>
     {:else if post}
+      <nav class="topic-mobile-context" aria-label="帖子导航">
+        <a
+          href={boardCard ? `/boards/${encodeURIComponent(boardCard.slug)}` : '/'}
+          class="topic-mobile-context__back"
+        >
+          <Icon name="chevron-left" size={17} />
+          <span>{boardCard?.name ?? '返回'}</span>
+        </a>
+        <span class="topic-mobile-context__label">帖子</span>
+        <a href={replyHref} class="topic-mobile-context__reply">
+          <Icon name="message-circle" size={15} />
+          <span>{locked ? '查看回复' : '回复'}</span>
+        </a>
+      </nav>
       <article class="topic-head-card topic-reading-card">
           <div class="post-title-row" style="margin-bottom:var(--space-3);">
             <h1 style="font-size:var(--text-2xl);">{post.title}</h1>
-            <!-- 原型对齐：文章类型徽标移除，统一展示「内容」徽标。 -->
-            <span class="sbadge sb-brand" style="margin-left:var(--space-2);">内容</span>
+            <!-- 原型对齐：文章类型徽标移除，统一展示「内容」徽标。间距由 .post-title-row 的 flex gap 提供。 -->
+            <span class="sbadge sb-brand">内容</span>
           </div>
           {#if statusNotice}
             <p class="input-hint" role="status" style="margin-bottom:var(--space-3);">{statusNotice}</p>
@@ -716,36 +808,45 @@
                   display_name: post.author.display_name ?? null,
                   level: post.author.level
                 }}
+                presentation={{ presentation_tokens: authorPresentation }}
                 label="查看 {authorName} 的个人资料"
               >
                 <span style="display:inline-flex;align-items:center;gap:var(--space-2);">
-                  <Avatar name={authorName} size="sm" />
-                  <span class="text-link" style="font-size:var(--text-sm);">{authorName}</span>
+                  <CosmeticAvatar name={authorName} size="sm" presentation={authorPresentation} avatarAttachmentId={post.author?.avatar_attachment_id ?? null} seed={post.author?.username ?? post.author?.id ?? authorName} />
+                  <span class="text-link" style="font-size:var(--text-sm);">
+                    <CosmeticName name={authorName} presentation={authorPresentation} />
+                  </span>
                 </span>
               </UserCard>
             {:else}
-              <Avatar name={authorName} size="sm" />
-              <span class="text-secondary" style="font-size:var(--text-sm);">{authorName}</span>
+              <CosmeticAvatar name={authorName} size="sm" presentation={authorPresentation} avatarAttachmentId={post.author?.avatar_attachment_id ?? null} seed={post.author?.username ?? post.author?.id ?? authorName} />
+              <span class="text-secondary" style="font-size:var(--text-sm);">
+                <CosmeticName name={authorName} presentation={authorPresentation} />
+              </span>
             {/if}
-            <span class="text-secondary" style="font-size:var(--text-sm);">
-              {formatTime(post.created_at)} · {post.view_count ?? 0} 浏览 · {replyCount} 回复
-            </span>
             {#if post.access_summary && post.access_summary.policy !== 'public'}
               <span class="sbadge sb-hot">可见性：{policyLabel(post.access_summary.policy)}</span>
             {/if}
             {#if locked}
               <span class="sbadge sb-danger">已锁定</span>
             {/if}
-            {#if canEdit}
-              <a
-                href="/editor?post_id={encodeURIComponent(post.id)}"
-                class="btn ghost sm"
-                style="margin-left:auto;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:2px 10px;height:26px;font-size:12px;"
-              >
-                <Icon name="pen-line" size={13} />
-                <span>{isAuthor ? '编辑内容' : '管理代改'}</span>
-              </a>
-            {/if}
+            <!-- 右侧组：编辑入口 + 发布时间（时间排在「编辑内容」之后）。
+                 浏览量/回复数已下移到主贴底部统计行，不再出现在标题行。 -->
+            <span style="margin-left:auto;display:inline-flex;align-items:center;gap:var(--space-3);">
+              {#if canEdit}
+                <a
+                  href="/editor?post_id={encodeURIComponent(post.id)}"
+                  class="btn ghost sm"
+                  style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:2px 10px;height:26px;font-size:12px;"
+                >
+                  <Icon name="pen-line" size={13} />
+                  <span>{isAuthor ? '编辑内容' : '管理代改'}</span>
+                </a>
+              {/if}
+              <time class="text-secondary" style="font-size:var(--text-sm);" datetime={new Date(post.created_at).toISOString()}>
+                {formatDate(post.created_at)}
+              </time>
+            </span>
           </div>
 
           {#if post.body_html && post.access_summary?.unlocked !== false}
@@ -787,11 +888,17 @@
             </aside>
           {/if}
 
+          {#if post.tags && post.tags.length > 0}
+            <div class="topic-tags" aria-label="帖子标签">
+              {#each post.tags as tag}
+                <a href="/tags/{encodeURIComponent(tag)}" class="app-tag">#{tag}</a>
+              {/each}
+            </div>
+          {/if}
+
           {#if post}
-            <div class="topic-reactions-card">
-              <div class="topic-reactions-title">
-                <span>给这篇文章表个态：</span>
-              </div>
+            <!-- 表态入口：无背景、无标题，仅保留反应条（用户要求去掉灰底与提示文案） -->
+            <div style="margin-top: var(--space-4);">
               <ReactionBar
                 targetType="post"
                 targetId={post.id}
@@ -799,13 +906,105 @@
                   { reaction: 'like', count: postLike.count, active: postLike.active },
                   { reaction: 'doge', count: postDoge.count, active: postDoge.active }
                 ]}
-                authed={Boolean(user || authed)}
-                {isAuthor}
+                authed={authed}
                 currentUser={user}
                 fetchFn={fetch}
                 onReactionMutated={applyPostReactionMutation}
               />
             </div>
+
+            <!-- 移动端主操作：把收藏/赞/分享/举报放在正文末尾，
+                 不让用户滚完整个评论区后才找到主题动作；桌面由侧栏承载同一组操作。 -->
+            <div class="topic-mobile-actions" aria-label="帖子操作">
+              {#if authed}
+                <Button
+                  text={favBusy ? '处理中…' : favorited ? '已收藏' : '收藏'}
+                  variant={favorited ? 'secondary' : 'ghost'}
+                  size="sm"
+                  icon="bookmark"
+                  onclick={toggleFavorite}
+                  disabled={favBusy}
+                />
+                <button
+                  type="button"
+                  class="btn ghost btn-ghost sm topic-like-btn {postLike.active ? 'is-active' : ''}"
+                  aria-pressed={postLike.active}
+                  aria-label={postLike.active ? '取消点赞' : '点赞'}
+                  disabled={postLikeBusy}
+                  onclick={togglePostLike}
+                >
+                  <Icon name="thumbs-up" size={14} />
+                  <span>{postLike.active ? '已赞' : '赞'}{postLike.count > 0 ? ` ${formatCount(postLike.count)}` : ''}</span>
+                </button>
+              {:else}
+                <Button
+                  text="登录后可收藏 / 点赞"
+                  variant="ghost"
+                  size="sm"
+                  icon="bookmark"
+                  href="/login?next={encodeURIComponent(`/posts/${post.id}`)}"
+                  extraClass="topic-login-cta"
+                />
+              {/if}
+              <a
+                href={`/posts/${encodeURIComponent(post.id)}`}
+                class="btn ghost btn-ghost sm"
+                onclick={(event) => void copyShare(event)}
+                aria-label="分享帖子"
+              >
+                <Icon name="share-2" size={14} />
+                <span>分享</span>
+              </a>
+              <a
+                href={authed
+                  ? `/moderation/report?post=${encodeURIComponent(post.id)}`
+                  : `/login?next=${encodeURIComponent(`/moderation/report?post=${post.id}`)}`}
+                class="btn btn-ghost btn-sm"
+                style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px;"
+              >
+                <Icon name="flag" size={14} />
+                <span>{authed ? '举报' : '登录后举报'}</span>
+              </a>
+            </div>
+
+            <!-- 主贴底部统计行（截图对齐）：浏览量 / 回复数 / 参与用户 +
+                 回复者头像栈。用户数与头像来自已加载评论（客户端渐进增强，
+                 加载完成后出现）；头像最多 8 个，超出折叠为 +N。 -->
+            <footer class="topic-stats" aria-label="帖子数据">
+              <div class="topic-stats__item" aria-label="{formatCount(post.view_count ?? 0)} 次浏览">
+                <strong class="topic-stats__num">{formatCount(post.view_count ?? 0)}</strong>
+                <span class="topic-stats__label">浏览量</span>
+              </div>
+              <div class="topic-stats__item" aria-label="{formatCount(replyCount)} 条回复">
+                <strong class="topic-stats__num">{formatCount(replyCount)}</strong>
+                <span class="topic-stats__label">回复</span>
+              </div>
+              {#if commentsLoaded}
+                <div class="topic-stats__item" aria-label="{formatCount(repliers.length)} 位用户参与回复">
+                  <strong class="topic-stats__num">{formatCount(repliers.length)}</strong>
+                  <span class="topic-stats__label">用户</span>
+                </div>
+                {#if repliers.length > 0}
+                  <div class="topic-stats__repliers" aria-label="回复过的用户">
+                    {#each shownRepliers as r (r.key)}
+                      {#if r.username}
+                        <UserCard
+                          user={{ username: r.username, display_name: r.name, level: r.level }}
+                          label="查看 {r.name} 的个人资料"
+                        >
+                          <Avatar name={r.name} size="sm" seed={r.username ?? r.name} />
+                        </UserCard>
+                      {:else}
+                        <Avatar name={r.name} size="sm" seed={r.username ?? r.name} />
+                      {/if}
+                    {/each}
+                    {#if hiddenRepliers > 0}
+                      <span class="topic-stats__more" title="还有 {hiddenRepliers} 位用户参与回复">+{hiddenRepliers}</span>
+                    {/if}
+                  </div>
+                {/if}
+              {/if}
+            </footer>
           {/if}
       </article>
 
@@ -830,29 +1029,65 @@
           {/if}
         </div>
 
-        {#if commentsLoaded && comments.length > 0}
+        {#if !commentsLoaded}
+          <div class="app-empty" role="status" aria-live="polite" style="min-height:150px;">
+            <aui-spinner aria-label="正在加载回复"></aui-spinner>
+            <span>正在加载回复…</span>
+          </div>
+        {:else if commentsProblem}
+          <div class="app-notice is-danger" role="alert">
+            <span>{problemMessage(commentsProblem) || '回复加载失败，请稍后重试'}</span>
+            <Button text="重新加载" variant="secondary" size="sm" onclick={() => void loadComments()} />
+          </div>
+        {:else if comments.length > 0}
           {#if visibleComments.length === 0}
             <div class="card"><div class="card-body"><EmptyState icon="message-square" title="没有作者回复" desc="换个排序看看全部回复" /></div></div>
           {:else}
             <div class="comment-list" style="display:flex;flex-direction:column;gap:var(--space-3);">
               {#each visibleComments as comment (comment.id)}
-                <div class="card" id="floor-{comment.floor}">
+                <div class="card" id="floor-{comment.floor}" style="scroll-margin-top:calc(var(--header-h, 56px) + 12px);">
                   <div class="card-body" style="padding:var(--space-4);">
                     <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2);">
-                      <Avatar name={authorLabel(comment)} size="xs" />
+                      {#if comment.author?.username}
+                        <!-- 头像+名称挂 UserCard 悬浮卡（与侧栏「关于作者」一致）；
+                             数据用评论投影内的公开字段（username/display_name/level），
+                             bio/signature 缺省由 UserHoverCard 自然省略。 -->
+                        <UserCard
+                          user={{
+                            username: comment.author.username,
+                            display_name: comment.author.display_name ?? null,
+                            level: comment.author.level
+                          }}
+                          presentation={{ presentation_tokens: commentPresentation(comment) }}
+                          label="查看 {authorLabel(comment)} 的个人资料"
+                        >
+                          <span style="display:inline-flex;align-items:center;gap:var(--space-2);">
+                            <CosmeticAvatar name={authorLabel(comment)} size="xs" presentation={commentPresentation(comment)} avatarAttachmentId={comment.author?.avatar_attachment_id ?? null} seed={comment.author?.username ?? comment.author?.id ?? authorLabel(comment)} />
+                            <strong style="color:var(--color-text-primary);font-size:var(--text-sm);">
+                              <CosmeticName name={authorLabel(comment)} presentation={commentPresentation(comment)} />
+                            </strong>
+                          </span>
+                        </UserCard>
+                      {:else}
+                        <CosmeticAvatar name={authorLabel(comment)} size="xs" presentation={commentPresentation(comment)} avatarAttachmentId={comment.author?.avatar_attachment_id ?? null} seed={comment.author?.username ?? comment.author?.id ?? authorLabel(comment)} />
+                        <strong style="color:var(--color-text-primary);font-size:var(--text-sm);">
+                          <CosmeticName name={authorLabel(comment)} presentation={commentPresentation(comment)} />
+                        </strong>
+                      {/if}
                       <span class="text-secondary" style="font-size:var(--text-sm);">
-                        {#if comment.author?.username}
-                          <a href="/users/{comment.author.username}" class="text-link"><strong style="color:var(--color-text-primary);">{authorLabel(comment)}</strong></a>
-                        {:else}
-                          <strong style="color:var(--color-text-primary);">{authorLabel(comment)}</strong>
-                        {/if}
                         <span style="margin:0 var(--space-1);">·</span>
                         {formatRelative(comment.created_at)}
                       </span>
-                      <span style="margin-left:auto;display:inline-flex;align-items:center;gap:var(--space-2);">
-                        <span class="badge badge-neutral">#{comment.floor}</span>
-                        <a href="#floor-{comment.floor}" class="text-link" style="font-size:var(--text-xs);">楼层</a>
-                      </span>
+                      <a
+                        href="#floor-{comment.floor}"
+                        class="badge badge-neutral floor-badge"
+                        style="margin-left:auto;"
+                        onclick={(e) => scrollToFloor(e, comment.floor)}
+                        title="第 {comment.floor} 楼"
+                        aria-label="第 {comment.floor} 楼"
+                      >
+                        #{comment.floor}
+                      </a>
                     </div>
 
                     {#if editingId === comment.id}
@@ -879,6 +1114,23 @@
                         </div>
                       </div>
                     {:else}
+                      {@const quoted = quotedParentOf(comment)}
+                      {#if quoted}
+                        <a
+                          class="comment-quote"
+                          href="#floor-{quoted.floor}"
+                          aria-label="查看被引用的第 {quoted.floor} 楼（{authorLabel(quoted)}）"
+                          onclick={(e) => scrollToFloor(e, quoted.floor)}
+                        >
+                          <span class="comment-quote-head">
+                            <Icon name="quote" size={12} />
+                            <span>回复 @{authorLabel(quoted)} · #{quoted.floor}楼</span>
+                          </span>
+                          {#if quoted.body_html}
+                            <div class="prose comment-quote-body"><SafeHtml html={quoted.body_html} /></div>
+                          {/if}
+                        </a>
+                      {/if}
                       <div class="prose" style="font-size:var(--text-base);">
                         {#if comment.body_html}
                           <SafeHtml html={comment.body_html} />
@@ -894,8 +1146,7 @@
                             { reaction: 'like', count: commentLikes[comment.id]?.count ?? 0, active: commentLikes[comment.id]?.active ?? false },
                             { reaction: 'doge', count: commentDoges[comment.id]?.count ?? 0, active: commentDoges[comment.id]?.active ?? false }
                           ]}
-                          authed={Boolean(user || authed)}
-                          isAuthor={Boolean(user && comment.author?.id === user.id)}
+                          authed={authed}
                           currentUser={user}
                           fetchFn={fetch}
                           onReactionMutated={(p) => applyCommentReactionMutation(comment.id, p)}
@@ -904,7 +1155,9 @@
                             <Button text="引用" variant="ghost" size="sm" icon="quote" onclick={() => quoteComment(comment)} disabled={locked} />
                             <!-- M18-MISC-02：逐条回复举报入口（对齐原型） -->
                             <a
-                              href="/moderation/report?target_type=comment&target_id={encodeURIComponent(comment.id)}"
+                              href={authed
+                                ? `/moderation/report?target_type=comment&target_id=${encodeURIComponent(comment.id)}`
+                                : `/login?next=${encodeURIComponent(`/moderation/report?target_type=comment&target_id=${comment.id}`)}`}
                               class="btn btn-ghost btn-sm"
                               style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;"
                               aria-label="举报 {authorLabel(comment)} 的回复"
@@ -931,7 +1184,7 @@
               {/each}
             </div>
           {/if}
-        {:else if commentsLoaded}
+        {:else}
           <div class="app-empty" style="min-height:190px;">
             <Icon name="message-square" size={34} />
             <b>暂无回复</b>
@@ -946,7 +1199,7 @@
               <span class="text-secondary">该帖已锁定，不能继续回复。</span>
             </div>
           </div>
-        {:else if authed || user}
+        {:else if authed}
           <form class="topic-editor" style="margin-top:14px;" method="POST" onsubmit={handleSubmit}>
             <label class="input-label" for="comment-input">发表回复</label>
               {#if quoteOf}
@@ -1007,26 +1260,44 @@
                 username: authorCard.username,
                 display_name: authorCard.display_name,
                 level: authorCard.level,
-                bio: authorCard.bio,
                 signature: authorCard.signature
               }}
+              presentation={{ presentation_tokens: authorCard.presentation_tokens }}
               label="查看 {authorCard.display_name || authorCard.username} 的个人资料"
             >
               <span style="display:flex;align-items:center;gap:var(--space-3);">
-                <Avatar name={authorCard.display_name || authorCard.username} size="md" />
+                <CosmeticAvatar name={authorCard.display_name || authorCard.username} size="md" presentation={authorCard.presentation_tokens} avatarAttachmentId={authorCard.avatar_attachment_id} seed={authorCard.username} />
                 <span>
-                  <span style="display:block;font-weight:var(--weight-semibold);">{authorCard.display_name || authorCard.username}</span>
+                  <span style="display:block;font-weight:var(--weight-semibold);">
+                    <CosmeticName name={authorCard.display_name || authorCard.username} presentation={authorCard.presentation_tokens} />
+                  </span>
                   <span class="text-secondary" style="font-size:var(--text-sm);">LV.{authorCard.level}</span>
                 </span>
               </span>
             </UserCard>
-            {#if authorCard.bio}
-              <p class="text-secondary" style="margin:0;font-size:var(--text-sm);">{authorCard.bio}</p>
+            {#if authorCard.signature}
+              <p class="text-secondary" style="margin:0;font-size:var(--text-sm);">{authorCard.signature}</p>
             {/if}
+            <!-- 统计 → 对应页面（与用户悬浮卡/用户主页统计一致）。 -->
             <div style="display:flex;gap:var(--space-4);font-size:var(--text-sm);">
-              <span><strong>{formatCount(authorCard.post_count)}</strong> <span class="text-secondary">帖子</span></span>
-              <span><strong>{formatCount(authorCard.followers)}</strong> <span class="text-secondary">粉丝</span></span>
-              <span><strong>{formatCount(authorCard.following)}</strong> <span class="text-secondary">关注</span></span>
+              <a
+                class="profile-stat-link"
+                href="/users/{encodeURIComponent(authorCard.username)}?tab=posts"
+              >
+                <strong>{formatCount(authorCard.post_count)}</strong> <span class="text-secondary">帖子</span>
+              </a>
+              <a
+                class="profile-stat-link"
+                href="/users/{encodeURIComponent(authorCard.username)}/followers"
+              >
+                <strong>{formatCount(authorCard.followers)}</strong> <span class="text-secondary">粉丝</span>
+              </a>
+              <a
+                class="profile-stat-link"
+                href="/users/{encodeURIComponent(authorCard.username)}/following"
+              >
+                <strong>{formatCount(authorCard.following)}</strong> <span class="text-secondary">关注</span>
+              </a>
             </div>
           {:else if post.author?.username}
             <!-- 作者卡数据拉取失败：退回帖子投影内的最小作者信息（无统计）。 -->
@@ -1036,11 +1307,14 @@
                 display_name: post.author.display_name ?? null,
                 level: post.author.level
               }}
+              presentation={{ presentation_tokens: authorPresentation }}
               label="查看 {authorName} 的个人资料"
             >
               <span style="display:flex;align-items:center;gap:var(--space-3);">
-                <Avatar name={authorName} size="md" />
-                <span style="font-weight:var(--weight-semibold);">{authorName}</span>
+                <CosmeticAvatar name={authorName} size="md" presentation={authorPresentation} seed={post.author?.username ?? post.author?.id ?? authorName} />
+                <span style="font-weight:var(--weight-semibold);">
+                  <CosmeticName name={authorName} presentation={authorPresentation} />
+                </span>
               </span>
             </UserCard>
           {:else}
@@ -1049,7 +1323,7 @@
 
           <!-- 原型对齐：主题功能按钮位于侧栏作者卡（.topic-actions--side 2×2）。 -->
           <div class="topic-actions topic-actions--side">
-            {#if authed || user}
+            {#if authed}
               <Button
                 text={favBusy ? '处理中…' : favorited ? '已收藏' : '收藏'}
                 variant={favorited ? 'secondary' : 'ghost'}
@@ -1069,46 +1343,38 @@
                 <Icon name="thumbs-up" size={14} />
                 <span>{postLike.active ? '已赞' : '赞'}{postLike.count > 0 ? ` ${formatCount(postLike.count)}` : ''}</span>
               </button>
-              <button
-                type="button"
-                class="btn ghost btn-ghost sm topic-like-btn topic-doge-btn {postDoge.active ? 'is-active' : ''}"
-                aria-pressed={postDoge.active}
-                aria-label={postDoge.active ? '取消狗头' : '狗头'}
-                disabled={postDogeBusy}
-                onclick={togglePostDoge}
-                title="滑稽狗头保命"
-              >
-                <DogeIcon size={16} />
-                <span>{postDoge.active ? '已狗头' : '狗头'}{postDoge.count > 0 ? ` ${formatCount(postDoge.count)}` : ''}</span>
-              </button>
             {:else}
               <!-- 匿名：收藏/点赞是登录操作，不渲染按钮，展示登录引导
-                   （?next= 登录后回跳本帖）。 -->
-              <a
-                href="/login?next={encodeURIComponent(`/posts/${post.id}`)}"
-                class="btn btn-ghost btn-sm"
-                style="text-decoration:none;"
-              >
-                <Icon name="bookmark" size={14} />
-                <span>登录后可收藏 / 点赞</span>
-              </a>
-            {/if}
-            {#if canEdit}
+                   （?next= 登录后回跳本帖）。用 Button ghost（与下方
+                   分享/举报同款无边框样式），长文案独占整行不换行。 -->
               <Button
-                text={isAuthor ? '编辑' : '代改'}
-                variant="secondary"
+                text="登录后可收藏 / 点赞"
+                variant="ghost"
                 size="sm"
-                icon="pen-line"
-                href={`/editor?post_id=${encodeURIComponent(post.id)}`}
+                icon="bookmark"
+                href="/login?next={encodeURIComponent(`/posts/${post.id}`)}"
+                extraClass="topic-login-cta"
               />
+              <!-- 编辑入口收敛到正文卡右上角「编辑内容」（同样 canEdit 门控），
+                   侧栏不再重复放置编辑按钮。 -->
             {/if}
-            <Button text="分享" variant="ghost" size="sm" icon="share-2" onclick={copyShare} />
+            <a
+                href={`/posts/${encodeURIComponent(post.id)}`}
+                class="btn ghost btn-ghost sm"
+                onclick={(event) => void copyShare(event)}
+                aria-label="分享帖子"
+              >
+                <Icon name="share-2" size={14} />
+                <span>分享</span>
+              </a>
             <Button
-              text="举报"
+              text={authed ? '举报' : '登录后举报'}
               variant="ghost"
               size="sm"
               icon="flag"
-              href={`/moderation/report?post=${encodeURIComponent(post.id)}`}
+              href={authed
+                ? `/moderation/report?post=${encodeURIComponent(post.id)}`
+                : `/login?next=${encodeURIComponent(`/moderation/report?post=${post.id}`)}`}
             />
           </div>
           {#if favoriteCount > 0}
@@ -1117,63 +1383,129 @@
         </div>
       </div>
 
-      {#if boardCard}
-        <div class="card" style="margin-top:var(--space-4);">
-          <div class="card-header"><span class="card-title">所在板块</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
-            <a href="/boards/{encodeURIComponent(boardCard.slug)}" class="text-link" style="font-weight:var(--weight-semibold);">{boardCard.name}</a>
-            {#if boardCard.description}
-              <p class="text-secondary" style="margin:0;font-size:var(--text-sm);">{boardCard.description}</p>
-            {/if}
-            <div class="text-secondary" style="font-size:var(--text-sm);">
-              {formatCount(boardCard.post_count)} 帖子
-              {#if boardCard.today_post_count !== undefined}
-                <!-- 今日新增：UTC 日界内新帖（authed 投影才返回）。 -->
-                <span>· 今日 +{formatCount(boardCard.today_post_count)}</span>
-              {/if}
-            </div>
-          </div>
-        </div>
-      {/if}
+      <!-- 板块导航（共享 BoardNav）：帖子所在板块高亮，读帖时可直接跳转
+           其他板块/全部板块；数据与「所在板块」同源（GET /boards 反查），
+           无 board_id/拉取失败 → 空列表，整卡不渲染。 -->
+      <div style="margin-top:var(--space-4);">
+        <BoardNav boards={navBoards} activeSlug={boardCard?.slug ?? null} />
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
+  /* 未登录引导 CTA：长文案在侧栏操作区独占整行。
+     - 主题网格布局（chinese-elegance 的 2 列 grid）→ grid-column 跨全行；
+     - 兜底 flex 布局（其他主题）→ flex-basis 100% 同样独占一行；
+     - nowrap 防止「登录后可收藏 / 点赞」在格子里断成两截。
+     类名经 Button extraClass 运行时注入，须用 :global 才不会被作用域剪枝。 */
+  .topic-actions--side :global(.topic-login-cta) {
+    grid-column: 1 / -1;
+    flex: 1 1 100%;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  /* 楼层编号链接徽标：单元素展示，悬停提供平滑反馈。 */
+  .floor-badge {
+    margin-left: auto;
+    text-decoration: none !important;
+    cursor: pointer;
+  }
+  .floor-badge:hover {
+    color: var(--color-brand) !important;
+    background: var(--color-surface-hover, var(--color-bg-subtle)) !important;
+    border-color: var(--color-border-strong, var(--aui-border)) !important;
+    text-decoration: none !important;
+  }
+
+  /* 引用回复块：紧凑引用卡（左竖线 + 弱化底色），点击跳转被引用楼层。
+     颜色全部走主题 token，日夜模式自动适配。 */
+  .comment-quote {
+    display: block;
+    margin-bottom: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+  }
+  .comment-quote:hover {
+    background: var(--color-surface-hover, var(--color-bg-subtle));
+    text-decoration: none;
+  }
+  .comment-quote-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium, 500);
+    color: var(--color-text-tertiary);
+  }
+  .comment-quote-body {
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
   /* 侧栏主题点赞按钮（.btn.ghost 基座）的激活态。 */
   .topic-like-btn.is-active {
     color: var(--color-brand);
     border-color: var(--color-brand);
   }
 
-  /* 狗头特定样式 */
-  :global(.topic-doge-btn .doge-icon) {
-    transition: transform 0.15s ease-out;
-  }
-  :global(.topic-doge-btn:hover .doge-icon) {
-    transform: scale(1.2) rotate(-6deg);
-  }
-  .topic-doge-btn.is-active {
-    border-color: #f59e0b;
-    color: #d97706;
-    background: rgba(245, 158, 11, 0.12);
-  }
-
-  /* 正文底部 Reaction 表态卡 */
-  .topic-reactions-card {
-    margin-top: var(--space-4);
-    padding: var(--space-3) var(--space-4);
-    border-top: 1px dashed var(--color-border);
-    border-radius: 0 0 var(--radius-md) var(--radius-md);
-    background: var(--color-bg-subtle, rgba(0, 0, 0, 0.02));
+  /* 主贴底部统计行：数字+标签纵排（对齐截图），头像栈轻微重叠。
+     颜色全部走主题 token，日夜模式自动适配；flex-wrap 兜底窄屏。 */
+  .topic-stats {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    align-items: center;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: var(--border-default);
   }
-  .topic-reactions-title {
+  .topic-stats__item {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 48px;
+  }
+  .topic-stats__num {
+    font-size: var(--text-lg);
+    line-height: 1.2;
+    font-weight: var(--weight-semibold, 600);
+    color: var(--color-brand);
+  }
+  .topic-stats__label {
     font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+  .topic-stats__repliers {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  /* 相邻头像/折叠徽标重叠（触发器与头像本体都可能是直接子节点）。 */
+  .topic-stats__repliers > :global(* + *) {
+    margin-left: -8px;
+  }
+  .topic-stats__repliers :global(.avatar),
+  .topic-stats__more {
+    box-shadow: 0 0 0 2px var(--color-bg-card);
+  }
+  .topic-stats__more {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    font-size: 10px;
+    font-weight: var(--weight-semibold, 600);
   }
 
   /* 代码块复制按钮（$effect 注入的 DOM 无作用域属性 → :global）。
@@ -1190,12 +1522,25 @@
     font-size: var(--text-xs);
     border: var(--border-default);
     border-radius: var(--radius-sm);
-    background: var(--color-surface);
+    background: var(--color-bg-raised);
     color: var(--color-text-secondary);
     cursor: pointer;
   }
   :global(.code-copy-btn:hover) {
     color: var(--color-text-primary);
     border-color: var(--color-border-strong);
+  }
+
+  @media (max-width: 768px) {
+    :global(.topic-layout) {
+      grid-template-columns: minmax(0, 1fr) !important;
+      gap: var(--space-4) !important;
+    }
+    :global(.topic-head-card) {
+      padding: var(--space-3) !important;
+    }
+    :global(.topic-reading-card) {
+      border-radius: var(--aui-radius-sm, 4px) !important;
+    }
   }
 </style>

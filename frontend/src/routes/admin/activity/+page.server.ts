@@ -1,7 +1,14 @@
-// M07-UI-08：管理端活跃——签到/任务配置（If-Match 版本冲突提示）。
+// M07-UI-08 + M18-ADMIN-POINTS-03 优化：管理端签到页——
+// 角色收敛为「签到运行概览 + 签到全局配置」：
+// - load：GET /admin/activity/config（If-Match 版本 + 总闸/自动打卡/时区）+
+//   GET /admin/activity/tasks（只用于其他活跃规则的只读摘要计数）；
+// - save-config：PATCH /admin/activity/config（reason 必填 + step-up + 审计）。
+// 任务规则（发帖/回复/表态/任务/榜单）的数额/上限/冷却/启停编辑统一移至
+// 「积分规则配置」/admin/points/rules（单一编辑面，避免两处改同一 activity_rules
+// 行造成版本打架）；本页仅展示摘要计数与跳转入口。
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
+import { authedPatch, getAuthed } from '$lib/api/server';
 import { adminListState, type AdminLoadState } from '$lib/admin';
 import type { ActivityConfig, ActivityTask, Money } from '$lib/api/types';
 
@@ -52,10 +59,14 @@ export const actions: Actions = {
     };
     const amountRaw = String(form.get('check_in_amount') ?? '').trim();
     const currency = String(form.get('check_in_currency') ?? 'coin').trim().toLowerCase();
+    // 管理端签到奖励统一使用 B币；拒绝任何其他币种，避免绕过仅 coin 的表单选项。
+    if (currency !== 'coin') {
+      return fail(422, { message: '签到奖励币种仅支持 B币' } satisfies AdminActivityActionData);
+    }
+    changes.check_in_currency = 'coin';
     if (amountRaw !== '') {
       changes.check_in_amount = Number(amountRaw);
-      changes.check_in_currency = currency;
-      changes.check_in_reward = { currency, amount: Number(amountRaw) } satisfies Money;
+      changes.check_in_reward = { currency: 'coin', amount: Number(amountRaw) } satisfies Money;
     }
     const limitRaw = String(form.get('check_in_daily_limit') ?? '').trim();
     if (limitRaw !== '') {
@@ -77,66 +88,6 @@ export const actions: Actions = {
     } catch (e) {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminActivityActionData);
-    }
-  },
-  'create-task': async ({ request, cookies }) => {
-    const form = await request.formData();
-    const reason = String(form.get('reason') ?? '').trim();
-    if (!reason) {
-      return fail(422, { message: '操作原因必填' } satisfies AdminActivityActionData);
-    }
-    const body: Record<string, unknown> = {
-      reason,
-      kind: String(form.get('kind') ?? 'task'),
-      currency: String(form.get('currency') ?? 'coin'),
-      amount: Number(form.get('amount') ?? 0)
-    };
-    const daily = String(form.get('daily_limit') ?? '').trim();
-    if (daily !== '') body.daily_limit = Number(daily);
-    try {
-      const result = await authedPost<ActivityTask>(
-        cookies,
-        '/api/v1/admin/activity/tasks',
-        body,
-        request.headers.get('x-request-id')
-      );
-      if (result.ok) return { message: '任务已创建' } satisfies AdminActivityActionData;
-      return fail(result.status, { message: result.message } satisfies AdminActivityActionData);
-    } catch (e) {
-      if (isRedirect(e)) throw e;
-      return fail(503, { message: '创建失败，请稍后重试' } satisfies AdminActivityActionData);
-    }
-  },
-  'update-task': async ({ request, cookies }) => {
-    const form = await request.formData();
-    const id = String(form.get('id') ?? '').trim();
-    const version = Number(form.get('version') ?? 0);
-    if (!id) return fail(422, { message: '缺少任务标识' } satisfies AdminActivityActionData);
-    if (!Number.isInteger(version) || version < 1) {
-      return fail(422, { message: '任务版本缺失或无效' } satisfies AdminActivityActionData);
-    }
-    const body: Record<string, unknown> = {
-      reason: String(form.get('reason') ?? '').trim(),
-      is_enabled: form.get('is_enabled') === 'on'
-    };
-    const amount = String(form.get('amount') ?? '').trim();
-    if (amount !== '') body.amount = Number(amount);
-    try {
-      const result = await authedPatch<ActivityTask>(
-        cookies,
-        `/api/v1/admin/activity/tasks/${encodeURIComponent(id)}`,
-        body,
-        { 'If-Match': String(version) },
-        request.headers.get('x-request-id')
-      );
-      if (result.ok) return { message: '任务已更新' } satisfies AdminActivityActionData;
-      if (result.status === 409) {
-        return fail(409, { message: `版本冲突：${result.message}` } satisfies AdminActivityActionData);
-      }
-      return fail(result.status, { message: result.message } satisfies AdminActivityActionData);
-    } catch (e) {
-      if (isRedirect(e)) throw e;
-      return fail(503, { message: '更新失败，请稍后重试' } satisfies AdminActivityActionData);
     }
   }
 };

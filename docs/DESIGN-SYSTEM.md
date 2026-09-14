@@ -1,9 +1,9 @@
 # BBLBB — 设计系统规范「冷墨 / Cold Ink」
 
-> 版本：v1.0
+> 版本：v1.1
 > 适用范围：`frontend/` 全部路由与组件（前台 + 管理后台）
-> 关联文档：[`FRONTEND.md`](FRONTEND.md)（技术基线）、[`THEME.md`](THEME.md)（数据型主题边界）、[`PROTOTYPE-UI.md`](PROTOTYPE-UI.md)（原型视觉来源）
-> 状态：规范已冻结，实施见 [`../todo/M19-design-system.md`](../todo/M19-design-system.md)
+> 关联文档：[`BLBUI-DESIGN-SYSTEM.md`](BLBUI-DESIGN-SYSTEM.md)（BLBUI 组件与实现边界）、[`FRONTEND.md`](FRONTEND.md)（技术基线）、[`THEME.md`](THEME.md)（数据型主题边界）、[`PROTOTYPE-UI.md`](PROTOTYPE-UI.md)（原型视觉来源）
+> 状态：M19 全站重做已取消（当前主题符合需求）；本文件与 [`BLBUI-DESIGN-SYSTEM.md`](BLBUI-DESIGN-SYSTEM.md) 作为后续局部组件编写与演进参考。
 
 ---
 
@@ -129,23 +129,27 @@ color: var(--color-text-tertiary);
 正文链接用 `--color-link`（近墨色）+ 下划线承担可辨识性。
 这样强调色出现的地方**一定有含义**，不会退化成品牌涂装。
 
-### 2.4 字体
+### 2.4 字体规范（Typography System）
 
-| 角色 | 字族 | 承担 |
-|---|---|---|
-| display / base | `Inter Tight Variable` + 系统 CJK | 标题、界面文本、正文 |
-| utility | `IBM Plex Mono` | **全站元信息** |
+全站字族实行**三级严格规范**，禁止任何页面或组件自行拼写临时 font-family 或引入未受控字体：
 
-自托管（`@fontsource`），**仅 latin/latin-ext 子集**；CJK 走系统字体
-（PingFang / MiSans / 思源黑）。绝不为 CJK 下发 web font——一个思源黑子集
-就是数 MB，是首屏预算的灾难。
+| 语义角色 | CSS Token 变量 | 标准字族回退链（Font Stack） | 承担职责与适用边界 |
+|---|---|---|---|
+| **Base / UI** | `--font-family-base` | `"Inter Tight Variable", "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif` | 全站通用界面文本、正文、表单控件、对话框、一般阅读段落 |
+| **Display** | `--font-family-display` | `var(--font-family-base)` | 页面主标题、大字号展示文本、Hero 区块（负字距收紧） |
+| **Utility / Mono** | `--font-family-mono` | `"IBM Plex Mono", "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace` | **全站元信息与数据**：时间戳、计数值、板块标示、kicker 标签、序号、表头、层级徽章、金额价格、代码块。必须配 `font-variant-numeric: tabular-nums` |
+| **Serif** | `--font-family-serif` | `Georgia, "Songti SC", "Noto Serif SC", serif` | 典雅引语、名言金句、特定人文传统排版装饰 |
+| **AUI 桥接** | `--aui-font-ui`<br>`--aui-font-mono` | 映射至 `var(--font-family-base)` 与 `var(--font-family-mono)` | 保证 blbui Shadow DOM 组件与全站字族无缝一致 |
 
-**mono 的适用范围（这是与模板化设计拉开距离的关键）：**
-时间、计数、板块标记、序号、表头、层级、配额、价格、ID、代码。
-一律配 `font-variant-numeric: tabular-nums` 让数字列纵向对齐。
+#### 字体发布与性能纪律
+- **自托管（`@fontsource`）与零外部请求**：拉丁部分由 `@fontsource-variable/inter-tight` 与 `@fontsource/ibm-plex-mono` 随包本地分发（`fonts.css`），严禁请求 Google Fonts 等第三方 CDN（保障离线可用与零隐私泄漏）。
+- **CJK 走系统字族回退**：中文严格由系统 UI 字体渲染（PingFang / MiSans / HarmonyOS / 思源黑 / 微软雅黑），**绝不**为 CJK 下发 Web Font（一个思源黑子集数 MB，首屏首载不可接受）。
+- **层级靠字号、字重与字距**：标题使用负字距（`letter-spacing: -0.025em`），元信息与代码标签使用正字距（`0.02em` ~ `0.09em`），禁止通过在页面里随意切不同字体家族来做视觉强调。
 
-层级靠**字号/字重/字距**，不靠切换字体家族。标题用负字距
-（`letter-spacing: -0.025em`），元信息用正字距（`0.02em`）与标签字距（`0.09em`）。
+#### 严禁事项（Anti-Patterns）
+1. **禁止写死字族名**：禁止在组件内写 `font-family: monospace`、`font-family: Georgia, serif`、`"Space Grotesk"` 等硬编码值，必须统一消费 `var(--font-family-*)`。
+2. **禁止虚构变量名**：历史上误写的 `--font-family-ui`、`--font-family-body` 已统一纠正为 `--font-family-base`（并在 Token 层保留兜底别名），新代码一律使用规范变量名。
+3. **mono 数据纵向对齐**：凡是展示数字、金额、时间的 mono 元素，一律配 `font-variant-numeric: tabular-nums`。
 
 ### 2.5 Signature · 活跃度脊柱
 

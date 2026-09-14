@@ -2,15 +2,15 @@
 //
 // - load：服务端取 GET /api/v1/me（User 含 version，M03-PROFILE-04 后
 //   后端已返回）；401 → 跳登录；GAP-FIX 增强：GET /me/oauth-grants
-//   （OAuth 授权应用列表；TODO(BE-2) 后端端点尚未注册，404 → 空列表）；
+//   （OAuth 授权应用列表，失败时非致命降级为空列表）；
 // - action `profile`：PATCH /api/v1/me（会话绑定 CSRF + If-Match 版本头，
 //   authedPatch 支持 extraHeaders）；
 // - action `visibility`（GAP-FIX 资料可见性）：PATCH /api/v1/me 提交
 //   profile_visible_to（everyone|registered|nobody，后端已支持）；
 // - action `password`（GAP-FIX 修改密码）：POST /api/v1/me/password
-//   （TODO(BE-2) 后端端点尚未注册；当前会失败并提示稍后重试）；
+//   （后端校验当前密码，成功后撤销其他会话）；
 // - action `revoke-oauth`（GAP-FIX OAuth 授权管理）：DELETE
-//   /api/v1/me/oauth-grants/{client_id}（同上 TODO）；
+//   /api/v1/me/oauth-grants/{client_id}；
 // - 成功 → 返回更新后 Me 投影（form.user 用于保存后投影刷新；use:enhance
 //   成功默认 invalidateAll 使 data 也保持新鲜）；
 // - 409 version_conflict → fail(409, { conflict: true }) 页面提示刷新重编；
@@ -20,16 +20,23 @@
 
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedDelete, authedPatch, authedPost, getAuthed } from '$lib/api/server';
+import { authedDelete, authedDeleteBody, authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import type { OAuthGrantItem, User } from '$lib/api/types';
 import { clampProfileText, PROFILE_TEXT_LIMITS } from '$lib/profile';
 
 export interface SettingsPageData {
   user: User | null;
   error: string | null;
-  /** GAP-FIX：OAuth 授权应用列表（后端端点落地前恒空）。
+  /** GAP-FIX：OAuth 授权应用列表。
    *  可选：旧 fixture/渐进迁移下允许缺失（页面按空列表处理）。 */
   grants?: OAuthGrantItem[];
+  /** 个人资料封面（GET /api/v1/users/{id}/profile-cover，失败降级 null）。 */
+  cover?: {
+    attachment_id: string;
+    alt_text?: string;
+    position?: string;
+    content_url?: string;
+  } | null;
 }
 
 export interface SettingsFormResult {
@@ -58,8 +65,7 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
     if (result.status === 401) throw redirect(303, '/login');
     return { user: null, error: result.message, grants: [] } satisfies SettingsPageData;
   }
-  // OAuth 授权列表（GAP-FIX）：非致命——端点未落地（404）或其他失败时为空，
-  // 页面按空态渲染；落地后自动出现真实数据。
+  // OAuth 授权列表（GAP-FIX）：非致命——接口失败时为空，页面按空态渲染。
   const grantsResult = await getAuthed<{ items?: OAuthGrantItem[] }>(
     cookies,
     '/api/v1/me/oauth-grants',
@@ -67,7 +73,22 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   );
   const grants =
     grantsResult.ok && Array.isArray(grantsResult.data.items) ? grantsResult.data.items : [];
-  return { user: result.data, error: null, grants } satisfies SettingsPageData;
+
+  // 个人资料封面：非致命——接口 204 或失败时为空。
+  let cover: SettingsPageData['cover'] = null;
+  if (result.data?.id) {
+    const coverResult = await getAuthed<{
+      attachment_id: string;
+      alt_text?: string;
+      position?: string;
+      content_url?: string;
+    }>(cookies, `/api/v1/users/${result.data.id}/profile-cover`, requestId);
+    if (coverResult.ok && coverResult.data?.attachment_id) {
+      cover = coverResult.data;
+    }
+  }
+
+  return { user: result.data, error: null, grants, cover } satisfies SettingsPageData;
 };
 
 export const actions: Actions = {
@@ -84,20 +105,48 @@ export const actions: Actions = {
     const display_name = clampProfileText(String(form.get('display_name') ?? '').trim(), PROFILE_TEXT_LIMITS.display_name);
     const bio = clampProfileText(String(form.get('bio') ?? '').trim(), PROFILE_TEXT_LIMITS.bio);
     const signature = clampProfileText(String(form.get('signature') ?? '').trim(), PROFILE_TEXT_LIMITS.signature);
+    const avatarRaw = form.has('avatar_attachment_id')
+      ? String(form.get('avatar_attachment_id') ?? '').trim()
+      : undefined;
+    const coverRaw = form.has('cover_attachment_id')
+      ? String(form.get('cover_attachment_id') ?? '').trim()
+      : undefined;
+
+    const patchBody: Record<string, unknown> = {
+      display_name: display_name || null,
+      bio: bio || null,
+      signature: signature || null
+    };
+    if (avatarRaw !== undefined) {
+      patchBody.avatar_attachment_id = avatarRaw || null;
+    }
 
     try {
       const result = await authedPatch<User>(
         cookies,
         '/api/v1/me',
-        {
-          display_name: display_name || null,
-          bio: bio || null,
-          signature: signature || null
-        },
+        patchBody,
         { 'If-Match': String(version) },
         request.headers.get('x-request-id')
       );
       if (result.ok) {
+        if (coverRaw !== undefined) {
+          if (coverRaw) {
+            await authedPost(
+              cookies,
+              '/api/v1/me/profile-cover',
+              { attachment_id: coverRaw, alt_text: '', position: 'center' },
+              request.headers.get('x-request-id')
+            );
+          } else {
+            await authedDeleteBody(
+              cookies,
+              '/api/v1/me/profile-cover',
+              { attachment_id: '00000000-0000-0000-0000-000000000000', alt_text: '', position: '' },
+              request.headers.get('x-request-id')
+            );
+          }
+        }
         return { ok: true, user: result.data } satisfies SettingsFormResult;
       }
       if (result.status === 409) {
@@ -170,8 +219,7 @@ export const actions: Actions = {
   },
 
   // GAP-FIX 修改密码：POST /api/v1/me/password（当前密码校验 401 → inline
-  // 错误；成功后后端撤销其他会话）。TODO(BE-2)：后端端点尚未注册
-  // （GAP-FIX-SPEC 二节「账号」），落地前提交会 404/503 → 顶部提示稍后重试。
+  // 错误；成功后后端撤销其他会话）。
   password: async ({ request, cookies }) => {
     const form = await request.formData();
     const currentPassword = String(form.get('current_password') ?? '');
@@ -222,8 +270,70 @@ export const actions: Actions = {
     }
   },
 
+  // 快捷 action：直接保存头像（上传就绪后即时持久化，无需点击底部保存修改）
+  'update-avatar': async ({ request, cookies }) => {
+    const form = await request.formData();
+    const versionRaw = String(form.get('version') ?? '').trim();
+    const version = Number(versionRaw);
+    const avatarAttachmentId = String(form.get('avatar_attachment_id') ?? '').trim();
+    if (!Number.isInteger(version) || version < 1) {
+      return fail(422, { message: '版本无效，请刷新页面' } satisfies SettingsFormResult);
+    }
+    try {
+      console.log('[DEBUG update-avatar] calling PATCH /api/v1/me with:', {
+        avatar_attachment_id: avatarAttachmentId || null,
+        IfMatch: String(version)
+      });
+      const result = await authedPatch<User>(
+        cookies,
+        '/api/v1/me',
+        { avatar_attachment_id: avatarAttachmentId || null },
+        { 'If-Match': String(version) },
+        request.headers.get('x-request-id')
+      );
+      console.log('[DEBUG update-avatar] result:', result);
+      if (result.ok) {
+        return { ok: true, user: result.data } satisfies SettingsFormResult;
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies SettingsFormResult);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '保存头像失败，请稍后重试' } satisfies SettingsFormResult);
+    }
+  },
+
+  // 快捷 action：直接保存封面（上传就绪后即时持久化）
+  'update-cover': async ({ request, cookies }) => {
+    const form = await request.formData();
+    const coverAttachmentId = String(form.get('cover_attachment_id') ?? '').trim();
+    try {
+      if (coverAttachmentId) {
+        const res = await authedPost(
+          cookies,
+          '/api/v1/me/profile-cover',
+          { attachment_id: coverAttachmentId, alt_text: '', position: 'center' },
+          request.headers.get('x-request-id')
+        );
+        if (!res.ok) return fail(res.status, { message: res.message } satisfies SettingsFormResult);
+      } else {
+        const res = await authedDeleteBody(
+          cookies,
+          '/api/v1/me/profile-cover',
+          { attachment_id: '00000000-0000-0000-0000-000000000000', alt_text: '', position: '' },
+          request.headers.get('x-request-id')
+        );
+        if (!res.ok) return fail(res.status, { message: res.message } satisfies SettingsFormResult);
+      }
+      // 重新读取 me 刷新用户投影
+      const meRes = await getAuthed<User>(cookies, '/api/v1/me', request.headers.get('x-request-id'));
+      return { ok: true, user: meRes.ok ? meRes.data : undefined } satisfies SettingsFormResult;
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '保存封面失败，请稍后重试' } satisfies SettingsFormResult);
+    }
+  },
+
   // GAP-FIX 撤销 OAuth 授权：DELETE /api/v1/me/oauth-grants/{client_id}。
-  // TODO(BE-2)：后端端点尚未注册，落地前提交会失败并提示。
   'revoke-oauth': async ({ request, cookies }) => {
     const form = await request.formData();
     const clientId = String(form.get('client_id') ?? '').trim();

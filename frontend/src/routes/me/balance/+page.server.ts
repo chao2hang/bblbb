@@ -6,10 +6,11 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed } from '$lib/api/server';
-import type { ActivitySummary, Money } from '$lib/api/types';
+import type { ActivitySummary, Money, PointTransactionItem } from '$lib/api/types';
 
 export interface BalancePageData {
   summary: ActivitySummary | null;
+  transactions?: PointTransactionItem[];
   error: string | null;
 }
 
@@ -25,11 +26,26 @@ export interface BalanceActionData {
 export const load: PageServerLoad = async ({ cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
   const result = await getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId);
-  if (!result.ok && result.status === 401) throw redirect(303, '/login');
-  if (!result.ok) {
-    return { summary: null, error: result.message } satisfies BalancePageData;
+  if (!result?.ok && result?.status === 401) throw redirect(303, '/login');
+  if (!result?.ok) {
+    return { summary: null, error: result?.message ?? '获取积分信息失败' } satisfies BalancePageData;
   }
-  return { summary: result.data, error: null } satisfies BalancePageData;
+
+  let transactions: PointTransactionItem[] = [];
+  try {
+    const txRes = await getAuthed<{ items: PointTransactionItem[] }>(
+      cookies,
+      '/api/v1/me/point-transactions?limit=30',
+      requestId
+    );
+    if (txRes && typeof txRes === 'object' && 'ok' in txRes && txRes.ok && Array.isArray(txRes.data?.items)) {
+      transactions = txRes.data.items;
+    }
+  } catch {
+    // 单元测试或接口缺失时平滑降级
+  }
+
+  return { summary: result.data, transactions, error: null } satisfies BalancePageData;
 };
 
 export const actions: Actions = {

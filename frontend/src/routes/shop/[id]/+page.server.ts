@@ -9,8 +9,10 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed } from '$lib/api/server';
+import { activityCoinBalance } from '$lib/api/types';
 import type {
   ActivitySummary,
+  TrustLevelProgress,
   Entitlement,
   OrderCreateResult,
   ShopProduct,
@@ -47,18 +49,18 @@ export const load: PageServerLoad = async ({ cookies, request, params }) => {
 
   let balance: Money | null = null;
   let level: number | null = null;
-  const summaryResult = await getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId);
-  if (summaryResult.ok) {
-    level = typeof summaryResult.data.level === 'number' ? summaryResult.data.level : null;
-    const coin = (summaryResult.data.balances ?? []).find((b) => b.currency === 'coin');
-    balance = coin ?? null;
-  }
+  const [summaryResult, trustResult] = await Promise.all([
+    getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId),
+    getAuthed<TrustLevelProgress>(cookies, '/api/v1/me/trust-level', requestId)
+  ]);
+  if (summaryResult?.ok) balance = activityCoinBalance(summaryResult.data);
+  if (trustResult?.ok) level = trustResult.data.level;
 
   // 已持有该商品数量（限购剩余展示）。
   let ownedCount = 0;
-  const entResult = await getAuthed<{ items: Entitlement[] }>(cookies, '/api/v1/me/entitlements', requestId);
-  if (entResult.ok) {
-    ownedCount = (entResult.data.items ?? []).filter(
+  const entResult = await getAuthed<{ entitlements?: Entitlement[]; items?: Entitlement[] }>(cookies, '/api/v1/me/entitlements', requestId);
+  if (entResult?.ok) {
+    ownedCount = (entResult.data.entitlements ?? entResult.data.items ?? []).filter(
       (e) => e.product_id === params.id && e.status !== 'revoked' && e.status !== 'consumed'
     ).length;
   }
@@ -91,9 +93,13 @@ export const actions: Actions = {
         { 'Idempotency-Key': clientRequestId }
       );
       if (result.ok) {
-        const orderId = result.data?.order?.id;
+        // 兼容旧版后端的顶层 order_id，同时优先使用规范化的 order.id。
+        const legacyResult = result.data as OrderCreateResult & { order_id?: string };
+        const orderId = result.data?.order?.id ?? legacyResult.order_id;
         if (!orderId) {
-          return { ok: true, message: '订单已提交，正在处理…' } satisfies ShopActionData;
+          return fail(502, {
+            message: '订单已提交，但返回的订单号无效，请到积分明细核对扣款状态。'
+          } satisfies ShopActionData);
         }
         throw redirect(303, `/shop/orders/${encodeURIComponent(orderId)}`);
       }

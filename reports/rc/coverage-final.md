@@ -1,5 +1,7 @@
 # BBLBB — OpenAPI 193/193 operation coverage 终态报告（M17-FREEZE-03）
 
+> 历史快照：rc.2 / 2026-08-08；标题中的 193/193 不代表当前 223 个 operation 的状态。本文只用于审计追溯，当前覆盖以 `../../todo/openapi-operation-coverage.json` 为准。
+
 > 执行：platform/release-manager；日期：2026-08-08；复现命令在仓库根目录可重跑。
 
 ## 1. 机械校验

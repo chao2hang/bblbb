@@ -1,7 +1,9 @@
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
-    response::Json,
+    http::{header, HeaderMap, HeaderValue, Request, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Json, Response},
     routing::{delete, get, patch, post, put},
     Router,
 };
@@ -59,6 +61,21 @@ fn required_reason(body: &Value, request_id: &str) -> Result<String, AppError> {
     Ok(reason)
 }
 
+/// 管理写响应统一 `Cache-Control: private, no-store`（M00-FRONTEND-06，
+/// 契约已对写操作声明该响应头）。
+fn private_no_store(resp: Response) -> Response {
+    let mut resp = resp;
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    resp
+}
+
+async fn private_cache_middleware(request: Request<Body>, next: Next) -> Response {
+    private_no_store(next.run(request).await)
+}
+
 /// 管理后台路由
 ///
 /// M6/M7 域路由委托给按域分区的子模块（admin_storage / admin_download /
@@ -75,6 +92,18 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/v1/admin/users/{id}",
             get(get_admin_user).patch(update_admin_user),
+        )
+        .route(
+            "/api/v1/admin/users/{id}/randomize-nickname",
+            post(randomize_admin_user_nickname),
+        )
+        .route(
+            "/api/v1/admin/nickname-blacklist",
+            get(list_admin_nickname_blacklist).post(add_admin_nickname_blacklist),
+        )
+        .route(
+            "/api/v1/admin/nickname-blacklist/{id}",
+            delete(delete_admin_nickname_blacklist),
         )
         // 角色管理
         .route(
@@ -93,6 +122,15 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/v1/admin/boards/{id}",
             get(get_admin_board).patch(update_admin_board),
+        )
+        // 板块角色 assignment（P1 整改：0022 已落库但无管理 API）
+        .route(
+            "/api/v1/admin/boards/{id}/roles",
+            get(list_board_role_assignments).post(assign_board_role),
+        )
+        .route(
+            "/api/v1/admin/boards/{id}/roles/{user_id}/{role_name}",
+            axum::routing::delete(revoke_board_role),
         )
         // 标签管理
         .route(
@@ -192,6 +230,7 @@ pub fn router() -> Router<AppState> {
             "/api/v1/admin/themes/{name}/settings",
             patch(update_theme_settings),
         )
+        .layer(axum::middleware::from_fn(private_cache_middleware))
         // 配置型插件（M13-PLUGIN；不在冻结 193 契约中，随 PLUGIN.md 发布）
         .merge(admin_plugins::router())
 }
@@ -223,9 +262,8 @@ async fn admin_user_json(pool: &crate::db::DatabasePool, row: &sqlx::sqlite::Sql
     let roles = admin_roles_for_user(pool, &user_id)
         .await
         .unwrap_or_default();
-    // 余额（视觉对齐 M17-GAPFIX-07：B币/经验列；point_accounts 实时余额，
-    // 无账户 = 0）。
-    let (coin_balance, exp_balance) = admin_user_balances(pool, &user_id).await;
+    // B 币余额（point_accounts 实时余额；无账户 = 0）。
+    let coin_balance = admin_user_balance(pool, &user_id).await;
     json!({
         "id": row.get::<String,_>("id"),
         "username": row.get::<String,_>("username_normalized"),
@@ -234,9 +272,9 @@ async fn admin_user_json(pool: &crate::db::DatabasePool, row: &sqlx::sqlite::Sql
         "status": row.get::<String,_>("status"),
         "display_name": row.get::<Option<String>,_>("display_name"),
         "level": row.get::<i64,_>("level"),
+        "trust_level": row.get::<i64,_>("trust_level"),
         "roles": roles,
         "coin_balance": coin_balance,
-        "exp_balance": exp_balance,
         "created_at": row.get::<i64,_>("created_at"),
         "updated_at": row.get::<i64,_>("updated_at"),
         "last_login_at": row.get::<Option<i64>,_>("last_login_at"),
@@ -246,8 +284,8 @@ async fn admin_user_json(pool: &crate::db::DatabasePool, row: &sqlx::sqlite::Sql
     })
 }
 
-/// 用户 B币/经验实时余额（point_accounts × currencies.code；无账户 = 0）。
-async fn admin_user_balances(pool: &crate::db::DatabasePool, user_id: &str) -> (i64, i64) {
+/// 用户 B 币实时余额（point_accounts × currencies.code；无账户 = 0）。
+async fn admin_user_balance(pool: &crate::db::DatabasePool, user_id: &str) -> i64 {
     let sql = "SELECT c.code AS code, COALESCE(pa.balance, 0) AS balance
          FROM currencies c
          LEFT JOIN point_accounts pa ON pa.currency_id = c.id AND pa.user_id = ?";
@@ -265,18 +303,13 @@ async fn admin_user_balances(pool: &crate::db::DatabasePool, user_id: &str) -> (
                 .await
         }
     };
-    let mut coin = 0i64;
-    let mut exp = 0i64;
     if let Ok(rows) = rows {
-        for (code, balance) in rows {
-            match code.as_str() {
-                "coin" => coin = balance,
-                "exp" => exp = balance,
-                _ => {}
-            }
-        }
+        return rows
+            .into_iter()
+            .find_map(|(code, balance)| (code == "coin").then_some(balance))
+            .unwrap_or(0);
     }
-    (coin, exp)
+    0
 }
 
 async fn admin_user_json_mysql(
@@ -287,7 +320,7 @@ async fn admin_user_json_mysql(
     let roles = admin_roles_for_user(pool, &user_id)
         .await
         .unwrap_or_default();
-    let (coin_balance, exp_balance) = admin_user_balances(pool, &user_id).await;
+    let coin_balance = admin_user_balance(pool, &user_id).await;
     json!({
         "id": row.get::<String,_>("id"),
         "username": row.get::<String,_>("username_normalized"),
@@ -296,9 +329,9 @@ async fn admin_user_json_mysql(
         "status": row.get::<String,_>("status"),
         "display_name": row.get::<Option<String>,_>("display_name"),
         "level": row.get::<i64,_>("level"),
+        "trust_level": row.get::<i64,_>("trust_level"),
         "roles": roles,
         "coin_balance": coin_balance,
-        "exp_balance": exp_balance,
         "created_at": row.get::<i64,_>("created_at"),
         "updated_at": row.get::<i64,_>("updated_at"),
         "last_login_at": row.get::<Option<i64>,_>("last_login_at"),
@@ -384,7 +417,7 @@ async fn list_admin_users(
             ));
         }
     }
-    // level 是经验等级整数（users.level，0001 INTEGER）。
+    // level 参数继续兼容既有 API；底层筛选使用 users.trust_level。
     let level_filter = params.get("level").and_then(|v| v.parse::<i64>().ok());
     if level_filter.is_some() && level_filter.unwrap() < 0 {
         return Err(AppError::bad_request(
@@ -398,11 +431,11 @@ async fn list_admin_users(
     match pool {
         Either::Left(p) => {
             let rows = sqlx::query(
-                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, trust_level AS level, trust_level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
                  FROM users WHERE deleted_at IS NULL AND (? IS NULL OR created_at < ?)
                    AND (? IS NULL OR username_normalized LIKE ? ESCAPE '!' OR email_normalized LIKE ? ESCAPE '!')
                    AND (? IS NULL OR status = ?)
-                   AND (? IS NULL OR level = ?)
+                   AND (? IS NULL OR trust_level = ?)
                  ORDER BY created_at DESC LIMIT ?",
             )
             .bind(after)
@@ -428,11 +461,11 @@ async fn list_admin_users(
         }
         Either::Right(p) => {
             let rows = sqlx::query(
-                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, trust_level AS level, trust_level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
                  FROM users WHERE deleted_at IS NULL AND (? IS NULL OR created_at < ?)
                    AND (? IS NULL OR username_normalized LIKE ? ESCAPE '!' OR email_normalized LIKE ? ESCAPE '!')
                    AND (? IS NULL OR status = ?)
-                   AND (? IS NULL OR level = ?)
+                   AND (? IS NULL OR trust_level = ?)
                  ORDER BY created_at DESC LIMIT ?",
             )
             .bind(after)
@@ -500,6 +533,28 @@ async fn create_admin_user(
             request_id,
             None,
         ));
+    }
+    if crate::users::blacklist::is_nickname_blacklisted(pool, &username)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+    {
+        return Err(AppError::bad_request(
+            "该用户名已被列入黑名单",
+            request_id,
+            None,
+        ));
+    }
+    if let Some(ref dn) = display_name {
+        if crate::users::blacklist::is_nickname_blacklisted(pool, dn)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        {
+            return Err(AppError::bad_request(
+                "该昵称已被列入黑名单，禁止使用",
+                request_id,
+                None,
+            ));
+        }
     }
     // 随机占位密码（不可知；用户走密码重置激活）。
     let placeholder = uuid::Uuid::now_v7().to_string();
@@ -601,7 +656,7 @@ async fn get_admin_user(
     let view = match pool {
         Either::Left(p) => {
             let row = sqlx::query(
-                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, trust_level AS level, trust_level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
                  FROM users WHERE id = ?",
             )
             .bind(&id)
@@ -615,7 +670,7 @@ async fn get_admin_user(
         }
         Either::Right(p) => {
             let row = sqlx::query(
-                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
+                "SELECT id, username_normalized, email_normalized, email_verified, status, display_name, trust_level AS level, trust_level, created_at, updated_at, last_login_at, delete_requested_at, deleted_at, version
                  FROM users WHERE id = ?",
             )
             .bind(&id)
@@ -661,29 +716,6 @@ async fn update_admin_user(
         .parse()
         .map_err(|_| AppError::bad_request("If-Match must be an integer", request_id, None))?;
 
-    // 校验目标存在 + 版本
-    let current_version: Option<i64> = match pool {
-        Either::Left(p) => sqlx::query_scalar("SELECT version FROM users WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-        Either::Right(p) => sqlx::query_scalar("SELECT version FROM users WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-    };
-    let Some(current_version) = current_version else {
-        return Err(AppError::not_found("user not found", request_id));
-    };
-    if current_version != expected_version {
-        return Err(AppError::version_conflict(
-            "user version conflict",
-            request_id,
-        ));
-    }
-
     let status = body
         .get("status")
         .and_then(Value::as_str)
@@ -698,49 +730,45 @@ async fn update_admin_user(
     }
     let display_name = body
         .get("display_name")
-        .map(|v| v.as_str().map(str::to_string));
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(ref dn) = display_name {
+        if crate::users::blacklist::is_nickname_blacklisted(pool, dn)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        {
+            return Err(AppError::bad_request(
+                "该昵称已被列入黑名单，禁止使用",
+                request_id,
+                None,
+            ));
+        }
+    }
     let now = crate::outbox::now_millis();
     let new_version = expected_version + 1;
-    let affected = match pool {
-        Either::Left(p) => sqlx::query(
-            "UPDATE users SET version = ?, updated_at = ?,
-                    status = COALESCE(?, status),
-                    display_name = COALESCE(?, display_name)
-                 WHERE id = ? AND version = ?",
-        )
-        .bind(new_version)
-        .bind(now)
-        .bind(&status)
-        .bind(&display_name)
-        .bind(&id)
-        .bind(expected_version)
-        .execute(p)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        .rows_affected(),
-        Either::Right(p) => sqlx::query(
-            "UPDATE users SET version = ?, updated_at = ?,
-                    status = COALESCE(?, status),
-                    display_name = COALESCE(?, display_name)
-                 WHERE id = ? AND version = ?",
-        )
-        .bind(new_version)
-        .bind(now)
-        .bind(&status)
-        .bind(&display_name)
-        .bind(&id)
-        .bind(expected_version)
-        .execute(p)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?
-        .rows_affected(),
-    };
-    if affected == 0 {
-        return Err(AppError::version_conflict(
-            "user version conflict",
-            request_id,
-        ));
-    }
+    crate::bootstrap::update_user_guarded(
+        pool,
+        &id,
+        expected_version,
+        status.as_deref(),
+        display_name.as_deref(),
+        now,
+    )
+    .await
+    .map_err(|error| match error {
+        crate::bootstrap::GuardedUserUpdateError::NotFound => {
+            AppError::not_found("user not found", request_id)
+        }
+        crate::bootstrap::GuardedUserUpdateError::VersionConflict => {
+            AppError::version_conflict("user version conflict", request_id)
+        }
+        crate::bootstrap::GuardedUserUpdateError::LastAdministrator => {
+            AppError::conflict("cannot disable the last active administrator", request_id)
+        }
+        crate::bootstrap::GuardedUserUpdateError::Database(error) => {
+            AppError::internal(error.to_string(), request_id)
+        }
+    })?;
     // 纵深防御（M02-SESSION-06）：封禁立即撤销全部会话——与 resolve_session
     // 的实时状态检查互为冗余，任一机制失效时另一机制兜底
     if status.as_deref() == Some("banned") {
@@ -755,6 +783,190 @@ async fn update_admin_user(
         .record(pool)
         .await;
     get_admin_user(State(state), auth, Path(id)).await
+}
+
+/// POST /api/v1/admin/users/{id}/randomize-nickname
+/// 管理员一键随机用户昵称：原昵称自动存入黑名单，并更新目标用户昵称为规范随机昵称。
+async fn randomize_admin_user_nickname(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    body: Option<axum::Json<Value>>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "randomize_admin_user_nickname";
+    let admin = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &admin.id, "user.manage", request_id).await?;
+
+    let reason = body
+        .as_ref()
+        .and_then(|axum::Json(b)| b.get("reason").and_then(Value::as_str))
+        .unwrap_or("管理员一键随机重置违规昵称")
+        .trim();
+    let reason = if reason.is_empty() {
+        "管理员一键随机重置违规昵称"
+    } else {
+        reason
+    };
+
+    let now = crate::outbox::now_millis();
+    let outcome =
+        crate::users::blacklist::randomize_user_nickname(pool, &id, &admin.id, reason, now)
+            .await
+            .map_err(|e| match e {
+                crate::users::blacklist::RandomizeNicknameError::NotFound => {
+                    AppError::not_found("user not found", request_id)
+                }
+                crate::users::blacklist::RandomizeNicknameError::Database(msg) => {
+                    AppError::internal(msg, request_id)
+                }
+            })?;
+
+    // 写入审计日志
+    let _ = AuditEntry::user_action(&admin.id, "admin.user.randomize_nickname")
+        .with_target("user", &id)
+        .with_reason(reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .with_metadata(json!({
+            "old_nickname": &outcome.old_nickname,
+            "new_nickname": &outcome.new_nickname,
+            "version": outcome.new_version,
+            "at": now,
+        }))
+        .record(pool)
+        .await;
+
+    Ok(Json(json!({
+        "ok": true,
+        "user_id": outcome.user_id,
+        "old_nickname": outcome.old_nickname,
+        "new_nickname": outcome.new_nickname,
+        "version": outcome.new_version,
+    })))
+}
+
+#[derive(serde::Deserialize)]
+struct BlacklistQuery {
+    limit: Option<i64>,
+    offset: Option<i64>,
+    q: Option<String>,
+}
+
+/// GET /api/v1/admin/nickname-blacklist
+async fn list_admin_nickname_blacklist(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(query): Query<BlacklistQuery>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "list_admin_nickname_blacklist";
+    let admin = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &admin.id, "user.manage", request_id).await?;
+
+    let limit = query.limit.unwrap_or(50);
+    let offset = query.offset.unwrap_or(0);
+    let (items, total) =
+        crate::users::blacklist::list_nickname_blacklist(pool, limit, offset, query.q.as_deref())
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    Ok(Json(json!({
+        "items": items,
+        "total": total,
+    })))
+}
+
+/// POST /api/v1/admin/nickname-blacklist
+async fn add_admin_nickname_blacklist(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "add_admin_nickname_blacklist";
+    let admin = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &admin.id, "user.manage", request_id).await?;
+
+    let nickname = body
+        .get("nickname")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::bad_request("nickname required", request_id, None))?
+        .trim();
+    if nickname.is_empty() {
+        return Err(AppError::bad_request(
+            "nickname cannot be empty",
+            request_id,
+            None,
+        ));
+    }
+    let reason = body.get("reason").and_then(Value::as_str).map(str::trim);
+
+    let now = crate::outbox::now_millis();
+    let inserted = crate::users::blacklist::add_to_nickname_blacklist(
+        pool,
+        nickname,
+        reason,
+        Some(&admin.id),
+        now,
+    )
+    .await
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let _ = AuditEntry::user_action(&admin.id, "admin.nickname_blacklist.add")
+        .with_target("nickname_blacklist", nickname)
+        .with_reason(reason.unwrap_or("管理员手动加入黑名单"))
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "ok": true,
+            "nickname": nickname,
+            "inserted": inserted,
+        })),
+    ))
+}
+
+/// DELETE /api/v1/admin/nickname-blacklist/{id}
+async fn delete_admin_nickname_blacklist(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "delete_admin_nickname_blacklist";
+    let admin = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &admin.id, "user.manage", request_id).await?;
+
+    let removed = crate::users::blacklist::remove_from_nickname_blacklist(pool, &id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    let _ = AuditEntry::user_action(&admin.id, "admin.nickname_blacklist.delete")
+        .with_target("nickname_blacklist", &id)
+        .with_reason("管理员移出黑名单")
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await;
+
+    Ok(Json(json!({
+        "ok": true,
+        "removed": removed,
+    })))
 }
 
 // ────────────────────────── 角色管理（M13-ADMIN-02）───────────────────────
@@ -1309,7 +1521,7 @@ async fn list_admin_boards(
     let items: Vec<Value> = match pool {
         Either::Left(p) => {
             let rows = sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                "SELECT id, slug, name, description, icon, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
                         (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
                  FROM boards
                  WHERE (? IS NULL OR name LIKE ? ESCAPE '!' OR slug LIKE ? ESCAPE '!')
@@ -1325,7 +1537,7 @@ async fn list_admin_boards(
         }
         Either::Right(p) => {
             let rows = sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                "SELECT id, slug, name, description, icon, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
                         (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
                  FROM boards
                  WHERE (? IS NULL OR name LIKE ? ESCAPE '!' OR slug LIKE ? ESCAPE '!')
@@ -1431,6 +1643,7 @@ async fn create_admin_board(
             .get("description")
             .and_then(Value::as_str)
             .map(str::to_string),
+        icon: body.get("icon").and_then(Value::as_str).map(str::to_string),
         sort_order: body.get("sort_order").and_then(Value::as_i64).unwrap_or(0),
         parent_id: body
             .get("parent_id")
@@ -1513,6 +1726,7 @@ async fn update_admin_board(
             .get("description")
             .and_then(Value::as_str)
             .map(str::to_string),
+        icon: body.get("icon").and_then(Value::as_str).map(str::to_string),
         sort_order: body.get("sort_order").and_then(Value::as_i64),
         parent_id: body
             .get("parent_id")
@@ -1547,7 +1761,7 @@ async fn get_admin_board(
     let row = match pool {
         Either::Left(p) => {
             sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                "SELECT id, slug, name, description, icon, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
                         (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
                  FROM boards WHERE id = ?",
             )
@@ -1559,7 +1773,7 @@ async fn get_admin_board(
         }
         Either::Right(p) => {
             sqlx::query(
-                "SELECT id, slug, name, description, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
+                "SELECT id, slug, name, description, icon, sort_order, parent_id, visibility, posting_mode, is_active, created_at, updated_at,
                         (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count
                  FROM boards WHERE id = ?",
             )
@@ -1576,12 +1790,378 @@ async fn get_admin_board(
     Ok(Json(view))
 }
 
+// ───────────── 板块角色 assignment（P1 整改，0022 board_role_assignments）────
+
+/// GET /api/v1/admin/boards/{id}/roles — 板块启用角色 + assignment 列表
+/// （role.manage）。
+async fn list_board_role_assignments(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "list_admin_board_roles";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "role.manage", request_id).await?;
+
+    let exists: Option<i64> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT 1 FROM boards WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT 1 FROM boards WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    if exists.is_none() {
+        return Err(AppError::not_found("board not found", request_id));
+    }
+
+    let sql =
+        "SELECT a.id, a.board_id, a.user_id, a.role_id, a.granted_by, a.granted_at, a.expires_at,
+                      r.name AS role_name, u.username_normalized AS username
+               FROM board_role_assignments a
+               JOIN roles r ON r.id = a.role_id
+               JOIN users u ON u.id = a.user_id
+               WHERE a.board_id = ?
+               ORDER BY a.granted_at DESC, a.id";
+    /// 查询行：(id, board_id, user_id, role_id, granted_by, granted_at,
+    /// expires_at, role_name, username)。
+    type AssignmentRow = (
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        i64,
+        Option<i64>,
+        String,
+        String,
+    );
+    let rows: Vec<AssignmentRow> = match pool {
+        Either::Left(p) => sqlx::query_as(sql).fetch_all(p).await,
+        Either::Right(p) => sqlx::query_as(sql).fetch_all(p).await,
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let assignments: Vec<Value> = rows
+        .into_iter()
+        .map(
+            |(
+                aid,
+                board_id,
+                user_id,
+                role_id,
+                granted_by,
+                granted_at,
+                expires_at,
+                role_name,
+                username,
+            )| {
+                json!({
+                    "id": aid,
+                    "board_id": board_id,
+                    "user_id": user_id,
+                    "username": username,
+                    "role_id": role_id,
+                    "role_name": role_name,
+                    "granted_by": granted_by,
+                    "granted_at": granted_at,
+                    "expires_at": expires_at,
+                })
+            },
+        )
+        .collect();
+
+    Ok(Json(json!({
+        "board_id": id,
+        "assignments": assignments,
+    })))
+}
+
+/// POST /api/v1/admin/boards/{id}/roles — 授予板块角色（role.manage）。
+///
+/// body {user_id, role_name, expires_at?, reason}：
+/// - 仅允许板块范围角色（`board_` 前缀），全局角色拒绝（防越权提升）；
+/// - expires_at 可选（Unix 毫秒），必须晚于当前时间；
+/// - 幂等：UNIQUE(board_id, user_id, role_id) 冲突返回 409；
+/// - reason 必填 + 审计 `admin.board.role.grant`。
+async fn assign_board_role(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Response, AppError> {
+    let request_id = "assign_board_role";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "role.manage", request_id).await?;
+
+    let reason = required_reason(&body, request_id)?;
+    let target_user_id = body
+        .get("user_id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let role_name = body
+        .get("role_name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let expires_at = body.get("expires_at").and_then(Value::as_i64);
+    if target_user_id.is_empty() || role_name.is_empty() {
+        return Err(AppError::bad_request(
+            "user_id and role_name are required",
+            request_id,
+            None,
+        ));
+    }
+    if !role_name.starts_with("board_") {
+        return Err(AppError::bad_request(
+            "only board-scoped roles (board_*) can be assigned to a board",
+            request_id,
+            None,
+        ));
+    }
+
+    // 板块与用户存在性校验。
+    let board_exists: Option<i64> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT 1 FROM boards WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT 1 FROM boards WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    if board_exists.is_none() {
+        return Err(AppError::not_found("board not found", request_id));
+    }
+    let user_exists: Option<i64> = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar("SELECT 1 FROM users WHERE id = ? AND deleted_at IS NULL")
+                .bind(&target_user_id)
+                .fetch_optional(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar("SELECT 1 FROM users WHERE id = ? AND deleted_at IS NULL")
+                .bind(&target_user_id)
+                .fetch_optional(p)
+                .await
+        }
+    }
+    .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    if user_exists.is_none() {
+        return Err(AppError::not_found("user not found", request_id));
+    }
+
+    let role_id: String = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT id FROM roles WHERE name = ?")
+            .bind(&role_name)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT id FROM roles WHERE name = ?")
+            .bind(&role_name)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    }
+    .ok_or_else(|| AppError::not_found("role not found", request_id))?;
+
+    if let Some(expires) = expires_at {
+        if expires <= crate::outbox::now_millis() {
+            return Err(AppError::bad_request(
+                "expires_at must be in the future",
+                request_id,
+                None,
+            ));
+        }
+    }
+
+    let now = crate::outbox::now_millis();
+    let assignment_id = uuid::Uuid::now_v7().to_string();
+    let sql = "INSERT INTO board_role_assignments (id, board_id, user_id, role_id, granted_by, granted_at, expires_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)";
+    let insert_result = match pool {
+        Either::Left(p) => sqlx::query(sql)
+            .bind(&assignment_id)
+            .bind(&id)
+            .bind(&target_user_id)
+            .bind(&role_id)
+            .bind(&user.id)
+            .bind(now)
+            .bind(expires_at)
+            .execute(p)
+            .await
+            .map(|r| r.rows_affected()),
+        Either::Right(p) => sqlx::query(sql)
+            .bind(&assignment_id)
+            .bind(&id)
+            .bind(&target_user_id)
+            .bind(&role_id)
+            .bind(&user.id)
+            .bind(now)
+            .bind(expires_at)
+            .execute(p)
+            .await
+            .map(|r| r.rows_affected()),
+    };
+    if let Err(e) = insert_result {
+        // 唯一约束冲突 → 已持有该板块角色（幂等语义返回 409 提示）。
+        if e.as_database_error()
+            .map(|d| d.is_unique_violation())
+            .unwrap_or(false)
+        {
+            return Err(AppError::conflict(
+                "assignment already exists (board, user, role)",
+                request_id,
+            ));
+        }
+        return Err(AppError::internal(e.to_string(), request_id));
+    }
+
+    AuditEntry::user_action(&user.id, "admin.board.role.grant")
+        .with_target("board", &id)
+        .with_reason(&reason)
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .with_metadata(json!({
+            "user_id": target_user_id,
+            "role_name": role_name,
+            "expires_at": expires_at,
+        }))
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+    Ok(private_no_store(
+        (
+            StatusCode::OK,
+            Json(json!({
+                "id": assignment_id,
+                "board_id": id,
+                "user_id": target_user_id,
+                "role_name": role_name,
+                "expires_at": expires_at,
+                "status": "granted",
+            })),
+        )
+            .into_response(),
+    ))
+}
+
+/// DELETE /api/v1/admin/boards/{id}/roles/{user_id}/{role_name} — 撤销板块
+/// 角色（role.manage；body {reason} 必填，审计 `admin.board.role.revoke`）。
+async fn revoke_board_role(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path((id, target_user_id, role_name)): Path<(String, String, String)>,
+    body: axum::body::Bytes,
+) -> Result<Response, AppError> {
+    let request_id = "revoke_board_role";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_permission(pool, &user.id, "role.manage", request_id).await?;
+
+    let req: Value = if body.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&body)
+            .map_err(|e| AppError::bad_request(e.to_string(), request_id, None))?
+    };
+    let reason = required_reason(&req, request_id)?;
+
+    let role_id: Option<String> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT id FROM roles WHERE name = ?")
+            .bind(&role_name)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT id FROM roles WHERE name = ?")
+            .bind(&role_name)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+    };
+    let Some(role_id) = role_id else {
+        return Err(AppError::not_found("role not found", request_id));
+    };
+
+    let deleted = match pool {
+        Either::Left(p) => sqlx::query(
+            "DELETE FROM board_role_assignments WHERE board_id = ? AND user_id = ? AND role_id = ?",
+        )
+        .bind(&id)
+        .bind(&target_user_id)
+        .bind(&role_id)
+        .execute(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .rows_affected(),
+        Either::Right(p) => sqlx::query(
+            "DELETE FROM board_role_assignments WHERE board_id = ? AND user_id = ? AND role_id = ?",
+        )
+        .bind(&id)
+        .bind(&target_user_id)
+        .bind(&role_id)
+        .execute(p)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .rows_affected(),
+    };
+
+    if deleted > 0 {
+        AuditEntry::user_action(&user.id, "admin.board.role.revoke")
+            .with_target("board", &id)
+            .with_reason(&reason)
+            .with_policy_version(AUTHZ_POLICY_VERSION)
+            .with_metadata(json!({
+                "user_id": target_user_id,
+                "role_name": role_name,
+            }))
+            .record(pool)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    }
+
+    Ok(private_no_store(
+        (
+            StatusCode::OK,
+            Json(json!({
+                "board_id": id,
+                "user_id": target_user_id,
+                "role_name": role_name,
+                "revoked": deleted > 0,
+            })),
+        )
+            .into_response(),
+    ))
+}
+
 fn board_admin_row_json(r: &sqlx::sqlite::SqliteRow) -> Value {
     json!({
         "id": r.get::<String,_>("id"),
         "slug": r.get::<String,_>("slug"),
         "name": r.get::<String,_>("name"),
         "description": r.get::<Option<String>,_>("description"),
+        "icon": r.get::<Option<String>,_>("icon"),
         "sort_order": r.get::<i64,_>("sort_order"),
         "parent_id": r.get::<Option<String>,_>("parent_id"),
         "visibility": r.get::<String,_>("visibility"),
@@ -1600,6 +2180,7 @@ fn board_admin_row_json_mysql(r: &sqlx::mysql::MySqlRow) -> Value {
         "slug": r.get::<String,_>("slug"),
         "name": r.get::<String,_>("name"),
         "description": r.get::<Option<String>,_>("description"),
+        "icon": r.get::<Option<String>,_>("icon"),
         "sort_order": r.get::<i64,_>("sort_order"),
         "parent_id": r.get::<Option<String>,_>("parent_id"),
         "visibility": r.get::<String,_>("visibility"),

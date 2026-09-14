@@ -1,10 +1,14 @@
-//! M06 附件路由：create/upload(stream)/get/delete/complete/content。
+//! M06 附件路由：list/create/upload(stream)/get/delete/complete/content。
 //!
 //! OpenAPI 路由契约（与 openapi.yaml 一致）：
 //! - `POST /api/v1/attachments`（createAttachment，x-permission: attachment.upload）
 //! - `GET/DELETE /api/v1/attachments/{id}`（get/delete_attachments_id_）
 //! - `POST /api/v1/attachments/{id}/complete`（post_attachments_id_complete）
 //! - `GET /api/v1/attachments/{id}/content`（公共内容端点：ready+is_public 或已授权）
+//!
+//! 扩展端点（非冻结契约，GAP-FIX）：`GET /api/v1/attachments`——本人附件
+//! 列表 + 当前等级容量摘要（前台「我的附件」页数据源；注册于
+//! scripts/check-route-coverage.rb `DOCUMENTED_NON_CONTRACT`，docs/API.md §12）。
 //!
 //! 另提供 Rust stream 传输端点 `PUT /api/v1/attachments/{id}`（local 后端；
 //! S3 后端经 create 返回的预签名 PUT URL 直传，M06-UPLOAD-03）。
@@ -13,7 +17,7 @@
 
 use axum::{
     body::Bytes,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
@@ -37,13 +41,14 @@ use crate::{
     outbox::now_millis,
     storage::{
         error::StorageError,
-        model::{AttachmentRecord, AttachmentStatus, StorageBackend},
-        quota::PRESIGN_TTL_SECS,
+        model::{AttachmentRecord, AttachmentStatus, QuotaCounters, QuotaPolicy, StorageBackend},
+        quota::{daily_upload_bytes, get_counters, get_policy_for_level, PRESIGN_TTL_SECS},
         upload::{
             self, complete_attachment as complete_attachment_service,
             create_attachment as create_attachment_service,
-            delete_attachment as delete_attachment_service, stream_upload as stream_upload_service,
-            CreateAttachmentInput, CreateOutcome, NoopVirusScan, UploadTransport,
+            delete_attachment as delete_attachment_service, list_attachments_for_owner,
+            stream_upload as stream_upload_service, CreateAttachmentInput, CreateOutcome,
+            UploadTransport,
         },
     },
 };
@@ -51,7 +56,10 @@ use crate::{
 /// 附件路由
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/attachments", post(create_attachment))
+        .route(
+            "/api/v1/attachments",
+            get(list_my_attachments).post(create_attachment),
+        )
         .route(
             "/api/v1/attachments/{id}",
             get(get_attachment)
@@ -66,6 +74,122 @@ pub fn router() -> Router<AppState> {
             "/api/v1/attachments/{id}/content",
             get(get_attachment_content),
         )
+}
+
+// ────────────────────────── 本人附件列表 + 容量摘要 ────────────────────────
+
+/// GET /api/v1/attachments 查询参数（`limit` 缺省 100，钳制 1..=100）。
+#[derive(Debug, Deserialize)]
+struct ListAttachmentsQuery {
+    limit: Option<i64>,
+}
+
+/// 容量摘要投影（M06-QUOTA 口径；前台「我的附件」页与上传组件共用形状）。
+///
+/// - `used_bytes` = `bytes_charged`（已就绪计费字节）；
+/// - `remaining_bytes` = max(0, total − charged − reserved)（与预留校验一致）；
+/// - `daily_used_bytes` 为滚动 24h 已上传字节。
+fn quota_summary_json(
+    level: i64,
+    policy: &QuotaPolicy,
+    counters: &QuotaCounters,
+    daily_used: i64,
+    upload_types: &[&str],
+) -> Value {
+    let remaining = policy
+        .total_bytes
+        .saturating_sub(counters.bytes_charged)
+        .saturating_sub(counters.bytes_reserved)
+        .max(0);
+    json!({
+        "level": level,
+        "max_file_bytes": policy.single_file_max_bytes,
+        "total_bytes": policy.total_bytes,
+        "used_bytes": counters.bytes_charged,
+        "remaining_bytes": remaining,
+        "reserved_bytes": counters.bytes_reserved,
+        "charged_bytes": counters.bytes_charged,
+        "daily_upload_bytes": policy.daily_upload_bytes,
+        "daily_used_bytes": daily_used,
+        "retention_days": policy.retention_days,
+        // 站点上传类型策略（管理后台可配置）：前端 accept/预校验数据源。
+        "allowed_media_types": upload_types,
+    })
+}
+
+/// 读取用户当前信任等级（users.trust_level，TL0–4；缺省 0，与
+/// upload::current_trust_level 同口径——配额档位键 2026-09 起为信任等级）。
+async fn requester_level(pool: &DatabasePool, user_id: &str) -> Result<i64, AppError> {
+    let level: Option<i64> = match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), "listMyAttachments"))?,
+        Either::Right(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), "listMyAttachments"))?,
+    };
+    Ok(level.unwrap_or(0).max(0))
+}
+
+/// GET /api/v1/attachments — 本人附件列表 + 容量摘要（前台「我的附件」页）。
+///
+/// 非冻结契约的扩展端点（同 admin/levels 先例：注册于
+/// `scripts/check-route-coverage.rb` 的 `DOCUMENTED_NON_CONTRACT`，记录于
+/// docs/API.md §12）。auth 后返回本人非 deleted 附件（created_at 倒序，
+/// ≤100 条）与当前等级生效配额摘要（等级无修订时以站点默认 seed，与上传
+/// 路径同源）。不泄漏 storage_key/sha256 之外的存储细节（与 get_attachment
+/// 同脱敏口径）。
+async fn list_my_attachments(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Query(q): Query<ListAttachmentsQuery>,
+) -> Result<Response, AppError> {
+    let request_id = "listMyAttachments";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let limit = q.limit.unwrap_or(100).clamp(1, 100);
+    let records = list_attachments_for_owner(pool, &user.id, limit)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let items: Vec<Value> = records
+        .iter()
+        .filter(|a| a.status != AttachmentStatus::Deleted)
+        .map(attachment_json)
+        .collect();
+
+    let level = requester_level(pool, &user.id).await?;
+    let policy = get_policy_for_level(pool, level, &user.id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let counters = get_counters(pool, &user.id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let daily_used = daily_upload_bytes(pool, &user.id, now_millis())
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let upload_types = upload::load_upload_type_policy(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        .allowed_media_types();
+
+    let mut response = Json(json!({
+        "items": items,
+        "quota": quota_summary_json(level, &policy, &counters, daily_used, &upload_types),
+    }))
+    .into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
 }
 
 /// POST /api/v1/attachments — 创建附件（两阶段上传第一步，M06-UPLOAD-01/02）。
@@ -135,9 +259,12 @@ async fn create_attachment(
                 CreateAttachmentInput {
                     owner_id: user.id.clone(),
                     original_name: req.filename.clone(),
-                    media_type: req.declared_media_type,
+                    media_type: req.declared_media_type.clone(),
                     size_bytes: req.size,
-                    is_public: false,
+                    // 图片附件（编辑器插入正文/回复展示）创建即公开：内容端点
+                    // `GET /attachments/{id}/content` 对非作者要求 is_public，
+                    // 否则同帖其他读者全部 403（非图片附件保持私有，仍走下载授权）。
+                    is_public: req.declared_media_type.starts_with("image/"),
                 },
                 now_millis(),
             )
@@ -170,6 +297,9 @@ async fn create_attachment(
         IdempotencyOutcome::Replay { response_reference } => {
             if let Some(attachment_id) = response_reference {
                 if let Ok(Some(attachment)) = upload::load_attachment(pool, &attachment_id).await {
+                    if attachment.owner_id != user.id {
+                        return Err(AppError::not_found("attachment not found", request_id));
+                    }
                     // 重放：重新组装传输通道（S3 重新签发短 TTL PUT URL）
                     let transport = match attachment.storage_backend {
                         StorageBackend::S3 => {
@@ -286,7 +416,7 @@ async fn upload_attachment(
 /// POST /api/v1/attachments/{id}/complete — 两阶段上传第二步（M06-UPLOAD-04/05/08）。
 ///
 /// 服务端 HEAD 复检（存在性/大小/metadata 与 create 声明一致）→ 内容安全
-/// worker（magic/hash/病毒/图片重解码 + EXIF 剥离）→ ready（容量结算 + Outbox）
+/// worker（magic/hash/图片重解码 + EXIF 剥离）→ ready（容量结算 + Outbox）
 /// 或 quarantined（安全摘要 + reserved 回滚）。幂等：ready 重放直接返回。
 async fn complete_attachment(
     State(state): State<AppState>,
@@ -348,10 +478,8 @@ async fn complete_attachment(
 
     match outcome {
         IdempotencyOutcome::Created { record_id } => {
-            let virus = NoopVirusScan;
             let result =
-                complete_attachment_service(pool, storage, &id, &user.id, &virus, now_millis())
-                    .await;
+                complete_attachment_service(pool, storage, &id, &user.id, now_millis()).await;
             match result {
                 Ok(upload::CompleteOutcome::Ready) => {
                     let _ = complete(pool, &record_id, &id)
@@ -394,6 +522,9 @@ async fn complete_attachment(
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?
                 .ok_or_else(|| AppError::not_found("attachment not found", request_id))?;
+            if attachment.owner_id != user.id {
+                return Err(AppError::not_found("attachment not found", request_id));
+            }
             Ok(attachment_json_response(attachment, request_id))
         }
         IdempotencyOutcome::InProgress => Err(AppError::conflict(
@@ -603,6 +734,10 @@ async fn serve_attachment(
             let mut resp = Response::new(axum::body::Body::empty());
             *resp.status_mut() = StatusCode::FOUND;
             resp.headers_mut().insert(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("private, no-store"),
+            );
+            resp.headers_mut().insert(
                 header::LOCATION,
                 HeaderValue::from_str(&presigned.url).map_err(|e| {
                     AppError::internal(format!("invalid presigned url: {e}"), request_id)
@@ -666,7 +801,7 @@ async fn validate_target_exists(
                 format!("unsupported target_type: {other}"),
                 request_id,
                 None,
-            ))
+            ));
         }
     };
     let sql = format!("SELECT 1 FROM {table} WHERE id = ?");
@@ -862,4 +997,57 @@ fn storage_error_response(e: StorageError, request_id: &str) -> Response {
         errors: None,
     };
     (status, Json(problem)).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::model::QuotaCounters;
+
+    #[test]
+    fn quota_summary_uses_charged_and_clamps_remaining() {
+        // MB 常量便于阅读。
+        const MB: i64 = 1024 * 1024;
+        let policy = QuotaPolicy {
+            level: 2,
+            single_file_max_bytes: 5 * MB,
+            total_bytes: 250 * MB,
+            daily_upload_bytes: 50 * MB,
+            retention_days: 30,
+            policy_version: 3,
+        };
+
+        // 常规：used=charged，remaining=total-charged（无预留）。
+        let counters = QuotaCounters {
+            bytes_reserved: 0,
+            bytes_charged: 100 * MB,
+            bytes_released: 0,
+        };
+        let v = quota_summary_json(2, &policy, &counters, 10 * MB, &["image", "pdf", "text"]);
+        assert_eq!(v["max_file_bytes"], 5 * MB);
+        assert_eq!(v["total_bytes"], 250 * MB);
+        assert_eq!(v["used_bytes"], 100 * MB);
+        assert_eq!(v["remaining_bytes"], 150 * MB);
+        assert_eq!(v["daily_upload_bytes"], 50 * MB);
+        assert_eq!(v["daily_used_bytes"], 10 * MB);
+        assert_eq!(v["retention_days"], 30);
+
+        // 预留占用剩余额度：remaining = total − charged − reserved。
+        let with_reserved = QuotaCounters {
+            bytes_reserved: 20 * MB,
+            bytes_charged: 200 * MB,
+            bytes_released: 0,
+        };
+        let v = quota_summary_json(2, &policy, &with_reserved, 0, &[]);
+        assert_eq!(v["remaining_bytes"], 30 * MB);
+
+        // 超卖防御：charged+reserved > total 时 remaining 钳制为 0（不为负）。
+        let over = QuotaCounters {
+            bytes_reserved: 30 * MB,
+            bytes_charged: 240 * MB,
+            bytes_released: 0,
+        };
+        let v = quota_summary_json(2, &policy, &over, 0, &[]);
+        assert_eq!(v["remaining_bytes"], 0);
+    }
 }

@@ -152,6 +152,49 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | 0029 | `tags_version` | tags 乐观并发版本列 updated_at（M03-BOARDS-07） |
 | 0030 | `search_index` | search_documents 索引元数据表 + SQLite FTS5 external content 与同步触发器（M03-SEARCH-STORE-02） |
 | 0031 | `search_fts` | MySQL/MariaDB FULLTEXT 索引（title, body）+ SQLite 版本占位（M03-SEARCH-STORE-03/04） |
+| 0032 | `posts_metadata` | 帖子元数据扩展（M04-SCHEMA-01） |
+| 0033 | `post_contents` | 帖子正文与修订数据模型（M04-SCHEMA-02） |
+| 0034 | `drafts` | 草稿数据模型（M04-SCHEMA-03） |
+| 0035 | `comments_metadata` | 评论元数据扩展（M04-SCHEMA-04） |
+| 0036 | `post_relations` | 帖子关联数据模型（M04-SCHEMA-05） |
+| 0037 | `access_policy` | 内容访问策略（M04-SCHEMA-06） |
+| 0038 | `comments_floor_uq` | 主题内楼层唯一约束（M04-SCHEMA-07） |
+| 0039 | `comment_revisions` | 评论修订快照（M04-COMMENTS-05） |
+| 0040 | `content_access_grants` | 内容访问授权（M04-VISIBILITY-05/06） |
+| 0041 | `moderation_cases` | 审核案件与举报（M05-SCHEMA-01/06） |
+| 0042 | `moderation_actions` | 审核动作与修订历史（M05-SCHEMA-02） |
+| 0043 | `sanctions` | 处罚数据模型（M05-SCHEMA-03） |
+| 0044 | `appeals` | 申诉数据模型（M05-SCHEMA-04） |
+| 0045 | `notifications` | 通知扩展与偏好（M05-SCHEMA-05） |
+| 0046 | `risk_review` | 风险审核状态与策略（M05-RISK-01/03/08/09） |
+| 0047 | `ledger` | 账本内核（M07-LEDGER-01/02） |
+| 0048 | `storage_download` | 存储适配与下载计费（M06-SCHEMA） |
+| 0049 | `shop` | 内部商城与装扮资产（M07-SHOP-SCHEMA） |
+| 0050 | `activity_levels` | 活跃等级、活动任务与表态（M07-LEVELS/M07-SHOP） |
+| 0051 | `reaction_notifications` | 表态通知偏好（M07-SHOP-08） |
+| 0052 | `ai_gateway` | AI Gateway 任务与同意记录（M09-SCHEMA） |
+| 0053 | `search_optout` | 搜索退出与索引策略（M08-INDEX-03） |
+| 0054 | `video` | 视频插件与受控解析（M10-VIDEO） |
+| 0055 | `oidc` | OIDC Provider 协议与交互（M11-OIDC） |
+| 0056 | `marketplace` | 第三方开放市场原子账务（M12-SCHEMA） |
+| 0057 | `theme` | 数据型主题与配置插件（M13-THEME / M13-PLUGIN） |
+| 0058 | `users_cover_meta` | 用户资料 Cover 元数据扩展（M03-PROFILE） |
+| 0059 | `mfa_remember` | 记住会话设备标记（M02-UX-03） |
+| 0060 | `social` | 社交域：关注、收藏、私信（GAP-FIX 社交域） |
+| 0061 | `admin_ext` | 管理域扩展：BI、审计、帖子管理、通知模板与广播（GAP-FIX 管理域 Part A） |
+| 0062 | `economy_ext` | 经济与个人域扩展：等级规则存档、附件管理、下载交易、标签合并（GAP-FIX 管理域 Part B） |
+| 0063 | `admin_settings_public_source` | 系统设置公开源字段（管理台原型对齐） |
+| 0064 | `admin_settings_smtp` | 系统设置 SMTP 邮件配置 |
+| 0065 | `admin_settings_site_copy` | 系统设置站点文案统一 |
+| 0066 | `storage_settings_persistence` | 存储设置持久化 |
+| 0067 | `admin_settings_oidc` | 系统设置 OIDC 配置列 |
+| 0068 | `storage_upload_types` | 站点允许上传文件类型策略（image/pdf/text/office/av） |
+| 0069 | `achievement_icon` | achievements.icon_path 成就图标文件（后台配置静态资源） |
+| 0070 | `trust_levels` | 信任等级（LinuxDo 式 TL0–TL4 行为可信度体系与规则配置） |
+| 0071 | `board_icon` | boards.icon 板块图标（lucide 图标名，≤64；管理端图标库选择） |
+| 0072 | `board_icon_backfill` | 板块图标存量数据回填 |
+| 0073 | `platform_governance` | 平台治理底座（P0 整改）：`bootstrap_tokens`（一次性首管理员引导令牌，SHA-256 哈希）、`feature_flags`（可选能力运行时开关持久化 + 种子全关）、`shop_site_config`（商城站点配置单行表，version 乐观并发 + 种子默认） |
+| 0074 | `shop_cosmetic_assets` | 商城装扮资产与展示扩展 |
 
 ### `site_settings`
 
@@ -345,6 +388,38 @@ TOTP enrollment（RFC 6238）：
 - 一次生成一组恢复码，只展示一次（M02-MFA-04）。
 - 用户删除时 MFA 行随 `users` 级联清理（ON DELETE CASCADE）。
 
+### `passkey_credentials`（M02-MFA-PK）
+
+Passkey（WebAuthn/FIDO2）凭据，MFA 第二步的第三选项（与 TOTP/恢复码 OR 共存）：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | UUID 主键 |
+| `user_id` | 用户 ID，索引；一个用户可注册多把 Passkey（上限 10，服务层保证） |
+| `name` | 用户可读标签（如「MacBook 指纹」） |
+| `credential_id` | WebAuthn credential id 原始字节，全局唯一（含已撤销行，唯一约束兜底） |
+| `credential_json` | webauthn-rs `Passkey` serde 序列化（公钥/counter/transports；验证需原始公钥，不可哈希；断言成功后整体回写） |
+| `aaguid` | 认证器型号 GUID（可为 NULL） |
+| `backup_eligible`、`backed_up` | 备份资格（注册后不变）与最近已知备份状态（随断言更新） |
+| `created_at`、`last_used_at` | 注册时间（Unix 毫秒）；最近一次断言成功时间（NULL = 尚未使用） |
+| `revoked_at` | 撤销时间（NULL = 有效） |
+
+- 用户删除时凭据随 `users` 级联清理（ON DELETE CASCADE）。
+
+### `webauthn_challenges`（M02-MFA-PK）
+
+WebAuthn challenge 状态（注册/登录断言共用；challenge 由服务端生成，不信任客户端回传）：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | UUID 主键 |
+| `purpose` | `registration`（绑定会话用户）或 `authentication`（绑定 MFA login challenge） |
+| `user_id` | registration 时为会话用户 ID（级联清理）；authentication 为 NULL |
+| `mfa_challenge_hash` | authentication 绑定的 `mfa_login_challenges.token_hash`（防跨会话重放） |
+| `state_json` | webauthn-rs 注册/认证 state serde 序列化（含 challenge） |
+| `created_at`、`expires_at` | 签发/过期时间（Unix 毫秒，5 分钟 TTL） |
+| `consumed_at` | 消费时间（NULL = 未消费；`UPDATE WHERE consumed_at IS NULL` 原子一次性消费） |
+
 ## 5. 角色与授权
 
 ### `permissions`
@@ -414,6 +489,7 @@ TOTP enrollment（RFC 6238）：
 | `parent_id` | 可空，自关联 |
 | `slug` | 唯一 |
 | `name`、`description` | 展示内容 |
+| `icon` | 可空，板块图标（lucide 图标库 kebab-case 图标名，≤64，迁移 0071；管理端从图标库选择；NULL = 未设置，前台回退 slug 视觉映射/默认图标；公开投影即返回，装饰性非敏感） |
 | `visibility` | `public/members/restricted/hidden` |
 | `posting_mode` | `normal/approval/readonly/closed` |
 | `sort_order` | 同级排序 |
@@ -780,6 +856,24 @@ mysql/mariadb 由 0025 `ADD CONSTRAINT` 补齐，保证等价）。
 
 - `id`、`user_id`、`scheme_id`、`from_level_id`、`to_level_id`、`reason`、`created_at`。
 
+### 历史经验等级表（0050/0062，运行时退役）
+
+- `level_schemes`、`levels`、`user_levels`、`level_events` 与 `level_rules` 属于历史经验等级/存档结构，保留用于迁移兼容、回滚和审计，不再参与运行时等级、可见性、商城或配额裁决。
+- 经验账本 `exp` 同样保留为历史数据；新的活动奖励与管理调账仅使用 `coin`（B 币）。0075 迁移只做非破坏性退役：将存量活动规则从 `exp` 切换为 `coin`，不删除历史账本或旧列。
+- 全站运行时等级唯一来源为下节 `users.trust_level`；旧 API 的 JSON `level` 仅作为兼容字段投影信任等级。
+
+### 信任等级（`users.trust_level` 与 `trust_*`，M20-TRUST，0070）
+
+全站唯一等级标准，全面参照 LinuxDo (Discourse) 式行为可信度体系（TL0–TL4）。详见 `docs/TRUST-LEVELS.md`。
+
+- `users.trust_level`（INTEGER 0–4，DEFAULT 0）与 `trust_level_updated_at`：可重建缓存；真实来源是下述统计表与既有 `user_reactions` / `reports` / `sanctions` 的聚合。
+- `trust_visits`：每日访问一行，复合主键 `(user_id, visit_day)`，`visit_day` 为 UTC `YYYY-MM-DD`；由会话续期路径写入（随 60s 续期节流至多 1 次/分钟），幂等。
+- `trust_topic_views`：进入话题，复合主键 `(user_id, post_id)`；GET 帖子详情时写入，幂等。
+- `trust_comment_reads`：阅读楼层，复合主键 `(user_id, comment_id)`，冗余 `post_id`；GET 楼层列表时写入，幂等。
+- `trust_read_time`：阅读时长，复合主键 `(user_id, read_day)`；客户端心跳上报，服务端钳制（单请求 ≤60s、每人每日 ≤7200s）后 `UPSERT` 累计（SQLite `ON CONFLICT DO UPDATE ... RETURNING` / MySQL `ON DUPLICATE KEY UPDATE` + 回读）。
+- `trust_level_events`：只追加升降级日志（`reason` ∈ `seed`/`promotion`/`demotion`/`manual`，manual 记录 `created_by` 与 note）；TL3 的 2 周降级宽限期按最近一次 `to_level = 3` 事件的 `created_at` 计算，不另设列。
+- `trust_level_rules`：每级阈值 `requirements_json`（结构见 `docs/TRUST-LEVELS.md` §4），`level` 0–4 主键，`version` 管理端乐观锁（2026-09 起由 `PATCH /api/v1/admin/trust-levels/{level}` 使用，If-Match）；`is_enabled` 停用语义：停用级不参与自动晋升、TL3 停用不做自动降级（手动授予不受影响）。种子 = linux.do 默认数值；管理端可编辑（未知键拒绝），评估时读库、缺失行回退代码常量，`POST .../reset` 恢复默认。
+
 ### 跨数据库积分事务
 
 MySQL/MariaDB：
@@ -999,7 +1093,7 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 
 ### `shop_products`
 
-- `id`、`kind`（`cosmetic_nickname/cosmetic_avatar/cosmetic_avatar_attachment/cosmetic_badge/profile_effect/post_effect/reaction_pack/title_prefix/utility`）、`status`（`draft/pending_review/published/disabled/retired`）。
+- `id`、`kind`（`cosmetic_nickname/cosmetic_avatar/cosmetic_badge/profile_effect/post_effect/reaction_pack/utility`）、`status`（`draft/pending_review/published/disabled/retired`）。
 - `slug`、`title`、`description_safe`、`icon_token`、`presentation_tokens_json`、`slot`、`currency_id`、`unit_price`、`quantity_limit`、`stock_remaining`、`required_level`。
 - `validity_seconds`、`sale_start_at`、`sale_end_at`、`refund_policy`、`version`、`created_by`、时间字段。
 - `icon_token` 和 `presentation_tokens_json` 只允许注册的安全 Token；不得保存任意 HTML/CSS/JS、远程 URL 或脚本。
@@ -1018,7 +1112,7 @@ MySQL/MariaDB 锁定顺序固定为：幂等 operation → Checkout Intent → O
 
 ### `user_presentations`
 
-- `user_id`、`nickname_decoration_id`、`nickname_color_id`、`avatar_frame_id`、`avatar_attachment_id`、`profile_effect_id`、`title_prefix_id`、`profile_badge_ids_json`、`post_effect_id`、`version`、时间字段。
+- `user_id`、`nickname_color_id`、`avatar_frame_id`、`profile_effect_id`、`profile_badge_ids_json`、`post_effect_id`、`version`、时间字段。
 - 所有 ID 必须引用本人有效 entitlement；读取时服务端编译安全 `presentation_tokens`，无权/过期/隐私关闭时返回默认展示。
 
 ### `activity_rules`、`activity_claims`

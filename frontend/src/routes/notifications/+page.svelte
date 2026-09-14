@@ -8,6 +8,9 @@
   } from '$lib/api/client';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import ListRow from '$lib/components/ui/ListRow.svelte';
+  import Meta from '$lib/components/ui/Meta.svelte';
+  import Panel from '$lib/components/ui/Panel.svelte';
   import { formatRelative } from '$lib/utils';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import { setBellUnread, decrementBellUnread } from '$lib/notifications/bellState.svelte';
@@ -22,14 +25,18 @@
     { key: 'all', label: '全部' },
     { key: 'unread', label: '未读' },
     { key: 'reply', label: '回复' },
+    { key: 'mention', label: '提及' },
     { key: 'reaction', label: '点赞' },
     { key: 'system', label: '系统' }
   ];
 
-  /** 类型图标（对齐原型）：回复、点赞、系统铃铛。 */
-  function typeIcon(cat: string | null | undefined): string {
-    if (cat === 'reply') return 'message-square';
-    if (cat === 'reaction') return 'heart';
+  /** 类型图标（对齐原型）：提及@、回复、点赞、系统铃铛。 */
+  function typeIcon(item: Notification): string {
+    // mention 通知的遗留 type='mention'（category=activity），优先按 type 识别；
+    // 失效资源（unavailable）投影不带 type，回退 category/默认图标。
+    if (item.type === 'mention') return 'at-sign';
+    if (item.category === 'reply') return 'message-square';
+    if (item.category === 'reaction') return 'heart';
     return 'bell';
   }
 
@@ -81,21 +88,14 @@
 
   <PageTitle title="通知中心" />
 
-<div class="container page-content">
-  <!-- 原型对齐（prototype/pages/notifications.html）：app-route-head，无面包屑。 -->
-  <div class="app-route-head">
-    <div class="app-route-head__copy">
-      <span class="app-kicker">INBOX / NOTIFICATIONS</span>
-      <h1 tabindex="-1">通知中心</h1>
-      <p>最近 30 天的互动、关注和系统提醒</p>
-    </div>
-  </div>
+<div class="container page-content" id="page-notifications">
+  <h1 class="u-visually-hidden">通知中心</h1>
 
   {#if actionError}
     <p class="form-error" role="alert" data-testid="notify-action-error">{actionError}</p>
   {/if}
 
-  <div class="card">
+  <div class="card notification-panel">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);">
       <span class="card-title">通知</span>
       <div style="display:flex;gap:var(--space-2);align-items:center;">
@@ -124,18 +124,14 @@
       {:else}
         <div style="display:flex;flex-direction:column;">
           {#each items as item}
-            <div
-              class="post-row"
-              class:notify-unread={!item.is_read}
-              style="padding:var(--space-4);border-bottom:var(--border-default);display:flex;gap:var(--space-3);align-items:flex-start;"
-            >
+            <ListRow class={!item.is_read ? 'post-row notify-unread' : 'post-row'}>
               <!-- 原型同款类型图标卡（圆角底） -->
               <div
                 class="notify-icon-box"
                 style="width:36px;height:36px;border-radius:var(--radius-md);background:var(--color-bg-subtle, rgba(0,0,0,0.04));display:flex;align-items:center;justify-content:center;color:var(--color-brand);flex-shrink:0;"
                 aria-hidden="true"
               >
-                <Icon name={typeIcon(item.category)} size={18} />
+                <Icon name={typeIcon(item)} size={18} />
               </div>
               {#if item.unavailable}
                 <div style="min-width:0;flex:1;">
@@ -170,11 +166,9 @@
                     data-testid={`read-${item.id}`}
                   >标为已读</button>
                 {/if}
-                <span class="text-tertiary" style="font-size:var(--text-xs);white-space:nowrap;">
-                  {formatRelative(item.created_at)}
-                </span>
+                <Meta items={[formatRelative(item.created_at)]} />
               </div>
-            </div>
+            </ListRow>
           {/each}
         </div>
       {/if}

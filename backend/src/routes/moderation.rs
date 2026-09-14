@@ -1,13 +1,28 @@
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::{header, HeaderValue, Request, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Either;
+
+fn private_no_store<T: IntoResponse>(response: T) -> Response {
+    let mut response = response.into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    response
+}
+
+async fn private_cache_middleware(request: Request<Body>, next: Next) -> Response {
+    private_no_store(next.run(request).await)
+}
 
 use crate::{
     app::AppState,
@@ -68,6 +83,119 @@ pub fn router() -> Router<AppState> {
             get(get_moderation_appeal).patch(decide_moderation_appeal),
         )
         .route("/api/v1/admin/moderation/sanctions", post(create_sanction))
+        // 风险策略管理（P1 整改：此前 service 有版本化更新但无 HTTP 入口）
+        .route(
+            "/api/v1/admin/moderation/risk-policy",
+            get(get_admin_risk_policy).patch(update_admin_risk_policy),
+        )
+        .layer(axum::middleware::from_fn(private_cache_middleware))
+}
+
+// ─── 风险策略管理（M05-RISK-08 HTTP 入口；P1 整改）────────────────────────
+
+/// 风险策略管理权限门（admin.manage）。
+async fn require_admin_manage(
+    pool: &crate::db::DatabasePool,
+    user_id: &str,
+    request_id: &str,
+) -> Result<(), AppError> {
+    let decision = authorize_action(pool, user_id, "admin.manage", None, AUTHZ_POLICY_VERSION)
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
+    if !decision.is_allowed() {
+        return Err(AppError::forbidden("admin.manage required", request_id));
+    }
+    Ok(())
+}
+
+/// RiskError → Problem 响应（冲突 409 / 非法 400 / 其余 500）。
+fn risk_error_to_app(e: crate::moderation::risk::service::RiskError, request_id: &str) -> AppError {
+    use crate::moderation::risk::service::RiskError as RE;
+    match e {
+        RE::PolicyConflict { .. } => AppError::conflict(e.to_string(), request_id),
+        RE::InvalidPolicy(m) => AppError::bad_request(m, request_id, None),
+        RE::Timeout => AppError::internal(e.to_string(), request_id),
+        RE::Db(m) => AppError::internal(m, request_id),
+    }
+}
+
+fn risk_policy_json(policy: &crate::moderation::risk::policy::RiskPolicy) -> Value {
+    json!({
+        "version": policy.version,
+        "thresholds": serde_json::to_value(&policy.thresholds).unwrap_or(Value::Null),
+    })
+}
+
+/// GET /api/v1/admin/moderation/risk-policy — 当前生效策略（admin.manage）。
+async fn get_admin_risk_policy(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "get_admin_risk_policy";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin_manage(pool, &user.id, request_id).await?;
+
+    let policy = crate::moderation::risk::service::load_policy(pool)
+        .await
+        .map_err(|e| risk_error_to_app(e, request_id))?;
+    Ok(Json(risk_policy_json(&policy)))
+}
+
+/// PATCH /api/v1/admin/moderation/risk-policy — 版本化更新策略。
+///
+/// body {thresholds, expected_version, reason}；期望版本不匹配 → 409；
+/// reason 必填并随事务写审计（service::update_risk_policy）。
+async fn update_admin_risk_policy(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Response, AppError> {
+    let request_id = "patch_admin_risk_policy";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    require_admin_manage(pool, &user.id, request_id).await?;
+
+    let reason = body
+        .get("reason")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .ok_or_else(|| {
+            AppError::bad_request("reason is required for admin operation", request_id, None)
+        })?;
+    let expected_version = body
+        .get("expected_version")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| AppError::bad_request("expected_version is required", request_id, None))?;
+    let thresholds: crate::moderation::risk::policy::Thresholds =
+        serde_json::from_value(body.get("thresholds").cloned().unwrap_or(Value::Null))
+            .map_err(|e| AppError::bad_request(format!("thresholds: {e}"), request_id, None))?;
+
+    let now = crate::outbox::now_millis();
+    let policy = crate::moderation::risk::service::update_risk_policy(
+        pool,
+        &user.id,
+        thresholds,
+        reason,
+        expected_version,
+        now,
+    )
+    .await
+    .map_err(|e| risk_error_to_app(e, request_id))?;
+    // 管理策略响应携带管理数据：私有数据不缓存（M00-FRONTEND-06，契约已声明）。
+    let mut resp = (StatusCode::OK, Json(risk_policy_json(&policy))).into_response();
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(resp)
 }
 
 // ─── 通知端点 ─────────────────────────────────────────────────────────────
@@ -97,7 +225,7 @@ async fn list_notifications(
     State(state): State<AppState>,
     auth: AuthSession,
     Query(query): Query<NotificationListQuery>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "list_notifications";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -124,12 +252,12 @@ async fn list_notifications(
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
-    Ok(Json(json!({
+    Ok(private_no_store(Json(json!({
         "items": items,
         "unread_count": unread_count,
         "next_cursor": items.last().and_then(|n| n.get("id")).and_then(|v| v.as_str()),
         "has_more": has_more,
-    })))
+    }))))
 }
 
 /// POST /api/v1/notifications/{id}/read — 标记通知为已读
@@ -179,7 +307,7 @@ async fn mark_all_notifications_read(
 async fn get_notification_preferences(
     State(state): State<AppState>,
     auth: AuthSession,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_notification_preferences";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -202,7 +330,7 @@ async fn get_notification_preferences(
             })
         })
         .collect();
-    Ok(Json(json!({ "items": items })))
+    Ok(private_no_store(Json(json!({ "items": items }))))
 }
 
 #[derive(serde::Deserialize)]
@@ -218,7 +346,7 @@ async fn put_notification_preferences(
     State(state): State<AppState>,
     auth: AuthSession,
     Json(req): Json<NotificationPreferenceRequest>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "put_notification_preferences";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -248,9 +376,9 @@ async fn put_notification_preferences(
         notifications::NotifyError::Invalid(msg) => AppError::bad_request(msg, request_id, None),
         notifications::NotifyError::Db(msg) => AppError::internal(msg, request_id),
     })?;
-    Ok(Json(
+    Ok(private_no_store(Json(
         json!({ "category": category.as_str(), "updated": true }),
-    ))
+    )))
 }
 
 // ─── 举报端点 ─────────────────────────────────────────────────────────────
@@ -347,7 +475,7 @@ async fn create_report(
 async fn list_own_reports(
     State(state): State<AppState>,
     auth: AuthSession,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "list_own_reports";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -372,9 +500,9 @@ async fn list_own_reports(
             })
         })
         .collect();
-    Ok(Json(
+    Ok(private_no_store(Json(
         json!({ "items": items, "next_cursor": null, "has_more": false }),
-    ))
+    )))
 }
 
 /// POST /api/v1/reports/{id}/withdraw — 撤回举报（M05-CASES-02）
@@ -422,7 +550,7 @@ struct CreateAppealRequest {
 async fn list_own_appeals(
     State(state): State<AppState>,
     auth: AuthSession,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "list_own_appeals";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -434,9 +562,9 @@ async fn list_own_appeals(
         .await
         .map_err(|e| map_appeals_error(e, request_id))?;
     let items: Vec<Value> = items.iter().map(appeals::own_appeal_projection).collect();
-    Ok(Json(
+    Ok(private_no_store(Json(
         json!({ "items": items, "next_cursor": null, "has_more": false }),
-    ))
+    )))
 }
 
 /// POST /api/v1/appeals — 创建申诉
@@ -474,7 +602,7 @@ async fn get_own_appeal(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let request_id = "get_own_appeal";
     let user = auth.require_auth(request_id)?;
     let pool = state
@@ -485,7 +613,9 @@ async fn get_own_appeal(
     let appeal = appeals::get_own_appeal(pool, &user.id, &id)
         .await
         .map_err(|e| map_appeals_error(e, request_id))?;
-    Ok(Json(appeals::own_appeal_projection(&appeal)))
+    Ok(private_no_store(Json(appeals::own_appeal_projection(
+        &appeal,
+    ))))
 }
 
 /// POST /api/v1/appeals/{id}/withdraw — 未审理前撤回

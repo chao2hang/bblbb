@@ -165,14 +165,17 @@ pub fn highlight_snippet(clean_body: &str, query_tokens: &[String], max_len: usi
         return String::new();
     }
     let lower = clean_body.to_lowercase();
-    let hit_pos = query_tokens
+    let hit_char_pos = query_tokens
         .iter()
         .filter_map(|t| {
             let t = t.trim_matches('"');
             if t.is_empty() {
                 None
             } else {
-                lower.find(&t.to_lowercase())
+                let lower_t = t.to_lowercase();
+                lower
+                    .find(&lower_t)
+                    .map(|byte_idx| lower[..byte_idx].chars().count())
             }
         })
         .min()
@@ -180,19 +183,13 @@ pub fn highlight_snippet(clean_body: &str, query_tokens: &[String], max_len: usi
 
     // 窗口：命中词为中心（前 2/3、后 1/3），截断到 max_len 字符。
     let total_chars = clean_body.chars().count();
-    let mut start_char = hit_pos.saturating_sub(max_len * 2 / 3);
-    if start_char > 0 {
-        start_char = adjust_char_boundary(clean_body, start_char);
-    }
-    let mut end_char = (start_char + max_len).min(total_chars);
-    if end_char < total_chars {
-        end_char = adjust_char_boundary(clean_body, end_char);
-    }
+    let start_char = hit_char_pos.saturating_sub(max_len * 2 / 3);
+    let end_char = (start_char + max_len).min(total_chars);
 
     let mut out: String = clean_body
         .chars()
         .skip(start_char)
-        .take(end_char - start_char)
+        .take(end_char.saturating_sub(start_char))
         .collect();
     if start_char > 0 {
         out.insert(0, '…');
@@ -201,14 +198,6 @@ pub fn highlight_snippet(clean_body: &str, query_tokens: &[String], max_len: usi
         out.push('…');
     }
     crate::search::excerpt_from_clean(&out, max_len + 2)
-}
-
-/// 把字符偏移对齐到 UTF-8 字节边界。
-fn adjust_char_boundary(s: &str, char_idx: usize) -> usize {
-    s.char_indices()
-        .nth(char_idx)
-        .map(|(byte, _)| byte)
-        .unwrap_or(s.len())
 }
 
 /// 从索引正文构建可搜索 token 列表（查询校验后使用；见 query 模块）。

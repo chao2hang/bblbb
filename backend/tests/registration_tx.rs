@@ -274,9 +274,14 @@ async fn register_endpoint_returns_unified_response() {
     let err_body = post_register(&app, "bob", "not-an-email", "198.51.100.7").await;
     assert_eq!(
         err_body.status(),
-        StatusCode::BAD_REQUEST,
-        "非法请求仍要 400"
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "字段校验失败 → 422 validation_failed（契约一致）"
     );
+    let err_value: serde_json::Value =
+        serde_json::from_slice(&err_body.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(err_value["code"], "validation_failed");
+    assert_eq!(err_value["errors"][0]["field"], "email");
+    assert_eq!(err_value["errors"][0]["message_key"], "email_invalid");
 
     close_pool(&pool).await;
     cleanup(&dir);

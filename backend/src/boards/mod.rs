@@ -26,8 +26,9 @@ pub use hierarchy::{
 };
 pub use pagination::{decode_cursor, encode_cursor, BoardCursor, CursorDecodeError};
 pub use validation::{
-    validate_board_fields, validate_board_update, validation_to_error, BoardValidationError,
-    DESCRIPTION_MAX, NAME_MAX, POSTING_MODES, SLUG_MAX, SLUG_MIN, SORT_ORDER_MAX, SORT_ORDER_MIN,
+    validate_board_fields, validate_board_update, validate_icon, validation_to_error,
+    BoardValidationError, DESCRIPTION_MAX, ICON_MAX, NAME_MAX, POSTING_MODES, SLUG_MAX, SLUG_MIN,
+    SORT_ORDER_MAX, SORT_ORDER_MIN,
 };
 pub use visibility::{
     board_read_gate, filter_visible_board_ids, BoardAccess, VisibilityDeny, HIDDEN_READ_PERMISSIONS,

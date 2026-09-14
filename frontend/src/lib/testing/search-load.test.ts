@@ -204,12 +204,12 @@ describe('M08-UI-02 搜索结果归一化隐私守卫', () => {
     }
   });
 
-  it('P1-01 & P1-02: tagSearchUrl 正确 URL 编码特殊字符（中文、空格、#）', () => {
-    expect(tagSearchUrl('C#')).toBe('/search?tag=C%23');
-    expect(tagSearchUrl('前端 开发')).toBe('/search?tag=%E5%89%8D%E7%AB%AF+%E5%BC%80%E5%8F%91');
-    expect(tagSearchUrl({ name: 'Vue 3', slug: 'vue-3' })).toBe('/search?tag=vue-3');
-    expect(tagSearchUrl({ name: '#热门', slug: '' })).toBe('/search?tag=%23%E7%83%AD%E9%97%A8');
-    expect(tagSearchUrl({ name: '', slug: null })).toBe('/search');
+  it('P1-01 & P1-02: tagSearchUrl 正确 URL 编码特殊字符（中文、空格、#）并直达标签聚合页', () => {
+    expect(tagSearchUrl('C#')).toBe('/tags/C%23');
+    expect(tagSearchUrl('前端 开发')).toBe('/tags/%E5%89%8D%E7%AB%AF%20%E5%BC%80%E5%8F%91');
+    expect(tagSearchUrl({ name: 'Vue 3', slug: 'vue-3' })).toBe('/tags/vue-3');
+    expect(tagSearchUrl({ name: '#热门', slug: '' })).toBe('/tags/%23%E7%83%AD%E9%97%A8');
+    expect(tagSearchUrl({ name: '', slug: null })).toBe('/tags');
   });
 
   it('P1-01: 单独传入 tag 参数时触发有效搜索', async () => {

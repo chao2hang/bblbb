@@ -5,6 +5,7 @@ import {
   newClientRequestId
 } from '$lib/api/client';
 import { problemMessage, type Problem } from '$lib/errors';
+import { loadUploadPolicy, resolveUploadMediaType, uploadTypeHint } from '$lib/upload/mediaTypes';
 
 export interface UploadResult {
   id: string;
@@ -12,21 +13,6 @@ export interface UploadResult {
   filename: string;
   isImage: boolean;
   size: number;
-}
-
-function resolveMediaType(file: File): string {
-  if (file.type && file.type !== 'application/octet-stream') {
-    return file.type;
-  }
-  const lowerName = file.name.toLowerCase();
-  if (lowerName.endsWith('.png')) return 'image/png';
-  if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) return 'image/jpeg';
-  if (lowerName.endsWith('.webp')) return 'image/webp';
-  if (lowerName.endsWith('.gif')) return 'image/gif';
-  if (lowerName.endsWith('.avif')) return 'image/avif';
-  if (lowerName.endsWith('.pdf')) return 'application/pdf';
-  if (lowerName.endsWith('.txt') || lowerName.endsWith('.md')) return 'text/plain';
-  return 'application/octet-stream';
 }
 
 export function formatUploadErrorMessage(err: unknown): string {
@@ -49,7 +35,15 @@ export async function uploadEditorAttachment(
   file: File,
   fetchFn: typeof fetch = fetch
 ): Promise<UploadResult> {
-  const mediaType = resolveMediaType(file);
+  // 站点上传类型策略（管理后台可配置；拉取失败按全量白名单乐观处理，
+  // 最终以后端 create 的权威校验为准）。
+  const allowed = await loadUploadPolicy(fetchFn);
+  const mediaType = resolveUploadMediaType(file, allowed);
+  if (!mediaType) {
+    throw new Error(
+      `不支持的文件类型「${file.name || file.type || '未知'}」。当前站点允许：${uploadTypeHint(allowed)}`
+    );
+  }
   const isImage = mediaType.startsWith('image/');
   const filename = file.name || (isImage ? 'image.png' : 'attachment');
 

@@ -13,13 +13,15 @@
   import { onMount, mount, unmount } from 'svelte';
   import type { Snippet } from 'svelte';
   import Avatar from './ui/Avatar.svelte';
-  import UserHoverCard from './UserHoverCard.svelte';
+  import CosmeticAvatar from './wardrobe/CosmeticAvatar.svelte';
+  import UserHoverCard, { type HoverCardPresentation } from './UserHoverCard.svelte';
   import type { PublicProfile } from '$lib/api/client';
+  import { sheetDrag } from '$lib/utils/sheet-drag';
 
   /** 触发卡只允许公开投影字段（严格 allowlist，杜绝私有字段流入浮层）。
-   *  level/bio/signature 可缺省：列表/搜索行只有部分公开投影。 */
+   *  level/signature 可缺省：列表/搜索行只有部分公开投影。 */
   export type UserCardUser = Pick<PublicProfile, 'username' | 'display_name'> &
-    Partial<Pick<PublicProfile, 'level' | 'bio' | 'signature'>>;
+    Partial<Pick<PublicProfile, 'level' | 'signature'>>;
 
   /** 窄屏断点，与 prototype/app.css 及 components.css 一致。 */
   export const NARROW_QUERY = '(max-width: 640px)';
@@ -30,7 +32,8 @@
     href,
     label,
     class: klass = '',
-    closeDelay = 250
+    closeDelay = 250,
+    presentation = null
   }: {
     user: UserCardUser;
     /** 触发内容（如 Avatar + 名字）。缺省渲染头像。 */
@@ -43,6 +46,8 @@
     class?: string;
     /** 离开触发/浮层后的关闭延迟（毫秒）。 */
     closeDelay?: number;
+    /** 装扮安全投影（presentation_tokens）；缺省不渲染任何装扮。 */
+    presentation?: HoverCardPresentation;
   } = $props();
 
   const profileUrl = $derived(href ?? `/users/${user.username}`);
@@ -58,6 +63,8 @@
   let trigger = $state<HTMLAnchorElement | undefined>(undefined);
   let portalInstance: ReturnType<typeof mount> | undefined;
   let portalHost: HTMLElement | undefined;
+  let portalBackdrop: HTMLElement | undefined;
+  let grabAction: ReturnType<typeof sheetDrag> | undefined;
 
   function clearCloseTimer() {
     if (closeTimer) {
@@ -118,11 +125,21 @@
     el.style.top = `${Math.round(top)}px`;
   }
 
+  /** 卡片打开后异步补齐数据（统计/徽章行）会使高度变化，
+   *  ResizeObserver 触发重定位，避免卡片长大压住触发元素或溢出视口。 */
+  let popoverRO: ResizeObserver | undefined;
+
   function destroyPortal() {
+    popoverRO?.disconnect();
+    popoverRO = undefined;
     if (portalInstance) {
       unmount(portalInstance);
       portalInstance = undefined;
     }
+    portalBackdrop?.remove();
+    portalBackdrop = undefined;
+    grabAction?.destroy?.();
+    grabAction = undefined;
     portalHost?.remove();
     portalHost = undefined;
   }
@@ -132,7 +149,21 @@
     destroyPortal();
     const el = document.createElement('div');
     if (narrow) {
+      // 手机端 Bottom Sheet：scrim + 抓手 + 弹层内滚动（docs/MOBILE-SHEET.md）。
+      const backdrop = document.createElement('button');
+      backdrop.type = 'button';
+      backdrop.className = 'app-sheet-backdrop';
+      backdrop.setAttribute('aria-label', '关闭弹层');
+      backdrop.addEventListener('click', () => {
+        open = false;
+      });
+      document.body.appendChild(backdrop);
+      portalBackdrop = backdrop;
       el.className = 'user-card-sheet';
+      const grab = document.createElement('div');
+      grab.className = 'app-sheet-grab';
+      grab.setAttribute('aria-hidden', 'true');
+      el.appendChild(grab);
       const body = document.createElement('div');
       body.className = 'user-card-sheet-body';
       const closeBtn = document.createElement('button');
@@ -147,19 +178,26 @@
       el.appendChild(body);
       document.body.appendChild(el);
       portalHost = el;
-      portalInstance = mount(UserHoverCard, { target: body, props: { user } });
+      el.setAttribute('aria-modal', 'true');
+      portalInstance = mount(UserHoverCard, { target: body, props: { user, presentation } });
+      grabAction = sheetDrag(grab, { onClose: () => (open = false) });
     } else {
       el.className = 'user-card-popover';
       el.setAttribute('tabindex', '0');
       el.addEventListener('mouseenter', clearCloseTimer);
       el.addEventListener('mouseleave', scheduleClose);
-      // 焦点进入浮层（如 Tab 到「查看个人主页」）不关闭，移出后延迟关闭。
+      // 焦点进入浮层（如 Tab 到卡内链接）不关闭，移出后延迟关闭。
       el.addEventListener('focusin', clearCloseTimer);
       el.addEventListener('focusout', scheduleClose);
       document.body.appendChild(el);
       portalHost = el;
-      portalInstance = mount(UserHoverCard, { target: el, props: { user } });
+      portalInstance = mount(UserHoverCard, { target: el, props: { user, presentation } });
       positionPopover(el);
+      // 高度随数据补齐变化 → 重定位（jsdom 无 ResizeObserver，测试跳过）。
+      if (typeof ResizeObserver !== 'undefined') {
+        popoverRO = new ResizeObserver(() => positionPopover(el));
+        popoverRO.observe(el);
+      }
     }
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-label', `${displayName} 的个人资料`);
@@ -213,6 +251,6 @@
   {#if children}
     {@render children()}
   {:else}
-    <Avatar name={displayName} size="xs" />
+    <CosmeticAvatar name={displayName} size="xs" {presentation} avatarAttachmentId={'avatar_attachment_id' in user ? (user as { avatar_attachment_id?: string | null }).avatar_attachment_id : null} seed={user?.username ?? displayName} />
   {/if}
 </a>

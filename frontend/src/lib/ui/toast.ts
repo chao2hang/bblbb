@@ -18,6 +18,7 @@ export interface ToastItem {
 }
 
 const DEFAULT_DURATION = 3200;
+const MAX_VISIBLE_TOASTS = 4;
 
 const store = writable<ToastItem[]>([]);
 
@@ -40,7 +41,29 @@ export function show(
   detail?: string
 ): number {
   const id = ++nextId;
-  store.update((all) => [...all, { id, message, type, detail }]);
+  const item: ToastItem = { id, message, type, detail };
+  let duplicateId: number | null = null;
+
+  store.update((all) => {
+    const duplicate = [...all]
+      .reverse()
+      .find((toast) => toast.message === message && toast.type === type && toast.detail === detail);
+    if (duplicate) {
+      duplicateId = duplicate.id;
+      return all;
+    }
+
+    const next = [...all, item];
+    const evicted = next.splice(0, Math.max(0, next.length - MAX_VISIBLE_TOASTS));
+    for (const toast of evicted) {
+      const timer = timers.get(toast.id);
+      if (timer) clearTimeout(timer);
+      timers.delete(toast.id);
+    }
+    return next;
+  });
+
+  if (duplicateId !== null) return duplicateId;
   if (duration > 0) {
     timers.set(
       id,

@@ -223,9 +223,19 @@ async fn complete_with_totp_issues_session_and_consumes_challenge() {
     // 用当前步 +1 的 code（> last_accepted_step，且仍在窗口内）
     let code = code_at(&secret, (now_secs() / TOTP_PERIOD_SECS) + 1);
 
-    let completed = complete_mfa_login(&pool, &challenge, Some(&code), None, KEY, "req-complete")
-        .await
-        .unwrap();
+    let completed = complete_mfa_login(
+        &pool,
+        &challenge,
+        Some(&code),
+        None,
+        None,
+        None,
+        KEY,
+        None,
+        "req-complete",
+    )
+    .await
+    .unwrap();
     assert!(!completed.session_token.is_empty());
     assert_eq!(completed.user_id, user_id);
 
@@ -261,7 +271,10 @@ async fn complete_with_recovery_code_issues_session() {
         &challenge,
         None,
         Some(&codes[0]),
+        None,
+        None,
         KEY,
+        None,
         "req-complete",
     )
     .await
@@ -273,9 +286,19 @@ async fn complete_with_recovery_code_issues_session() {
 
     // 同一恢复码不可再用
     let challenge2 = start_mfa_login(&pool, &user_id, false).await.unwrap();
-    let err = complete_mfa_login(&pool, &challenge2, None, Some(&codes[0]), KEY, "req-2")
-        .await
-        .unwrap_err();
+    let err = complete_mfa_login(
+        &pool,
+        &challenge2,
+        None,
+        Some(&codes[0]),
+        None,
+        None,
+        KEY,
+        None,
+        "req-2",
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, MfaLoginError::InvalidCode), "{err:?}");
 
     close_pool(&pool).await;
@@ -295,11 +318,33 @@ async fn challenge_replay_rejected() {
         &secret_of(&pool, &user_id).await,
         (now_secs() / TOTP_PERIOD_SECS) + 1,
     );
-    let r1 = complete_mfa_login(&pool, &challenge, Some(&code1), None, KEY, "req-1").await;
+    let r1 = complete_mfa_login(
+        &pool,
+        &challenge,
+        Some(&code1),
+        None,
+        None,
+        None,
+        KEY,
+        None,
+        "req-1",
+    )
+    .await;
     assert!(r1.is_ok(), "{r1:?}");
 
     // 第二次（新 code，同一 challenge）→ InvalidChallenge（已消费）
-    let r2 = complete_mfa_login(&pool, &challenge, Some(&code1), None, KEY, "req-2").await;
+    let r2 = complete_mfa_login(
+        &pool,
+        &challenge,
+        Some(&code1),
+        None,
+        None,
+        None,
+        KEY,
+        None,
+        "req-2",
+    )
+    .await;
     let err = r2.unwrap_err();
     assert!(matches!(err, MfaLoginError::InvalidChallenge), "{err:?}");
 
@@ -333,9 +378,19 @@ async fn expired_challenge_rejected() {
         &secret_of(&pool, &user_id).await,
         (now_secs() / TOTP_PERIOD_SECS) + 1,
     );
-    let err = complete_mfa_login(&pool, &challenge, Some(&code), None, KEY, "req-1")
-        .await
-        .unwrap_err();
+    let err = complete_mfa_login(
+        &pool,
+        &challenge,
+        Some(&code),
+        None,
+        None,
+        None,
+        KEY,
+        None,
+        "req-1",
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, MfaLoginError::InvalidChallenge), "{err:?}");
 
     close_pool(&pool).await;
@@ -350,9 +405,19 @@ async fn wrong_code_rejected() {
     enabled_totp(&pool, &user_id).await;
     let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
 
-    let err = complete_mfa_login(&pool, &challenge, Some("000000"), None, KEY, "req-1")
-        .await
-        .unwrap_err();
+    let err = complete_mfa_login(
+        &pool,
+        &challenge,
+        Some("000000"),
+        None,
+        None,
+        None,
+        KEY,
+        None,
+        "req-1",
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, MfaLoginError::InvalidCode), "{err:?}");
 
     close_pool(&pool).await;
@@ -367,9 +432,11 @@ async fn both_or_neither_code_rejected() {
     enabled_totp(&pool, &user_id).await;
     let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
 
-    let err = complete_mfa_login(&pool, &challenge, None, None, KEY, "req-1")
-        .await
-        .unwrap_err();
+    let err = complete_mfa_login(
+        &pool, &challenge, None, None, None, None, KEY, None, "req-1",
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(err, MfaLoginError::InvalidCode), "{err:?}");
 
     let challenge2 = start_mfa_login(&pool, &user_id, false).await.unwrap();
@@ -378,7 +445,10 @@ async fn both_or_neither_code_rejected() {
         &challenge2,
         Some("123456"),
         Some("SOMECODE123"),
+        None,
+        None,
         KEY,
+        None,
         "req-2",
     )
     .await
@@ -407,11 +477,100 @@ async fn concurrent_same_challenge_only_one_succeeds() {
     let k1 = KEY.to_vec();
     let k2 = KEY.to_vec();
     let (r1, r2) = tokio::join!(
-        async move { complete_mfa_login(&p1, &c1, Some(&code1), None, &k1, "req-1").await },
-        async move { complete_mfa_login(&p2, &c2, Some(&code2), None, &k2, "req-2").await },
+        async move {
+            complete_mfa_login(&p1, &c1, Some(&code1), None, None, None, &k1, None, "req-1").await
+        },
+        async move {
+            complete_mfa_login(&p2, &c2, Some(&code2), None, None, None, &k2, None, "req-2").await
+        },
     );
     let ok_count = [r1, r2].iter().filter(|r| r.is_ok()).count();
     assert_eq!(ok_count, 1, "同一 challenge/step 并发必须恰好一个成功");
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+/// 该用户 new_device 安全通知条数（MFA 登录首见设备通知断言用）。
+async fn new_device_notification_count(pool: &DatabasePool, user_id: &str) -> i64 {
+    match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT COUNT(*) FROM notifications
+             WHERE user_id = ? AND security_kind = 'new_device'",
+        )
+        .bind(user_id)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    }
+}
+
+/// M02-SESSION-05 / M02-MFA-08（MFA 路径对齐）：MFA 登录签发的会话必须
+/// 写入请求 UA（否则设备列表恒显示“未知设备”），且首见设备发一次安全
+/// 通知；同设备再次 MFA 登录不重复通知（与一步登录 login_user 对齐）。
+#[tokio::test]
+async fn complete_login_writes_user_agent_and_notifies_new_device() {
+    let (pool, dir) = pool_with_migrations().await;
+    let (user_id, _) = insert_login_user(&pool, "kate").await;
+    let (secret, _) = enabled_totp(&pool, &user_id).await;
+    let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Test/1.0";
+
+    // 第一次 MFA 登录（新设备）
+    let challenge = start_mfa_login(&pool, &user_id, false).await.unwrap();
+    let code = code_at(&secret, (now_secs() / TOTP_PERIOD_SECS) + 1);
+    let completed = complete_mfa_login(
+        &pool,
+        &challenge,
+        Some(&code),
+        None,
+        None,
+        Some(ua),
+        KEY,
+        None,
+        "req-1",
+    )
+    .await
+    .unwrap();
+    assert!(!completed.session_token.is_empty());
+
+    // 会话 UA 已写入：设备列表不再显示“未知设备”
+    let sessions = bblbb_backend::auth::session::list_sessions(&pool, &user_id)
+        .await
+        .unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(
+        sessions[0].user_agent.as_deref(),
+        Some(ua),
+        "MFA 登录会话必须写入请求 UA"
+    );
+
+    // 首见设备 → 恰好一条 new_device 安全通知
+    assert_eq!(new_device_notification_count(&pool, &user_id).await, 1);
+
+    // 同设备（同 UA）再次 MFA 登录（用恢复码避开 TOTP 步进/防重放）→ 不重复通知
+    let codes = bblbb_backend::auth::generate_recovery_codes(&pool, &user_id, 10, "req-2")
+        .await
+        .unwrap();
+    let challenge2 = start_mfa_login(&pool, &user_id, false).await.unwrap();
+    let _ = complete_mfa_login(
+        &pool,
+        &challenge2,
+        None,
+        Some(&codes[0]),
+        None,
+        Some(ua),
+        KEY,
+        None,
+        "req-2",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        new_device_notification_count(&pool, &user_id).await,
+        1,
+        "同 UA 再次 MFA 登录不得重复发新设备通知"
+    );
 
     close_pool(&pool).await;
     cleanup(&dir);

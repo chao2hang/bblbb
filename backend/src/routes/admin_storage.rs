@@ -132,9 +132,10 @@ pub struct StorageSettingsRow {
     pub storage_s3_path_style: i64,
     pub storage_s3_public_base_url: String,
     pub storage_s3_signed_url_ttl: i64,
+    pub storage_allowed_upload_types: String,
 }
 
-/// 全空行（等价 0066 迁移的列默认值）：DB 单行缺失时的回退基线。
+/// 全空行（等价 0066/0068 迁移的列默认值）：DB 单行缺失时的回退基线。
 impl Default for StorageSettingsRow {
     fn default() -> Self {
         Self {
@@ -149,6 +150,7 @@ impl Default for StorageSettingsRow {
             storage_s3_path_style: 0,
             storage_s3_public_base_url: String::new(),
             storage_s3_signed_url_ttl: 300,
+            storage_allowed_upload_types: String::new(),
         }
     }
 }
@@ -160,7 +162,7 @@ pub async fn load_storage_settings(
                       storage_s3_endpoint, storage_s3_region, storage_s3_bucket,
                       storage_s3_access_key_id, storage_s3_secret_access_key,
                       storage_s3_path_style, storage_s3_public_base_url,
-                      storage_s3_signed_url_ttl
+                      storage_s3_signed_url_ttl, storage_allowed_upload_types
                FROM site_settings WHERE id = 'singleton'";
     match pool {
         Either::Left(p) => {
@@ -200,10 +202,14 @@ pub fn build_storage_config_from_db(
             } else {
                 Some(row.storage_s3_access_key_id.clone())
             },
+            // P0 整改：S3 Secret 静态加密（enc1: 密文），使用前解密。
             secret_access_key: if row.storage_s3_secret_access_key.is_empty() {
                 None
             } else {
-                Some(row.storage_s3_secret_access_key.clone())
+                Some(crate::config::secret_crypto::decrypt_setting(
+                    &app_config.settings_encryption_key,
+                    &row.storage_s3_secret_access_key,
+                ))
             },
             session_token: None,
         })
@@ -284,10 +290,22 @@ async fn update_storage_config(
         .s3_access_key_id
         .filter(|s| !s.is_empty())
         .unwrap_or(current_row.storage_s3_access_key_id);
-    let new_s3_sk = update
-        .s3_secret_access_key
-        .filter(|s| !s.is_empty())
-        .unwrap_or(current_row.storage_s3_secret_access_key);
+    // P0 整改：若提交了新 Secret，落库前静态加密（enc1: 密文）；
+    // 未提交（空）时保持原存储值不变（可能是历史密文或明文）。
+    let new_s3_sk = if update.s3_secret_access_key.is_some() {
+        let submitted = update.s3_secret_access_key.clone().unwrap_or_default();
+        let candidate = if submitted.is_empty() {
+            current_row.storage_s3_secret_access_key.clone()
+        } else {
+            submitted
+        };
+        crate::config::secret_crypto::encrypt_setting(
+            &state.config.settings_encryption_key,
+            &candidate,
+        )
+    } else {
+        current_row.storage_s3_secret_access_key.clone()
+    };
     let new_s3_path_style = update
         .path_style
         .map(|b| if b { 1i64 } else { 0i64 })
@@ -299,6 +317,13 @@ async fn update_storage_config(
         .signed_url_ttl_seconds
         .map(|t| t as i64)
         .unwrap_or(current_row.storage_s3_signed_url_ttl);
+    let new_allowed_types_csv = match &update.allowed_upload_types {
+        Some(list) => {
+            // 校验已确保非空且全部为已知类目；规范化为去空格 CSV。
+            crate::storage::upload::UploadTypePolicy::parse_csv(&list.join(",")).to_csv()
+        }
+        None => current_row.storage_allowed_upload_types.clone(),
+    };
 
     let updated_row = StorageSettingsRow {
         storage_backend: new_backend.clone(),
@@ -312,6 +337,7 @@ async fn update_storage_config(
         storage_s3_path_style: new_s3_path_style,
         storage_s3_public_base_url: new_s3_public_url.clone(),
         storage_s3_signed_url_ttl: new_s3_ttl,
+        storage_allowed_upload_types: new_allowed_types_csv.clone(),
     };
 
     // 3. 持久化到 site_settings
@@ -326,7 +352,8 @@ async fn update_storage_config(
         storage_s3_secret_access_key = ?,
         storage_s3_path_style = ?,
         storage_s3_public_base_url = ?,
-        storage_s3_signed_url_ttl = ?
+        storage_s3_signed_url_ttl = ?,
+        storage_allowed_upload_types = ?
         WHERE id = 'singleton'";
 
     match pool {
@@ -343,6 +370,7 @@ async fn update_storage_config(
                 .bind(new_s3_path_style)
                 .bind(&new_s3_public_url)
                 .bind(new_s3_ttl)
+                .bind(&new_allowed_types_csv)
                 .execute(p)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -360,6 +388,7 @@ async fn update_storage_config(
                 .bind(new_s3_path_style)
                 .bind(&new_s3_public_url)
                 .bind(new_s3_ttl)
+                .bind(&new_allowed_types_csv)
                 .execute(p)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -407,6 +436,8 @@ struct StorageConfigUpdate {
     s3_secret_access_key: Option<String>,
     s3_public_base_url: Option<String>,
     upload_max_bytes: Option<i64>,
+    /// 站点上传类型类目开关（image/pdf/text/office/av；缺省 = 不改动）。
+    allowed_upload_types: Option<Vec<String>>,
     expected_version: Option<i64>,
     reason: Option<String>,
 }
@@ -460,6 +491,24 @@ fn validate_storage_config_update(
             ));
         }
     }
+    if let Some(list) = &update.allowed_upload_types {
+        // 必须非空且全部为已知类目（能力白名单是安全下限，不允许自定义任意 MIME）。
+        if list.is_empty() {
+            return Err(AppError::bad_request(
+                "allowed_upload_types must enable at least one category",
+                request_id,
+                None,
+            ));
+        }
+        let known = crate::storage::upload::UPLOAD_TYPE_CATEGORIES;
+        if list.iter().any(|c| !known.contains(&c.as_str())) {
+            return Err(AppError::bad_request(
+                format!("allowed_upload_types accepts only {known:?}"),
+                request_id,
+                None,
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -486,6 +535,18 @@ fn validate_endpoint_scheme(
     Ok(())
 }
 
+/// 上传类型策略投影（db 行或全类目缺省）。
+fn allowed_upload_types_json(db_row: Option<&StorageSettingsRow>) -> Value {
+    use crate::storage::upload::UploadTypePolicy;
+    let policy = db_row
+        .map(|r| UploadTypePolicy::parse_csv(&r.storage_allowed_upload_types))
+        .unwrap_or_default();
+    json!({
+        "categories": policy.enabled_categories(),
+        "media_types": policy.allowed_media_types(),
+    })
+}
+
 /// 脱敏配置投影（优先数据库在线配置，回退环境变量；不返回 access/secret/session token）。
 fn storage_config_json(config: &AppConfig, db_row: Option<&StorageSettingsRow>) -> Value {
     if let Some(row) = db_row {
@@ -498,7 +559,7 @@ fn storage_config_json(config: &AppConfig, db_row: Option<&StorageSettingsRow>) 
         };
         json!({
             "backend": if is_s3 { "s3" } else { "local" },
-            "source": "db",
+            "source": "database",
             "version": 1,
             "configured": true,
             "local_root": local_path_str,
@@ -523,6 +584,7 @@ fn storage_config_json(config: &AppConfig, db_row: Option<&StorageSettingsRow>) 
             "upload_max_bytes": row.storage_upload_max_bytes,
             "signed_url_ttl_seconds": row.storage_s3_signed_url_ttl,
             "managed_by": "database",
+            "allowed_upload_types": allowed_upload_types_json(Some(row)),
             "secret_configured": secret_is_set,
             "credentials": json!({
                 "access_key_id_configured": is_s3 && !row.storage_s3_access_key_id.is_empty(),
@@ -558,6 +620,7 @@ fn storage_config_json(config: &AppConfig, db_row: Option<&StorageSettingsRow>) 
             "s3_bucket": if s3_configured { json!(config.s3_bucket) } else { Value::Null },
             "signed_url_ttl_seconds": PRESIGN_TTL_SECS,
             "managed_by": "deployment",
+            "allowed_upload_types": allowed_upload_types_json(None),
             "secret_configured": secret_is_set,
             "credentials": json!({
                 "access_key_id_configured": s3_configured && !config.s3_access_key_id.is_empty(),
@@ -788,9 +851,14 @@ async fn run_storage_probe(
             }
         },
         secret_access_key: {
+            // P0 整改：已保存值可能是 enc1: 密文，探测使用前解密。
+            let saved_decrypted = crate::config::secret_crypto::decrypt_setting(
+                &config.settings_encryption_key,
+                &saved_row.storage_s3_secret_access_key,
+            );
             let v = fallback(
                 candidate.s3_secret_access_key.as_ref(),
-                &saved_row.storage_s3_secret_access_key,
+                &saved_decrypted,
                 &config.s3_secret_access_key,
             );
             if v.is_empty() {
@@ -1005,6 +1073,12 @@ struct QuotaUpdate {
     total_bytes: i64,
     daily_upload_bytes: i64,
     retention_days: i64,
+    /// 审计原因：`required_reason` 已在上游对原始 body 校验非空并写入审计；
+    /// 此处声明仅为让载荷通过 `deny_unknown_fields` 反序列化（否则带
+    /// reason 的合法请求恒 400，端点不可用）。
+    #[serde(default)]
+    #[allow(dead_code)]
+    reason: Option<String>,
 }
 
 fn policy_json(policy: &crate::storage::model::QuotaPolicy) -> Value {
@@ -1052,6 +1126,7 @@ mod tests {
             s3_secret_access_key: None,
             s3_public_base_url: None,
             upload_max_bytes: None,
+            allowed_upload_types: None,
             expected_version: None,
             reason: None,
         }
@@ -1084,6 +1159,26 @@ mod tests {
             validate_storage_config_update(&u, false, "t").is_err(),
             "生产环境必须拒绝 http:// endpoint"
         );
+    }
+
+    #[test]
+    fn update_validation_allowed_upload_types_subset_only() {
+        let mut u = update(None, None);
+        // 空列表 = 全站不可上传，拒绝
+        u.allowed_upload_types = Some(vec![]);
+        assert!(validate_storage_config_update(&u, true, "t").is_err());
+        // 未知类目拒绝（能力白名单是安全下限，不允许自定义任意 MIME）
+        u.allowed_upload_types = Some(vec!["image".to_string(), "bogus".to_string()]);
+        assert!(validate_storage_config_update(&u, true, "t").is_err());
+        // 已知类目子集允许；None = 不改动
+        u.allowed_upload_types = Some(vec![
+            "image".to_string(),
+            "office".to_string(),
+            "av".to_string(),
+        ]);
+        assert!(validate_storage_config_update(&u, true, "t").is_ok());
+        u.allowed_upload_types = None;
+        assert!(validate_storage_config_update(&u, true, "t").is_ok());
     }
 
     #[test]

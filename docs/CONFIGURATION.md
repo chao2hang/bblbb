@@ -60,10 +60,15 @@
 | `BBLBB__SECRETS_DIR` | `secrets_dir` | 空 = 未启用 | all | 重启 |
 | `BBLBB__SECRETS_SYSTEMD_UNIT` | `secrets_systemd_unit` | 空 = 未启用 | all | 重启 |
 | `BBLBB__FEATURE_KILL_SWITCH` | `feature_kill_switch` | `false` | all | 重启 |
+| `BBLBB__SETTINGS_ENCRYPTION_KEY` | `settings_encryption_key` | 空 = 明文兼容模式（生产强制非空） | all | 重启 |
+| `BBLBB__OIDC_KEY_ENCRYPTION_KEY` | `oidc_key_encryption_key` | 空 = OIDC 密钥生成/轮换失败 | all | 重启 |
+| `BBLBB__MARKETPLACE_WEBHOOK_ENCRYPTION_KEY` | `marketplace_webhook_encryption_key` | 空 = 轮换失败 | all | 重启 |
 | `BBLBB__NEW_USER_COOLDOWN_SECS` | `new_user_cooldown_secs` | `0` = 关闭 | all | 重启 |
 | `BBLBB__TOTP_WINDOW_STEPS` | `totp_window_steps` | `1` | all | 重启 |
 | `BBLBB__STEP_UP_WINDOW_SECS` | `step_up_window_secs` | `300`（5 分钟） | all | 重启 |
 | `BBLBB__MFA_ENCRYPTION_KEY` | `mfa_encryption_key` | 空 = 未配置 | all | 重启 |
+| `BBLBB__PASSKEY_RP_ID` | `passkey_rp_id` | 空 = Passkey 关闭（M02-MFA-PK；站点根域，须与 public_origin 域一致或为其父域，注册后不可变更） | all | 重启 |
+| `BBLBB__PASSKEY_RP_NAME` | `passkey_rp_name` | `BBLBB` | all | 重启 |
 
 说明：
 
@@ -167,3 +172,23 @@
 5. **冲突配置**：`BBLBB__AUTO_MIGRATE=true` 与生产迁移策略冲突，拒绝
    （迁移必须显式 `bblbb-migrate apply`，见 M01-DB-06）。
 6. **非法 env 值**：`env` 只接受 `development` / `test` / `production`。
+
+## 1.3 站点 Secret 静态加密与 Feature Flag 持久化（P0 整改，2026-09）
+
+**站点设置 Secret**：`site_settings` 中的 SMTP 密码、OAuth Client Secret、
+S3 Secret Key 用 `BBLBB__SETTINGS_ENCRYPTION_KEY` 做 AES-256-GCM 静态加密，
+密文带 `enc1:` 前缀；历史明文读取时原样透传、下次保存时加密。主密钥为空 =
+明文兼容模式（仅限开发），生产模式启动校验强制要求配置（fail closed）。
+API 侧仍只返回 `*_configured` 布尔，绝不回显 Secret 值。
+
+**Feature Flag 运行时持久化**：`feature_flags` 表（0073 迁移）是可选能力
+（ai / video / download_billing / oidc / marketplace）的持久化事实来源；
+启动时加载、管理员 `PATCH /api/v1/admin/feature-flags/{name}`
+（If-Match + reason + 审计）后同进程原地重载快照。
+`POST /api/v1/admin/feature-flags/kill-switch` 紧急关闭全部可选能力并写审计。
+`BBLBB__FEATURE_KILL_SWITCH` 环境变量在启动加载后叠加（优先于一切）。
+
+**首管理员引导**：`bblbb-backend --bootstrap` 生成一次性 token（库内仅存
+SHA-256 哈希，明文打印一次），`POST /api/v1/auth/bootstrap` 创建首个
+administrator 并永久消费 token；重复初始化 409；撤销/停用最后一名
+active administrator 返回 409（`docs/AUTHORIZATION.md` §10）。

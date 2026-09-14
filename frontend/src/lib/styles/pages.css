@@ -1177,7 +1177,7 @@ body {
   letter-spacing: -.055em;
   font-weight: 650;
 }
-.intro-title em { color: var(--color-brand); font-family: Georgia, "Songti SC", serif; font-weight: 500; }
+.intro-title em { color: var(--color-brand); font-family: var(--font-family-serif); font-weight: 500; }
 .intro-desc {
   max-width: 590px;
   margin-top: var(--space-6);
@@ -1217,7 +1217,7 @@ body {
   color: var(--color-text-on-brand);
   background: var(--color-brand);
   border-radius: 36% 64% 58% 42%;
-  font: 700 58px/1 Georgia, serif;
+  font: 700 58px/1 var(--font-family-serif);
   transform: rotate(-8deg);
 }
 .orbit-chip {

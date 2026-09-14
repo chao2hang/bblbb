@@ -1,10 +1,13 @@
 <script lang="ts">
   // M14-COMPONENTS-01/04：可访问 Pagination 基础组件。
+  // 视觉 token 与 blbui AdminPagination 对齐，但保留链接式实现，以维持 URL、SSR
+  // 和无 JS 导航语义。
   //
   // - <nav aria-label="分页"> + 页码链接，当前页用 aria-current="page"；
   // - prev/next 链接带 aria-label（图标/箭头可见文案缺省时仍可读）；
   // - 只接收白名单 prop + onchange 回调（安全投影，M14-COMPONENTS-06）；
   // - 无 JS 时退化为普通链接（href 由调用方提供）。
+
   export interface PageLink {
     href: string;
     label: string;

@@ -46,6 +46,13 @@ fn sample_public_profile() -> PublicProfile {
         followers: 34,
         following: 5,
         is_following: false,
+        // M07-SHOP-SCHEMA-06 公开装扮投影（无装配 → None → 序列化为 null）
+        presentation_tokens: None,
+        // 社交域·成就：已装备成就徽章（≤3，服务端裁决）
+        equipped_achievements: vec![bblbb_backend::users::dto::PublicEquippedAchievement {
+            code: "first_post".to_string(),
+            name: "首发帖".to_string(),
+        }],
     }
 }
 
@@ -69,12 +76,31 @@ fn public_profile_is_strict_allowlist() {
         "followers",
         "following",
         "is_following",
+        // M07-SHOP-SCHEMA-06 公开装扮投影
+        "presentation_tokens",
+        // 社交域·成就：已装备成就徽章
+        "equipped_achievements",
     ];
     expected.sort();
     assert_eq!(
         sorted_keys(&v),
         expected,
         "公开投影必须严格 allowlist，不得多出或缺少字段"
+    );
+
+    // 成就徽章只允许 code/name 两个公开字段（无进度/条件/奖励）
+    let badge = &v["equipped_achievements"][0];
+    assert_eq!(badge["code"], "first_post");
+    assert_eq!(badge["name"], "首发帖");
+    assert_eq!(
+        badge
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec!["code".to_string(), "name".to_string()],
+        "成就徽章投影只允许 code/name"
     );
 
     for leaked in [
@@ -169,7 +195,7 @@ fn me_is_own_projection() {
         display_name: Some("爱丽丝".to_string()),
         ..ProfileFields::default()
     };
-    let me = Me::from_session(&sample_session_user(), true, &profile);
+    let me = Me::from_session(&sample_session_user(), true, &profile, None);
     let v = serde_json::to_value(&me).unwrap();
     for field in [
         "id",
@@ -183,6 +209,7 @@ fn me_is_own_projection() {
         "level",
         "roles",
         "mfa_enabled",
+        "avatar_attachment_id",
     ] {
         assert!(v.get(field).is_some(), "Me 投影缺少 {field}");
     }

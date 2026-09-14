@@ -2,15 +2,20 @@
 // 字段错误透传、版本缺失拒绝、代理异常降级。
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { actions } from './+page.server';
-import { authedPatch } from '$lib/api/server';
+import { authedDeleteBody, authedPatch, authedPost } from '$lib/api/server';
 import type { SettingsFormResult } from './+page.server';
 
 vi.mock('$lib/api/server', () => ({
   authedPatch: vi.fn(),
+  authedPost: vi.fn(),
+  authedDelete: vi.fn(),
+  authedDeleteBody: vi.fn(),
   getAuthed: vi.fn()
 }));
 
 const patchMock = authedPatch as unknown as ReturnType<typeof vi.fn>;
+const postMock = authedPost as unknown as ReturnType<typeof vi.fn>;
+const deleteMock = authedDeleteBody as unknown as ReturnType<typeof vi.fn>;
 
 function actionEvent(
   entries: Record<string, string>,
@@ -132,5 +137,55 @@ describe('M03-UI-02 资料编辑 profile action', () => {
       data: SettingsFormResult;
     };
     expect(result.status).toBe(503);
+  });
+
+  it('avatar_attachment_id 携带时一并提交至 PATCH /api/v1/me', async () => {
+    patchMock.mockResolvedValueOnce({ ok: true, data: { ...updatedUser, avatar_attachment_id: 'att-123' } });
+    const result = (await actions.profile(
+      actionEvent({ version: '3', display_name: '爱丽丝', avatar_attachment_id: 'att-123' })
+    )) as SettingsFormResult;
+    expect(result.ok).toBe(true);
+    const [, , body] = patchMock.mock.calls[0];
+    expect(body.avatar_attachment_id).toBe('att-123');
+  });
+
+  it('avatar_attachment_id 留空时作为 null 提交以清除头像', async () => {
+    patchMock.mockResolvedValueOnce({ ok: true, data: { ...updatedUser, avatar_attachment_id: null } });
+    const result = (await actions.profile(
+      actionEvent({ version: '3', display_name: '爱丽丝', avatar_attachment_id: '' })
+    )) as SettingsFormResult;
+    expect(result.ok).toBe(true);
+    const [, , body] = patchMock.mock.calls[0];
+    expect(body.avatar_attachment_id).toBeNull();
+  });
+
+  it('cover_attachment_id 携带时提交至 POST /api/v1/me/profile-cover', async () => {
+    patchMock.mockResolvedValueOnce({ ok: true, data: updatedUser });
+    postMock.mockResolvedValueOnce({ ok: true });
+    const result = (await actions.profile(
+      actionEvent({ version: '3', display_name: '爱丽丝', cover_attachment_id: 'cover-123' }, 'req-cov')
+    )) as SettingsFormResult;
+    expect(result.ok).toBe(true);
+    expect(postMock).toHaveBeenCalledWith(
+      expect.anything(),
+      '/api/v1/me/profile-cover',
+      { attachment_id: 'cover-123', alt_text: '', position: 'center' },
+      'req-cov'
+    );
+  });
+
+  it('cover_attachment_id 留空时调用 DELETE /api/v1/me/profile-cover 清除封面', async () => {
+    patchMock.mockResolvedValueOnce({ ok: true, data: updatedUser });
+    deleteMock.mockResolvedValueOnce({ ok: true });
+    const result = (await actions.profile(
+      actionEvent({ version: '3', display_name: '爱丽丝', cover_attachment_id: '' }, 'req-del')
+    )) as SettingsFormResult;
+    expect(result.ok).toBe(true);
+    expect(deleteMock).toHaveBeenCalledWith(
+      expect.anything(),
+      '/api/v1/me/profile-cover',
+      { attachment_id: '00000000-0000-0000-0000-000000000000', alt_text: '', position: '' },
+      'req-del'
+    );
   });
 });

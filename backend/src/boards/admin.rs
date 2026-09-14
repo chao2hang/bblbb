@@ -23,10 +23,13 @@ use crate::error::AppError;
 use crate::outbox::now_millis;
 
 /// 创建板块输入（请求体解析；`parent_id` 空串 = 根）。
+///
+/// `icon`：可选 lucide 图标名；`None`/`Some("")` = 未设置（存 NULL）。
 pub struct BoardCreateInput {
     pub slug: String,
     pub name: String,
     pub description: Option<String>,
+    pub icon: Option<String>,
     pub sort_order: i64,
     pub parent_id: Option<String>,
     pub visibility: String,
@@ -37,10 +40,14 @@ pub struct BoardCreateInput {
 ///
 /// `parent_id: None` = 未提供（保持不变）；`Some(None)` / `Some("")` = 置为根；
 /// `Some(Some(id))` = 移动到新父级。
+///
+/// `icon: None` = 未提供（保持不变）；`Some("")` = 清除图标（置 NULL）；
+/// `Some(name)` = 设置图标。
 pub struct BoardUpdateInput {
     pub slug: Option<String>,
     pub name: Option<String>,
     pub description: Option<String>,
+    pub icon: Option<String>,
     pub sort_order: Option<i64>,
     pub parent_id: Option<Option<String>>,
     pub is_active: Option<bool>,
@@ -55,6 +62,7 @@ struct AdminBoardRow {
     slug: String,
     name: String,
     description: Option<String>,
+    icon: Option<String>,
     parent_id: Option<String>,
     sort_order: i64,
     visibility: String,
@@ -70,6 +78,7 @@ fn board_projection(row: &AdminBoardRow) -> Value {
         "slug": row.slug,
         "name": row.name,
         "description": row.description,
+        "icon": row.icon,
         "parent_id": row.parent_id,
         "sort_order": row.sort_order,
         "visibility": row.visibility,
@@ -117,7 +126,7 @@ async fn parent_candidates(pool: &DatabasePool) -> Result<Vec<BoardRef>, String>
 async fn load_board(pool: &DatabasePool, board_id: &str) -> Result<Option<AdminBoardRow>, String> {
     match pool {
         Either::Left(db) => sqlx::query_as::<_, AdminBoardRow>(
-            "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode,
+            "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode,
                     is_active, created_at, updated_at
              FROM boards WHERE id = ?",
         )
@@ -126,7 +135,7 @@ async fn load_board(pool: &DatabasePool, board_id: &str) -> Result<Option<AdminB
         .await
         .map_err(|e| e.to_string()),
         Either::Right(db) => sqlx::query_as::<_, AdminBoardRow>(
-            "SELECT id, slug, name, description, parent_id, sort_order, visibility, posting_mode,
+            "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode,
                     is_active, created_at, updated_at
              FROM boards WHERE id = ?",
         )
@@ -149,11 +158,19 @@ pub async fn create_board(
         Some("") | None => None,
         Some(p) => Some(p.to_string()),
     };
+    // 图标：空串/缺省 = 未设置（NULL）。
+    let icon: Option<String> = input
+        .icon
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
 
     validate_board_fields(
         &input.slug,
         &input.name,
         input.description.as_deref(),
+        icon.as_deref(),
         input.sort_order,
         true,
         &input.posting_mode,
@@ -202,13 +219,14 @@ pub async fn create_board(
     match &mut tx {
         Either::Left(t) => {
             sqlx::query(
-                "INSERT INTO boards (id, slug, name, description, parent_id, sort_order, visibility, posting_mode, is_active, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                "INSERT INTO boards (id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
             )
             .bind(&board_id)
             .bind(&input.slug)
             .bind(&input.name)
             .bind(&input.description)
+            .bind(&icon)
             .bind(&parent_id)
             .bind(input.sort_order)
             .bind(&input.visibility)
@@ -221,13 +239,14 @@ pub async fn create_board(
         }
         Either::Right(t) => {
             sqlx::query(
-                "INSERT INTO boards (id, slug, name, description, parent_id, sort_order, visibility, posting_mode, is_active, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                "INSERT INTO boards (id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
             )
             .bind(&board_id)
             .bind(&input.slug)
             .bind(&input.name)
             .bind(&input.description)
+            .bind(&icon)
             .bind(&parent_id)
             .bind(input.sort_order)
             .bind(&input.visibility)
@@ -245,6 +264,7 @@ pub async fn create_board(
         "slug": input.slug,
         "name": input.name,
         "description": input.description,
+        "icon": icon,
         "parent_id": parent_id,
         "sort_order": input.sort_order,
         "visibility": input.visibility,
@@ -306,6 +326,7 @@ pub async fn update_board(
         input.slug.as_deref(),
         input.name.as_deref(),
         input.description.as_deref(),
+        input.icon.as_deref(),
         input.sort_order,
         input.posting_mode.as_deref(),
     )
@@ -353,6 +374,18 @@ pub async fn update_board(
         .description
         .clone()
         .or_else(|| current.description.clone());
+    // 图标：None = 保持不变；Some("") = 清除（NULL）；Some(name) = 设置。
+    let new_icon: Option<String> = match &input.icon {
+        None => current.icon.clone(),
+        Some(raw) => {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+    };
     let new_sort_order = input.sort_order.unwrap_or(current.sort_order);
     let new_visibility = input
         .visibility
@@ -370,6 +403,7 @@ pub async fn update_board(
         "slug": new_slug.clone(),
         "name": new_name.clone(),
         "description": new_description.clone(),
+        "icon": new_icon.clone(),
         "parent_id": new_parent.clone(),
         "sort_order": new_sort_order,
         "visibility": new_visibility.clone(),
@@ -395,13 +429,14 @@ pub async fn update_board(
     let affected: u64 = match &mut tx {
         Either::Left(t) => sqlx::query(
             "UPDATE boards SET
-                    slug = ?, name = ?, description = ?, parent_id = ?, sort_order = ?,
+                    slug = ?, name = ?, description = ?, icon = ?, parent_id = ?, sort_order = ?,
                     visibility = ?, posting_mode = ?, is_active = ?, updated_at = ?
                  WHERE id = ? AND updated_at = ?",
         )
         .bind(&new_slug)
         .bind(&new_name)
         .bind(&new_description)
+        .bind(&new_icon)
         .bind(&new_parent)
         .bind(new_sort_order)
         .bind(&new_visibility)
@@ -416,13 +451,14 @@ pub async fn update_board(
         .rows_affected(),
         Either::Right(t) => sqlx::query(
             "UPDATE boards SET
-                    slug = ?, name = ?, description = ?, parent_id = ?, sort_order = ?,
+                    slug = ?, name = ?, description = ?, icon = ?, parent_id = ?, sort_order = ?,
                     visibility = ?, posting_mode = ?, is_active = ?, updated_at = ?
                  WHERE id = ? AND updated_at = ?",
         )
         .bind(&new_slug)
         .bind(&new_name)
         .bind(&new_description)
+        .bind(&new_icon)
         .bind(&new_parent)
         .bind(new_sort_order)
         .bind(&new_visibility)

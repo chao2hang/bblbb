@@ -4,7 +4,7 @@
 //! 草稿/客户端缓存的任何值：
 //! 1. **账号状态**：实时聚合权限 + `post.create` 门（邮箱验证/冷静期/mute/
 //!    账号状态，M03-AUTHZ-06）——发布时若账号已处罚/停用则拒绝；
-//! 2. **作者当前等级**：`users.level` 重读，`visibility_level ≤ 作者等级`
+//! 2. **作者当前等级**：`users.trust_level` 重读，`visibility_level ≤ 作者等级`
 //!    （防升级前缓存的高隐藏级别）；
 //! 3. **板块规则**：板块存在/未删除/`is_active`/`posting_mode ∈ {normal,
 //!    approval}`（readonly/closed 拒发）；
@@ -130,19 +130,19 @@ async fn recheck_account_gate(
     Err(PublishBlocked::AccountUnavailable(msg.to_string()))
 }
 
-/// 重读作者当前等级；visibility_level（缺省 1）不得超过等级。
+/// 重读作者当前信任等级；visibility_level（缺省 1）不得超过等级。
 async fn recheck_author_level(
     pool: &DatabasePool,
     author_id: &str,
     visibility_level: Option<u32>,
 ) -> Result<(), PublishBlocked> {
     let level: Option<i64> = match pool {
-        Either::Left(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+        Either::Left(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
             .bind(author_id)
             .fetch_optional(p)
             .await
             .map_err(|e| PublishBlocked::Internal(e.to_string()))?,
-        Either::Right(p) => sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+        Either::Right(p) => sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
             .bind(author_id)
             .fetch_optional(p)
             .await
@@ -150,7 +150,7 @@ async fn recheck_author_level(
     };
     let author_level = level
         .ok_or_else(|| PublishBlocked::AccountUnavailable("author not found".to_string()))?
-        .clamp(1, i64::from(u32::MAX)) as u32;
+        .clamp(0, i64::from(u32::MAX)) as u32;
     let requested = visibility_level.unwrap_or(1);
     if requested > author_level {
         return Err(PublishBlocked::VisibilityExceedsLevel {

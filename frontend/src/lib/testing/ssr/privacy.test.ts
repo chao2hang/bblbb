@@ -88,8 +88,8 @@ describe('M00-FRONTEND-09 隐私守卫：SSR HTML 不含私密字段值', () => 
       }
     });
     expect(body).toContain('爱丽丝');
-    expect(body).toContain('@alice');
-    expect(body).toContain('LV.7');
+    // username 为公开字段：经「查看个人资料」链接 /users/{username} 渲染。
+    expect(body).toContain('TL7');
     expect(body).toContain('/users/alice');
     expect(body).not.toContain('alice@example.com');
     expect(body).not.toContain('SSR-HOVER-HASH');

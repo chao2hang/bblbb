@@ -490,7 +490,7 @@ ops/smoke/smoke.sh                                      # 发布后冒烟
 ## 19.8 GAP-FIX 管理域非契约端点（2026 追加）
 
 以下运营管理端点与 M12 Marketplace 管理 / M13 Plugin 管理同类，属于领域管理
-接口，不进入冻结 193-op 契约（`scripts/check-route-coverage.rb` 的
+接口，不进入当前冻结 232-op 契约（`scripts/check-route-coverage.rb` 的
 DOCUMENTED_NON_CONTRACT 登记为准），权限均为相应 `*.manage`/`post.moderate`/
 `role.manage` 注册项，敏感写操作全部落审计（audit_logs）：
 
@@ -500,23 +500,54 @@ DOCUMENTED_NON_CONTRACT 登记为准），权限均为相应 `*.manage`/`post.mo
   `GET /api/v1/admin/bi/metrics`
 - 审计读取：`GET /api/v1/admin/audit-logs`（keyset 分页 + q 过滤）
 - 系统设置：`GET/PATCH /api/v1/admin/settings`（If-Match 乐观锁）
-- 帖子管理：`GET /api/v1/admin/posts`、`POST /api/v1/admin/posts/{id}/action`
+- 帖子管理：`GET /api/v1/admin/posts`、
+  `GET /api/v1/admin/posts/{id}/revisions`（审核版本对比：全量不可变修订
+  投影含正文；post.moderate；不限帖子状态，待审草稿可读）、
+  `POST /api/v1/admin/posts/{id}/action`
   （approve/reject/hide/restore/delete/feature/unfeature/pin/unpin/lock/unlock）
 - 通知广播：`GET /api/v1/admin/notifications/outbox`、
   `POST /api/v1/admin/notifications/broadcast`（幂等）、
   `POST /api/v1/admin/notifications/outbox/{id}/recall`
 - 角色分配：`POST /api/v1/admin/users/{id}/roles`、
   `DELETE /api/v1/admin/users/{id}/roles/{role_name}`
+- 昵称治理与黑名单：`POST /api/v1/admin/users/{id}/randomize-nickname`
+  （管理员一键随机用户昵称，原昵称自动存入黑名单并更新目标用户昵称为规范随机昵称，
+  写审计 `admin.user.randomize_nickname`）、`GET /api/v1/admin/nickname-blacklist`
+  （分页与模糊查询黑名单）、`POST /api/v1/admin/nickname-blacklist`（手动加入黑名单）、
+  `DELETE /api/v1/admin/nickname-blacklist/{id}`（移出黑名单，写审计 `admin.nickname_blacklist.delete`）
 - 成就管理：`GET/POST /api/v1/admin/achievements`、
   `PATCH/DELETE /api/v1/admin/achievements/{code}`、
   `POST /api/v1/admin/achievements/{code}/grant`
+- 成就图标（不走 S3）：`POST /api/v1/admin/achievements/{code}/icon?reason=…`
+  （请求体 = 原始图片字节，png/jpeg/webp/gif 魔数嗅探，≤2MB；直写
+  `storage_dir/achievements/` 本地磁盘，内容寻址文件名，替换清理旧文件，
+  version 递增）、`DELETE /api/v1/admin/achievements/{code}/icon`
+  （body `{reason}`，删文件 + 清空 `icon_path`）；公开读取
+  `GET /api/v1/achievements/{code}/icon`（匿名，ETag + `public, max-age=300`）。
+  图标为运营配置的小型静态资源，刻意不经 `StorageService`/S3 与附件配额域，
+  随站点本地存储部署（备份/迁移由部署方处理）。
 - 积分管理：`GET /api/v1/admin/points/ledger`、
   `POST /api/v1/admin/points/adjust`（写账本，禁止直接改余额）
-- 等级规则：`GET /api/v1/admin/levels`、`PATCH /api/v1/admin/levels/{level}`
+- 等级规则（2026-09 等级管理合并单轨）：等级判定与配额档位以信任等级为准
+  （见下条与 [`TRUST-LEVELS.md` §1.1](TRUST-LEVELS.md)）；原存档 CRUD
+  `GET/PATCH /api/v1/admin/levels*` 与经验方案投影
+  `GET /api/v1/admin/levels/scheme` 已移除（0062 `level_rules` 运行时本就
+  无消费点，表保留为历史存档）
 - 附件管理：`GET /api/v1/admin/attachments`、
   `DELETE /api/v1/admin/attachments/{id}`（软删）
 - 下载交易：`GET /api/v1/admin/download-billing/transactions`
 - 标签合并：`POST /api/v1/admin/tags/{id}/merge`
+- 私信撤回：`POST /api/v1/conversations/{id}/messages/{message_id}/recall`（2 分钟内、仅限发送者本人撤回私信，软删除并从线程移除）
+- 信任等级（M20-TRUST，等级管理主线；/admin/levels 等级管理页数据源）：
+  `GET /api/v1/admin/trust-levels`（每级规则 + 用户数，全量含停用）、
+  `PATCH /api/v1/admin/trust-levels/{level}`（2026-09 规则可配置化：编辑
+  名称/摘要/启用/阈值条件；If-Match=version + reason 审计
+  `admin.trust_level_rules.update`；TL0 禁止条件、TL4 强制 manual_only）、
+  `POST /api/v1/admin/trust-levels/{level}/reset`（恢复内置 LinuxDo 默认，
+  reason 审计 `admin.trust_level_rules.reset`）、
+  `POST /api/v1/admin/users/{id}/trust-level`
+  （手动设置 0–4，TL4 唯一授予通道；body `{level, reason}`，写审计
+  `admin.trust_level.set`）。完整语义见 [`TRUST-LEVELS.md`](TRUST-LEVELS.md)。
 
 其公开只读投影 `GET /api/v1/site`（匿名可读，迁移 0065 站点文案列）：站点
 名称/描述、登录/注册页文案与 `maintenance_mode` 公开标记；空文案字段表示

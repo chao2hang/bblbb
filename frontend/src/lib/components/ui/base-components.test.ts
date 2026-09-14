@@ -6,6 +6,8 @@ import userEvent from '@testing-library/user-event';
 import Input from './Input.svelte';
 import Select from './Select.svelte';
 import Table from './Table.svelte';
+import Tag from './Tag.svelte';
+import Badge from './Badge.svelte';
 import Pagination from './Pagination.svelte';
 import Dialog from './Dialog.svelte';
 import DangerConfirm from './DangerConfirm.svelte';
@@ -78,6 +80,28 @@ describe('Table（语义表格）', () => {
   it('无数据时显示空态文案', () => {
     render(Table, { columns: [{ label: '订单号' }], emptyText: '暂无订单' });
     expect(screen.getByText('暂无订单')).toBeInTheDocument();
+  });
+});
+
+describe('Tag 与 Badge（状态与标签集成）', () => {
+  it('Tag 渲染文本与可选计数与链接', () => {
+    const { rerender } = render(Tag, { name: 'Svelte', count: 42 });
+    expect(screen.getByText('Svelte')).toBeInTheDocument();
+    expect(screen.getByText('42')).toBeInTheDocument();
+
+    rerender({ name: 'TypeScript', href: '/tags/ts', count: null });
+    const link = screen.getByRole('link', { name: 'TypeScript' });
+    expect(link).toHaveAttribute('href', '/tags/ts');
+  });
+
+  it('Badge 渲染文本与对应状态', () => {
+    const { rerender } = render(Badge, { text: '成功', type: 'success' });
+    expect(screen.getByText('成功')).toBeInTheDocument();
+    expect(document.querySelector('.badge-success')).toBeInTheDocument();
+
+    rerender({ text: '危险', type: 'danger' });
+    expect(screen.getByText('危险')).toBeInTheDocument();
+    expect(document.querySelector('.badge-danger')).toBeInTheDocument();
   });
 });
 

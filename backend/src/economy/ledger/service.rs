@@ -26,7 +26,6 @@ use crate::events::types::POINTS_OPERATION_COMPLETED;
 use crate::outbox::{enqueue, now_millis};
 
 /// 内置货币（0047 种子，三库一致）。
-pub const CURRENCY_EXP: &str = "01911fd5-0047-0000-0000-000000000001";
 pub const CURRENCY_COIN: &str = "01911fd5-0047-0000-0000-000000000002";
 
 /// 账本操作类型（0047 CHECK 一致）。

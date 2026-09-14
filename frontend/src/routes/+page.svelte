@@ -8,16 +8,32 @@
   // 筛选 tab 与加载更多均为原生链接（?sort= / ?after=）。
   // M00-FRONTEND-09：load 输出只保留公开字段白名单（见 +page.server.ts）。
   import { type PostSummary } from '$lib/api/client';
-  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import TopicList, { type TopicListRow } from '$lib/components/forum/TopicList.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { boardVisuals } from '$lib/board-visuals';
   import { show } from '$lib/ui/toast';
-  import { formatCount, formatRelative } from '$lib/utils';
+  import { formatCount } from '$lib/utils';
   import Seo from '$lib/components/Seo.svelte';
   import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
   import type { HomePageData, HomeSort } from './+page.server';
+  import { page } from '$app/state';
+  import TopicComposer from '$lib/components/editor/TopicComposer.svelte';
 
   // data.site：根 layout 注入的全站文案（0065）；隔离渲染时兜底解析。
   let { data }: { data: HomePageData & { site?: SiteCopyView | null } } = $props();
+
+  const user = $derived.by(() => {
+    try {
+      return page.data?.user ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const authed = $derived(Boolean(user));
+  const composeOpen = $derived(page.url.searchParams.get('compose') === '1');
+
+  type MobileSheet = 'categories' | 'tags' | 'sort' | null;
+  let mobileSheet = $state<MobileSheet>(null);
 
   const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
 
@@ -26,19 +42,56 @@
     data.stats?.posts ?? boards.reduce((n, b) => n + (b.post_count ?? 0), 0)
   );
 
-  /** 板块 id → 名称（线程卡脚注用；boards 与 posts 同源取自 SSR load）。 */
-  const boardName = $derived((id: string | null | undefined) => {
-    if (!id) return null;
-    return boards.find((b) => b.id === id)?.name ?? null;
-  });
+  /** 板块 id → 板块投影（线程卡脚注用：名称 + 身份图标/颜色；
+   *  boards 与 posts 同源取自 SSR load）。 */
+  const boardOf = $derived(
+    (id: string | null | undefined) => (id ? boards.find((b) => b.id === id) ?? null : null)
+  );
+
+  function homeHref(options: { sort?: HomeSort; boardId?: string | null; tag?: string | null } = {}): string {
+    const params = new URLSearchParams();
+    const nextSort = options.sort ?? data.sort;
+    const nextBoardId = Object.prototype.hasOwnProperty.call(options, 'boardId') ? options.boardId : data.boardId;
+    const nextTag = Object.prototype.hasOwnProperty.call(options, 'tag') ? options.tag : data.tag;
+    if (nextSort) params.set('sort', nextSort);
+    if (nextBoardId) params.set('board_id', nextBoardId);
+    if (nextTag) params.set('tag', nextTag);
+    const query = params.toString();
+    return query ? `/?${query}` : '/';
+  }
 
   /** 筛选 tab（M18-HOME-02 对齐原型：最新|精华|已关注|热门；原生链接）。 */
-  const sortTabs: Array<{ value: HomeSort; label: string; href: string }> = [
-    { value: '', label: '最新', href: '/' },
-    { value: 'featured', label: '精华', href: '/?sort=featured' },
-    { value: 'following', label: '已关注', href: '/?sort=following' },
-    { value: 'popular', label: '热门', href: '/?sort=popular' }
-  ];
+  const sortTabs = $derived<Array<{ value: HomeSort; label: string; href: string }>>([
+    { value: '', label: '最新', href: homeHref({ sort: '' }) },
+    { value: 'featured', label: '精华', href: homeHref({ sort: 'featured' }) },
+    {
+      value: 'following',
+      label: '已关注',
+      href: authed
+        ? homeHref({ sort: 'following' })
+        : `/login?next=${encodeURIComponent(homeHref({ sort: 'following' }))}`
+    },
+    { value: 'popular', label: '热门', href: homeHref({ sort: 'popular' }) }
+  ]);
+
+  const selectedBoard = $derived(boards.find((board) => board.id === data.boardId) ?? null);
+  const selectedTag = $derived(data.tags.find((tag) => tag.slug === data.tag) ?? null);
+  const activeSortTab = $derived(sortTabs.find((tab) => tab.value === data.sort) ?? sortTabs[0]);
+  const mobileSheetTitle = $derived(
+    mobileSheet === 'categories' ? '选择类别' : mobileSheet === 'tags' ? '选择标签' : '排序内容'
+  );
+
+  function openMobileSheet(sheet: Exclude<MobileSheet, null>): void {
+    mobileSheet = sheet;
+  }
+
+  function closeMobileSheet(): void {
+    mobileSheet = null;
+  }
+
+  function handleMobileSheetKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && mobileSheet) closeMobileSheet();
+  }
 
   // ── 加载更多（游标 = 上一页最后一条 created_at；JS 客户端追加、
   //    无 JS 回退 ?after= 链接整页翻页）──
@@ -46,17 +99,50 @@
   let extraPages = $state<PostRow[]>([]);
   let loadedCursor = $state<string | null | undefined>(undefined);
   let loadingMore = $state(false);
-  let showMobileCategories = $state(false);
 
   const posts = $derived<PostRow[]>([...data.posts, ...extraPages]);
   const cursor = $derived(loadedCursor === undefined ? data.nextCursor : loadedCursor);
+
+  /** 传给共享 TopicList 的行投影（作者/板块脚注在页内解析）。 */
+  const listRows = $derived<TopicListRow[]>(
+    posts.map((p) => {
+      const board = boardOf(p.board_id);
+      return {
+        id: p.id,
+        title: p.title,
+        author: p.author_display_name ?? p.author_name ?? '匿名',
+        authorUsername: p.author_name ?? null,
+        authorPresentation: p.author_presentation_tokens ?? null,
+        authorAvatarAttachmentId: p.author_avatar_attachment_id ?? null,
+        boardLabel: board?.name ?? null,
+        boardSlug: board?.slug ?? null,
+        boardIcon: board?.icon ?? null,
+        likeCount: p.like_count ?? 0,
+        replyCount: p.reply_count,
+        viewCount: p.view_count,
+        pinned: p.pinned,
+        featured: p.is_featured,
+        createdAt: p.created_at,
+        lastReplyAt: p.last_reply_at,
+        participants: p.participants ?? []
+      };
+    })
+  );
+
+  /** 空态标题按排序区分（共享 TopicList 空态）。 */
+  const emptyTitle = $derived(
+    data.sort === 'featured'
+      ? '暂无精华帖'
+      : data.sort === 'following'
+        ? '暂无关注动态'
+        : data.sort === 'popular'
+          ? '暂无热门帖'
+          : '暂无帖子'
+  );
   const loadMoreHref = $derived(
     cursor
-      ? `/?${new URLSearchParams({
-          ...(data.sort ? { sort: data.sort } : {}),
-          after: cursor
-        }).toString()}`
-      : '/'
+      ? `${homeHref()}${homeHref() === '/' ? '?' : '&'}after=${encodeURIComponent(cursor)}`
+      : homeHref()
   );
 
   // load 数据变化（tab 切换导航 / invalidateAll）后重置客户端累积页。
@@ -77,14 +163,22 @@
       author_id: p.author_id ?? p.author?.id,
       author_name: p.author_name ?? p.author?.username ?? null,
       board_id: p.board_id ?? null,
-      summary: p.summary ?? null,
       is_featured: p.is_featured ?? Boolean(p.featured_at),
       reply_count: p.reply_count,
       view_count: p.view_count,
       like_count: p.like_count ?? 0,
       pinned: p.pinned ?? Boolean(p.pinned_at),
       created_at: p.created_at,
-      last_reply_at: p.last_reply_at ?? null
+      last_reply_at: p.last_reply_at ?? null,
+      author_presentation_tokens: p.author?.presentation_tokens ?? null,
+      author_avatar_attachment_id: p.author?.avatar_attachment_id ?? null,
+      participants: (p.participants ?? []).map((u) => ({
+        id: u.id,
+        username: u.username ?? null,
+        display_name: u.display_name ?? null,
+        avatar_attachment_id: u.avatar_attachment_id ?? null,
+        presentation_tokens: u.presentation_tokens ?? null
+      }))
     };
   }
 
@@ -96,6 +190,8 @@
     try {
       const params = new URLSearchParams({ limit: '8' });
       if (data.sort) params.set('sort', data.sort);
+      if (data.boardId) params.set('board_id', data.boardId);
+      if (data.tag) params.set('tag', data.tag);
       params.set('after', cursor);
       const response = await fetch(`/api/v1/posts?${params.toString()}`, {
         credentials: 'same-origin',
@@ -128,75 +224,75 @@
   }}
 />
 
+<svelte:window onkeydown={handleMobileSheetKeydown} />
+
 <div class="container" id="page-home">
   <h1 class="sr-only">首页</h1>
 
-  <!-- 原型移动端首页 Hero（桌面隐藏） -->
-  <div class="mobile-hero">
-    <a class="mobile-doc-link" href="/" aria-label="打开社区规范"><Icon name="book-open" size={14} /><span>规范</span></a>
-    <a class="mobile-search-link" href="/search" aria-label="搜索帖子、用户或标签"><Icon name="search" size={16} /></a>
-    <div class="mobile-logo">{site.siteName}</div>
-    <div class="hero-stats">
-      <button type="button">成员 <b>{formatCount(data.stats?.members ?? 128)}</b></button>
-      <button type="button">内容 <b>{formatCount(totalPosts)}</b></button>
-      <button type="button" onclick={() => navigator.clipboard?.writeText(location.href)}><Icon name="share-2" size={16} /> 分享</button>
-    </div>
-  </div>
+  <!-- 顶部板块快捷滑动条（小屏友好，单轨无缝响应） -->
+  <nav class="home-category-bar" aria-label="板块快捷导航">
+    <a href="/" class="home-cat-chip {!data.sort ? 'active' : ''}">
+      <span>全部</span>
+      <em class="home-cat-chip__count">{formatCount(totalPosts)}</em>
+    </a>
+    {#each boards as board (board.id)}
+      {@const visuals = boardVisuals(board.slug, board.icon)}
+      <a href="/boards/{board.slug}" class="home-cat-chip">
+        <span class="home-cat-chip__icon" style="color:{visuals.color};"><Icon name={visuals.icon} size={13} /></span>
+        <span>{board.name}</span>
+        <em class="home-cat-chip__count">{formatCount(board.post_count)}</em>
+      </a>
+    {/each}
+  </nav>
 
   <div class="proto-home">
-    <!-- 左栏：分类导航（原型 aside.category-card） -->
+    <!-- 左栏：分类导航（大屏展示，平板/移动端隐藏且由上方滑动条承接） -->
     <aside class="category-card" aria-label="板块分类">
       <a class="selected" href="/">
         <b>全部</b><em>{formatCount(totalPosts)}</em>
       </a>
       {#each boards as board (board.id)}
+        {@const visuals = boardVisuals(board.slug, board.icon)}
         <a href="/boards/{board.slug}">
-          {board.name}<em>{formatCount(board.post_count)}</em>
+          <span class="cat-name">
+            <span class="cat-name__icon" style="color:{visuals.color};"><Icon name={visuals.icon} size={15} /></span>
+            {board.name}
+          </span>
+          <em>{formatCount(board.post_count)}</em>
         </a>
       {/each}
     </aside>
 
     <!-- 中栏：信息流（原型 section.feed） -->
     <section class="feed" aria-label="最新讨论">
-      <div class="mobile-categories" aria-label="移动端分类">
-        <a href="/" class="mobile-cat-btn {data.sort === '' ? 'active' : ''}">全部</a>
-        {#each boards as board (board.id)}
-          <a href="/boards/{board.slug}" class="mobile-cat-btn">{board.name}</a>
-        {/each}
-        <button
-          type="button"
-          class="list"
-          aria-label="全部分类"
-          aria-expanded={showMobileCategories}
-          onclick={() => (showMobileCategories = !showMobileCategories)}
-        >
-          <Icon name={showMobileCategories ? 'x' : 'menu'} size={18} />
-        </button>
-      </div>
-
-      {#if showMobileCategories}
-        <div class="mobile-category-drawer" role="dialog" aria-label="全部分类列表">
-          <div class="mobile-category-drawer__header">
-            <span>全部分类</span>
-            <button type="button" class="close-btn" onclick={() => (showMobileCategories = false)} aria-label="关闭分类">
-              <Icon name="x" size={16} />
-            </button>
-          </div>
-          <div class="mobile-category-drawer__list">
-            <a href="/" class="mobile-category-drawer__item {data.sort === '' ? 'active' : ''}" onclick={() => (showMobileCategories = false)}>
-              <b>全部</b>
-              <em>{formatCount(totalPosts)}</em>
-            </a>
-            {#each boards as board (board.id)}
-              <a href="/boards/{board.slug}" class="mobile-category-drawer__item" onclick={() => (showMobileCategories = false)}>
-                <b>{board.name}</b>
-                <em>{formatCount(board.post_count)}</em>
-              </a>
-            {/each}
-          </div>
-        </div>
-      {/if}
       <div class="feed-toolbar">
+        <!-- 移动端：仅保留类别入口 + 排序；标签经「发现」/标签页浏览 -->
+        <nav class="mobile-home-controls" aria-label="浏览筛选入口">
+          <a
+            href="/boards"
+            class="mobile-home-control"
+            class:active={!!selectedBoard}
+            onclick={(event) => {
+              event.preventDefault();
+              openMobileSheet('categories');
+            }}
+          >
+            <span>{selectedBoard?.name ?? '类别'}</span>
+            <Icon name="chevron-down" size={14} />
+          </a>
+          <span class="mobile-home-controls__divider" aria-hidden="true"></span>
+          <a
+            href={activeSortTab?.href ?? '/'}
+            class="mobile-home-sort-control"
+            onclick={(event) => {
+              event.preventDefault();
+              openMobileSheet('sort');
+            }}
+          >
+            <span>{activeSortTab?.label ?? '最新'}</span>
+            <Icon name="chevron-down" size={14} />
+          </a>
+        </nav>
         <nav class="filters" aria-label="帖子筛选">
           {#each sortTabs as tab (tab.value)}
             <a
@@ -208,63 +304,27 @@
             </a>
           {/each}
         </nav>
-        <a class="publish" href="/editor">发布内容</a>
+        <a
+          class="publish"
+          href={authed ? '/?compose=1' : `/login?next=${encodeURIComponent('/?compose=1')}`}
+        >
+          {authed ? '发布内容' : '登录后发布'}
+        </a>
+        <!-- 移动端：FAB 是唯一发布入口，工具条右侧保留搜索图标位 -->
+        <a class="feed-search" href="/search" aria-label="搜索" title="搜索">
+          <Icon name="search" size={18} />
+        </a>
       </div>
 
-      <div class="thread-list">
-        {#each posts as post (post.id)}
-          {@const author = post.author_name ?? '匿名'}
-          {@const bName = boardName(post.board_id)}
-          <article class="thread {post.is_featured ? 'featured' : ''}">
-            <Avatar name={author} size="lg" />
-            <div class="thread-body">
-              <div class="thread-meta">
-                <b>{author}</b>
-                <span>· {formatRelative(post.created_at)}</span>
-                {#if post.is_featured}<i>精华</i>{/if}
-              </div>
-              <a class="thread-detail-link" href="/posts/{encodeURIComponent(post.id)}">
-                <h2>{post.title}</h2>
-                {#if post.summary}<p>{post.summary}</p>{/if}
-              </a>
-              <div class="thread-footer">
-                {#if bName}<span>{bName}</span>{/if}
-                <span class="thread-likes" style="display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--color-text-tertiary);" aria-label="{formatCount(post.like_count ?? 0)} 人点赞">
-                  <Icon name="heart" size={13} />
-                  {formatCount(post.like_count ?? 0)}
-                </span>
-                <a
-                  class="thread-comment-link"
-                  href="/posts/{encodeURIComponent(post.id)}"
-                  aria-label="查看回复"
-                  style="display:inline-flex;align-items:center;gap:3px;"
-                >
-                  <Icon name="message-square" size={13} />
-                  {formatCount(post.reply_count)}
-                </a>
-              </div>
-            </div>
-          </article>
-        {/each}
-        {#if posts.length === 0}
-          <div class="thread-empty">
-            <div class="empty-state-title">
-              {data.sort === 'featured'
-                ? '暂无精华帖'
-                : data.sort === 'following'
-                  ? '暂无关注动态'
-                  : data.sort === 'popular'
-                    ? '暂无热门帖'
-                    : '暂无帖子'}
-            </div>
-            <p class="empty-state-desc">成为第一个发帖的人吧！</p>
-            <a class="empty-state-cta" href="/editor">
-              <Icon name="plus" size={15} />
-              <span>发布第一篇内容</span>
-            </a>
-          </div>
-        {/if}
-      </div>
+      <TopicList
+        rows={listRows}
+        {emptyTitle}
+        emptyDesc="成为第一个发帖的人吧！"
+        emptyCta={{
+          href: authed ? '/?compose=1' : `/login?next=${encodeURIComponent('/?compose=1')}`,
+          label: authed ? '发布第一篇内容' : '登录后发布内容'
+        }}
+      />
 
       {#if cursor}
         <a class="load-more" href={loadMoreHref} onclick={(event) => void loadMore(event)}>
@@ -298,11 +358,11 @@
       </section>
 
       <section class="stats-card community-service" aria-label="社区服务">
-        <h2>社区服务</h2>
+        <h2>{authed ? '社区服务' : '快捷入口'}</h2>
         <nav class="service-links" aria-label="快捷入口">
-          <a href="/editor">
+          <a href={authed ? '/?compose=1' : `/login?next=${encodeURIComponent('/?compose=1')}`}>
             <span class="service-links__icon"><Icon name="edit-3" size={16} /></span>
-            <span><b>发布内容</b><small>分享观点与创作</small></span>
+            <span><b>{authed ? '发布内容' : '登录发布'}</b><small>{authed ? '分享观点与创作' : '登录后开始创作'}</small></span>
             <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
           </a>
           <a href="/boards">
@@ -310,11 +370,19 @@
             <span><b>浏览板块</b><small>发现感兴趣的讨论</small></span>
             <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
           </a>
-          <a href="/achievements">
-            <span class="service-links__icon"><Icon name="trophy" size={16} /></span>
-            <span><b>成就墙</b><small>查看成长与勋章</small></span>
-            <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
-          </a>
+          {#if authed}
+            <a href="/achievements">
+              <span class="service-links__icon"><Icon name="trophy" size={16} /></span>
+              <span><b>成就墙</b><small>查看成长与勋章</small></span>
+              <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
+            </a>
+          {:else}
+            <a href="/login">
+              <span class="service-links__icon"><Icon name="log-in" size={16} /></span>
+              <span><b>登录 / 注册</b><small>加入社区交流讨论</small></span>
+              <span class="service-links__arrow"><Icon name="chevron-right" size={14} /></span>
+            </a>
+          {/if}
         </nav>
       </section>
 
@@ -323,10 +391,101 @@
   </div>
 </div>
 
+{#if mobileSheet}
+  <div class="mobile-sheet-root">
+    <button type="button" class="mobile-sheet-backdrop" aria-label="关闭筛选" onclick={closeMobileSheet}></button>
+    <div class="mobile-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-sheet-title">
+      <div class="mobile-sheet-handle" aria-hidden="true"></div>
+      <header class="mobile-sheet-header">
+        <h2 id="mobile-sheet-title">{mobileSheetTitle}</h2>
+        <button type="button" class="mobile-sheet-close" aria-label="关闭筛选" onclick={closeMobileSheet}>
+          <Icon name="x" size={18} />
+        </button>
+      </header>
+
+      {#if mobileSheet === 'categories'}
+        <div class="mobile-sheet-list" role="listbox" aria-label="选择类别">
+          <a
+            href={homeHref({ boardId: null })}
+            class:selected={!data.boardId}
+            class="mobile-sheet-option"
+            onclick={closeMobileSheet}
+          >
+            <span class="mobile-sheet-option__main"><Icon name="layout-dashboard" size={17} />全部类别</span>
+            <span class="mobile-sheet-option__meta">{formatCount(totalPosts)}</span>
+          </a>
+          {#each boards as board (board.id)}
+            {@const visuals = boardVisuals(board.slug, board.icon)}
+            <a
+              href={homeHref({ boardId: board.id })}
+              class:selected={data.boardId === board.id}
+              class="mobile-sheet-option"
+              onclick={closeMobileSheet}
+            >
+              <span class="mobile-sheet-option__main"><span style="display:inline-flex;color:{visuals.color};"><Icon name={visuals.icon} size={17} /></span>{board.name}</span>
+              {#if typeof board.post_count === 'number'}
+                <span class="mobile-sheet-option__meta">{formatCount(board.post_count)}</span>
+              {/if}
+            </a>
+          {/each}
+        </div>
+      {:else if mobileSheet === 'tags'}
+        <div class="mobile-sheet-list" role="listbox" aria-label="选择标签">
+          <a
+            href={homeHref({ tag: null })}
+            class:selected={!data.tag}
+            class="mobile-sheet-option"
+            onclick={closeMobileSheet}
+          >
+            <span class="mobile-sheet-option__main"><Icon name="tag" size={17} />全部标签</span>
+            <span class="mobile-sheet-option__meta">{formatCount(data.tags.length)}</span>
+          </a>
+          {#each data.tags as tag (tag.id)}
+            <a
+              href={homeHref({ tag: tag.slug })}
+              class:selected={data.tag === tag.slug}
+              class="mobile-sheet-option"
+              onclick={closeMobileSheet}
+            >
+              <span class="mobile-sheet-option__main"><Icon name="tag" size={17} />{tag.name}</span>
+              <span class="mobile-sheet-option__meta">{formatCount(tag.usage_count)}</span>
+            </a>
+          {:else}
+            <div class="mobile-sheet-empty">暂时没有可用标签</div>
+          {/each}
+        </div>
+      {:else}
+        <div class="mobile-sheet-list" role="listbox" aria-label="选择排序">
+          {#each sortTabs as tab (tab.value)}
+            <a
+              href={tab.href}
+              class:selected={data.sort === tab.value}
+              class="mobile-sheet-option"
+              onclick={closeMobileSheet}
+            >
+              <span class="mobile-sheet-option__main"><Icon name={tab.value === 'popular' ? 'flame' : tab.value === 'featured' ? 'star' : tab.value === 'following' ? 'users' : 'clock'} size={17} />{tab.label}</span>
+              {#if data.sort === tab.value}<Icon name="check" size={17} />{/if}
+            </a>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
+{#if composeOpen}
+  <TopicComposer />
+{/if}
+
 <style>
   /* 原型 .layout：内容宽 1420、左右 10px 内边距（高密度） */
   .container {
     padding-inline: 10px;
+  }
+
+  /* 工具条搜索入口：仅移动端展示（≤767px 由 mobile.css 启用），桌面隐藏 */
+  .feed-search {
+    display: none;
   }
 
   /* ===== 三栏骨架（原型 #page-home：260px | 1fr | 300px，gap 20）===== */
@@ -373,6 +532,27 @@
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
   }
+  /* 板块行：持久化图标（boards.icon，回退 slug 映射）+ 名称 */
+  .category-card .cat-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* 图标容器自身为 flex：svg 脱离文本基线排版，与 CJK 文字几何居中
+     （inline span 直包 svg 会因基线降部空隙整体偏高）。 */
+  .category-card .cat-name__icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+  }
+  .category-card .cat-name :global(svg) {
+    flex: 0 0 auto;
+    display: block;
+  }
 
   /* ===== 中栏：信息流 ===== */
   .feed-toolbar {
@@ -414,7 +594,7 @@
     border: 0;
     border-radius: 2px;
     background: var(--color-brand);
-    color: #fff;
+    color: #07151a;
     font-size: 14px;
     font-weight: 500;
     padding: 8px 20px;
@@ -427,112 +607,6 @@
     background: var(--color-brand-hover);
   }
 
-  .thread-list {
-    margin-top: 12px;
-    background: var(--color-bg-card);
-    border: var(--border-default);
-    border-radius: 0;
-    overflow: hidden;
-  }
-  .thread {
-    display: flex;
-    gap: 13px;
-    padding: 14px 16px;
-    border-bottom: var(--border-thin);
-    background: transparent;
-    border-radius: 0;
-    transition: background 0.12s;
-  }
-  .thread:hover {
-    background: var(--color-surface-hover);
-  }
-  .thread:last-child {
-    border-bottom: none;
-  }
-  .thread-body {
-    flex: 1;
-    min-width: 0;
-  }
-  .thread-detail-link {
-    display: block;
-    color: inherit;
-    text-decoration: none;
-  }
-  .thread-detail-link h2 {
-    font-size: 16px;
-    font-weight: var(--weight-semibold);
-    line-height: 1.6;
-    margin: 0 0 6px;
-    color: var(--color-text-primary);
-  }
-  .thread-detail-link:hover h2 {
-    color: var(--color-brand);
-  }
-  .thread-detail-link p {
-    color: var(--color-text-secondary);
-    line-height: 1.75;
-    margin: 0;
-    font-size: 14px;
-  }
-  .thread-meta {
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-  }
-  .thread-meta span {
-    color: var(--color-text-tertiary);
-    margin-left: 5px;
-  }
-  .thread-meta i {
-    background: var(--color-brand-soft);
-    color: var(--color-brand);
-    font-style: normal;
-    font-size: 11px;
-    padding: 2px 5px;
-    margin-left: 8px;
-    border-radius: 4px;
-  }
-  .thread-footer {
-    margin-top: 13px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    color: var(--color-text-tertiary);
-    font-size: 13px;
-    white-space: nowrap;
-  }
-  .thread-footer span {
-    color: var(--color-text-tertiary);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .thread-footer > * {
-    padding: 5px 0;
-  }
-  .thread-comment-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--color-text-secondary);
-    text-decoration: none;
-    flex: 0 0 auto;
-  }
-  .thread-comment-link:hover {
-    color: var(--color-brand);
-  }
-  .thread-empty {
-    padding: 48px 24px;
-    text-align: center;
-  }
-  .empty-state-title {
-    font-size: var(--text-base);
-    font-weight: var(--weight-medium);
-  }
-  .empty-state-desc {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    margin: var(--space-2) 0 0;
-  }
   .load-more {
     margin: 4px auto 0;
     display: flex;
@@ -686,300 +760,100 @@
     line-height: 1.8;
   }
 
-  .empty-state-cta {
+  /* ===== 板块快捷滑动条（小屏优先展示，大屏有左侧导航栏故隐藏） ===== */
+  .home-category-bar {
+    display: none;
+    align-items: center;
+    gap: var(--space-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--space-2) 0;
+    margin-bottom: var(--space-3);
+  }
+  .home-category-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .home-cat-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-top: 14px;
-    padding: 8px 18px;
-    border-radius: var(--radius-sm);
-    background: var(--color-brand);
-    color: #fff;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
     font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
+    font-weight: 500;
     text-decoration: none;
-    transition: background var(--duration-fast);
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
   }
-  .empty-state-cta:hover {
-    background: var(--color-brand-hover);
+  .home-cat-chip:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
   }
-
-  .mobile-hero,
-  .mobile-categories {
-    display: none;
+  .home-cat-chip.active {
+    background: var(--color-brand);
+    color: var(--color-text-on-brand);
+    font-weight: 600;
+  }
+  .home-cat-chip__count {
+    font-style: normal;
+    font-size: 11px;
+    opacity: 0.8;
+  }
+  /* chip 板块图标：持久化 boards.icon（回退 slug 映射），active 态保持板块色可辨 */
+  .home-cat-chip__icon {
+    display: inline-flex;
+    align-items: center;
+  }
+  .home-cat-chip__icon :global(svg) {
+    flex: 0 0 auto;
   }
 
   @media (max-width: 999px) {
-    .proto-home { grid-template-columns: 200px minmax(0, 1fr); }
-    .right-rail { display: none; }
+    .home-category-bar {
+      display: flex;
+    }
+    .proto-home {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 0;
+      gap: 0;
+    }
+    .category-card {
+      display: none;
+    }
+    .right-rail {
+      display: none;
+    }
   }
+
   @media (max-width: 767px) {
-    .container { padding-inline: 0 !important; }
-    .mobile-hero {
-      position: relative;
-      display: block;
-      height: 160px;
-      padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 0;
-      box-sizing: border-box;
-      background: linear-gradient(168deg, var(--color-brand) 0%, color-mix(in srgb, var(--color-brand) 75%, #000) 100%);
-      color: #fff;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-      overflow: hidden;
-    }
-    .mobile-logo {
-      position: absolute !important;
-      top: calc(50px + env(safe-area-inset-top, 0px)) !important;
-      left: 0 !important;
-      right: 0 !important;
-      width: auto !important;
-      height: 34px !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      line-height: 34px !important;
-      text-align: center;
-      font-size: 28px;
-      font-weight: 700;
-      font-family: var(--font-family-serif);
-      letter-spacing: 0.14em;
-      color: #fff;
-      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
-    }
-    .mobile-search-link {
-      position: absolute;
-      top: calc(14px + env(safe-area-inset-top, 0px));
-      right: 16px;
-      width: 38px;
-      height: 38px;
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.18);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      color: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-      transition: all 0.15s ease;
-    }
-    .mobile-search-link:active {
-      transform: scale(0.93);
-      background: rgba(255, 255, 255, 0.28);
-    }
-    .hero-stats {
-      position: absolute !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 12px !important;
-      width: auto !important;
-      height: 34px !important;
-      margin: 0 !important;
-      padding: 0 12px !important;
-      box-sizing: border-box !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      gap: 8px !important;
-      border-top: none !important;
-    }
-    .hero-stats button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      height: 30px;
-      padding: 0 12px;
-      border: 0;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.14);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      color: rgba(255, 255, 255, 0.92);
-      font-size: 12px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.15s ease;
-    }
-    .hero-stats button:active {
-      background: rgba(255, 255, 255, 0.24);
-      transform: scale(0.96);
-    }
-    .hero-stats button + button {
-      border-left: none;
-    }
-    .hero-stats b {
-      color: #fff;
-      font-weight: 700;
-      margin-left: 2px;
-    }
-    .proto-home { grid-template-columns: minmax(0, 1fr); padding: 0; gap: 0; }
-    .category-card { display: none; }
-    .mobile-categories {
-      display: flex;
-      align-items: center;
-      height: 48px;
-      padding: 0 12px;
-      border-bottom: 1px solid var(--color-border-thin, var(--color-border));
-      background: var(--color-bg-card);
-      gap: 8px;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-    }
-    .mobile-categories::-webkit-scrollbar { display: none; }
-    .mobile-cat-btn {
-      display: inline-flex;
-      align-items: center;
-      height: 32px;
-      padding: 0 14px;
-      border-radius: 9999px;
-      border: none;
-      border-bottom: none;
-      background: var(--color-bg-subtle);
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 500;
-      white-space: nowrap;
-      flex-shrink: 0;
-      transition: all 0.15s ease;
-    }
-    .mobile-cat-btn.active {
-      color: #fff;
-      background: var(--color-brand);
-      font-weight: 600;
-      box-shadow: 0 2px 8px color-mix(in srgb, var(--color-brand) 30%, transparent);
-    }
-    .mobile-categories .list {
-      min-width: 32px;
-      width: 32px;
-      height: 32px;
-      margin-left: auto;
-      border: 0;
-      border-radius: 50%;
-      background: var(--color-bg-subtle);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-      transition: all 0.15s ease;
-    }
-    .mobile-category-drawer {
-      background: var(--color-bg-card);
-      border-bottom: var(--border-default);
-      box-shadow: var(--shadow-dropdown);
-      padding: 12px 16px 16px;
-    }
-    .mobile-category-drawer__header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-      font-size: var(--text-xs);
-      font-weight: 600;
-      color: var(--color-text-tertiary);
-      text-transform: uppercase;
-    }
-    .mobile-category-drawer__header .close-btn {
-      border: 0;
-      background: transparent;
-      color: var(--color-text-tertiary);
-      cursor: pointer;
-      padding: 4px;
-      display: grid;
-      place-items: center;
-    }
-    .mobile-category-drawer__list {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .mobile-category-drawer__item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      background: var(--color-bg-page);
-      border: var(--border-default);
-      border-radius: 2px;
-      text-decoration: none;
-      color: var(--color-text-primary);
-      font-size: 14px;
-    }
-    .mobile-category-drawer__item.active {
-      border-color: var(--color-brand);
-      color: var(--color-brand);
-      font-weight: 600;
-    }
-    .mobile-category-drawer__item em {
-      font-style: normal;
-      font-size: 12px;
-      color: var(--color-text-tertiary);
+    .container {
+      padding-inline: var(--space-3);
     }
     .feed-toolbar {
-      position: sticky;
-      top: 0;
-      z-index: 14;
-      height: 44px;
-      min-height: 44px;
+      height: 48px;
       padding: 0 12px;
-      border-top: 0;
-      border-bottom: 1px solid var(--color-border-thin, var(--color-border));
-      border-radius: 0;
-      background: var(--color-bg-card);
+      border-radius: var(--aui-radius-sm, 4px);
     }
     .filters {
       gap: 16px;
       overflow-x: auto;
       scrollbar-width: none;
-      display: flex;
-      align-items: center;
     }
-    .filters::-webkit-scrollbar { display: none; }
+    .filters::-webkit-scrollbar {
+      display: none;
+    }
     .filter-btn {
-      min-height: 44px;
-      height: 44px;
-      padding: 0 4px;
+      padding: 12px 0;
       font-size: 14px;
-      color: var(--color-text-secondary);
-      border-bottom: 2px solid transparent;
-      display: inline-flex;
-      align-items: center;
       white-space: nowrap;
-      text-decoration: none;
     }
-    .filter-btn.active {
-      color: var(--color-brand);
-      font-weight: 600;
-      border-bottom-color: var(--color-brand);
+    .publish {
+      display: none !important;
     }
-    .publish { display: none !important; }
-    .thread-list {
-      margin-top: 0;
-      border-radius: 0;
-      border-left: 0;
-      border-right: 0;
-    }
-    .thread {
-      padding: 15px 16px;
-    }
-    .thread-detail-link h2 {
-      font-size: 16px;
-      line-height: 1.45;
-      margin: 4px 0 6px;
-    }
-    .thread-detail-link p {
-      font-size: 13px;
-      line-height: 1.55;
-    }
-    .thread-footer {
-      gap: 12px;
-      margin-top: 10px;
-    }
-    .thread-footer span:first-child {
-      max-width: 45vw;
-    }
-    .mobile-hero { display: block !important; }
   }
 </style>

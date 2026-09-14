@@ -69,9 +69,14 @@ describe('M13-THEME theme-tokens.css 契约', () => {
     ]) {
       expect(css).toContain(`${v}: `);
     }
-    // 字体
+    // 字体：规范化全站字族体系（优先 Inter Tight 与 IBM Plex Mono，并映射 serif 与 AUI 变量）
     expect(css).toContain('--font-family-base: var(--bb-font-body');
+    expect(css).toContain('"Inter Tight Variable"');
     expect(css).toContain('--font-family-mono: var(--bb-font-mono');
+    expect(css).toContain('"IBM Plex Mono"');
+    expect(css).toContain('--font-family-serif:');
+    expect(css).toContain('--aui-font-ui: var(--font-family-base)');
+    expect(css).toContain('--aui-font-mono: var(--font-family-mono)');
     // 圆角：control → sm/md，card → lg/xl
     expect(css).toContain('--radius-sm: var(--bb-radius-control');
     expect(css).toContain('--radius-md: var(--bb-radius-control');

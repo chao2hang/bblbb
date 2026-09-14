@@ -10,10 +10,11 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed } from '$lib/api/server';
-import type { Entitlement, Presentation } from '$lib/api/types';
+import type { Entitlement, Presentation, User } from '$lib/api/types';
 
 export interface WardrobePageData {
   presentation: Presentation | null;
+  user?: User | null;
   entitlements: Entitlement[];
   error: string | null;
 }
@@ -30,13 +31,19 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   const presResult = await getAuthed<Presentation>(cookies, '/api/v1/me/presentation', requestId);
   if (!presResult.ok && presResult.status === 401) throw redirect(303, '/login');
   if (!presResult.ok) {
-    return { presentation: null, entitlements: [], error: presResult.message } satisfies WardrobePageData;
+    return { presentation: null, user: null, entitlements: [], error: presResult.message } satisfies WardrobePageData;
   }
-  const entResult = await getAuthed<{ items: Entitlement[] }>(cookies, '/api/v1/me/entitlements', requestId);
+  const entResult = await getAuthed<{ entitlements?: Entitlement[]; items?: Entitlement[] }>(cookies, '/api/v1/me/entitlements', requestId);
   if (!entResult.ok) {
-    return { presentation: presResult.data, entitlements: [], error: entResult.message } satisfies WardrobePageData;
+    return { presentation: presResult.data, user: null, entitlements: [], error: entResult.message } satisfies WardrobePageData;
   }
-  return { presentation: presResult.data, entitlements: entResult.data.items ?? [], error: null } satisfies WardrobePageData;
+  const meResult = await getAuthed<User>(cookies, '/api/v1/me', requestId);
+  return {
+    presentation: presResult.data,
+    user: meResult?.ok ? meResult.data : null,
+    entitlements: entResult.data.entitlements ?? entResult.data.items ?? [],
+    error: null
+  } satisfies WardrobePageData;
 };
 
 async function runEquip(

@@ -9,6 +9,7 @@ import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, authedPatch, getAuthed } from '$lib/api/server';
 import { adminListStateKeyed, type AdminLoadState } from '$lib/admin';
+import { parseBatchIds, batchResult, type BatchOutcome } from '$lib/admin-batch';
 import type { ShopConfig, ShopOrder, ShopProduct, Money } from '$lib/api/types';
 
 export interface AdminShopPageData {
@@ -62,6 +63,8 @@ const PRODUCT_FIELDS = [
   'title',
   'description_safe',
   'icon_token',
+  'presentation_tokens',
+  'asset_attachment_id',
   'slot',
   'currency_id',
   'unit_price',
@@ -89,6 +92,8 @@ function productBody(form: FormData): Record<string, unknown> {
       body[field] = value === 'null' ? null : Number(value);
     } else if (field === 'validity_seconds' || field === 'sale_start_at' || field === 'sale_end_at') {
       body[field] = value === 'null' || value === '0' ? null : Number(value);
+    } else if (field === 'presentation_tokens') {
+      body[field] = value.split(',').map((token) => token.trim()).filter(Boolean);
     } else {
       body[field] = value;
     }
@@ -207,6 +212,34 @@ export const actions: Actions = {
       return fail(503, { message: '发布失败，请稍后重试' } satisfies AdminShopActionData);
     }
   },
+  /** 批量上架（M18-ADMIN-BATCH）：循环调用 publish 单条端点（无 If-Match，
+   * 与单条 publish action 完全一致），逐条汇总成败。 */
+  batchPublish: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const ids = parseBatchIds(form);
+    if (ids.length === 0) {
+      return fail(422, { message: '未选择任何商品' } satisfies AdminShopActionData);
+    }
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const id of ids) {
+      try {
+        const r = await authedPost<ShopProduct>(
+          cookies,
+          `/api/v1/admin/shop/products/${encodeURIComponent(id)}/publish`,
+          {},
+          request.headers.get('x-request-id')
+        );
+        if (r.ok) outcome.okCount++;
+        else outcome.failures.push({ id, message: r.message });
+      } catch {
+        outcome.failures.push({ id, message: '网络错误' });
+      }
+    }
+    const r = batchResult(outcome, '批量上架');
+    return r.ok
+      ? { message: r.message } satisfies AdminShopActionData
+      : fail(r.status, { message: r.message } satisfies AdminShopActionData);
+  },
   disable: async ({ request, cookies }) => {
     const form = await request.formData();
     const id = String(form.get('id') ?? '').trim();
@@ -230,6 +263,38 @@ export const actions: Actions = {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '停售失败，请稍后重试' } satisfies AdminShopActionData);
     }
+  },
+  /** 批量下架（M18-ADMIN-BATCH）：循环调用 disable 单条端点（POST { reason }，
+   * 无 If-Match，与单条 disable action 完全一致），同一原因逐条写审计。 */
+  batchDisable: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const ids = parseBatchIds(form);
+    const reason = String(form.get('reason') ?? '').trim();
+    if (ids.length === 0) {
+      return fail(422, { message: '未选择任何商品' } satisfies AdminShopActionData);
+    }
+    if (!reason) {
+      return fail(422, { message: '停售原因必填（写审计）' } satisfies AdminShopActionData);
+    }
+    const outcome: BatchOutcome = { okCount: 0, failures: [] };
+    for (const id of ids) {
+      try {
+        const r = await authedPost<ShopProduct>(
+          cookies,
+          `/api/v1/admin/shop/products/${encodeURIComponent(id)}/disable`,
+          { reason },
+          request.headers.get('x-request-id')
+        );
+        if (r.ok) outcome.okCount++;
+        else outcome.failures.push({ id, message: r.message });
+      } catch {
+        outcome.failures.push({ id, message: '网络错误' });
+      }
+    }
+    const r = batchResult(outcome, '批量下架');
+    return r.ok
+      ? { message: r.message } satisfies AdminShopActionData
+      : fail(r.status, { message: r.message } satisfies AdminShopActionData);
   },
   refund: async ({ request, cookies }) => {
     const form = await request.formData();

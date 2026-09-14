@@ -109,7 +109,7 @@
 
   <PageTitle title="成就墙" />
 
-<div class="container page-content">
+<div class="container page-content" id="page-achievements">
   <!-- 原型对齐（prototype/pages/achievements.html）：仅 sr-only h1，无可见页头、无面包屑。 -->
   <h1 class="sr-only" tabindex="-1">成就墙</h1>
 
@@ -197,6 +197,20 @@
           <div class="card achievement-card" class:is-locked={!card.unlocked}>
             <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
               <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+                {#if card.iconUrl}
+                  <!-- 后台上传的成就图标（本地磁盘存储，不走 S3）；隐藏且未解锁
+                       不展示，避免提前泄露成就配置。 -->
+                  {#if !(card.isHidden && !card.unlocked)}
+                    <img
+                      src={card.iconUrl}
+                      alt="{card.name} 图标"
+                      width="40"
+                      height="40"
+                      loading="lazy"
+                      style="width:40px;height:40px;border-radius:12px;object-fit:cover;border:1px solid var(--color-border);background:var(--color-bg-subtle);"
+                    />
+                  {/if}
+                {/if}
                 <span class="achievement-name" class:is-unknown={card.isHidden && !card.unlocked}>
                   {card.name}
                 </span>
@@ -222,7 +236,7 @@
               {/if}
               <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);">
                 <span class="text-secondary" style="font-size:var(--text-sm);">
-                  +{card.rewardExp} 经验 · +{card.rewardCoin} 积分
+                  +{card.rewardCoin} 积分
                 </span>
                 {#if card.unlocked}
                   {#if card.equipped}

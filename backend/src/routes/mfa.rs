@@ -104,11 +104,20 @@ async fn mfa_confirm(
     }
     let code = req.code.trim();
     if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(AppError::bad_request(
+        // 400 为契约声明状态；稳定码 mfa_confirm_invalid +
+        // 字段级 errors[]，前端在 code 字段渲染中文提示。
+        return Err(AppError::with_code(
+            axum::http::StatusCode::BAD_REQUEST,
+            "mfa_confirm_invalid",
+            "Bad Request",
             "invalid TOTP code",
             request_id,
-            Some(json!({ "field": "code" })),
-        ));
+        )
+        .with_errors(Some(json!([{
+            "field": "code",
+            "code": "mfa_confirm_invalid",
+            "message_key": "mfa_confirm_invalid",
+        }]))));
     }
 
     confirm_enrollment(
@@ -244,11 +253,19 @@ async fn re_auth(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     if req.password.is_empty() {
-        return Err(AppError::bad_request(
+        // 422 `validation_failed`（契约 /auth/re-auth 仅声明 401/403/422/429）
+        return Err(AppError::with_code(
+            axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+            "validation_failed",
+            "Unprocessable Entity",
             "password is required",
             request_id,
-            Some(json!({ "field": "password" })),
-        ));
+        )
+        .with_errors(Some(json!([{
+            "field": "password",
+            "code": "validation_failed",
+            "message_key": "password_required",
+        }]))));
     }
 
     // 加载当前用户密码 hash 并验证
@@ -267,16 +284,10 @@ async fn re_auth(
         }
     };
     let Some(hash) = hash else {
-        return Err(AppError::unauthorized(
-            "re-authentication failed",
-            request_id,
-        ));
+        return Err(reauth_failed(request_id));
     };
     if verify_password(&req.password, &hash) != VerifyResult::Ok {
-        return Err(AppError::unauthorized(
-            "re-authentication failed",
-            request_id,
-        ));
+        return Err(reauth_failed(request_id));
     }
 
     // 刷新当前会话 step-up 窗口
@@ -293,17 +304,44 @@ async fn re_auth(
     Ok(JsonResponse(json!({ "ok": true })))
 }
 
+/// re-auth 密码错误 → 401 `reauth_password_invalid`（稳定码注册表）：
+/// 用户停留在 step-up 弹窗内重试，不与「会话缺失」的 unauthorized 混淆。
+#[allow(clippy::result_large_err)]
+fn reauth_failed(request_id: &str) -> AppError {
+    AppError::with_code(
+        axum::http::StatusCode::UNAUTHORIZED,
+        "reauth_password_invalid",
+        "Unauthorized",
+        "re-authentication failed",
+        request_id,
+    )
+}
+
 /// confirm_enrollment 错误 → HTTP 映射（enrollment/code 细节统一，防枚举）。
+/// 400 为契约 `/auth/mfa/confirm` 声明状态：
+/// - `mfa_confirm_invalid`：验证码错误（用户可直接重输）；
+/// - `mfa_enrollment_invalid`：无进行中的 enrollment / 已确认 / TOTP 未启用
+///   （用户需重新开始设置——与「验证码错」区分，提示下一步动作）。
 fn mfa_confirm_error(request_id: &str) -> impl FnOnce(MfaError) -> AppError + '_ {
     move |e| match e {
-        MfaError::NoPendingEnrollment | MfaError::AlreadyConfirmed | MfaError::InvalidCode => {
-            AppError::bad_request("invalid or missing enrollment", request_id, None)
+        MfaError::InvalidCode => AppError::with_code(
+            axum::http::StatusCode::BAD_REQUEST,
+            "mfa_confirm_invalid",
+            "Bad Request",
+            "invalid TOTP code",
+            request_id,
+        ),
+        MfaError::NoPendingEnrollment | MfaError::AlreadyConfirmed | MfaError::TotpNotEnabled => {
+            AppError::with_code(
+                axum::http::StatusCode::BAD_REQUEST,
+                "mfa_enrollment_invalid",
+                "Bad Request",
+                "invalid or missing enrollment",
+                request_id,
+            )
         }
         MfaError::Encryption => AppError::internal("MFA secret decryption failed", request_id),
         MfaError::Database(msg) => AppError::internal(msg, request_id),
-        MfaError::TotpNotEnabled => {
-            AppError::bad_request("invalid or missing enrollment", request_id, None)
-        }
     }
 }
 

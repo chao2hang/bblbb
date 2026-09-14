@@ -40,6 +40,7 @@ pub struct ProfileFields {
     pub profile_visible_to: String,
     /// 乐观并发版本（users.version，0026；每次资料更新 +1）。
     pub version: i64,
+    pub avatar_attachment_id: Option<String>,
 }
 
 impl Default for ProfileFields {
@@ -53,6 +54,7 @@ impl Default for ProfileFields {
             email_visible_to: "nobody".to_string(),
             profile_visible_to: "everyone".to_string(),
             version: 1,
+            avatar_attachment_id: None,
         }
     }
 }
@@ -67,6 +69,7 @@ pub struct ProfileUpdate {
     pub theme_name: Option<String>,
     pub email_visible_to: Option<String>,
     pub profile_visible_to: Option<String>,
+    pub avatar_attachment_id: Option<Option<String>>,
 }
 
 impl ProfileUpdate {
@@ -112,6 +115,11 @@ impl ProfileUpdate {
                 return Err("theme 名称非法（小写 ascii/数字/连字符）".to_string());
             }
         }
+        if let Some(Some(ref v)) = &self.avatar_attachment_id {
+            if uuid::Uuid::parse_str(v).is_err() {
+                return Err("avatar_attachment_id 必须是有效的 UUID".to_string());
+            }
+        }
         for (name, v) in [
             ("email_visible_to", &self.email_visible_to),
             ("profile_visible_to", &self.profile_visible_to),
@@ -148,6 +156,9 @@ impl ProfileUpdate {
         }
         if self.profile_visible_to.is_some() {
             changed.push("profile_visible_to");
+        }
+        if self.avatar_attachment_id.is_some() {
+            changed.push("avatar_attachment_id");
         }
         changed
     }
@@ -192,7 +203,13 @@ fn validate_links(value: &str, field: &str) -> Result<(), String> {
 }
 
 /// users 行投影：(display_name, bio, signature, version)。
-type UserProfileRow = (Option<String>, Option<String>, Option<String>, i64);
+type UserProfileRow = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    i64,
+    Option<String>,
+);
 
 /// 读取本人资料字段（行缺失时返回默认值，不建行——惰性创建发生在写）。
 /// `display_name`/`version` 从 users 表读取（会话缓存的昵称在 PATCH 后会过期）。
@@ -204,17 +221,18 @@ pub async fn load_profile_fields(
     match pool {
         Either::Left(p) => {
             let row: Option<UserProfileRow> = sqlx::query_as(
-                "SELECT display_name, bio, signature, version FROM users WHERE id = ?",
+                "SELECT display_name, bio, signature, version, avatar_attachment_id FROM users WHERE id = ?",
             )
             .bind(&user.id)
             .fetch_optional(p)
             .await
             .map_err(|e| e.to_string())?;
-            if let Some((display_name, bio, signature, version)) = row {
+            if let Some((display_name, bio, signature, version, avatar_attachment_id)) = row {
                 fields.display_name = display_name;
                 fields.bio = bio;
                 fields.signature = signature;
                 fields.version = version;
+                fields.avatar_attachment_id = avatar_attachment_id;
             }
             let pref: Option<(String, Option<String>)> = sqlx::query_as(
                 "SELECT timezone, theme_name FROM user_preferences WHERE user_id = ?",
@@ -241,17 +259,18 @@ pub async fn load_profile_fields(
         }
         Either::Right(p) => {
             let row: Option<UserProfileRow> = sqlx::query_as(
-                "SELECT display_name, bio, signature, version FROM users WHERE id = ?",
+                "SELECT display_name, bio, signature, version, avatar_attachment_id FROM users WHERE id = ?",
             )
             .bind(&user.id)
             .fetch_optional(p)
             .await
             .map_err(|e| e.to_string())?;
-            if let Some((display_name, bio, signature, version)) = row {
+            if let Some((display_name, bio, signature, version, avatar_attachment_id)) = row {
                 fields.display_name = display_name;
                 fields.bio = bio;
                 fields.signature = signature;
                 fields.version = version;
+                fields.avatar_attachment_id = avatar_attachment_id;
             }
             let pref: Option<(String, Option<String>)> = sqlx::query_as(
                 "SELECT timezone, theme_name FROM user_preferences WHERE user_id = ?",
@@ -307,10 +326,31 @@ pub async fn update_profile(
         ),
     };
 
-    // 1. users：display_name/bio/signature（COALESCE 保持缺失字段原值）+
+    // 1. users：display_name/bio/signature/avatar_attachment_id（COALESCE 保持缺失字段原值）+
     //    版本乐观并发（version+1，WHERE version = if_match，过期 → 409）
-    let affected = match &mut tx {
-        Either::Left(t) => sqlx::query(
+    let affected = match (&mut tx, &update.avatar_attachment_id) {
+        (Either::Left(t), Some(avatar_val)) => sqlx::query(
+            "UPDATE users
+             SET display_name = COALESCE(?, display_name),
+                 bio = COALESCE(?, bio),
+                 signature = COALESCE(?, signature),
+                 avatar_attachment_id = ?,
+                 version = version + 1,
+                 updated_at = ?
+             WHERE id = ? AND version = ?",
+        )
+        .bind(&update.display_name)
+        .bind(&update.bio)
+        .bind(&update.signature)
+        .bind(avatar_val.as_deref())
+        .bind(now)
+        .bind(user_id)
+        .bind(if_match)
+        .execute(&mut **t)
+        .await
+        .map_err(|e| ProfileUpdateError::Database(e.to_string()))?
+        .rows_affected(),
+        (Either::Left(t), None) => sqlx::query(
             "UPDATE users
              SET display_name = COALESCE(?, display_name),
                  bio = COALESCE(?, bio),
@@ -329,7 +369,28 @@ pub async fn update_profile(
         .await
         .map_err(|e| ProfileUpdateError::Database(e.to_string()))?
         .rows_affected(),
-        Either::Right(t) => sqlx::query(
+        (Either::Right(t), Some(avatar_val)) => sqlx::query(
+            "UPDATE users
+             SET display_name = COALESCE(?, display_name),
+                 bio = COALESCE(?, bio),
+                 signature = COALESCE(?, signature),
+                 avatar_attachment_id = ?,
+                 version = version + 1,
+                 updated_at = ?
+             WHERE id = ? AND version = ?",
+        )
+        .bind(&update.display_name)
+        .bind(&update.bio)
+        .bind(&update.signature)
+        .bind(avatar_val.as_deref())
+        .bind(now)
+        .bind(user_id)
+        .bind(if_match)
+        .execute(&mut **t)
+        .await
+        .map_err(|e| ProfileUpdateError::Database(e.to_string()))?
+        .rows_affected(),
+        (Either::Right(t), None) => sqlx::query(
             "UPDATE users
              SET display_name = COALESCE(?, display_name),
                  bio = COALESCE(?, bio),

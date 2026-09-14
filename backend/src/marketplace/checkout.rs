@@ -1570,7 +1570,7 @@ async fn ensure_ledger_users_sqlite(
     for (uid, label) in [(merchant.as_str(), "merchant"), (fee, "fee")] {
         sqlx::query(
             "INSERT OR IGNORE INTO users
-             (id, username_normalized, email_normalized, password_hash, status, level, email_verified, created_at, updated_at)
+             (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, created_at, updated_at)
              VALUES (?, ?, ?, '!', 'active', 0, 0, ?, ?)",
         )
         .bind(uid)
@@ -1594,7 +1594,7 @@ async fn ensure_ledger_users_mysql(
     for (uid, label) in [(merchant.as_str(), "merchant"), (fee, "fee")] {
         sqlx::query(
             "INSERT IGNORE INTO users
-             (id, username_normalized, email_normalized, password_hash, status, level, email_verified, created_at, updated_at)
+             (id, username_normalized, email_normalized, password_hash, status, trust_level, email_verified, created_at, updated_at)
              VALUES (?, ?, ?, '!', 'active', 0, 0, ?, ?)",
         )
         .bind(uid)

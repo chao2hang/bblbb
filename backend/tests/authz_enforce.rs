@@ -282,7 +282,7 @@ async fn load_account_gates_reads_user_row() {
     let user_id = insert_user(&pool).await;
     let now = bblbb_backend::outbox::now_millis();
 
-    let gates = bblbb_backend::authz::enforce::load_account_gates(&pool, &user_id)
+    let gates = bblbb_backend::authz::enforce::load_account_gates(&pool, &user_id, None)
         .await
         .expect("加载状态门必须成功");
     assert_eq!(gates.status, AccountStatus::Active);
@@ -290,7 +290,7 @@ async fn load_account_gates_reads_user_row() {
     assert_eq!(gates.cooldown_until, None);
 
     set_email_verified_at(&pool, &user_id, Some(now - 60_000)).await;
-    let gates = bblbb_backend::authz::enforce::load_account_gates(&pool, &user_id)
+    let gates = bblbb_backend::authz::enforce::load_account_gates(&pool, &user_id, None)
         .await
         .expect("加载状态门必须成功");
     assert!(gates.email_verified);

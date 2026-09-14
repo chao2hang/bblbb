@@ -5,8 +5,10 @@
 // 枚举值映射到预定义样式/文案，白名单之外的一律不渲染。
 //
 // 约定：presentation_tokens 为 `{ [slotKey]: value }`（或 badge 数组）。slotKey
-// 与展示槽位一致：nickname_color / nickname_decoration / avatar_frame /
-// avatar_attachment / profile_effect / title_prefix / post_effect / profile_badges。
+// 与展示槽位一致：nickname_color / avatar_frame /
+// profile_effect / post_effect / profile_badges。
+
+import type { PublicPresentationTokens } from '$lib/api/types';
 
 /** 昵称颜色：固定调色板（Token 值必须是其中的 key，白名单之外不渲染）。 */
 export const NICKNAME_COLORS: Record<string, string> = {
@@ -19,19 +21,43 @@ export const NICKNAME_COLORS: Record<string, string> = {
   pink: '#da3633'
 };
 
-/** 昵称装饰（前后缀文本），固定映射。 */
-export const NICKNAME_DECORATIONS: Record<string, { prefix: string; suffix: string }> = {
-  star: { prefix: '✦', suffix: '✦' },
-  diamond: { prefix: '◆', suffix: '◆' },
-  flame: { prefix: '🔥', suffix: '' },
-  crown: { prefix: '♛', suffix: '' }
+/** 昵称颜色展示名（商城/衣柜行内预览与回退文案）。 */
+export const NICKNAME_COLOR_LABELS: Record<string, string> = {
+  blue: '蔚蓝',
+  purple: '紫韵',
+  green: '翠绿',
+  gold: '鎏金',
+  red: '赤红',
+  teal: '青碧',
+  pink: '粉黛'
 };
+
+/** 颜色特效白名单。class 名称在 CosmeticName.svelte 中固定实现。 */
+export const NICKNAME_EFFECTS: Record<string, { label: string; className: string }> = {
+  ...Object.fromEntries(Object.keys(NICKNAME_COLORS).map((key) => [key, { label: key, className: `nickname-solid-${key}` }])),
+  rainbow: { label: '彩虹流光', className: 'nickname-rainbow' },
+  breathing: { label: '呼吸微光', className: 'nickname-breathing' },
+  gradient_sunset: { label: '落日渐变', className: 'nickname-gradient-sunset' },
+  gradient_ocean: { label: '海湾渐变', className: 'nickname-gradient-ocean' },
+  gradient_aurora: { label: '极光渐变', className: 'nickname-gradient-aurora' }
+};
+
+export function nicknameEffectClass(token: unknown): string | null {
+  return typeof token === 'string' && token in NICKNAME_EFFECTS ? NICKNAME_EFFECTS[token].className : null;
+}
 
 /** 头像框：固定 CSS class（样式在 wardrobe 页 scoped 定义），Token 值只做查表。 */
 export const AVATAR_FRAMES: Record<string, string> = {
   gold_ring: 'avatar-frame-gold',
   blue_ring: 'avatar-frame-blue',
   glow: 'avatar-frame-glow'
+};
+
+/** 头像框展示名。 */
+export const AVATAR_FRAME_LABELS: Record<string, string> = {
+  gold_ring: '鎏金之环',
+  blue_ring: '蔚蓝之环',
+  glow: '流光之环'
 };
 
 /** 头像挂件（emoji 图标，固定映射，禁止远程资源）。 */
@@ -51,16 +77,16 @@ export const BADGES: Record<string, { label: string; icon: string }> = {
   active: { label: '活跃达人', icon: '🔥' }
 };
 
-/** 标题前缀（title_prefix）。 */
-export const TITLE_PREFIXES: Record<string, { prefix: string; label: string }> = {
-  night_owl: { prefix: '夜猫子', label: '夜猫子' },
-  warm_heart: { prefix: '热心居民', label: '热心居民' }
-};
-
 /** 主页装饰（profile_effect）：固定类名（背景纹理在 CSS 定义）。 */
 export const PROFILE_EFFECTS: Record<string, string> = {
   sparkle: 'effect-sparkle',
   dark_stars: 'effect-dark-stars'
+};
+
+/** 主页装饰展示名。 */
+export const PROFILE_EFFECT_LABELS: Record<string, string> = {
+  sparkle: '星芒',
+  dark_stars: '暗夜星河'
 };
 
 /** 帖子装饰（post_effect）。 */
@@ -69,14 +95,17 @@ export const POST_EFFECTS: Record<string, string> = {
   thanks: 'post-thanks'
 };
 
+/** 帖子装饰展示名。 */
+export const POST_EFFECT_LABELS: Record<string, string> = {
+  highlight: '高亮',
+  thanks: '感谢'
+};
+
 /** 可渲染的槽位 key 白名单。 */
 export const WARDROBE_SLOT_KEYS = [
   'nickname_color',
-  'nickname_decoration',
   'avatar_frame',
-  'avatar_attachment',
   'profile_effect',
-  'title_prefix',
   'post_effect',
   'profile_badges'
 ] as const;
@@ -87,13 +116,101 @@ export type WardrobeSlotKey = (typeof WARDROBE_SLOT_KEYS)[number];
 export function slotLabel(slot: string): string {
   const map: Record<string, string> = {
     nickname_color: '昵称颜色',
-    nickname_decoration: '昵称装饰',
     avatar_frame: '头像框',
-    avatar_attachment: '头像挂件',
+    profile_badges: '徽章',
+    profile_badge: '徽章', // 兼容早期种子数据的槽位名。
     profile_effect: '主页装饰',
-    title_prefix: '昵称前缀',
-    post_effect: '帖子装饰',
-    profile_badges: '徽章'
+    post_effect: '帖子装饰'
   };
   return map[slot] ?? slot;
+}
+
+/** 规整槽位 key：`profile_badge`（早期种子数据）并入 `profile_badges`。 */
+export function normalizeSlot(slot: string | null | undefined): string {
+  return slot === 'profile_badge' ? 'profile_badges' : slot ?? '';
+}
+
+/** 后端注册 Token 前缀 → 展示值剥离（与后端 SAFE_TOKEN_PREFIXES 对齐）。 */
+const TOKEN_PREFIXES = [
+  'nickname.color.',
+  'avatar.frame.',
+  'profile.effect.',
+  'post.effect.',
+  'badge.',
+  'reaction.pack.'
+] as const;
+
+/** 权益 projection：把后端 Token 字符串数组投影为前端白名单可视化 Token 与中文标签。 */
+export interface EntitlementTokenProjection {
+  /** 可直接传给 CosmeticAvatar/CosmeticName 的白名单 Token（未知值不写入）。 */
+  visual: PublicPresentationTokens;
+  /** 各 Token 的中文展示名（未注册的 Token 跳过，顺序与输入一致）。 */
+  labels: string[];
+}
+
+/**
+ * 把权益携带的 Token 字符串（`nickname.color.gold`、`badge.contributor`…）
+ * 投影为前端白名单 Token + 中文标签。
+ *
+ * 安全模型与 tokens.ts 其余部分一致：只有注册枚举值才会进入 `visual`，
+ * 未知/未授权的 Token 一律不渲染；`asset_attachment_id` 仅在对应头像槽位
+ * （avatar_frame / avatar_attachment）时写入，且由服务端保证是本人可读的
+ * ready 公共 PNG 附件。
+ */
+export function projectEntitlementTokens(
+  tokens: readonly string[] | null | undefined,
+  assetAttachmentId?: string | null,
+  slot?: string | null
+): EntitlementTokenProjection {
+  const visual: PublicPresentationTokens = {};
+  const labels: string[] = [];
+  for (const raw of tokens ?? []) {
+    if (typeof raw !== 'string' || raw.length > 64) continue;
+    const valueOf = (prefix: string): string | null => {
+      if (!raw.startsWith(prefix)) return null;
+      const value = raw.slice(prefix.length);
+      return /^[a-z0-9_]+$/.test(value) ? value : null;
+    };
+    // 每个前缀只允许命中一个分支；值必须在本文件的白名单枚举内。
+    if (raw.startsWith('nickname.color.')) {
+      const v = valueOf('nickname.color.');
+      // 昵称颜色槽位同时容纳纯色（NICKNAME_COLORS）与动态特效
+      // （rainbow/breathing/gradient_*，见 NICKNAME_EFFECTS）。
+      if (v && (v in NICKNAME_COLORS || v in NICKNAME_EFFECTS)) {
+        visual.nickname_color = v;
+        labels.push(NICKNAME_COLOR_LABELS[v] ?? NICKNAME_EFFECTS[v]?.label ?? v);
+      }
+    } else if (raw.startsWith('avatar.frame.')) {
+      const v = valueOf('avatar.frame.');
+      if (v && v in AVATAR_FRAMES) {
+        visual.avatar_frame = v;
+        labels.push(AVATAR_FRAME_LABELS[v] ?? v);
+      }
+    } else if (raw.startsWith('profile.effect.')) {
+      const v = valueOf('profile.effect.');
+      if (v && v in PROFILE_EFFECTS) {
+        visual.profile_effect = v;
+        labels.push(PROFILE_EFFECT_LABELS[v] ?? v);
+      }
+    } else if (raw.startsWith('post.effect.')) {
+      const v = valueOf('post.effect.');
+      if (v && v in POST_EFFECTS) {
+        visual.post_effect = v;
+        labels.push(POST_EFFECT_LABELS[v] ?? v);
+      }
+    } else if (raw.startsWith('badge.')) {
+      const v = valueOf('badge.');
+      if (v && v in BADGES) {
+        visual.profile_badges = [...(visual.profile_badges ?? []), v];
+        labels.push(BADGES[v].label);
+      }
+    } else {
+      continue;
+    }
+  }
+  const asset = typeof assetAttachmentId === 'string' ? assetAttachmentId : null;
+  if (asset && /^[A-Za-z0-9-]{1,64}$/.test(asset)) {
+    if (slot === 'avatar_frame') visual.avatar_frame_attachment_id = asset;
+  }
+  return { visual, labels };
 }

@@ -1,17 +1,17 @@
 {
-  "at": "2026-08-08T07:53:27.604Z",
-  "commit": "e4faf25",
+  "at": "2026-09-12T09:46:30.157Z",
+  "commit": "f185336",
   "home": {
-    "htmlBytes": 154897,
-    "firstScreenMs": 235,
+    "htmlBytes": 657344,
+    "firstScreenMs": 455,
     "imgLazy": 0,
     "imgTotal": 0
   },
   "jsBudget": {
-    "jsBytes": 551815,
+    "jsBytes": 1971563,
     "budgetBytes": 524288,
     "withinBudget": false
   },
-  "peakRssMb": 362,
-  "node": "v26.5.1"
+  "peakRssMb": 835,
+  "node": "v22.23.2"
 }

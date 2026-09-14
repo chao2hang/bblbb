@@ -1,5 +1,7 @@
 # BBLBB — 失败报告模板（M16-RELEASE-TEST-03）
 
+> 历史 RC 模板：随 rc.2 / 2026-08-08 验收资料保留。新 RC 应按当前 [`../../TODO.md`](../../TODO.md) 和 [`README.md`](README.md) 重新生成/复核。
+
 > 每条失败必须链接 operation/task、最小复现命令、日志 artifact 与负责人。
 > 无此信息不关闭失败项。
 

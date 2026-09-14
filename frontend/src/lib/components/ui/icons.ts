@@ -1,11 +1,20 @@
 /* BBLBB 图标集 — 提取自 prototype/js/icons.js (lucide-static, ISC)
  *
- * 维护约定：本表是 Icon.svelte 的固定 allowlist，键名与 lucide-static 图标
- * 文件名一致（lucide-static v0.294.0）。新增图标时从
- * https://unpkg.com/lucide-static/icons/<name>.svg 复制 <svg> 内部元素，
- * 并保持 `<tag attr="v" />` 自闭合格式（parseIconNodes 仅识别该格式）。
- * 页面引用的 icon 名必须存在于本表，否则静默渲染为空白。 */
-export const icons: Record<string, string> = {
+ * 维护约定：Icon.svelte 的固定 allowlist = **手写表（本文件 HAND_ICONS）**
+ * ∪ **lucide 图标目录（icon-catalog.generated.ts，由
+ * `npm run generate:icons` 从 lucide-static 生成）**；同名键以手写表为准。
+ *
+ * - 页面引用的既有图标仍在下方 HAND_ICONS 手工维护：键名与 lucide-static
+ *   图标文件名一致（沿用 lucide-static v0.294.0 提取），新增时从
+ *   https://unpkg.com/lucide-static/icons/<name>.svg 复制 <svg> 内部元素，
+ *   并保持 `<tag attr="v" />` 自闭合格式（parseIconNodes 仅识别该格式）；
+ * - 板块图标等「可挑选」场景走生成目录（含中文分类，供 IconPicker 浏览/
+ *   搜索），不要把手写表当作挑选来源；
+ * - 页面引用的 icon 名必须存在于合并后的表，否则静默渲染为空白。 */
+import { catalogIcons } from './icon-catalog.generated';
+
+/** 手写 allowlist（既有页面图标；与生成目录重名时以此为准）。 */
+const HAND_ICONS: Record<string, string> = {
   "activity": "<path d=\"M22 12h-4l-3 9L9 3l-3 9H2\" />",
   "alert-triangle": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /> <path d=\"M12 9v4\" /> <path d=\"M12 17h.01\" />",
   "at-sign": "<circle cx=\"12\" cy=\"12\" r=\"4\" /> <path d=\"M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8\" />",
@@ -87,6 +96,7 @@ export const icons: Record<string, string> = {
   "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" /> <path d=\"m9 12 2 2 4-4\" />",
   "shopping-bag": "<path d=\"M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z\" /> <path d=\"M3 6h18M16 10a4 4 0 0 1-8 0\" />",
   "smartphone": "<rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\" ry=\"2\" /> <path d=\"M12 18h.01\" />",
+  "fingerprint": "<path d=\"M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4\" /> <path d=\"M14 13.12c0 2.38 0 6.38-1 8.88\" /> <path d=\"M17.29 21.02c.12-.6.43-2.3.5-3.02\" /> <path d=\"M2 12a10 10 0 0 1 18-6\" /> <path d=\"M2 16h.01\" /> <path d=\"M21.8 16c.2-2 .131-5.354 0-6\" /> <path d=\"M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2\" /> <path d=\"M8.65 22c.21-.66.45-1.32.57-2\" /> <path d=\"M9 6.8a6 6 0 0 1 9 5.2v2\" />",
   "smile": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M8 14s1.5 2 4 2 4-2 4-2\" /> <line x1=\"9\" x2=\"9.01\" y1=\"9\" y2=\"9\" /> <line x1=\"15\" x2=\"15.01\" y1=\"9\" y2=\"9\" />",
   "sparkles": "<path d=\"m12 3-1.5 4.5L6 9l4.5 1.5L12 15l1.5-4.5L18 9l-4.5-1.5L12 3Z\" /><path d=\"m19 15-.8 2.2L16 18l2.2.8L19 21l.8-2.2L22 18l-2.2-.8L19 15Z\" />",
   "star": "<polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\" />",
@@ -111,16 +121,22 @@ export const icons: Record<string, string> = {
   "x-circle": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"m15 9-6 6\" /> <path d=\"m9 9 6 6\" />",
 };
 
+/** 合并后的渲染 allowlist：lucide 生成目录 ∪ 手写表（手写键优先）。
+ *  parseIconNodes 只查这张表；IconPicker 从 icon-catalog.generated 的
+ *  分类目录取「可挑选」视图。 */
+export const icons: Record<string, string> = { ...catalogIcons, ...HAND_ICONS };
+
 /**
  * M04-MARKDOWN-08：图标渲染不再使用 `{@html}`（{@html} 仅 SafeHtml 可用，
  * 且经 innerHTML/range 注入的 SVG 元素是 HTML 命名空间、在 <svg> 内不渲染）。
  *
  * 这里把静态图标标记（`<tag attr="v" />` 序列）解析为结构化节点，由
  * Icon.svelte 用编译期已知的 SVG 元素渲染（保持 SVG 命名空间）。
- * 纯字符串解析，非 DOM sink；`icons` 为开发者维护的固定 allowlist。
+ * 纯字符串解析，非 DOM sink；`icons` 为固定 allowlist（手写表 + lucide
+ * 图标目录生成表，见 icon-catalog.generated.ts，手写键优先）。
  */
 export interface IconNode {
-  tag: 'path' | 'circle' | 'rect' | 'line' | 'polyline' | 'polygon';
+  tag: 'path' | 'circle' | 'ellipse' | 'rect' | 'line' | 'polyline' | 'polygon';
   attrs: Record<string, string>;
 }
 

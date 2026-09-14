@@ -307,7 +307,7 @@ mod tests {
     fn policy_version_combines_both_versions() {
         let v = policy_version();
         assert_eq!(v, format!("{RENDERER_VERSION}+{SANITIZER_VERSION}"));
-        assert!(v.starts_with("markdown-v2+ammonia-v1"));
+        assert!(v.starts_with("markdown-v2+ammonia-v2"));
     }
 
     #[test]

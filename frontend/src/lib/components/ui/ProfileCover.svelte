@@ -9,13 +9,18 @@
   //   不显示破图图标、不输出媒体元数据、不报错泄漏；
   // - 装饰性 cover（无 label）→ aria-hidden，不进入可访问性树；
   // - SSR：src 缺省时只输出占位 div，不输出任何 URL 或私有字段。
+  import { attachmentContentUrl } from '$lib/api/client';
+
   let {
     src = null,
+    attachmentId = null,
     label = '',
     class: klass = ''
   }: {
     /** 渲染期已解析的媒体 URL（临时，绝不持久化）；null → 渐变占位。 */
     src?: string | null;
+    /** 附件 UUID 引用（优先通过稳定端点 /api/v1/attachments/{id}/content 解析）。 */
+    attachmentId?: string | null;
     /** 有 label 时承载封面语义；空则装饰性（aria-hidden）。 */
     label?: string;
     /** 追加的样式类（如 profile-cover / user-hover-cover）。 */
@@ -24,9 +29,15 @@
 
   let failed = $state(false);
 
-  // 任何依赖变化（如复用组件换 src）都重置失败态，允许重新尝试加载。
+  const imageSrc = $derived(
+    src || (attachmentId ? attachmentContentUrl(attachmentId) : null)
+  );
+
+  // 任何依赖变化（如复用组件换 src/attachmentId）都重置失败态，允许重新尝试加载。
   $effect(() => {
-    failed = false;
+    if (imageSrc) {
+      failed = false;
+    }
   });
 </script>
 
@@ -37,8 +48,8 @@
   aria-label={label || undefined}
   aria-hidden={label ? undefined : 'true'}
 >
-  {#if src && !failed}
+  {#if imageSrc && !failed}
     <!-- 装饰性 cover 图片 alt 恒空：媒体内容仅供视觉，标题/资料正文已可读。 -->
-    <img class="profile-cover-img" src={src} alt="" loading="lazy" onerror={() => (failed = true)} />
+    <img class="profile-cover-img" src={imageSrc} alt="" loading="lazy" onerror={() => (failed = true)} />
   {/if}
 </div>

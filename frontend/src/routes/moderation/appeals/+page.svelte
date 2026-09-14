@@ -40,14 +40,7 @@
   <PageTitle title="申诉中心" />
 
 <div class="container page-content">
-  <!-- M18-APPEAL-02：标准页头对齐原型 -->
-  <div class="app-route-head">
-    <div class="app-route-head__copy">
-      <span class="app-kicker">MODERATION / APPEALS</span>
-      <h1 tabindex="-1">申诉中心</h1>
-      <p>查看举报与处罚结果，提交可追踪的申诉</p>
-    </div>
-  </div>
+  <h1 class="u-visually-hidden">申诉中心</h1>
 
   <!-- M18-APPEAL-02：第一区块「我相关的处罚案件」（对齐原型） -->
   <section class="card" style="margin-top:var(--space-4);">
@@ -66,6 +59,9 @@
                 <div>
                   <span class="badge badge-danger">{sanctionKindLabels[s.kind] ?? s.kind}</span>
                   <code>{s.id}</code>
+                  {#if s.case_id}
+                    <span class="text-tertiary" style="font-size:var(--text-xs);margin-left:var(--space-2);">案件 #{s.case_id.slice(0, 8)}</span>
+                  {/if}
                 </div>
                 {#if s.reason}
                   <div class="text-secondary" style="font-size:var(--text-sm);margin-top:2px;">处罚原因：{s.reason}</div>

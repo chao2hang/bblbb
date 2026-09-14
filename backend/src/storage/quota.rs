@@ -37,11 +37,13 @@ pub const ORPHAN_GRACE_MS: i64 = 24 * 60 * 60 * 1000;
 /// 返回 `(single_file_max_bytes, total_bytes, daily_upload_bytes, retention_days)`。
 pub fn default_policy_for_level(level: i64) -> (i64, i64, i64, i64) {
     const MB: i64 = 1024 * 1024;
+    // 档位键 = 信任等级（users.trust_level，TL0–TL4，2026-09 等级合并单轨）：
+    // TL0 新用户 → TL4 领导者逐档放宽；>4（扩展档）按最宽档兜底。
     let (single, total, daily) = match level {
-        i64::MIN..=1 => (2 * MB, 100 * MB, 20 * MB),
-        2 => (5 * MB, 250 * MB, 50 * MB),
-        3 => (10 * MB, 500 * MB, 100 * MB),
-        4 => (20 * MB, 1024 * MB, 200 * MB),
+        i64::MIN..=0 => (2 * MB, 100 * MB, 20 * MB),
+        1 => (5 * MB, 250 * MB, 50 * MB),
+        2 => (10 * MB, 500 * MB, 100 * MB),
+        3 => (20 * MB, 1024 * MB, 200 * MB),
         _ => (20 * MB, 2 * 1024 * MB, 400 * MB),
     };
     (single, total, daily, DEFAULT_RETENTION_DAYS)
@@ -1124,20 +1126,21 @@ async fn reference_count(pool: &DatabasePool, attachment_id: &str) -> Result<i64
     Ok(if links > 0 { links.max(cached) } else { cached })
 }
 
-/// 附件所有者当前等级的保留期（天）；无策略回退默认 30 天。
+/// 附件所有者当前信任等级的保留期（天）；无策略回退默认 30 天。
 async fn retention_days_for_owner(
     pool: &DatabasePool,
     owner_id: &str,
 ) -> Result<i64, StorageError> {
+    // 档位键 = 信任等级（users.trust_level，缺省 0；2026-09 等级合并单轨）。
     let level: i64 = match pool {
         Either::Left(p) => {
-            sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
                 .bind(owner_id)
                 .fetch_one(p)
                 .await?
         }
         Either::Right(p) => {
-            sqlx::query_scalar("SELECT level FROM users WHERE id = ?")
+            sqlx::query_scalar("SELECT trust_level FROM users WHERE id = ?")
                 .bind(owner_id)
                 .fetch_one(p)
                 .await?

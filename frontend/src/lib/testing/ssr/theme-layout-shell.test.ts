@@ -91,4 +91,12 @@ describe('M13-THEME 主题结构预设 SSR 投影', () => {
     });
     expect(body).toContain('data-theme-layout="wide"');
   });
+
+  it('未登录时 BottomNav 渲染登录导向链接（FAB 与我的/消息）', () => {
+    const body = renderShell(null);
+    expect(body).toContain('href="/login?next=%2Feditor"');
+    expect(body).toContain('href="/login?next=%2Fmessages"');
+    expect(body).toContain('href="/login?next=%2Fme"');
+    expect(body).toContain('登录后发布');
+  });
 });

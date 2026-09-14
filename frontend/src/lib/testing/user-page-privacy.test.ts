@@ -58,7 +58,7 @@ describe('M03-PROFILE-09 用户页客户端缓存/渲染隐私守卫', () => {
       const text = document.body.textContent ?? '';
       expect(text).toContain('爱丽丝');
       expect(text).toContain('@ alice');
-      expect(text).toContain('LV.7');
+      expect(text).toContain('TL7');
       expect(text).not.toContain('alice@example.com');
       expect(text).not.toContain('CLIENT-CACHE-HASH');
       expect(text).not.toContain('CLIENT-CACHE-TOKEN');

@@ -63,7 +63,7 @@ async fn insert_user(pool: &DatabasePool, tag: &str) -> String {
     let now = now_millis();
     exec(
         pool,
-        "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, level,
+        "INSERT INTO users (id, username_normalized, email_normalized, password_hash, status, trust_level,
             email_verified, email_verified_at, created_at, updated_at)
          VALUES (?, ?, ?, 'dummy', 'active', 5, 1, ?, ?, ?)",
         &[

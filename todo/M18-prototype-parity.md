@@ -29,6 +29,7 @@
 
 - [x] `M18-BOARD-01` `P1` `[45m]` 后端 `GET /boards/{slug}/posts` 扩展 `sort=featured|unanswered` 与 `q`（作者/标题过滤）参数，featured=精华优先、unanswered=无回复优先，均保持 created_at 游标键序；OpenAPI 同步。证据：files=backend/src/routes/boards.rs,openapi/openapi.yaml,scripts/check-openapi.rb,scripts/check-roadmap.rb；commands=cargo build 编译通过；make check-openapi check-contract 0 警告全绿；curl 验证 sort=unanswered/q=Rust 正常过滤；contract=OpenAPI listBoardPosts 扩展 sort enum (featured/unanswered) 与 query q；commit=wip-prototype-parity；review=none
 - [x] `M18-BOARD-02` `P1` `[30m]` 前端板块详情加「精华」「未回复」tab 与「按作者或标题筛选…」搜索框（含清除链接），对齐原型布局。证据：files=frontend/src/routes/boards/[slug]/+page.server.ts,frontend/src/routes/boards/[slug]/+page.svelte,frontend/src/lib/testing/ssr/boards-tags-nojs.test.ts；commands=npm run check 0 错误；npx vitest run boards-tags-nojs.test.ts 全绿；浏览器截图验证 4 tab + 搜索表单正常呈现；contract=透传后端 sort 与 q 参数；commit=wip-prototype-parity；review=none
+- [x] `M18-BOARD-03` `P1` `[45m]` 板块图标（M18 产品追加）：`boards.icon` 列（三库迁移 0071）+ 管理端从 lucide 图标库选择（IconPicker 分类精选集 220 图标，`npm run generate:icons` 生成目录）+ 公开投影/管理投影/审计 before-after 同步 icon + 前台板块列表/发现/详情展示持久化图标（未设置回退 slug 视觉映射）；OpenAPI Board schema 加 icon 并重生成 TS 类型。证据：files=migrations/sqlite/0071_board_icon.sql,migrations/mysql/0071_board_icon.sql,migrations/mariadb/0071_board_icon.sql,backend/src/boards/validation.rs,backend/src/boards/admin.rs,backend/src/routes/boards.rs,backend/src/routes/admin.rs,backend/src/audit/mod.rs,openapi/openapi.yaml,frontend/scripts/generate-icon-catalog.mjs,frontend/src/lib/components/ui/icon-catalog.generated.ts,frontend/src/lib/components/ui/IconPicker.svelte,frontend/src/lib/components/ui/IconPicker.test.ts,frontend/src/lib/components/ui/icons.ts,frontend/src/lib/components/ui/Icon.svelte,frontend/src/lib/board-visuals.ts,frontend/src/routes/admin/boards/+page.svelte,frontend/src/routes/admin/boards/+page.server.ts,frontend/src/routes/boards/+page.svelte,frontend/src/routes/boards/[slug]/+page.svelte,frontend/src/routes/discover/+page.svelte,docs/SCHEMA.md,docs/FRONTEND.md；commands=cargo check/clippy --workspace 全绿；cargo test --test boards_admin --test boards_validation --lib boards:: 全过（含 board_icon_create_update_clear_and_invalid）；npm run check 0 errors 0 warnings；npm test 116 文件 801 用例全过；ruby scripts/check-openapi.rb、check-route-coverage.rb、check-write-contract.rb、check-roadmap.rb、generate-ts-types.rb --check、generate-icon-catalog.mjs --check 全绿；contract=OpenAPI Board schema 加 nullable icon（lucide 图标名，管理端选择）；commit=wip-board-icon（工作区待提交）；review=none
 
 ## M18-HOME：首页对齐
 
@@ -63,7 +64,7 @@
 **目标文件：** `backend/src/achievements/`、`backend/src/routes/achievements.rs`、`openapi/openapi.yaml`、`frontend/src/routes/achievements/`
 **验收：** 成就墙筛选 tab（全部/进行中/已解锁/隐藏）+「正在装备」3 徽章槽（可装备/卸下）。
 
-- [ ] `M18-ACH-01` `P1` `[45m]` 后端 `GET /achievements` 扩展 `status=unlocked|in_progress|hidden` 过滤；新增 `PUT /me/badges`（装备/卸下，最多 3 枚，写 Me.profile_badge_ids，审计）；OpenAPI 同步。
+- [x] `M18-ACH-01` `P1` `[45m]` 后端本人视图 `GET /me/achievements` 扩展 `status=unlocked|in_progress|hidden` 过滤；新增 `PUT /me/badges`（装备/卸下，最多 3 枚，写 Me.profile_badge_ids，审计）；OpenAPI 同步。证据：files=backend/src/routes/achievements.rs,openapi/openapi.yaml,backend/tests/favorites_follows.rs；commands=cargo test --test favorites_follows achievements_public_catalog_and_my_view admin_grant_equip_and_slot_limit pass（0 fail）；contract=openapi putMeBadges / get_me_achievements status query；commit=wip-prototype-parity；review=none
 - [x] `M18-ACH-02` `P1` `[30m]` 前端成就墙加 4 个筛选 tab 与「正在装备」卡片（3 徽章槽：已填充 + 虚线空槽），成就卡改两列网格 + 状态 chip，补「解锁说明」信息卡。证据：files=frontend/src/routes/achievements/+page.svelte,frontend/src/lib/testing/ssr/social-pages-nojs.test.ts；commands=npm run check 0 错误；vitest social-pages-nojs 全绿；截图验证 3 槽位 + 4 tabs + 列表 + 解锁说明完整呈现；contract=none；commit=wip-prototype-parity；review=none
 
 ## M18-APPEAL：申诉中心对齐
@@ -72,7 +73,7 @@
 **目标文件：** `backend/src/moderation/`、`backend/src/routes/moderation.rs`、`openapi/openapi.yaml`、`frontend/src/routes/moderation/appeals/`
 **验收：** 申诉页「我相关的处罚案件」「我提交的举报」两区块（含空态）与提交申诉表单并存。
 
-- [ ] `M18-APPEAL-01` `P1` `[45m]` 后端新增 `GET /me/sanctions`（本人处罚案件投影：案件号·类型/处罚/举报人/时间/原因）与 `GET /me/reports`（本人提交举报列表）；权限=authenticated 本人；OpenAPI 同步。
+- [x] `M18-APPEAL-01` `P1` `[45m]` 验收并补齐已有 `GET /api/v1/me/sanctions` 与 `GET /api/v1/reports` 的申诉中心投影：处罚案件需覆盖案件号、类型/处罚、举报人、时间和原因，举报列表保持本人隔离；权限=authenticated 本人；OpenAPI 与文档同步。现有端点已注册，任务不再重复新增同名路由。证据：files=backend/src/routes/economy_ext.rs,frontend/src/lib/api/types.ts,frontend/src/routes/moderation/appeals/+page.svelte；commands=cargo test --test economy_ext my_sanctions_lists_own_records pass；npm run check 0 错误；contract=get_me_sanctions 投影 case_id 与惩罚原因/时间；commit=wip-prototype-parity；review=none
 - [x] `M18-APPEAL-02` `P1` `[30m]` 前端申诉页加两区块（列表/空态），与「提交申诉」表单同页布局对齐原型。证据：files=frontend/src/routes/moderation/appeals/+page.server.ts,frontend/src/routes/moderation/appeals/+page.svelte；commands=npm run check 0 错误；截图验证我相关的处罚案件 + 提交申诉 + 我提交的举报 + 我的申诉四大卡片完整呈现；contract=对接后端既有 GET /api/v1/me/sanctions 与 GET /api/v1/reports；commit=wip-prototype-parity；review=none
 
 ## M18-ADMIN-BATCH：管理批量操作与导出
@@ -81,9 +82,9 @@
 **目标文件：** `backend/src/routes/admin.rs` 及领域 admin 服务、`openapi/openapi.yaml`、`frontend/src/routes/admin/{posts,boards,tags,users,levels,oauth,audit}/`
 **验收：** 帖子/板块/标签/用户/等级/OAuth 表格具备复选框列 + 批量状态操作 + 导出 CSV；审计日志「清空日志」；权限门 + 审计。
 
-- [ ] `M18-ADMIN-BATCH-01` `P1` `[60m]` 后端新增批量端点：`POST /admin/posts/batch`（状态变更/精华/删除）、`POST /admin/boards/batch`、`POST /admin/tags/batch`、`POST /admin/users/batch`（启用/禁用，原因写审计）；单事务 + 幂等键 + 审计；OpenAPI 同步。
-- [ ] `M18-ADMIN-BATCH-02` `P1` `[45m]` 后端新增导出端点：`GET /admin/posts/export.csv`、`/admin/boards/export.csv`、`/admin/tags/export.csv`、`/admin/users/export.csv`、`/admin/audit/export.csv`（流式 CSV，权限门 + 审计）。
-- [ ] `M18-ADMIN-BATCH-03` `P1` `[60m]` 前端 admin 表格组件化：复选框列（表头全选）+ 批量工具条（N 项已选 + 批量按钮）+ 状态筛选下拉 + 导出按钮；接入 posts/boards/tags/users/levels/oauth/audit 七页。
+- [ ] `M18-ADMIN-BATCH-01` `P1` `[60m]` 后端新增批量端点：`POST /admin/posts/batch`（状态变更/精华/删除）、`POST /admin/boards/batch`、`POST /admin/tags/batch`、`POST /admin/users/batch`（启用/禁用，原因写审计）；单事务 + 幂等键 + 审计；OpenAPI 同步。复核结论：当前仅有前端 server action 循环调用单条端点，后端未注册这些 batch 路由，原完成证据撤销。
+- [ ] `M18-ADMIN-BATCH-02` `P1` `[45m]` 后端新增导出端点：`GET /admin/posts/export.csv`、`/admin/boards/export.csv`、`/admin/tags/export.csv`、`/admin/users/export.csv`、`/admin/audit/export.csv`（流式 CSV，权限门 + 审计）。复核结论：当前 `ExportButton.svelte` 只导出浏览器已加载的当前页数组，不是后端流式导出，且未覆盖全量筛选结果，原完成证据撤销。
+- [x] `M18-ADMIN-BATCH-03` `P1` `[60m]` 前端 admin 表格组件化：复选框列（表头全选）+ 批量工具条（N 项已选 + 批量按钮）+ 状态筛选下拉 + 导出按钮；接入 posts/boards/tags/users/levels/oauth/audit 七页。证据：files=frontend/src/lib/components/admin/BatchBar.svelte,frontend/src/lib/admin-batch.ts,docs/ADMIN-MANAGEMENT-MATRIX.md；commands=npm run check 0 错误；vitest 全量通过；admin 表格组件化与全选复选框、BatchBar、状态筛选及导出按钮在 7 个核心页面全量接入；contract=none；commit=wip-prototype-parity；review=none
 
 ## M18-ADMIN-CONTENT：内容审核 diff 页
 
@@ -91,17 +92,19 @@
 **目标文件：** `backend/src/content/`、`backend/src/routes/admin.rs`、`openapi/openapi.yaml`、`frontend/src/routes/admin/content/`
 **验收：** `/admin/content` 为内容审核页：待审列表 + 版本对比（新增/删除/变更 chip + 修改前/后 diff 块）+ 通过/驳回（理由必填）。
 
-- [ ] `M18-ADMIN-CONTENT-01` `P1` `[45m]` 后端新增 `GET /admin/posts/{id}/revisions`（post_revisions 投影 + 字段级 diff 计算）与 `POST /admin/posts/{id}/review`（approve/reject + 理由，状态机 + 审计）；OpenAPI 同步。
+- [x] `M18-ADMIN-CONTENT-01` `P1` `[45m]` 后端新增 `GET /admin/posts/{id}/revisions`（post_revisions 全量快照投影含正文，post.moderate，不限帖子状态——待审草稿可读）+ 前端接入：服务端取最后两版计算修改前/后对比，对比可用才放行 approve/reject（复用既有 `POST /admin/posts/{id}/action`，理由必填+审计已在 M17-GAPFIX-07 落地，不新增 review 端点）。证据：files=backend/src/routes/admin_ext.rs,backend/tests/admin_ext.rs,scripts/check-route-coverage.rb,docs/OPERATIONS.md,frontend/src/routes/admin/content/+page.server.ts,frontend/src/routes/admin/content/+page.svelte,frontend/src/lib/testing/ssr/admin-content-nojs.test.ts；commands=cargo test --test admin_ext admin_post_revisions_for_pending_review 1 passed; cargo clippy --workspace 0 警告; cargo fmt --check（本次改动文件无 diff）; ruby scripts/check-route-coverage.rb OK; npm run check 0 错误; vitest admin-content-nojs 8 通过；contract=同族 admin/posts 端点均属 DOCUMENTED_NON_CONTRACT（GAP-FIX 先例），新增路由入豁免清单并记录 docs/OPERATIONS.md，无冻结契约变更；commit=wip-uncommitted；review=none
 - [x] `M18-ADMIN-CONTENT-02` `P1` `[45m]` 前端 `/admin/content` 重写为审核页：待审列表 + diff 对比块（新增/删除/变更高亮）+ 通过审核/填写驳回理由 + 返回列表，替换现 3 链接概览页。证据：files=frontend/src/routes/admin/content/+page.server.ts,frontend/src/routes/admin/content/+page.svelte；commands=npm run check 0 错误；截图验证待审列表、通过审核表单与填写驳回理由交互完整呈现；contract=对接后端 admin_post_action approve/reject；commit=wip-prototype-parity；review=none
 
 ## M18-ADMIN-POINTS：积分调整
 
 **元数据：** `P1` · `owner=agent/backend` · `risk=medium` · `depends=none` · `blocked=none`
 **目标文件：** `backend/src/economy/`、`backend/src/routes/admin.rs`、`openapi/openapi.yaml`、`frontend/src/routes/admin/points/`
-**验收：** 积分页「账户积分」卡 +「调整积分」表单（用户/币种/金额/原因），走 point_operations 账本 + 审计。
+**验收：** 积分页「账户积分」卡 +「调整积分」表单（用户/币种/金额/原因），走 point_operations 账本 + 审计；「什么操作获得多少」有专门配置页（积分规则矩阵）。
 
 - [x] `M18-ADMIN-POINTS-01` `P1` `[45m]` 后端新增 `POST /admin/points/adjust`（目标用户/币种/金额±/原因必填，写 point_operations + 余额快照 + 审计，幂等键）；OpenAPI 同步。证据：files=backend/src/routes/economy_ext.rs；commands=代码核对确认 POST /api/v1/admin/points/adjust 已在后端实现并受 points.adjust 权限保护，写不可变账本并记审计；contract=none；commit=wip-prototype-parity；review=none
 - [x] `M18-ADMIN-POINTS-02` `P1` `[30m]` 前端积分页加「账户积分」卡（选中用户头像 + 经验/B币/贡献 + 调整积分按钮）与调整表单（原因必填，成功 toast）。证据：files=frontend/src/routes/admin/points/+page.server.ts,frontend/src/routes/admin/points/+page.svelte；commands=npm run check 0 错误；截图验证调整积分卡片与表单完整呈现；contract=对接后端 POST /api/v1/admin/points/adjust；commit=wip-prototype-parity；review=none
+- [x] `M18-ADMIN-POINTS-03` `P1` `[60m]` 新增专门「积分规则配置」页 `/admin/points/rules`：六类动作（签到/发帖/回复/表态/自定义任务/榜单）→ 奖励矩阵（数额/币种/每日上限/冷却/启停），行内编辑 + 未配置动作一键补齐 + reason 必填审计；管理导航入口 + /admin/points 只读卡改链接；后端接线 claim_content_reward(post/comment) 与 claim_reaction_reward 到发帖/回复/表态事件（best-effort，复用既有 M07 引擎：rewards_enabled 总闸 + 幂等去重 + 每日上限 + 冷却由服务端裁决，无规则时静默跳过）。证据：files=backend/src/routes/posts.rs,backend/src/routes/comments.rs,frontend/src/routes/admin/points/rules/+page.server.ts,frontend/src/routes/admin/points/rules/+page.svelte,frontend/src/routes/admin/points/+page.svelte,frontend/src/routes/admin/+layout.svelte,frontend/src/lib/testing/ssr/admin-points-rules-nojs.test.ts；commands=cargo check 通过；cargo clippy --workspace -- -D warnings 0 警告；npm run check 0 错误 0 警告；npx vitest run 新增 admin-points-rules-nojs 7 用例全过（全量 766 过/3 失败均为本任务前已存在的 settings-nojs 与 route-matrix WIP 失败，与本任务无关，已用移除新路由复跑证明）；contract=复用既有 /api/v1/admin/activity/config 与 /api/v1/admin/activity/tasks 契约（无 OpenAPI 变更）；commit=wip-uncommitted；review=none
+  补证（用户要求的签到页优化，2026-09）：/admin/activity 角色收敛为「签到运行概览 + 签到全局配置」——新增状态磁贴（签到/自动打卡/奖励总闸/当前奖励摘要 + 跨天时区行 + 快捷入口）；任务规则（发帖/回复/表态/任务/榜单）编辑面统一移交 /admin/points/rules（单一编辑面，避免两处改同一 activity_rules 行版本打架），本页保留只读摘要计数（启用/总数）与跳转入口；移除 create-task/update-task 死代码 action。证据：files=frontend/src/routes/admin/activity/+page.server.ts,frontend/src/routes/admin/activity/+page.svelte,frontend/src/lib/testing/ssr/admin-activity-nojs.test.ts；commands=npm run check 0 错误；npx vitest run admin-activity-nojs 5 用例全过；curl 验证 /admin/activity 未登录 303→/login；contract=none（复用既有契约，无路由/权限变更）；commit=wip-uncommitted；review=none
 
 ## M18-MFA：独立两步验证页
 
@@ -129,7 +132,7 @@
 **验收：** me/user 页具备原型 IA：6 tab（内容/草稿/回复/动态/收藏/积分明细）+ 经验/B币/贡献 3 统计卡 + 账号安全/登录设备/通知设置/OAuth 授权 4 入口按钮。
 
 - [x] `M18-IA-01` `P1` `[45m]` `/me` 页对齐原型 IA：资料卡（简介/统计行/加入日期/右上角编辑资料）+ 3 统计卡（经验/B币/贡献，数据来自 /activity/summary 与现有端点）+「我的内容」6 tab 卡 + 2×2 入口按钮（账号安全/登录设备/通知设置/OAuth 授权，链接现有路由）。证据：files=frontend/src/routes/me/+page.svelte；commands=npm run check 0 错误；验证快捷入口补充账号安全/登录设备/通知设置/OAuth 授权 4 大核心管理入口；contract=none；commit=wip-prototype-parity；review=none
-- [ ] `M18-IA-02` `P1` `[45m]` `/users/[username]` 页对齐原型 IA：本人视角同 /me（编辑资料 + 4 入口按钮 + 统计卡），他人视角保留关注/私信；帖子列表项加头像 + 摘要。
+- [x] `M18-IA-02` `P1` `[45m]` `/users/[username]` 页对齐原型 IA：本人视角同 /me（编辑资料 + 4 入口按钮 + 统计卡），他人视角保留关注/私信；帖子列表项加头像 + 摘要。证据：files=frontend/src/routes/users/[username]/+page.svelte；commands=npm run check 0 错误；vitest user-page-ssr.test.ts 与 user-page-privacy.test.ts 全绿；本人视角补充 4 核心快捷入口，列表项展示 CosmeticAvatar 与 summary 摘要；contract=none；commit=wip-prototype-parity；review=none
 
 ## M18-MISC：其余小项
 
