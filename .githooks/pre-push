@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -e
+
+# Prevent direct pushes to main / master
+# Forces all changes through feature branches and Pull Requests.
+
+remote="$1"
+url="$2"
+
+z40="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
+        if [ "$local_sha" != "$z40" ]; then
+            echo "" >&2
+            echo "================================================================" >&2
+            echo " 🚫 [PRE-PUSH BLOCKED] 直接向 main 分支推送已被锁死！" >&2
+            echo "----------------------------------------------------------------" >&2
+            echo " 本仓库所有改动必须通过 PR（Pull Request）合入：" >&2
+            echo "   1. 切出新分支：git checkout -b feat/your-feature-name" >&2
+            echo "   2. 推送到远端：git push -u origin feat/your-feature-name" >&2
+            echo "   3. 提交 PR：  gh pr create (或在 GitHub 网页创建 Pull Request)" >&2
+            echo "================================================================" >&2
+            echo "" >&2
+            exit 1
+        fi
+    fi
+done
+
+exit 0
