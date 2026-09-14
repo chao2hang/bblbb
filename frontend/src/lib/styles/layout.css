@@ -403,6 +403,35 @@
 }
 
 /* ---- Auth pages ---- */
+.app-shell.app-shell--auth {
+  padding: 0 !important;
+  padding-bottom: 0 !important;
+  margin: 0 !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  width: 100% !important;
+  background: var(--color-bg-page) !important;
+}
+
+.auth-viewport-main {
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  width: 100% !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  position: relative;
+}
+
+.auth-viewport-main #page-login.login-page {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+
 .auth-wrapper {
   min-height: calc(100vh - var(--header-h));
   display: flex;

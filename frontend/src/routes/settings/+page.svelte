@@ -37,6 +37,8 @@
   import type { OAuthGrantItem } from '$lib/api/types';
   import type { SettingsFormResult, SettingsPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import { registerPasskey, passkeyErrorMessage, passkeySupported } from '$lib/mfa/passkey';
+  import type { PasskeyInfo } from '$lib/mfa/passkey-types';
 
   let { data, form }: { data: SettingsPageData; form?: SettingsFormResult } = $props();
 
@@ -333,6 +335,56 @@
       input.value = newAttachmentId ?? '';
     }
     form?.requestSubmit();
+  }
+
+  // ── Passkey 状态与注册 ──
+  const passkeyEnabled = $derived(data.passkeyEnabled ?? false);
+  const passkeys = $derived(data.passkeys ?? []);
+  const passkeysError = $derived(data.passkeysError);
+  let passkeyName = $state('');
+  let passkeyBusy = $state(false);
+
+  function formatPasskeyMs(ms: number | null): string {
+    if (!ms) return '—';
+    return new Date(ms).toLocaleString();
+  }
+
+  async function addPasskey() {
+    if (passkeyBusy) return;
+    if (!passkeySupported()) {
+      show('当前浏览器不支持 Passkey（需 HTTPS 或 localhost 且需现代浏览器）', 'danger');
+      return;
+    }
+    passkeyBusy = true;
+    try {
+      const beginRes = await fetch('/mfa/passkey/begin', {
+        method: 'POST',
+        headers: { Accept: 'application/json' }
+      });
+      if (!beginRes.ok) {
+        const problem = (await beginRes.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(problem?.message || '开始注册失败，请重试');
+      }
+      const credential = await registerPasskey(
+        (await beginRes.json()) as Parameters<typeof registerPasskey>[0]
+      );
+      const confirmRes = await fetch('/mfa/passkey/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ name: passkeyName.trim() || undefined, credential })
+      });
+      if (!confirmRes.ok) {
+        const problem = (await confirmRes.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(problem?.message || '确认注册失败，请重试');
+      }
+      show('Passkey 已添加', 'success');
+      passkeyName = '';
+      await invalidateAll();
+    } catch (e) {
+      show(passkeyErrorMessage(e), 'danger');
+    } finally {
+      passkeyBusy = false;
+    }
   }
 </script>
 
@@ -759,6 +811,136 @@
             </div>
           </div>
         </form>
+
+        <!-- 两步验证 (2FA / TOTP) 设置卡片 -->
+        <section
+          class="card settings-panel settings-panel-security"
+          class:is-active={activeTab === 'security'}
+          style="margin-top:var(--space-4);"
+          aria-label="两步验证设置"
+        >
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:var(--space-2);">
+              <Icon name="shield" size={16} />
+              <span class="card-title">两步验证（2FA / TOTP）</span>
+            </div>
+            <span class="badge {user.mfa_enabled ? 'badge-success' : 'badge-neutral'}">
+              {user.mfa_enabled ? '已启用' : '未启用'}
+            </span>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
+            {#if user.mfa_enabled}
+              <p class="text-secondary" style="margin:0;line-height:1.6;">
+                你的账号已启用两步验证。登录时除密码外，还需要输入身份验证器（如 Google Authenticator、1Password 等）生成的 6 位动态验证码，保障账号安全。
+              </p>
+              <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
+                <a href="/mfa">
+                  <Button text="管理两步验证与恢复码" variant="secondary" size="sm" />
+                </a>
+              </div>
+            {:else}
+              <p class="text-secondary" style="margin:0;line-height:1.6;">
+                开启两步验证后，在输入密码后还需要输入手机认证器（Google Authenticator、1Password 等）生成的 6 位动态验证码，极大增强账户安全。
+              </p>
+              <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
+                <a href="/mfa">
+                  <Button text="立即开启两步验证" variant="primary" size="sm" />
+                </a>
+              </div>
+            {/if}
+          </div>
+        </section>
+
+        <!-- Passkey（通行密钥）设置卡片 -->
+        <section
+          class="card settings-panel settings-panel-security"
+          class:is-active={activeTab === 'security'}
+          style="margin-top:var(--space-4);"
+          aria-label="通行密钥设置"
+        >
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:var(--space-2);">
+              <Icon name="fingerprint" size={16} />
+              <span class="card-title">Passkey（通行密钥）</span>
+            </div>
+            {#if passkeyEnabled}
+              <span class="badge {passkeys.length > 0 ? 'badge-success' : 'badge-neutral'}">
+                {passkeys.length > 0 ? `已绑定 ${passkeys.length} 把密钥` : '未绑定'}
+              </span>
+            {/if}
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
+            <p class="text-secondary" style="margin:0;line-height:1.6;">
+              注册 Passkey 后，登录第二步可直接使用当前设备的指纹、Face ID 或屏幕锁通过验证，无需再输入 6 位动态验证码（与两步验证共存，任一方式均可完成第二步验证）。
+            </p>
+
+            {#if !passkeyEnabled}
+              <div class="app-notice" role="status">
+                <span>服务端尚未配置 Passkey（WebAuthn）支持，如需开启请联系管理员配置 passkey_rp_id。</span>
+              </div>
+            {:else}
+              {#if passkeysError}
+                <p class="input-hint is-error" role="alert" style="margin:0;">{passkeysError}</p>
+              {/if}
+
+              {#if passkeys.length > 0}
+                <ul class="passkey-list" role="list">
+                  {#each passkeys as item (item.id)}
+                    <li class="passkey-item">
+                      <div class="passkey-item__meta">
+                        <strong>{item.name}</strong>
+                        <span class="text-secondary">注册于 {formatPasskeyMs(item.created_at)}</span>
+                        <span class="text-secondary">最近使用 {formatPasskeyMs(item.last_used_at)}</span>
+                        {#if item.backed_up}
+                          <span class="badge badge-success">已云同步</span>
+                        {/if}
+                      </div>
+                      <form
+                        method="POST"
+                        action="?/passkeyRevoke"
+                        use:enhance={() => {
+                          return async ({ result, update }) => {
+                            if (result.type === 'success') {
+                              show('Passkey 已撤销', 'success');
+                              await update();
+                              await invalidateAll();
+                            } else {
+                              show('撤销 Passkey 失败，请重试', 'danger');
+                              await update();
+                            }
+                          };
+                        }}
+                      >
+                        <input type="hidden" name="id" value={item.id} />
+                        <Button text="撤销" variant="ghost" size="sm" type="submit" />
+                      </form>
+                    </li>
+                  {/each}
+                </ul>
+              {:else}
+                <p class="text-secondary" style="margin:0;font-size:var(--text-sm);">尚未添加任何 Passkey。</p>
+              {/if}
+
+              <div class="passkey-add-row">
+                <input
+                  type="text"
+                  class="input-field passkey-name-input"
+                  placeholder="名称（可选，如「MacBook 指纹」）"
+                  maxlength="64"
+                  bind:value={passkeyName}
+                  aria-label="Passkey 名称"
+                />
+                <Button
+                  text={passkeyBusy ? '等待认证器…' : '添加 Passkey'}
+                  variant="secondary"
+                  size="sm"
+                  onclick={addPasskey}
+                  disabled={passkeyBusy}
+                />
+              </div>
+            {/if}
+          </div>
+        </section>
 
         <!-- 通知偏好：类别 × 渠道矩阵（从 /notifications 迁入设置页）。
              桌面三列对齐（列头承载渠道名），移动端隐藏列头、渠道标签随行内显示。 -->
@@ -1205,5 +1387,45 @@
   :global(.app-settings-nav a:hover .app-settings-nav__icon),
   :global(.app-settings-nav a.is-active .app-settings-nav__icon) {
     opacity: 1;
+  }
+
+  /* M02-MFA-PK：Passkey 管理卡片 */
+  .passkey-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .passkey-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-subtle);
+    border-radius: var(--radius-sm);
+  }
+
+  .passkey-item__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  .passkey-add-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .passkey-name-input {
+    flex: 1;
+    min-width: 200px;
   }
 </style>

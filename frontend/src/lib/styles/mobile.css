@@ -1763,6 +1763,68 @@
     padding: 12px 14px 16px !important;
   }
 
+  #page-publish .publish-title-input.input-field {
+    height: 44px !important;
+    font-size: 16px !important;
+    padding: 0 60px 0 2px !important;
+  }
+
+  #page-publish .publish-title-hint {
+    font-size: 11px !important;
+    right: 2px !important;
+  }
+
+  #page-publish .composer-notice--brand {
+    padding: 8px 12px !important;
+  }
+
+  #page-publish .composer-notice--brand .input-label {
+    font-size: 12px !important;
+    margin-bottom: 4px !important;
+  }
+
+  #page-publish .composer-notice--brand .input-field {
+    height: 38px !important;
+    font-size: 13px !important;
+  }
+
+  #page-publish .composer-tag-suggestions {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 6px !important;
+    padding-bottom: 2px !important;
+  }
+
+  #page-publish .composer-tag-suggestions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  #page-publish .composer-tag-suggestions__label {
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+  }
+
+  #page-publish .composer-tag-suggestion-pill {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    padding: 2px 8px !important;
+    font-size: 12px !important;
+  }
+
+  #page-publish .rich-editor-header {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+  }
+
+  #page-publish .mode-btn {
+    min-height: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
+  }
+
   #page-publish .rich-editor-toolbar {
     flex-wrap: nowrap !important;
     max-width: 100% !important;
@@ -1775,20 +1837,29 @@
   }
 
   #page-publish .toolbar-btn {
-    flex: 0 0 36px !important;
-    width: 36px !important;
-    height: 36px !important;
-    min-height: 36px !important;
+    flex: 0 0 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
   }
 
   #page-publish .composer-footer {
-    flex-wrap: wrap !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
     padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
   }
 
   #page-publish .composer-tools {
-    flex-wrap: nowrap !important;
-    width: 100% !important;
+    order: 1 !important;
+    flex: 0 1 auto !important;
+    width: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
     overflow-x: auto !important;
     scrollbar-width: none !important;
   }
@@ -1799,17 +1870,38 @@
 
   #page-publish .composer-tool-btn,
   #page-publish .composer-drafts-link {
-    flex: 0 0 44px !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
+    flex: 0 0 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
     justify-content: center !important;
     margin-left: 0 !important;
     padding: 0 !important;
     border-left: 0 !important;
+    border-radius: var(--radius-sm, 4px) !important;
   }
 
   #page-publish .composer-actions {
-    min-height: 44px !important;
+    order: 2 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    min-height: 38px !important;
+  }
+
+  #page-publish .composer-actions .btn,
+  #page-publish .composer-actions button {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 16px !important;
+    font-size: 14px !important;
+    border-radius: var(--radius-sm, 4px) !important;
   }
 
   #page-publish .composer-popover {
@@ -3148,12 +3240,103 @@
     padding: 16px !important;
   }
 
-  #main-content #page-level .nav-tabs-wrapper,
-  #main-content #page-level .level-tabs {
+  /* 页签轨（实际类名为 .level-nav-tabs；旧选择器已无对应节点，勿再模仿） */
+  #main-content #page-level .level-nav-tabs {
     margin: 0 0 10px !important;
     padding: 0 12px !important;
     background: var(--color-bg-card) !important;
     border-bottom: 1px solid var(--color-border) !important;
+  }
+
+  /* 页签按钮窄屏收紧：三枚页签尽量少占横向空间（仍可横滑） */
+  #main-content #page-level .level-nav-tabs .tab-btn {
+    padding: 12px 10px !important;
+    gap: 6px !important;
+  }
+
+  /* 阶梯表卡通栏：与页头/横幅同宽，表格贴边（card-body 全局 14px
+     !important 会吃掉内联 padding:0，这里按更高特异性夺回） */
+  #main-content #page-level .roadmap-card {
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+    margin: 0 0 10px !important;
+  }
+
+  #main-content #page-level .roadmap-card .card-header {
+    padding: 14px 16px !important;
+  }
+
+  #main-content #page-level .roadmap-card .card-body {
+    padding: 0 !important;
+  }
+
+  /* 横幅右侧晋升进度窄屏通栏（原 max-width 260px 右对齐，孤悬右侧） */
+  #main-content #page-level .hero-right-stat {
+    width: 100% !important;
+    align-items: stretch !important;
+  }
+
+  #main-content #page-level .progress-preview-box {
+    max-width: none !important;
+  }
+
+  /* 阶梯表移动端改排：五列表格在窄屏会被自动布局压成「一字一行」，
+     这里把每级 tr 改排为一张贴排卡（表头隐藏）：
+       [TL徽章] [称谓]        [达成状态]
+       晋升条件：……
+       等级特权：[chip] [chip]
+     data-label 提供小节标签，hairline 分隔，当前等级保留墨蓝底 + 左墨轨。 */
+  #main-content #page-level .roadmap-table thead {
+    display: none !important;
+  }
+
+  #main-content #page-level .roadmap-table,
+  #main-content #page-level .roadmap-table tbody {
+    display: block !important;
+  }
+
+  #main-content #page-level .roadmap-table tr {
+    display: grid !important;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'badge name status'
+      'cond  cond  cond'
+      'perks perks perks';
+    gap: 8px 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  #main-content #page-level .roadmap-table tr:last-child {
+    border-bottom: 0 !important;
+  }
+
+  #main-content #page-level .roadmap-table td {
+    display: block !important;
+    padding: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  #main-content #page-level .roadmap-table td:nth-child(1) { grid-area: badge; }
+  #main-content #page-level .roadmap-table td:nth-child(2) { grid-area: name; align-self: center; }
+  #main-content #page-level .roadmap-table td:nth-child(3) { grid-area: cond; }
+  #main-content #page-level .roadmap-table td:nth-child(4) { grid-area: perks; }
+  #main-content #page-level .roadmap-table td:nth-child(5) { grid-area: status; justify-self: end; }
+
+  #main-content #page-level .tier-condition-cell::before,
+  #main-content #page-level .tier-perks-cell::before {
+    content: attr(data-label);
+    display: block;
+    flex: 0 0 100%;
+    margin-bottom: 4px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--color-text-secondary);
+  }
+
+  #main-content #page-level .tier-row.is-current {
+    box-shadow: inset 2px 0 0 0 var(--color-brand, #3b82f6);
   }
 
   /* 装扮（/me/wardrobe）通栏规范 */

@@ -192,4 +192,43 @@ describe('M03-UI-04 窄屏底部卡', () => {
       unstub();
     }
   });
+
+  it('窄屏下 mouseenter/focus 不展开卡片（防止移动端合成事件抢占遮罩）', async () => {
+    const unstub = stubNarrowMatchMedia();
+    try {
+      renderCard();
+      const trigger = screen.getByRole('link', { name: '查看 爱丽丝 的个人资料' });
+      await fireEvent.mouseEnter(trigger);
+      expect(document.querySelector('.user-card-sheet')).toBeNull();
+      expect(document.querySelector('.user-card-popover')).toBeNull();
+
+      await fireEvent.focus(trigger);
+      expect(document.querySelector('.user-card-sheet')).toBeNull();
+      expect(document.querySelector('.user-card-popover')).toBeNull();
+    } finally {
+      unstub();
+    }
+  });
+
+  it('窄屏点击遮罩关闭底部卡，滚动不关闭底部卡', async () => {
+    const unstub = stubNarrowMatchMedia();
+    try {
+      renderCard();
+      const trigger = screen.getByRole('link', { name: '查看 爱丽丝 的个人资料' });
+      await fireEvent.click(trigger);
+      expect(document.querySelector('.user-card-sheet')).not.toBeNull();
+
+      // 滚动不应关闭底部卡（允许卡片内滑动浏览）
+      await fireEvent.scroll(document);
+      expect(document.querySelector('.user-card-sheet')).not.toBeNull();
+
+      // 点击背景遮罩关闭
+      const backdrop = document.querySelector('.app-sheet-backdrop') as HTMLElement;
+      expect(backdrop).not.toBeNull();
+      await fireEvent.click(backdrop);
+      expect(document.querySelector('.user-card-sheet')).toBeNull();
+    } finally {
+      unstub();
+    }
+  });
 });

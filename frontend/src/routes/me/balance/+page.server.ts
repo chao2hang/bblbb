@@ -6,10 +6,11 @@
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed } from '$lib/api/server';
-import type { ActivitySummary, Money, PointTransactionItem } from '$lib/api/types';
+import type { ActivitySummary, Money, PointTransactionItem, TrustLevelProgress } from '$lib/api/types';
 
 export interface BalancePageData {
   summary: ActivitySummary | null;
+  trust?: TrustLevelProgress | null;
   transactions?: PointTransactionItem[];
   error: string | null;
 }
@@ -28,7 +29,17 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   const result = await getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId);
   if (!result?.ok && result?.status === 401) throw redirect(303, '/login');
   if (!result?.ok) {
-    return { summary: null, error: result?.message ?? '获取积分信息失败' } satisfies BalancePageData;
+    return { summary: null, trust: null, transactions: [], error: result?.message ?? '获取积分信息失败' } satisfies BalancePageData;
+  }
+
+  let trust: TrustLevelProgress | null = null;
+  try {
+    const trustRes = await getAuthed<TrustLevelProgress>(cookies, '/api/v1/me/trust-level', requestId);
+    if (trustRes && typeof trustRes === 'object' && 'ok' in trustRes && trustRes.ok && trustRes.data) {
+      trust = trustRes.data;
+    }
+  } catch {
+    // 平滑降级
   }
 
   let transactions: PointTransactionItem[] = [];
@@ -45,7 +56,7 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
     // 单元测试或接口缺失时平滑降级
   }
 
-  return { summary: result.data, transactions, error: null } satisfies BalancePageData;
+  return { summary: result.data, trust, transactions, error: null } satisfies BalancePageData;
 };
 
 export const actions: Actions = {

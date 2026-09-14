@@ -2,7 +2,7 @@
 // 字段错误透传、版本缺失拒绝、代理异常降级。
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { actions } from './+page.server';
-import { authedDeleteBody, authedPatch, authedPost } from '$lib/api/server';
+import { authedDelete, authedDeleteBody, authedPatch, authedPost } from '$lib/api/server';
 import type { SettingsFormResult } from './+page.server';
 
 vi.mock('$lib/api/server', () => ({
@@ -16,6 +16,7 @@ vi.mock('$lib/api/server', () => ({
 const patchMock = authedPatch as unknown as ReturnType<typeof vi.fn>;
 const postMock = authedPost as unknown as ReturnType<typeof vi.fn>;
 const deleteMock = authedDeleteBody as unknown as ReturnType<typeof vi.fn>;
+const authedDeleteMock = authedDelete as unknown as ReturnType<typeof vi.fn>;
 
 function actionEvent(
   entries: Record<string, string>,
@@ -187,5 +188,43 @@ describe('M03-UI-02 资料编辑 profile action', () => {
       { attachment_id: '00000000-0000-0000-0000-000000000000', alt_text: '', position: '' },
       'req-del'
     );
+  });
+});
+
+describe('M02-MFA-PK passkeyRevoke action', () => {
+  it('缺少 id 提交时返回 422', async () => {
+    const result = (await actions.passkeyRevoke!(actionEvent({}))) as {
+      status: number;
+      data: SettingsFormResult;
+    };
+    expect(result.status).toBe(422);
+    expect(result.data.message).toBe('缺少 Passkey 标识');
+  });
+
+  it('成功调用 authedDelete 撤销指定 passkey 并返回 ok: true', async () => {
+    authedDeleteMock.mockResolvedValueOnce({ ok: true });
+    const result = (await actions.passkeyRevoke!(
+      actionEvent({ id: 'pk-test-123' }, 'req-pk')
+    )) as SettingsFormResult;
+    expect(result.ok).toBe(true);
+    expect(authedDeleteMock).toHaveBeenCalledWith(
+      expect.anything(),
+      '/api/v1/auth/passkeys/pk-test-123',
+      'req-pk'
+    );
+  });
+
+  it('后端返回失败时透传状态与错误信息', async () => {
+    authedDeleteMock.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      message: '凭据不存在',
+      requestId: 'req-err'
+    });
+    const result = (await actions.passkeyRevoke!(
+      actionEvent({ id: 'pk-unknown' })
+    )) as { status: number; data: SettingsFormResult };
+    expect(result.status).toBe(404);
+    expect(result.data.message).toBe('凭据不存在');
   });
 });

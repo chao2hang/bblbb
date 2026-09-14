@@ -74,6 +74,7 @@
   }
 
   function openCard() {
+    if (narrow) return;
     clearCloseTimer();
     open = true;
   }
@@ -96,6 +97,7 @@
   }
 
   function onScrollOrResize() {
+    if (narrow) return;
     if (open) {
       clearCloseTimer();
       open = false;

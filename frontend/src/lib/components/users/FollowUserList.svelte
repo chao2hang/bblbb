@@ -13,6 +13,7 @@
   import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
   import { listFollowers, listFollowing } from '$lib/api/client';
   import { formatRelative } from '$lib/utils';
+  import { infiniteScroll } from '$lib/utils/infinite-scroll';
   import { show } from '$lib/ui/toast';
 
   /** 服务端公开投影行（follows.rs follow_list_response）。 */
@@ -49,6 +50,7 @@
   /** loadMore 已推进到的游标；undefined = 尚未推进（回退服务端游标）。 */
   let loadedCursor = $state<string | null | undefined>(undefined);
   let loadingMore = $state(false);
+  let loadFailed = $state(false);
 
   const items = $derived([...initialItems, ...extraPages]);
   /** 下一页游标：未推进时用服务端视图（SSR 也可渲染加载更多入口）。 */
@@ -60,13 +62,15 @@
     void initialCursor;
     extraPages = [];
     loadedCursor = undefined;
+    loadFailed = false;
   });
 
   /** JS 下客户端追加下一页；无 JS 走 ?after= 链接（同一游标口径）。 */
-  async function loadMore(event: MouseEvent): Promise<void> {
-    event.preventDefault();
+  async function loadMore(event?: MouseEvent): Promise<void> {
+    event?.preventDefault();
     if (!cursor || loadingMore) return;
     loadingMore = true;
+    loadFailed = false;
     try {
       const page =
         direction === 'followers'
@@ -74,7 +78,9 @@
           : await listFollowing(fetch, username, cursor);
       extraPages = [...extraPages, ...((page.items ?? []) as FollowUserItem[])];
       loadedCursor = page.next_cursor ? String(page.next_cursor) : null;
+      loadFailed = false;
     } catch {
+      loadFailed = true;
       show('加载更多失败，请重试', 'danger');
     }
     loadingMore = false;
@@ -125,11 +131,19 @@
     {/each}
   </div>
   {#if cursor}
-    <div style="padding:var(--space-4);display:flex;justify-content:center;">
+    <div
+      style="padding:var(--space-4);display:flex;justify-content:center;"
+      use:infiniteScroll={{
+        hasMore: !!cursor,
+        loading: loadingMore,
+        disabled: loadFailed,
+        onLoadMore: () => void loadMore()
+      }}
+    >
       <!-- JS：客户端追加下一页；无 JS：?after= 整页翻页（均走同一游标）。 -->
       <Button
         href="?after={encodeURIComponent(cursor)}"
-        text={loadingMore ? '加载中…' : '加载更多'}
+        text={loadingMore ? '加载中…' : loadFailed ? '加载失败，点击重试' : '加载更多'}
         variant="secondary"
         size="sm"
         disabled={loadingMore}

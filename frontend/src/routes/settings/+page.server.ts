@@ -23,6 +23,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { authedDelete, authedDeleteBody, authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import type { OAuthGrantItem, User } from '$lib/api/types';
 import { clampProfileText, PROFILE_TEXT_LIMITS } from '$lib/profile';
+import type { PasskeyInfo } from '$lib/mfa/passkey-types';
 
 export interface SettingsPageData {
   user: User | null;
@@ -37,6 +38,10 @@ export interface SettingsPageData {
     position?: string;
     content_url?: string;
   } | null;
+  /** 服务端是否配置了 Passkey（未配置时整块隐藏） */
+  passkeyEnabled?: boolean;
+  passkeys?: PasskeyInfo[];
+  passkeysError?: string | null;
 }
 
 export interface SettingsFormResult {
@@ -88,7 +93,33 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
     }
   }
 
-  return { user: result.data, error: null, grants, cover } satisfies SettingsPageData;
+  // Passkey 列表（M02-MFA-PK）：passkey_not_configured → 未配置；
+  // 其他错误不阻断设置页正常加载。
+  let passkeyEnabled = false;
+  let passkeys: PasskeyInfo[] = [];
+  let passkeysError: string | null = null;
+  const passkeyResult = await getAuthed<{ passkeys?: PasskeyInfo[] }>(
+    cookies,
+    '/api/v1/auth/passkeys',
+    requestId
+  );
+  if (passkeyResult.ok) {
+    passkeyEnabled = true;
+    passkeys = passkeyResult.data.passkeys ?? [];
+  } else if (passkeyResult.code !== 'passkey_not_configured') {
+    passkeysError = passkeyResult.message;
+    if (passkeyResult.status < 500) passkeyEnabled = true;
+  }
+
+  return {
+    user: result.data,
+    error: null,
+    grants,
+    cover,
+    passkeyEnabled,
+    passkeys,
+    passkeysError
+  } satisfies SettingsPageData;
 };
 
 export const actions: Actions = {
@@ -363,6 +394,33 @@ export const actions: Actions = {
       return fail(503, {
         revokeOAuth: { ok: false, message: '撤销授权失败，请稍后重试' }
       } satisfies SettingsFormResult);
+    }
+  },
+
+  // Passkey 撤销：DELETE /api/v1/auth/passkeys/{id}
+  passkeyRevoke: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const id = String(form.get('id') ?? '').trim();
+    if (!id) {
+      return fail(422, { message: '缺少 Passkey 标识' } satisfies SettingsFormResult);
+    }
+    try {
+      const result = await authedDelete(
+        cookies,
+        `/api/v1/auth/passkeys/${encodeURIComponent(id)}`,
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { ok: true } satisfies SettingsFormResult;
+      }
+      if (result.status === 401) throw redirect(303, '/login');
+      return fail(result.status, {
+        message: result.message,
+        requestId: result.requestId
+      } satisfies SettingsFormResult);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '撤销 Passkey 失败，请稍后重试' } satisfies SettingsFormResult);
     }
   }
 };

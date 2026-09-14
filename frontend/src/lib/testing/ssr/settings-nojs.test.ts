@@ -81,4 +81,60 @@ describe('M03-UI-02 /settings 无 JS SSR 基线', () => {
     expect(body).toContain('服务暂不可用');
     expect(body).not.toMatch(/<form[^>]*action="\?\/profile"/);
   });
+
+  it('账号安全区域包含修改密码、两步验证（2FA）与 Passkey 设置', () => {
+    const { body } = render(SettingsPage, {
+      props: {
+        data: {
+          user,
+          error: null,
+          passkeyEnabled: true,
+          passkeys: [
+            {
+              id: 'pk-1',
+              name: '我的指纹钥匙',
+              aaguid: null,
+              backup_eligible: true,
+              backed_up: true,
+              created_at: 1700000000000,
+              last_used_at: 1700001000000
+            }
+          ]
+        },
+        form: undefined
+      }
+    });
+    // 包含修改密码表单
+    expect(body).toContain('修改密码');
+    expect(body).toContain('id="set-current-password"');
+    // 包含两步验证（2FA）卡片与入口
+    expect(body).toContain('两步验证（2FA / TOTP）');
+    expect(body).toContain('未启用');
+    expect(body).toContain('立即开启两步验证');
+    expect(body).toContain('/mfa');
+    // 包含 Passkey（通行密钥）卡片与已绑定列表
+    expect(body).toContain('Passkey（通行密钥）');
+    expect(body).toContain('已绑定 1 把密钥');
+    expect(body).toContain('我的指纹钥匙');
+    expect(body).toContain('已云同步');
+    expect(body).toContain('action="?/passkeyRevoke"');
+  });
+
+  it('当用户已启用 MFA 时，两步验证卡片显示已启用状态及管理入口', () => {
+    const userWithMfa = { ...user, mfa_enabled: true };
+    const { body } = render(SettingsPage, {
+      props: {
+        data: {
+          user: userWithMfa,
+          error: null,
+          passkeyEnabled: false
+        },
+        form: undefined
+      }
+    });
+    expect(body).toContain('两步验证（2FA / TOTP）');
+    expect(body).toContain('已启用');
+    expect(body).toContain('管理两步验证与恢复码');
+    expect(body).toContain('服务端尚未配置 Passkey');
+  });
 });

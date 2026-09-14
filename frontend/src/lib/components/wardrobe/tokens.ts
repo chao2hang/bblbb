@@ -134,6 +134,7 @@ export function normalizeSlot(slot: string | null | undefined): string {
 const TOKEN_PREFIXES = [
   'nickname.color.',
   'avatar.frame.',
+  'avatar.attachment.',
   'profile.effect.',
   'post.effect.',
   'badge.',
@@ -185,6 +186,12 @@ export function projectEntitlementTokens(
       if (v && v in AVATAR_FRAMES) {
         visual.avatar_frame = v;
         labels.push(AVATAR_FRAME_LABELS[v] ?? v);
+      }
+    } else if (raw.startsWith('avatar.attachment.')) {
+      const v = valueOf('avatar.attachment.');
+      if (v && v in AVATAR_ATTACHMENTS) {
+        visual.avatar_attachment = v;
+        labels.push(v);
       }
     } else if (raw.startsWith('profile.effect.')) {
       const v = valueOf('profile.effect.');

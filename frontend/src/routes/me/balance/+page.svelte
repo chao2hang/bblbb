@@ -1,17 +1,17 @@
-<!-- M07-UI-01：个人积分页面（参考 LinuxDo Credits 组件架构）。
-  包含“今天”核心指标与动态积分趋势折线图、签到与信任等级入口、
-  以及“近期概览”6 卡片网格（积分流水、7 天收支统计、交易往来、申诉争议）。
+<!-- M07-UI-01：个人积分页面（优化版）。
+  展示今日核心指标（可用余额、社区信任等级、签到奖励）与动态收支趋势折线图，
+  以及近期积分明细与 7 天收支统计。
 -->
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { currencyLabel, newClientRequestId } from '$lib/api/client';
-  import Button from '$lib/components/ui/Button.svelte';
+  import { newClientRequestId } from '$lib/api/client';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import type { BalanceActionData, BalancePageData } from './+page.server';
 
   let { data, form }: { data: BalancePageData; form?: BalanceActionData | null } = $props();
 
   const summary = $derived(data.summary);
+  const trust = $derived(data.trust);
   const transactions = $derived(data.transactions ?? []);
   const error = $derived(data.error);
   const message = $derived(form?.message ?? null);
@@ -27,6 +27,7 @@
 
   const summaryAny = $derived(summary as unknown as Record<string, unknown> | null);
   const lvlNum = $derived.by(() => {
+    if (trust?.level !== undefined) return trust.level;
     if (!summaryAny?.level) return null;
     if (typeof summaryAny.level === 'number') return summaryAny.level;
     if (typeof summaryAny.level === 'object' && summaryAny.level !== null && 'sort_order' in summaryAny.level) {
@@ -35,6 +36,7 @@
     return null;
   });
   const lvlName = $derived.by(() => {
+    if (trust?.name) return trust.name;
     if (!summaryAny) return null;
     if (typeof summaryAny.level === 'object' && summaryAny.level !== null && 'name' in summaryAny.level) {
       return String((summaryAny.level as Record<string, unknown>).name ?? '');
@@ -42,6 +44,10 @@
     if (typeof summaryAny.level_name === 'string') return summaryAny.level_name;
     return null;
   });
+
+  const trustLevel = $derived(lvlNum ?? 1);
+  const trustName = $derived(lvlName ?? '基本用户');
+  const trustNextLevel = $derived(trust?.next_level ?? null);
 
   const todayEarned = $derived(summary?.today_earned ?? form?.todayEarned ?? []);
   const todayEarnedTotal = $derived(todayEarned.reduce((sum, e) => sum + (e.amount || 0), 0));
@@ -83,7 +89,8 @@
       let exp = 0;
 
       for (const tx of transactions) {
-        const txDate = new Date(tx.created_at);
+        const txTimestamp = typeof tx.created_at === 'number' ? tx.created_at : Number(tx.created_at);
+        const txDate = new Date(txTimestamp > 1e11 ? txTimestamp : txTimestamp * 1000);
         if (
           txDate.getFullYear() === target.getFullYear() &&
           txDate.getMonth() === target.getMonth() &&
@@ -113,7 +120,7 @@
     const maxIncome = Math.max(...list.map((d) => d.income), 10);
     const maxExpense = Math.max(...list.map((d) => d.expense), 10);
 
-    let runningTotal = coinBalance?.amount ?? 1500;
+    let runningTotal = coinBalance?.amount ?? 0;
     for (let i = list.length - 1; i >= 0; i--) {
       list[i].total = Math.max(0, runningTotal);
       list[i].incomePct = list[i].income > 0 ? Math.min(100, Math.round((list[i].income / maxIncome) * 100)) : 0;
@@ -127,21 +134,54 @@
   const total7dIncome = $derived(past7Days.reduce((acc, d) => acc + d.income, 0));
   const total7dExpense = $derived(past7Days.reduce((acc, d) => acc + d.expense, 0));
 
-  // 活动列表（合并真实交易或默认论坛明细）
+  // 活动列表（真实交易流水）
   interface ActivityItem {
     id: string;
     title: string;
     amountText: string;
-    status: string;
+    isPositive: boolean;
+    time?: string;
+    balanceAfter?: number;
+  }
+
+  function formatTxKind(kind: string): string {
+    switch (kind) {
+      case 'checkin':
+        return '每日签到打卡';
+      case 'admin_adjust':
+        return '管理员调整';
+      case 'shop_purchase':
+        return '商城道具购买';
+      case 'marketplace_order':
+        return '应用市场消费';
+      case 'content_unlock':
+        return '付费内容解锁';
+      case 'attachment_download':
+        return '附件资源下载';
+      case 'reward':
+        return '激励奖励';
+      default:
+        return '积分变动';
+    }
+  }
+
+  function formatTxTime(ts: number): string {
+    if (!ts) return '';
+    const num = typeof ts === 'number' ? ts : Number(ts);
+    const d = new Date(num > 1e11 ? num : num * 1000);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   const activities = $derived.by<ActivityItem[]>(() => {
     if (transactions.length > 0) {
-      return transactions.slice(0, 15).map((t) => ({
+      return transactions.slice(0, 30).map((t) => ({
         id: t.id,
-        title: t.memo || (t.kind === 'checkin' ? '每日签到打卡' : t.kind === 'admin_adjust' ? '管理员积分调整' : '积分变动'),
+        title: t.memo || formatTxKind(t.kind),
         amountText: `${t.amount >= 0 ? '+' : ''}${t.amount} COIN`,
-        status: '成功'
+        isPositive: t.amount >= 0,
+        time: formatTxTime(t.created_at),
+        balanceAfter: t.balance_after
       }));
     }
     if (todayEarned.length > 0) {
@@ -149,25 +189,16 @@
         id: `earned-${idx}`,
         title: '每日签到奖励',
         amountText: `+${e.amount} COIN`,
-        status: '成功'
+        isPositive: true,
+        time: currentTimeStr
       }));
     }
-    return [
-      { id: '1', title: '每日访问签到奖励', amountText: '+10 COIN', status: '成功' },
-      { id: '2', title: '连续签到额外奖励', amountText: '+5 COIN', status: '成功' },
-      { id: '3', title: '优质内容创作激励', amountText: '+50 COIN', status: '成功' },
-      { id: '4', title: '商城 - 专属徽章装扮', amountText: '-30 COIN', status: '成功' },
-      { id: '5', title: '付费主题帖内容解锁', amountText: '-5 COIN', status: '成功' },
-      { id: '6', title: '附件资源下载收益', amountText: '+15 COIN', status: '成功' },
-      { id: '7', title: '社区互动问答被采纳', amountText: '+20 COIN', status: '成功' },
-      { id: '8', title: '商城 - 道具兑换', amountText: '-10 COIN', status: '成功' }
-    ];
+    return [];
   });
 
   // SVG 趋势图坐标生成
   const chartWidth = 720;
   const startX = 40;
-  const topY = 32;
   const baselineY = 188;
 
   function buildPoints(values: number[], maxVal: number, minBoundY: number, maxBoundY: number) {
@@ -207,9 +238,9 @@
     const maxTotal = Math.max(...totals, 100);
     const maxFlow = Math.max(...incomes, ...expenses, 20);
 
-    // 总额在上方区间（32 ~ 100）
+    // 总额在上方区间（36 ~ 110）
     const totalPts = buildPoints(totals, maxTotal, 36, 110);
-    // 收入与支出在下方区间（110 ~ 188）
+    // 收入与支出在下方区间（120 ~ 188）
     const incomePts = buildPoints(incomes, maxFlow * 1.5, 120, baselineY);
     const expensePts = buildPoints(expenses, maxFlow * 1.5, 120, baselineY);
 
@@ -256,7 +287,7 @@
   {/if}
 
   {#if summary}
-    <div class="linuxdo-credits py-6 space-y-12">
+    <div class="linuxdo-credits py-6 space-y-10">
       <!-- 今天与积分趋势 -->
       <div>
         <h1 class="text-2xl font-semibold border-b pb-2 mb-6">今天</h1>
@@ -427,40 +458,40 @@
               {/if}
             </div>
 
-            <!-- 2. 待结算与社区信任等级 -->
+            <!-- 2. 社区信任等级 -->
             <div class="py-3 md:border-b md:pt-4 md:pb-4">
               <div class="flex items-start justify-between gap-4 md:block">
-                <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center gap-1 flex-wrap md:whitespace-nowrap">
-                  <span class="min-[400px]:hidden">待入账</span>
-                  <span class="hidden min-[400px]:inline">待入账 / 冻结积分</span>
-                  <button type="button" aria-label="查看详情" class="inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-                  </button>
+                <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center justify-between">
+                  <span>社区信任等级</span>
+                  <a href="/me/level" class="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5" title="行为信任标准体系">
+                    行为信任标准体系 &rarr;
+                  </a>
                 </div>
-                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left">
-                  <span data-slot="counting-number">0.00</span>
-                  <span class="text-xs text-muted-foreground font-normal ml-1">COIN</span>
+                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left flex items-baseline justify-end md:justify-start gap-2">
+                  <span class="text-blue-600">TL{trustLevel}</span>
+                  <span class="text-base font-medium text-foreground">{trustName}</span>
                 </div>
               </div>
               <div class="mt-2.5 flex items-center justify-between text-xs pt-1.5 border-t border-dashed border-border/60">
-                <span class="text-muted-foreground">社区信任等级</span>
-                <a href="/me/level" class="text-blue-600 hover:underline font-medium inline-flex items-center gap-0.5" title="行为信任标准体系">
-                  行为信任标准体系 &rarr;
-                </a>
+                <span class="text-muted-foreground">
+                  {#if trustNextLevel}
+                    下一等级：TL{trustNextLevel.level} {trustNextLevel.name}
+                  {:else}
+                    行为信任体系评定状态
+                  {/if}
+                </span>
+                <a href="/me/level" class="text-blue-600 hover:underline">查看要求 &rarr;</a>
               </div>
             </div>
 
-            <!-- 3. 今日获取额度与签到 -->
+            <!-- 3. 今日签到奖励与签到 -->
             <div class="py-3 last:pb-0 md:pt-4 md:pb-0">
               <div class="flex items-start justify-between gap-4 md:block">
-                <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center gap-1 flex-wrap">
-                  今日获取额度
-                  <button type="button" aria-label="查看详情" class="inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-                  </button>
+                <div class="min-w-0 text-sm text-muted-foreground font-medium">
+                  今日签到奖励
                 </div>
                 <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left">
-                  <span data-slot="counting-number">{todayEarnedTotal > 0 ? `+${todayEarnedTotal}` : '800.00'}</span>
+                  <span data-slot="counting-number">{todayEarnedTotal > 0 ? `+${todayEarnedTotal}` : '0'}</span>
                   <span class="text-xs text-muted-foreground font-normal ml-1">COIN</span>
                 </div>
               </div>
@@ -523,69 +554,81 @@
         </div>
       </div>
 
-      <!-- 近期概览 6 卡片网格 -->
+      <!-- 近期概览：真实积分明细与 7 天收支统计 -->
       <div>
         <h1 class="text-2xl font-semibold border-b pb-2">近期概览</h1>
         <div class="bg-muted rounded-lg p-2.5 mt-3">
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
             <!-- 卡片 1：积分明细 -->
-            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[220px] flex flex-col h-full">
+            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[240px] flex flex-col h-full">
               <div data-slot="card-header" class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 pb-2">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2.5 h-6">
                     <div data-slot="card-title" class="text-sm font-semibold">积分明细</div>
-                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground"><span data-slot="counting-number">{activities.length}</span></span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <button data-slot="button" class="cursor-pointer inline-flex items-center justify-center rounded-md size-6 hover:bg-muted" aria-label="查看明细">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye size-3.5" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    </button>
-                    <button data-slot="button" class="cursor-pointer inline-flex items-center justify-center rounded-md size-6 hover:bg-muted" aria-label="刷新">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-circle size-3.5 animate-none" role="status" aria-label="Loading"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                    </button>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      <span data-slot="counting-number">{activities.length}</span>
+                    </span>
                   </div>
                 </div>
               </div>
               <div data-slot="card-content" class="px-4 relative flex-1">
                 <div data-slot="scroll-area" class="relative">
                   <div data-slot="scroll-area-viewport" class="size-full">
-                    <div class="space-y-1.5">
-                      {#each activities as item}
-                        <div class="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-muted/40 hover:bg-muted/70 transition-colors">
-                          <div class="flex-1 min-w-0">
-                            <p class="text-xs font-medium truncate leading-tight text-foreground">{item.title}</p>
-                            <p class="text-[10px] text-muted-foreground leading-tight mt-0.5">{item.amountText}</p>
+                    {#if activities.length === 0}
+                      <div class="empty-placeholder py-10 flex flex-col items-center justify-center text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground opacity-50" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <path d="M12 6v6l4 2"></path>
+                        </svg>
+                        <p class="text-xs text-muted-foreground mt-2">暂无积分变动记录</p>
+                      </div>
+                    {:else}
+                      <div class="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
+                        {#each activities as item}
+                          <div class="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-muted/40 hover:bg-muted/70 transition-colors">
+                            <div class="flex-1 min-w-0">
+                              <p class="text-xs font-medium truncate leading-tight text-foreground">{item.title}</p>
+                              <div class="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground leading-tight">
+                                {#if item.time}
+                                  <span>{item.time}</span>
+                                {/if}
+                                {#if item.balanceAfter !== undefined}
+                                  <span>余额: {item.balanceAfter}</span>
+                                {/if}
+                              </div>
+                            </div>
+                            <span class="font-mono text-xs font-semibold ml-2 shrink-0 {item.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
+                              {item.amountText}
+                            </span>
                           </div>
-                          <span data-slot="badge" class="badge-success text-[10px] px-1.5 py-0.5 ml-2 rounded-full">{item.status}</span>
-                        </div>
-                      {/each}
-                    </div>
+                        {/each}
+                      </div>
+                    {/if}
                   </div>
                 </div>
               </div>
               <div data-slot="card-footer" class="flex items-center px-4 border-t h-9">
                 <div class="flex items-center justify-between text-xs text-muted-foreground w-full">
                   <span>更新时间：{currentTimeStr}</span>
-                  <a href="/shop" class="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5">去商城 &rarr;</a>
+                  {#if transactions.length > 0}
+                    <span>共 {transactions.length} 条记录</span>
+                  {/if}
                 </div>
               </div>
             </div>
 
             <!-- 卡片 2：7天收入统计 -->
-            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[220px] flex flex-col h-full">
+            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[240px] flex flex-col h-full">
               <div data-slot="card-header" class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 pb-2">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-4 h-6">
                     <div data-slot="card-title" class="text-sm font-semibold">7天收入统计</div>
                   </div>
-                  <div class="flex items-center gap-1">
-                    <button data-slot="button" class="cursor-pointer inline-flex items-center justify-center rounded-md size-6 hover:bg-muted" aria-label="刷新">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-circle size-3.5 animate-none" role="status" aria-label="Loading"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                    </button>
-                  </div>
                 </div>
                 <div class="pt-0.5">
-                  <div class="text-xl font-bold tracking-tight">B 币 <span data-slot="counting-number">{total7dIncome.toFixed(2)}</span></div>
+                  <div class="text-xl font-bold tracking-tight">
+                    B 币 <span data-slot="counting-number" class="text-green-600 font-mono">+{total7dIncome.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
               <div data-slot="card-content" class="px-4 relative flex-1">
@@ -627,20 +670,17 @@
             </div>
 
             <!-- 卡片 3：7天支出统计 -->
-            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[220px] flex flex-col h-full">
+            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[240px] flex flex-col h-full">
               <div data-slot="card-header" class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 pb-2">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-4 h-6">
                     <div data-slot="card-title" class="text-sm font-semibold">7天支出统计</div>
                   </div>
-                  <div class="flex items-center gap-1">
-                    <button data-slot="button" class="cursor-pointer inline-flex items-center justify-center rounded-md size-6 hover:bg-muted" aria-label="刷新">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-circle size-3.5 animate-none" role="status" aria-label="Loading"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                    </button>
-                  </div>
                 </div>
                 <div class="pt-0.5">
-                  <div class="text-xl font-bold tracking-tight">B 币 <span data-slot="counting-number">{total7dExpense.toFixed(2)}</span></div>
+                  <div class="text-xl font-bold tracking-tight">
+                    B 币 <span data-slot="counting-number" class="text-red-500 font-mono">-{total7dExpense.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
               <div data-slot="card-content" class="px-4 relative flex-1">
@@ -651,7 +691,7 @@
                         <div class="space-y-1">
                           <div class="flex items-center justify-between">
                             <span class="text-[11px] text-muted-foreground">{day.date}</span>
-                            <span class="text-[11px] text-red-600 font-semibold">-{day.expense.toFixed(2)}</span>
+                            <span class="text-[11px] text-red-500 font-semibold">-{day.expense.toFixed(2)}</span>
                           </div>
                           <div class="bg-muted rounded-full overflow-hidden h-1.5">
                             <div
@@ -677,103 +717,6 @@
               <div data-slot="card-footer" class="flex items-center px-4 border-t h-9">
                 <div class="flex items-center justify-between text-xs text-muted-foreground w-full">
                   <span>更新时间：{currentTimeStr}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 卡片 4：交易往来统计 -->
-            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[220px] flex flex-col h-full">
-              <div data-slot="card-header" class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 pb-2">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-4 h-6">
-                    <div data-slot="card-title" class="text-sm font-semibold">交易往来统计</div>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <button data-slot="button" class="cursor-pointer inline-flex items-center justify-center rounded-md size-6 hover:bg-muted" aria-label="刷新">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-circle size-3.5 animate-none" role="status" aria-label="Loading"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div data-slot="card-content" class="px-4 relative flex-1">
-                <div data-slot="scroll-area" class="relative">
-                  <div data-slot="scroll-area-viewport" class="size-full">
-                    <div class="empty-placeholder">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                      <p class="text-xs text-muted-foreground">暂无交易往来数据</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-slot="card-footer" class="flex items-center px-4 border-t h-9">
-                <div class="flex items-center justify-between text-xs text-muted-foreground w-full">
-                  <span>更新时间：{currentTimeStr}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 卡片 5：待处理争议 -->
-            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[220px] flex flex-col h-full">
-              <div data-slot="card-header" class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 pb-2">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2.5 h-6">
-                    <div data-slot="card-title" class="text-sm font-semibold">待处理争议</div>
-                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground"><span data-slot="counting-number">0</span></span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <button data-slot="button" class="cursor-pointer inline-flex items-center justify-center rounded-md size-6 hover:bg-muted" aria-label="刷新">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-circle size-3.5 animate-none" role="status" aria-label="Loading"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div data-slot="card-content" class="px-4 relative flex-1">
-                <div data-slot="scroll-area" class="relative">
-                  <div data-slot="scroll-area-viewport" class="size-full">
-                    <div class="empty-placeholder">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg>
-                      <p class="text-muted-foreground text-xs">暂无待处理的积分申诉与争议</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-slot="card-footer" class="flex items-center px-4 border-t h-9">
-                <div class="flex items-center justify-between text-xs text-muted-foreground w-full">
-                  <span>更新时间：{currentTimeStr}</span>
-                  <a href="/moderation/appeals" class="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5">查看申诉 &rarr;</a>
-                </div>
-              </div>
-            </div>
-
-            <!-- 卡片 6：我发起的争议 -->
-            <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[220px] flex flex-col h-full">
-              <div data-slot="card-header" class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 pb-2">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2.5 h-6">
-                    <div data-slot="card-title" class="text-sm font-semibold">我发起的争议</div>
-                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground"><span data-slot="counting-number">0</span></span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <button data-slot="button" class="cursor-pointer inline-flex items-center justify-center rounded-md size-6 hover:bg-muted" aria-label="刷新">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-circle size-3.5 animate-none" role="status" aria-label="Loading"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div data-slot="card-content" class="px-4 relative flex-1">
-                <div data-slot="scroll-area" class="relative">
-                  <div data-slot="scroll-area-viewport" class="size-full">
-                    <div class="empty-placeholder">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                      <p class="text-muted-foreground text-xs">暂无我发起的积分申诉与争议</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div data-slot="card-footer" class="flex items-center px-4 border-t h-9">
-                <div class="flex items-center justify-between text-xs text-muted-foreground w-full">
-                  <span>更新时间：{currentTimeStr}</span>
-                  <a href="/moderation/appeals" class="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5">查看申诉 &rarr;</a>
                 </div>
               </div>
             </div>

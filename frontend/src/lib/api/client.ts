@@ -1259,6 +1259,7 @@ export function productKindLabel(kind: ProductKind | undefined): string {
   const map: Record<string, string> = {
     cosmetic_nickname: '昵称装扮',
     cosmetic_avatar: '头像框',
+    cosmetic_avatar_attachment: '头像挂件',
     cosmetic_badge: '徽章',
     profile_effect: '主页装饰',
     post_effect: '帖子装饰',

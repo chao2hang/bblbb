@@ -18,6 +18,7 @@
   import { announceTransientProblem } from '$lib/ui/problem-toast';
   import { show } from '$lib/ui/toast';
   import { formatCount, formatRelative } from '$lib/utils';
+  import { infiniteScroll } from '$lib/utils/infinite-scroll';
   import { boardVisuals } from '$lib/board-visuals';
   import type { FavoritesActionData, FavoritesPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
@@ -29,6 +30,7 @@
   /** loadMore 已推进到的游标；undefined = 尚未推进（回退 data.nextCursor）。 */
   let loadedCursor = $state<string | null | undefined>(undefined);
   let loadingMore = $state(false);
+  let loadFailed = $state(false);
 
   const items = $derived([...data.items, ...extraPages]);
   /** 下一页游标：未推进时用服务端视图的游标（SSR 也可渲染加载更多）。 */
@@ -42,6 +44,7 @@
     void data.after;
     extraPages = [];
     loadedCursor = undefined;
+    loadFailed = false;
   });
 
   // 瞬态服务端错误（5xx/429）→ 全局 Toast 提示 + 页面只留「加载失败·重试」
@@ -52,15 +55,18 @@
   });
 
   /** JS 下追加下一页；无 JS 走 ?after= 链接（整页翻页）。 */
-  async function loadMore(event: MouseEvent): Promise<void> {
-    event.preventDefault();
+  async function loadMore(event?: MouseEvent): Promise<void> {
+    event?.preventDefault();
     if (!cursor || loadingMore) return;
     loadingMore = true;
+    loadFailed = false;
     try {
       const page = await listMyFavorites(fetch, cursor);
       extraPages = [...extraPages, ...(page.items ?? [])];
       loadedCursor = page.next_cursor ?? null;
+      loadFailed = false;
     } catch {
+      loadFailed = true;
       show('加载更多失败，请重试', 'danger');
     }
     loadingMore = false;
@@ -171,11 +177,19 @@
             {/each}
           </div>
           {#if cursor}
-            <div style="padding:var(--space-4);display:flex;justify-content:center;">
+            <div
+              style="padding:var(--space-4);display:flex;justify-content:center;"
+              use:infiniteScroll={{
+                hasMore: !!cursor,
+                loading: loadingMore,
+                disabled: loadFailed,
+                onLoadMore: () => void loadMore()
+              }}
+            >
               <!-- JS：客户端追加下一页；无 JS：?after= 整页翻页（均走同一游标）。 -->
               <Button
                 href="/favorites?after={encodeURIComponent(cursor)}"
-                text={loadingMore ? '加载中…' : '加载更多'}
+                text={loadingMore ? '加载中…' : loadFailed ? '加载失败，点击重试' : '加载更多'}
                 variant="secondary"
                 size="sm"
                 disabled={loadingMore}

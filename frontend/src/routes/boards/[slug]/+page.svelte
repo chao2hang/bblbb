@@ -19,6 +19,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { boardVisuals } from '$lib/board-visuals';
   import { formatCount } from '$lib/utils';
+  import { infiniteScroll } from '$lib/utils/infinite-scroll';
   import { show } from '$lib/ui/toast';
   import Seo from '$lib/components/Seo.svelte';
   import type { PostSummary } from '$lib/api/client';
@@ -83,6 +84,7 @@
   let extraPages = $state<FeedPost[]>([]);
   let loadedCursor = $state<string | null | undefined>(undefined);
   let loadingMore = $state(false);
+  let loadFailed = $state(false);
 
   const posts = $derived<FeedPost[]>([...data.posts, ...extraPages]);
   const cursor = $derived(loadedCursor === undefined ? data.nextCursor : loadedCursor);
@@ -94,6 +96,7 @@
     void data.after;
     extraPages = [];
     loadedCursor = undefined;
+    loadFailed = false;
   });
 
   /** 客户端行归一化（与 +page.server.ts pickPostRow 同构；本地实现避免
@@ -126,10 +129,11 @@
   }
 
   /** JS 下追加下一页；无 JS 走 ?after= 链接（整页翻页）。 */
-  async function loadMore(event: MouseEvent): Promise<void> {
-    event.preventDefault();
+  async function loadMore(event?: MouseEvent): Promise<void> {
+    event?.preventDefault();
     if (!cursor || loadingMore || !board) return;
     loadingMore = true;
+    loadFailed = false;
     try {
       const params = new URLSearchParams({ limit: '8' });
       if (data.sort) params.set('sort', data.sort);
@@ -147,7 +151,9 @@
       };
       extraPages = [...extraPages, ...(next.items ?? []).map(toRow)];
       loadedCursor = next.page?.next_cursor ?? next.next_cursor ?? null;
+      loadFailed = false;
     } catch {
+      loadFailed = true;
       show('加载更多失败，请重试', 'danger');
     }
     loadingMore = false;
@@ -378,8 +384,18 @@
           />
 
           {#if cursor}
-            <a class="load-more" href={loadMoreHref} onclick={(event) => void loadMore(event)}>
-              {loadingMore ? '加载中…' : '加载更多'}
+            <a
+              class="load-more"
+              href={loadMoreHref}
+              use:infiniteScroll={{
+                hasMore: !!cursor,
+                loading: loadingMore,
+                disabled: loadFailed,
+                onLoadMore: () => void loadMore()
+              }}
+              onclick={(event) => void loadMore(event)}
+            >
+              {loadingMore ? '加载中…' : loadFailed ? '加载失败，点击重试' : '加载更多'}
             </a>
           {:else if posts.length > 0}
             <div class="feed-end">— 已经到底了 —</div>

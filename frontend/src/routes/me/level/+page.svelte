@@ -143,11 +143,13 @@
   </div>
 
   <!-- 分页导航标签 (Tabs)：清晰划分「我的晋升要求」、「全站阶梯表」与「规则说明」 -->
-  <div class="level-nav-tabs" role="tablist">
+  <div class="level-nav-tabs" role="tablist" aria-label="信任等级内容分页">
     <button
       type="button"
+      id="level-tab-overview"
       role="tab"
       aria-selected={currentTab === 'overview'}
+      aria-controls="level-panel-overview"
       class="tab-btn {currentTab === 'overview' ? 'is-active' : ''}"
       onclick={() => (currentTab = 'overview')}
     >
@@ -160,8 +162,10 @@
 
     <button
       type="button"
+      id="level-tab-tiers"
       role="tab"
       aria-selected={currentTab === 'tiers'}
+      aria-controls="level-panel-tiers"
       class="tab-btn {currentTab === 'tiers' ? 'is-active' : ''}"
       onclick={() => (currentTab = 'tiers')}
     >
@@ -171,8 +175,10 @@
 
     <button
       type="button"
+      id="level-tab-rules"
       role="tab"
       aria-selected={currentTab === 'rules'}
+      aria-controls="level-panel-rules"
       class="tab-btn {currentTab === 'rules' ? 'is-active' : ''}"
       onclick={() => (currentTab = 'rules')}
     >
@@ -183,7 +189,7 @@
 
   <!-- TAB 1: 我的进度与下一级晋升要求 -->
   {#if currentTab === 'overview'}
-    <div class="tab-pane">
+    <div class="tab-pane" id="level-panel-overview" role="tabpanel" aria-labelledby="level-tab-overview">
       {#if !isMaxLevel}
         <div class="card next-level-card">
           <div class="card-header">
@@ -283,7 +289,7 @@
 
   <!-- TAB 2: 全站信任等级阶梯表 (TL0–TL4) -->
   {#if currentTab === 'tiers'}
-    <div class="tab-pane">
+    <div class="tab-pane" id="level-panel-tiers" role="tabpanel" aria-labelledby="level-tab-tiers">
       <div class="card roadmap-card">
         <div class="card-header">
           <div>
@@ -301,11 +307,11 @@
             <table class="roadmap-table">
               <thead>
                 <tr>
-                  <th style="width: 90px;">等级</th>
-                  <th style="width: 110px;">称谓</th>
+                  <th style="width: 72px;">等级</th>
+                  <th style="width: 96px;">称谓</th>
                   <th style="width: 280px;">晋升条件</th>
                   <th>等级特权摘要</th>
-                  <th style="width: 120px; text-align: right;">达成状态</th>
+                  <th style="width: 112px; text-align: right;">达成状态</th>
                 </tr>
               </thead>
               <tbody>
@@ -324,12 +330,12 @@
                       </div>
                     </td>
                     <td>
-                      <div class="tier-condition-cell">
+                      <div class="tier-condition-cell" data-label="晋升条件">
                         {tier.promotion}
                       </div>
                     </td>
                     <td>
-                      <div class="tier-perks-cell">
+                      <div class="tier-perks-cell" data-label="等级特权">
                         {#each tier.perks as perk}
                           <span class="tier-perk-badge">{perk}</span>
                         {/each}
@@ -370,7 +376,7 @@
 
   <!-- TAB 3: 信任体系规则解读 FAQ -->
   {#if currentTab === 'rules'}
-    <div class="tab-pane">
+    <div class="tab-pane" id="level-panel-rules" role="tabpanel" aria-labelledby="level-tab-rules">
       <div class="faq-grid">
         <div class="card faq-card">
           <div class="card-body">
@@ -861,6 +867,12 @@
   }
 
   /* ── 阶梯一览表 ── */
+  /* card-body 全局层有 padding !important，会吃掉内联 padding:0；
+     这里以同优先级 !important 恢复「表格贴卡边」的设计意图。 */
+  .roadmap-card .card-body {
+    padding: 0 !important;
+  }
+
   .table-container {
     width: 100%;
     overflow-x: auto;
@@ -873,6 +885,14 @@
     text-align: left;
   }
 
+  /* 平板及以下（>767px）给表格保底宽度：宁可横向滚动也不压缩列
+     （窄屏 ≤767px 由 mobile.css 改排为逐级卡片，不经过这里）。 */
+  @media (min-width: 768px) {
+    .roadmap-table {
+      min-width: 700px;
+    }
+  }
+
   .roadmap-table th {
     padding: var(--space-3) var(--space-4);
     background: var(--color-bg-subtle, rgba(255, 255, 255, 0.02));
@@ -882,6 +902,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    white-space: nowrap;
   }
 
   .roadmap-table td {
@@ -907,6 +928,11 @@
     align-items: center;
   }
 
+  .tier-name-cell strong {
+    display: block;
+    white-space: nowrap;
+  }
+
   .tier-condition-cell {
     font-size: var(--text-xs);
     color: var(--color-text-secondary);
@@ -926,6 +952,7 @@
     background: rgba(255, 255, 255, 0.05);
     font-size: 11px;
     color: var(--color-text-secondary);
+    white-space: nowrap;
   }
 
   .tier-row.is-current .tier-perk-badge {
@@ -939,6 +966,7 @@
     gap: 4px;
     font-size: var(--text-xs);
     font-weight: 500;
+    white-space: nowrap;
   }
 
   .status-tag.is-completed {

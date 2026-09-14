@@ -308,7 +308,7 @@ describe('loginViaServer / loginMfaViaServer（M02-UX-03 两步登录）', () =>
     const cookies = mockCookies();
 
     const result = await loginViaServer(cookies, { identifier: 'bob', password: 'password9' });
-    expect(result).toEqual({ kind: 'mfa', challengeToken: 'ch-1' });
+    expect(result).toEqual({ kind: 'mfa', challengeToken: 'ch-1', passkeyAvailable: false });
     expect(cookies.setCalls).toHaveLength(0); // 无会话 Cookie，仅预认证 CSRF
   });
 

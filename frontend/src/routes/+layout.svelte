@@ -55,6 +55,7 @@
   // 浏览器端 applyThemeTokens/previewThemeTokens 在预览与切换时同步该属性。
   const shellLayout = $derived(resolveLayoutMode(activeTheme?.tokens ?? null));
   const isAdmin = $derived(page.url.pathname.startsWith('/admin'));
+  const isAuthStandalone = $derived(page.url.pathname === '/login');
 
   // 全站生效主题 Token 动态应用
   $effect(() => {
@@ -143,9 +144,13 @@
 
 <!-- .app-shell：主题结构预设作用域（data-theme-layout 由服务端数据解析，
      classic 为缺省；预览/切换由 projection 写入同一属性保持一致） -->
-<div class="app-shell" class:app-shell--admin={isAdmin} data-theme-layout={shellLayout}>
+<div class="app-shell" class:app-shell--admin={isAdmin} class:app-shell--auth={isAuthStandalone} data-theme-layout={shellLayout}>
   {#if isAdmin}
     <main id="main-content" tabindex="-1" class="admin-viewport-main">
+      {@render children()}
+    </main>
+  {:else if isAuthStandalone}
+    <main id="main-content" tabindex="-1" class="auth-viewport-main">
       {@render children()}
     </main>
   {:else}

@@ -1062,14 +1062,14 @@
                           label="查看 {authorLabel(comment)} 的个人资料"
                         >
                           <span style="display:inline-flex;align-items:center;gap:var(--space-2);">
-                            <CosmeticAvatar name={authorLabel(comment)} size="xs" presentation={commentPresentation(comment)} avatarAttachmentId={comment.author?.avatar_attachment_id ?? null} seed={comment.author?.username ?? comment.author?.id ?? authorLabel(comment)} />
+                            <CosmeticAvatar name={authorLabel(comment)} size="sm" presentation={commentPresentation(comment)} avatarAttachmentId={comment.author?.avatar_attachment_id ?? null} seed={comment.author?.username ?? comment.author?.id ?? authorLabel(comment)} />
                             <strong style="color:var(--color-text-primary);font-size:var(--text-sm);">
                               <CosmeticName name={authorLabel(comment)} presentation={commentPresentation(comment)} />
                             </strong>
                           </span>
                         </UserCard>
                       {:else}
-                        <CosmeticAvatar name={authorLabel(comment)} size="xs" presentation={commentPresentation(comment)} avatarAttachmentId={comment.author?.avatar_attachment_id ?? null} seed={comment.author?.username ?? comment.author?.id ?? authorLabel(comment)} />
+                        <CosmeticAvatar name={authorLabel(comment)} size="sm" presentation={commentPresentation(comment)} avatarAttachmentId={comment.author?.avatar_attachment_id ?? null} seed={comment.author?.username ?? comment.author?.id ?? authorLabel(comment)} />
                         <strong style="color:var(--color-text-primary);font-size:var(--text-sm);">
                           <CosmeticName name={authorLabel(comment)} presentation={commentPresentation(comment)} />
                         </strong>

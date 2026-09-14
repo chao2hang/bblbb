@@ -119,18 +119,34 @@
 </svelte:head>
 
 <div class="login-page auth-wrapper" id="page-login">
+  <!-- 柔和环境光晕与细腻网格纹理 -->
+  <div class="auth-ambient-glow auth-ambient-glow--1" aria-hidden="true"></div>
+  <div class="auth-ambient-glow auth-ambient-glow--2" aria-hidden="true"></div>
+  <div class="auth-grid-overlay" aria-hidden="true"></div>
+
   <section class="login-shell">
+    <!-- 顶部返回论坛导航（无全局顶栏时保留清晰出口） -->
+    <div class="auth-top-action">
+      <a href="/" class="auth-back-link" title="返回论坛首页">
+        <Icon name="chevron-left" size={16} />
+        <span>返回论坛</span>
+      </a>
+    </div>
+
     <div class="login-card auth-card">
       <div class="login-header-group">
-        <div class="login-header-meta">
-          {#if mfaStep}
-            <div class="login-hero-badge mfa-badge" aria-hidden="true">
-              <Icon name="shield-check" size={16} />
-            </div>
-            <p class="login-eyebrow">TWO-FACTOR AUTH</p>
-          {:else}
-            <p class="login-eyebrow">{site.loginEyebrow}</p>
-          {/if}
+        <div class="brand-badge-row">
+          <div class="brand-avatar" aria-hidden="true">
+            {#if mfaStep}
+              <Icon name="shield-check" size={20} class="brand-avatar-icon" />
+            {:else}
+              <span class="brand-initial">{(site.siteName || 'B').slice(0, 1)}</span>
+            {/if}
+          </div>
+          <div class="brand-meta">
+            <span class="brand-site-tag">{site.siteName}</span>
+            <span class="login-eyebrow">{mfaStep ? 'TWO-FACTOR AUTH' : site.loginEyebrow}</span>
+          </div>
         </div>
         <h1 tabindex="-1">{mfaStep ? '安全验证' : site.loginTitle}</h1>
         <p class="login-subtitle">
@@ -164,7 +180,10 @@
             {#if useRecovery}
               <div class="input-wrapper">
                 <label class="input-label" for="login-recovery">恢复码</label>
-                <div class="input-control">
+                <div class="input-control has-icon">
+                  <span class="input-leading-icon" aria-hidden="true">
+                    <Icon name="key" size={16} />
+                  </span>
                   <input
                     type="text"
                     class="input-field recovery-input"
@@ -178,13 +197,13 @@
               </div>
               <div class="mfa-switch-row">
                 <button type="button" class="link-btn" onclick={toggleRecovery}>
-                  <Icon name="key" size={14} />
-                  <span>用验证码登录</span>
+                  <Icon name="clock" size={14} />
+                  <span>改用动态验证码</span>
                 </button>
               </div>
             {:else}
               <div class="input-wrapper">
-                <label class="input-label" for="login-totp">验证码</label>
+                <label class="input-label" for="login-totp">动态验证码</label>
                 <div class="input-control totp-input-control">
                   <input
                     type="text"
@@ -212,8 +231,8 @@
             {/if}
             {#if passkeyAvailable}
               <div class="mfa-switch-row mfa-passkey-row">
-                <button type="button" class="link-btn" onclick={usePasskey} disabled={passkeyBusy}>
-                  <Icon name="fingerprint" size={14} />
+                <button type="button" class="link-btn passkey-btn" onclick={usePasskey} disabled={passkeyBusy}>
+                  <Icon name="fingerprint" size={15} />
                   <span>{passkeyBusy ? '等待 Passkey 验证…' : '使用 Passkey 登录'}</span>
                 </button>
               </div>
@@ -228,7 +247,10 @@
             <input type="hidden" name="next" value={nextParam} />
             <div class="input-wrapper">
               <label class="input-label" for="login-identifier">用户名或邮箱</label>
-              <div class="input-control">
+              <div class="input-control has-icon">
+                <span class="input-leading-icon" aria-hidden="true">
+                  <Icon name="user" size={16} />
+                </span>
                 <input
                   type="text"
                   class="input-field"
@@ -243,7 +265,10 @@
             </div>
             <div class="input-wrapper">
               <label class="input-label" for="login-password">密码</label>
-              <div class="input-control password-control">
+              <div class="input-control has-icon password-control">
+                <span class="input-leading-icon" aria-hidden="true">
+                  <Icon name="lock" size={16} />
+                </span>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   class="input-field password-input"
@@ -319,35 +344,175 @@
         <p class="login-signup">
           还没有账号？ <a href="/register" class="signup-link">立即注册</a>
         </p>
+        <div class="auth-security-trust">
+          <Icon name="shield-check" size={13} />
+          <span>端到端会话凭证加密保护</span>
+        </div>
       </div>
     </div>
   </section>
 </div>
 
 <style>
-  /* 基础与桌面样式 */
-  .login-header-group {
-    margin-bottom: var(--space-3, 12px);
-  }
-
-  .login-header-meta {
+  /* 基础容器与全屏环境 */
+  .login-page {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
+    justify-content: center;
+    padding: 36px 20px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    background: var(--color-bg-page);
   }
 
-  .login-hero-badge {
+  /* 柔和背景光晕：深邃多层渐变 */
+  .auth-ambient-glow {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .auth-ambient-glow--1 {
+    top: 18%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 640px;
+    height: 440px;
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-brand) 18%, transparent) 0%, transparent 70%);
+    filter: blur(70px);
+  }
+
+  .auth-ambient-glow--2 {
+    bottom: 12%;
+    right: 18%;
+    width: 380px;
+    height: 380px;
+    background: radial-gradient(circle, color-mix(in srgb, #6366f1 10%, transparent) 0%, transparent 70%);
+    filter: blur(80px);
+  }
+
+  /* 极细微网格纹理：增加社区高质感质感层 */
+  .auth-grid-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse at 50% 50%, black 40%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 40%, transparent 80%);
+    z-index: 0;
+  }
+
+  /* 壳体与卡片 */
+  .login-shell {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 顶部返回论坛导航 */
+  .auth-top-action {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .auth-back-link {
     display: inline-flex;
     align-items: center;
+    gap: 6px;
+    padding: 6px 14px 6px 10px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--color-bg-card) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.2s ease;
+  }
+
+  .auth-back-link:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-card);
+    border-color: var(--color-brand);
+    transform: translateX(-2px);
+  }
+
+  .login-card {
+    width: 100%;
+    padding: 34px 32px 28px;
+    background: color-mix(in srgb, var(--color-bg-card) 94%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-border) 75%, rgba(255, 255, 255, 0.08));
+    border-radius: 16px;
+    box-shadow:
+      0 20px 40px -15px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      0 0 50px -15px color-mix(in srgb, var(--color-brand) 12%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-sizing: border-box;
+    transition: box-shadow 0.3s ease;
+  }
+
+  /* 头部与品牌徽标 */
+  .login-header-group {
+    margin-bottom: var(--space-4, 16px);
+  }
+
+  .brand-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .brand-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--color-brand), color-mix(in srgb, var(--color-brand) 65%, #6366f1));
+    display: flex;
+    align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--color-brand) 12%, transparent);
-    color: var(--color-brand);
-    border: 1px solid color-mix(in srgb, var(--color-brand) 22%, transparent);
+    box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--color-brand) 40%, transparent);
     flex-shrink: 0;
+  }
+
+  .brand-initial {
+    font-size: 19px;
+    font-weight: 700;
+    color: #ffffff;
+    font-family: var(--font-family-mono, monospace);
+    line-height: 1;
+  }
+
+  :global(.brand-avatar-icon) {
+    color: #ffffff;
+  }
+
+  .brand-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .brand-site-tag {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.2;
   }
 
   .login-eyebrow {
@@ -360,18 +525,18 @@
   }
 
   .login-card h1 {
-    font-family: var(--font-family-serif);
     font-size: 24px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--color-text-primary);
-    margin: 0 0 4px;
+    margin: 0 0 6px;
     line-height: 1.25;
+    letter-spacing: -0.01em;
   }
 
   .login-subtitle {
     font-size: 13px;
     color: var(--color-text-secondary);
-    line-height: 1.4;
+    line-height: 1.45;
     margin: 0;
   }
 
@@ -383,13 +548,13 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-2, 8px);
-    padding: var(--space-2, 8px) var(--space-3, 12px);
+    padding: 10px 14px;
     margin-bottom: var(--space-3, 12px);
     background: var(--color-danger-soft, rgba(239, 68, 68, 0.08));
     border: 1px solid var(--color-danger-border, rgba(239, 68, 68, 0.25));
-    border-radius: var(--radius-md, 8px);
+    border-radius: 8px;
     color: var(--color-danger, #ef4444);
-    font-size: var(--text-sm, 13px);
+    font-size: 13px;
     line-height: 1.4;
     word-break: break-word;
   }
@@ -404,8 +569,9 @@
     flex: 1;
   }
 
+  /* 表单输入控件 */
   .input-wrapper {
-    margin-bottom: var(--space-3, 12px);
+    margin-bottom: 14px;
   }
 
   .input-label {
@@ -413,7 +579,7 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--color-text-primary);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
 
   .input-control {
@@ -421,41 +587,64 @@
     width: 100%;
   }
 
+  .input-leading-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-tertiary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: color 0.2s ease;
+    z-index: 2;
+  }
+
+  .input-control.has-icon:focus-within .input-leading-icon {
+    color: var(--color-brand);
+  }
+
   .input-field {
     width: 100%;
     height: 44px;
     padding: 0 14px;
-    font-size: 15px;
-    background: var(--color-bg-card);
+    font-size: 14px;
+    background: color-mix(in srgb, var(--color-bg-card) 70%, var(--color-bg-page));
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md, 6px);
+    border-radius: 8px;
     color: var(--color-text-primary);
     box-sizing: border-box;
-    transition: border-color var(--duration-fast, 0.15s), box-shadow var(--duration-fast, 0.15s);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  }
+
+  .input-control.has-icon .input-field {
+    padding-left: 42px !important;
+  }
+
+  .input-control.has-icon.password-control .input-field {
+    padding-left: 42px !important;
+    padding-right: 44px !important;
+  }
+
+  .input-field:hover {
+    border-color: color-mix(in srgb, var(--color-border) 70%, var(--color-text-primary));
   }
 
   .input-field:focus {
     outline: none;
+    background: var(--color-bg-card);
     border-color: var(--color-brand);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 18%, transparent);
-  }
-
-  .password-control {
-    display: flex;
-    align-items: center;
-  }
-
-  .password-input {
-    padding-right: 42px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 20%, transparent);
   }
 
   .toggle-pwd-btn {
     position: absolute;
-    right: 4px;
+    right: 5px;
     top: 50%;
     transform: translateY(-50%);
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -463,16 +652,84 @@
     border: none;
     color: var(--color-text-tertiary);
     cursor: pointer;
-    border-radius: var(--radius-sm, 4px);
-    transition: color 0.15s ease;
+    border-radius: 6px;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    z-index: 2;
   }
 
   .toggle-pwd-btn:hover {
     color: var(--color-text-primary);
+    background: color-mix(in srgb, var(--color-text-tertiary) 12%, transparent);
   }
 
+  /* 登录选项（记住我 / 忘记密码） */
+  .login-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 8px 0 16px;
+  }
+
+  .remember-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .remember-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-brand);
+    cursor: pointer;
+  }
+
+  .forgot-link {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .forgot-link:hover {
+    color: var(--color-brand);
+    text-decoration: underline;
+  }
+
+  /* 提交按钮 */
+  .submit-wrap {
+    margin-top: 6px;
+  }
+
+  .submit-wrap :global(.btn-primary) {
+    height: 44px;
+    background: linear-gradient(135deg, var(--color-brand), color-mix(in srgb, var(--color-brand) 80%, #6366f1));
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: 0 4px 14px -2px color-mix(in srgb, var(--color-brand) 38%, transparent);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .submit-wrap :global(.btn-primary:hover) {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px -2px color-mix(in srgb, var(--color-brand) 48%, transparent);
+  }
+
+  .submit-wrap :global(.btn-primary:active) {
+    transform: translateY(1px);
+    filter: brightness(0.96);
+  }
+
+  /* MFA 与 TOTP */
   .totp-input {
-    font-family: var(--font-family-mono);
+    font-family: var(--font-family-mono, monospace);
     font-size: 20px;
     font-weight: 600;
     letter-spacing: 0.25em;
@@ -481,7 +738,7 @@
   }
 
   .recovery-input {
-    font-family: var(--font-family-mono);
+    font-family: var(--font-family-mono, monospace);
     font-size: 14px;
     letter-spacing: 0.08em;
   }
@@ -490,11 +747,11 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-top: 6px;
-    padding: 6px 10px;
+    margin-top: 8px;
+    padding: 8px 12px;
     background: color-mix(in srgb, var(--color-brand) 6%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-brand) 16%, transparent);
-    border-radius: var(--radius-sm, 6px);
+    border-radius: 6px;
     color: var(--color-text-secondary);
     font-size: 12px;
     line-height: 1.35;
@@ -503,7 +760,7 @@
   .mfa-switch-row {
     display: flex;
     justify-content: flex-end;
-    margin: 4px 0 10px;
+    margin: 6px 0 12px;
   }
 
   .link-btn {
@@ -516,58 +773,88 @@
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    padding: 2px 4px;
+    padding: 3px 6px;
     border-radius: 4px;
-    transition: opacity 0.15s;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
   }
 
   .link-btn:hover {
-    opacity: 0.85;
+    opacity: 0.88;
+    background: color-mix(in srgb, var(--color-brand) 10%, transparent);
   }
 
-  .login-options {
+  .passkey-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 8px;
+    border: 1px dashed color-mix(in srgb, var(--color-brand) 30%, transparent);
+    border-radius: 8px;
+  }
+
+  /* OAuth 区域 */
+  .oauth-divider {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2, 8px);
-    margin: var(--space-1, 4px) 0 var(--space-3, 12px);
+    gap: 12px;
+    margin: 20px 0 16px;
   }
 
-  .remember-label {
+  .oauth-divider-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--color-border), transparent);
+  }
+
+  .oauth-divider-text {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .oauth-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .oauth-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-bg-card) 60%, var(--color-bg-page));
+    color: var(--color-text-primary);
     font-size: 13px;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .remember-checkbox {
-    width: 15px;
-    height: 15px;
-    accent-color: var(--color-brand);
-    cursor: pointer;
-  }
-
-  .forgot-link {
-    font-size: 13px;
-    color: var(--color-text-secondary);
+    font-weight: 500;
     text-decoration: none;
-    transition: color 0.15s;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-sizing: border-box;
   }
 
-  .forgot-link:hover {
-    color: var(--color-brand);
+  .oauth-btn:hover {
+    background: var(--color-surface-hover, var(--color-bg-card));
+    border-color: color-mix(in srgb, var(--color-border) 60%, var(--color-brand));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
-  .submit-wrap {
-    margin-top: var(--space-1, 4px);
+  .oauth-icon {
+    flex-shrink: 0;
   }
 
+  /* 卡片底部区域 */
   .login-footer-zone {
-    margin-top: auto;
-    padding-top: var(--space-3, 12px);
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
     text-align: center;
   }
 
@@ -588,145 +875,39 @@
     text-decoration: underline;
   }
 
-  .oauth-divider {
+  .auth-security-trust {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 18px 0 14px;
-  }
-
-  .oauth-divider-line {
-    flex: 1;
-    height: 1px;
-    background: var(--color-border);
-  }
-
-  .oauth-divider-text {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    white-space: nowrap;
-  }
-
-  .oauth-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 6px;
-  }
-
-  .oauth-btn {
-    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    width: 100%;
-    padding: 8px 16px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-card);
-    color: var(--color-text-primary);
-    font-size: 13px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-    cursor: pointer;
-    box-sizing: border-box;
+    gap: 6px;
+    margin-top: 12px;
+    color: var(--color-text-tertiary);
+    font-size: 12px;
   }
 
-  .oauth-btn:hover {
-    background: var(--color-surface-hover);
-    border-color: var(--color-border-strong);
-    color: var(--color-text-primary);
-  }
-
-  .oauth-icon {
-    flex-shrink: 0;
-  }
-
-  /* 移动端单页登录（<= 767px）：严控高度，紧凑布局，单屏全显 */
+  /* 移动端优化 */
   @media (max-width: 767px) {
-    .login-header-group {
-      margin-bottom: 8px;
-      flex-shrink: 0;
+    .login-page {
+      padding: 24px 16px 24px;
+      align-items: center;
     }
 
-    .login-header-meta {
-      gap: 6px;
-      margin-bottom: 4px;
+    .auth-top-action {
+      margin-bottom: 12px;
     }
 
-    .login-hero-badge {
-      width: 24px;
-      height: 24px;
+    .login-card {
+      padding: 24px 20px 20px;
+      border-radius: 14px;
     }
 
     .login-card h1 {
-      font-size: 22px !important;
-      margin: 0 0 2px !important;
-      line-height: 1.2 !important;
+      font-size: 21px !important;
     }
 
-    .login-subtitle {
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .auth-body {
-      margin-top: 8px;
-      flex-shrink: 0;
-    }
-
-    .input-wrapper {
-      margin-bottom: 8px;
-    }
-
-    .input-label {
-      font-size: 13px;
-      margin-bottom: 3px;
-    }
-
-    /* 移动端输入框防缩放（16px）与紧凑舒适高度（42px） */
-    .input-field {
-      height: 42px !important;
-      font-size: 16px !important;
-      padding: 0 12px !important;
-      border-radius: var(--radius-md, 6px) !important;
-    }
-
-    .password-input {
-      padding-right: 42px !important;
-    }
-
-    .toggle-pwd-btn {
-      width: 38px;
-      height: 38px;
-      right: 2px;
-    }
-
-    .totp-input {
-      height: 44px !important;
-      font-size: 20px !important;
-      letter-spacing: 0.25em !important;
-    }
-
-    .login-options {
-      margin: 4px 0 10px;
-    }
-
-    .remember-label,
-    .forgot-link {
-      font-size: 13px;
-    }
-
-    .login-footer-zone {
-      margin-top: auto;
-      padding-top: 8px;
-      padding-bottom: 2px;
-      flex-shrink: 0;
-    }
-
-    .login-signup {
-      font-size: 13px;
+    .auth-ambient-glow--1 {
+      width: 320px;
+      height: 320px;
     }
   }
 </style>
