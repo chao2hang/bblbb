@@ -75,7 +75,7 @@ pub struct LoginRequest {
     /// 用户名或邮箱（不区分大小写）
     pub identifier: String,
     pub password: String,
-    /// 「记住我」：勾选后签发 30 天会话（默认 7 天；M02-UX-03）。
+    /// 「记住我」：勾选后签发 60 天会话（默认 7 天；M02-UX-03，对标 Discourse 1440 小时）。
     #[serde(default)]
     pub remember: Option<bool>,
 }
@@ -639,7 +639,8 @@ async fn login(
                     .into_response());
             }
 
-            let cookie = build_session_cookie(&outcome.session_token);
+            let remember = req.remember.unwrap_or(false);
+            let cookie = build_session_cookie(&outcome.session_token, remember);
             let mfa_enabled = crate::auth::passkey::has_second_factor(pool, &outcome.user_id)
                 .await
                 .unwrap_or(false);
@@ -785,7 +786,7 @@ async fn login_mfa(
     .await
     {
         Ok(completed) => {
-            let cookie = build_session_cookie(&completed.session_token);
+            let cookie = build_session_cookie(&completed.session_token, completed.remember);
             // 第二步完成时 TOTP 必然已启用（mfa_required 由 has_confirmed_totp 判定）
             let roles = effective_global_roles(pool, &completed.user_id).await;
             let trust_level = current_trust_level(pool, &completed.user_id).await;

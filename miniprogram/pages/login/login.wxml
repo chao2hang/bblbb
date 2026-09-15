@@ -39,7 +39,7 @@
       <view class="row-between remember-row">
         <label class="remember">
           <checkbox value="remember" checked="{{remember}}" bindchange="onRemember" color="#E45735" />
-          <text class="remember-text">记住我（30 天会话）</text>
+          <text class="remember-text">记住我（60 天会话）</text>
         </label>
         <text class="text-2 forgot-link" bindtap="goForgot">忘记密码？</text>
       </view>

@@ -67,11 +67,100 @@ export interface LoginRequest {
 export interface LoginMfaChallenge {
   mfa_required: boolean;
   challenge_token: string;
+  passkey_available: boolean;
 }
 export interface LoginMfaRequest {
   challenge_token: string;
   totp_code?: string;
   recovery_code?: string;
+  passkey?: PasskeyAssertion;
+}
+export interface PasskeyAssertion {
+  id: string;
+  rawId: string;
+  type: "public-key";
+  response: {
+    authenticatorData: string;
+    clientDataJSON: string;
+    signature: string;
+    userHandle?: string;
+  };
+  clientExtensionResults?: Record<string, unknown>;
+  authenticatorAttachment?: string;
+}
+export interface PasskeyLoginOptionsRequest {
+  challenge_token: string;
+}
+export interface PasskeyRegistrationOptions {
+  publicKey: {
+    rp: {
+      id?: string;
+      name?: string;
+    };
+    user: {
+      id?: string;
+      name?: string;
+      displayName?: string;
+    };
+    challenge: string;
+    pubKeyCredParams: Array<{
+      type?: string;
+      alg?: number;
+    }>;
+    timeout?: number;
+    excludeCredentials?: Array<{
+      type?: string;
+      id?: string;
+      transports?: Array<string>;
+    }>;
+    authenticatorSelection?: {
+      residentKey?: string;
+      requireResidentKey?: boolean;
+      userVerification?: string;
+    };
+    attestation?: string;
+  };
+}
+export interface PasskeyConfirmRequest {
+  name?: string;
+  credential: PasskeyRegistration;
+}
+export interface PasskeyRegistration {
+  id: string;
+  rawId: string;
+  type: "public-key";
+  response: {
+    clientDataJSON: string;
+    attestationObject: string;
+    transports?: Array<string>;
+  };
+  clientExtensionResults?: Record<string, unknown>;
+  authenticatorAttachment?: string;
+}
+export interface PasskeyRequestOptions {
+  publicKey: {
+    rpId?: string;
+    challenge: string;
+    timeout?: number;
+    allowCredentials?: Array<{
+      type?: string;
+      id?: string;
+      transports?: Array<string>;
+    }>;
+    userVerification?: string;
+  };
+}
+export interface PasskeyCredentialInfo {
+  id: string;
+  name: string;
+  aaguid?: string;
+  backup_eligible?: boolean;
+  backed_up?: boolean;
+  created_at: number;
+  last_used_at?: number;
+}
+export interface PasskeyListResponse {
+  passkeys: Array<PasskeyCredentialInfo>;
 }
 export type LoginResult = Me | LoginMfaChallenge;
 export interface ProfilePatch {
@@ -217,7 +306,7 @@ export interface Problem {
   type: string;
   title: string;
   status: number;
-  code: "invalid_request" | "visibility_level_exceeds_author" | "invalid_url" | "idempotency_conflict" | "version_conflict" | "unauthorized" | "invalid_credentials" | "mfa_code_invalid" | "mfa_challenge_invalid" | "mfa_confirm_invalid" | "mfa_enrollment_invalid" | "reauth_password_invalid" | "verification_token_invalid" | "reset_token_invalid" | "validation_failed" | "invalid_current_password" | "forbidden" | "step_up_required" | "not_found" | "csrf_failed" | "origin_not_allowed" | "host_not_allowed" | "rate_limited" | "crawler_denied" | "challenge_required" | "temporarily_banned" | "feature_disabled" | "insufficient_funds" | "daily_limit_exceeded" | "checkout_interaction_invalid" | "checkout_user_mismatch" | "checkout_intent_expired" | "checkout_intent_consumed" | "offer_version_changed" | "refund_not_allowed" | "product_unavailable" | "shop_purchase_limit_exceeded" | "shop_stock_exhausted" | "entitlement_not_usable" | "presentation_slot_conflict" | "activity_already_claimed" | "activity_not_eligible" | "invalid_price_coin" | "post_not_paid" | "price_not_configured" | "self_reaction" | "cannot_follow_self" | "cannot_message_self" | "download_url_unavailable" | "ai_consent_required" | "ai_budget_exceeded" | "ai_suggestion_stale" | "invalid_storage_request" | "storage_partial_upload" | "storage_forbidden" | "storage_auth_failed" | "storage_rate_limited" | "quota_exceeded" | "storage_conflict" | "storage_state_error" | "storage_verification_failed" | "storage_network_error" | "storage_upstream_error" | "theme_invalid" | "theme_incompatible" | "theme_not_found" | "theme_conflict" | "plugin_invalid" | "plugin_incompatible" | "plugin_not_found" | "plugin_conflict" | "marketplace_disabled" | "marketplace_invalid_client" | "refund_exceeds_purchase" | "merchant_balance_insufficient" | "webhook_invalid_signature" | "bad_request" | "conflict" | "video_insecure_scheme" | "video_invalid_url" | "video_host_invalid" | "video_port_not_allowed" | "video_private_ip" | "video_signed_url" | "video_userinfo_not_allowed" | "video_fragment_not_allowed" | "video_unsupported_type" | "video_not_video_page" | "video_invalid" | "video_mime_mismatch" | "video_no_embed_permission" | "video_takedown" | "video_provider_disabled" | "video_provider_host_not_allowed" | "video_provider_ratelimited" | "video_provider_unavailable" | "video_policy_changed" | "video_policy_version_conflict" | "video_poster_attachment_invalid" | "video_resolution_expired" | "video_embed_not_found" | "video_embed_referenced" | "video_target_conflict" | "video_target_forbidden" | "video_target_not_found" | "video_version_conflict" | "video_egress_http_error" | "video_egress_private_ip" | "video_egress_timeout" | "video_egress_too_large" | "video_egress_too_many_redirects" | "video_egress_unavailable" | "video_hls_invalid" | "video_hls_depth_exceeded" | "video_hls_segment_count_exceeded" | "video_hls_duration_exceeded" | "video_hls_cross_origin_segment" | "video_hls_key_not_allowed" | "video_hls_map_not_allowed" | "video_hls_signed_uri" | "internal_error";
+  code: "invalid_request" | "visibility_level_exceeds_author" | "invalid_url" | "idempotency_conflict" | "version_conflict" | "unauthorized" | "invalid_credentials" | "mfa_code_invalid" | "mfa_challenge_invalid" | "mfa_confirm_invalid" | "mfa_enrollment_invalid" | "passkey_not_configured" | "passkey_unavailable" | "passkey_challenge_invalid" | "passkey_registration_invalid" | "passkey_limit_reached" | "reauth_password_invalid" | "verification_token_invalid" | "reset_token_invalid" | "validation_failed" | "invalid_current_password" | "forbidden" | "step_up_required" | "not_found" | "csrf_failed" | "origin_not_allowed" | "host_not_allowed" | "rate_limited" | "crawler_denied" | "challenge_required" | "temporarily_banned" | "feature_disabled" | "insufficient_funds" | "daily_limit_exceeded" | "checkout_interaction_invalid" | "checkout_user_mismatch" | "checkout_intent_expired" | "checkout_intent_consumed" | "offer_version_changed" | "refund_not_allowed" | "product_unavailable" | "shop_purchase_limit_exceeded" | "shop_stock_exhausted" | "entitlement_not_usable" | "presentation_slot_conflict" | "activity_already_claimed" | "activity_not_eligible" | "invalid_price_coin" | "post_not_paid" | "price_not_configured" | "self_reaction" | "cannot_follow_self" | "cannot_message_self" | "download_url_unavailable" | "ai_consent_required" | "ai_budget_exceeded" | "ai_suggestion_stale" | "invalid_storage_request" | "storage_partial_upload" | "storage_forbidden" | "storage_auth_failed" | "storage_rate_limited" | "quota_exceeded" | "storage_conflict" | "storage_state_error" | "storage_verification_failed" | "storage_network_error" | "storage_upstream_error" | "theme_invalid" | "theme_incompatible" | "theme_not_found" | "theme_conflict" | "plugin_invalid" | "plugin_incompatible" | "plugin_not_found" | "plugin_conflict" | "marketplace_disabled" | "marketplace_invalid_client" | "refund_exceeds_purchase" | "merchant_balance_insufficient" | "webhook_invalid_signature" | "bad_request" | "conflict" | "video_insecure_scheme" | "video_invalid_url" | "video_host_invalid" | "video_port_not_allowed" | "video_private_ip" | "video_signed_url" | "video_userinfo_not_allowed" | "video_fragment_not_allowed" | "video_unsupported_type" | "video_not_video_page" | "video_invalid" | "video_mime_mismatch" | "video_no_embed_permission" | "video_takedown" | "video_provider_disabled" | "video_provider_host_not_allowed" | "video_provider_ratelimited" | "video_provider_unavailable" | "video_policy_changed" | "video_policy_version_conflict" | "video_poster_attachment_invalid" | "video_resolution_expired" | "video_embed_not_found" | "video_embed_referenced" | "video_target_conflict" | "video_target_forbidden" | "video_target_not_found" | "video_version_conflict" | "video_egress_http_error" | "video_egress_private_ip" | "video_egress_timeout" | "video_egress_too_large" | "video_egress_too_many_redirects" | "video_egress_unavailable" | "video_hls_invalid" | "video_hls_depth_exceeded" | "video_hls_segment_count_exceeded" | "video_hls_duration_exceeded" | "video_hls_cross_origin_segment" | "video_hls_key_not_allowed" | "video_hls_map_not_allowed" | "video_hls_signed_uri" | "internal_error";
   detail: string;
   instance?: string;
   request_id: string;
