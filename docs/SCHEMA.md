@@ -195,6 +195,7 @@ SQLite、MySQL 8、MariaDB 10.11 三份迁移结构等价由 `migrations/{sqlite
 | 0072 | `board_icon_backfill` | 板块图标存量数据回填 |
 | 0073 | `platform_governance` | 平台治理底座（P0 整改）：`bootstrap_tokens`（一次性首管理员引导令牌，SHA-256 哈希）、`feature_flags`（可选能力运行时开关持久化 + 种子全关）、`shop_site_config`（商城站点配置单行表，version 乐观并发 + 种子默认） |
 | 0074 | `shop_cosmetic_assets` | 商城装扮资产与展示扩展 |
+| 0078 | `governance_collation_fix` | 治理三表排序规则修复（issue #20）：0073 的 `bootstrap_tokens`/`feature_flags`/`shop_site_config` 将 `*_bin` 列改为 `*_general_ci`、表默认改 `utf8mb4_general_ci`（MariaDB 把 `*_bin` 字符串列按协议层 BINARY 返回，sqlx 0.8 读成 VARBINARY 解码失败）；SQLite 为并行占位 no-op |
 
 ### `site_settings`
 

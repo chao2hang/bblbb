@@ -1,0 +1,17 @@
+-- Governance tables collation fix (issue #20) — intentional no-op on SQLite.
+--
+-- MySQL/MariaDB 0073 created bootstrap_tokens / feature_flags /
+-- shop_site_config with *_bin column collations (ascii_bin) plus a
+-- utf8mb4_bin table default. MariaDB sets the protocol-level BINARY flag
+-- on *_bin collation string columns, so sqlx 0.8 decodes them as
+-- VARBINARY and String decoding fails (feature_flags falls back to
+-- all-default; bootstrap_tokens / shop_site_config read paths break).
+--
+-- SQLite has no protocol-level collation typing: TEXT columns are
+-- returned as TEXT regardless of collation, so the mysql/mariadb 0078
+-- normalization (ascii_bin -> ascii_general_ci, table default
+-- utf8mb4_bin -> utf8mb4_general_ci) has no SQLite counterpart.
+-- This comments-only file exists solely to keep the three migration
+-- sets parallel (backend/tests/migration_equivalence.rs
+-- migration_sets_are_parallel); the runner records it in
+-- schema_migrations without executing any statement.
