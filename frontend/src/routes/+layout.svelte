@@ -55,7 +55,7 @@
   // 浏览器端 applyThemeTokens/previewThemeTokens 在预览与切换时同步该属性。
   const shellLayout = $derived(resolveLayoutMode(activeTheme?.tokens ?? null));
   const isAdmin = $derived(page.url.pathname.startsWith('/admin'));
-  const isAuthStandalone = $derived(page.url.pathname === '/login');
+  const isAuthStandalone = $derived(page.url.pathname === '/login' || page.url.pathname === '/register');
 
   // 全站生效主题 Token 动态应用
   $effect(() => {
