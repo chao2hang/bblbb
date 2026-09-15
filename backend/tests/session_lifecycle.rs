@@ -450,8 +450,8 @@ async fn sessions_endpoints_require_authentication() {
     cleanup(&dir);
 }
 
-/// 「记住我」（M02-UX-03）：remember=true 的登录签发 30 天绝对 / 7 天空闲
-/// 会话；默认登录保持 7 天绝对 / 30 分钟空闲。
+/// 「记住我」（M02-UX-03）：remember=true 的登录签发 60 天绝对 / 60 天空闲
+/// 会话（对标 Discourse 1440 小时）；默认登录保持 7 天绝对 / 30 分钟空闲。
 #[tokio::test]
 async fn remember_me_session_gets_extended_timeouts() {
     let (pool, dir) = pool_with_migrations().await;
@@ -499,7 +499,11 @@ async fn remember_me_session_gets_extended_timeouts() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let _set_cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
+    let set_cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
+    assert!(
+        set_cookie.contains("Max-Age=5184000"),
+        "记住我 Cookie Max-Age 应为 60 天（5184000 秒），实际 header: {set_cookie}"
+    );
 
     let (r_idle, r_abs): (i64, i64) = match &pool {
         Either::Left(p) => sqlx::query_as(
@@ -513,12 +517,43 @@ async fn remember_me_session_gets_extended_timeouts() {
         Either::Right(_) => panic!("SQLite only"),
     };
     assert!(
-        (r_idle - 7 * 24 * 3600 * 1000).abs() < 5_000,
-        "记住我空闲超时应约 7 天，实际 {r_idle}"
+        (r_idle - 60 * 24 * 3600 * 1000).abs() < 5_000,
+        "记住我空闲超时应约 60 天，实际 {r_idle}"
     );
     assert!(
-        (r_abs - 30 * 24 * 3600 * 1000).abs() < 5_000,
-        "记住我绝对超时应约 30 天，实际 {r_abs}"
+        (r_abs - 60 * 24 * 3600 * 1000).abs() < 5_000,
+        "记住我绝对超时应约 60 天，实际 {r_abs}"
+    );
+
+    // 验证活跃滑动续期后不会降级为 30 分钟：
+    // 模拟 70 秒后访问（超过 60 秒节流阈值），再次访问触发 resolve_session 续期
+    let sess_cookie_str = set_cookie.split(';').next().unwrap();
+    match &pool {
+        Either::Left(p) => {
+            sqlx::query("UPDATE user_sessions SET last_seen_at = last_seen_at - 70000 WHERE user_id = ?")
+                .bind(&user_id)
+                .execute(p)
+                .await
+                .unwrap();
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    }
+    let get_resp = get_sessions(&app, sess_cookie_str).await;
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let (renewed_idle, _): (i64, i64) = match &pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT idle_expires_at - created_at, absolute_expires_at - created_at
+             FROM user_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(&user_id)
+        .fetch_one(p)
+        .await
+        .unwrap(),
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert!(
+        renewed_idle > 50 * 24 * 3600 * 1000,
+        "续期后空闲超时仍应保持约 60 天长效，不应退化为 30 分钟，实际 {renewed_idle}"
     );
 
     close_pool(&pool).await;

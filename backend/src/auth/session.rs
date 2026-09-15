@@ -25,10 +25,10 @@ pub const SESSION_COOKIE_NAME: &str = "__Host-bblbb_session";
 pub const IDLE_TIMEOUT_MS: i64 = 30 * 60 * 1000;
 /// 默认 absolute 超时：7 天（Unix 毫秒，M01-DB-08）
 pub const ABSOLUTE_TIMEOUT_MS: i64 = 7 * 24 * 60 * 60 * 1000;
-/// 「记住我」会话（登录页勾选，M02-UX-03）：空闲 7 天。
-pub const REMEMBER_IDLE_TIMEOUT_MS: i64 = 7 * 24 * 60 * 60 * 1000;
-/// 「记住我」会话绝对超时：30 天。
-pub const REMEMBER_ABSOLUTE_TIMEOUT_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+/// 「记住我」会话（登录页勾选，M02-UX-03）：空闲 60 天（对标 Discourse 1440 小时）。
+pub const REMEMBER_IDLE_TIMEOUT_MS: i64 = 60 * 24 * 60 * 60 * 1000;
+/// 「记住我」会话绝对超时：60 天（对标 Discourse 1440 小时）。
+pub const REMEMBER_ABSOLUTE_TIMEOUT_MS: i64 = 60 * 24 * 60 * 60 * 1000;
 /// 默认 step-up 窗口：5 分钟（M02-MFA-07；配置 BBLBB__STEP_UP_WINDOW_SECS）
 pub const DEFAULT_STEP_UP_WINDOW_SECS: u64 = 5 * 60;
 /// 会话续期写库节流间隔：距上次活跃不足该值时跳过 `last_seen_at`/
@@ -151,7 +151,7 @@ async fn resolve_session(
             // 获取用户和会话信息
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        u.trust_level AS level, s.id as session_id, s.last_seen_at
+                        u.trust_level AS level, s.id as session_id, s.last_seen_at, s.created_at, s.absolute_expires_at
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -167,7 +167,15 @@ async fn resolve_session(
                     return Ok(None);
                 }
                 // 更新 last_seen_at 和 idle_expires_at（滑动超时）
-                let new_idle = now + IDLE_TIMEOUT_MS;
+                // 修复：区分「记住我」长效会话与普通会话，避免长效会话在首次续期后退化为 30 分钟。
+                // 滑动续期不得超出 absolute_expires_at 硬上限。
+                let is_remember = (row.absolute_expires_at - row.created_at) > ABSOLUTE_TIMEOUT_MS;
+                let idle_window = if is_remember {
+                    REMEMBER_IDLE_TIMEOUT_MS
+                } else {
+                    IDLE_TIMEOUT_MS
+                };
+                let new_idle = (now + idle_window).min(row.absolute_expires_at);
                 // 续期节流：距上次活跃不足阈值时跳过写库（避免每请求 UPDATE 的
                 // 写放大与 SQLite 写锁竞争）；idle 窗口远大于节流间隔，无语义变化
                 if now - row.last_seen_at >= SESSION_WRITE_THROTTLE_MS {
@@ -230,7 +238,7 @@ async fn resolve_session(
 
             let row = sqlx::query_as::<_, UserSessionRow>(
                 "SELECT u.id, u.username_normalized, u.email_normalized, u.email_verified, u.status, u.display_name,
-                        u.trust_level AS level, s.id as session_id, s.last_seen_at
+                        u.trust_level AS level, s.id as session_id, s.last_seen_at, s.created_at, s.absolute_expires_at
                  FROM users u
                  JOIN user_sessions s ON s.user_id = u.id
                  WHERE s.token_hash = ?",
@@ -246,7 +254,13 @@ async fn resolve_session(
                 if row.status == "banned" || row.status == "deleted" {
                     return Ok(None);
                 }
-                let new_idle = now + IDLE_TIMEOUT_MS;
+                let is_remember = (row.absolute_expires_at - row.created_at) > ABSOLUTE_TIMEOUT_MS;
+                let idle_window = if is_remember {
+                    REMEMBER_IDLE_TIMEOUT_MS
+                } else {
+                    IDLE_TIMEOUT_MS
+                };
+                let new_idle = (now + idle_window).min(row.absolute_expires_at);
                 // 续期节流：距上次活跃不足阈值时跳过写库（每请求 UPDATE 的
                 // 写放大与 SQLite 写锁竞争），idle 窗口远大于节流间隔故无语义变化
                 if now - row.last_seen_at >= SESSION_WRITE_THROTTLE_MS {
@@ -415,11 +429,11 @@ pub async fn rotate_session(
     let token_hash = hash_token(current_token);
     let now = now_millis();
 
-    // 沿用旧会话的设备 UA：旋转后新会话在设备列表中仍显示同一设备
-    let row: Option<(String, Option<String>)> = match pool {
+    // 沿用旧会话的设备 UA 与 remember 状态：旋转后新会话在设备列表中仍显示同一设备，且保持长效会话
+    let row: Option<(String, Option<String>, i64, i64)> = match pool {
         Either::Left(p) => {
             sqlx::query_as(
-                "SELECT user_id, user_agent FROM user_sessions
+                "SELECT user_id, user_agent, created_at, absolute_expires_at FROM user_sessions
                  WHERE token_hash = ? AND revoked_at IS NULL",
             )
             .bind(&token_hash)
@@ -428,7 +442,7 @@ pub async fn rotate_session(
         }
         Either::Right(p) => {
             sqlx::query_as(
-                "SELECT user_id, user_agent FROM user_sessions
+                "SELECT user_id, user_agent, created_at, absolute_expires_at FROM user_sessions
                  WHERE token_hash = ? AND revoked_at IS NULL",
             )
             .bind(&token_hash)
@@ -436,7 +450,7 @@ pub async fn rotate_session(
             .await?
         }
     };
-    let Some((user_id, ua)) = row else {
+    let Some((user_id, ua, created_at, absolute_expires_at)) = row else {
         return Err(sqlx::Error::RowNotFound);
     };
 
@@ -468,8 +482,9 @@ pub async fn rotate_session(
         }
     }
 
-    // 签发新 Session（全新 token，旧 token 已失效；设备 UA 沿用旧会话）
-    create_session(pool, &user_id, ua.as_deref(), false).await
+    // 签发新 Session（全新 token，旧 token 已失效；设备 UA 与 remember 沿用旧会话）
+    let is_remember = (absolute_expires_at - created_at) > ABSOLUTE_TIMEOUT_MS;
+    create_session(pool, &user_id, ua.as_deref(), is_remember).await
 }
 
 /// 设备会话列表项（M02-SESSION-05）。
@@ -634,15 +649,21 @@ fn to_device_sessions(rows: Vec<DeviceSessionRow>) -> Vec<DeviceSession> {
 }
 
 /// 构建 session cookie
-pub fn build_session_cookie(token: &str) -> axum_extra::extract::cookie::Cookie<'static> {
+pub fn build_session_cookie(token: &str, remember: bool) -> axum_extra::extract::cookie::Cookie<'static> {
     use axum_extra::extract::cookie::{Cookie, SameSite};
+
+    let max_age_ms = if remember {
+        REMEMBER_ABSOLUTE_TIMEOUT_MS
+    } else {
+        ABSOLUTE_TIMEOUT_MS
+    };
 
     Cookie::build((SESSION_COOKIE_NAME, token.to_string()))
         .path("/")
         .http_only(true)
         .secure(true)
         .same_site(SameSite::Lax)
-        .max_age(time::Duration::milliseconds(ABSOLUTE_TIMEOUT_MS))
+        .max_age(time::Duration::milliseconds(max_age_ms))
         .build()
 }
 
@@ -790,6 +811,8 @@ struct UserSessionRow {
     session_id: String,
     /// 上次活跃（Unix 毫秒）：续期写库节流用（L4）。
     last_seen_at: i64,
+    created_at: i64,
+    absolute_expires_at: i64,
 }
 
 /// 设备列表行结构。
@@ -828,7 +851,7 @@ mod tests {
     /// M02-SESSION-02：`__Host-` 前缀 Cookie 必须带 Secure、Path=/ 且无 Domain。
     #[test]
     fn session_cookie_uses_host_prefix_with_secure_attributes() {
-        let cookie = build_session_cookie("tok");
+        let cookie = build_session_cookie("tok", false);
         assert_eq!(cookie.name(), SESSION_COOKIE_NAME);
         assert!(
             cookie.name().starts_with("__Host-"),
@@ -848,9 +871,17 @@ mod tests {
             cookie.domain().is_none(),
             "__Host- 前缀禁止 Domain 属性（防子域伪造）"
         );
-        assert!(
-            cookie.max_age().is_some(),
-            "Cookie 必须有 max-age（absolute timeout）"
+        assert_eq!(
+            cookie.max_age(),
+            Some(time::Duration::milliseconds(ABSOLUTE_TIMEOUT_MS)),
+            "Cookie 必须有 max-age（默认会话 7 天）"
+        );
+
+        let remember_cookie = build_session_cookie("tok", true);
+        assert_eq!(
+            remember_cookie.max_age(),
+            Some(time::Duration::milliseconds(REMEMBER_ABSOLUTE_TIMEOUT_MS)),
+            "记住我会话 Cookie 必须为 60 天（对标 Discourse）"
         );
     }
 

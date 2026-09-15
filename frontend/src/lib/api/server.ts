@@ -527,7 +527,7 @@ export async function authedPostBytes<T = unknown>(
 export interface LoginViaServerInput {
   identifier: string;
   password: string;
-  /** 「记住我」：勾选后签发 30 天会话（默认 7 天）。 */
+  /** 「记住我」：勾选后签发 60 天会话（默认 7 天，对标 Discourse 1440 小时）。 */
   remember?: boolean;
 }
 

@@ -115,6 +115,7 @@ pub struct MfaLoginCompleted {
     pub email_verified: bool,
     pub status: String,
     pub display_name: Option<String>,
+    pub remember: bool,
 }
 
 /// 完成 MFA 登录：`totp_code` / `recovery_code` / `passkey` 三选一（OR 语义，
@@ -295,6 +296,7 @@ pub async fn complete_mfa_login(
         email_verified: email_verified != 0,
         status,
         display_name,
+        remember,
     })
 }
 
