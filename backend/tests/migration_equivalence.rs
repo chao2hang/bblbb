@@ -37,8 +37,14 @@ fn normalize_type(raw: &str) -> String {
         .to_lowercase();
     match base.as_str() {
         // UUID/哈希/文本/JSON：sqlite TEXT ↔ mysql CHAR(36)/VARCHAR(n)/MEDIUMTEXT/JSON
-        "char" | "varchar" | "text" | "mediumtext" | "longtext" | "tinytext" | "json" | "blob" => {
+        "char" | "varchar" | "text" | "mediumtext" | "longtext" | "tinytext" | "json" => {
             "text".to_string()
+        }
+        // 二进制语义（原始字节）：sqlite BLOB ↔ mysql/mariadb VARBINARY(n)
+        // （0077 passkey_credentials.credential_id；不得并入 text——
+        // 字节列与文本列混归一会放过真实的不等价）
+        "blob" | "tinyblob" | "mediumblob" | "longblob" | "varbinary" | "binary" => {
+            "bytes".to_string()
         }
         // 整数语义（毫秒时间戳/计数/布尔/序号）：sqlite INTEGER ↔ mysql INT/BIGINT/TINYINT
         "integer" | "int" | "bigint" | "tinyint" | "smallint" => "int".to_string(),
@@ -275,6 +281,66 @@ fn mysql_and_mariadb_contents_match() {
     }
 }
 
+/// 0073 是已发布的历史违例（ascii_bin 列 + utf8mb4_bin 表默认），迁移不可变
+/// （checksum 强校验），由 0078 追加修复；除 0073 外的版本一律禁止 *_bin。
+const BIN_COLLATION_ALLOWED_VERSIONS: [u64; 1] = [73];
+
+/// 提取可执行 SQL 中 `COLLATE` / `COLLATE=` 后引用的排序规则名，
+/// 返回其中以 `_bin` 结尾的（ascii_bin/utf8mb4_bin/latin1_bin 等）。
+/// 只认 COLLATE 关键字后跟的标识符，避免误伤恰好含 "_bin" 的列名/字面量。
+fn bin_collation_refs(executable_sql: &str) -> Vec<String> {
+    let normalized: String = executable_sql
+        .to_lowercase()
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let mut hits = Vec::new();
+    let mut rest = normalized.as_str();
+    while let Some(pos) = rest.find("collate") {
+        let after = &rest[pos + "collate".len()..];
+        let after = after.strip_prefix('=').unwrap_or(after);
+        let ident: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if ident.ends_with("_bin") {
+            hits.push(ident);
+        }
+        rest = after;
+    }
+    hits
+}
+
+/// 回归防护（issue #20）：mysql/mariadb 迁移可执行 SQL 不得使用 *_bin 列排序
+/// 规则。MariaDB 会给 *_bin 排序规则列打协议层 BINARY 标志，sqlx 0.8 将其
+/// 解码为 VARBINARY，String 读取直接失败；0073 曾回归（bootstrap_tokens /
+/// feature_flags / shop_site_config 全部不可读），由 0078 修复，本测试防止
+/// 再次引入。注释行允许提及 *_bin（0004 等的约定说明），因此只检查剥离
+/// 注释后的可执行 SQL。
+#[test]
+fn mysql_mariadb_migrations_never_use_bin_collations() {
+    let root = migrations_root();
+    for engine in ["mysql", "mariadb"] {
+        for (version, (name, sql)) in load_migration_dir(&root.join(engine)) {
+            if BIN_COLLATION_ALLOWED_VERSIONS.contains(&version) {
+                continue;
+            }
+            let executable: String = sql
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let hits = bin_collation_refs(&executable);
+            assert!(
+                hits.is_empty(),
+                "{engine} v{version} ({name}) 使用了 *_bin 排序规则 {hits:?}：MariaDB \
+                 在协议层给这类列打 BINARY 标志，sqlx 0.8 会把字符串列读成 VARBINARY \
+                 导致 String 解码失败（issue #20；既有违例由 0078 追加修复）"
+            );
+        }
+    }
+}
+
 /// 逐版本逐表结构等价：列名集合、归一化类型与可空性一致。
 #[test]
 fn table_structure_is_equivalent_across_engines() {
@@ -344,4 +410,9 @@ fn type_normalization_mapping_is_consistent() {
     assert_eq!(normalize_type("INTEGER"), normalize_type("TINYINT"));
     assert_eq!(normalize_type("INTEGER"), normalize_type("INT"));
     assert_eq!(normalize_type("TEXT"), normalize_type("JSON"));
+    // 二进制语义（0077 passkey credential_id）：sqlite BLOB ↔ VARBINARY(n)，
+    // 且不得与文本类型混淆。
+    assert_eq!(normalize_type("BLOB"), "bytes");
+    assert_eq!(normalize_type("BLOB"), normalize_type("VARBINARY(1024)"));
+    assert_ne!(normalize_type("BLOB"), normalize_type("TEXT"));
 }

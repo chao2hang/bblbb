@@ -283,6 +283,18 @@ jobs:
           done
           mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root bblbb \
             --execute='SELECT 1 FROM users LIMIT 0; SELECT 1 FROM user_sessions LIMIT 0;'
+          # 回归防护（issue #20）：MariaDB 会给 *_bin 排序规则列打协议层 BINARY
+          # 标志，sqlx 0.8 把字符串列读成 VARBINARY 导致 String 解码失败。
+          # 0073 曾违例、由 0078 修复；迁移全部应用后任何 *_bin 列都必须为 0。
+          bin_collation_columns=$(mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root bblbb \
+            --batch --skip-column-names \
+            --execute="SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='bblbb' AND COLLATION_NAME IS NOT NULL AND RIGHT(COLLATION_NAME, 4) = '_bin'")
+          if [ "$bin_collation_columns" != "0" ]; then
+            mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root bblbb \
+              --execute="SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='bblbb' AND RIGHT(COLLATION_NAME, 4) = '_bin'"
+            echo "::error::${MIGRATION_DIRECTORY}: $bin_collation_columns column(s) still use *_bin collation (sqlx 0.8 decodes them as VARBINARY on MariaDB; issue #20)"
+            exit 1
+          fi
 
       # 上一步用 mysql CLI 直灌 SQL（不写 schema_migrations 状态表）；跨库测试
       # 二进制改用应用内置 run_migrations（按状态表判断 pending）再建 schema，
