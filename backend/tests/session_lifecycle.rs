@@ -530,11 +530,13 @@ async fn remember_me_session_gets_extended_timeouts() {
     let sess_cookie_str = set_cookie.split(';').next().unwrap();
     match &pool {
         Either::Left(p) => {
-            sqlx::query("UPDATE user_sessions SET last_seen_at = last_seen_at - 70000 WHERE user_id = ?")
-                .bind(&user_id)
-                .execute(p)
-                .await
-                .unwrap();
+            sqlx::query(
+                "UPDATE user_sessions SET last_seen_at = last_seen_at - 70000 WHERE user_id = ?",
+            )
+            .bind(&user_id)
+            .execute(p)
+            .await
+            .unwrap();
         }
         Either::Right(_) => panic!("SQLite only"),
     }
