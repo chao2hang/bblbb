@@ -649,7 +649,10 @@ fn to_device_sessions(rows: Vec<DeviceSessionRow>) -> Vec<DeviceSession> {
 }
 
 /// 构建 session cookie
-pub fn build_session_cookie(token: &str, remember: bool) -> axum_extra::extract::cookie::Cookie<'static> {
+pub fn build_session_cookie(
+    token: &str,
+    remember: bool,
+) -> axum_extra::extract::cookie::Cookie<'static> {
     use axum_extra::extract::cookie::{Cookie, SameSite};
 
     let max_age_ms = if remember {
