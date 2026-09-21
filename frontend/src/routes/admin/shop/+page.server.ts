@@ -18,6 +18,8 @@ export interface AdminShopPageData {
   config: { state: 'ok'; data: ShopConfig } | { state: 'error' | 'forbidden' | 'not_implemented'; message: string };
   /** 装扮样式库定义（M07-SHOP-UI-10）：加载失败降级为空列表（表单仍可用预设）。 */
   cosmetics: CosmeticDef[];
+  /** 当前激活的主业务分区（products / cosmetics / orders）。 */
+  tab?: string;
 }
 
 /** form action 返回投影（SvelteKit Actions 联合返回类型）。 */
@@ -29,8 +31,9 @@ export interface AdminShopActionData {
   input?: Record<string, unknown>;
 }
 
-export const load: PageServerLoad = async ({ cookies, request }) => {
+export const load: PageServerLoad = async ({ cookies, request, url }) => {
   const requestId = request.headers.get('x-request-id');
+  const tab = (url.searchParams.get('tab') ?? 'products').trim();
   // 注意形状：这两个端点返回具名数组（{ products: [] } / { orders: [] }），
   // 不是 { items: [] }——用 adminListStateKeyed 归一（曾致 SSR 500）。
   const productsResult = await getAuthed<{ products: ShopProduct[] }>(
@@ -64,7 +67,7 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   );
   const cosmetics: CosmeticDef[] = cosmeticsResult.ok ? cosmeticsResult.data.cosmetics ?? [] : [];
 
-  return { products, orders, config, cosmetics } satisfies AdminShopPageData;
+  return { products, orders, config, cosmetics, tab } satisfies AdminShopPageData;
 };
 
 const PRODUCT_FIELDS = [

@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
+  import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { adminStateLabel } from '$lib/admin';
@@ -50,6 +51,30 @@
   const config = $derived(data.config);
   const cosmetics = $derived(data.cosmetics ?? []);
   const message = $derived(form?.message ?? null);
+
+  // ── 主功能分区 Tab（商品货架 / 装扮样式库 / 订单记录）──
+  type ShopMainTab = 'products' | 'cosmetics' | 'orders';
+  let activeMainTab = $state<ShopMainTab>('products');
+
+  $effect(() => {
+    if (data.tab === 'cosmetics' || data.tab === 'orders') {
+      activeMainTab = data.tab;
+    }
+  });
+
+  $effect(() => {
+    try {
+      const tabParam = page.url.searchParams.get('tab');
+      if (tabParam === 'products' || tabParam === 'cosmetics' || tabParam === 'orders') {
+        activeMainTab = tabParam;
+      }
+    } catch {}
+  });
+
+  function selectMainTab(tab: ShopMainTab) {
+    activeMainTab = tab;
+    activeCategory = 'all';
+  }
 
   // ── 分类与视图切换状态（卡片展示 / 列表展示 + 类型 Tag 筛选）──
   type CategoryTab = 'all' | 'avatar' | 'space' | 'nickname' | 'other';
@@ -153,14 +178,16 @@
   });
 
   const categoryTabs = $derived.by(() => {
+    const isProducts = activeMainTab === 'products';
+    const counts = isProducts ? productCounts : cosmeticCounts;
     const tabs: Array<{ id: CategoryTab; label: string; icon: string; count: number }> = [
-      { id: 'all', label: '全部', icon: 'shopping-bag', count: productCounts.all },
-      { id: 'avatar', label: 'Steam 动效头像框', icon: 'award', count: productCounts.avatar },
-      { id: 'space', label: '个人资料背景', icon: 'sparkles', count: productCounts.space },
-      { id: 'nickname', label: '彩色昵称', icon: 'wand-2', count: productCounts.nickname }
+      { id: 'all', label: '全部', icon: isProducts ? 'shopping-bag' : 'grid', count: counts.all },
+      { id: 'avatar', label: 'Steam 动效头像框', icon: 'award', count: counts.avatar },
+      { id: 'space', label: '个人资料背景', icon: 'sparkles', count: counts.space },
+      { id: 'nickname', label: '彩色昵称', icon: 'wand-2', count: counts.nickname }
     ];
-    if (productCounts.other > 0 || cosmeticCounts.other > 0) {
-      tabs.push({ id: 'other', label: '其它装扮', icon: 'tag', count: productCounts.other });
+    if (counts.other > 0) {
+      tabs.push({ id: 'other', label: '其它装扮', icon: 'tag', count: counts.other });
     }
     return tabs;
   });
@@ -405,363 +432,441 @@
     </div>
   {/if}
 
-  <!-- 商城类型 Tag 筛选与展示视图切换栏 -->
-  <div class="app-card shop-filter-card" style="margin-bottom:var(--space-4);">
-    <div class="shop-filter-bar">
-      <!-- 分类筛选 Tags -->
-      <div class="shop-filter-tags" role="tablist" aria-label="商品类型筛选">
-        {#each categoryTabs as tab (tab.id)}
-          <button
-            type="button"
-            role="tab"
-            class="shop-filter-tag"
-            class:is-active={activeCategory === tab.id}
-            aria-selected={activeCategory === tab.id}
-            onclick={() => (activeCategory = tab.id)}
-          >
-            <Icon name={tab.icon} size={14} />
-            <span>{tab.label}</span>
-            <span class="shop-filter-tag__count">{tab.count}</span>
-          </button>
-        {/each}
-      </div>
+  <!-- ── 顶层主业务分区 Tab（商品货架 / 装扮样式库 / 订单记录），彻底消除同屏多列表冲突 ── -->
+  <div class="tabs shop-main-tabs" role="tablist" aria-label="商城功能分区">
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      class:is-active={activeMainTab === 'products'}
+      aria-selected={activeMainTab === 'products'}
+      onclick={() => selectMainTab('products')}
+    >
+      <Icon name="package" size={15} />
+      <span>商品货架</span>
+      <span class="shop-tab-badge">{productCounts.all}</span>
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      class:is-active={activeMainTab === 'cosmetics'}
+      aria-selected={activeMainTab === 'cosmetics'}
+      onclick={() => selectMainTab('cosmetics')}
+    >
+      <Icon name="palette" size={15} />
+      <span>装扮样式库</span>
+      <span class="shop-tab-badge">{cosmeticCounts.all}</span>
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      class:is-active={activeMainTab === 'orders'}
+      aria-selected={activeMainTab === 'orders'}
+      onclick={() => selectMainTab('orders')}
+    >
+      <Icon name="inbox" size={15} />
+      <span>订单记录</span>
+      <span class="shop-tab-badge">{orders.state === 'ok' ? orders.items.length : 0}</span>
+    </button>
+  </div>
 
-      <!-- 右侧：搜索与视图模式切换 -->
-      <div class="shop-filter-controls">
-        <div class="shop-search-wrapper">
-          <Icon name="search" size={14} class="shop-search-icon" />
-          <input
-            type="text"
-            class="input-field shop-search-input"
-            placeholder="搜索商品或样式..."
-            bind:value={searchQuery}
-            aria-label="搜索商品或样式"
-          />
-          {#if searchQuery}
+  {#if activeMainTab !== 'orders'}
+    <!-- 商城类型 Tag 筛选与展示视图切换栏（统一工具条） -->
+    <div class="app-card shop-filter-card" style="margin-bottom:var(--space-4);">
+      <div class="shop-filter-bar">
+        <!-- 分类筛选 Tags -->
+        <div class="shop-filter-tags" role="tablist" aria-label="类型筛选">
+          {#each categoryTabs as tab (tab.id)}
             <button
               type="button"
-              class="shop-search-clear"
-              onclick={() => (searchQuery = '')}
-              aria-label="清空搜索"
+              role="tab"
+              class="shop-filter-tag"
+              class:is-active={activeCategory === tab.id}
+              aria-selected={activeCategory === tab.id}
+              onclick={() => (activeCategory = tab.id)}
             >
-              <Icon name="x" size={13} />
+              <Icon name={tab.icon} size={14} />
+              <span>{tab.label}</span>
+              <span class="shop-filter-tag__count">{tab.count}</span>
             </button>
-          {/if}
+          {/each}
         </div>
 
-        <div class="view-mode-toggle" role="radiogroup" aria-label="展示方式">
-          <button
-            type="button"
-            class="view-mode-btn"
-            class:is-active={viewMode === 'grid'}
-            aria-checked={viewMode === 'grid'}
-            role="radio"
-            onclick={() => setViewMode('grid')}
-            title="卡片展示"
-          >
-            <Icon name="grid" size={14} />
-            <span>卡片展示</span>
-          </button>
-          <button
-            type="button"
-            class="view-mode-btn"
-            class:is-active={viewMode === 'list'}
-            aria-checked={viewMode === 'list'}
-            role="radio"
-            onclick={() => setViewMode('list')}
-            title="列表展示"
-          >
-            <Icon name="list" size={14} />
-            <span>列表展示</span>
-          </button>
+        <!-- 右侧：搜索与视图模式切换 -->
+        <div class="shop-filter-controls">
+          <div class="shop-search-wrapper">
+            <Icon name="search" size={14} class="shop-search-icon" />
+            <input
+              type="text"
+              class="input-field shop-search-input"
+              placeholder={activeMainTab === 'products' ? '搜索商品标题或 slug...' : '搜索样式名称或 ID...'}
+              bind:value={searchQuery}
+              aria-label={activeMainTab === 'products' ? '搜索商品' : '搜索装扮样式'}
+            />
+            {#if searchQuery}
+              <button
+                type="button"
+                class="shop-search-clear"
+                onclick={() => (searchQuery = '')}
+                aria-label="清空搜索"
+              >
+                <Icon name="x" size={13} />
+              </button>
+            {/if}
+          </div>
+
+          <div class="view-mode-toggle" role="radiogroup" aria-label="展示方式">
+            <button
+              type="button"
+              class="view-mode-btn"
+              class:is-active={viewMode === 'grid'}
+              aria-checked={viewMode === 'grid'}
+              role="radio"
+              onclick={() => setViewMode('grid')}
+              title="卡片展示"
+            >
+              <Icon name="grid" size={14} />
+              <span>卡片展示</span>
+            </button>
+            <button
+              type="button"
+              class="view-mode-btn"
+              class:is-active={viewMode === 'list'}
+              aria-checked={viewMode === 'list'}
+              role="radio"
+              onclick={() => setViewMode('list')}
+              title="列表展示"
+            >
+              <Icon name="list" size={14} />
+              <span>列表展示</span>
+            </button>
+          </div>
         </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ── 分区 1：商品货架（选品、定价、在售状态、库存）── -->
+  <div
+    class="shop-tab-panel"
+    class:is-hidden={hasJs && activeMainTab !== 'products'}
+    id="panel-products"
+    role="tabpanel"
+    aria-labelledby="tab-products"
+  >
+    <div class="app-card" style="margin-bottom:var(--space-4);">
+      <div class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0;">商品列表（{products.state === 'ok' ? filteredProducts.length : '—'}{#if activeCategory !== 'all' || searchQuery} / 全部 {productCounts.all}{/if}）</h2>
+          <span class="text-secondary" style="font-size:var(--text-xs);">直接选品定价即可上架，无需复杂样式配置。成就徽章为社区荣誉专属，不可购买。</span>
+        </div>
+        <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
+          <Button text="新建商品：彩色昵称" variant="secondary" size="sm" onclick={() => (nicknameModalOpen = true)} />
+          <Button text="上架 Steam 头像框 (2071款)" variant="primary" size="sm" onclick={() => (steamFrameModalOpen = true)} />
+          <Button text="上架 Steam 资料背景 (1000款)" variant="secondary" size="sm" onclick={() => (steamBgModalOpen = true)} />
+        </div>
+      </div>
+      <div class="card-body" style="padding:0;">
+        {#if products.state !== 'ok'}
+          <p class="input-hint is-error" role="alert" style="padding:var(--space-4);">
+            {products.state === 'forbidden' || products.state === 'not_implemented' || products.state === 'error'
+              ? adminStateLabel(products.state)
+              : '加载失败'}
+            {#if products.state === 'forbidden' || products.state === 'error' || products.state === 'not_implemented'}
+              ：{products.message}
+            {/if}
+          </p>
+        {:else if filteredProducts.length === 0}
+          <div style="padding:var(--space-4);"><EmptyState icon="package" title={activeCategory !== 'all' || searchQuery ? '没有符合条件的商品' : '暂无商品'} /></div>
+        {:else}
+          <!-- 批量工具条（约定 B：选中后渲染） -->
+          <div style="padding:10px 14px 0;">
+            <BatchBar count={selectedProductIds.length} noun="件商品" onclear={() => (selectedProductIds = [])}>
+              <Button text="批量上架" variant="secondary" size="sm" onclick={openBatchPublish} />
+              <Button text="批量下架" variant="danger" size="sm" onclick={openBatchDisable} />
+            </BatchBar>
+          </div>
+          <div class="shop-admin-select-bar">
+            <label class="shop-admin-select-all">
+              <input
+                type="checkbox"
+                checked={allProductsSelected}
+                onchange={toggleAllProducts}
+                aria-label="全选当前显示商品"
+              />
+              <span>全选当前（已选 {selectedProductIds.length} / 共 {filteredProducts.length} 件）</span>
+            </label>
+          </div>
+          {#if viewMode === 'grid'}
+            <!-- 商品卡片展示 -->
+            <div class="shop-admin-card-grid">
+              {#each filteredProducts as p (p.id)}
+                {@const pPreview = getProductPreview(p)}
+                <div class="shop-admin-card" class:is-selected={selectedProductIds.includes(p.id)}>
+                  <div class="shop-admin-card__head">
+                    <span class="shop-admin-card__checkbox">
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.includes(p.id)}
+                        onchange={() => toggleProduct(p.id)}
+                        aria-label="选择商品 {p.title}"
+                      />
+                    </span>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <span class="badge {p.status === 'published' ? 'badge-success' : p.status === 'disabled' ? 'badge-warning' : 'badge-neutral'}">
+                        {productStatusLabel(p.status)}
+                      </span>
+                      <RowActionsMenu label="更多操作：商品 {p.title}" actions={rowActions(p)} />
+                    </div>
+                  </div>
+
+                  <div class="shop-admin-card__preview">
+                    {#if pPreview}
+                      <CosmeticPreviewThumbnail
+                        kind={pPreview.kind}
+                        id={pPreview.id}
+                        name={pPreview.name}
+                        style={pPreview.style}
+                        size="card"
+                      />
+                    {:else}
+                      <div class="shop-admin-card__preview-empty">
+                        <Icon name="package" size={32} />
+                      </div>
+                    {/if}
+                  </div>
+
+                  <div class="shop-admin-card__body">
+                    <div class="shop-admin-card__title-row">
+                      <strong class="shop-admin-card__title" title={p.title}>{p.title}</strong>
+                      <span class="badge badge-neutral" style="flex:0 0 auto;">{productKindLabel(p.kind)}</span>
+                    </div>
+                    <div class="shop-admin-card__price-row">
+                      <span class="shop-admin-card__price">
+                        {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true })}
+                      </span>
+                      <span class="text-secondary" style="font-size:var(--text-xs);font-family:var(--aui-font-mono, monospace);">
+                        v{p.version}
+                      </span>
+                    </div>
+                    <p class="text-secondary shop-admin-card__meta">
+                      {p.slug} · 更新于 {formatTs(p.updated_at)}
+                    </p>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <!-- 商品列表展示 -->
+            <div style="display:flex;flex-direction:column;">
+              {#each filteredProducts as p (p.id)}
+                {@const pPreview = getProductPreview(p)}
+                <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);">
+                  <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
+                    <div style="flex:0 0 auto;">
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.includes(p.id)}
+                        onchange={() => toggleProduct(p.id)}
+                        aria-label="选择商品 {p.title}"
+                      />
+                    </div>
+                    {#if pPreview}
+                      <div style="flex:0 0 auto;display:flex;align-items:center;">
+                        <CosmeticPreviewThumbnail
+                          kind={pPreview.kind}
+                          id={pPreview.id}
+                          name={pPreview.name}
+                          style={pPreview.style}
+                          size="sm"
+                        />
+                      </div>
+                    {/if}
+                    <div style="min-width:0;flex:1;">
+                      <strong>{p.title}</strong>
+                      <span class="badge badge-neutral" style="margin-left:var(--space-2);">{productKindLabel(p.kind)}</span>
+                      <span class="badge {p.status === 'published' ? 'badge-success' : p.status === 'disabled' ? 'badge-warning' : 'badge-neutral'}">
+                        {productStatusLabel(p.status)}
+                      </span>
+                      <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
+                        {p.slug} · {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true })} · v{p.version} · 更新于 {formatTs(p.updated_at)}
+                      </p>
+                    </div>
+                    <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
+                      <!-- 每行一个「⋮」三点菜单：编辑/上架|下架由菜单项决定动作（约定 D） -->
+                      <RowActionsMenu label="更多操作：商品 {p.title}" actions={rowActions(p)} />
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
       </div>
     </div>
   </div>
 
-  <!-- 装扮样式库（M07-SHOP-UI-10）：自己起名的自定义颜色/渐变/动效，商品可直接选用 -->
-  <div class="app-card" style="margin-bottom:var(--space-4);">
-    <div class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-      <h2 style="margin:0;">已生效装扮样式库（{filteredCosmetics.length}{#if activeCategory !== 'all' || searchQuery} / 全部 {cosmeticCounts.all}{/if}）</h2>
+  <!-- ── 分区 2：装扮样式库（定义/模版/Token，归档与恢复）── -->
+  <div
+    class="shop-tab-panel"
+    class:is-hidden={hasJs && activeMainTab !== 'cosmetics'}
+    id="panel-cosmetics"
+    role="tabpanel"
+    aria-labelledby="tab-cosmetics"
+  >
+    <div class="shop-cosmetic-tip">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <Icon name="info" size={16} />
+        <span>装扮样式库维护已注册的视觉样式模版（彩色昵称渐变色标、头像框/资料背景 Token 定义）。商品上架时可直接关联现有样式定义；此处归档不影响已购买用户，但新建商品将无法选用已归档的样式。</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <Button text="新建彩色昵称" variant="secondary" size="sm" onclick={() => (nicknameModalOpen = true)} />
+      </div>
     </div>
-    <div class="card-body" style="padding:0;">
-      {#if filteredCosmetics.length === 0}
-        <div style="padding:var(--space-4);">
-          <EmptyState icon="palette" title={activeCategory !== 'all' || searchQuery ? '没有符合条件的装扮样式' : '暂无自定义样式：新建后即可在商品里选用自己的颜色、渐变与动效'} />
-        </div>
-      {:else if viewMode === 'grid'}
-        <!-- 样式库卡片展示 -->
-        <div class="shop-admin-card-grid">
-          {#each filteredCosmetics as def (def.id)}
-            <div class="shop-admin-card">
-              <div class="shop-admin-card__head">
-                <span class="badge badge-neutral">{cosmeticKindLabel(def.kind)}</span>
-                <div style="display:flex;align-items:center;gap:6px;">
-                  <span class="badge {def.status === 'active' ? 'badge-success' : 'badge-warning'}">
-                    {def.status === 'active' ? '可用' : '已归档'}
-                  </span>
-                  <RowActionsMenu
-                    label="更多操作：样式 {def.name}"
-                    actions={[
-                      def.status === 'active'
-                        ? { label: '归档', danger: true, run: () => openStyleArchive(def, 'archived') }
-                        : { label: '恢复', run: () => openStyleArchive(def, 'active') }
-                    ]}
-                  />
+
+    <div class="app-card" style="margin-bottom:var(--space-4);">
+      <div class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <h2 style="margin:0;">已生效装扮样式库（{filteredCosmetics.length}{#if activeCategory !== 'all' || searchQuery} / 全部 {cosmeticCounts.all}{/if}）</h2>
+      </div>
+      <div class="card-body" style="padding:0;">
+        {#if filteredCosmetics.length === 0}
+          <div style="padding:var(--space-4);">
+            <EmptyState icon="palette" title={activeCategory !== 'all' || searchQuery ? '没有符合条件的装扮样式' : '暂无自定义样式：新建后即可在商品里选用自己的颜色、渐变与动效'} />
+          </div>
+        {:else if viewMode === 'grid'}
+          <!-- 样式库卡片展示 -->
+          <div class="shop-admin-card-grid">
+            {#each filteredCosmetics as def (def.id)}
+              <div class="shop-admin-card">
+                <div class="shop-admin-card__head">
+                  <span class="badge badge-neutral">{cosmeticKindLabel(def.kind)}</span>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="badge {def.status === 'active' ? 'badge-success' : 'badge-warning'}">
+                      {def.status === 'active' ? '可用' : '已归档'}
+                    </span>
+                    <RowActionsMenu
+                      label="更多操作：样式 {def.name}"
+                      actions={[
+                        def.status === 'active'
+                          ? { label: '归档', danger: true, run: () => openStyleArchive(def, 'archived') }
+                          : { label: '恢复', run: () => openStyleArchive(def, 'active') }
+                      ]}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div class="shop-admin-card__preview">
-                <CosmeticPreviewThumbnail
-                  kind={def.kind}
-                  id={def.id}
-                  name={def.name}
-                  style={def.style}
-                  size="card"
-                />
-              </div>
-
-              <div class="shop-admin-card__body">
-                <strong class="shop-admin-card__title" title={def.name}>{def.name}</strong>
-                <p class="text-secondary shop-admin-card__meta">
-                  {def.id} · 更新于 {formatTs(def.updatedAt)}
-                </p>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <!-- 样式库列表展示 -->
-        <div style="display:flex;flex-direction:column;">
-          {#each filteredCosmetics as def (def.id)}
-            <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);">
-              <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
-                <div style="flex:0 0 auto;display:flex;align-items:center;">
+                <div class="shop-admin-card__preview">
                   <CosmeticPreviewThumbnail
                     kind={def.kind}
                     id={def.id}
                     name={def.name}
                     style={def.style}
-                    size="sm"
+                    size="card"
                   />
-                </div>
-                <div style="min-width:0;flex:1;">
-                  <strong>{def.name}</strong>
-                  <span class="badge badge-neutral" style="margin-left:var(--space-2);">{cosmeticKindLabel(def.kind)}</span>
-                  <span class="badge {def.status === 'active' ? 'badge-success' : 'badge-warning'}">
-                    {def.status === 'active' ? '可用' : '已归档'}
-                  </span>
-                  <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
-                    {def.id} · 更新于 {formatTs(def.updatedAt)}
-                  </p>
-                </div>
-                <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;">
-                  <RowActionsMenu
-                    label="更多操作：样式 {def.name}"
-                    actions={[
-                      def.status === 'active'
-                        ? { label: '归档', danger: true, run: () => openStyleArchive(def, 'archived') }
-                        : { label: '恢复', run: () => openStyleArchive(def, 'active') }
-                    ]}
-                  />
-                </div>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-  </div>
-
-  <div class="app-card" style="margin-bottom:var(--space-4);">
-    <div class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-      <div>
-        <h2 style="margin:0;">商品列表（{products.state === 'ok' ? filteredProducts.length : '—'}{#if activeCategory !== 'all' || searchQuery} / 全部 {productCounts.all}{/if}）</h2>
-        <span class="text-secondary" style="font-size:var(--text-xs);">直接选品定价即可上架，无需复杂样式配置。成就徽章为社区荣誉专属，不可购买。</span>
-      </div>
-      <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
-        <Button text="新建商品：彩色昵称" variant="secondary" size="sm" onclick={() => (nicknameModalOpen = true)} />
-        <Button text="上架 Steam 头像框 (2071款)" variant="primary" size="sm" onclick={() => (steamFrameModalOpen = true)} />
-        <Button text="上架 Steam 资料背景 (1000款)" variant="secondary" size="sm" onclick={() => (steamBgModalOpen = true)} />
-      </div>
-    </div>
-    <div class="card-body" style="padding:0;">
-      {#if products.state !== 'ok'}
-        <p class="input-hint is-error" role="alert" style="padding:var(--space-4);">
-          {products.state === 'forbidden' || products.state === 'not_implemented' || products.state === 'error'
-            ? adminStateLabel(products.state)
-            : '加载失败'}
-          {#if products.state === 'forbidden' || products.state === 'error' || products.state === 'not_implemented'}
-            ：{products.message}
-          {/if}
-        </p>
-      {:else if filteredProducts.length === 0}
-        <div style="padding:var(--space-4);"><EmptyState icon="package" title={activeCategory !== 'all' || searchQuery ? '没有符合条件的商品' : '暂无商品'} /></div>
-      {:else}
-        <!-- 批量工具条（约定 B：选中后渲染） -->
-        <div style="padding:10px 14px 0;">
-          <BatchBar count={selectedProductIds.length} noun="件商品" onclear={() => (selectedProductIds = [])}>
-            <Button text="批量上架" variant="secondary" size="sm" onclick={openBatchPublish} />
-            <Button text="批量下架" variant="danger" size="sm" onclick={openBatchDisable} />
-          </BatchBar>
-        </div>
-        <div class="shop-admin-select-bar">
-          <label class="shop-admin-select-all">
-            <input
-              type="checkbox"
-              checked={allProductsSelected}
-              onchange={toggleAllProducts}
-              aria-label="全选当前显示商品"
-            />
-            <span>全选当前（已选 {selectedProductIds.length} / 共 {filteredProducts.length} 件）</span>
-          </label>
-        </div>
-        {#if viewMode === 'grid'}
-          <!-- 商品卡片展示 -->
-          <div class="shop-admin-card-grid">
-            {#each filteredProducts as p (p.id)}
-              {@const pPreview = getProductPreview(p)}
-              <div class="shop-admin-card" class:is-selected={selectedProductIds.includes(p.id)}>
-                <div class="shop-admin-card__head">
-                  <span class="shop-admin-card__checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedProductIds.includes(p.id)}
-                      onchange={() => toggleProduct(p.id)}
-                      aria-label="选择商品 {p.title}"
-                    />
-                  </span>
-                  <div style="display:flex;align-items:center;gap:6px;">
-                    <span class="badge {p.status === 'published' ? 'badge-success' : p.status === 'disabled' ? 'badge-warning' : 'badge-neutral'}">
-                      {productStatusLabel(p.status)}
-                    </span>
-                    <RowActionsMenu label="更多操作：商品 {p.title}" actions={rowActions(p)} />
-                  </div>
-                </div>
-
-                <div class="shop-admin-card__preview">
-                  {#if pPreview}
-                    <CosmeticPreviewThumbnail
-                      kind={pPreview.kind}
-                      id={pPreview.id}
-                      name={pPreview.name}
-                      style={pPreview.style}
-                      size="card"
-                    />
-                  {:else}
-                    <div class="shop-admin-card__preview-empty">
-                      <Icon name="package" size={32} />
-                    </div>
-                  {/if}
                 </div>
 
                 <div class="shop-admin-card__body">
-                  <div class="shop-admin-card__title-row">
-                    <strong class="shop-admin-card__title" title={p.title}>{p.title}</strong>
-                    <span class="badge badge-neutral" style="flex:0 0 auto;">{productKindLabel(p.kind)}</span>
-                  </div>
-                  <div class="shop-admin-card__price-row">
-                    <span class="shop-admin-card__price">
-                      {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true })}
-                    </span>
-                    <span class="text-secondary" style="font-size:var(--text-xs);font-family:var(--aui-font-mono, monospace);">
-                      v{p.version}
-                    </span>
-                  </div>
+                  <strong class="shop-admin-card__title" title={def.name}>{def.name}</strong>
                   <p class="text-secondary shop-admin-card__meta">
-                    {p.slug} · 更新于 {formatTs(p.updated_at)}
+                    {def.id} · 更新于 {formatTs(def.updatedAt)}
                   </p>
                 </div>
               </div>
             {/each}
           </div>
         {:else}
-          <!-- 商品列表展示 -->
+          <!-- 样式库列表展示 -->
           <div style="display:flex;flex-direction:column;">
-            {#each filteredProducts as p (p.id)}
-              {@const pPreview = getProductPreview(p)}
+            {#each filteredCosmetics as def (def.id)}
               <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);">
                 <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
-                  <div style="flex:0 0 auto;">
-                    <input
-                      type="checkbox"
-                      checked={selectedProductIds.includes(p.id)}
-                      onchange={() => toggleProduct(p.id)}
-                      aria-label="选择商品 {p.title}"
+                  <div style="flex:0 0 auto;display:flex;align-items:center;">
+                    <CosmeticPreviewThumbnail
+                      kind={def.kind}
+                      id={def.id}
+                      name={def.name}
+                      style={def.style}
+                      size="sm"
                     />
                   </div>
-                  {#if pPreview}
-                    <div style="flex:0 0 auto;display:flex;align-items:center;">
-                      <CosmeticPreviewThumbnail
-                        kind={pPreview.kind}
-                        id={pPreview.id}
-                        name={pPreview.name}
-                        style={pPreview.style}
-                        size="sm"
-                      />
-                    </div>
-                  {/if}
                   <div style="min-width:0;flex:1;">
-                    <strong>{p.title}</strong>
-                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{productKindLabel(p.kind)}</span>
-                    <span class="badge {p.status === 'published' ? 'badge-success' : p.status === 'disabled' ? 'badge-warning' : 'badge-neutral'}">
-                      {productStatusLabel(p.status)}
+                    <strong>{def.name}</strong>
+                    <span class="badge badge-neutral" style="margin-left:var(--space-2);">{cosmeticKindLabel(def.kind)}</span>
+                    <span class="badge {def.status === 'active' ? 'badge-success' : 'badge-warning'}">
+                      {def.status === 'active' ? '可用' : '已归档'}
                     </span>
                     <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
-                      {p.slug} · {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true })} · v{p.version} · 更新于 {formatTs(p.updated_at)}
+                      {def.id} · 更新于 {formatTs(def.updatedAt)}
                     </p>
                   </div>
-                  <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
-                    <!-- 每行一个「⋮」三点菜单：编辑/上架|下架由菜单项决定动作（约定 D） -->
-                    <RowActionsMenu label="更多操作：商品 {p.title}" actions={rowActions(p)} />
+                  <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;">
+                    <RowActionsMenu
+                      label="更多操作：样式 {def.name}"
+                      actions={[
+                        def.status === 'active'
+                          ? { label: '归档', danger: true, run: () => openStyleArchive(def, 'archived') }
+                          : { label: '恢复', run: () => openStyleArchive(def, 'active') }
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
             {/each}
           </div>
         {/if}
-      {/if}
+      </div>
     </div>
   </div>
 
-  <div class="app-card">
-    <div class="app-card__head"><h2>订单（{orders.state === 'ok' ? orders.items.length : '—'}）</h2></div>
-    <div class="card-body" style="padding:0;">
-      {#if orders.state !== 'ok'}
-        <p class="input-hint is-error" role="alert" style="padding:var(--space-4);">
-          {orders.state === 'forbidden' || orders.state === 'not_implemented' || orders.state === 'error'
-            ? adminStateLabel(orders.state)
-            : '加载失败'}
-        </p>
-      {:else if orders.items.length === 0}
-        <div style="padding:var(--space-4);"><EmptyState icon="inbox" title="暂无订单" /></div>
-      {:else}
-        <div style="display:flex;flex-direction:column;">
-          {#each orders.items as o (o.id)}
-            <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);">
-              <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
-                <div style="min-width:0;flex:1;">
-                  <strong>{o.product_title ?? o.product_id}</strong>
-                  <span class="badge {o.status === 'succeeded' ? 'badge-success' : 'badge-neutral'}">{o.status}</span>
-                  {#if o.entitlement_status === 'pending'}
-                    <span class="badge badge-warning">补偿待处理</span>
+  <!-- ── 分区 3：订单记录（流水、用户购买、退款操作）── -->
+  <div
+    class="shop-tab-panel"
+    class:is-hidden={hasJs && activeMainTab !== 'orders'}
+    id="panel-orders"
+    role="tabpanel"
+    aria-labelledby="tab-orders"
+  >
+    <div class="app-card">
+      <div class="app-card__head"><h2>订单记录（{orders.state === 'ok' ? orders.items.length : '—'}）</h2></div>
+      <div class="card-body" style="padding:0;">
+        {#if orders.state !== 'ok'}
+          <p class="input-hint is-error" role="alert" style="padding:var(--space-4);">
+            {orders.state === 'forbidden' || orders.state === 'not_implemented' || orders.state === 'error'
+              ? adminStateLabel(orders.state)
+              : '加载失败'}
+          </p>
+        {:else if orders.items.length === 0}
+          <div style="padding:var(--space-4);"><EmptyState icon="inbox" title="暂无订单" /></div>
+        {:else}
+          <div style="display:flex;flex-direction:column;">
+            {#each orders.items as o (o.id)}
+              <div class="post-row" style="padding:var(--space-3);border-bottom:var(--border-default);">
+                <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
+                  <div style="min-width:0;flex:1;">
+                    <strong>{o.product_title ?? o.product_id}</strong>
+                    <span class="badge {o.status === 'succeeded' ? 'badge-success' : 'badge-neutral'}">{o.status}</span>
+                    {#if o.entitlement_status === 'pending'}
+                      <span class="badge badge-warning">补偿待处理</span>
+                    {/if}
+                    <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
+                      {o.id} · ×{o.quantity} · {formatMoney(o.total_amount, { id: o.currency_id, code: o.currency_code, name: o.currency_name }, { free: true })} · v{o.product_version} · {formatTs(o.created_at)}
+                    </p>
+                  </div>
+                  {#if o.status === 'succeeded'}
+                    <!-- 行内操作有且只有「⋯」菜单（约定 D）：退款收进菜单 -->
+                    <RowActionsMenu
+                      label="更多操作：订单 {o.id}"
+                      actions={[{ label: '退款', run: () => openRefund(o) }]}
+                    />
                   {/if}
-                  <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
-                    {o.id} · ×{o.quantity} · {formatMoney(o.total_amount, { id: o.currency_id, code: o.currency_code, name: o.currency_name }, { free: true })} · v{o.product_version} · {formatTs(o.created_at)}
-                  </p>
                 </div>
-                {#if o.status === 'succeeded'}
-                  <!-- 行内操作有且只有「⋯」菜单（约定 D）：退款收进菜单 -->
-                  <RowActionsMenu
-                    label="更多操作：订单 {o.id}"
-                    actions={[{ label: '退款', run: () => openRefund(o) }]}
-                  />
-                {/if}
               </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
+            {/each}
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -963,6 +1068,69 @@
     padding: 2px 6px;
     border-radius: 4px;
     background: var(--color-bg-subtle, #f5f5f5);
+  }
+
+  /* ── 商城顶层主分区 Tab ── */
+  .shop-main-tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    margin-bottom: var(--space-4, 16px);
+    border-bottom: 1px solid var(--border-default, #2e323b);
+    padding: 0;
+  }
+  .shop-main-tabs .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    font-size: var(--text-sm, 14px);
+    font-weight: 500;
+    color: var(--color-text-secondary, #94a3b8);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .shop-main-tabs .tab:hover {
+    color: var(--color-text-primary, #ffffff);
+    background: var(--color-bg-subtle, rgba(255, 255, 255, 0.03));
+  }
+  .shop-main-tabs .tab.is-active {
+    color: var(--color-brand, #8b5cf6);
+    border-bottom-color: var(--color-brand, #8b5cf6);
+    font-weight: 600;
+  }
+  .shop-tab-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-full, 9999px);
+    background: var(--color-bg-subtle, rgba(255, 255, 255, 0.08));
+    color: inherit;
+  }
+  .shop-main-tabs .tab.is-active .shop-tab-badge {
+    background: color-mix(in srgb, var(--color-brand, #8b5cf6) 20%, transparent);
+    color: var(--color-brand, #8b5cf6);
+  }
+  .shop-tab-panel.is-hidden {
+    display: none !important;
+  }
+  .shop-cosmetic-tip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3, 12px);
+    flex-wrap: wrap;
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    margin-bottom: var(--space-4, 16px);
+    border-radius: var(--radius-md, 8px);
+    background: color-mix(in srgb, var(--color-brand, #8b5cf6) 6%, var(--color-bg-card, #181a20));
+    border: 1px solid color-mix(in srgb, var(--color-brand, #8b5cf6) 20%, var(--border-default, #2e323b));
+    color: var(--color-text-secondary, #94a3b8);
+    font-size: var(--text-xs, 12px);
   }
 
   /* ── 商城分类 Tag 与视图切换工具条 ── */
