@@ -465,7 +465,17 @@ pub async fn load_asset(
     if let Some(pool) = pool {
         if let Some(appid) = lookup_appid_by_image(pool, kind, filename).await {
             if let Err(e) = ensure_object(storage, kind, filename, Some(appid)).await {
-                tracing::warn!(kind = kind, file = %filename, error = %e, "steam asset lazy fetch failed");
+                let err_str = e.to_string();
+                if err_str.contains("Permission denied") || err_str.contains("storage forbidden") {
+                    tracing::error!(
+                        kind = kind,
+                        file = %filename,
+                        error = %e,
+                        "Steam 资产写入失败（存储目录权限不足）。请在宿主机检查目录属主与权限：sudo chown -R 10001:999 uploads && sudo chmod -R 775 uploads"
+                    );
+                } else {
+                    tracing::warn!(kind = kind, file = %filename, error = %e, "steam asset lazy fetch failed");
+                }
             }
             if let Some(data) = read_served(storage, kind, &key).await {
                 return Ok(SteamAsset {

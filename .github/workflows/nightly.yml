@@ -37,6 +37,42 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      # AGENTS.md §3.4：构建缓存
+      - name: Install sccache
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sccache
+      - name: Cache sccache build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: sccache-${{ runner.os }}-e2e-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            sccache-${{ runner.os }}-e2e-
+            sccache-${{ runner.os }}-
+      - name: Cache cargo registry and git deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-deps-${{ runner.os }}-
+      - name: Cache cargo target dir
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: cargo-target-${{ runner.os }}-e2e-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-target-${{ runner.os }}-e2e-
+            cargo-target-${{ runner.os }}-
+      - name: Build backend for E2E
+        working-directory: backend
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_IDLE_TIMEOUT: "0"
+        run: cargo build --bin bblbb-backend --bin bblbb-migrate
       - name: Playwright browser cache
         uses: actions/cache@v4
         with:
@@ -49,6 +85,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run E2E + axe (desktop + mobile, real backend + personas)
         working-directory: frontend
+        env:
+          E2E_BACKEND_BIN: ${{ github.workspace }}/target/debug/bblbb-backend
         run: npm run test:e2e
       - name: Report axe results
         run: |

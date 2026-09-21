@@ -649,10 +649,10 @@ async fn sum_point_flow_between(
     to: i64,
     request_id: &str,
 ) -> Result<i64, AppError> {
-    let sql = "SELECT COALESCE(SUM(ABS(delta_balance)), 0) FROM point_transactions
-        WHERE created_at >= ? AND created_at < ?";
     let n = match pool {
         Either::Left(p) => {
+            let sql = "SELECT COALESCE(SUM(ABS(delta_balance)), 0) FROM point_transactions
+                WHERE created_at >= ? AND created_at < ?";
             sqlx::query_scalar(sql)
                 .bind(from)
                 .bind(to)
@@ -660,6 +660,8 @@ async fn sum_point_flow_between(
                 .await
         }
         Either::Right(p) => {
+            let sql = "SELECT CAST(COALESCE(SUM(ABS(delta_balance)), 0) AS SIGNED) FROM point_transactions
+                WHERE created_at >= ? AND created_at < ?";
             sqlx::query_scalar(sql)
                 .bind(from)
                 .bind(to)
@@ -1773,10 +1775,20 @@ async fn list_admin_posts(
             .fetch_one(p)
             .await
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-        Either::Right(p) => sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64)>(counts_sql)
-            .fetch_one(p)
-            .await
-            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => {
+            let mysql_counts_sql = "SELECT
+                COUNT(*) AS all_count,
+                CAST(COALESCE(SUM(CASE WHEN p.status = 'draft' AND p.review_status = 'pending_review' THEN 1 ELSE 0 END), 0) AS SIGNED) AS pending_review,
+                CAST(COALESCE(SUM(CASE WHEN p.status = 'published' THEN 1 ELSE 0 END), 0) AS SIGNED) AS published,
+                CAST(COALESCE(SUM(CASE WHEN p.featured_at IS NOT NULL AND p.status = 'published' THEN 1 ELSE 0 END), 0) AS SIGNED) AS featured,
+                CAST(COALESCE(SUM(CASE WHEN p.status = 'hidden' THEN 1 ELSE 0 END), 0) AS SIGNED) AS hidden,
+                CAST(COALESCE(SUM(CASE WHEN p.deleted_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS SIGNED) AS deleted
+             FROM posts p";
+            sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64)>(mysql_counts_sql)
+                .fetch_one(p)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?
+        }
     };
     let counts_json = json!({
         "all": counts.0,

@@ -1169,12 +1169,25 @@ pub async fn list_today_earned(
             .fetch_all(p)
             .await
             .map_err(|e| ActivityError::Db(e.to_string()))?,
-        Either::Right(p) => sqlx::query_as(sql)
-            .bind(user_id)
-            .bind(activity_day)
-            .fetch_all(p)
-            .await
-            .map_err(|e| ActivityError::Db(e.to_string()))?,
+        Either::Right(p) => {
+            let mysql_sql =
+                "SELECT c.code, CAST(COALESCE(SUM(pt.delta_balance), 0) AS SIGNED) AS total
+                 FROM activity_claims ac
+                 JOIN point_transactions pt ON pt.operation_id = ac.point_operation_id
+                 JOIN currencies c ON c.id = pt.currency_id
+                 WHERE ac.user_id = ? AND ac.activity_day = ? AND ac.status = 'granted'
+                   AND ac.point_operation_id NOT LIKE 'pending:%'
+                   AND ac.point_operation_id NOT LIKE 'zero:%'
+                   AND c.code != 'exp'
+                 GROUP BY c.code
+                 ORDER BY c.code";
+            sqlx::query_as(mysql_sql)
+                .bind(user_id)
+                .bind(activity_day)
+                .fetch_all(p)
+                .await
+                .map_err(|e| ActivityError::Db(e.to_string()))?
+        }
     };
     Ok(rows
         .into_iter()

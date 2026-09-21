@@ -44,7 +44,29 @@ pub async fn readyz(State(state): State<AppState>) -> Response {
     let migrations_status = migration_status(&state).await;
 
     let storage_status = if state.config.storage_dir.exists() {
-        "ok"
+        let probe = state
+            .config
+            .storage_dir
+            .join(format!(".readyz_probe_{}", std::process::id()));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&probe)
+        {
+            Ok(_) => {
+                let _ = std::fs::remove_file(probe);
+                "ok"
+            }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    dir = %state.config.storage_dir.display(),
+                    "storage directory exists but is not writable; check permissions: chown -R 10001:999 uploads && chmod 775 uploads"
+                );
+                "permission_denied"
+            }
+        }
     } else {
         "missing"
     };

@@ -1302,7 +1302,7 @@ async fn validate_limits_mysql(
     }
     let today_start = today_start_ms(now);
     let spent: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(amount),0) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ? FOR UPDATE",
+        "SELECT CAST(COALESCE(SUM(amount),0) AS SIGNED) FROM purchases WHERE user_id = ? AND client_id = ? AND created_at >= ? FOR UPDATE",
     )
     .bind(user_id)
     .bind(&intent.client_id)

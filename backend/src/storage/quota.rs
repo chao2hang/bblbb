@@ -502,7 +502,7 @@ async fn daily_upload_locked_mysql(
 ) -> Result<i64, StorageError> {
     let since = now - DAILY_WINDOW_MS;
     let sum: Option<i64> = sqlx::query_scalar(
-        "SELECT SUM(size_bytes) FROM attachments
+        "SELECT CAST(COALESCE(SUM(size_bytes), 0) AS SIGNED) FROM attachments
          WHERE owner_id = ? AND created_at >= ? AND status != 'deleted'",
     )
     .bind(user_id)
@@ -532,7 +532,7 @@ pub async fn daily_upload_bytes(
         }
         Either::Right(p) => {
             sqlx::query_scalar(
-                "SELECT SUM(size_bytes) FROM attachments
+                "SELECT CAST(COALESCE(SUM(size_bytes), 0) AS SIGNED) FROM attachments
                  WHERE owner_id = ? AND created_at >= ? AND status != 'deleted'",
             )
             .bind(user_id)
