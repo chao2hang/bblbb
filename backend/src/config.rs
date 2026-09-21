@@ -1081,6 +1081,7 @@ mod tests {
             "secrets_dir",
             "secrets_systemd_unit",
             "settings_encryption_key",
+            "steam_assets_download_on_publish",
             "step_up_window_secs",
             "storage_backend",
             "storage_dir",

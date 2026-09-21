@@ -48,6 +48,7 @@
 | `BBLBB__S3_ACCESS_KEY_ID` | `s3_access_key_id` | 空 = 环境凭据链 | all | 重启 |
 | `BBLBB__S3_SECRET_ACCESS_KEY` | `s3_secret_access_key` | 空 = 环境凭据链 | all | 重启 |
 | `BBLBB__S3_SESSION_TOKEN` | `s3_session_token` | 空 | all | 重启 |
+| `BBLBB__STEAM_ASSETS_DOWNLOAD_ON_PUBLISH` | `steam_assets_download_on_publish` | `true` | all | 重启 |
 | `BBLBB__AUTO_MIGRATE` | `auto_migrate` | `false` | dev, ci | 重启 |
 | `BBLBB__ALLOWED_HOSTS` | `allowed_hosts` | 空 = 宽松模式（仅记录） | all | 重启 |
 | `BBLBB__ALLOWED_ORIGINS` | `allowed_origins` | 空 = 宽松模式（仅记录） | all | 重启 |
