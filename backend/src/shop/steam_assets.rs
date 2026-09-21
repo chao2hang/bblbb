@@ -493,9 +493,9 @@ const STEAM_SYNC_LANGUAGE: &str = "schinese";
 const STEAM_SYNC_MAX_PAGES: usize = 40;
 
 const FRAMES_SNAPSHOT: &str =
-    include_str!("../../../frontend/src/lib/data/steam-avatar-frames.json");
+    include_str!("../../data/steam-avatar-frames.json");
 const BACKGROUNDS_SNAPSHOT: &str =
-    include_str!("../../../frontend/src/lib/data/steam-profile-backgrounds.json");
+    include_str!("../../data/steam-profile-backgrounds.json");
 
 #[derive(Debug, serde::Serialize)]
 pub struct SteamCatalogItem {

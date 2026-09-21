@@ -23,6 +23,7 @@ COPY --from=backend-deps /usr/local/cargo /usr/local/cargo
 COPY --from=backend-deps /src/backend/Cargo.toml /src/backend/Cargo.lock ./
 COPY --from=backend-deps /src/backend/target ./target
 COPY backend ./
+COPY frontend/src/lib/data /src/frontend/src/lib/data
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     cargo build --release --locked --bin bblbb-backend --bin bblbb-migrate
