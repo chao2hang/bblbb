@@ -203,7 +203,13 @@ if ARGV.include?("--check")
   if File.file?(JSON_PATH) && File.file?(MARKDOWN_PATH)
     file_json = File.read(JSON_PATH)
     file_md = File.read(MARKDOWN_PATH)
-    if file_json != json
+    file_json_parsed = begin
+      JSON.parse(file_json)
+    rescue StandardError
+      nil
+    end
+    expected_json_parsed = JSON.parse(json)
+    if file_json_parsed != expected_json_parsed
       require "tempfile"
       f1 = Tempfile.new("expected")
       f1.write(json)
