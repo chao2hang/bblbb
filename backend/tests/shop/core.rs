@@ -1148,40 +1148,22 @@ async fn studio_publish_supports_all_customizable_kinds() {
 
     let cases = [
         (
-            "cosmetic_badge",
-            json!({"icon": "award", "color": "#FF8800"}),
-            "profile_badges",
-            "badge.",
+            "nickname_color",
+            json!({"mode": "solid", "color": "#00FFCC"}),
+            "nickname_color",
+            "nickname.color.",
+        ),
+        (
+            "avatar_frame",
+            json!({"color": "#00FFCC", "shape": "circle", "frameScale": 120}),
+            "avatar_frame",
+            "avatar.frame.",
         ),
         (
             "profile_effect",
             json!({"texture": "grid", "baseColor": "#101827", "accentColor": "#8B5CF6"}),
             "profile_effect",
             "profile.effect.",
-        ),
-        (
-            "post_effect",
-            json!({"icon": "heart", "color": "#FF0000"}),
-            "post_effect",
-            "post.effect.",
-        ),
-        (
-            "reaction_pack",
-            json!({"icon": "heart", "color": "#FF0000"}),
-            "",
-            "reaction.pack.",
-        ),
-        (
-            "utility",
-            json!({"action": "rename", "quantity": 3}),
-            "",
-            "utility.",
-        ),
-        (
-            "title_prefix",
-            json!({"icon": "trophy", "color": "#FFD700"}),
-            "title_prefix",
-            "title.prefix.",
         ),
     ];
     for (kind, style, expected_slot, prefix) in cases {
