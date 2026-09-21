@@ -19,10 +19,36 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, '..', '..', '..', '..');
 const FRONTEND = join(REPO, 'frontend');
-// 二进制路径可覆盖：本仓库 cargo target-dir 固定在 /data/cargo-target/bblbb
-//（backend/.cargo/config.toml），backend/target/debug 下可能是陈旧产物。
-const BACKEND_BIN =
-  process.env.E2E_BACKEND_BIN ?? join(REPO, 'backend', 'target', 'debug', 'bblbb-backend');
+function resolveBackendBin() {
+  const explicit = process.env.E2E_BACKEND_BIN;
+  if (explicit) {
+    if (existsSync(explicit)) return explicit;
+    throw new Error(`[serve:error] 环境变量 E2E_BACKEND_BIN 指定的文件不存在: ${explicit}`);
+  }
+
+  const candidates = [
+    process.env.CARGO_TARGET_DIR ? join(process.env.CARGO_TARGET_DIR, 'debug', 'bblbb-backend') : null,
+    join(REPO, 'target', 'debug', 'bblbb-backend'),
+    '/data/cargo-target/bblbb/debug/bblbb-backend',
+    join(REPO, 'backend', 'target', 'debug', 'bblbb-backend'),
+    join(REPO, 'target', 'release', 'bblbb-backend'),
+    join(REPO, 'backend', 'target', 'release', 'bblbb-backend'),
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      return c;
+    }
+  }
+
+  throw new Error(
+    `[serve:error] 未找到后端二进制文件 bblbb-backend。\n` +
+    `已尝试探测以下候选路径：\n${candidates.map((p) => `  - ${p}`).join('\n')}\n` +
+    `请先执行 cargo build 构建后端（或通过 E2E_BACKEND_BIN 环境变量显式指定二进制路径）。`
+  );
+}
+
+const BACKEND_BIN = resolveBackendBin();
 // 视觉检测等复用方可用环境变量改端口/库/输出；默认值与 Playwright 语义不变。
 const DB_PATH = join(REPO, 'data', process.env.E2E_DB_PATH ?? 'e2e.sqlite');
 const VITE_BIN = join(FRONTEND, 'node_modules', '.bin', 'vite');

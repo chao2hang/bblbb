@@ -156,6 +156,21 @@ pub struct LocalAdapter {
 impl LocalAdapter {
     pub fn new(root: PathBuf) -> Result<Self, StorageError> {
         std::fs::create_dir_all(&root)?;
+        let probe = root.join(format!(".probe_{}", std::process::id()));
+        if let Err(e) = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&probe)
+        {
+            tracing::error!(
+                error = %e,
+                path = %root.display(),
+                "存储目录不可写（Permission denied）。若在容器环境运行且挂载了宿主目录，请在宿主机执行属主与权限校正：sudo chown -R 10001:999 uploads && sudo chmod -R 775 uploads"
+            );
+            return Err(e.into());
+        }
+        let _ = std::fs::remove_file(probe);
         Ok(Self { root })
     }
 

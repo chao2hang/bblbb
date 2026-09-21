@@ -67,6 +67,18 @@ head
 - 不授予创建/删除 Bucket、修改 Bucket Policy、公开 ACL 或访问其他 Bucket 的权限。
 - Bucket Block Public Access 保持开启；对象 ACL 不作为业务权限来源。
 - CORS 只允许本站精确 Origin、所需方法和请求头，不使用 `*` 搭配凭据。
+
+### 1.4 容器与本地存储目录属主与权限
+
+生产 Docker 镜像（`ghcr.io/chao2hang/bblbb`）以非特权用户 `bblbb`（UID 10001 / GID 999）运行。若通过 Docker 卷或 bind mount 挂载宿主机目录（如 `./uploads:/app/uploads`），请确保该目录拥有适当的写权限：
+
+```bash
+sudo chown -R 10001:999 uploads
+sudo chmod -R 775 uploads
+```
+
+- 若从旧版本（历史镜像使用 UID 999 运行）升级，由于目录 group 权限默认为 `750`，可能引发 `Permission denied (os error 13)` 导致 Steam 装扮或附件上传失败。
+- 系统在容器入口 `entrypoint.sh`、`/readyz` 就绪探针与 `LocalAdapter` 初始化时均内置了存储可写性自检；若权限不足，`/readyz` 将返回 `503 Service Unavailable`（`storage_dir: "permission_denied"`），并在控制台输出具体的宿主机修复指令。
 - 推荐启用服务端加密、版本化和生命周期规则；合规场景按厂商能力使用 KMS。
 
 ## 2. 生命周期

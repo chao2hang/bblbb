@@ -1,3 +1,36 @@
+## v1.0.0-rc.9 — 2026-09-21（MySQL/MariaDB 聚合类型修复、存储挂载属主自检与 Nightly E2E 构建管线修复）
+
+> 紧急补丁版本。针对生产与 Nightly CI 暴露的缺陷完成修复：
+> 1. 修复 MariaDB / MySQL 聚合查询解码崩溃（Issue #23）：显式 `CAST(... AS SIGNED / DOUBLE)` 统一类型；
+> 2. 修复 Steam 资产与用户附件落盘权限问题（Issue #24）：容器入口权限自检、root 降权兼容、`/readyz` 写入探测与运维指引；
+> 3. 修复 Nightly E2E 作业构建与路径解析（Issue #25）：补充 Playwright 后端构建、多路径探测自检与清晰报错。
+> 发布顺序：backend → worker → frontend。
+
+### 数据库跨引擎聚合兼容（Issue #23）
+
+- **根因修复**：MySQL/MariaDB 对精确数值参数 `SUM()` / `AVG()` 默认返回 SQL 类型 `DECIMAL`，导致 sqlx 以 `i64` / `f64` 解码失败抛 500。
+- **全站统一修复**：
+  - `trust/store.rs`：`time_read_seconds` 查询显式转换为 `CAST(COALESCE(SUM(seconds), 0) AS SIGNED)`，恢复 `/api/v1/me/trust-level` 与访问活跃重算。
+  - `storage/quota.rs`：每日配额锁内与公开统计查询使用 `CAST(COALESCE(SUM(size_bytes), 0) AS SIGNED)`。
+  - `shop/service.rs`：购买限额统计查询使用 `CAST(COALESCE(SUM(quantity), 0) AS SIGNED)`。
+  - `marketplace/checkout.rs`：结算日额度校验使用 `CAST(COALESCE(SUM(amount), 0) AS SIGNED)`。
+  - `routes/admin_ext.rs`：管理端积分流水总量与文章状态聚合统计使用 `CAST(... AS SIGNED)`。
+  - `economy/activity/service.rs`：今日活动收益汇总使用 `CAST(COALESCE(SUM(pt.delta_balance), 0) AS SIGNED)`。
+  - `jobs/metrics.rs`：平均尝试次数改用 `Option<f64>` 与 `CAST(COALESCE(AVG(attempts), 0.0) AS DOUBLE)`，解决空队列与 DECIMAL 崩溃。
+- **回归防护**：在 `backend/tests/schema_fixture.rs` 的跨库测试中加入三数据库（SQLite / MySQL / MariaDB）聚合字段解码断言。
+
+### 存储权限与挂载自检增强（Issue #24）
+
+- **容器入口属主校正**：`Docker/entrypoint.sh` 支持以 root 启动时自动校正挂载目录属主为 `bblbb:bblbb` 并切换用户运行；非 root 运行时启动前先进行写文件探测自检，如不可写输出带命令指引的结构化 `[ERROR]` 日志。
+- **就绪检查探测**：`/readyz` 端点的 `storage_dir` 检查由单纯的 `exists()` 升级为真实文件写入探测，不可写时返回 503 且标记为 `"permission_denied"`。
+- **适配器报错细化**：`LocalAdapter::new` 增加写测试，并在 `Steam` 资产懒加载写入拒绝时输出针对宿主挂载权限（`sudo chown -R 10001:999 uploads && sudo chmod -R 775 uploads`）的明确指导。
+- **文档同步**：`docs/STORAGE.md` 补充 §1.4 容器与本地存储目录属主与权限说明。
+
+### Nightly E2E 构建与二进制探测修复（Issue #25）
+
+- **E2E 后端编译接入**：`.github/workflows/nightly.yml` 在 `playwright` 任务前加入 Rust toolchain、sccache 缓存以及 `cargo build --bin bblbb-backend --bin bblbb-migrate` 步骤，并传递 `E2E_BACKEND_BIN`。
+- **多候选探测与友好报错**：`frontend/tests/playwright/fixtures/serve.mjs` 支持按优先级探测 `E2E_BACKEND_BIN`、`CARGO_TARGET_DIR`、默认 target 目录与本地开发机目录；所有候选均缺失时抛出包含排查建议的明确异常，防止 `spawn ENOENT` 静默崩溃。
+
 ## v1.0.0-rc.8 — 2026-09-16（装扮中心工坊、行内引用回复、审核版本对比、信任等级单轨与全站移动端适配）
 
 > 基线 commit 待打 tag 时补记。rc.7 之后的关键增量：

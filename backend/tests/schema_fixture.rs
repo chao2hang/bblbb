@@ -519,6 +519,46 @@ async fn schema_fixture_flow(pool: &DatabasePool) {
         &board_b
     );
     assert_eq!(left, 0, "board_b 不应产生任何 board_tags 关联");
+
+    aggregation_scalar_decoding_check(pool).await;
+}
+
+/// 防范 Issue #23 回归：在 MySQL / MariaDB 下，SUM/AVG 经过 CAST 必须能以 i64/f64 正常解码
+async fn aggregation_scalar_decoding_check(pool: &DatabasePool) {
+    match pool {
+        Either::Left(p) => {
+            let sum: i64 =
+                sqlx::query_scalar("SELECT COALESCE(SUM(seconds), 0) FROM trust_read_time")
+                    .fetch_one(p)
+                    .await
+                    .unwrap();
+            assert_eq!(sum, 0);
+        }
+        Either::Right(p) => {
+            let sum: i64 = sqlx::query_scalar(
+                "SELECT CAST(COALESCE(SUM(seconds), 0) AS SIGNED) FROM trust_read_time",
+            )
+            .fetch_one(p)
+            .await
+            .unwrap();
+            assert_eq!(sum, 0);
+
+            let quota: Option<i64> = sqlx::query_scalar(
+                "SELECT CAST(COALESCE(SUM(size_bytes), 0) AS SIGNED) FROM attachments",
+            )
+            .fetch_one(p)
+            .await
+            .unwrap();
+            assert_eq!(quota, Some(0));
+
+            let avg: Option<f64> =
+                sqlx::query_scalar("SELECT CAST(COALESCE(AVG(attempts), 0.0) AS DOUBLE) FROM jobs")
+                    .fetch_one(p)
+                    .await
+                    .unwrap();
+            assert_eq!(avg, Some(0.0));
+        }
+    }
 }
 
 // ─────────────────────────── 三数据库入口 ───────────────────────────

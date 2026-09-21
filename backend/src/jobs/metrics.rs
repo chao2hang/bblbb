@@ -94,22 +94,24 @@ pub async fn snapshot(pool: &DatabasePool, queue: &str) -> Result<QueueSnapshot,
     // 平均尝试次数
     let avg_attempts: f64 = match pool {
         Either::Left(p) => {
-            sqlx::query_scalar(
+            let val: Option<f64> = sqlx::query_scalar(
                 "SELECT AVG(attempts) FROM jobs
                  WHERE queue = ? AND status IN ('queued', 'running', 'retry_wait')",
             )
             .bind(queue)
             .fetch_one(p)
-            .await?
+            .await?;
+            val.unwrap_or(0.0)
         }
         Either::Right(p) => {
-            sqlx::query_scalar(
-                "SELECT AVG(attempts) FROM jobs
+            let val: Option<f64> = sqlx::query_scalar(
+                "SELECT CAST(COALESCE(AVG(attempts), 0.0) AS DOUBLE) FROM jobs
                  WHERE queue = ? AND status IN ('queued', 'running', 'retry_wait')",
             )
             .bind(queue)
             .fetch_one(p)
-            .await?
+            .await?;
+            val.unwrap_or(0.0)
         }
     };
 

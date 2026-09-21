@@ -903,7 +903,7 @@ pub async fn buy_product(
                 }
                 if product.quantity_limit > 0 {
                     let bought: i64 = sqlx::query_scalar(
-                        "SELECT COALESCE(SUM(quantity),0) FROM shop_orders \
+                        "SELECT CAST(COALESCE(SUM(quantity),0) AS SIGNED) FROM shop_orders \
                          WHERE user_id = ? AND product_id = ? AND status IN ('succeeded','partially_refunded')",
                     )
                     .bind(user_id)

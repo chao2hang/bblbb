@@ -567,7 +567,7 @@ pub async fn cumulative_stats(pool: &DatabasePool, user_id: &str) -> TrustResult
         }
         Either::Right(p) => {
             sqlx::query_scalar(
-                "SELECT COALESCE(SUM(seconds), 0) FROM trust_read_time WHERE user_id = ?",
+                "SELECT CAST(COALESCE(SUM(seconds), 0) AS SIGNED) FROM trust_read_time WHERE user_id = ?",
             )
             .bind(user_id)
             .fetch_one(p)
