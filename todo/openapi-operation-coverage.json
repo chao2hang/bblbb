@@ -2618,7 +2618,7 @@
       "owner": "agent/backend",
       "handler": "backend/src/routes/admin_shop.rs::list_admin_cosmetics",
       "tests": [
-
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
       ],
       "evidence": "管理员功能定义列表，包含归档项。"
     },
@@ -2635,7 +2635,7 @@
       "owner": "agent/backend",
       "handler": "backend/src/routes/admin_shop.rs::create_admin_cosmetic",
       "tests": [
-
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
       ],
       "evidence": "结构化 schema 校验、审计记录、名称与样式定义创建。"
     },
@@ -2652,7 +2652,7 @@
       "owner": "agent/backend",
       "handler": "backend/src/routes/admin_shop.rs::update_admin_cosmetic",
       "tests": [
-
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
       ],
       "evidence": "改名、更新结构化样式、归档/恢复与审计记录。"
     },
@@ -2873,7 +2873,7 @@
       "owner": "agent/backend",
       "handler": "backend/src/routes/shop.rs::list_public_cosmetics",
       "tests": [
-
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
       ],
       "evidence": "Active 自定义功能定义公开读取；前端商品/衣柜使用名称与结构化预览。"
     },
