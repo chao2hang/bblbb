@@ -107,4 +107,17 @@ describe('M13-UI-06 管理用户 SSR', () => {
     });
     expect(body).toContain('暂无用户数据');
   });
+
+  it('step_up_required → 渲染重新验证表单（M02-MFA-07）', () => {
+    const { body } = render(AdminUsersPage, {
+      props: {
+        data: okData,
+        form: { message: '此操作需要重新验证身份，请输入密码重新验证后重试', stepUpRequired: true }
+      }
+    });
+    expect(body).toContain('需要重新验证身份');
+    expect(body).toContain('name="password"');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/reauth"/);
+    expect(body).toContain('重新验证');
+  });
 });

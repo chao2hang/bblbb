@@ -354,6 +354,8 @@ const SAFE_TOKEN_PREFIXES: &[&str] = &[
     "post.effect.",
     "badge.",
     "reaction.pack.",
+    "utility.",
+    "title.prefix.",
 ];
 
 const VALID_SLOTS: &[&str] = &[
@@ -363,6 +365,7 @@ const VALID_SLOTS: &[&str] = &[
     "profile_badge", // 兼容早期种子数据；新商品使用 profile_badges。
     "profile_effect",
     "post_effect",
+    "title_prefix",
 ];
 
 const NICKNAME_COLOR_VALUES: &[&str] = &[
@@ -374,10 +377,15 @@ const NICKNAME_COLOR_VALUES: &[&str] = &[
     "teal",
     "pink",
     "rainbow",
+    "breathing",
     "gradient_sunset",
     "gradient_ocean",
     "gradient_aurora",
 ];
+
+/// 不装备到展示槽位的商品类型（M07-SHOP-UI-09）：消耗品/道具/前缀类，
+/// `slot` 允许缺省（存空串）。装备类商品仍要求合法槽位。
+const SLOT_OPTIONAL_KINDS: &[&str] = &["reaction_pack", "utility"];
 
 fn is_safe_token(t: &str) -> bool {
     if t.is_empty() || t.len() > 64 {
@@ -400,16 +408,52 @@ fn is_registered_presentation_token(t: &str) -> bool {
         return false;
     }
     if let Some(value) = t.strip_prefix("nickname.color.") {
-        return NICKNAME_COLOR_VALUES.contains(&value);
+        // 注册枚举色，或样式库定义引用（`c` + id；存在性由
+        // cosmetics::validate_token_def_references 异步裁决，此处只做形状放行）。
+        return NICKNAME_COLOR_VALUES.contains(&value) || is_def_reference_value(value);
     }
     true
+}
+
+/// 样式库定义引用的取值形状：`c` 开头 + 小写字母/数字/下划线（与
+/// cosmetics::valid_def_id 一致；最短 `c` + 1 字符由存在性校验兜底）。
+fn is_def_reference_value(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() >= 2
+        && bytes.len() <= 40
+        && bytes[0] == b'c'
+        && bytes[1..]
+            .iter()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'_')
+}
+
+/// 注册昵称色枚举判断（cosmetics 样式库复用：定义之外的取值需查样式库）。
+pub fn is_registered_nickname_color(value: &str) -> bool {
+    NICKNAME_COLOR_VALUES.contains(&value)
 }
 
 fn is_valid_slot(slot: &str) -> bool {
     VALID_SLOTS.contains(&slot)
 }
 
-fn validate_asset_kind_slot(kind: &str, slot: &str) -> Result<(), ShopError> {
+/// 槽位校验（M07-SHOP-UI-09）：装备类商品要求合法槽位；
+/// 消耗品/道具类（SLOT_OPTIONAL_KINDS）允许空槽位。
+pub(super) fn validate_slot_for_kind(kind: &str, slot: &str) -> Result<(), ShopError> {
+    if slot.is_empty() {
+        if SLOT_OPTIONAL_KINDS.contains(&kind) {
+            return Ok(());
+        }
+        return Err(ShopError::Invalid(
+            "slot required for this product kind".into(),
+        ));
+    }
+    if !is_valid_slot(slot) {
+        return Err(ShopError::Invalid("invalid presentation slot".into()));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_asset_kind_slot(kind: &str, slot: &str) -> Result<(), ShopError> {
     if !matches!((kind, slot), ("cosmetic_avatar", "avatar_frame")) {
         return Err(ShopError::Invalid(
             "PNG assets are only supported for avatar frame products".into(),
@@ -418,7 +462,7 @@ fn validate_asset_kind_slot(kind: &str, slot: &str) -> Result<(), ShopError> {
     Ok(())
 }
 
-async fn validate_asset_attachment(
+pub(super) async fn validate_asset_attachment(
     pool: &DatabasePool,
     asset_attachment_id: &str,
 ) -> Result<(), ShopError> {
@@ -1292,7 +1336,7 @@ async fn rebuild_presentation_sqlite(
     .bind(now)
     .fetch_all(&mut *conn)
     .await?;
-    let mut values: [Option<String>; 4] = Default::default();
+    let mut values: [Option<String>; 5] = Default::default();
     let mut badges = Vec::new();
     for row in rows {
         let id: String = row.get("id");
@@ -1302,6 +1346,7 @@ async fn rebuild_presentation_sqlite(
             "avatar_frame" => values[1] = Some(id),
             "profile_effect" => values[2] = Some(id),
             "post_effect" => values[3] = Some(id),
+            "title_prefix" => values[4] = Some(id),
             "profile_badge" | "profile_badges" if badges.len() < 3 => badges.push(id),
             _ => {}
         }
@@ -1320,12 +1365,13 @@ async fn rebuild_presentation_sqlite(
     sqlx::query(
         "UPDATE user_presentations SET nickname_decoration_id = NULL, nickname_color_id = ?,
          avatar_frame_id = ?, avatar_attachment_id = NULL, profile_effect_id = ?,
-         title_prefix_id = NULL, profile_badge_ids_json = ?, post_effect_id = ?,
+         title_prefix_id = ?, profile_badge_ids_json = ?, post_effect_id = ?,
          version = version + 1, updated_at = ? WHERE user_id = ?",
     )
     .bind(&values[0])
     .bind(&values[1])
     .bind(&values[2])
+    .bind(&values[4])
     .bind(badges_json)
     .bind(&values[3])
     .bind(now)
@@ -1351,7 +1397,7 @@ async fn rebuild_presentation_mysql(
     .bind(now)
     .fetch_all(&mut *conn)
     .await?;
-    let mut values: [Option<String>; 4] = Default::default();
+    let mut values: [Option<String>; 5] = Default::default();
     let mut badges = Vec::new();
     for row in rows {
         let id: String = row.get("id");
@@ -1361,6 +1407,7 @@ async fn rebuild_presentation_mysql(
             "avatar_frame" => values[1] = Some(id),
             "profile_effect" => values[2] = Some(id),
             "post_effect" => values[3] = Some(id),
+            "title_prefix" => values[4] = Some(id),
             "profile_badge" | "profile_badges" if badges.len() < 3 => badges.push(id),
             _ => {}
         }
@@ -1379,12 +1426,13 @@ async fn rebuild_presentation_mysql(
     sqlx::query(
         "UPDATE user_presentations SET nickname_decoration_id = NULL, nickname_color_id = ?,
          avatar_frame_id = ?, avatar_attachment_id = NULL, profile_effect_id = ?,
-         title_prefix_id = NULL, profile_badge_ids_json = ?, post_effect_id = ?,
+         title_prefix_id = ?, profile_badge_ids_json = ?, post_effect_id = ?,
          version = version + 1, updated_at = ? WHERE user_id = ?",
     )
     .bind(&values[0])
     .bind(&values[1])
     .bind(&values[2])
+    .bind(&values[4])
     .bind(badges_json)
     .bind(&values[3])
     .bind(now)
@@ -1453,6 +1501,9 @@ pub async fn equip_with_version(
                 let expires_at: Option<i64> = row.get("expires_at");
                 let slot: String = row.get("slot");
                 let kind: String = row.get("kind");
+                if slot.is_empty() || matches!(kind.as_str(), "reaction_pack" | "utility") {
+                    return Err(ShopError::Invalid("this product is a consumable and cannot be equipped".into()));
+                }
                 if status == "revoked" || status == "consumed" {
                     return Err(ShopError::EntitlementNotOwned);
                 }
@@ -1462,27 +1513,32 @@ pub async fn equip_with_version(
                 // 徽章 slot 最多 3 个 equipped。
                 if slot == "profile_badge" || slot == "profile_badges" {
                     let equipped: i64 = sqlx::query_scalar(
-                        "SELECT COUNT(*) FROM user_entitlements WHERE user_id = ? AND status = 'equipped' AND id IN
+                        "SELECT COUNT(*) FROM user_entitlements WHERE user_id = ? AND status = 'equipped'
+                         AND (expires_at IS NULL OR expires_at > ?)
+                         AND id IN
                          (SELECT e.id FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id WHERE p.slot IN ('profile_badge', 'profile_badges'))",
                     )
                     .bind(user_id)
+                    .bind(now)
                     .fetch_one(&mut *conn)
                     .await?;
                     if equipped >= 3 {
                         return Err(ShopError::SlotConflict);
                     }
                 }
-                // 同 slot 互斥：卸下其他 equipped。
-                sqlx::query(
-                    "UPDATE user_entitlements SET status = 'owned', equipped_at = NULL, updated_at = ?
-                     WHERE user_id = ? AND status = 'equipped' AND id IN
-                     (SELECT e.id FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id WHERE p.slot = ?)",
-                )
-                .bind(now)
-                .bind(user_id)
-                .bind(&slot)
-                .execute(&mut *conn)
-                .await?;
+                // 普通槽位互斥；徽章槽位允许同时装备最多 3 枚。
+                if slot != "profile_badge" && slot != "profile_badges" {
+                    sqlx::query(
+                        "UPDATE user_entitlements SET status = 'owned', equipped_at = NULL, updated_at = ?
+                         WHERE user_id = ? AND status = 'equipped' AND id IN
+                         (SELECT e.id FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id WHERE p.slot = ?)",
+                    )
+                    .bind(now)
+                    .bind(user_id)
+                    .bind(&slot)
+                    .execute(&mut *conn)
+                    .await?;
+                }
                 sqlx::query(
                     "UPDATE user_entitlements SET status = 'equipped', equipped_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
                 )
@@ -1530,6 +1586,10 @@ pub async fn equip_with_version(
                 let status: String = row.get("status");
                 let expires_at: Option<i64> = row.get("expires_at");
                 let slot: String = row.get("slot");
+                let kind: String = row.get("kind");
+                if slot.is_empty() || matches!(kind.as_str(), "reaction_pack" | "utility") {
+                    return Err(ShopError::Invalid("this product is a consumable and cannot be equipped".into()));
+                }
                 if status == "revoked" || status == "consumed" {
                     return Err(ShopError::EntitlementNotOwned);
                 }
@@ -1539,25 +1599,30 @@ pub async fn equip_with_version(
                 if slot == "profile_badge" || slot == "profile_badges" {
                     let equipped: i64 = sqlx::query_scalar(
                         "SELECT COUNT(*) FROM user_entitlements e JOIN shop_products p ON p.id = e.product_id
-                         WHERE e.user_id = ? AND e.status = 'equipped' AND p.slot IN ('profile_badge', 'profile_badges')",
+                         WHERE e.user_id = ? AND e.status = 'equipped'
+                           AND (e.expires_at IS NULL OR e.expires_at > ?)
+                           AND p.slot IN ('profile_badge', 'profile_badges')",
                     )
                     .bind(user_id)
+                    .bind(now)
                     .fetch_one(&mut *tx)
                     .await?;
                     if equipped >= 3 {
                         return Err(ShopError::SlotConflict);
                     }
                 }
-                sqlx::query(
-                    "UPDATE user_entitlements e JOIN shop_products p ON p.id = e.product_id
-                     SET e.status = 'owned', e.equipped_at = NULL, e.updated_at = ?
-                     WHERE e.user_id = ? AND e.status = 'equipped' AND p.slot = ?",
-                )
-                .bind(now)
-                .bind(user_id)
-                .bind(&slot)
-                .execute(&mut *tx)
-                .await?;
+                if slot != "profile_badge" && slot != "profile_badges" {
+                    sqlx::query(
+                        "UPDATE user_entitlements e JOIN shop_products p ON p.id = e.product_id
+                         SET e.status = 'owned', e.equipped_at = NULL, e.updated_at = ?
+                         WHERE e.user_id = ? AND e.status = 'equipped' AND p.slot = ?",
+                    )
+                    .bind(now)
+                    .bind(user_id)
+                    .bind(&slot)
+                    .execute(&mut *tx)
+                    .await?;
+                }
                 sqlx::query(
                     "UPDATE user_entitlements SET status = 'equipped', equipped_at = ?, updated_at = ? WHERE id = ? AND user_id = ?",
                 )
@@ -1657,7 +1722,7 @@ pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Valu
     match pool {
         Either::Left(p) => {
             let row = sqlx::query(
-                "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, version
+                "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, title_prefix_id, version
                  FROM user_presentations WHERE user_id = ?",
             )
             .bind(user_id)
@@ -1679,6 +1744,7 @@ pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Valu
                 "avatar_frame_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("avatar_frame_id")),
                 "profile_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("profile_effect_id")),
                 "post_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("post_effect_id")),
+                "title_prefix_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("title_prefix_id")),
                 "profile_badge_ids": badges,
                 "presentation_tokens": compiled_tokens.clone(),
                 "now": now,
@@ -1686,7 +1752,7 @@ pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Valu
         }
         Either::Right(p) => {
             let row = sqlx::query(
-                "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, version
+                "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, title_prefix_id, version
                  FROM user_presentations WHERE user_id = ?",
             )
             .bind(user_id)
@@ -1708,6 +1774,7 @@ pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Valu
                 "avatar_frame_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("avatar_frame_id")),
                 "profile_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("profile_effect_id")),
                 "post_effect_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("post_effect_id")),
+                "title_prefix_id": row.as_ref().and_then(|r| r.get::<Option<String>,_>("title_prefix_id")),
                 "profile_badge_ids": badges,
                 "presentation_tokens": compiled_tokens.clone(),
                 "now": now,
@@ -1716,8 +1783,9 @@ pub async fn get_presentation(pool: &DatabasePool, user_id: &str) -> Result<Valu
     }
 }
 
-/// `user_presentations` 装配行（5 个有效槽位列，与 get_public_presentation_tokens 对应）。
+/// `user_presentations` 装配行（6 个有效槽位列，与 get_public_presentation_tokens 对应）。
 type PresentationSlotRow = (
+    Option<String>,
     Option<String>,
     Option<String>,
     Option<String>,
@@ -1740,14 +1808,14 @@ pub async fn get_public_presentation_tokens(
 ) -> Result<Option<crate::users::dto::PublicPresentationTokens>, ShopError> {
     let row: Option<PresentationSlotRow> = match pool {
         Either::Left(p) => sqlx::query_as(
-            "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id \
+            "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, title_prefix_id \
              FROM user_presentations WHERE user_id = ?",
         )
         .bind(user_id)
         .fetch_optional(p)
         .await?,
         Either::Right(p) => sqlx::query_as(
-            "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id \
+            "SELECT nickname_color_id, avatar_frame_id, profile_effect_id, profile_badge_ids_json, post_effect_id, title_prefix_id \
              FROM user_presentations WHERE user_id = ?",
         )
         .bind(user_id)
@@ -1760,6 +1828,7 @@ pub async fn get_public_presentation_tokens(
         profile_effect_id,
         profile_badge_ids_json,
         post_effect_id,
+        title_prefix_id,
     )) = row
     else {
         return Ok(None);
@@ -1772,7 +1841,18 @@ pub async fn get_public_presentation_tokens(
             active_equipped_product(pool, user_id, id, "nickname_color").await?
         {
             if let Some(v) = first_public_token(pool, &product_id, "nickname.color.").await? {
-                tokens.nickname_color = Some(v);
+                if is_registered_nickname_color(&v) {
+                    tokens.nickname_color = Some(v);
+                } else if let Some((kind, name, style)) =
+                    super::cosmetics::resolve_def(pool, &v).await?
+                {
+                    if kind == "nickname_color" {
+                        tokens.nickname_color = Some(v);
+                        tokens.nickname_color_name = Some(name);
+                        tokens.nickname_color_style = Some(style);
+                    }
+                }
+                // 其余取值：未注册且无样式库定义 → 该槽位跳过（不渲染）。
             }
         }
     }
@@ -1781,7 +1861,17 @@ pub async fn get_public_presentation_tokens(
             active_equipped_product(pool, user_id, id, "avatar_frame").await?
         {
             if let Some(v) = first_public_token(pool, &product_id, "avatar.frame.").await? {
-                tokens.avatar_frame = Some(v);
+                if let Some((kind, name, style)) = super::cosmetics::resolve_def(pool, &v).await? {
+                    if kind == "avatar_frame" {
+                        tokens.avatar_frame = Some(v);
+                        tokens.avatar_frame_name = Some(name);
+                        tokens.avatar_frame_style = Some(style);
+                    }
+                } else {
+                    // 解析不到自定义样式时保留注册枚举值（例如 c 开头的
+                    // cloud_blade/cyan_fire 等内置动效头像框），前端再做白名单渲染。
+                    tokens.avatar_frame = Some(v);
+                }
             }
             tokens.avatar_frame_attachment_id = asset_id;
         }
@@ -1791,7 +1881,15 @@ pub async fn get_public_presentation_tokens(
             active_equipped_product(pool, user_id, id, "profile_effect").await?
         {
             if let Some(v) = first_public_token(pool, &product_id, "profile.effect.").await? {
-                tokens.profile_effect = Some(v);
+                if let Some((kind, name, style)) = super::cosmetics::resolve_def(pool, &v).await? {
+                    if kind == "profile_effect" {
+                        tokens.profile_effect = Some(v);
+                        tokens.profile_effect_name = Some(name);
+                        tokens.profile_effect_style = Some(style);
+                    }
+                } else {
+                    tokens.profile_effect = Some(v);
+                }
             }
         }
     }
@@ -1800,7 +1898,32 @@ pub async fn get_public_presentation_tokens(
             active_equipped_product(pool, user_id, id, "post_effect").await?
         {
             if let Some(v) = first_public_token(pool, &product_id, "post.effect.").await? {
-                tokens.post_effect = Some(v);
+                if let Some((kind, name, style)) = super::cosmetics::resolve_def(pool, &v).await? {
+                    if kind == "post_effect" {
+                        tokens.post_effect = Some(v);
+                        tokens.post_effect_name = Some(name);
+                        tokens.post_effect_style = Some(style);
+                    }
+                } else {
+                    tokens.post_effect = Some(v);
+                }
+            }
+        }
+    }
+    if let Some(id) = title_prefix_id.as_deref() {
+        if let Some((product_id, _)) =
+            active_equipped_product(pool, user_id, id, "title_prefix").await?
+        {
+            if let Some(v) = first_public_token(pool, &product_id, "title.prefix.").await? {
+                if let Some((kind, name, style)) = super::cosmetics::resolve_def(pool, &v).await? {
+                    if kind == "title_prefix" {
+                        tokens.title_prefix = Some(v);
+                        tokens.title_prefix_name = Some(name);
+                        tokens.title_prefix_style = Some(style);
+                    }
+                } else {
+                    tokens.title_prefix = Some(v);
+                }
             }
         }
     }
@@ -1808,17 +1931,33 @@ pub async fn get_public_presentation_tokens(
     if let Some(json_str) = profile_badge_ids_json {
         if let Ok(ids) = serde_json::from_str::<Vec<String>>(&json_str) {
             let mut arr = Vec::new();
+            let mut names = Vec::new();
+            let mut styles = Vec::new();
             for id in ids.iter().take(3) {
                 if let Some((product_id, _)) =
                     active_equipped_product(pool, user_id, id, "profile_badges").await?
                 {
                     if let Some(v) = first_public_token(pool, &product_id, "badge.").await? {
-                        arr.push(v);
+                        if let Some((kind, name, style)) =
+                            super::cosmetics::resolve_def(pool, &v).await?
+                        {
+                            if kind == "cosmetic_badge" {
+                                arr.push(v);
+                                names.push(name);
+                                styles.push(style);
+                            }
+                        } else {
+                            arr.push(v);
+                        }
                     }
                 }
             }
             if !arr.is_empty() {
                 tokens.profile_badges = Some(arr);
+                if !names.is_empty() {
+                    tokens.profile_badge_names = Some(names);
+                    tokens.profile_badge_styles = Some(styles);
+                }
             }
         }
     }
@@ -1943,7 +2082,9 @@ pub async fn create_product(
     let slot = input
         .get("slot")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| ShopError::Invalid("slot required".into()))?;
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
     let currency_id = input
         .get("currency_id")
         .and_then(|v| v.as_str())
@@ -1966,11 +2107,11 @@ pub async fn create_product(
                 .map(|s| s.to_string())
         });
     validate_tokens(icon_token, presentation_tokens.as_deref())?;
-    if !is_valid_slot(slot) {
-        return Err(ShopError::Invalid("invalid presentation slot".into()));
-    }
+    // M07-SHOP-UI-10：nickname.color.* 取值须为注册色或 active 样式库定义。
+    super::cosmetics::validate_token_def_references(pool, presentation_tokens.as_deref()).await?;
+    validate_slot_for_kind(kind, &slot)?;
     if let Some(asset_attachment_id) = input.get("asset_attachment_id").and_then(|v| v.as_str()) {
-        validate_asset_kind_slot(kind, slot)?;
+        validate_asset_kind_slot(kind, &slot)?;
         validate_asset_attachment(pool, asset_attachment_id).await?;
     }
 
@@ -2029,7 +2170,6 @@ pub async fn create_product(
             .bind(icon_token)
             .bind(presentation_tokens.as_deref())
              .bind(input.get("asset_attachment_id").and_then(|v| v.as_str()))
-             .bind(input.get("slot").and_then(|v| v.as_str()))
             .bind(slot)
             .bind(currency_id)
             .bind(unit_price)
@@ -2061,7 +2201,6 @@ pub async fn create_product(
             .bind(icon_token)
             .bind(presentation_tokens.as_deref())
              .bind(input.get("asset_attachment_id").and_then(|v| v.as_str()))
-             .bind(input.get("slot").and_then(|v| v.as_str()))
             .bind(slot)
             .bind(currency_id)
             .bind(unit_price)
@@ -2100,8 +2239,34 @@ pub async fn update_product(
                 .map(|s| s.to_string())
         });
     validate_tokens(icon_token, presentation_tokens.as_deref())?;
+    // M07-SHOP-UI-10：nickname.color.* 取值须为注册色或 active 样式库定义。
+    super::cosmetics::validate_token_def_references(pool, presentation_tokens.as_deref()).await?;
     if let Some(slot) = input.get("slot").and_then(|v| v.as_str()) {
-        if !is_valid_slot(slot) {
+        if slot.is_empty() {
+            // 清空槽位仅对免槽位类型开放（装备类商品必须有槽位，供 equip 查询）。
+            let current: Option<(String,)> = match pool {
+                Either::Left(p) => {
+                    sqlx::query_as("SELECT kind FROM shop_products WHERE id = ?")
+                        .bind(id)
+                        .fetch_optional(p)
+                        .await?
+                }
+                Either::Right(p) => {
+                    sqlx::query_as("SELECT kind FROM shop_products WHERE id = ?")
+                        .bind(id)
+                        .fetch_optional(p)
+                        .await?
+                }
+            };
+            let Some((kind,)) = current else {
+                return Err(ShopError::NotFound(format!("product {id}")));
+            };
+            if !SLOT_OPTIONAL_KINDS.contains(&kind.as_str()) {
+                return Err(ShopError::Invalid(
+                    "cannot clear slot for equipped product kinds".into(),
+                ));
+            }
+        } else if !is_valid_slot(slot) {
             return Err(ShopError::Invalid("invalid presentation slot".into()));
         }
     }

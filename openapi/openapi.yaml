@@ -2227,6 +2227,24 @@ paths:
         '429':
           "$ref": "#/components/responses/RateLimited"
       summary: get api v1 shop products
+  "/api/v1/shop/cosmetics":
+    get:
+      tags:
+      - Shop
+      operationId: get_shop_cosmetics
+      summary: Get active cosmetic feature definitions
+      security: *2
+      x-permission: shop.read
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
   "/api/v1/shop/products/{id}":
     get:
       tags:
@@ -6021,6 +6039,127 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/PolicyPatch"
+  "/api/v1/admin/shop/cosmetics":
+    get:
+      tags:
+      - Shop
+      operationId: listAdminShopCosmetics
+      summary: List cosmetic feature definitions
+      security: *3
+      x-permission: shop.manage
+      x-csrf: false
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+    post:
+      tags:
+      - Shop
+      operationId: createAdminShopCosmetic
+      summary: Create a cosmetic feature definition
+      security: *3
+      x-permission: shop.manage
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericSuccess"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+  "/api/v1/admin/shop/cosmetics/{id}":
+    patch:
+      tags:
+      - Shop
+      operationId: updateAdminShopCosmetic
+      summary: Update a cosmetic feature definition
+      security: *3
+      x-permission: shop.manage
+      x-csrf: true
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - "$ref": "#/components/parameters/IfMatch"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GenericSuccess"
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+  "/api/v1/admin/shop/studio/publish":
+    post:
+      tags:
+      - Shop
+      operationId: publishAdminShopStudio
+      summary: Design-studio composite publish (upsert cosmetic def + create product in one transaction)
+      security: *3
+      x-permission: shop.manage
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/AdminStudioPublishRequest"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Composite publish result (replayed=true on idempotent replay)
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminStudioPublishResponse"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
   "/api/v1/admin/shop/products":
     get:
       tags:
@@ -10006,6 +10145,155 @@ components:
           type: string
           minLength: 16
           maxLength: 200
+    AdminStudioPublishRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - cosmetic
+      - product
+      properties:
+        cosmetic:
+          type: object
+          additionalProperties: false
+          required:
+          - kind
+          properties:
+            id:
+              type: string
+              maxLength: 64
+              description: Existing cosmetic def id (`c` + 32 hex); omitted = create new def. Not allowed together with product.asset_attachment_id.
+            kind:
+              type: string
+              enum:
+              - nickname_color
+              - avatar_frame
+              - cosmetic_badge
+              - profile_effect
+              - post_effect
+              - reaction_pack
+              - utility
+              - title_prefix
+            name:
+              type: string
+              minLength: 1
+              maxLength: 32
+              description: Required unless PNG avatar-frame mode (asset_attachment_id set).
+            style:
+              type: object
+              description: Structured style parameters, server-side schema validated per kind (no arbitrary CSS channel).
+        product:
+          type: object
+          additionalProperties: false
+          required:
+          - title
+          - unit_price
+          properties:
+            title:
+              type: string
+              minLength: 1
+              maxLength: 120
+            slug:
+              type: string
+              maxLength: 64
+              pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+              description: Derived from the title server-side when omitted.
+            unit_price:
+              type: integer
+              minimum: 0
+            stock_remaining:
+              type: integer
+              minimum: 0
+              nullable: true
+              description: Remaining stock; null = unlimited.
+            required_level:
+              type: integer
+              minimum: 1
+            quantity_limit:
+              type: integer
+              minimum: 1
+            validity_seconds:
+              type: integer
+              minimum: 0
+              nullable: true
+              description: Entitlement validity counted from purchase; null = permanent.
+            sale_start_at:
+              type: integer
+              nullable: true
+            sale_end_at:
+              type: integer
+              nullable: true
+            refund_policy:
+              type: string
+              enum:
+              - non_refundable
+              - compensation_only
+              - full_refund
+            status:
+              type: string
+              enum:
+              - draft
+              - published
+              description: Defaults to published (design finished = ready to sell).
+            description_safe:
+              type: string
+            asset_attachment_id:
+              type: string
+              nullable: true
+              description: PNG/APNG avatar-frame mode; must reference a ready public PNG attachment.
+            currency_id:
+              type: string
+              description: Settlement currency code (e.g. `coin`, default) or currencies.id; resolved server-side to the FK target.
+        reason:
+          type: string
+          maxLength: 200
+          description: Audit reason recorded with the composite publish.
+        client_request_id:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Idempotency key; same key + same payload replays the first result for 24h.
+    AdminStudioPublishResponse:
+      type: object
+      properties:
+        cosmetic:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            kind:
+              type: string
+            name:
+              type: string
+            style:
+              type: object
+            status:
+              type: string
+              enum:
+              - active
+              - archived
+            updatedAt:
+              type: integer
+        product:
+          type: object
+          properties:
+            id:
+              type: string
+            kind:
+              type: string
+            slug:
+              type: string
+            title:
+              type: string
+            status:
+              type: string
+            unit_price:
+              type: integer
+            validity_seconds:
+              type: integer
+              nullable: true
+        replayed:
+          type: boolean
     AiConsentCreate:
       type: object
       additionalProperties: false

@@ -210,6 +210,72 @@ describe('M04-UI-07 可见性可访问占位：hidden/after_reply/level/paid 不
   }
 });
 
+describe('权限内容解锁展示：after_reply / paid / level 策略解锁后以专属样式呈现', () => {
+  it('回复解锁帖（after_reply）：unlocked=true 时渲染 topic-unlocked 容器与解锁提示', () => {
+    const data: PostDetailPageData = {
+      post: {
+        id: 'post-after-reply',
+        post_type: 'discussion',
+        title: '回复可见技术帖',
+        status: 'published',
+        author: { id: 'u2', username: 'author_wang', display_name: '王作者' },
+        access_summary: { policy: 'after_reply', unlocked: true },
+        capabilities: ['comment.create'],
+        reply_count: 2,
+        view_count: 34,
+        created_at: 0,
+        updated_at: 0,
+        body_html: '<p>回复后才能阅读的提取码：SECRET_123456</p>'
+      },
+      author: null,
+      board: null,
+      boards: [],
+      error: null
+    };
+    const { body } = render(PostPage, { props: { data } });
+    expect(body).toContain('topic-unlocked');
+    expect(body).toContain('restricted-unlocked');
+    expect(body).toContain('回复可见内容已解锁');
+    expect(body).toContain('已解锁');
+    expect(body).toContain('SECRET_123456');
+  });
+
+  it('普通公开帖（public）：unlocked=true 时不渲染 topic-unlocked 专属容器', () => {
+    const { body } = render(PostPage, { props: { data: publicPost } });
+    expect(body).not.toContain('topic-unlocked');
+    expect(body).not.toContain('回复可见内容已解锁');
+    expect(body).toContain('这是公开正文，仅来自后端 body_html。');
+  });
+
+  it('段落内嵌回复可见块（inline reply）：公开帖中正文内嵌片段正确渲染', () => {
+    const data: PostDetailPageData = {
+      post: {
+        id: 'post-inline-reply',
+        post_type: 'discussion',
+        title: '正文内嵌回复可见帖',
+        status: 'published',
+        author: { id: 'u1', username: 'alice', display_name: '爱丽丝' },
+        access_summary: { policy: 'public', unlocked: true },
+        capabilities: ['comment.create'],
+        reply_count: 0,
+        view_count: 10,
+        created_at: 0,
+        updated_at: 0,
+        body_html: '<p>第一段公开正文</p><aside class="topic-restricted topic-restricted--inline" role="note"><div class="topic-restricted__body"><h3>此处内容回复后可见</h3></div></aside><p>第二段公开正文</p>'
+      },
+      author: null,
+      board: null,
+      boards: [],
+      error: null
+    };
+    const { body } = render(PostPage, { props: { data } });
+    expect(body).toContain('第一段公开正文');
+    expect(body).toContain('此处内容回复后可见');
+    expect(body).toContain('topic-restricted--inline');
+    expect(body).toContain('第二段公开正文');
+  });
+});
+
 describe('M04-UI-09 回复表单合理退化（SSR）', () => {
   it('已认证上下文（data.user 会话）：SSR 输出回复 <form> 与 textarea 字段', () => {
     const { body } = render(PostPage, {

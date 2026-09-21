@@ -22,7 +22,7 @@
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { getUser, getMe, type PublicProfile } from '$lib/api/client';
-  import type { PostSummary } from '$lib/api/types';
+  import type { CosmeticDef, PostSummary } from '$lib/api/types';
   import { isTransientProblem, type Problem } from '$lib/errors';
   import { announceTransientProblem } from '$lib/ui/problem-toast';
   import { show } from '$lib/ui/toast';
@@ -39,6 +39,8 @@
   import Seo from '$lib/components/Seo.svelte';
   import type { UserFollowActionData, UserMessageActionData, UserPageData } from './+page.server';
   import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
+  import { profileEffectClass, profileEffectStyle, resolveSteamPanoramaMedia } from '$lib/components/wardrobe/profile-effect';
+  import { BADGES } from '$lib/components/wardrobe/tokens';
 
   /** GAP-FIX 社交统计扩展：后端 PublicProfile 已附带（BE-1），前端
    * PublicProfile 契约类型尚未收口——在此局部扩展，字段缺失时安全降级。 */
@@ -53,7 +55,7 @@
     data = { user: null },
     form
   }: {
-    data?: (UserPageData | { user: null }) & { site?: SiteCopyView | null };
+    data?: (UserPageData | { user: null; cosmetics?: CosmeticDef[] }) & { site?: SiteCopyView | null; cosmetics?: CosmeticDef[] };
     form?: (UserFollowActionData | UserMessageActionData) | null;
   } = $props();
 
@@ -242,8 +244,28 @@
   {:else if problem}
     <ProblemState {problem} desc="用户可能已注销或不存在" />
   {:else if user}
+    {@const userTokens = user.presentation_tokens}
+    {@const effectId = typeof userTokens?.profile_effect === 'string' ? userTokens.profile_effect : null}
+    {@const matchedDef = effectId ? data.cosmetics?.find((c) => c.id === effectId) : null}
+    {@const effectStyle = (userTokens?.profile_effect_style ?? matchedDef?.style) as import('$lib/components/wardrobe/profile-effect').ProfileEffectMediaStyle | undefined}
+    {@const effectName = typeof userTokens?.profile_effect_name === 'string' ? userTokens.profile_effect_name : null}
+    {@const coverMedia = resolveSteamPanoramaMedia(effectStyle, effectId, effectName)}
+     {@const liveProfileEffectClass = profileEffectClass(effectStyle, effectId)}
+     {@const liveProfileEffectStyle = profileEffectStyle(effectStyle)}
+    {@const bgImageSrc = coverMedia?.image ?? null}
+    {@const bgVideoWebm = coverMedia?.webm ?? null}
+    {@const bgVideoMp4 = coverMedia?.mp4 ?? null}
     <section class="app-profile">
-      <ProfileCover attachmentId={user.cover_attachment_id} label="个人资料背景" />
+      <ProfileCover
+        attachmentId={bgImageSrc || bgVideoWebm || bgVideoMp4 ? null : user.cover_attachment_id}
+        src={bgImageSrc}
+        fallbackSrc={coverMedia?.fallbackSrc ?? null}
+        videoWebm={bgVideoWebm}
+        videoMp4={bgVideoMp4}
+        label="个人资料背景"
+         class={liveProfileEffectClass}
+         style={liveProfileEffectStyle || undefined}
+      />
       <CosmeticAvatar name={user.display_name || user.username} size="xl" presentation={user.presentation_tokens} avatarAttachmentId={user.avatar_attachment_id} seed={user.username ?? user.id} />
       <div class="app-profile__body">
         <h2>
@@ -253,6 +275,21 @@
         <p class="profile-bio">@ {user.username}</p>
         {#if user.signature}
           <p class="profile-sig">{user.signature}</p>
+        {/if}
+        {#if user.presentation_tokens?.profile_badges?.length || user.equipped_achievements?.length || user.presentation_tokens?.post_effect}
+          <div class="profile-cosmetic-strip" aria-label="已装备装扮" style="display:flex;flex-wrap:wrap;gap:var(--space-2);margin:var(--space-3) 0;">
+            {#each (user.presentation_tokens?.profile_badges ?? []) as badge, index (badge)}
+              <span class="badge badge-neutral">
+                {BADGES[badge]?.icon ?? '✦'} {user.presentation_tokens?.profile_badge_names?.[index] ?? BADGES[badge]?.label ?? badge}
+              </span>
+            {/each}
+            {#each (user.equipped_achievements ?? []) as achievement (achievement.code)}
+              <span class="badge badge-neutral">🏅 {achievement.name}</span>
+            {/each}
+            {#if user.presentation_tokens?.post_effect}
+              <span class="badge badge-brand">✨ {user.presentation_tokens.post_effect_name ?? '帖子装饰'}</span>
+            {/if}
+          </div>
         {/if}
         {#if typeof user.post_count === 'number'}
           <!-- 统计行 → 对应页面（与悬浮卡统计一致）：帖子 → 内容 tab；
@@ -353,8 +390,10 @@
                 <div class="app-post-list" role="feed" aria-label="用户发布的帖子">
                   {#each posts as post (post.id)}
                     {@const authorName = post.author?.display_name || post.author_display_name || post.author?.username || post.author_name || user.display_name || user.username}
+                    {@const postPresentation = post.author?.presentation_tokens ?? (post.author?.username === user.username ? user.presentation_tokens : null)}
+                    {@const postAvatarId = post.author?.avatar_attachment_id ?? (post.author?.username === user.username ? user.avatar_attachment_id : null)}
                     <div class="app-post-row" data-post-id={post.id}>
-                      <CosmeticAvatar name={authorName} size="md" presentation={user.presentation_tokens} avatarAttachmentId={user.avatar_attachment_id} seed={post.author?.username ?? post.author?.id ?? user.username ?? user.id} />
+                      <CosmeticAvatar name={authorName} size="md" presentation={postPresentation} avatarAttachmentId={postAvatarId} seed={post.author?.username ?? post.author?.id ?? user.username ?? user.id} />
                       <div class="app-post-row__main">
                         <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
                           {#if post.pinned}

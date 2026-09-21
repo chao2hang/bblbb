@@ -98,7 +98,7 @@ async fn update_comment(
     let current = load_comment_row(pool, &id, request_id)
         .await?
         .ok_or_else(|| AppError::not_found("comment not found", request_id))?;
-    let (author_id, status, version, created_at, deleted_at) = current;
+    let (author_id, status, version, created_at, deleted_at, _board_id) = current;
     if status != "published" || deleted_at.is_some() {
         return Err(AppError::not_found("comment not found", request_id));
     }
@@ -217,30 +217,22 @@ async fn delete_comment(
     let current = load_comment_row(pool, &id, request_id)
         .await?
         .ok_or_else(|| AppError::not_found("comment not found", request_id))?;
-    let (author_id, status, version, _created_at, deleted_at) = current;
+    let (author_id, status, version, _created_at, deleted_at, board_id) = current;
     if status != "published" || deleted_at.is_some() {
         return Err(AppError::not_found("comment not found", request_id));
     }
 
-    // 可选 If-Match（防并发覆盖）
-    if let Some(raw) = headers.get(header::IF_MATCH).and_then(|v| v.to_str().ok()) {
-        let expected: i64 = raw.parse().map_err(|_| {
-            AppError::bad_request("If-Match must be an integer version", request_id, None)
-        })?;
-        if expected != version {
-            return Err(AppError::version_conflict(
-                "comment version mismatch",
-                request_id,
-            ));
-        }
-    }
-
     let is_author = author_id == user.id;
     if !is_author {
-        let decision =
-            authorize_action(pool, &user.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
-                .await
-                .map_err(|e| AppError::internal(e, request_id))?;
+        let decision = authorize_action(
+            pool,
+            &user.id,
+            "post.moderate",
+            Some(&board_id),
+            AUTHZ_POLICY_VERSION,
+        )
+        .await
+        .map_err(|e| AppError::internal(e, request_id))?;
         if !decision.is_allowed() {
             return Err(AppError::forbidden(
                 "post.moderate permission required",
@@ -267,6 +259,19 @@ async fn delete_comment(
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
     }
 
+    // 可选 If-Match（防并发覆盖）
+    if let Some(raw) = headers.get(header::IF_MATCH).and_then(|v| v.to_str().ok()) {
+        let expected: i64 = raw.parse().map_err(|_| {
+            AppError::bad_request("If-Match must be an integer version", request_id, None)
+        })?;
+        if expected != version {
+            return Err(AppError::version_conflict(
+                "comment version mismatch",
+                request_id,
+            ));
+        }
+    }
+
     let now = now_millis();
     soft_delete_comment(pool, &id, now)
         .await
@@ -276,27 +281,25 @@ async fn delete_comment(
     Ok(private_no_store(resp))
 }
 
-/// 读取评论行 `(author_id, status, version, created_at, deleted_at)`。
+/// 读取评论行 `(author_id, status, version, created_at, deleted_at, board_id)`。
 async fn load_comment_row(
     pool: &DatabasePool,
     id: &str,
     request_id: &'static str,
-) -> Result<Option<(String, String, i64, i64, Option<i64>)>, AppError> {
-    let row: Option<(String, String, i64, i64, Option<i64>)> = match pool {
-        Either::Left(p) => sqlx::query_as(
-            "SELECT author_id, status, version, created_at, deleted_at FROM comments WHERE id = ?",
-        )
-        .bind(id)
-        .fetch_optional(p)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
-        Either::Right(p) => sqlx::query_as(
-            "SELECT author_id, status, version, created_at, deleted_at FROM comments WHERE id = ?",
-        )
-        .bind(id)
-        .fetch_optional(p)
-        .await
-        .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+) -> Result<Option<(String, String, i64, i64, Option<i64>, String)>, AppError> {
+    let sql = "SELECT c.author_id, c.status, c.version, c.created_at, c.deleted_at, p.board_id \
+               FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = ?";
+    let row: Option<(String, String, i64, i64, Option<i64>, String)> = match pool {
+        Either::Left(p) => sqlx::query_as(sql)
+            .bind(id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
+        Either::Right(p) => sqlx::query_as(sql)
+            .bind(id)
+            .fetch_optional(p)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?,
     };
     Ok(row)
 }
@@ -345,8 +348,15 @@ async fn create_comment_reaction(
     let reaction = payload
         .map(|Json(p)| p.reaction)
         .unwrap_or_else(|| "like".to_string());
+    // 基础点赞（like / 👍）为全员免费互动；仅特殊反应包才消耗 reaction_pack
+    let require_pack = !matches!(reaction.as_str(), "like" | "👍");
     let summary = match crate::reactions::service::add_reaction(
-        pool, &user.id, "comment", &id, &reaction, false,
+        pool,
+        &user.id,
+        "comment",
+        &id,
+        &reaction,
+        require_pack,
     )
     .await
     {

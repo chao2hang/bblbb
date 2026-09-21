@@ -148,6 +148,7 @@ function buildChanges(form: FormData): { changes: Record<string, unknown>; error
     return { changes: {}, error: 'allowed_media_types 含非法字符' };
   }
   changes.allowed_hosts = allowedHosts;
+  changes.allow_hosts = allowedHosts;
   changes.embed_hosts = embedHosts;
   changes.allowed_media_types = mediaTypes;
 
@@ -155,6 +156,21 @@ function buildChanges(form: FormData): { changes: Record<string, unknown>; error
     const value = numOrNull(form.get(field));
     if (value !== undefined) changes[field] = value;
     else if (form.get(field) !== null) changes[field] = null; // 显式清空
+  }
+  // 契约对齐：映射至后端 video/state.rs 实际期望字段
+  if (changes.max_bytes !== undefined) {
+    changes.max_response_bytes = changes.max_bytes;
+  }
+  if (changes.hls_max_depth !== undefined) {
+    changes.max_playlist_depth = changes.hls_max_depth;
+  }
+  if (changes.hls_max_segments !== undefined) {
+    changes.max_segments = changes.hls_max_segments;
+  }
+  if (typeof changes.max_duration_seconds === 'number') {
+    changes.max_duration_ms = changes.max_duration_seconds * 1000;
+  } else if (changes.max_duration_seconds === null) {
+    changes.max_duration_ms = null;
   }
   return { changes, error: null };
 }

@@ -3,6 +3,10 @@
 // M02-MFA-PK：Passkey 与 TOTP 共存（登录第二步任一通过即可）——本页提供
 // Passkey 列表 / 注册（经 /mfa/passkey/begin+confirm 端点，浏览器凭据在
 // 客户端 JS 生成）/ 撤销（step-up 与停用 TOTP 同级）。
+// M02-UX-SEC：/me 页功能拆分后，两步验证的管理统一收敛到本页；自
+// /me/+page.server.ts 平移 step-up 重认证（M02-MFA-07）：recovery / disable
+// 遇 403 step_up_required 时返回 step-up 态，re-auth 密码确认后引导重试
+// 原操作（近期已认证则后端直接放行，不触发该态）。
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedDelete, authedPost, getAuthed, SESSION_COOKIE } from '$lib/api/server';
@@ -14,7 +18,9 @@ export type MfaStep =
   | { kind: 'enroll-challenge'; otpauth_uri: string; secret_base32: string; qr_data_url: string | null }
   | { kind: 'enroll-confirmed' }
   | { kind: 'recovery-codes'; codes: string[] }
-  | { kind: 'disabled' };
+  | { kind: 'disabled' }
+  | { kind: 'step-up'; intent: 'recovery' | 'disable' }
+  | { kind: 'reauth-done'; intent: 'recovery' | 'disable' };
 
 export interface MfaPageData {
   user: User | null;
@@ -68,6 +74,20 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
     passkeysError
   } satisfies MfaPageData;
 };
+
+/** 403 step_up_required → 返回 step-up 态；其余失败透传 fail。 */
+function stepUpOrFail(
+  result: { ok: boolean; status: number; message: string; requestId: string | null; code: string | null },
+  intent: 'recovery' | 'disable'
+): ReturnType<typeof fail> | { mfa: { kind: 'step-up'; intent: 'recovery' | 'disable' } } {
+  if (!result.ok && result.code === 'step_up_required') {
+    return { mfa: { kind: 'step-up', intent } } satisfies MfaActionData;
+  }
+  return fail(result.status, {
+    message: result.message,
+    requestId: result.requestId
+  } satisfies MfaActionData);
+}
 
 export const actions: Actions = {
   enroll: async ({ request, cookies }) => {
@@ -150,10 +170,7 @@ export const actions: Actions = {
       if (result.ok) {
         return { mfa: { kind: 'recovery-codes', codes: result.data.codes } } satisfies MfaActionData;
       }
-      return fail(result.status, {
-        message: result.message,
-        requestId: result.requestId
-      } satisfies MfaActionData);
+      return stepUpOrFail(result, 'recovery');
     } catch {
       return fail(503, { message: '两步验证服务暂不可用，请稍后重试' } satisfies MfaActionData);
     }
@@ -166,12 +183,36 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) return { mfa: { kind: 'disabled' } } satisfies MfaActionData;
+      return stepUpOrFail(result, 'disable');
+    } catch {
+      return fail(503, { message: '停用两步验证失败，请稍后重试' } satisfies MfaActionData);
+    }
+  },
+  // step-up 重认证（M02-MFA-07，自 /me 平移）：成功返回 reauth-done 态，
+  // 页面按 intent 引导重试原操作（disable → ?/disable；recovery → ?/recovery）。
+  're-auth': async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    const intent = String(form.get('intent') ?? 'disable') === 'recovery' ? 'recovery' : 'disable';
+    if (!password) {
+      return fail(422, { message: '请输入密码' } satisfies MfaActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { mfa: { kind: 'reauth-done', intent } } satisfies MfaActionData;
+      }
       return fail(result.status, {
         message: result.message,
         requestId: result.requestId
       } satisfies MfaActionData);
     } catch {
-      return fail(503, { message: '停用两步验证失败，请稍后重试' } satisfies MfaActionData);
+      return fail(503, { message: '重认证服务暂不可用，请稍后重试' } satisfies MfaActionData);
     }
   },
   passkeyRevoke: async ({ request, cookies }) => {

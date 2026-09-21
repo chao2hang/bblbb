@@ -242,7 +242,7 @@ pub fn validate_draft_patch(
     };
     let visibility_level = match input.visibility_level {
         Some(lv) if lv < 1 => return Err(PostCreateError::InvalidVisibilityLevel),
-        Some(lv) if lv > author_level.min(MAX_VISIBILITY_LEVEL) => {
+        Some(lv) if lv > author_level.clamp(1, MAX_VISIBILITY_LEVEL) => {
             return Err(PostCreateError::VisibilityExceedsAuthorLevel {
                 requested: lv,
                 author_level,
@@ -270,7 +270,7 @@ pub fn validate_draft_patch(
     })
 }
 
-/// visibility_level：缺省按 1；必须在 1..=min(author_level, MAX) 内。
+/// visibility_level：缺省按 1；必须在 1..=min(max(author_level, 1), MAX) 内。
 fn validate_visibility_level(
     level: Option<u32>,
     author_level: u32,
@@ -279,7 +279,7 @@ fn validate_visibility_level(
     if lv < 1 {
         return Err(PostCreateError::InvalidVisibilityLevel);
     }
-    let cap = author_level.min(MAX_VISIBILITY_LEVEL);
+    let cap = author_level.clamp(1, MAX_VISIBILITY_LEVEL);
     if lv > cap {
         return Err(PostCreateError::VisibilityExceedsAuthorLevel {
             requested: lv,

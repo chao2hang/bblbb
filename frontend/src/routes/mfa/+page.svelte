@@ -170,6 +170,40 @@
             恢复码遗失将无法自行找回，建议妥善记录在密码管理器中。
           </p>
         </div>
+      {:else if mfaStep?.kind === 'step-up'}
+        <!-- M02-UX-SEC：step-up 重认证（M02-MFA-07，自 /me 平移）——敏感操作
+             前要求重新输入密码确认身份（近期已认证则后端直接放行）。 -->
+        <p class="text-secondary" style="margin:0;line-height:1.6;">
+          出于安全考虑，此操作需要重新输入密码确认身份（近期已认证则可直接执行）。
+        </p>
+        <form method="POST" action="?/re-auth" use:enhance novalidate>
+          <input type="hidden" name="intent" value={mfaStep.intent} />
+          <div class="input-wrapper">
+            <label class="input-label" for="reauth-password">密码</label>
+            <input
+              type="password"
+              class="input-field"
+              id="reauth-password"
+              name="password"
+              placeholder="输入当前密码"
+              autocomplete="current-password"
+            />
+          </div>
+          <div style="margin-top:var(--space-3);">
+            <Button text="验证身份" variant="primary" size="sm" type="submit" />
+          </div>
+        </form>
+      {:else if mfaStep?.kind === 'reauth-done'}
+        <p class="input-hint" role="status">身份已验证，请再次点击原操作完成。</p>
+        {#if mfaStep.intent === 'disable'}
+          <form method="POST" action="?/disable" use:enhance>
+            <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
+          </form>
+        {:else}
+          <form method="POST" action="?/recovery" use:enhance>
+            <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
+          </form>
+        {/if}
       {:else}
         <!-- 已启用态 -->
         <p class="text-secondary" style="margin:0;line-height:1.6;">

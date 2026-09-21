@@ -65,7 +65,7 @@ describe('M03-UI-01 用户主页 SSR load', () => {
   it('成功 → 返回公开投影（转发 X-Request-ID）', async () => {
     getPublicMock.mockResolvedValueOnce({ ok: true, data: publicProfile });
     const data = (await load(loadEvent('alice', 'req-1'))) as UserPageData;
-    expect(data).toEqual({ user: publicProfile, authed: false });
+    expect(data).toEqual({ user: publicProfile, authed: false, cosmetics: [] });
     const [path, requestId] = getPublicMock.mock.calls[0];
     expect(path).toBe('/api/v1/users/alice');
     expect(requestId).toBe('req-1');

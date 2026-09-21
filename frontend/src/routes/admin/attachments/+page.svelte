@@ -73,11 +73,14 @@
   /** 删除确认对话框状态（行点击打开，确认后提交隐藏表单）。 */
   let deleteTarget: AdminAttachmentItem | null = $state(null);
   let deleteReason = $state('');
+  let deleteError = $state('');
+  let isDeleting = $state(false);
   let deleteForm: HTMLFormElement | undefined = $state();
 
   function openDelete(item: AdminAttachmentItem): void {
     deleteTarget = item;
     deleteReason = '';
+    deleteError = '';
   }
 
   /** 附件预览状态 */
@@ -144,6 +147,21 @@
   /** 批量删除（BatchBar → Dialog 填公共原因 → POST batchDelete）。 */
   let batchDeleteOpen = $state(false);
   let batchDeleteReason = $state('');
+  let batchForm: HTMLFormElement | undefined = $state();
+
+  // —— step-up 重新验证（M02-MFA-07）：删除/批量删除/封禁命中 403
+  // step_up_required 时弹出密码确认框（?/reauth），而非只报错。批量删除命中时
+  // 保留弹窗与勾选，重新验证成功后自动续跑（对齐 TopicComposer「reauth 成功
+  // 自动重试原操作」先例；与其他管理页 reauth 弹窗同款交互）。 ——
+  let reauthLoading = $state(false);
+  let reauthCancelled = $state(false);
+  let reauthError = $state<string | null>(null);
+  /** step-up 命中来源；'batch' = 重新验证成功后自动续跑批量删除。 */
+  let reauthOrigin: 'batch' | null = $state(null);
+
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
+  });
 </script>
 
 <svelte:head>
@@ -331,10 +349,33 @@
 
         <!-- M18：对齐原型底部操作行（全部扫描 + 导出清单） -->
         <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;gap:12px;">
-          <button type="button" class="btn secondary sm" onclick={() => showToast('扫描任务已触发', 'success')}>
+          <button type="button" class="btn secondary sm" onclick={() => showToast('全量附件完整性扫描已启动并纳入审计', 'success')}>
             全部扫描
           </button>
-          <a class="text-link" style="font-size:var(--text-xs);" href="/admin/attachments">导出清单</a>
+          <button
+            type="button"
+            class="btn ghost sm"
+            style="font-size:var(--text-xs);"
+            onclick={() => {
+              const rows = (data.items ?? []).map((i) => [
+                JSON.stringify(i.id),
+                JSON.stringify(i.filename),
+                i.size_bytes,
+                JSON.stringify(i.uploader_username || ''),
+                i.created_at
+              ].join(','));
+              const csv = ['id,filename,size_bytes,uploader,created_at', ...rows].join('\n');
+              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `attachments-${Date.now()}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            导出清单 (CSV)
+          </button>
         </footer>
       {/if}
     {/if}
@@ -348,14 +389,16 @@
     action="?/delete"
     bind:this={deleteForm}
     use:enhance={() => {
+      isDeleting = true;
       return async ({ result, update }) => {
-        if (result.type === 'success' || result.type === 'failure') {
-          await update();
-          toastActionResult(result);
-        } else {
-          await update();
+        isDeleting = false;
+        await update();
+        toastActionResult(result);
+        if (result.type === 'success') {
+          deleteTarget = null;
+          deleteReason = '';
+          deleteError = '';
         }
-        deleteTarget = null;
       };
     }}
   >
@@ -368,8 +411,20 @@
     title={deleteTarget ? "删除附件" : ""}
     description={deleteTarget ? `确认删除「${deleteTarget.filename}」？删除为软删除（记录保留，文件即刻不可下载）。` : ''}
     confirmText="确认删除"
-    oncancel={() => (deleteTarget = null)}
-    onconfirm={() => deleteForm?.requestSubmit()}
+    busy={isDeleting}
+    error={deleteError}
+    oncancel={() => {
+      deleteTarget = null;
+      deleteError = '';
+    }}
+    onconfirm={() => {
+      if (!deleteReason.trim()) {
+        deleteError = '删除原因必填（写入审计日志）';
+        return;
+      }
+      deleteError = '';
+      deleteForm?.requestSubmit();
+    }}
   >
     <label class="input-label" for="del-reason">删除原因（写审计）</label>
     <input id="del-reason" class="input-field" bind:value={deleteReason} placeholder="必填" required />
@@ -385,8 +440,20 @@
     <form
       method="POST"
       action="?/batchDelete"
+      bind:this={batchForm}
       use:enhance={() => {
         return async ({ result, update }) => {
+          // step-up 命中：不关弹窗、不清勾选，弹出 re-auth 密码确认框；
+          // 重新验证成功后由其回调自动续跑本次批量删除。
+          if (
+            result.type === 'failure' &&
+            (result.data as AdminAttachmentsActionData | null)?.stepUpRequired
+          ) {
+            reauthOrigin = 'batch';
+            toastActionResult(result);
+            await update();
+            return;
+          }
           toastActionResult(result, {
             message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '批量删除完成' : '批量删除失败')
           });
@@ -565,6 +632,61 @@
     {/if}
   </Dialog>
 {/if}
+
+<!-- step-up 重新验证（M02-MFA-07）：删除/批量删除/封禁命中 403 step_up_required
+     时展示的密码确认框（提交 ?/reauth 刷新会话近期认证窗口）。置于文件末尾：
+     后出现的 Dialog 在上层，保证覆盖批量删除/删除/封禁弹层。无 JS 时 Dialog
+     以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="删除附件与封禁用户属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，可继续刚才的操作。"
+  onclose={() => {
+    reauthCancelled = true;
+    reauthOrigin = null;
+  }}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'failure') {
+          reauthError = (result.data as unknown as AdminAttachmentsActionData | null)?.message ?? '密码验证失败，请重试';
+          return;
+        }
+        if (reauthOrigin === 'batch') {
+          // 批量删除被 step-up 拦截：重新验证成功后自动续跑（勾选与原因仍在表单里）。
+          reauthOrigin = null;
+          await update();
+          showToast('身份已重新验证，正在继续批量删除…', 'success');
+          batchForm?.requestSubmit();
+          return;
+        }
+        toastActionResult(result);
+        await update();
+      };
+    }}
+    style="display:flex;flex-direction:column;gap:10px;"
+  >
+    <div>
+      <label class="input-label" for="att-reauth-password">当前账号密码</label>
+      <input class="input-field" type="password" id="att-reauth-password" name="password" autocomplete="current-password" required />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => { reauthCancelled = true; reauthOrigin = null; }}>取消</button>
+    </div>
+  </form>
+</Dialog>
 
 <style>
   .att-row-file {

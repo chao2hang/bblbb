@@ -2,20 +2,22 @@
 //
 // - load：GET /admin/shop/config、/admin/shop/products、/admin/shop/orders；
 //   401 → 登录；各列表分别降级（后端 501/403 显示开发中/无权限态）。
-// - create/update：POST/PATCH 商品；update 携带 If-Match 版本（409
-//   version_conflict 提示刷新）。
+// - update：PATCH 商品元数据（If-Match 版本，409 version_conflict 提示刷新）。
+//   新建商品/新建样式统一走装扮工作台（/admin/shop/studio，M07-SHOP-STUDIO）。
 // - publish/disable：状态切换；refund：补偿退款（reason 必填）。
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, authedPatch, getAuthed } from '$lib/api/server';
 import { adminListStateKeyed, type AdminLoadState } from '$lib/admin';
 import { parseBatchIds, batchResult, type BatchOutcome } from '$lib/admin-batch';
-import type { ShopConfig, ShopOrder, ShopProduct, Money } from '$lib/api/types';
+import type { ShopConfig, ShopOrder, ShopProduct, Money, CosmeticDef } from '$lib/api/types';
 
 export interface AdminShopPageData {
   products: AdminLoadState<ShopProduct>;
   orders: AdminLoadState<ShopOrder>;
   config: { state: 'ok'; data: ShopConfig } | { state: 'error' | 'forbidden' | 'not_implemented'; message: string };
+  /** 装扮样式库定义（M07-SHOP-UI-10）：加载失败降级为空列表（表单仍可用预设）。 */
+  cosmetics: CosmeticDef[];
 }
 
 /** form action 返回投影（SvelteKit Actions 联合返回类型）。 */
@@ -54,7 +56,15 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
     config = { state: configResult.status === 403 ? 'forbidden' : 'error', message: configResult.message };
   }
 
-  return { products, orders, config } satisfies AdminShopPageData;
+  // 样式库（可配置装扮）：失败降级为空列表，不阻断商品管理。
+  const cosmeticsResult = await getAuthed<{ cosmetics: CosmeticDef[] }>(
+    cookies,
+    '/api/v1/admin/shop/cosmetics',
+    requestId
+  );
+  const cosmetics: CosmeticDef[] = cosmeticsResult.ok ? cosmeticsResult.data.cosmetics ?? [] : [];
+
+  return { products, orders, config, cosmetics } satisfies AdminShopPageData;
 };
 
 const PRODUCT_FIELDS = [
@@ -77,6 +87,18 @@ const PRODUCT_FIELDS = [
   'refund_policy'
 ] as const;
 
+/** 装备类商品的默认展示槽位（M07-SHOP-UI-09）：表单未带 slot 时兜底；
+ *  reaction_pack/utility 不装备到槽位；title_prefix 装备到称号槽位。 */
+const KIND_DEFAULT_SLOT: Record<string, string> = {
+  cosmetic_nickname: 'nickname_color',
+  cosmetic_avatar: 'avatar_frame',
+  cosmetic_avatar_attachment: 'avatar_frame',
+  cosmetic_badge: 'profile_badges',
+  profile_effect: 'profile_effect',
+  post_effect: 'post_effect',
+  title_prefix: 'title_prefix'
+};
+
 function productBody(form: FormData): Record<string, unknown> {
   const body: Record<string, unknown> = {
     reason: String(form.get('reason') ?? '').trim()
@@ -85,6 +107,18 @@ function productBody(form: FormData): Record<string, unknown> {
     const raw = form.get(field);
     if (raw === null) continue;
     const value = String(raw).trim();
+    if (field === 'presentation_tokens') {
+      // 始终按数组提交（空串 → []）：编辑时清空全部 Token 才能真正落库，
+      // 否则空字段被跳过、后端 COALESCE 会保留旧 Token。
+      body[field] = value.split(',').map((token) => token.trim()).filter(Boolean);
+      continue;
+    }
+    if (field === 'slot') {
+      // 槽位显式提交：空串 = 消耗品/道具类清空槽位（后端按类型放行）；
+      // 装备类商品由表单保证非空。字段缺省（旧表单/无 JS 回退）不投。
+      if (value !== '') body[field] = value;
+      continue;
+    }
     if (value === '') continue;
     if (field === 'unit_price' || field === 'quantity_limit' || field === 'required_level') {
       body[field] = Number(value);
@@ -92,76 +126,19 @@ function productBody(form: FormData): Record<string, unknown> {
       body[field] = value === 'null' ? null : Number(value);
     } else if (field === 'validity_seconds' || field === 'sale_start_at' || field === 'sale_end_at') {
       body[field] = value === 'null' || value === '0' ? null : Number(value);
-    } else if (field === 'presentation_tokens') {
-      body[field] = value.split(',').map((token) => token.trim()).filter(Boolean);
     } else {
       body[field] = value;
     }
   }
-  // 默认货币与槽位兜底（避免缺失必填项被后端拒收，P2-06）
+  // 默认货币与槽位兜底（装备类商品缺省槽位按类型映射；P2-06）
   if (!body.currency_id) body.currency_id = 'coin';
-  if (!body.slot) body.slot = 'avatar_frame';
+  if (!body.slot && typeof body.kind === 'string' && KIND_DEFAULT_SLOT[body.kind]) {
+    body.slot = KIND_DEFAULT_SLOT[body.kind];
+  }
   return body;
 }
 
 export const actions: Actions = {
-  create: async ({ request, cookies }) => {
-    const form = await request.formData();
-    const reason = String(form.get('reason') ?? '').trim();
-    const body = productBody(form);
-
-    const fieldErrors: Record<string, string> = {};
-    const title = String(form.get('title') ?? '').trim();
-    const slug = String(form.get('slug') ?? '').trim();
-    const kind = String(form.get('kind') ?? '').trim();
-    const unitPriceRaw = String(form.get('unit_price') ?? '').trim();
-    const unitPrice = Number(unitPriceRaw);
-    const stockRaw = String(form.get('stock_remaining') ?? '').trim();
-
-    if (!title) fieldErrors.title = '商品标题必填';
-    if (!slug) fieldErrors.slug = 'slug 必填';
-    else if (!/^[a-z0-9-]+$/.test(slug)) fieldErrors.slug = 'slug 只能包含小写字母、数字和连字符';
-    if (!kind) fieldErrors.kind = '商品类型必填';
-    if (unitPriceRaw === '' || isNaN(unitPrice) || unitPrice < 0) fieldErrors.unit_price = '价格必须为大于等于 0 的整数';
-    if (stockRaw !== '' && (isNaN(Number(stockRaw)) || Number(stockRaw) < 0)) fieldErrors.stock_remaining = '库存必须为大于等于 0 的整数';
-    if (!reason) fieldErrors.reason = '操作原因必填（写入审计日志）';
-
-    if (Object.keys(fieldErrors).length > 0) {
-      return fail(422, {
-        message: '请检查表单中填写的字段错误',
-        fieldErrors,
-        input: body
-      } satisfies AdminShopActionData);
-    }
-
-    try {
-      const result = await authedPost<ShopProduct>(
-        cookies,
-        '/api/v1/admin/shop/products',
-        body,
-        request.headers.get('x-request-id')
-      );
-      if (result.ok) {
-        return { message: `商品「${result.data.title}」已创建` } satisfies AdminShopActionData;
-      }
-      const backendMsg = result.message || '请求参数有误';
-      if (backendMsg.includes('slug')) fieldErrors.slug = backendMsg;
-      if (backendMsg.includes('slot')) fieldErrors.slot = backendMsg;
-      if (backendMsg.includes('price')) fieldErrors.unit_price = backendMsg;
-      if (backendMsg.includes('currency')) fieldErrors.currency_id = backendMsg;
-
-      return fail(result.status, {
-        message: backendMsg,
-        code: result.code,
-        requestId: result.requestId,
-        fieldErrors,
-        input: body
-      } satisfies AdminShopActionData);
-    } catch (e) {
-      if (isRedirect(e)) throw e;
-      return fail(503, { message: '创建失败，请稍后重试', input: body } satisfies AdminShopActionData);
-    }
-  },
   update: async ({ request, cookies }) => {
     const form = await request.formData();
     const id = String(form.get('id') ?? '').trim();
@@ -320,6 +297,71 @@ export const actions: Actions = {
     } catch (e) {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '退款失败，请稍后重试' } satisfies AdminShopActionData);
+    }
+  },
+  /** 更新装扮样式（改名/调样式/归档恢复），原因写审计。 */
+  updateCosmetic: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const id = String(form.get('id') ?? '').trim();
+    const name = String(form.get('name') ?? '').trim();
+    const status = String(form.get('status') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim() || '更新装扮样式';
+    if (!id) return fail(422, { message: '缺少样式标识' } satisfies AdminShopActionData);
+    const body: Record<string, unknown> = { reason };
+    if (name) body.name = name;
+    if (status) body.status = status;
+    if (form.get('style')) {
+      try {
+        body.style = JSON.parse(String(form.get('style')));
+      } catch {
+        return fail(422, { message: '样式参数无效' } satisfies AdminShopActionData);
+      }
+    }
+    try {
+      const result = await authedPatch<CosmeticDef>(
+        cookies,
+        `/api/v1/admin/shop/cosmetics/${encodeURIComponent(id)}`,
+        body,
+        {},
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) return { message: `样式「${result.data.name}」已更新` } satisfies AdminShopActionData;
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminShopActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '更新样式失败，请稍后重试' } satisfies AdminShopActionData);
+    }
+  },
+  /** 快捷发布商品（Steam头像框/Steam背景/彩色昵称快速上架，单事务）。 */
+  quickPublish: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const cosmeticRaw = String(form.get('cosmetic') ?? '').trim();
+    const productRaw = String(form.get('product') ?? '').trim();
+    if (!cosmeticRaw || !productRaw) {
+      return fail(422, { message: '缺少商品或装扮配置参数' } satisfies AdminShopActionData);
+    }
+    let cosmetic: Record<string, unknown>;
+    let product: Record<string, unknown>;
+    try {
+      cosmetic = JSON.parse(cosmeticRaw);
+      product = JSON.parse(productRaw);
+    } catch {
+      return fail(422, { message: '配置数据格式无效' } satisfies AdminShopActionData);
+    }
+    try {
+      const result = await authedPost<{ product: ShopProduct; cosmetic: CosmeticDef }>(
+        cookies,
+        '/api/v1/admin/shop/studio/publish',
+        { cosmetic, product },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `商品「${result.data.product.title}」已成功上架！` } satisfies AdminShopActionData;
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminShopActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '上架失败，请稍后重试' } satisfies AdminShopActionData);
     }
   }
 };

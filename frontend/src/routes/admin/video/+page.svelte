@@ -257,12 +257,14 @@
         </table>
       </div>
 
-      <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
-        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" disabled={refreshing} onclick={handleRefreshQueue}>
-          {refreshing ? '刷新中…' : '刷新队列'}
-        </button>
-        <Button text="导出任务" variant="secondary" size="sm" onclick={exportTasks} />
-      </footer>
+      {#if displayedTasks.length > 0}
+        <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
+          <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" disabled={refreshing} onclick={handleRefreshQueue}>
+            {refreshing ? '刷新中…' : '刷新队列'}
+          </button>
+          <Button text="导出任务" variant="secondary" size="sm" onclick={exportTasks} />
+        </footer>
+      {/if}
     </div>
   </section>
 

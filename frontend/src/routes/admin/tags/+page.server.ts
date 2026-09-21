@@ -55,7 +55,7 @@ export const actions: Actions = {
     const reason = String(form.get('reason') ?? '').trim();
     const name = String(form.get('name') ?? '').trim();
     if (!reason || !name) {
-      return fail(422, { loadState: { state: 'error', message: '名称与操作原因均必填' } } satisfies AdminTagsActionData);
+      return fail(422, { message: '名称与操作原因均必填', loadState: { state: 'error', message: '名称与操作原因均必填' } } satisfies AdminTagsActionData);
     }
     try {
       const result = await authedPost<unknown>(
@@ -65,15 +65,15 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { loadState: await reloadTags(cookies, request.headers.get('x-request-id')), created: true } satisfies AdminTagsActionData;
+        return { message: '标签创建成功', loadState: await reloadTags(cookies, request.headers.get('x-request-id')), created: true } satisfies AdminTagsActionData;
       }
       if (result.status === 403) {
-        return fail(403, { loadState: { state: 'forbidden', message: result.message } } satisfies AdminTagsActionData);
+        return fail(403, { message: result.message, loadState: { state: 'forbidden', message: result.message } } satisfies AdminTagsActionData);
       }
-      return fail(result.status, { loadState: { state: 'error', message: result.message } } satisfies AdminTagsActionData);
+      return fail(result.status, { message: result.message, loadState: { state: 'error', message: result.message } } satisfies AdminTagsActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      return fail(503, { loadState: { state: 'error', message: '保存失败，请稍后重试' } } satisfies AdminTagsActionData);
+      return fail(503, { message: '保存失败，请稍后重试', loadState: { state: 'error', message: '保存失败，请稍后重试' } } satisfies AdminTagsActionData);
     }
   },
 

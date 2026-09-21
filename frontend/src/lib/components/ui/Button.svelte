@@ -13,6 +13,7 @@
     block = false,
     extraClass = '',
     formaction = '',
+    formnovalidate = false,
     onclick,
     children
   }: {
@@ -27,6 +28,8 @@
     extraClass?: string;
     /** 原生 formaction（提交到指定 action，如表单内“测试连接”按钮）。 */
     formaction?: string;
+    /** 原生 formnovalidate（提交跳过浏览器原生校验，由服务端分区校验）。 */
+    formnovalidate?: boolean;
     onclick?: (event: MouseEvent) => void;
     children?: Snippet;
   } = $props();
@@ -45,7 +48,7 @@
     {@render children?.()}
   </a>
 {:else}
-  <button type={type} class={classes} {disabled} formaction={formaction || undefined} onclick={onclick}>
+  <button type={type} class={classes} {disabled} formaction={formaction || undefined} formnovalidate={formnovalidate || undefined} onclick={onclick}>
     {#if icon}<Icon name={icon} size={size === 'sm' ? 14 : 16} />{/if}
     {#if text}<span>{text}</span>{/if}
     {@render children?.()}

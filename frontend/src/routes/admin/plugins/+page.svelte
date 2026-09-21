@@ -6,6 +6,7 @@
   // （循环 enable/disable 单条端点，If-Match policy_revision 与单条一致）。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '$lib/components/ui/Button.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
@@ -26,6 +27,15 @@
   let hasJs = $state(false);
   $effect(() => {
     hasJs = true;
+  });
+
+  // —— step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示 ——
+  let reauthLoading = $state(false);
+  let reauthCancelled = $state(false);
+  let reauthError = $state<string | null>(null);
+
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
   });
 
   interface UnifiedPlugin {
@@ -242,7 +252,18 @@
       </div>
       <div style="display:flex;gap:8px;">
         <Button text="+ 安装插件" variant="primary" size="sm" onclick={openInstall} />
-        <button type="button" class="btn ghost sm" onclick={() => showToast('已刷新插件状态', 'success')}>
+        <button
+          type="button"
+          class="btn ghost sm"
+          onclick={async () => {
+            try {
+              await invalidateAll();
+              showToast('插件状态已同步', 'success');
+            } catch {
+              showToast('刷新失败，请重试', 'danger');
+            }
+          }}
+        >
           <Icon name="rotate-cw" size={12} /> 刷新
         </button>
       </div>
@@ -531,3 +552,45 @@
     </form>
   </Dialog>
 {/if}
+
+<!-- step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示。
+     无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="插件管理属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，可继续刚才的操作。"
+  onclose={() => (reauthCancelled = true)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'failure') {
+          reauthError = (result.data as unknown as AdminPluginsActionData | null)?.message ?? '密码验证失败，请重试';
+          return;
+        }
+        toastActionResult(result);
+        await update();
+      };
+    }}
+    style="display:flex;flex-direction:column;gap:10px;"
+  >
+    <div>
+      <label class="input-label" for="plugin-reauth-password">当前账号密码</label>
+      <input class="input-field" type="password" id="plugin-reauth-password" name="password" autocomplete="current-password" required />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
+    </div>
+  </form>
+</Dialog>

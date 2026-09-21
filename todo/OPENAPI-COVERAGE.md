@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**238**
-- 唯一 operationId：**238**
-- 实现状态：`implemented` 28；`not_started` 9；`verified` 201
-- 里程碑分配：`M0` 1；`M2` 28；`M3` 34；`M4` 21；`M5` 24；`M6` 20；`M7` 36；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 11；`M17` 6
+- 契约操作：**243**
+- 唯一 operationId：**243**
+- 实现状态：`implemented` 33；`not_started` 9；`verified` 201
+- 里程碑分配：`M0` 1；`M2` 28；`M3` 34；`M4` 21；`M5` 24；`M6` 20；`M7` 41；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 11；`M17` 6
 
 ## 状态规则
 
@@ -172,6 +172,9 @@
 | `delete_posts_id_reactions_reaction_` | `DELETE` | `/api/v1/posts/{id}/reactions/{reaction}` | Activity | `M7` / `M07-LEVELS` | `P1` | `verified` | `platform/levels` |
 | `getAdminShopConfig` | `GET` | `/api/v1/admin/shop/config` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `updateAdminShopConfig` | `PATCH` | `/api/v1/admin/shop/config` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
+| `listAdminShopCosmetics` | `GET` | `/api/v1/admin/shop/cosmetics` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `agent/backend` |
+| `createAdminShopCosmetic` | `POST` | `/api/v1/admin/shop/cosmetics` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `agent/backend` |
+| `updateAdminShopCosmetic` | `PATCH` | `/api/v1/admin/shop/cosmetics/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `agent/backend` |
 | `listAdminShopOrders` | `GET` | `/api/v1/admin/shop/orders` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `refundAdminShopOrder` | `POST` | `/api/v1/admin/shop/orders/{id}/refund` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `listAdminShopProducts` | `GET` | `/api/v1/admin/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
@@ -179,10 +182,12 @@
 | `updateAdminShopProduct` | `PATCH` | `/api/v1/admin/shop/products/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `disableAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/disable` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `publishAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/publish` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
+| `publishAdminShopStudio` | `POST` | `/api/v1/admin/shop/studio/publish` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `agent/backend` |
 | `get_me_entitlements` | `GET` | `/api/v1/me/entitlements` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `post_me_entitlements_id_equip` | `POST` | `/api/v1/me/entitlements/{id}/equip` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `post_me_entitlements_id_unequip` | `POST` | `/api/v1/me/entitlements/{id}/unequip` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `get_me_presentation` | `GET` | `/api/v1/me/presentation` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
+| `get_shop_cosmetics` | `GET` | `/api/v1/shop/cosmetics` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `agent/backend` |
 | `post_shop_orders` | `POST` | `/api/v1/shop/orders` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `get_shop_orders_id_` | `GET` | `/api/v1/shop/orders/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `get_shop_products` | `GET` | `/api/v1/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |

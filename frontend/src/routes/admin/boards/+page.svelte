@@ -63,12 +63,20 @@
     if (statusFilter === 'inactive') list = list.filter((i) => !i.is_active);
     return list;
   });
-  let allSelected = $derived(
-    displayedItems.length > 0 && selectedIds.length === displayedItems.length
+  let submitting = $state(false);
+  const allSelected = $derived(
+    displayedItems.length > 0 && displayedItems.every((item) => selectedIds.includes(item.id))
+  );
+  const someSelected = $derived(
+    displayedItems.some((item) => selectedIds.includes(item.id))
   );
   function toggleAll() {
-    if (allSelected) selectedIds = [];
-    else selectedIds = displayedItems.map((i) => i.id);
+    if (allSelected) {
+      selectedIds = selectedIds.filter((id) => !displayedItems.some((i) => i.id === id));
+    } else {
+      const currentIds = displayedItems.map((i) => i.id);
+      selectedIds = Array.from(new Set([...selectedIds, ...currentIds]));
+    }
   }
   function toggleRow(id: string) {
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
@@ -88,6 +96,7 @@
   let opsAction = $state<BoardOpsAction>('edit');
   let opsEditDraft = $state({
     name: '',
+    description: '',
     icon: '',
     visibility: 'public',
     posting_mode: 'normal',
@@ -102,6 +111,7 @@
     opsAction = action;
     opsEditDraft = {
       name: item.name,
+      description: item.description ?? '',
       icon: item.icon ?? '',
       visibility: item.visibility ?? 'public',
       posting_mode: item.posting_mode ?? 'normal',
@@ -116,6 +126,7 @@
     opsTarget = null;
     opsEditDraft = {
       name: '',
+      description: '',
       icon: '',
       visibility: 'public',
       posting_mode: 'normal',
@@ -157,10 +168,11 @@
     batchOpen = true;
   }
 
-  /** 选中行的乐观锁版本（与 selectedIds 顺序一一对应，作为 If-Match）。 */
+  /** 选中行的乐观锁版本（从全量数据中检索，避免受搜索过滤影响丢失 If-Match）。 */
+  const allBoardItems = $derived(loadState.state === 'ok' ? loadState.items : []);
   const selectedVersions = $derived(
     selectedIds.map((id) => {
-      const item = displayedItems.find((b) => b.id === id);
+      const item = allBoardItems.find((b) => b.id === id);
       return item ? String(item.version) : '';
     })
   );
@@ -319,7 +331,7 @@
                 <td>
                   <span class="text-secondary" style="font-family:var(--font-family-mono);font-size:12px;">/{item.slug}</span>
                 </td>
-                <td><a class="text-link" href="/b/{item.slug}" style="font-size:12px;">{item.post_count ?? 0}</a></td>
+                <td><a class="text-link" href="/boards/{item.slug}" target="_blank" rel="noopener noreferrer" style="font-size:12px;">{item.post_count ?? 0}</a></td>
                 <td><span class="sbadge {visibilityBadge(item.visibility).cls}">{visibilityBadge(item.visibility).label}</span></td>
                 <td><span class="text-secondary" style="font-size:12px;">{postingModeLabel(item.posting_mode)}</span></td>
                 <td>
@@ -365,7 +377,7 @@
         { key: 'active', label: '状态' }
       ]}
       getData={() =>
-        (loadState.state === 'ok' ? loadState.items : []).map((item) => ({
+        displayedItems.map((item) => ({
           name: item.name,
           slug: `/${item.slug}`,
           posts: item.post_count ?? 0,
@@ -389,7 +401,9 @@
     method="POST"
     action="?/create"
     use:enhance={() => {
+      submitting = true;
       return async ({ result, update }) => {
+        submitting = false;
         toastActionResult(result);
         await update();
         // 仅成功时关闭弹层：失败保留已填内容便于修正（错误经 Toast/横幅呈现）。
@@ -423,10 +437,19 @@
       </select>
     </div>
     <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+      <label class="input-label" for="admin-board-posting-mode">发帖策略</label>
+      <select class="input-field" id="admin-board-posting-mode" name="posting_mode">
+        <option value="normal">normal（正常发帖）</option>
+        <option value="approval">approval（先审后发）</option>
+        <option value="readonly">readonly（只读）</option>
+        <option value="closed">closed（关闭）</option>
+      </select>
+    </div>
+    <div class="input-wrapper" style="margin-bottom:var(--space-3);">
       <label class="input-label" for="admin-board-reason">创建原因（审计）</label>
       <input type="text" class="input-field" id="admin-board-reason" name="reason" placeholder="如：新增技术专区" required />
     </div>
-    <Button text="提交创建" variant="primary" size="sm" type="submit" />
+    <Button text={submitting ? '提交中...' : '提交创建'} variant="primary" size="sm" type="submit" disabled={submitting} />
   </form>
 </Dialog>
 
@@ -446,10 +469,12 @@
       method="POST"
       action="?/update"
       use:enhance={() => {
+        submitting = true;
         return async ({ result, update }) => {
+          submitting = false;
           toastActionResult(result);
           await update();
-          closeOps();
+          if (result.type === 'success') closeOps();
         };
       }}
     >
@@ -458,6 +483,10 @@
       <div class="input-wrapper" style="margin-bottom:var(--space-3);">
         <label class="input-label" for="eb-ops-name">名称</label>
         <input type="text" class="input-field" id="eb-ops-name" name="name" maxlength="100" required bind:value={opsEditDraft.name} />
+      </div>
+      <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+        <label class="input-label" for="eb-ops-desc">说明</label>
+        <textarea class="input-field" id="eb-ops-desc" name="description" rows="2" maxlength="2000" bind:value={opsEditDraft.description}></textarea>
       </div>
       <div style="margin-bottom:var(--space-3);">
         <IconPicker name="icon" id="eb-ops-icon" bind:value={opsEditDraft.icon} />
@@ -495,7 +524,7 @@
         <label class="input-label" for="eb-ops-reason">操作原因（审计）</label>
         <input type="text" class="input-field" id="eb-ops-reason" name="reason" placeholder="如：调整板块可见性" required bind:value={opsEditDraft.reason} />
       </div>
-      <Button text="保存编辑" variant="primary" size="sm" type="submit" />
+      <Button text={submitting ? '保存中...' : '保存编辑'} variant="primary" size="sm" type="submit" disabled={submitting} />
     </form>
   </section>
   {/if}
@@ -508,10 +537,12 @@
       method="POST"
       action="?/update"
       use:enhance={() => {
+        submitting = true;
         return async ({ result, update }) => {
+          submitting = false;
           toastActionResult(result);
           await update();
-          closeOps();
+          if (result.type === 'success') closeOps();
         };
       }}
     >
@@ -522,7 +553,7 @@
         <label class="input-label" for="eb-ops-pin-reason">置顶原因（审计）</label>
         <input type="text" class="input-field" id="eb-ops-pin-reason" name="reason" placeholder="如：活动公告置顶" required bind:value={opsPinReason} />
       </div>
-      <Button text="确认置顶" variant="primary" size="sm" type="submit" />
+      <Button text={submitting ? '提交中...' : '确认置顶'} variant="primary" size="sm" type="submit" disabled={submitting} />
     </form>
   </section>
   {/if}
@@ -539,11 +570,15 @@
     method="POST"
     action="?/batchUpdate"
     use:enhance={() => {
+      submitting = true;
       return async ({ result, update }) => {
+        submitting = false;
         toastActionResult(result);
         await update();
-        selectedIds = [];
-        batchOpen = false;
+        if (result.type === 'success') {
+          selectedIds = [];
+          batchOpen = false;
+        }
       };
     }}
   >
@@ -560,6 +595,6 @@
       <label class="input-label" for="eb-batch-reason">操作原因（审计）</label>
       <input type="text" class="input-field" id="eb-batch-reason" name="reason" required placeholder="必填" bind:value={batchReason} />
     </div>
-    <Button text="确认执行" variant="primary" size="sm" type="submit" />
+    <Button text={submitting ? '执行中...' : '确认执行'} variant="primary" size="sm" type="submit" disabled={submitting} />
   </form>
 </Dialog>

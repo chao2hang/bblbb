@@ -219,6 +219,20 @@ async fn suggest_mention_users_fuzzy_search_and_prefix_ranking() {
     let items_lim = body_lim["items"].as_array().expect("items must be array");
     assert_eq!(items_lim.len(), 2);
 
+    // 自身用户名在明确搜索自身关键词时可以被检索到
+    let (status_self, body_self) =
+        authed_get(&app, "/api/v1/users/suggest?q=caller", &caller_cookie).await;
+    assert_eq!(status_self, StatusCode::OK);
+    let items_self = body_self["items"].as_array().expect("items must be array");
+    let self_names: Vec<&str> = items_self
+        .iter()
+        .filter_map(|i| i["username"].as_str())
+        .collect();
+    assert!(
+        self_names.contains(&"caller_user"),
+        "明确搜索关键词时允许检索到本人"
+    );
+
     close_pool(&pool).await;
     cleanup(&dir);
 }

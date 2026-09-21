@@ -54,16 +54,24 @@
       list = list.filter((i) => i.name.toLowerCase().includes(lower));
     }
     if (statusFilter === 'active') list = list.filter((i) => i.is_active !== 0 && i.is_active !== false && i.status !== 'merged');
-    if (statusFilter === 'inactive') list = list.filter((i) => i.is_active === 0 || i.is_active === false);
+    if (statusFilter === 'inactive') list = list.filter((i) => (i.is_active === 0 || i.is_active === false) && i.status !== 'merged');
     if (statusFilter === 'merged') list = list.filter((i) => i.status === 'merged');
     return list;
   });
-  let allSelected = $derived(
-    displayedItems.length > 0 && selectedIds.length === displayedItems.length
+  let submitting = $state(false);
+  const allSelected = $derived(
+    displayedItems.length > 0 && displayedItems.every((item) => selectedIds.includes(item.id))
+  );
+  const someSelected = $derived(
+    displayedItems.some((item) => selectedIds.includes(item.id))
   );
   function toggleAll() {
-    if (allSelected) selectedIds = [];
-    else selectedIds = displayedItems.map((i) => i.id);
+    if (allSelected) {
+      selectedIds = selectedIds.filter((id) => !displayedItems.some((i) => i.id === id));
+    } else {
+      const currentIds = displayedItems.map((i) => i.id);
+      selectedIds = Array.from(new Set([...selectedIds, ...currentIds]));
+    }
   }
   function toggleRow(id: string) {
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
@@ -121,13 +129,14 @@
 
   /** 行「⋯」菜单项（约定 D；由原 opsOptionsFor 映射）：编辑 / 启停 / 合并 / 查看。 */
   function rowActions(item: AdminTagItem) {
+    if (item.status === 'merged') {
+      return [{ label: '查看', run: () => goto(tagSearchUrl(item)) }];
+    }
     const actions: { label: string; danger?: boolean; run: () => void }[] = [
       { label: '编辑', run: () => openOps(item, 'update') },
       { label: isActive(item) ? '停用' : '启用', run: () => openOps(item, 'toggle') }
     ];
-    if (item.status !== 'merged') {
-      actions.push({ label: '合并', danger: true, run: () => openOps(item, 'merge') });
-    }
+    actions.push({ label: '合并', danger: true, run: () => openOps(item, 'merge') });
     // 「查看」GET 导航收进菜单（原行内 <a> 链接同语义，goto 客户端跳转）。
     actions.push({ label: '查看', run: () => goto(tagSearchUrl(item)) });
     return actions;
@@ -174,10 +183,11 @@
     batchOpen = true;
   }
 
-  /** 选中行的乐观锁版本（沿用该页 version = updated_at 约定）。 */
+  /** 选中行的乐观锁版本（从全量数据中查找，避免受搜索过滤影响丢失 If-Match）。 */
+  const allTagItems = $derived(loadState.state === 'ok' ? loadState.items : []);
   const selectedVersions = $derived(
     selectedIds.map((id) => {
-      const item = displayedItems.find((t) => t.id === id);
+      const item = allTagItems.find((t) => t.id === id);
       return item ? String(item.updated_at ?? 1) : '';
     })
   );
@@ -317,7 +327,7 @@
         { key: 'status', label: '状态' }
       ]}
       getData={() =>
-        (loadState.state === 'ok' ? loadState.items : []).map((item) => ({
+        displayedItems.map((item) => ({
           name: item.name,
           slug: item.slug,
           usage: item.usage_count ?? 0,
@@ -338,14 +348,15 @@
   <form
     method="POST"
     action="?/create"
-    use:enhance={() => async ({ result, update }) => {
-      if (result.type === 'success' && !toastActionResult(result)) {
-        const d = result.data as { created?: boolean } | null;
-        if (d?.created) showToast('标签已创建。', 'success');
-      }
-      await update();
-      // 仅成功时关闭弹层：失败保留已填内容便于修正（错误经 Toast/横幅呈现）。
-      if (result.type === 'success') createOpen = false;
+    use:enhance={() => {
+      submitting = true;
+      return async ({ result, update }) => {
+        submitting = false;
+        toastActionResult(result);
+        await update();
+        // 仅成功时关闭弹层：失败保留已填内容便于修正（错误经 Toast/横幅呈现）。
+        if (result.type === 'success') createOpen = false;
+      };
     }}
   >
     <div class="input-wrapper" style="margin-bottom:var(--space-3);">
@@ -356,7 +367,7 @@
       <label class="input-label" for="admin-tag-reason">操作原因（审计）</label>
       <input type="text" class="input-field" id="admin-tag-reason" name="reason" required placeholder="记录到审计日志" bind:value={createReason} />
     </div>
-    <Button text="创建标签" variant="primary" size="sm" type="submit" />
+    <Button text={submitting ? '创建中...' : '创建标签'} variant="primary" size="sm" type="submit" disabled={submitting} />
   </form>
 </Dialog>
 
@@ -378,10 +389,12 @@
       method="POST"
       action="?/update"
       use:enhance={() => {
+        submitting = true;
         return async ({ result, update }) => {
+          submitting = false;
           toastActionResult(result);
           await update({ reset: false });
-          closeOps();
+          if (result.type === 'success') closeOps();
         };
       }}
     >
@@ -399,7 +412,7 @@
         <label class="input-label" for="tg-ops-edit-reason">操作原因（审计）</label>
         <input type="text" class="input-field" id="tg-ops-edit-reason" name="reason" required placeholder="如：统一命名规范" bind:value={opsEditReason} />
       </div>
-      <Button text="保存编辑" variant="primary" size="sm" type="submit" />
+      <Button text={submitting ? '保存中...' : '保存编辑'} variant="primary" size="sm" type="submit" disabled={submitting} />
     </form>
   </section>
   {/if}
@@ -412,10 +425,12 @@
       method="POST"
       action="?/toggle"
       use:enhance={() => {
+        submitting = true;
         return async ({ result, update }) => {
+          submitting = false;
           toastActionResult(result);
           await update();
-          closeOps();
+          if (result.type === 'success') closeOps();
         };
       }}
     >
@@ -427,10 +442,11 @@
         <input type="text" class="input-field" id="tg-ops-toggle-reason" name="reason" required placeholder="如：清理失效标签" bind:value={opsToggleReason} />
       </div>
       <Button
-        text={opsTarget && isActive(opsTarget) ? '确认停用' : '确认启用'}
+        text={submitting ? '处理中...' : (opsTarget && isActive(opsTarget) ? '确认停用' : '确认启用')}
         variant="primary"
         size="sm"
         type="submit"
+        disabled={submitting}
       />
     </form>
   </section>
@@ -444,10 +460,12 @@
         method="POST"
         action="?/merge"
         use:enhance={() => {
+          submitting = true;
           return async ({ result, update }) => {
+            submitting = false;
             toastActionResult(result);
             await update();
-            closeOps();
+            if (result.type === 'success') closeOps();
           };
         }}
       >
@@ -468,7 +486,7 @@
         <p class="input-hint is-error" style="margin:0 0 10px;">
           合并后帖子关联转移至目标标签，源标签标记「已合并」并停用，不可恢复。
         </p>
-        <Button text="确认合并" variant="danger" size="sm" type="submit" />
+        <Button text={submitting ? '合并中...' : '确认合并'} variant="danger" size="sm" type="submit" disabled={submitting} />
       </form>
     </section>
   {/if}
@@ -485,11 +503,15 @@
     method="POST"
     action="?/batchToggle"
     use:enhance={() => {
+      submitting = true;
       return async ({ result, update }) => {
+        submitting = false;
         toastActionResult(result);
         await update();
-        selectedIds = [];
-        batchOpen = false;
+        if (result.type === 'success') {
+          selectedIds = [];
+          batchOpen = false;
+        }
       };
     }}
   >
@@ -506,6 +528,6 @@
       <label class="input-label" for="tg-batch-reason">操作原因（审计）</label>
       <input type="text" class="input-field" id="tg-batch-reason" name="reason" required placeholder="必填" bind:value={batchReason} />
     </div>
-    <Button text="确认执行" variant="primary" size="sm" type="submit" />
+    <Button text={submitting ? '执行中...' : '确认执行'} variant="primary" size="sm" type="submit" disabled={submitting} />
   </form>
 </Dialog>

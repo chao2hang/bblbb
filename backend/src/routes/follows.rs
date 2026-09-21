@@ -323,9 +323,11 @@ async fn unfollow_user(
 /// 粉丝/关注列表行投影。
 #[derive(sqlx::FromRow)]
 struct FollowUserRow {
+    user_id: String,
     username: String,
     display_name: Option<String>,
     level: i64,
+    avatar_attachment_id: Option<String>,
     follow_created_at: i64,
 }
 
@@ -347,8 +349,9 @@ async fn list_follow_page(
         ("f.follower_id = ?", "f.created_at")
     };
     let sql = format!(
-        "SELECT u.username_normalized AS username, u.display_name AS display_name,
-                u.trust_level AS level, f.created_at AS follow_created_at
+        "SELECT u.id AS user_id, u.username_normalized AS username, u.display_name AS display_name,
+                u.trust_level AS level, u.avatar_attachment_id AS avatar_attachment_id,
+                 f.created_at AS follow_created_at
          FROM user_follows f
          JOIN users u ON u.id = {}
          WHERE {where_clause} AND u.status <> 'deleted'
@@ -423,17 +426,24 @@ async fn follow_list_response(
     } else {
         String::new()
     };
-    let items: Vec<Value> = page
-        .iter()
-        .map(|r| {
-            json!({
-                "username": r.username,
-                "display_name": r.display_name,
-                "level": r.level,
-                "created_at": r.follow_created_at,
-            })
-        })
-        .collect();
+    let mut items: Vec<Value> = Vec::with_capacity(page.len());
+    for r in &page {
+        let mut value = json!({
+            "id": r.user_id,
+            "username": r.username,
+            "display_name": r.display_name,
+            "level": r.level,
+            "avatar_attachment_id": r.avatar_attachment_id,
+            "created_at": r.follow_created_at,
+        });
+        // 装扮投影失败不阻断关注列表；无装配时省略该键。
+        if let Ok(Some(tokens)) =
+            crate::shop::service::get_public_presentation_tokens(pool, &r.user_id).await
+        {
+            value["presentation_tokens"] = json!(tokens);
+        }
+        items.push(value);
+    }
 
     let resp = (
         StatusCode::OK,

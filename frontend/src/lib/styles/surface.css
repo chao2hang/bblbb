@@ -403,7 +403,9 @@ button[type='submit']:not(.secondary):not(.ghost) {
 
 .btn.secondary,
 .btn--secondary,
-.btn:not(.primary):not(.ghost) {
+/* BEM 命名的 ghost（.btn-ghost/.btn--ghost）与 .ghost 同义，不得落入 secondary 描边桶——
+   否则逐字手写的「举报/分享」裸锚点会带出 1px 边框（与 Button ghost 组件不一致）。 */
+.btn:not(.primary):not(.ghost):not(.btn-ghost):not(.btn--ghost) {
   background: transparent !important;
   border: 1px solid var(--color-border-strong) !important;
   color: var(--color-text-primary) !important;
@@ -483,7 +485,8 @@ textarea:focus,
   text-transform: uppercase !important;
 }
 
-/* 头像：方形直角，与栅格对齐 */
+/* 头像：默认圆形（PROTOTYPE-UI 组件规格「全圆角」）；主题可经 --avatar-radius
+   覆盖为方形契约（如 chinese-elegance 设 0）。 */
 .avatar,
 .avatar-sm,
 .avatar.sm,
@@ -491,7 +494,7 @@ textarea:focus,
 .avatar.lg,
 .avatar.xl,
 .avatar.xxl {
-  border-radius: 0 !important;
+  border-radius: var(--avatar-radius, 50%) !important;
   border: 1px solid var(--color-border) !important;
   background: var(--avatar-bg, var(--color-bg-subtle));
   color: var(--avatar-color, var(--color-text-secondary));
@@ -499,9 +502,13 @@ textarea:focus,
   font-weight: 500 !important;
 }
 
-/* 已装备头像框接管头像边框，避免基础边框与鎏金之环等装扮叠加。 */
+/* 已装备头像框接管头像边框，避免基础边框与鎏金之环等装扮叠加；
+   头像与边框圆角统一跟随主题契约（--avatar-radius）：主题切换到圆角就圆角，非圆角就非圆角。 */
 .cosmetic-avatar.has-frame > .avatar {
   border: 0 !important;
+}
+.cosmetic-avatar.has-frame:not([data-frame-shape]) > .avatar {
+  border-radius: var(--avatar-radius, 50%);
 }
 
 /* ============================================================
@@ -578,9 +585,9 @@ textarea:focus,
 }
 
 .app-admin-side__label {
-  font-family: var(--font-family-mono) !important;
-  letter-spacing: var(--label-letter-spacing) !important;
-  text-transform: uppercase !important;
+  font-family: var(--font-family-base) !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 
 /* ============================================================
@@ -799,7 +806,7 @@ textarea:focus,
 }
 
 .topic-comments .comment-list > .card,
-#page-achievements .achievement-grid > .achievement-card {
+#page-achievements .achievement-grid.is-list > .achievement-card {
   background: transparent !important;
   border: 0 !important;
   border-bottom: 1px solid var(--color-border-muted) !important;
@@ -808,11 +815,12 @@ textarea:focus,
 }
 
 .topic-comments .comment-list > .card:last-child,
-#page-achievements .achievement-grid > .achievement-card:last-child {
+#page-achievements .achievement-grid.is-list > .achievement-card:last-child {
   border-bottom: 0 !important;
 }
 
-.topic-comments .comment-list > .card .card-body {
+.topic-comments .comment-list > .card .card-body,
+#page-achievements .achievement-grid.is-list > .achievement-card .card-body {
   padding-inline: var(--space-4) !important;
 }
 
@@ -821,12 +829,13 @@ textarea:focus,
     padding: var(--space-3) !important;
   }
 
-  .topic-comments .comment-list > .card .card-body {
+  .topic-comments .comment-list > .card .card-body,
+  #page-achievements .achievement-grid.is-list > .achievement-card .card-body {
     padding-inline: var(--space-3) !important;
   }
 }
 
-#page-achievements .achievement-grid {
+#page-achievements .achievement-grid.is-list {
   grid-template-columns: 1fr !important;
   gap: 0 !important;
   padding: 0 var(--space-4) !important;
@@ -834,8 +843,29 @@ textarea:focus,
   background: var(--color-bg-card) !important;
 }
 
-#page-achievements .achievement-grid > .achievement-card .card-body {
+#page-achievements .achievement-grid.is-list > .achievement-card .card-body {
   padding: var(--space-4) 0 !important;
+}
+
+/* 成就墙卡片网格展示（与商城管理卡片展示保持一致的 L2 卡片规范） */
+#page-achievements .achievement-grid.is-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: var(--space-4) !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+#page-achievements .achievement-grid.is-grid > .achievement-card {
+  background: var(--color-bg-card) !important;
+  border: var(--border-default) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-bg-page) 40%, transparent) !important;
+}
+
+#page-achievements .achievement-grid.is-grid > .achievement-card .card-body {
+  padding: var(--space-4) !important;
 }
 
 /* 768–1099px 平板壳：收起桌面导航，避免大屏搜索宽度挤出账号动作。 */
@@ -1078,6 +1108,8 @@ body:has(.app-modal-backdrop) {
   #page-search,
   #page-notifications,
   #page-settings,
+  #page-settings-privacy,
+  #page-me-security,
   #page-market,
   #page-billing {
     padding-bottom: var(--space-8) !important;

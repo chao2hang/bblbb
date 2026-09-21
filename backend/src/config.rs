@@ -141,6 +141,13 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         scope: "all",
         reload: "restart",
     },
+    ConfigEntry {
+        env_var: "BBLBB__STEAM_ASSETS_DOWNLOAD_ON_PUBLISH",
+        field: "steam_assets_download_on_publish",
+        default: "true",
+        scope: "all",
+        reload: "restart",
+    },
     // 生产服务启动不得自动应用未知迁移（M01-DB-06）；生产环境应显式运行
     // `bblbb-migrate apply`，故 AUTO_MIGRATE 仅限 dev/ci。
     ConfigEntry {
@@ -346,6 +353,12 @@ pub struct AppConfig {
     pub s3_secret_access_key: String,
     #[serde(default)]
     pub s3_session_token: String,
+    /// Steam 素材上架即入库（M07-SHOP-ASSETS）：管理端上架 Steam 头像框/
+    /// 背景时，把样式引用的文件从 Steam CDN 下载写入当前存储后端
+    /// （local → storage_dir/steam-assets/…；s3 → bucket）。false = 仅
+    /// 改写样式 URL，不自动下载（离线环境/预置仓库场景）。
+    #[serde(default = "default_steam_assets_download_on_publish")]
+    pub steam_assets_download_on_publish: bool,
     /// 启动时是否自动应用数据库迁移（M01-DB-06：生产默认关闭）
     #[serde(default = "default_auto_migrate")]
     pub auto_migrate: bool,
@@ -680,6 +693,7 @@ impl Default for AppConfig {
             s3_access_key_id: String::new(),
             s3_secret_access_key: String::new(),
             s3_session_token: String::new(),
+            steam_assets_download_on_publish: default_steam_assets_download_on_publish(),
             auto_migrate: default_auto_migrate(),
             allowed_hosts: Vec::new(),
             allowed_origins: Vec::new(),
@@ -748,6 +762,11 @@ fn default_storage_backend() -> String {
 
 fn default_s3_region() -> String {
     "auto".to_owned()
+}
+
+/// Steam 素材上架即入库（M07-SHOP-ASSETS）默认开启；离线环境可关闭。
+fn default_steam_assets_download_on_publish() -> bool {
+    true
 }
 
 impl AppConfig {

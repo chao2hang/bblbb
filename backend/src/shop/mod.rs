@@ -7,7 +7,10 @@
 //! - Token 白名单：商品 icon_token 与 presentation_tokens_json 只允许
 //!   注册的安全 Token，拒绝任意 CSS/HTML/JS/URL/SVG（M07-SHOP-SCHEMA-03）。
 
+pub mod cosmetics;
 pub mod service;
+pub mod steam_assets;
+pub mod studio;
 
 pub use service::{
     buy_product, create_product, disable_product, equip, get_order, get_presentation, get_product,

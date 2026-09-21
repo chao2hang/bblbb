@@ -16,7 +16,8 @@ import LoginPage from '../../../routes/login/+page.svelte';
 import VerifyEmailPage from '../../../routes/verify-email/+page.svelte';
 import PasswordResetPage from '../../../routes/password-reset/+page.svelte';
 import ConfirmResetPage from '../../../routes/password-reset/confirm/+page.svelte';
-import MePage from '../../../routes/me/+page.svelte';
+// M02-UX-SEC：/me 概览页不再承载 form action（POST 表单迁移至安全中心页）。
+import SecurityPage from '../../../routes/me/security/+page.svelte';
 import RootLayout from '../../../routes/+layout.svelte';
 
 // Navbar 的 isActive 读取 $app/state page.url.pathname；登录页回跳目标
@@ -38,10 +39,19 @@ const user = {
   version: 1
 };
 
-const meData = {
+const securityData = {
   user,
-  sessions: [],
-  currentSessionId: null,
+  sessions: [
+    {
+      id: 'sess-other',
+      user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      created_at: 1690000000000,
+      last_seen_at: 1740000000000,
+      absolute_expires_at: 1750060000000,
+      version: 1
+    }
+  ],
+  currentSessionId: 'sess-current',
   error: null
 };
 
@@ -57,7 +67,7 @@ const pages: PageCase[] = [
   { name: '邮箱验证', render: () => render(VerifyEmailPage, { props: { data: { token: 'tok-ssr' }, form: undefined } }).body },
   { name: '找回密码', render: () => render(PasswordResetPage, { props: { form: undefined } }).body },
   { name: '重置密码', render: () => render(ConfirmResetPage, { props: { data: { token: 'tok-ssr' }, form: undefined } }).body },
-  { name: '我的主页', render: () => render(MePage, { props: { data: meData, form: undefined } }).body }
+  { name: '安全中心', render: () => render(SecurityPage, { props: { data: securityData, form: undefined } }).body }
 ];
 
 describe('无 JS 认证退化：变更一律走服务端 form action（M02-UX-08）', () => {

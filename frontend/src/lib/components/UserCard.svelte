@@ -21,7 +21,7 @@
   /** 触发卡只允许公开投影字段（严格 allowlist，杜绝私有字段流入浮层）。
    *  level/signature 可缺省：列表/搜索行只有部分公开投影。 */
   export type UserCardUser = Pick<PublicProfile, 'username' | 'display_name'> &
-    Partial<Pick<PublicProfile, 'level' | 'signature'>>;
+    Partial<Pick<PublicProfile, 'level' | 'signature' | 'avatar_attachment_id'>>;
 
   /** 窄屏断点，与 prototype/app.css 及 components.css 一致。 */
   export const NARROW_QUERY = '(max-width: 640px)';
@@ -33,7 +33,8 @@
     label,
     class: klass = '',
     closeDelay = 250,
-    presentation = null
+    presentation = null,
+    loading = false
   }: {
     user: UserCardUser;
     /** 触发内容（如 Avatar + 名字）。缺省渲染头像。 */
@@ -48,6 +49,8 @@
     closeDelay?: number;
     /** 装扮安全投影（presentation_tokens）；缺省不渲染任何装扮。 */
     presentation?: HoverCardPresentation;
+    /** 是否处于加载态。 */
+    loading?: boolean;
   } = $props();
 
   const profileUrl = $derived(href ?? `/users/${user.username}`);
@@ -253,6 +256,6 @@
   {#if children}
     {@render children()}
   {:else}
-    <CosmeticAvatar name={displayName} size="xs" {presentation} avatarAttachmentId={'avatar_attachment_id' in user ? (user as { avatar_attachment_id?: string | null }).avatar_attachment_id : null} seed={user?.username ?? displayName} />
+    <CosmeticAvatar name={displayName} size="xs" {presentation} avatarAttachmentId={'avatar_attachment_id' in user ? (user as { avatar_attachment_id?: string | null }).avatar_attachment_id : null} seed={user?.username ?? displayName} {loading} />
   {/if}
 </a>

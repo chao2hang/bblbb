@@ -58,17 +58,47 @@ pub const PUBLIC_PROFILE_ALLOWLIST: &[&str] = &[
 pub struct PublicPresentationTokens {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nickname_color: Option<String>,
+    /// 自定义昵称样式（M07-SHOP-UI-10）：样式库定义的名称与结构化样式
+    /// （颜色 #rrggbb / 渐变 stops / 动画枚举，服务端校验）。仅样式库
+    /// 定义存在；注册枚举色无此字段（前端白名单渲染）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nickname_color_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nickname_color_style: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_frame: Option<String>,
+    /// 自定义头像框样式（M07-SHOP-UI-10）：样式库名称与结构化参数。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_frame_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_frame_style: Option<serde_json::Value>,
     /// 已发布商品绑定的 ready PNG 附件 UUID；前端通过稳定 content 端点读取。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_frame_attachment_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_effect: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_effect_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_effect_style: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub post_effect: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_effect_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_effect_style: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_badges: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_badge_names: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_badge_styles: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_prefix_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_prefix_style: Option<serde_json::Value>,
 }
 
 impl PublicPresentationTokens {
@@ -79,6 +109,7 @@ impl PublicPresentationTokens {
             && self.profile_effect.is_none()
             && self.post_effect.is_none()
             && self.profile_badges.is_none()
+            && self.title_prefix.is_none()
     }
 }
 

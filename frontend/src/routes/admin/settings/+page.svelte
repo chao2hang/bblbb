@@ -490,7 +490,7 @@
             class:is-dirty={saved !== null && switches[sw.key] !== saved[sw.key]}
             style="padding:10px 12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle, rgba(0,0,0,0.02));margin:0;"
           >
-            <input type="checkbox" name={sw.key} bind:checked={switches[sw.key]} oninput={onEdit} />
+            <input type="checkbox" form="settings-form" name={sw.key} bind:checked={switches[sw.key]} oninput={onEdit} />
             <span>{sw.label}<span class="app-field-help">{sw.hint}</span></span>
           </label>
         {/each}
@@ -524,6 +524,7 @@
       {/if}
 
       <form
+        id="settings-form"
         method="POST"
         action="?/save"
         use:enhance={({ cancel }) => {

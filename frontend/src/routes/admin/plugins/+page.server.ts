@@ -5,7 +5,7 @@
 // - install action：POST /api/v1/admin/plugins（reason + CSRF；默认 disabled）；
 // - enable/disable action：POST .../enable|disable（If-Match policy_revision）；
 // - settings action：PATCH .../{id}/settings（If-Match + reason + 审计）。
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { parseBatchEntries, batchResult, type BatchOutcome } from '$lib/admin-batch';
@@ -46,6 +46,7 @@ export interface AdminPluginsActionData {
   message?: string;
   requestId?: string | null;
   conflict?: boolean;
+  stepUpRequired?: boolean;
 }
 
 export const load: PageServerLoad = async ({ cookies, request }): Promise<AdminPluginsPageData> => {
@@ -131,9 +132,15 @@ export const actions: Actions = {
       if (result.ok) {
         return { message: `插件 ${result.data.plugin.id} 已安装（disabled 隔离态）` };
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminPluginsActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminPluginsActionData);
     } catch {
-      return fail(503, { message: '安装失败，请稍后重试' });
+      return fail(503, { message: '安装失败，请稍后重试' } satisfies AdminPluginsActionData);
     }
   },
   enable: async ({ request, cookies }) => {
@@ -149,12 +156,18 @@ export const actions: Actions = {
         { 'If-Match': String(revision) }
       );
       if (result.ok) return { message: `插件 ${id} 已启用（policy v${result.data.plugin.policy_revision}）` };
-      if (result.status === 409) {
-        return fail(409, { conflict: true, message: `版本冲突：${result.message}` });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminPluginsActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.status === 409) {
+        return fail(409, { conflict: true, message: `版本冲突：${result.message}` } satisfies AdminPluginsActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminPluginsActionData);
     } catch {
-      return fail(503, { message: '操作失败，请稍后重试' });
+      return fail(503, { message: '操作失败，请稍后重试' } satisfies AdminPluginsActionData);
     }
   },
   /** 批量启用（M18-ADMIN-BATCH）：循环调用 enable 单条端点（同 If-Match
@@ -175,7 +188,12 @@ export const actions: Actions = {
           { 'If-Match': String(e.version ?? 0) }
         );
         if (r.ok) outcome.okCount++;
-        else outcome.failures.push({ id: e.id, message: r.message });
+        else if (r.code === 'step_up_required') {
+          return fail(403, {
+            message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+            stepUpRequired: true
+          } satisfies AdminPluginsActionData);
+        } else outcome.failures.push({ id: e.id, message: r.message });
       } catch {
         outcome.failures.push({ id: e.id, message: '网络错误' });
       }
@@ -196,12 +214,18 @@ export const actions: Actions = {
         { 'If-Match': String(revision) }
       );
       if (result.ok) return { message: `插件 ${id} 已停用（不再消费新事件）` };
-      if (result.status === 409) {
-        return fail(409, { conflict: true, message: `版本冲突：${result.message}` });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminPluginsActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.status === 409) {
+        return fail(409, { conflict: true, message: `版本冲突：${result.message}` } satisfies AdminPluginsActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminPluginsActionData);
     } catch {
-      return fail(503, { message: '操作失败，请稍后重试' });
+      return fail(503, { message: '操作失败，请稍后重试' } satisfies AdminPluginsActionData);
     }
   },
   /** 批量停用（M18-ADMIN-BATCH）：循环调用 disable 单条端点（同 If-Match
@@ -222,7 +246,12 @@ export const actions: Actions = {
           { 'If-Match': String(e.version ?? 0) }
         );
         if (r.ok) outcome.okCount++;
-        else outcome.failures.push({ id: e.id, message: r.message });
+        else if (r.code === 'step_up_required') {
+          return fail(403, {
+            message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+            stepUpRequired: true
+          } satisfies AdminPluginsActionData);
+        } else outcome.failures.push({ id: e.id, message: r.message });
       } catch {
         outcome.failures.push({ id: e.id, message: '网络错误' });
       }
@@ -254,12 +283,49 @@ export const actions: Actions = {
       if (result.ok) {
         return { message: `插件 ${id} 设置已保存（policy v${result.data.plugin.policy_revision}）` };
       }
-      if (result.status === 409) {
-        return fail(409, { conflict: true, message: `版本冲突：${result.message}` });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminPluginsActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.status === 409) {
+        return fail(409, { conflict: true, message: `版本冲突：${result.message}` } satisfies AdminPluginsActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminPluginsActionData);
     } catch {
-      return fail(503, { message: '保存失败，请稍后重试' });
+      return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminPluginsActionData);
+    }
+  },
+  /** 重新验证身份（step-up 窗口过期后；与 storage/roles 页同款交互）。 */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        message: '请输入当前密码'
+      } satisfies AdminPluginsActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminPluginsActionData;
+      }
+      return fail(result.status, {
+        message: result.message
+      } satisfies AdminPluginsActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '验证失败，请稍后重试'
+      } satisfies AdminPluginsActionData);
     }
   }
 };

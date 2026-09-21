@@ -132,7 +132,12 @@ DOCUMENTED_NON_CONTRACT = {
   # 运营管理接口，记录于 docs/OPERATIONS.md。
   "admin/users/{p}/randomize-nickname" => %w[POST],
   "admin/nickname-blacklist" => %w[GET POST],
-  "admin/nickname-blacklist/{p}" => %w[DELETE]
+  "admin/nickname-blacklist/{p}" => %w[DELETE],
+  # M07-SHOP-ASSETS / Steam Catalog：Steam 装扮资产与目录同步。
+  # 资产静态服务与管理侧目录同步，记录于 docs/INTERNAL-MARKETPLACE.md。
+  "admin/shop/steam-catalog/sync" => %w[POST],
+  "shop/steam-catalog" => %w[GET],
+  "steam-assets/{p}/{p}" => %w[GET]
 }.freeze
 
 def normalize_path(path)

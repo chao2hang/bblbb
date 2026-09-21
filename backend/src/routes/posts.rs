@@ -277,6 +277,7 @@ async fn create_post(
     // GAP-FIX extras 输入（CreatePostInput 构造会 move req 字段，先取出）。
     let extras = PostExtras {
         access_policy: req.access_policy.clone(),
+        visibility_level: req.visibility_level,
         price_coin: req.price_coin,
         summary: req.summary.clone(),
         tags: req.tags.clone(),
@@ -413,16 +414,16 @@ async fn get_post_by_id(
 /// GAP-FIX：CreatePostRequest 的扩展字段（发布事务外的补充写输入）。
 struct PostExtras {
     access_policy: String,
+    visibility_level: Option<u32>,
     price_coin: Option<u32>,
     summary: Option<String>,
     tags: Option<Vec<String>>,
 }
 
-/// GAP-FIX：发布后补充写入 price_coin/summary/标签关联与 paid 策略行。
+/// GAP-FIX：发布后补充写入 price_coin/summary/标签关联与非公开策略行。
 ///
 /// - posts.price_coin（0061）/ posts.summary（0062）直接 UPDATE；
-/// - access_policy=paid 时创建 content_access_policies 行（kind='paid'，
-///   currency=coin，amount=price_coin）并回填 posts.access_policy_id——
+/// - access_policy!=public 时创建 content_access_policies 行（支持 paid/after_reply/level/logged_in）并回填 posts.access_policy_id——
 ///   可见性评估（GET /posts/{id} 走 pol.kind）与解锁 grant
 ///   （content_access_grants.policy_id NOT NULL）都依赖该行；
 /// - tags 写入 post_tags 关联并 bump tags.usage_count（详见
@@ -469,18 +470,31 @@ async fn apply_post_extras(
             .map_err(|e| AppError::internal(e.to_string(), request_id))?,
     };
 
-    // 2) paid 策略行（可见性评估 + 解锁 grant 的外键来源）。
-    if extras.access_policy == "paid" {
+    // 2) 访问策略行（可见性评估 + 解锁 grant 的外键来源）。
+    if extras.access_policy != "public" {
         let policy_id = uuid::Uuid::now_v7().to_string();
-        let currency = crate::economy::ledger::service::CURRENCY_COIN;
+        let (kind, currency, amount, min_level) = match extras.access_policy.as_str() {
+            "paid" => (
+                "paid",
+                Some(crate::economy::ledger::service::CURRENCY_COIN),
+                price,
+                None,
+            ),
+            "after_reply" => ("after_reply", None, None, None),
+            "logged_in" => ("logged_in", None, None, None),
+            "level" => ("level", None, None, extras.visibility_level.map(i64::from)),
+            _ => ("public", None, None, None),
+        };
         let insert_policy = "INSERT INTO content_access_policies
              (id, kind, min_level, currency_id, amount, reply_grant_persists, policy_version, created_by, created_at)
-             VALUES (?, 'paid', NULL, ?, ?, 0, 1, ?, ?)";
+             VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?)";
         let inserted = match pool {
             Either::Left(p) => sqlx::query(insert_policy)
                 .bind(&policy_id)
+                .bind(kind)
+                .bind(min_level)
                 .bind(currency)
-                .bind(price)
+                .bind(amount)
                 .bind(author_id)
                 .bind(now)
                 .execute(p)
@@ -489,8 +503,10 @@ async fn apply_post_extras(
                 .rows_affected(),
             Either::Right(p) => sqlx::query(insert_policy)
                 .bind(&policy_id)
+                .bind(kind)
+                .bind(min_level)
                 .bind(currency)
-                .bind(price)
+                .bind(amount)
                 .bind(author_id)
                 .bind(now)
                 .execute(p)
@@ -500,7 +516,7 @@ async fn apply_post_extras(
         };
         if inserted == 0 {
             return Err(AppError::internal(
-                "failed to create paid access policy row",
+                "failed to create access policy row",
                 request_id,
             ));
         }
@@ -1110,7 +1126,7 @@ async fn get_post(
 
     let row: Option<PostDetailProjection> = match pool {
         Either::Left(p) => sqlx::query_as::<_, PostDetailProjection>(
-            "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
+            "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status, p.deleted_at,
                     p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.version, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
@@ -1122,14 +1138,14 @@ async fn get_post(
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
              LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
-             WHERE p.id = ? AND p.deleted_at IS NULL",
+             WHERE p.id = ?",
         )
         .bind(&id)
         .fetch_optional(p)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?,
         Either::Right(p) => sqlx::query_as::<_, PostDetailProjection>(
-            "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
+            "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status, p.deleted_at,
                     p.review_status, p.reply_count, p.view_count, p.created_at, p.updated_at, p.version, p.last_reply_at,
                     p.pinned_at, p.scheduled_at, p.published_at, p.slug, p.closed_at,
                     u.username_normalized as author_name, u.display_name as author_display_name,
@@ -1141,7 +1157,7 @@ async fn get_post(
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN post_contents c ON c.post_id = p.id
              LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
-             WHERE p.id = ? AND p.deleted_at IS NULL",
+             WHERE p.id = ?",
         )
         .bind(&id)
         .fetch_optional(p)
@@ -1153,20 +1169,46 @@ async fn get_post(
         return Err(AppError::not_found("post not found", request_id));
     };
 
+    // 权威管理员/版主判断（成熟论坛规范：具备 post.moderate 或管理角色的管理员可前台查看任意状态帖子）
+    let is_moderator = if let Some(u) = auth.user.as_ref() {
+        let has_role = u
+            .roles
+            .iter()
+            .any(|role| role == "admin" || role == "moderator" || role == "administrator");
+        if has_role {
+            true
+        } else {
+            authorize_action(pool, &u.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
+                .await
+                .map(|d| d.is_allowed())
+                .unwrap_or(false)
+        }
+    } else {
+        false
+    };
+
+    let is_deleted = r.deleted_at.is_some();
     // M05-RISK-03/06：pending_review（status='draft' + review_status）只对
-    // 作者本人可见，且投影为安全的审核状态（不含举报人/内部 note/规则细节）。
+    // 作者本人或管理员可见，且投影为安全的审核状态（不含举报人/内部 note/规则细节）。
     let pending_review =
         r.status == "draft" && r.review_status.as_deref() == Some("pending_review");
     let requester_is_author = auth.user.as_ref().is_some_and(|u| u.id == r.author_id);
-    if !matches!(r.status.as_str(), "published" | "hidden")
+
+    if is_deleted {
+        if !is_moderator {
+            return Err(AppError::not_found("post not found", request_id));
+        }
+    } else if !matches!(r.status.as_str(), "published" | "hidden")
         && !(pending_review && requester_is_author)
+        && !is_moderator
     {
         return Err(AppError::not_found("post not found", request_id));
     }
     let is_pending_author_view = pending_review && requester_is_author;
+    let is_mod_preview = is_moderator && (is_deleted || r.status != "published");
 
-    // pending_review 不计数浏览量（内容尚未公开）。
-    if !is_pending_author_view {
+    // pending_review 或管理员预览未公开/已删除内容不计数浏览量。
+    if !is_pending_author_view && !is_mod_preview {
         // 增加浏览量（非关键路径，失败忽略）
         match pool {
             Either::Left(p) => {
@@ -1210,13 +1252,72 @@ async fn get_post(
     let ctx = EvaluateContext {
         grants: &lookup,
         now: now_millis(),
-        moderator_override: false,
+        moderator_override: is_moderator,
     };
     let grant = evaluate(actor.as_ref(), &content, &ctx).await;
 
+    let has_inline = r
+        .body_markdown
+        .as_deref()
+        .is_some_and(crate::content::markdown::inline_reply::has_inline_reply);
+
+    let is_inline_unlocked = if has_inline {
+        if grant.unlocked {
+            true
+        } else {
+            let is_author = auth.user.as_ref().is_some_and(|u| u.id == r.author_id);
+            let is_mod = auth.user.as_ref().is_some_and(|u| {
+                u.roles
+                    .iter()
+                    .any(|role| role == "admin" || role == "moderator" || role == "administrator")
+            });
+            if is_author || is_mod {
+                true
+            } else if let Some(u) = auth.user.as_ref() {
+                let has_replied: bool = match pool {
+                    Either::Left(p) => {
+                        sqlx::query_scalar::<_, i64>(
+                            "SELECT 1 FROM comments WHERE post_id = ? AND author_id = ? AND status = 'published' LIMIT 1",
+                        )
+                        .bind(&id)
+                        .bind(&u.id)
+                        .fetch_optional(p)
+                        .await
+                        .unwrap_or(None)
+                        .is_some()
+                    }
+                    Either::Right(p) => {
+                        sqlx::query_scalar::<_, i64>(
+                            "SELECT 1 FROM comments WHERE post_id = ? AND author_id = ? AND status = 'published' LIMIT 1",
+                        )
+                        .bind(&id)
+                        .bind(&u.id)
+                        .fetch_optional(p)
+                        .await
+                        .unwrap_or(None)
+                        .is_some()
+                    }
+                };
+                has_replied
+            } else {
+                false
+            }
+        }
+    } else {
+        false
+    };
+
+    let base_html = if has_inline {
+        r.body_markdown.as_deref().map(|md| {
+            crate::content::markdown::inline_reply::render_with_inline_reply(md, is_inline_unlocked)
+        })
+    } else {
+        r.body_html
+    };
+
     // 附件占位（M06-QUOTA-09 展示端）：正文引用的附件已删除/不可用时，
     // 读取时替换为「附件已删除」占位（落库 HTML 与 Markdown 不变）。
-    let body_html = match (r.body_html, r.body_markdown.as_deref()) {
+    let body_html = match (base_html, r.body_markdown.as_deref()) {
         (Some(html), Some(markdown)) if !html.is_empty() => {
             let candidate_ids = extract_attachment_content_ids(markdown);
             let unavailable = load_unavailable_attachment_ids(pool, &candidate_ids)
@@ -1251,7 +1352,7 @@ async fn get_post(
         author_presentation_tokens,
         author_avatar_attachment_id: r.author_avatar_attachment_id.clone(),
         post_type: r.post_type,
-        status: r.status,
+        status: r.status.clone(),
         board_id: r.board_id,
         slug: r.slug,
         reply_count: r.reply_count,
@@ -1304,6 +1405,15 @@ async fn get_post(
         map.insert("favorite_count".into(), json!(favorite_count));
         map.insert("viewer_favorited".into(), json!(viewer_favorited));
         map.insert("tags".into(), json!(post_tags));
+        if is_deleted {
+            map.insert("status".into(), json!("deleted"));
+            map.insert("deleted_at".into(), json!(r.deleted_at));
+        } else if r.status == "draft" && r.review_status.as_deref() == Some("pending_review") {
+            map.insert("status".into(), json!("pending_review"));
+        }
+        if is_moderator {
+            map.insert("is_moderator_view".into(), json!(true));
+        }
     }
 
     // M05-RISK-06：作者查看自己待审帖子 → 投影安全审核状态（只含类别）。
@@ -1321,8 +1431,8 @@ async fn get_post(
         }
     }
 
-    if is_pending_author_view {
-        // 未公开内容：禁止任何缓存（private, no-store）。
+    if is_pending_author_view || is_mod_preview {
+        // 未公开/管理预览内容：禁止任何缓存（private, no-store）。
         let mut resp = (StatusCode::OK, Json(body)).into_response();
         resp.headers_mut().insert(
             header::CACHE_CONTROL,
@@ -1337,7 +1447,15 @@ async fn get_post(
         crate::trust::on_topic_viewed(pool, &u.id, &id).await;
     }
 
-    let ch = cache_headers_for(&grant, &body.to_string());
+    let ch = if has_inline {
+        crate::content::visibility::cache::CacheHeaders {
+            cache_control: "private, no-store",
+            vary: None,
+            etag: None,
+        }
+    } else {
+        cache_headers_for(&grant, &body.to_string())
+    };
 
     let mut resp = (StatusCode::OK, Json(body)).into_response();
     if let Ok(v) = HeaderValue::from_str(ch.cache_control) {
@@ -1364,6 +1482,7 @@ struct PostDetailProjection {
     post_type: String,
     title: String,
     status: String,
+    deleted_at: Option<i64>,
     review_status: Option<String>,
     reply_count: i64,
     view_count: i64,
@@ -1653,6 +1772,40 @@ async fn update_post(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
 
+    // 加载帖子（含作者与所属板块）
+    let post = get_post_row(pool, &id, request_id).await?;
+    let post = post.ok_or_else(|| AppError::not_found("post not found", request_id))?;
+    let (post_author_id, post_board_id, _post_status, _post_version, _post_updated_at) = post;
+
+    // 权限判定：作者本人；管理员或当前板块版主（post.moderate / admin.manage）
+    let is_owner = post_author_id == user.id;
+    let is_admin = if !is_owner {
+        let is_admin = authorize_action(pool, &user.id, "admin.manage", None, AUTHZ_POLICY_VERSION)
+            .await
+            .map(|d| d.is_allowed())
+            .unwrap_or(false);
+        let is_moderator = authorize_action(
+            pool,
+            &user.id,
+            "post.moderate",
+            Some(&post_board_id),
+            AUTHZ_POLICY_VERSION,
+        )
+        .await
+        .map(|d| d.is_allowed())
+        .unwrap_or(false);
+
+        if !is_admin && !is_moderator {
+            return Err(AppError::forbidden(
+                "post.moderate permission required for delegated edit",
+                request_id,
+            ));
+        }
+        is_admin
+    } else {
+        false
+    };
+
     // If-Match 版本校验
     let expected_version: i64 = headers
         .get(header::IF_MATCH)
@@ -1662,10 +1815,6 @@ async fn update_post(
         .map_err(|_| {
             AppError::bad_request("If-Match must be an integer version", request_id, None)
         })?;
-
-    // 加载帖子（含作者）
-    let post = get_post_row(pool, &id, request_id).await?;
-    let post = post.ok_or_else(|| AppError::not_found("post not found", request_id))?;
 
     // 字段校验（PATCH 语义：仅当提供时校验）
     let title = req
@@ -1702,26 +1851,7 @@ async fn update_post(
         }
     }
 
-    // 权限判定：作者本人；管理员或版主（post.moderate / admin.manage）
-    let (post_author_id, _post_status, _post_version, _post_updated_at) = post;
-    let is_owner = post_author_id == user.id;
     if !is_owner {
-        let is_admin = authorize_action(pool, &user.id, "admin.manage", None, AUTHZ_POLICY_VERSION)
-            .await
-            .map(|d| d.is_allowed())
-            .unwrap_or(false);
-        let is_moderator =
-            authorize_action(pool, &user.id, "post.moderate", None, AUTHZ_POLICY_VERSION)
-                .await
-                .map(|d| d.is_allowed())
-                .unwrap_or(false);
-
-        if !is_admin && !is_moderator {
-            return Err(AppError::forbidden(
-                "post.moderate permission required for delegated edit",
-                request_id,
-            ));
-        }
         let reason = req.reason.as_deref().unwrap_or("").trim();
         if reason.is_empty() {
             return Err(AppError::bad_request(
@@ -1862,33 +1992,33 @@ fn session_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String>
     })
 }
 
-/// 读取帖子元数据行（含作者）。
+/// 读取帖子元数据行（含作者与板块）。
 async fn get_post_row(
     pool: &DatabasePool,
     id: &str,
     request_id: &'static str,
-) -> Result<Option<(String, String, i64, i64)>, AppError> {
-    // (author_id, status, version, updated_at)
-    let row: Option<(String, String, i64, i64)> = match pool {
+) -> Result<Option<(String, String, String, i64, i64)>, AppError> {
+    // (author_id, board_id, status, version, updated_at)
+    let row: Option<(String, String, String, i64, i64)> = match pool {
         Either::Left(p) => sqlx::query_as(
-            "SELECT author_id, status, version, updated_at FROM posts WHERE id = ? AND deleted_at IS NULL",
+            "SELECT author_id, board_id, status, version, updated_at FROM posts WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(p)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?,
         Either::Right(p) => sqlx::query_as(
-            "SELECT author_id, status, version, updated_at FROM posts WHERE id = ? AND deleted_at IS NULL",
+            "SELECT author_id, board_id, status, version, updated_at FROM posts WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id)
         .fetch_optional(p)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?,
     };
-    let Some((author_id, status, version, updated_at)) = row else {
+    let Some((author_id, board_id, status, version, updated_at)) = row else {
         return Ok(None);
     };
-    Ok(Some((author_id, status, version, updated_at)))
+    Ok(Some((author_id, board_id, status, version, updated_at)))
 }
 
 /// GET /api/v1/posts/{id}/comments — 列出评论（keyset 分页 + 软删占位，M04-COMMENTS-04）
@@ -2322,9 +2452,18 @@ async fn toggle_reaction(
     let reaction = payload
         .map(|Json(p)| p.reaction)
         .unwrap_or_else(default_reaction);
+    // 基础点赞（like / 👍）为全员免费互动；仅特殊反应包才消耗 reaction_pack
+    let require_pack = !matches!(reaction.as_str(), "like" | "👍");
     // toggle：先尝试添加；已存在则移除。
-    match crate::reactions::service::add_reaction(pool, &user.id, "post", &id, &reaction, false)
-        .await
+    match crate::reactions::service::add_reaction(
+        pool,
+        &user.id,
+        "post",
+        &id,
+        &reaction,
+        require_pack,
+    )
+    .await
     {
         Ok(summary) => {
             // 作者查询（被赞方；供活跃奖励与成就钩子共用）。

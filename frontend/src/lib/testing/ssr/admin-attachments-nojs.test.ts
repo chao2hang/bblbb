@@ -71,4 +71,26 @@ describe('M18-ADMIN-OPS 附件管理 SSR（约定 D）', () => {
     expect(body).toContain('action="?/banUser"');
     expect(body).toContain('name="username"');
   });
+
+  it('403 step_up_required → 渲染 re-auth 密码确认弹窗（M02-MFA-07，不再只报错）', () => {
+    const { body } = render(AdminAttachmentsPage, {
+      props: {
+        data: okData,
+        form: {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        }
+      }
+    });
+    expect(body).toContain('需要重新验证身份');
+    expect(body).toContain('name="password"');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/reauth"/);
+    expect(body).toContain('重新验证');
+  });
+
+  it('form 为 null → 不渲染 re-auth 弹窗', () => {
+    const { body } = render(AdminAttachmentsPage, { props: { data: okData, form: null } });
+    expect(body).not.toContain('需要重新验证身份');
+    expect(body).not.toMatch(/<form[^>]*action="\?\/reauth"/);
+  });
 });

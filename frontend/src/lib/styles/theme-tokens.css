@@ -149,6 +149,7 @@ html.dark .theme-preview-scope {
   --radius-md: var(--bb-radius-control, 8px) !important;
   --radius-lg: var(--bb-radius-card, 12px) !important;
   --radius-xl: var(--bb-radius-card, 16px) !important;
+  --avatar-radius: 50% !important;
 
   /* 间距密度：--bb-density-scale 由 projection 从 closed 枚举派生（0.85/1/1.2） */
   --space-1: calc(4px * var(--bb-density-scale, 1)) !important;
@@ -178,4 +179,10 @@ html.dark .theme-preview-scope {
   --duration-fast: 0ms !important;
   --duration-base: 0ms !important;
   --duration-slow: 0ms !important;
+}
+
+/* ---------- 区块 E：主题头像圆角联动（非圆角主题如 chinese-elegance 设为 0） ---------- */
+:root[data-theme-name="chinese-elegance"],
+.theme-preview-scope[data-theme-name="chinese-elegance"] {
+  --avatar-radius: 0 !important;
 }

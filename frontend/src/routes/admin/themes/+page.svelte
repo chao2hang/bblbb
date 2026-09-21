@@ -36,6 +36,15 @@
     hasJs = true;
   });
 
+  // —— step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示 ——
+  let reauthLoading = $state(false);
+  let reauthCancelled = $state(false);
+  let reauthError = $state<string | null>(null);
+
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
+  });
+
   // 官方高质量预置主题包（收录原版官方默认配色与各风格主题）。
   // 全部 6 个官方包均为**日/夜双模式**：日间 6 色 + 夜间 6 色（color.*.dark
   // 可选变体，封闭 schema v1.1）。站点亮色模式取日间板，暗色模式（html.dark）
@@ -1238,6 +1247,48 @@ console.log(`Current theme revision: v${'{'}activeTheme.revision{'}'}`);</code><
       <input type="text" name="reason" class="input-field" bind:value={uploadReason} required placeholder="必填：如上传新版社区定制暗色主题" />
     </label>
     <Button text="上传主题" variant="primary" size="sm" type="submit" />
+  </form>
+</Dialog>
+
+<!-- step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示。
+     无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="主题管理属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，可继续刚才的操作。"
+  onclose={() => (reauthCancelled = true)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'failure') {
+          reauthError = (result.data as unknown as AdminThemesActionData | null)?.message ?? '密码验证失败，请重试';
+          return;
+        }
+        toastActionResult(result);
+        await update();
+      };
+    }}
+    style="display:flex;flex-direction:column;gap:10px;"
+  >
+    <div>
+      <label class="input-label" for="theme-reauth-password">当前账号密码</label>
+      <input class="input-field" type="password" id="theme-reauth-password" name="password" autocomplete="current-password" required />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
+    </div>
   </form>
 </Dialog>
 

@@ -15,6 +15,7 @@
    ========================================== */
 :root {
   /* 本层组件规则引用、tokens.css 未定义的几何桥接变量 */
+  --avatar-radius: 0;
   --radius-none: 0;
   --color-bg-hover: var(--color-surface-hover);
   --color-border-dark: var(--color-border-strong);
@@ -61,6 +62,18 @@ body {
   font-weight: 600 !important;
   border: 1px solid var(--color-border) !important;
   box-shadow: none !important;
+}
+
+/* 本主题默认头像为方形契约（--avatar-radius: 0）；未装备或装备头像框均保持方形，
+   头像边框根据主题的用户头像样式联动，主题为方形时边框也跟随保持方形。 */
+.cosmetic-avatar {
+  --avatar-radius: 0;
+}
+
+:root[data-theme-name="chinese-elegance"],
+html[data-theme-name="chinese-elegance"],
+.theme-preview-scope[data-theme-name="chinese-elegance"] {
+  --avatar-radius: 0 !important;
 }
 
 /* ========== 标题：全部宋体 ========== */
@@ -639,6 +652,7 @@ body:has(#page-login:not([hidden])) {
 .topic-editor { border-top: 1px solid var(--color-border) !important; padding: 16px !important; }
 .topic-editor textarea { min-height: 120px !important; width: 100% !important; resize: vertical !important; }
 .topic-restricted { border: 1px dashed var(--color-border-strong) !important; border-radius: 2px !important; background: var(--color-bg-subtle) !important; }
+.topic-unlocked, .restricted-unlocked { border-radius: 2px !important; }
 
 /* Admin table layout */
 .app-table-wrap { overflow-x: auto !important; border: 1px solid var(--color-border) !important; }
@@ -858,7 +872,7 @@ body:has(#page-login:not([hidden])) {
 
 
 /* Tabs, toggles and status controls retain a usable hit target. */
-.app-filter-tabs button, .notif-tabs button, .app-settings-nav button { min-height: 44px !important; }
+.app-filter-tabs button, .notif-tabs button, .app-settings-nav button, .app-settings-nav a { min-height: 44px !important; }
 .switch {
   width: 44px !important;
   min-width: 44px !important;
@@ -1093,7 +1107,7 @@ body:has(#page-login:not([hidden])) {
 
 /* Search results and settings need a readable mobile surface. */
 @media (max-width: 767px) {
-  #page-search, #page-notifications, #page-settings, #page-market, #page-billing { padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+  #page-search, #page-notifications, #page-settings, #page-settings-privacy, #page-me-security, #page-market, #page-billing { padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
   #page-search .search-panel, #page-notifications .notif-panel { margin-top: 0 !important; }
   #page-search .search-page__query { padding: 12px 14px !important; }
   #page-search .search-panel > .filters { overflow-x: auto !important; }

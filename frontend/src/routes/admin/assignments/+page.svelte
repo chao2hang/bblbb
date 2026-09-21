@@ -64,13 +64,16 @@
   });
 
   // 撤销确认（DangerConfirm + 隐藏表单 requestSubmit）。
+  let isSubmitting = $state(false);
   let revokeTarget: string | null = $state(null);
   let revokeReason = $state('');
+  let revokeError = $state('');
   let revokeForm: HTMLFormElement | undefined = $state();
 
   function openRevoke(role: string): void {
     revokeTarget = role;
     revokeReason = '';
+    revokeError = '';
   }
 
   /** 行「⋮」菜单项（约定 D：单一「撤销角色」动作 → 既有撤销 DangerConfirm 流）。 */
@@ -303,7 +306,9 @@
         method="POST"
         action="?/grant"
         use:enhance={() => {
+          isSubmitting = true;
           return async ({ result, update }) => {
+            isSubmitting = false;
             toastActionResult(result);
             await update({ reset: false });
             if (result.type === 'success') grantOpen = false;
@@ -325,8 +330,8 @@
           <input class="input-field" type="text" id="asg-grant-reason" name="reason" required placeholder="如：接任板块版主" />
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button type="button" class="btn ghost sm" onclick={() => (grantOpen = false)}>取消</button>
-          <Button text="确认授予" variant="primary" size="sm" type="submit" />
+          <button type="button" class="btn ghost sm" onclick={() => (grantOpen = false)} disabled={isSubmitting}>取消</button>
+          <Button text={isSubmitting ? '授予中...' : '确认授予'} variant="primary" size="sm" type="submit" disabled={isSubmitting} />
         </div>
       </form>
     </Dialog>
@@ -337,12 +342,18 @@
       action="?/revoke"
       bind:this={revokeForm}
       use:enhance={() => {
+        isSubmitting = true;
         return async ({ result, update }) => {
+          isSubmitting = false;
           toastActionResult(result);
           await update({ reset: false });
-          selectedRoles.delete(revokeTarget ?? '');
-          selectedRoles = new Set(selectedRoles);
-          revokeTarget = null;
+          if (result.type === 'success') {
+            selectedRoles.delete(revokeTarget ?? '');
+            selectedRoles = new Set(selectedRoles);
+            revokeTarget = null;
+            revokeReason = '';
+            revokeError = '';
+          }
         };
       }}
     >
@@ -356,8 +367,20 @@
       title="撤销角色"
       description={`确认撤销 @${selectedUser.username} 的「${roleLabel(revokeTarget ?? '')}」（${revokeTarget ?? ''}）？撤销写入审计日志。`}
       confirmText="确认撤销"
-      oncancel={() => (revokeTarget = null)}
-      onconfirm={() => revokeForm?.requestSubmit()}
+      busy={isSubmitting}
+      error={revokeError}
+      oncancel={() => {
+        revokeTarget = null;
+        revokeError = '';
+      }}
+      onconfirm={() => {
+        if (!revokeReason.trim()) {
+          revokeError = '撤销原因必填（写入审计日志）';
+          return;
+        }
+        revokeError = '';
+        revokeForm?.requestSubmit();
+      }}
     >
       <label class="input-label" for="asg-revoke-reason">撤销原因（审计必填）</label>
       <input
@@ -381,7 +404,9 @@
         method="POST"
         action="?/batchRevoke"
         use:enhance={() => {
+          isSubmitting = true;
           return async ({ result, update }) => {
+            isSubmitting = false;
             toastActionResult(result);
             await update({ reset: false });
             if (result.type === 'success') {
@@ -406,8 +431,8 @@
           />
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button type="button" class="btn ghost sm" onclick={() => (batchRevokeOpen = false)}>取消</button>
-          <Button text="确认批量撤销" variant="danger" size="sm" type="submit" />
+          <button type="button" class="btn ghost sm" onclick={() => (batchRevokeOpen = false)} disabled={isSubmitting}>取消</button>
+          <Button text={isSubmitting ? '撤销中...' : '确认批量撤销'} variant="danger" size="sm" type="submit" disabled={isSubmitting} />
         </div>
       </form>
     </Dialog>

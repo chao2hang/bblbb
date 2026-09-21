@@ -643,9 +643,10 @@ async fn require_moderation_perm(
     pool: &crate::db::DatabasePool,
     user_id: &str,
     permission: &str,
+    board_id: Option<&str>,
     request_id: &'static str,
 ) -> Result<(), AppError> {
-    let decision = authorize_action(pool, user_id, permission, None, AUTHZ_POLICY_VERSION)
+    let decision = authorize_action(pool, user_id, permission, board_id, AUTHZ_POLICY_VERSION)
         .await
         .map_err(|e| AppError::internal(e, request_id))?;
     if !decision.is_allowed() {
@@ -660,10 +661,10 @@ async fn require_moderation_perm(
 async fn require_moderation(
     pool: &crate::db::DatabasePool,
     user_id: &str,
-    _board_id: Option<&str>,
+    board_id: Option<&str>,
     request_id: &'static str,
 ) -> Result<(), AppError> {
-    require_moderation_perm(pool, user_id, "moderation.review", request_id).await
+    require_moderation_perm(pool, user_id, "moderation.review", board_id, request_id).await
 }
 
 #[derive(serde::Deserialize)]
@@ -1003,7 +1004,7 @@ async fn decide_moderation_appeal(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
-    require_moderation_perm(pool, &user.id, "moderation.sanction", request_id).await?;
+    require_moderation_perm(pool, &user.id, "moderation.sanction", None, request_id).await?;
 
     let decision = AppealDecisionValue::parse(&req.decision).ok_or_else(|| {
         AppError::bad_request(
@@ -1050,7 +1051,14 @@ async fn create_sanction(
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     // 版主范围在 API 再校验（moderation.sanction；板块范围按 board_id）。
-    require_moderation_perm(pool, &user.id, "moderation.sanction", request_id).await?;
+    require_moderation_perm(
+        pool,
+        &user.id,
+        "moderation.sanction",
+        req.board_id.as_deref(),
+        request_id,
+    )
+    .await?;
 
     let kind = crate::moderation::model::SanctionKind::parse(&req.kind).ok_or_else(|| {
         AppError::bad_request(

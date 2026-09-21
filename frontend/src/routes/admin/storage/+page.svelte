@@ -457,6 +457,7 @@
         <button
           type="submit"
           formaction="?/test"
+          formnovalidate
           class="btn secondary"
           style="flex:1;"
         >

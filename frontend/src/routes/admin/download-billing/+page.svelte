@@ -295,12 +295,13 @@
             <th>用户</th>
             <th style="width:100px;">状态</th>
             <th>扣费金额</th>
+            <th style="width:160px;">时间</th>
           </tr>
         </thead>
         <tbody>
           {#if displayedRecords.length === 0}
             <tr>
-              <td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
+              <td colspan="6" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
                 当前筛选下没有计费记录
               </td>
             </tr>
@@ -318,12 +319,25 @@
                   </span>
                 </td>
                 <td><b>{record.size}</b></td>
+                <td>
+                  <span style="font-size:12px;color:var(--color-text-secondary);">
+                    {record.created_at ? new Date(record.created_at).toLocaleString('zh-CN') : '—'}
+                  </span>
+                </td>
               </tr>
             {/each}
           {/if}
         </tbody>
       </table>
     </div>
+
+    {#if data.transactions?.nextCursor}
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <a class="btn secondary sm" href={`/admin/download-billing?after=${encodeURIComponent(data.transactions.nextCursor)}`}>
+          下一页 →
+        </a>
+      </div>
+    {/if}
 
     <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
       <button type="button" class="btn secondary sm" onclick={exportBilling}>

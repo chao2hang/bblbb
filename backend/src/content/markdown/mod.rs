@@ -12,6 +12,7 @@
 //! - [`excerpt::render_excerpt`]：公开安全摘要（M04-MARKDOWN-06）。
 
 pub mod excerpt;
+pub mod inline_reply;
 pub mod policy;
 pub mod render;
 pub mod rerender;

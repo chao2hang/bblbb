@@ -22,6 +22,7 @@
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import SafeHtml from '$lib/components/SafeHtml.svelte';
   import { adminStateLabel } from '$lib/admin';
   import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminPostItem } from '$lib/api/types';
@@ -46,6 +47,10 @@
     'restore',
     'feature',
     'unfeature',
+    'pin',
+    'unpin',
+    'lock',
+    'unlock',
     'delete'
   ] as const;
   type ModerateAction = (typeof MODERATE_ACTIONS)[number];
@@ -65,15 +70,24 @@
       ];
     }
     if (item.status === 'published') {
-      return item.is_featured
-        ? [
-            { action: 'unfeature', label: '取消精华' },
-            { action: 'hide', label: '隐藏', danger: true }
-          ]
-        : [
-            { action: 'feature', label: '设为精华' },
-            { action: 'hide', label: '隐藏', danger: true }
-          ];
+      const opts: OpsOption[] = [];
+      opts.push(
+        item.is_featured
+          ? { action: 'unfeature', label: '取消精华' }
+          : { action: 'feature', label: '设为精华' }
+      );
+      opts.push(
+        item.is_pinned
+          ? { action: 'unpin', label: '取消置顶' }
+          : { action: 'pin', label: '置顶' }
+      );
+      opts.push(
+        item.is_locked
+          ? { action: 'unlock', label: '解除锁定' }
+          : { action: 'lock', label: '锁定（禁评）' }
+      );
+      opts.push({ action: 'hide', label: '隐藏', danger: true });
+      return opts;
     }
     if (item.status === 'hidden') {
       return [
@@ -181,15 +195,20 @@
   }
 
   // M18：复选框与批量选择状态（对齐原型后台表格）
+  let submitting = $state(false);
   let selectedIds = $state<string[]>([]);
-  let allSelected = $derived(
-    displayedItems.length > 0 && selectedIds.length === displayedItems.length
+  const allSelected = $derived(
+    displayedItems.length > 0 && displayedItems.every((item) => selectedIds.includes(item.id))
+  );
+  const someSelected = $derived(
+    displayedItems.some((item) => selectedIds.includes(item.id))
   );
   function toggleAll() {
     if (allSelected) {
-      selectedIds = [];
+      selectedIds = selectedIds.filter((id) => !displayedItems.some((i) => i.id === id));
     } else {
-      selectedIds = displayedItems.map((i) => i.id);
+      const currentIds = displayedItems.map((i) => i.id);
+      selectedIds = Array.from(new Set([...selectedIds, ...currentIds]));
     }
   }
   function toggleRow(id: string) {
@@ -218,6 +237,66 @@
     opsTarget = null;
   }
 
+  /** 帖子预览 Dialog 状态（点击标题在后台弹窗内直接预览，免去跳转前台） */
+  let previewTarget = $state<AdminPostItem | null>(null);
+  let previewLoading = $state(false);
+  let previewData = $state<{
+    title?: string;
+    body_html?: string | null;
+    tags?: string[];
+    status?: string;
+    created_at?: number;
+    reply_count?: number;
+    view_count?: number;
+    author?: { username?: string; display_name?: string | null };
+  } | null>(null);
+  let previewError = $state<string | null>(null);
+
+  async function openPreview(item: AdminPostItem): Promise<void> {
+    previewTarget = item;
+    previewLoading = true;
+    previewError = null;
+    previewData = null;
+
+    try {
+      const res = await fetch(`/api/v1/posts/${encodeURIComponent(item.id)}`, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) {
+        // 若端点异常，尝试通过 admin/posts/{id}/revisions 读取最新修订正文
+        const revRes = await fetch(`/api/v1/admin/posts/${encodeURIComponent(item.id)}/revisions`, {
+          headers: { Accept: 'application/json' }
+        });
+        if (revRes.ok) {
+          const revJson = await revRes.json();
+          const items = revJson?.items ?? [];
+          const latest = items[items.length - 1];
+          previewData = {
+            title: item.title,
+            body_html: latest?.body_html ?? null,
+            created_at: item.created_at,
+            status: item.status
+          };
+        } else {
+          previewError = `加载失败（HTTP ${res.status}）`;
+        }
+      } else {
+        const json = await res.json();
+        previewData = json;
+      }
+    } catch (e: any) {
+      previewError = e?.message || '网络请求失败';
+    } finally {
+      previewLoading = false;
+    }
+  }
+
+  function closePreview(): void {
+    previewTarget = null;
+    previewData = null;
+    previewError = null;
+  }
+
   /** 行「⋮」菜单项（按行状态给出可用动作）；已发布帖的「代改」也收进菜单。 */
   function rowActions(item: AdminPostItem): RowActionItem[] {
     const actions: RowActionItem[] = opsOptionsFor(item).map((option) => ({
@@ -225,6 +304,12 @@
       danger: option.danger,
       run: () => openOps(item, option.action)
     }));
+    if (item.status === 'pending_review') {
+      actions.unshift({
+        label: '版本对比审核',
+        run: () => goto(`/admin/content?post=${encodeURIComponent(item.id)}`)
+      });
+    }
     if (item.status === 'published') {
       // 代改为 GET 导航（与原 <a> 链接同语义），点菜单项后客户端跳转编辑器。
       actions.push({
@@ -232,6 +317,11 @@
         run: () => goto(`/editor?post_id=${encodeURIComponent(item.id)}`)
       });
     }
+    // 查看原帖：收敛在操作菜单中（支持在新标签页前台预览，即使已删除/待审核，管理员也可正常访问）
+    actions.push({
+      label: '前台查看原帖',
+      run: () => window.open(`/posts/${encodeURIComponent(item.id)}`, '_blank')
+    });
     return actions;
   }
 
@@ -370,14 +460,17 @@
                       aria-label="选择帖子 {item.id}"
                     />
                   </td>
-                  <td>
-                    <b>{item.title || '（无标题）'}</b>
+                  <td style="min-width:240px;">
+                    <button
+                      type="button"
+                      class="admin-post-title-btn"
+                      onclick={() => openPreview(item)}
+                      style="background:none;border:none;padding:0;font:inherit;text-align:left;cursor:pointer;color:var(--color-text-primary);font-weight:600;display:inline-block;"
+                      title="点击在弹窗中预览帖子"
+                    >
+                      <span class="admin-post-title-text" style="text-decoration:underline;text-underline-offset:3px;">{item.title || '（无标题）'}</span>
+                    </button>
                     {#if item.status === 'hidden'}<span class="text-secondary" style="font-size:11px;margin-left:6px;">已被隐藏</span>{/if}
-                    <span class="sub" style="display:block;margin-top:3px;">
-                      <a class="app-link" href="/posts/{item.id}" target="_blank" rel="noopener noreferrer" style="font-size:11px;">
-                        查看原帖
-                      </a>
-                    </span>
                   </td>
                   <td>
                     <span style="font-weight:500;">{item.author_username}</span>
@@ -429,7 +522,7 @@
                 { key: 'time', label: '时间' }
               ]}
               getData={() =>
-                (data.items ?? []).map((item) => ({
+                displayedItems.map((item) => ({
                   id: item.id,
                   title: item.title,
                   author: item.author_username,
@@ -459,10 +552,12 @@
     method="POST"
     action="?/moderate"
     use:enhance={() => {
+      submitting = true;
       return async ({ result, update }) => {
+        submitting = false;
         toastActionResult(result);
         await update();
-        closeOps();
+        if (result.type === 'success') closeOps();
       };
     }}
   >
@@ -481,10 +576,11 @@
       />
     </div>
     <Button
-      text={opsSelected?.danger ? `确认${opsSelected.label}` : '确认执行'}
+      text={submitting ? '提交中...' : (opsSelected?.danger ? `确认${opsSelected.label}` : '确认执行')}
       variant={opsSelected?.danger ? 'danger' : 'primary'}
       size="sm"
       type="submit"
+      disabled={submitting}
     />
   </form>
 </Dialog>
@@ -500,11 +596,15 @@
     method="POST"
     action="?/batchModerate"
     use:enhance={() => {
+      submitting = true;
       return async ({ result, update }) => {
+        submitting = false;
         toastActionResult(result);
         await update();
-        selectedIds = [];
-        batchOpen = false;
+        if (result.type === 'success') {
+          selectedIds = [];
+          batchOpen = false;
+        }
       };
     }}
   >
@@ -528,6 +628,105 @@
         placeholder="必填"
       />
     </div>
-    <Button text="执行批量审核" variant="primary" size="sm" type="submit" />
+    <Button text={submitting ? '执行中...' : '执行批量审核'} variant="primary" size="sm" type="submit" disabled={submitting} />
   </form>
+</Dialog>
+
+<!-- 帖子内容预览 Dialog（点击列表标题直接在后台弹窗预览，免去跳出后台） -->
+<Dialog
+  open={previewTarget !== null}
+  title={previewTarget?.title || '帖子预览'}
+  description={previewTarget ? `作者：${previewTarget.author_username || '匿名'} · 板块：${previewTarget.board_name || previewTarget.board_slug || '综合'} · 状态：${statusBadgeInfo(previewTarget).label}` : ''}
+  size="lg"
+  onclose={closePreview}
+>
+  <div class="admin-post-preview-modal" style="display:flex;flex-direction:column;gap:var(--space-4);min-height:220px;max-height:65vh;overflow-y:auto;padding-right:4px;">
+    {#if previewLoading}
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 0;color:var(--color-text-secondary);gap:12px;">
+        <Icon name="loader" size={24} />
+        <span>正在加载帖子正文...</span>
+      </div>
+    {:else if previewError}
+      <div style="padding:16px 20px;border-radius:var(--radius-md, 6px);background:rgba(239, 68, 68, 0.08);border:1px solid rgba(239, 68, 68, 0.25);color:var(--color-danger, #ef4444);display:flex;align-items:center;gap:10px;">
+        <Icon name="alert-triangle" size={18} />
+        <span>{previewError}</span>
+      </div>
+    {:else if previewData}
+      <!-- 元信息卡片 -->
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;background:var(--color-bg-subtle, rgba(255,255,255,0.04));border-radius:var(--radius-sm, 6px);border:1px solid var(--color-border);font-size:12px;color:var(--color-text-secondary);">
+        <span>创建时间：{formatDateTime(previewData.created_at || previewTarget?.created_at)}</span>
+        {#if typeof previewData.view_count === 'number'}
+          <span>浏览量：{previewData.view_count}</span>
+        {/if}
+        {#if typeof previewData.reply_count === 'number'}
+          <span>回复数：{previewData.reply_count}</span>
+        {/if}
+        {#if previewData.tags && previewData.tags.length > 0}
+          <span style="display:inline-flex;gap:4px;align-items:center;">
+            标签：
+            {#each previewData.tags as tag}
+              <span class="sbadge sb-gray" style="font-size:10px;">{tag}</span>
+            {/each}
+          </span>
+        {/if}
+      </div>
+
+      <!-- 正文内容区 -->
+      <div class="reading-body post-content" style="padding:16px;background:var(--color-bg-page);border-radius:var(--radius-md, 6px);border:1px solid var(--color-border);line-height:1.7;min-height:120px;">
+        {#if previewData.body_html}
+          <SafeHtml html={previewData.body_html} />
+        {:else}
+          <div style="color:var(--color-text-tertiary);font-style:italic;text-align:center;padding:32px 0;">（该帖子暂无正文或内容为空）</div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+
+  {#snippet footer()}
+    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+      <div>
+        {#if previewTarget}
+          <a
+            class="btn secondary sm"
+            href={`/posts/${previewTarget.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style="display:inline-flex;align-items:center;gap:6px;"
+          >
+            <Icon name="external-link" size={14} />
+            <span>在新窗口查看原帖</span>
+          </a>
+        {/if}
+      </div>
+      <div style="display:flex;gap:8px;">
+        {#if previewTarget && previewTarget.status === 'pending_review'}
+          <button
+            type="button"
+            class="btn primary sm"
+            onclick={() => {
+              const t = previewTarget;
+              closePreview();
+              if (t) openOps(t, 'approve');
+            }}
+          >
+            审核通过
+          </button>
+          <button
+            type="button"
+            class="btn danger sm"
+            onclick={() => {
+              const t = previewTarget;
+              closePreview();
+              if (t) openOps(t, 'reject');
+            }}
+          >
+            驳回
+          </button>
+        {/if}
+        <button type="button" class="btn secondary sm" onclick={closePreview}>
+          关闭
+        </button>
+      </div>
+    </div>
+  {/snippet}
 </Dialog>

@@ -141,7 +141,7 @@
             {#each displayedItems as item (item.id)}
               <tr>
                 <td><span style="font-size:12px;white-space:nowrap;color:var(--color-text-secondary);">{formatShortTime(item.created_at)}</span></td>
-                <td><b style="font-size:13px;">{item.actor_username || 'Chaos'}</b></td>
+                <td><b style="font-size:13px;">{item.actor_username || 'system'}</b></td>
                 <td>
                   <span style="font-size:13px;line-height:1.4;">{actionFriendlyLabel(item.action, item.detail)}</span>
                 </td>
@@ -151,6 +151,17 @@
         </tbody>
       </table>
     </div>
+
+    <nav aria-label="分页" style="display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-3);">
+      {#if data.after}
+        <a class="btn btn-secondary btn-sm" href={data.q ? `/admin/audit?q=${encodeURIComponent(data.q)}` : '/admin/audit'}>回到第一页</a>
+      {/if}
+      {#if data.nextCursor}
+        <a class="btn btn-secondary btn-sm" href={`/admin/audit?${data.q ? `q=${encodeURIComponent(data.q)}&` : ''}after=${encodeURIComponent(data.nextCursor)}`}>下一页 →</a>
+      {:else if displayedItems.length > 0}
+        <span class="text-secondary" style="font-size:var(--text-sm);">没有更多日志了</span>
+      {/if}
+    </nav>
 
     <!-- 原型底部按钮（导出 CSV + 清空日志） -->
     <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;gap:10px;">
@@ -165,7 +176,7 @@
         getData={() =>
           displayedItems.map((item) => ({
             time: formatShortTime(item.created_at),
-            actor: item.actor_username || 'Chaos',
+            actor: item.actor_username || 'system',
             action: actionFriendlyLabel(item.action, item.detail)
           }))}
       />

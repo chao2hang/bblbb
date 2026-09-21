@@ -232,7 +232,7 @@
         <div class="app-card__body">
           <div class="admin-action-row">
             <a class="btn primary sm" href="/admin/moderation/cases">处理举报</a>
-            <a class="btn secondary sm" href="/admin/points">调整积分</a>
+            <a class="btn secondary sm" href="/admin/content">内容审核</a>
             <a class="text-link dash-inline-action" href="/admin/settings">系统设置</a>
           </div>
         </div>

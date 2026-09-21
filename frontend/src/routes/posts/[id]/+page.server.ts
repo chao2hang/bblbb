@@ -21,6 +21,9 @@ export interface PostViewerExtras {
   favorite_count?: number;
   /** 付费解锁价格（posts.price_coin；后端未投影时缺失）。 */
   price_coin?: number;
+  /** 管理员预览模式（成熟论坛规范：管理员可前台查看待审核/草稿/已删除内容）。 */
+  is_moderator_view?: boolean;
+  deleted_at?: number | null;
 }
 
 /** 页面用的详情类型 = 既有安全投影 + viewer 聚合（不进 types.ts）。 */
@@ -33,8 +36,10 @@ export interface AuthorCardData {
   display_name: string | null;
   level: number;
   signature: string | null;
-  /** 公开装扮投影（M07-SHOP-SCHEMA-06）：服务端编译的白名单 Token。 */
-  presentation_tokens: Record<string, string | string[]> | null;
+  /** 公开装扮投影（M07-SHOP-SCHEMA-06）：服务端编译的白名单 Token；
+   *  值除字符串/字符串数组外还含 `*_style` 对象（如渐变昵称的完整样式），
+   *  后端已是公开安全投影，此处按原样透传，不再按值类型过滤。 */
+  presentation_tokens: PublicPresentationTokens | null;
   /** 上传头像附件引用（公开；侧栏「关于作者」头像直渲图片）。 */
   avatar_attachment_id: string | null;
   post_count: number;
@@ -158,13 +163,7 @@ function pickAuthorCard(raw: unknown): AuthorCardData | null {
   const rawTokens = a.presentation_tokens;
   const presentationTokens =
     rawTokens && typeof rawTokens === 'object' && !Array.isArray(rawTokens)
-      ? (Object.fromEntries(
-          Object.entries(rawTokens as Record<string, unknown>).filter(
-            ([k, v]) =>
-              typeof k === 'string' &&
-              (typeof v === 'string' || (Array.isArray(v) && v.every((x) => typeof x === 'string')))
-          )
-        ) as Record<string, string | string[]>)
+      ? (rawTokens as PublicPresentationTokens)
       : null;
   return {
     username: a.username,
@@ -217,7 +216,9 @@ export const load: PageServerLoad = async ({ params, cookies, request }) => {
   const post: PostDetailPagePost = {
     ...pickPost(result.data),
     viewer_favorited: raw.viewer_favorited === true,
-    favorite_count: typeof raw.favorite_count === 'number' ? raw.favorite_count : 0
+    favorite_count: typeof raw.favorite_count === 'number' ? raw.favorite_count : 0,
+    is_moderator_view: raw.is_moderator_view === true,
+    deleted_at: typeof raw.deleted_at === 'number' ? raw.deleted_at : null
   };
   if (typeof raw.price_coin === 'number') post.price_coin = raw.price_coin;
 

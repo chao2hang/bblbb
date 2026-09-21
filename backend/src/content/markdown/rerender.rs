@@ -53,7 +53,11 @@ pub struct RenderedContent {
 ///   （restricted）绝不参与（M04-MARKDOWN-06）；
 /// - `renderer_version` = [`policy_version`]（renderer+sanitizer 组合版本）。
 pub fn render_content(body_markdown: &str, restricted_markdown: Option<&str>) -> RenderedContent {
-    let body_html = render_and_sanitize(body_markdown);
+    let body_html = if super::inline_reply::has_inline_reply(body_markdown) {
+        super::inline_reply::render_with_inline_reply(body_markdown, false)
+    } else {
+        render_and_sanitize(body_markdown)
+    };
     let restricted_html = restricted_markdown.map(render_and_sanitize);
     let excerpt = render_public_excerpt(body_markdown, restricted_markdown);
     RenderedContent {

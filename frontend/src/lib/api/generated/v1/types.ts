@@ -479,6 +479,52 @@ export interface ShopOrderCreate {
   quantity: number;
   client_request_id: string;
 }
+export interface AdminStudioPublishRequest {
+  cosmetic: {
+    id?: string;
+    kind: "nickname_color" | "avatar_frame" | "cosmetic_badge" | "profile_effect" | "post_effect" | "reaction_pack" | "utility" | "title_prefix";
+    name?: string;
+    style?: Record<string, unknown>;
+  };
+  product: {
+    title: string;
+    slug?: string;
+    unit_price: number;
+    stock_remaining?: number;
+    required_level?: number;
+    quantity_limit?: number;
+    validity_seconds?: number;
+    sale_start_at?: number;
+    sale_end_at?: number;
+    refund_policy?: "non_refundable" | "compensation_only" | "full_refund";
+    status?: "draft" | "published";
+    description_safe?: string;
+    asset_attachment_id?: string;
+    currency_id?: string;
+  };
+  reason?: string;
+  client_request_id?: string;
+}
+export interface AdminStudioPublishResponse {
+  cosmetic?: {
+    id?: string;
+    kind?: string;
+    name?: string;
+    style?: Record<string, unknown>;
+    status?: "active" | "archived";
+    updatedAt?: number;
+  };
+  product?: {
+    id?: string;
+    kind?: string;
+    slug?: string;
+    title?: string;
+    status?: string;
+    unit_price?: number;
+    validity_seconds?: number;
+  };
+  replayed?: boolean;
+}
 export interface AiConsentCreate {
   provider_id: string;
   purpose: string;

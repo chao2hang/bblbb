@@ -24,7 +24,7 @@
   ].join(',');
 
   let {
-    open = false,
+    open = $bindable(false),
     title = '',
     description = '',
     closeLabel = '关闭',
@@ -37,7 +37,7 @@
     title?: string;
     description?: string;
     closeLabel?: string;
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'sm' | 'md' | 'lg' | 'xl';
     onclose?: () => void;
     children?: Snippet;
     footer?: Snippet;

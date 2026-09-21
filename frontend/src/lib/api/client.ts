@@ -52,6 +52,8 @@ import type {
   ShopConfig,
   ShopOrder,
   ShopProduct,
+  CosmeticDef,
+  CosmeticDefStyle,
   StorageConfig,
   StorageConfigPatch,
   StorageTestResult,
@@ -101,7 +103,9 @@ import type {
   AdminDownloadTxItem,
   BroadcastItem,
   TrustLevelProgress,
-  TrustReadTimeResult
+  TrustReadTimeResult,
+  MentionSuggestionItem,
+  MentionSuggestionsResult
 } from './types';
 import type { Problem } from '../errors';
 import { normalizeSearchPage } from '../search';
@@ -115,6 +119,8 @@ import type {
 export type {
   User,
   Board,
+  MentionSuggestionItem,
+  MentionSuggestionsResult,
   PostSummary,
   PostDetail,
   Comment,
@@ -526,6 +532,22 @@ export async function deleteComment(fetchFn: typeof fetch, id: string): Promise<
 
 export async function getUser(fetchFn: typeof fetch, username: string): Promise<PublicProfile> {
   return request(fetchFn, `/users/${username}`);
+}
+
+/** GET /api/v1/users/suggest：@ 提及用户模糊联想搜索（最多 5 条，支持优先展示昵称与账号匹配）。 */
+export async function suggestMentionUsers(
+  fetchFn: typeof fetch,
+  q?: string,
+  limit: number = 5
+): Promise<MentionSuggestionsResult> {
+  const params = new URLSearchParams();
+  if (q !== undefined && q !== null) {
+    const trimmed = q.trim();
+    if (trimmed) params.set('q', trimmed);
+  }
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  return request(fetchFn, `/users/suggest${qs ? `?${qs}` : ''}`);
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────
@@ -968,6 +990,7 @@ export interface ReactionUserItem {
   username: string;
   display_name: string;
   avatar_attachment_id?: string | null;
+  presentation_tokens?: import('./types').PublicPresentationTokens | null;
   reaction: string;
   created_at: number;
 }
@@ -1143,6 +1166,40 @@ export async function listAdminShopProducts(fetchFn: typeof fetch): Promise<Shop
     '/admin/shop/products'
   );
   return Array.isArray(data) ? data : (data.items ?? []);
+}
+
+// ── 可配置装扮样式库（M07-SHOP-UI-10）─────────────────────────────────────
+
+/** GET /api/v1/admin/shop/cosmetics：全部样式定义（含归档）。 */
+export async function listAdminCosmetics(fetchFn: typeof fetch): Promise<CosmeticDef[]> {
+  const data = await request<{ cosmetics?: CosmeticDef[] }>(fetchFn, '/admin/shop/cosmetics');
+  return data.cosmetics ?? [];
+}
+
+/** GET /api/v1/shop/cosmetics：active 样式定义（衣柜标签/商品预览解析用）。 */
+export async function listPublicCosmetics(fetchFn: typeof fetch): Promise<CosmeticDef[]> {
+  const data = await request<{ cosmetics?: CosmeticDef[] }>(fetchFn, '/shop/cosmetics');
+  return data.cosmetics ?? [];
+}
+
+/** POST /api/v1/admin/shop/cosmetics：新建样式定义（自己起名 + 结构化样式）。 */
+export async function createAdminCosmetic(
+  fetchFn: typeof fetch,
+  body: { kind: string; name: string; style: CosmeticDefStyle; reason?: string }
+): Promise<CosmeticDef> {
+  return request(fetchFn, '/admin/shop/cosmetics', { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** PATCH /api/v1/admin/shop/cosmetics/{id}：改名/改样式/归档恢复。 */
+export async function updateAdminCosmetic(
+  fetchFn: typeof fetch,
+  id: string,
+  body: { name?: string; style?: CosmeticDefStyle; status?: string; reason?: string }
+): Promise<CosmeticDef> {
+  return request(fetchFn, `/admin/shop/cosmetics/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
 }
 
 /** POST /api/v1/admin/shop/products：新建商品。 */
@@ -1759,7 +1816,7 @@ export async function listFollowers(
   username: string,
   after?: string | null,
   limit?: number
-): Promise<PageResult<{ username: string; display_name: string | null; level: number; created_at: number }>> {
+): Promise<PageResult<{ id?: string; username: string; display_name: string | null; level: number; avatar_attachment_id?: string | null; presentation_tokens?: import('./types').PublicPresentationTokens | null; created_at: number }>> {
   return request(
     fetchFn,
     `/users/${encodeURIComponent(username)}/followers${pageQuery(after, limit)}`
@@ -1772,7 +1829,7 @@ export async function listFollowing(
   username: string,
   after?: string | null,
   limit?: number
-): Promise<PageResult<{ username: string; display_name: string | null; level: number; created_at: number }>> {
+): Promise<PageResult<{ id?: string; username: string; display_name: string | null; level: number; avatar_attachment_id?: string | null; presentation_tokens?: import('./types').PublicPresentationTokens | null; created_at: number }>> {
   return request(
     fetchFn,
     `/users/${encodeURIComponent(username)}/following${pageQuery(after, limit)}`

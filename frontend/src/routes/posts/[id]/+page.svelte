@@ -45,7 +45,6 @@
     postStatusNotice,
     type Problem
   } from '$lib/errors';
-  import Avatar from '$lib/components/ui/Avatar.svelte';
   import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
   import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
   import type { PublicPresentationTokens } from '$lib/api/types';
@@ -141,9 +140,17 @@
   // ── 主贴底部统计行：回复过的用户（头像栈）──
   // 浏览量/回复数/参与用户从标题行下移到主贴底部（截图对齐）；回复者从
   // 已加载评论去重派生（保序、客户端加载后出现，属渐进增强）。头像最多
-  // 展示 8 个，超出折叠为 +N。key 用 id/username 兜底，匿名聚合为一个。
+  // 展示 8 个，超出折叠为 +N。key 用 id/username 兜底，匿名聚合为一个；
+  // 同时保留公开装扮投影，确保统计行的头像框与评论区/导航栏一致。
   const MAX_REPLY_AVATARS = 8;
-  type PostReplier = { key: string; name: string; username: string | null; level?: number };
+  type PostReplier = {
+    key: string;
+    name: string;
+    username: string | null;
+    level?: number;
+    avatarAttachmentId?: string | null;
+    presentation?: PublicPresentationTokens | null;
+  };
   const repliers = $derived.by<PostReplier[]>(() => {
     const seen = new Set<string>();
     const list: PostReplier[] = [];
@@ -156,7 +163,11 @@
         key,
         name: a?.display_name || a?.username || '匿名',
         username: a?.username || null,
-        level: a?.level
+        level: a?.level,
+        avatarAttachmentId: a?.avatar_attachment_id ?? null,
+        // 与评论头部/作者卡共用同一解析路径：作者和当前用户的装扮
+        // 可能来自页面级投影，而不一定重复出现在评论作者字段中。
+        presentation: commentPresentation(c)
       });
     }
     return list;
@@ -747,6 +758,57 @@
         return policy;
     }
   }
+
+  /** 内容访问已解锁判定：当受限策略主题（after_reply / paid / level）
+   *  已解锁正文时，以专属解锁样式展示，向读者明确该内容为权限解锁区块。 */
+  const isRestrictedUnlocked = $derived(
+    Boolean(
+      post?.body_html &&
+        post?.access_summary?.unlocked !== false &&
+        post?.access_summary?.policy &&
+        (post.access_summary.policy === 'after_reply' ||
+          post.access_summary.policy === 'paid' ||
+          post.access_summary.policy === 'level')
+    )
+  );
+
+  const unlockedInfo = $derived.by(() => {
+    const policy = post?.access_summary?.policy;
+    if (policy === 'after_reply') {
+      return {
+        title: '回复可见内容已解锁',
+        desc: isAuthor
+          ? '你是本文作者，拥有完整内容查看权限'
+          : canEdit
+            ? '你拥有管理审核权限，已解锁完整内容'
+            : '你已参与本帖回复，以下为解锁后的隐藏内容'
+      };
+    }
+    if (policy === 'paid') {
+      return {
+        title: '付费内容已解锁',
+        desc: isAuthor
+          ? '你是本文作者，拥有完整内容查看权限'
+          : canEdit
+            ? '你拥有管理审核权限，已解锁完整内容'
+            : '你已成功购买，以下为解锁后的完整内容'
+      };
+    }
+    if (policy === 'level') {
+      return {
+        title: '等级限制内容已解锁',
+        desc: isAuthor
+          ? '你是本文作者，拥有完整内容查看权限'
+          : canEdit
+            ? '你拥有管理审核权限，已解锁完整内容'
+            : '你的账号等级已达到要求，以下为解锁后的完整内容'
+      };
+    }
+    return {
+      title: '受限内容已解锁',
+      desc: '以下为解锁后的完整内容'
+    };
+  });
 </script>
 
 <Seo
@@ -790,6 +852,43 @@
         </a>
       </nav>
       <article class="topic-head-card topic-reading-card">
+          {#if post.status === 'deleted' || post.deleted_at}
+            <div
+              class="admin-preview-banner is-deleted"
+              role="status"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(239, 68, 68, 0.12);border:1px solid rgba(239, 68, 68, 0.35);color:#ef4444;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+            >
+              <Icon name="alert-triangle" size={16} />
+              <span>【管理员预览】此帖子已被软删除，当前仅具备管理权限的人员可见。</span>
+            </div>
+          {:else if post.status === 'pending_review'}
+            <div
+              class="admin-preview-banner is-pending"
+              role="status"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(245, 158, 11, 0.12);border:1px solid rgba(245, 158, 11, 0.35);color:#d97706;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+            >
+              <Icon name="shield-alert" size={16} />
+              <span>【待审核预览】此帖子处于待审核状态（pending_review），尚未公开。</span>
+            </div>
+          {:else if post.status === 'draft'}
+            <div
+              class="admin-preview-banner is-draft"
+              role="status"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(100, 116, 139, 0.12);border:1px solid rgba(100, 116, 139, 0.35);color:#64748b;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+            >
+              <Icon name="file-text" size={16} />
+              <span>【草稿预览】此帖子为草稿状态，尚未公开发布。</span>
+            </div>
+          {:else if post.status === 'hidden'}
+            <div
+              class="admin-preview-banner is-hidden"
+              role="status"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(107, 114, 128, 0.12);border:1px solid rgba(107, 114, 128, 0.35);color:#6b7280;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+            >
+              <Icon name="eye-off" size={16} />
+              <span>【已隐藏预览】此帖子已被下架隐藏，仅管理人员可见。</span>
+            </div>
+          {/if}
           <div class="post-title-row" style="margin-bottom:var(--space-3);">
             <h1 style="font-size:var(--text-2xl);">{post.title}</h1>
             <!-- 原型对齐：文章类型徽标移除，统一展示「内容」徽标。间距由 .post-title-row 的 flex gap 提供。 -->
@@ -806,7 +905,8 @@
                 user={{
                   username: post.author.username,
                   display_name: post.author.display_name ?? null,
-                  level: post.author.level
+                  level: post.author.level,
+                  avatar_attachment_id: post.author.avatar_attachment_id ?? null
                 }}
                 presentation={{ presentation_tokens: authorPresentation }}
                 label="查看 {authorName} 的个人资料"
@@ -850,13 +950,37 @@
           </div>
 
           {#if post.body_html && post.access_summary?.unlocked !== false}
-            <div class="prose" bind:this={proseEl}>
-              <!-- M04-MARKDOWN-08/UI-01：{@html} 仅经 SafeHtml（唯一 sink）；
-                   正文为后端渲染清洗的 body_html，前端不做再裁剪。
-                   页面级兜底：access_summary.unlocked === false 时即使数据混入
-                   body_html 也绝不渲染（白名单在 +page.server.ts 内已做第一层）。 -->
-              <SafeHtml html={post.body_html} />
-            </div>
+            {#if isRestrictedUnlocked}
+              <!-- 权限解锁内容展示：非 public 策略（after_reply / paid / level）解锁后，
+                   以专属解锁容器与提示呈现，明确标记该区块为已解锁权限内容。 -->
+              <div class="restricted-unlocked topic-unlocked" role="region" aria-label={unlockedInfo.title}>
+                <div class="topic-unlocked__header">
+                  <span class="topic-unlocked__icon">
+                    <Icon name="unlock" size={16} />
+                  </span>
+                  <div class="topic-unlocked__meta">
+                    <span class="topic-unlocked__title">{unlockedInfo.title}</span>
+                    <span class="topic-unlocked__desc">{unlockedInfo.desc}</span>
+                  </div>
+                  <span class="topic-unlocked__badge">
+                    <Icon name="check" size={12} />
+                    <span>已解锁</span>
+                  </span>
+                </div>
+                <div class="topic-unlocked__divider"></div>
+                <div class="prose topic-unlocked__prose" bind:this={proseEl}>
+                  <SafeHtml html={post.body_html} />
+                </div>
+              </div>
+            {:else}
+              <div class="prose" bind:this={proseEl}>
+                <!-- M04-MARKDOWN-08/UI-01：{@html} 仅经 SafeHtml（唯一 sink）；
+                     正文为后端渲染清洗的 body_html，前端不做再裁剪。
+                     页面级兜底：access_summary.unlocked === false 时即使数据混入
+                     body_html 也绝不渲染（白名单在 +page.server.ts 内已做第一层）。 -->
+                <SafeHtml html={post.body_html} />
+              </div>
+            {/if}
           {:else}
             <aside class="topic-restricted" role="note" aria-label="正文不可见">
               <span class="topic-restricted__icon">
@@ -989,13 +1113,26 @@
                     {#each shownRepliers as r (r.key)}
                       {#if r.username}
                         <UserCard
-                          user={{ username: r.username, display_name: r.name, level: r.level }}
+                          user={{ username: r.username, display_name: r.name, level: r.level, avatar_attachment_id: r.avatarAttachmentId }}
+                          presentation={r.presentation}
                           label="查看 {r.name} 的个人资料"
                         >
-                          <Avatar name={r.name} size="sm" seed={r.username ?? r.name} />
+                          <CosmeticAvatar
+                            name={r.name}
+                            size="sm"
+                            presentation={r.presentation}
+                            seed={r.username ?? r.name}
+                            avatarAttachmentId={r.avatarAttachmentId}
+                          />
                         </UserCard>
                       {:else}
-                        <Avatar name={r.name} size="sm" seed={r.username ?? r.name} />
+                        <CosmeticAvatar
+                          name={r.name}
+                          size="sm"
+                          presentation={r.presentation}
+                          seed={r.username ?? r.name}
+                          avatarAttachmentId={r.avatarAttachmentId}
+                        />
                       {/if}
                     {/each}
                     {#if hiddenRepliers > 0}
@@ -1305,13 +1442,14 @@
               user={{
                 username: post.author.username,
                 display_name: post.author.display_name ?? null,
-                level: post.author.level
+                level: post.author.level,
+                avatar_attachment_id: post.author.avatar_attachment_id ?? null
               }}
               presentation={{ presentation_tokens: authorPresentation }}
               label="查看 {authorName} 的个人资料"
             >
               <span style="display:flex;align-items:center;gap:var(--space-3);">
-                <CosmeticAvatar name={authorName} size="md" presentation={authorPresentation} seed={post.author?.username ?? post.author?.id ?? authorName} />
+                <CosmeticAvatar name={authorName} size="md" presentation={authorPresentation} avatarAttachmentId={post.author?.avatar_attachment_id ?? null} seed={post.author?.username ?? post.author?.id ?? authorName} />
                 <span style="font-weight:var(--weight-semibold);">
                   <CosmeticName name={authorName} presentation={authorPresentation} />
                 </span>

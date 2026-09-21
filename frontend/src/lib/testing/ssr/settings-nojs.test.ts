@@ -39,6 +39,9 @@ describe('M03-UI-02 /settings 无 JS SSR 基线', () => {
     expect(body).toContain('id="set-signature"');
     expect(body).toContain('公开签名');
     expect(body).not.toContain('id="set-bio"');
+    // 成熟论坛主页全公开，取消「谁可以查看我的主页」可见性设置
+    expect(body).not.toContain('id="set-visibility"');
+    expect(body).not.toContain('谁可以查看我的主页');
     expect(body).toContain('爱丽丝');
   });
 
@@ -60,7 +63,8 @@ describe('M03-UI-02 /settings 无 JS SSR 基线', () => {
     expect(body).toContain('新昵称');
     expect(body).toContain('新签名');
     expect(body).toContain('value="4"'); // 隐藏版本已刷新为新版本
-    expect(body).toContain('当前公开投影');
+    expect(body).toContain('编辑资料');
+    expect(body).not.toContain('当前公开投影');
   });
 
   it('隐私守卫：对抗性 user（混入会话/凭据字段）不进入 HTML', () => {

@@ -59,11 +59,14 @@
   // ── 行内撤回（DangerConfirm + 隐藏表单 requestSubmit）：reason 必填写审计。 ──
   let recallTarget: BroadcastItem | null = $state(null);
   let recallReason = $state('');
+  let recallError = $state('');
+  let isRecalling = $state(false);
   let recallForm: HTMLFormElement | undefined = $state();
 
   function openRecall(item: BroadcastItem): void {
     recallTarget = item;
     recallReason = '';
+    recallError = '';
   }
 
   /** 行「⋮」菜单项（约定 D：单一「撤回广播」动作 → 既有撤回 DangerConfirm 流）。 */
@@ -330,6 +333,13 @@
             {/each}
           </tbody>
         </table>
+        {#if data.nextCursor}
+          <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+            <a class="btn secondary sm" href={`/admin/notifications?after=${encodeURIComponent(data.nextCursor)}`}>
+              下一页 →
+            </a>
+          </div>
+        {/if}
       </div>
     {:else}
       <div style="padding:28px 16px;text-align:center;border:1px dashed var(--color-border);border-radius:var(--radius-md);background:var(--color-bg-subtle, rgba(0,0,0,0.02));display:flex;flex-direction:column;align-items:center;gap:8px;">
@@ -420,13 +430,19 @@
   action="?/recall"
   bind:this={recallForm}
   use:enhance={() => {
+    isRecalling = true;
     return async ({ result, update }) => {
+      isRecalling = false;
       // 结果 message 走全局 Toast（兜底文案与原先一致）
       toastActionResult(result, {
         message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '已撤回' : '撤回失败')
       });
       await update();
-      recallTarget = null;
+      if (result.type === 'success') {
+        recallTarget = null;
+        recallReason = '';
+        recallError = '';
+      }
     };
   }}
 >
@@ -439,8 +455,20 @@
   title="撤回广播"
   description={recallTarget ? `确认撤回「${recallTarget.title}」？未读通知将删除，已读通知保留，不可恢复。` : ''}
   confirmText="确认撤回"
-  oncancel={() => (recallTarget = null)}
-  onconfirm={() => recallForm?.requestSubmit()}
+  busy={isRecalling}
+  error={recallError}
+  oncancel={() => {
+    recallTarget = null;
+    recallError = '';
+  }}
+  onconfirm={() => {
+    if (!recallReason.trim()) {
+      recallError = '撤回原因必填（写入审计日志）';
+      return;
+    }
+    recallError = '';
+    recallForm?.requestSubmit();
+  }}
 >
   <label class="input-label" for="recall-reason">撤回原因（写审计）</label>
   <input id="recall-reason" class="input-field" bind:value={recallReason} placeholder="必填" required />

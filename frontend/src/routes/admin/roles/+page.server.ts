@@ -85,6 +85,57 @@ export const actions: Actions = {
     }
   },
 
+  /** 更新角色资料：PATCH /admin/roles/{name}（display_name, description, If-Match）。 */
+  updateProfile: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const name = String(form.get('name') ?? '').trim();
+    const displayName = String(form.get('display_name') ?? '').trim();
+    const description = String(form.get('description') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    const version = Number(form.get('version') ?? 0);
+
+    if (!name) {
+      return fail(422, { loadState: await reloadRoles(cookies, null), message: '角色标识缺失' } satisfies AdminRolesActionData);
+    }
+    if (!displayName) {
+      return fail(422, { loadState: await reloadRoles(cookies, null), message: '显示名称必填' } satisfies AdminRolesActionData);
+    }
+    if (!reason) {
+      return fail(422, { loadState: await reloadRoles(cookies, null), message: '操作原因必填（写入审计日志）' } satisfies AdminRolesActionData);
+    }
+
+    try {
+      const result = await authedPatch<unknown>(
+        cookies,
+        `/api/v1/admin/roles/${encodeURIComponent(name)}`,
+        {
+          display_name: displayName,
+          description: description || undefined,
+          reason
+        },
+        version > 0 ? { 'if-match': String(version) } : {},
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          loadState: await reloadRoles(cookies, request.headers.get('x-request-id')),
+          message: `角色资料已更新`
+        } satisfies AdminRolesActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          loadState: await reloadRoles(cookies, null),
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminRolesActionData);
+      }
+      return fail(result.status, { loadState: await reloadRoles(cookies, request.headers.get('x-request-id')), message: result.message } satisfies AdminRolesActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { loadState: await reloadRoles(cookies, null), message: '更新失败，请稍后重试' } satisfies AdminRolesActionData);
+    }
+  },
+
   /** 创建自定义角色：POST /admin/roles（name 小写字母/数字/下划线；权限≥1）。 */
   create: async ({ request, cookies }) => {
     const form = await request.formData();

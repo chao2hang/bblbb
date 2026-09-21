@@ -390,7 +390,7 @@
     </header>
     <div class="app-card__body">
       <p class="text-secondary" style="margin:0 0 12px;font-size:13px;">
-        填写目标用户的 user_id（UUID，可在「用户管理」列表复制）。管理员可设置 0–4 级；TL4（领导者）只能在此授予。变更写入 trust_level_events 与审计日志。
+        填写目标用户的 user_id（UUID，可在 <a href="/admin/users" class="text-link" target="_blank" rel="noopener noreferrer">用户管理</a> 列表复制）。管理员可设置 0–4 级；TL4（领导者）只能在此授予。变更写入 trust_level_events 与审计日志。
       </p>
       <form
         method="POST"
@@ -720,7 +720,18 @@
       </label>
       <div style="display:flex;gap:8px;align-items:center;">
         <button type="submit" class="btn primary sm">保存规则</button>
-        <button type="submit" class="btn ghost sm" formaction="?/resetRule">恢复默认</button>
+        <button
+          type="submit"
+          class="btn ghost sm"
+          formaction="?/resetRule"
+          onclick={(e) => {
+            if (!confirm(`确定要将 TL${editorLevel} 的晋升规则重置为系统默认预设吗？当前自定义阈值将被覆盖。`)) {
+              e.preventDefault();
+            }
+          }}
+        >
+          恢复默认
+        </button>
         <button type="button" class="btn ghost sm" onclick={closeEditor}>取消</button>
       </div>
     </form>

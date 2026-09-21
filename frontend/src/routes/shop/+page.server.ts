@@ -4,11 +4,13 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getAuthed } from '$lib/api/server';
 import { activityCoinBalance } from '$lib/api/types';
-import type { ActivitySummary, ShopProduct, TrustLevelProgress } from '$lib/api/types';
+import type { ActivitySummary, CosmeticDef, ShopProduct, TrustLevelProgress } from '$lib/api/types';
 import type { Money } from '$lib/api/types';
 
 export interface ShopPageData {
   products: ShopProduct[];
+  /** active 功能定义：商品卡直接显示管理员配置的名称/预览。 */
+  cosmetics?: CosmeticDef[];
   /** 当前用户 coin 余额（缺失容忍）。 */
   balance: Money | null;
   level: number | null;
@@ -26,7 +28,7 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   );
   if (!productsResult.ok && productsResult.status === 401) throw redirect(303, '/login');
   if (!productsResult.ok) {
-    return { products: [], balance: null, level: null, error: productsResult.message } satisfies ShopPageData;
+    return { products: [], cosmetics: [], balance: null, level: null, error: productsResult.message } satisfies ShopPageData;
   }
 
   // 余额来自活动摘要，等级来自独立的 LinuxDo 式信任等级接口。
@@ -38,9 +40,12 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   ]);
   if (summaryResult?.ok) balance = activityCoinBalance(summaryResult.data);
   if (trustResult?.ok) level = trustResult.data.level;
+  const cosmeticsResult = await getAuthed<{ cosmetics?: CosmeticDef[] }>(cookies, '/api/v1/shop/cosmetics', requestId);
 
   return {
     products: productsResult.data.products ?? [],
+    // 样式库拉取失败/未实现时降级为空列表（与 summaryResult/trustResult 同款兜底）。
+    cosmetics: cosmeticsResult?.ok ? cosmeticsResult.data.cosmetics ?? [] : [],
     balance,
     level,
     error: null

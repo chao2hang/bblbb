@@ -21,6 +21,7 @@
 
   // 复核决定：按钮 → Dialog 弹层内完成（决定 + 理由必填，expected_version 乐观锁）。
   let decideOpen = $state(false);
+  let isSubmitting = $state(false);
 
   const statusLabels: Record<string, string> = {
     submitted: '待复核',
@@ -48,6 +49,12 @@
 <svelte:head>
   <title>复核申诉 — BBLBB</title>
 </svelte:head>
+
+<div style="margin-bottom:14px;">
+  <a href="/admin/moderation/cases" class="btn ghost sm" style="text-decoration:none;">
+    ← 返回案件队列
+  </a>
+</div>
 
   {#if data.forbidden}
     <div class="app-card">
@@ -114,10 +121,16 @@
     <form
       method="POST"
       action="?/decide"
-      use:enhance={() => async ({ result, update }) => {
-        toastActionResult(result, { message: (d) => (d?.message ?? d?.ok) as string | null });
-        await update();
-        decideOpen = false;
+      use:enhance={() => {
+        isSubmitting = true;
+        return async ({ result, update }) => {
+          isSubmitting = false;
+          toastActionResult(result, { message: (d) => (d?.message ?? d?.ok) as string | null });
+          await update();
+          if (result.type === 'success') {
+            decideOpen = false;
+          }
+        };
       }}
       class="stack"
     >
@@ -134,6 +147,8 @@
         <textarea name="reason" rows="4" maxlength="2000" required></textarea>
       </label>
       <input type="hidden" name="expected_version" value={appeal?.updated_at ?? ''} />
-      <button type="submit" class="btn btn-primary" data-testid="decide-appeal">提交决定</button>
+      <button type="submit" class="btn btn-primary" data-testid="decide-appeal" disabled={isSubmitting}>
+        {isSubmitting ? '提交中...' : '提交决定'}
+      </button>
     </form>
   </Dialog>

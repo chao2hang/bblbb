@@ -33,8 +33,10 @@
   let loading = $state(true);
   let error = $state('');
   let isTimeout = $state(false);
-  /** 预览重载计数器（图片失效时剔除缓存重新请求 content 端点）。 */
-  let bust = $state(0);
+  /** 单个附件重试次数记录（每个附件最多重试 1 次，防雪崩）。 */
+  let retryMap = $state<Record<string, number>>({});
+  /** 彻底加载失败的附件 ID 集合（不再渲染 img 标签，停止重复请求）。 */
+  let failedIds = $state<Record<string, boolean>>({});
 
   async function loadAttachments() {
     loading = true;
@@ -85,10 +87,21 @@
     return selectedId !== null && a.id === selectedId;
   }
 
-  function refreshPreview(e: Event) {
-    // 签名 URL 已过期：重打 content 端点（Cache-Control 剔除），不删除附件。
-    (e.target as HTMLImageElement).style.visibility = 'hidden';
-    bust = bust + 1;
+  function handleImageError(id: string) {
+    const currentRetries = retryMap[id] ?? 0;
+    if (currentRetries < 1) {
+      // 允许对该单个图片重试 1 次（换取新签名 URL）
+      retryMap[id] = currentRetries + 1;
+    } else {
+      // 达到重试上限，标记为失败，停止发起请求
+      failedIds[id] = true;
+    }
+  }
+
+  function getImageUrl(id: string): string {
+    const base = attachmentContentUrl(id);
+    const retryCount = retryMap[id];
+    return retryCount ? `${base}?r=${retryCount}` : base;
   }
 </script>
 
@@ -111,6 +124,8 @@
     <div class="picker-list" role="radiogroup" aria-label="选择本人已就绪附件">
       {#each attachments as attachment (attachment.id)}
         {@const contentUrl = attachmentContentUrl(attachment.id)}
+        {@const isImage = attachment.media_type.startsWith('image/')}
+        {@const isFailed = Boolean(failedIds[attachment.id])}
         <label
           class="picker-item {isSelected(attachment) ? 'is-selected' : ''}"
         >
@@ -122,14 +137,18 @@
             checked={isSelected(attachment)}
             onchange={() => pick(attachment)}
           />
-          {#if attachment.media_type.startsWith('image/')}
+          {#if isImage && !isFailed}
             <img
               class="picker-thumb"
-              src="{contentUrl}?v={bust}"
+              src={getImageUrl(attachment.id)}
               alt=""
               loading="lazy"
-              onerror={refreshPreview}
+              onerror={() => handleImageError(attachment.id)}
             />
+          {:else if isImage && isFailed}
+            <span class="picker-thumb picker-thumb-file" title="预览加载失败" aria-label="预览加载失败">
+              <Icon name="image" size={20} />
+            </span>
           {:else}
             <span class="picker-thumb picker-thumb-file" aria-hidden="true"><Icon name="file-text" size={20} /></span>
           {/if}

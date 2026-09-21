@@ -24,6 +24,11 @@
   let transitionOpen = $state(false);
   let penaltyAction = $state<'hide' | 'mute' | 'dismiss'>('mute');
   let reasonText = $state('');
+  let isSubmitting = $state(false);
+
+  let assignOpen = $state(false);
+  let assigneeId = $state('');
+  let assignNote = $state('');
 
   const statusLabels: Record<string, string> = {
     open: '待处理',
@@ -143,9 +148,12 @@
         <span class="text-secondary">优先级</span>
         <span>{priorityLabels[caseItem.priority] ?? caseItem.priority}</span>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;align-items:center;">
         <span class="text-secondary">负责人</span>
         <span>{caseItem.assigned_to ?? '未指派'}</span>
+        <button type="button" class="btn ghost sm" style="padding:2px 8px;font-size:12px;margin-left:auto;" onclick={() => (assignOpen = true)}>
+          指派负责人
+        </button>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span class="text-secondary">状态：</span>
@@ -176,17 +184,27 @@
     <form
       method="POST"
       action="?/transition"
-      use:enhance={() => async ({ result, update }) => {
-        // 结果 message 走全局 Toast；成功后关闭弹层（无 JS 回退横幅仍由 hasJs 渲染）。
-        toastActionResult(result, { message: (d) => (d?.message ?? d?.ok) as string | null });
-        await update();
-        transitionOpen = false;
-        reasonText = '';
+      use:enhance={() => {
+        isSubmitting = true;
+        return async ({ result, update }) => {
+          isSubmitting = false;
+          toastActionResult(result, { message: (d) => (d?.message ?? d?.ok) as string | null });
+          await update();
+          if (result.type === 'success') {
+            transitionOpen = false;
+            reasonText = '';
+          }
+        };
       }}
       style="display:flex;flex-direction:column;gap:12px;"
     >
       <!-- 隐式映射到后端的 status 与 resolution -->
       <input type="hidden" name="status" value={penaltyAction === 'dismiss' ? 'rejected' : 'resolved'} />
+      <input
+        type="hidden"
+        name="resolution"
+        value={penaltyAction === 'dismiss' ? reasonText : `[${penaltyLabels[penaltyAction]}] ${reasonText}`}
+      />
 
       <div>
         <span class="input-label" style="font-size:13px;margin-bottom:6px;display:block;">处理动作</span>
@@ -210,7 +228,6 @@
         </label>
         <textarea
           id="case-reason"
-          name="resolution"
           class="input-field"
           rows="3"
           placeholder="必填，写入审计日志"
@@ -220,7 +237,63 @@
         ></textarea>
       </div>
 
-      <Button text="提交处理" variant="primary" type="submit" block />
+      <Button text={isSubmitting ? '提交中...' : '提交处理'} variant="primary" type="submit" block disabled={isSubmitting} />
+    </form>
+  </Dialog>
+
+  <!-- 指派负责人 Dialog：?/assign -->
+  <Dialog
+    open={assignOpen}
+    title="指派案件负责人"
+    description="指派给特定审核员（输入审核员 ID 或用户名），操作记录写入审计日志。"
+    onclose={() => (assignOpen = false)}
+  >
+    <form
+      method="POST"
+      action="?/assign"
+      use:enhance={() => {
+        isSubmitting = true;
+        return async ({ result, update }) => {
+          isSubmitting = false;
+          toastActionResult(result, { message: (d) => (d?.message ?? d?.ok) as string | null });
+          await update();
+          if (result.type === 'success') {
+            assignOpen = false;
+            assigneeId = '';
+            assignNote = '';
+          }
+        };
+      }}
+      style="display:flex;flex-direction:column;gap:12px;"
+    >
+      <div>
+        <label class="input-label" for="case-assignee" style="font-size:13px;margin-bottom:6px;display:block;">
+          复核人 ID / 用户名 <span style="color:var(--color-danger);">*</span>
+        </label>
+        <input
+          id="case-assignee"
+          name="assignee_id"
+          class="input-field"
+          required
+          bind:value={assigneeId}
+          placeholder="输入审核员 user_id 或用户名"
+          style="width:100%;font-size:13px;"
+        />
+      </div>
+      <div>
+        <label class="input-label" for="case-assign-note" style="font-size:13px;margin-bottom:6px;display:block;">
+          指派说明（可选）
+        </label>
+        <input
+          id="case-assign-note"
+          name="note"
+          class="input-field"
+          bind:value={assignNote}
+          placeholder="如：转由法务/安全组专员处理"
+          style="width:100%;font-size:13px;"
+        />
+      </div>
+      <Button text={isSubmitting ? '指派中...' : '确认指派'} variant="primary" type="submit" block disabled={isSubmitting} />
     </form>
   </Dialog>
 {/if}

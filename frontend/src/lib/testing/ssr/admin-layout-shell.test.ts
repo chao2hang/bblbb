@@ -79,6 +79,13 @@ describe('管理后台独立布局系统（无前台 Header）', () => {
     expect(body).toContain('主题管理');
     expect(body).toContain('系统设置');
 
+    // 一级与二级菜单统一体系断言
+    expect(body).toContain('is-level-1');
+    expect(body).toContain('is-level-2');
+    expect(body).toContain('app-admin-side__group');
+    expect(body).toContain('app-admin-side__items');
+    expect(body).toContain('data-admin-group-toggle');
+
     // 后台专属 Topbar 与功能操作
     expect(body).toContain('app-admin-topbar');
     expect(body).toContain('app-admin-breadcrumb');

@@ -24,6 +24,10 @@ pub fn router() -> Router<AppState> {
             get(get_shop_config).patch(update_shop_config),
         )
         .route(
+            "/api/v1/admin/shop/steam-catalog/sync",
+            post(sync_steam_catalog),
+        )
+        .route(
             "/api/v1/admin/shop/products",
             get(list_admin_products).post(create_admin_product),
         )
@@ -41,6 +45,17 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/v1/admin/shop/orders", get(list_admin_orders))
         .route("/api/v1/admin/shop/orders/{id}/refund", post(refund_order))
+        // M07-SHOP-UI-10：可配置装扮样式库（自定义命名 + 结构化样式）
+        .route(
+            "/api/v1/admin/shop/cosmetics",
+            get(list_admin_cosmetics).post(create_admin_cosmetic),
+        )
+        .route(
+            "/api/v1/admin/shop/cosmetics/{id}",
+            patch(update_admin_cosmetic),
+        )
+        // M07-SHOP-STUDIO：装扮工作台复合发布（样式 upsert + 商品创建，单事务+幂等）
+        .route("/api/v1/admin/shop/studio/publish", post(studio_publish))
 }
 
 #[derive(Deserialize)]
@@ -474,6 +489,157 @@ async fn refund_order(
         .await
         .map(Json)
         .map_err(|e| shop_error_to_app(e, request_id))
+}
+
+// ── M07-SHOP-UI-10：可配置装扮样式库 ─────────────────────────────────────
+
+async fn list_admin_cosmetics(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "list_admin_cosmetics";
+    admin_authorize(&state, &auth, "shop.manage", request_id).await?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    crate::shop::cosmetics::list_defs(pool, true)
+        .await
+        .map(Json)
+        .map_err(|e| shop_error_to_app(e, request_id))
+}
+
+async fn create_admin_cosmetic(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "create_admin_cosmetic";
+    let user = auth.require_auth(request_id)?;
+    admin_authorize(&state, &auth, "shop.manage", request_id).await?;
+    let reason = body
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or("create cosmetic def")
+        .to_string();
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let result = crate::shop::cosmetics::create_def(pool, &body, &user.id).await;
+    match result {
+        Ok(v) => {
+            AuditEntry::user_action(&user.id, "shop.cosmetic.create")
+                .with_target("cosmetic_def", v["id"].as_str().unwrap_or(""))
+                .with_reason(&reason)
+                .with_policy_version(AUTHZ_POLICY_VERSION)
+                .record(pool)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            Ok(Json(v))
+        }
+        Err(e) => Err(shop_error_to_app(e, request_id)),
+    }
+}
+
+async fn update_admin_cosmetic(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "update_admin_cosmetic";
+    let user = auth.require_auth(request_id)?;
+    admin_authorize(&state, &auth, "shop.manage", request_id).await?;
+    let reason = body
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or("update cosmetic def")
+        .to_string();
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let result = crate::shop::cosmetics::update_def(pool, &id, &body).await;
+    match result {
+        Ok(v) => {
+            AuditEntry::user_action(&user.id, "shop.cosmetic.update")
+                .with_target("cosmetic_def", &id)
+                .with_reason(&reason)
+                .with_policy_version(AUTHZ_POLICY_VERSION)
+                .record(pool)
+                .await
+                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+            Ok(Json(v))
+        }
+        Err(e) => Err(shop_error_to_app(e, request_id)),
+    }
+}
+
+// ── M07-SHOP-STUDIO：装扮工作台复合发布 ──────────────────────────────────
+
+/// 工作台复合发布（样式 upsert + 商品创建，单事务；审计由 service 同事务写入）。
+async fn studio_publish(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    axum::Json(body): axum::Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "studio_publish";
+    let user = auth.require_auth(request_id)?;
+    admin_authorize(&state, &auth, "shop.manage", request_id).await?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    // Steam 素材上架即入库（M07-SHOP-ASSETS）：配置开启且存储可用时，
+    // 发布前先把样式引用的 Steam 文件确保写入当前存储后端。
+    let storage = if state.config.steam_assets_download_on_publish {
+        state.storage.as_deref()
+    } else {
+        None
+    };
+    crate::shop::studio::publish(pool, &body, &user.id, storage)
+        .await
+        .map(Json)
+        .map_err(|e| shop_error_to_app(e, request_id))
+}
+
+/// POST /api/v1/admin/shop/steam-catalog/sync — 实时拉取 Steam 目录并合并
+/// 入库（M07-SHOP-ASSETS）：class 14 头像框 + class 13 迷你资料背景；
+/// 按唯一键 defid 合并（保留既有富字段）。返回新增/更新计数。
+async fn sync_steam_catalog(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "sync_steam_catalog";
+    let user = auth.require_auth(request_id)?;
+    admin_authorize(&state, &auth, "shop.manage", request_id).await?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let report = crate::shop::steam_assets::sync_catalog(pool)
+        .await
+        .map_err(|e| shop_error_to_app(e, request_id))?;
+    AuditEntry::user_action(&user.id, "shop.steam_catalog.sync")
+        .with_reason("steam catalog sync")
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "frames": {
+            "fetched": report.frames.fetched,
+            "added": report.frames.added,
+            "updated": report.frames.updated
+        },
+        "backgrounds": {
+            "fetched": report.backgrounds.fetched,
+            "added": report.backgrounds.added,
+            "updated": report.backgrounds.updated
+        }
+    })))
 }
 
 // 锚定 ShopError 类型供路由层签名使用（避免未使用导入告警）。

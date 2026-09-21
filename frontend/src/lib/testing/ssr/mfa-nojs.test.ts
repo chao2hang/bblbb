@@ -85,6 +85,15 @@ describe('无 JS：/mfa 页（M18-MFA-01）', () => {
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/disable"/);
   });
 
+  it('recovery-codes：SSR 一次展示恢复码并提示只能使用一次（M02-UX-SEC 平移）', () => {
+    const body = renderPage({
+      mfa: { kind: 'recovery-codes', codes: ['ABCDEFGHIJKLMNOP', 'QRSTUVWXYZ234567'] }
+    });
+    expect(body).toContain('ABCDEFGHIJKLMNOP');
+    expect(body).toContain('QRSTUVWXYZ234567');
+    expect(body).toContain('每个只能使用一次');
+  });
+
   it('Passkey：启用时输出管理卡片与 ?/passkeyRevoke 原生表单', () => {
     const { body } = render(MfaPage, {
       props: {
@@ -118,5 +127,29 @@ describe('无 JS：/mfa 页（M18-MFA-01）', () => {
   it('Passkey：未配置时整块隐藏', () => {
     const body = renderPage(undefined);
     expect(body).not.toContain('passkeyRevoke');
+  });
+});
+
+// M02-UX-SEC：step-up 重认证各态自 /me 页平移（M02-MFA-07）——recovery /
+// disable 遇 403 step_up_required 时，本页输出 ?/re-auth 密码确认表单；
+// reauth-done 后按 intent 引导重试原操作。
+describe('无 JS：/mfa step-up 重认证（M02-MFA-07 平移）', () => {
+  it('step-up：SSR 输出 ?/re-auth 原生表单 + intent 隐藏域', () => {
+    const body = renderPage({ mfa: { kind: 'step-up', intent: 'disable' } });
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/re-auth"/);
+    expect(body).toContain('name="password"');
+    expect(body).toContain('name="intent"');
+    expect(body).toContain('验证身份');
+  });
+
+  it('reauth-done（intent=disable）：SSR 输出重试 ?/disable 表单', () => {
+    const body = renderPage({ mfa: { kind: 'reauth-done', intent: 'disable' } });
+    expect(body).toContain('身份已验证');
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/disable"/);
+  });
+
+  it('reauth-done（intent=recovery）：重试表单指向 ?/recovery', () => {
+    const body = renderPage({ mfa: { kind: 'reauth-done', intent: 'recovery' } });
+    expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/recovery"/);
   });
 });

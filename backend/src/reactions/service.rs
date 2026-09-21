@@ -393,10 +393,12 @@ pub async fn add_reaction(
                     let pack_id: Option<String> = sqlx::query_scalar(
                         "SELECT id FROM user_entitlements
                          WHERE user_id = ? AND status = 'owned' AND remaining_quantity > 0
+                           AND (expires_at IS NULL OR expires_at > ?)
                            AND product_id IN (SELECT id FROM shop_products WHERE kind = 'reaction_pack')
                          ORDER BY expires_at IS NOT NULL, expires_at ASC LIMIT 1",
                     )
                     .bind(user_id)
+                    .bind(now)
                     .fetch_optional(&mut *conn)
                     .await?;
                     if let Some(pack_id) = pack_id {
@@ -494,10 +496,12 @@ pub async fn add_reaction(
                     let pack_id: Option<String> = sqlx::query_scalar(
                         "SELECT id FROM user_entitlements
                          WHERE user_id = ? AND status = 'owned' AND remaining_quantity > 0
+                           AND (expires_at IS NULL OR expires_at > ?)
                            AND product_id IN (SELECT id FROM shop_products WHERE kind = 'reaction_pack')
                          ORDER BY expires_at IS NOT NULL, expires_at ASC LIMIT 1",
                     )
                     .bind(user_id)
+                    .bind(now)
                     .fetch_optional(&mut *tx)
                     .await?;
                     if let Some(pack_id) = pack_id {

@@ -22,6 +22,8 @@
   import { boardVisuals } from '$lib/board-visuals';
   import type { FavoritesActionData, FavoritesPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
 
   let { data, form }: { data: FavoritesPageData; form?: FavoritesActionData | null } = $props();
 
@@ -123,6 +125,13 @@
           <div style="display:flex;flex-direction:column;">
             {#each items as post (post.id)}
               <div class="post-row" style="padding:var(--space-4);border-bottom:var(--border-default);display:flex;gap:var(--space-3);align-items:center;">
+                <CosmeticAvatar
+                  name={authorLabel(post)}
+                  size="md"
+                  presentation={post.author?.presentation_tokens}
+                  avatarAttachmentId={post.author?.avatar_attachment_id ?? null}
+                  seed={post.author?.username ?? post.author?.id ?? authorLabel(post)}
+                />
                 <div style="min-width:0;flex:1;">
                   <div style="font-weight:var(--weight-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                     <a href="/posts/{encodeURIComponent(post.id)}">{post.title}</a>
@@ -136,7 +145,7 @@
                         <span class="category-badge-square"></span><span>{post.board_name}</span>
                       </span>
                     {/if}
-                    <span>{authorLabel(post)}</span>
+                    <span><CosmeticName name={authorLabel(post)} presentation={post.author?.presentation_tokens} /></span>
                     <span>·</span>
                     <span>{formatCount(post.reply_count)} 回复</span>
                     <span>·</span>

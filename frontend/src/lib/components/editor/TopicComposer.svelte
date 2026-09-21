@@ -65,6 +65,7 @@
   import { charCount } from '$lib/utils';
   import { SHEET_MEDIA_QUERY, sheetDrag } from '$lib/utils/sheet-drag';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
 
   const MAX_TITLE_CHARS = 200;
   const MAX_MARKDOWN_CHARS = 50_000; // 后端 PostContent 权威上限（Unicode 字符）
@@ -78,7 +79,7 @@
   const POLICY_OPTIONS = [
     { value: 'public', label: '公开' },
     { value: 'logged_in', label: '登录可见' },
-    { value: 'after_reply', label: '回复解锁' },
+    { value: 'after_reply', label: '整篇回复解锁' },
     { value: 'level', label: '等级可见' },
     { value: 'paid', label: '付费可见' }
   ] as const;
@@ -137,6 +138,40 @@
   let draftState = $state<'idle' | 'saved' | 'saving' | 'error' | 'conflict'>('idle');
   let dirty = $state(false);
   let conflict = $state<Problem | null>(null);
+
+  // —— step-up 重新验证（M02-MFA-07）：管理员代改命中 403 step_up_required 时弹窗 ——
+  let reauthOpen = $state(false);
+  let reauthPassword = $state('');
+  let reauthLoading = $state(false);
+  let reauthError = $state<string | null>(null);
+
+  async function handleReauthSubmit(e: SubmitEvent) {
+    e.preventDefault();
+    if (!reauthPassword) return;
+    reauthLoading = true;
+    reauthError = null;
+    try {
+      const res = await fetch('/api/v1/auth/re-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: reauthPassword })
+      });
+      if (res.ok) {
+        reauthOpen = false;
+        reauthPassword = '';
+        error = null;
+        // 自动重试提交编辑
+        await handleSubmit();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        reauthError = data.detail || data.message || '密码验证失败，请重试';
+      }
+    } catch {
+      reauthError = '网络错误，请稍后重试';
+    } finally {
+      reauthLoading = false;
+    }
+  }
   let restoring = $state(true); // 挂载/恢复期间抑制自动保存
   let setupLoading = $state(true);
   let setupProblem = $state<Problem | null>(null);
@@ -435,8 +470,8 @@
     // summary/tags 当前编辑器无对应字段，忽略（保持只读展示）。
   }
 
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
+  async function handleSubmit(e?: SubmitEvent) {
+    if (e) e.preventDefault();
     if (!user) {
       goto('/login');
       return;
@@ -485,6 +520,9 @@
         goto(`/posts/${encodeURIComponent(editPostId)}`);
       } catch (err: unknown) {
         error = err as Problem;
+        if (error?.code === 'step_up_required') {
+          reauthOpen = true;
+        }
       }
       submitting = false;
       return;
@@ -993,6 +1031,9 @@
                       </label>
                     {/each}
                   </div>
+                  <p class="input-hint" style="margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--color-text-secondary);">
+                    提示：如需在正文任意位置单独插入某一段回复后可见的内容，请保持此可见性为「公开」，并在上方编辑器工具栏点击「回复可见（锁头）」按钮插入专属区块。
+                  </p>
                   {#if accessPolicy === 'level'}
                     <label class="input-label composer-field__sub" for="publish-level">最低可见等级</label>
                     <div class="composer-select-wrapper">
@@ -1091,3 +1132,38 @@
     </section>
   </div>
 </div>
+
+<!-- step-up 重新验证（M02-MFA-07）：管理员代改命中 403 step_up_required 时展示。 -->
+<Dialog
+  open={reauthOpen}
+  title="需要重新验证身份"
+  description="管理员代改帖子属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，将自动继续保存修改。"
+  onclose={() => (reauthOpen = false)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    onsubmit={handleReauthSubmit}
+    style="display:flex;flex-direction:column;gap:10px;"
+  >
+    <div>
+      <label class="input-label" for="composer-reauth-password">当前账号密码</label>
+      <input
+        class="input-field"
+        type="password"
+        id="composer-reauth-password"
+        name="password"
+        autocomplete="current-password"
+        bind:value={reauthPassword}
+        required
+      />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthOpen = false)}>取消</button>
+    </div>
+  </form>
+</Dialog>

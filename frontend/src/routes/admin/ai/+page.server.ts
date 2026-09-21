@@ -351,7 +351,15 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { testResult: result.data } satisfies AdminAiActionData;
+        const raw: any = result.data;
+        const msg = raw?.message || raw?.detail || (raw?.ok ? '连通性测试通过（出口策略正常）' : `测试失败：${raw?.error_class || '网络错误'}`);
+        return {
+          testResult: {
+            ...raw,
+            ok: raw?.ok ?? true,
+            message: msg
+          }
+        } satisfies AdminAiActionData;
       }
       return fail(result.status, {
         message: result.message,

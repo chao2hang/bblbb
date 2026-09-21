@@ -73,12 +73,15 @@
   let batchStatus = $state('triaged');
 
   // 批量关闭 / 批量驳回：DangerConfirm + reason（写审计），确认后提交隐藏表单。
+  let isSubmitting = $state(false);
   let batchCloseOpen = $state(false);
   let batchCloseReason = $state('');
+  let batchCloseError = $state('');
   let batchCloseForm: HTMLFormElement | undefined = $state();
 
   let batchRejectOpen = $state(false);
   let batchRejectReason = $state('');
+  let batchRejectError = $state('');
   let batchRejectForm: HTMLFormElement | undefined = $state();
 
   function clearSelection(): void {
@@ -255,13 +258,18 @@
   action="?/batchClose"
   bind:this={batchCloseForm}
   use:enhance={() => {
+    isSubmitting = true;
     return async ({ result, update }) => {
+      isSubmitting = false;
       toastActionResult(result, {
         message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '批量关闭完成' : '批量关闭失败')
       });
       await update();
-      clearSelection();
-      batchCloseOpen = false;
+      if (result.type === 'success') {
+        clearSelection();
+        batchCloseOpen = false;
+        batchCloseReason = '';
+      }
     };
   }}
 >
@@ -274,8 +282,20 @@
   title="批量关闭案件"
   description={`将把 ${selectedIds.length} 个案件标记为已处理（resolved）；原因作为处理结论存档并写审计。`}
   confirmText="确认批量关闭"
-  oncancel={() => (batchCloseOpen = false)}
-  onconfirm={() => batchCloseForm?.requestSubmit()}
+  busy={isSubmitting}
+  error={batchCloseError}
+  oncancel={() => {
+    batchCloseOpen = false;
+    batchCloseError = '';
+  }}
+  onconfirm={() => {
+    if (!batchCloseReason.trim()) {
+      batchCloseError = '关闭原因必填（写审计）';
+      return;
+    }
+    batchCloseError = '';
+    batchCloseForm?.requestSubmit();
+  }}
 >
   <label class="input-label" for="batch-close-reason">关闭原因（写审计）</label>
   <input id="batch-close-reason" class="input-field" bind:value={batchCloseReason} placeholder="必填" required />
@@ -287,13 +307,18 @@
   action="?/batchReject"
   bind:this={batchRejectForm}
   use:enhance={() => {
+    isSubmitting = true;
     return async ({ result, update }) => {
+      isSubmitting = false;
       toastActionResult(result, {
         message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '批量驳回完成' : '批量驳回失败')
       });
       await update();
-      clearSelection();
-      batchRejectOpen = false;
+      if (result.type === 'success') {
+        clearSelection();
+        batchRejectOpen = false;
+        batchRejectReason = '';
+      }
     };
   }}
 >
@@ -306,8 +331,20 @@
   title="批量驳回案件"
   description={`将把 ${selectedIds.length} 个案件标记为已驳回（rejected）；原因作为处理结论存档并写审计。`}
   confirmText="确认批量驳回"
-  oncancel={() => (batchRejectOpen = false)}
-  onconfirm={() => batchRejectForm?.requestSubmit()}
+  busy={isSubmitting}
+  error={batchRejectError}
+  oncancel={() => {
+    batchRejectOpen = false;
+    batchRejectError = '';
+  }}
+  onconfirm={() => {
+    if (!batchRejectReason.trim()) {
+      batchRejectError = '驳回原因必填（写审计）';
+      return;
+    }
+    batchRejectError = '';
+    batchRejectForm?.requestSubmit();
+  }}
 >
   <label class="input-label" for="batch-reject-reason">驳回原因（写审计）</label>
   <input id="batch-reject-reason" class="input-field" bind:value={batchRejectReason} placeholder="必填" required />

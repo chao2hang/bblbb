@@ -3065,16 +3065,19 @@
     padding: 0 !important;
   }
 
-  /* 设置页（/settings & /settings/privacy）规范 */
+  /* 设置页（/settings & /settings/privacy & /me/security）规范 */
   #main-content #page-settings,
-  #main-content #page-settings-privacy {
+  #main-content #page-settings-privacy,
+  #main-content #page-me-security {
     width: 100% !important;
     margin: 0 !important;
     padding: 0 0 24px !important;
   }
 
   #main-content #page-settings .tabs-nav,
-  #main-content #page-settings .app-settings-nav {
+  #main-content #page-settings .app-settings-nav,
+  #main-content #page-settings-privacy .app-settings-nav,
+  #main-content #page-me-security .app-settings-nav {
     display: flex !important;
     overflow-x: auto !important;
     scrollbar-width: none !important;
@@ -3085,12 +3088,15 @@
   }
 
   #main-content #page-settings .tabs-nav::-webkit-scrollbar,
-  #main-content #page-settings .app-settings-nav::-webkit-scrollbar {
+  #main-content #page-settings .app-settings-nav::-webkit-scrollbar,
+  #main-content #page-settings-privacy .app-settings-nav::-webkit-scrollbar,
+  #main-content #page-me-security .app-settings-nav::-webkit-scrollbar {
     display: none !important;
   }
 
   #main-content #page-settings .card,
-  #main-content #page-settings-privacy .card {
+  #main-content #page-settings-privacy .card,
+  #main-content #page-me-security .card {
     border-left: 0 !important;
     border-right: 0 !important;
     border-radius: 0 !important;
@@ -3098,12 +3104,14 @@
   }
 
   #main-content #page-settings .card-header,
-  #main-content #page-settings-privacy .card-header {
+  #main-content #page-settings-privacy .card-header,
+  #main-content #page-me-security .card-header {
     padding: 12px 16px !important;
   }
 
   #main-content #page-settings .card-body,
-  #main-content #page-settings-privacy .card-body {
+  #main-content #page-settings-privacy .card-body,
+  #main-content #page-me-security .card-body {
     padding: 16px !important;
   }
 
@@ -3134,6 +3142,36 @@
     padding: 0 12px !important;
     background: var(--color-bg-card) !important;
     border-bottom: 1px solid var(--color-border) !important;
+  }
+
+  #main-content #page-achievements .achievement-toolbar {
+    margin: 0 0 10px !important;
+    padding: 0 12px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  #main-content #page-achievements .achievement-toolbar .tabs {
+    margin: 0 !important;
+    padding: 0 !important;
+    border-bottom: 0 !important;
+    background: transparent !important;
+  }
+
+  #main-content #page-achievements .achievement-grid.is-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 0 12px !important;
+  }
+
+  #main-content #page-achievements .achievement-grid.is-grid .achievement-card {
+    border: 1px solid var(--color-border) !important;
+    border-radius: var(--radius-md) !important;
+    margin: 0 !important;
+    background: var(--color-bg-card) !important;
   }
 
   /* 商城（/shop）规范 */

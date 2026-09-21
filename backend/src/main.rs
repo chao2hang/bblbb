@@ -209,6 +209,14 @@ async fn main() -> ExitCode {
         });
     }
 
+    // Steam 素材启动自愈（M07-SHOP-ASSETS）：已上架/已装备商品引用的文件
+    // 确保存在于当前配置的存储后端（local ↔ S3 切换后无需人工迁移）。
+    if let (Some(pool), Some(storage)) = (db_pool.clone(), storage.clone()) {
+        tokio::spawn(async move {
+            bblbb_backend::shop::steam_assets::sync_referenced_assets(pool, storage).await;
+        });
+    }
+
     if let Err(error) = axum::serve(
         listener,
         build_router_full(config, db_pool, flags, storage)

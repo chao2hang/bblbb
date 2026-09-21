@@ -31,6 +31,7 @@ export interface AdminMarketplaceActionData {
   requestId?: string | null;
   code?: string | null;
   secret?: string | null;
+  stepUpRequired?: boolean;
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
@@ -165,7 +166,7 @@ async function setClientStatusOnce(
 export const actions: Actions = {
   upsertClient: async ({ request, cookies }) => {
     const form = await request.formData();
-    const key = String(form.get('client_id') ?? '').trim();
+    const key = String(form.get('client_id') ?? form.get('id') ?? '').trim();
     const version = Number(form.get('version') ?? 1);
     const reason = String(form.get('reason') ?? '').trim();
     if (!key) return fail(422, { message: '缺少 Client 标识' } satisfies AdminMarketplaceActionData);
@@ -180,6 +181,12 @@ export const actions: Actions = {
       );
       if (result.ok) {
         return { message: `Client「${result.data.name}」已更新（version ${result.data.version}）` } satisfies AdminMarketplaceActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminMarketplaceActionData);
       }
       if (result.status === 409) {
         return fail(409, { message: `版本冲突：${result.message}，请刷新后重试` } satisfies AdminMarketplaceActionData);
@@ -206,6 +213,12 @@ export const actions: Actions = {
       const result = await setClientStatusOnce(cookies, key, version, status, reason, request.headers.get('x-request-id'));
       if (result.ok) {
         return { message: `Client「${result.data.name}」状态已切换为 ${result.data.status}` } satisfies AdminMarketplaceActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminMarketplaceActionData);
       }
       if (result.status === 409) {
         return fail(409, { message: `版本冲突：${result.message}，请刷新后重试` } satisfies AdminMarketplaceActionData);
@@ -237,7 +250,12 @@ export const actions: Actions = {
           request.headers.get('x-request-id')
         );
         if (r.ok) outcome.okCount++;
-        else outcome.failures.push({ id: e.id, message: r.message });
+        else if (r.code === 'step_up_required') {
+          return fail(403, {
+            message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+            stepUpRequired: true
+          } satisfies AdminMarketplaceActionData);
+        } else outcome.failures.push({ id: e.id, message: r.message });
       } catch (err) {
         if (isRedirect(err)) throw err;
         outcome.failures.push({ id: e.id, message: '网络错误' });
@@ -262,6 +280,12 @@ export const actions: Actions = {
       );
       if (result.ok) {
         return { message: '对账已完成（结果见审计与 Webhook 投递记录）' } satisfies AdminMarketplaceActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminMarketplaceActionData);
       }
       return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminMarketplaceActionData);
     } catch (e) {
@@ -288,6 +312,12 @@ export const actions: Actions = {
           secret: result.data.webhook_secret
         } satisfies AdminMarketplaceActionData;
       }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminMarketplaceActionData);
+      }
       return fail(result.status, { message: result.message } satisfies AdminMarketplaceActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
@@ -312,6 +342,12 @@ export const actions: Actions = {
         { 'If-Match': String(version) }
       );
       if (result.ok) return { message: `Client 已紧急停用（${reason}）` } satisfies AdminMarketplaceActionData;
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminMarketplaceActionData);
+      }
       return fail(result.status, { message: result.message } satisfies AdminMarketplaceActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
@@ -338,6 +374,12 @@ export const actions: Actions = {
           message: `对账完成：${ok ? '一致' : '存在差异'}（${result.data.purchases_count} 笔，恒等式 ${result.data.window_identity_sum}）`
         } satisfies AdminMarketplaceActionData;
       }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminMarketplaceActionData);
+      }
       return fail(result.status, { message: result.message } satisfies AdminMarketplaceActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
@@ -358,10 +400,48 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) return { message: `退款已处理：${result.data.status}` } satisfies AdminMarketplaceActionData;
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminMarketplaceActionData);
+      }
       return fail(result.status, { message: result.message } satisfies AdminMarketplaceActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '重试失败，请稍后重试' } satisfies AdminMarketplaceActionData);
+    }
+  },
+
+  /** 重新验证身份（step-up 窗口过期后；与 storage/roles 页同款交互）。 */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        message: '请输入当前密码'
+      } satisfies AdminMarketplaceActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminMarketplaceActionData;
+      }
+      return fail(result.status, {
+        message: result.message
+      } satisfies AdminMarketplaceActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '验证失败，请稍后重试'
+      } satisfies AdminMarketplaceActionData);
     }
   }
 };

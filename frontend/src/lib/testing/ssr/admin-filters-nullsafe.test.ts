@@ -452,7 +452,8 @@ describe('P2-05 & P2-06: 计费与商城字段错误透传与防抖', () => {
         data: {
           products: { state: 'ok', items: [] },
           orders: { state: 'ok', items: [] },
-          config: { state: 'ok', data: { enabled: true, max_quantity_per_order: 10, version: 1 } }
+          config: { state: 'ok', data: { enabled: true, max_quantity_per_order: 10, version: 1 } },
+          cosmetics: []
         },
         form: {
           message: '请检查表单中填写的字段错误',
@@ -521,7 +522,8 @@ describe('M18-ADMIN-OPS 约定 D: 商城商品行三点菜单 SSR', () => {
         data: {
           products: { state: 'ok', items: [shopProduct] },
           orders: { state: 'ok', items: [] },
-          config: { state: 'ok', data: { enabled: true, max_quantity_per_order: 10, version: 1 } }
+          config: { state: 'ok', data: { enabled: true, max_quantity_per_order: 10, version: 1 } },
+          cosmetics: []
         },
         form: null
       }
@@ -537,5 +539,56 @@ describe('M18-ADMIN-OPS 约定 D: 商城商品行三点菜单 SSR', () => {
     expect(body).not.toContain('action="?/disable"');
     // 订单行「退款」单一写操作保留原按钮（本例无 succeeded 订单 → 退款弹层表单不渲染）
     expect(body).not.toContain('action="?/refund"');
+  });
+
+  it('装扮样式库与商品列表正常渲染个人资料背景（profile_effect）与头像框预览', () => {
+    const bgDef = {
+      id: 'c01a0b1a065447f92916272e14207ca7',
+      kind: 'profile_effect',
+      name: 'A City to Burn',
+      style: {
+        mode: 'profile',
+        image: 'ab78d1ab87ad1d93029960fea8ac848b31520de0.jpg',
+        baseColor: '#090514',
+        accentColor: '#8b5cf6'
+      },
+      status: 'active',
+      updatedAt: 1700000000000
+    };
+    const bgProduct: ShopProduct = {
+      id: 'prod-bg-1',
+      kind: 'profile_effect',
+      slot: 'profile_effect',
+      status: 'published',
+      slug: 'a-city-to-burn',
+      title: 'A City to Burn',
+      currency_id: 'coin',
+      unit_price: 200,
+      quantity_limit: 1,
+      required_level: 1,
+      refund_policy: 'non_refundable',
+      presentation_tokens: ['profile.effect.c01a0b1a065447f92916272e14207ca7'],
+      version: 1,
+      created_at: 1700000000000,
+      updated_at: 1700000000000
+    };
+
+    const { body } = render(AdminShopPage, {
+      props: {
+        data: {
+          products: { state: 'ok', items: [bgProduct] },
+          orders: { state: 'ok', items: [] },
+          config: { state: 'ok', data: { enabled: true, max_quantity_per_order: 10, version: 1 } },
+          cosmetics: [bgDef]
+        },
+        form: null
+      }
+    });
+
+    expect(body).toContain('已生效装扮样式库');
+    expect(body).toContain('A City to Burn');
+    expect(body).toContain('cosmetic-thumb-bg');
+    expect(body).toContain('profile-cover');
+    expect(body).toContain('ab78d1ab87ad1d93029960fea8ac848b31520de0.jpg');
   });
 });

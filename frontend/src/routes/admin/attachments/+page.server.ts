@@ -3,9 +3,9 @@
 // - load：GET /api/v1/admin/attachments（?q= 文件名/上传者模糊 + ?after= 分页）；
 // - delete：DELETE /api/v1/admin/attachments/{id} body {reason}（软删除 +
 //   reason 写审计；storage.manage 权限门）。
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedDeleteBody, authedPatch, getAuthed } from '$lib/api/server';
+import { authedDeleteBody, authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { parseBatchIds, batchResult, type BatchOutcome } from '$lib/admin-batch';
 import type { AdminAttachmentItem } from '$lib/api/types';
 
@@ -23,6 +23,8 @@ export interface AdminAttachmentsPageData {
 export interface AdminAttachmentsActionData {
   message?: string;
   requestId?: string | null;
+  /** 403 step_up_required → 页面展示重新验证（reauth）密码弹窗（M02-MFA-07）。 */
+  stepUpRequired?: boolean;
 }
 
 export const load: PageServerLoad = async ({
@@ -80,6 +82,12 @@ export const actions: Actions = {
       if (result.ok) {
         return { message: `附件 ${id} 已删除（软删除，记录保留）` };
       }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminAttachmentsActionData);
+      }
       return fail(result.status, { message: result.message, requestId: result.requestId });
     } catch {
       return fail(503, { message: '删除失败，请稍后重试' });
@@ -88,6 +96,8 @@ export const actions: Actions = {
   // M18-ADMIN-BATCH：批量删除 = 循环调用与单条 delete 完全相同的既有端点
   // （DELETE /admin/attachments/{id} body {reason}，软删除 + reason 写审计；
   // 该端点无 If-Match 乐观锁，AdminAttachmentItem 亦无 version 字段，故不提交 versions）。
+  // 命中 403 step_up_required 即中止（后续必然同样失败，M02-MFA-07），
+  // 返回 stepUpRequired 交由页面 re-auth 密码弹窗处理（与 admin/users 批量同约定）。
   batchDelete: async ({ request, cookies }) => {
     const form = await request.formData();
     const ids = parseBatchIds(form);
@@ -104,7 +114,12 @@ export const actions: Actions = {
           request.headers.get('x-request-id')
         );
         if (r.ok) outcome.okCount++;
-        else outcome.failures.push({ id, message: r.message });
+        else if (r.code === 'step_up_required') {
+          return fail(403, {
+            message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+            stepUpRequired: true
+          } satisfies AdminAttachmentsActionData);
+        } else outcome.failures.push({ id, message: r.message });
       } catch {
         outcome.failures.push({ id, message: '网络错误' });
       }
@@ -154,6 +169,12 @@ export const actions: Actions = {
     );
 
     if (!banResult.ok) {
+      if (banResult.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminAttachmentsActionData);
+      }
       return fail(banResult.status, { message: banResult.message, requestId: banResult.requestId });
     }
 
@@ -174,5 +195,39 @@ export const actions: Actions = {
     return {
       message: `已成功封禁违规用户「${username}」${deleteAttachmentId ? '，并清理对应违规附件' : ''}`
     };
+  },
+
+  /**
+   * step-up 重新验证（M02-MFA-07，与其他管理页同款交互）：删除/批量删除/封禁
+   * 命中 403 step_up_required 时弹出的密码确认框提交到这里；成功刷新会话
+   * 近期认证窗口，用户（或批量自动续跑）即可重试原操作。
+   */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, { message: '请输入当前密码' } satisfies AdminAttachmentsActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminAttachmentsActionData;
+      }
+      return fail(result.status, {
+        message: result.message
+      } satisfies AdminAttachmentsActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '验证失败，请稍后重试'
+      } satisfies AdminAttachmentsActionData);
+    }
   }
 };

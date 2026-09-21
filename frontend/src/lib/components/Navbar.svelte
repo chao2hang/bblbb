@@ -567,6 +567,7 @@
                 <a href="/me" class="dropdown-item" role="menuitem" onclick={closeMenus}><Icon name="user" size={16} /><span>我的主页</span></a>
                 <a href="/me/level" class="dropdown-item" role="menuitem" onclick={closeMenus}><Icon name="award" size={16} /><span>我的等级</span></a>
                 <a href="/me/balance" class="dropdown-item" role="menuitem" onclick={closeMenus}><Icon name="coins" size={16} /><span>积分明细</span></a>
+                <a href="/me/wardrobe" class="dropdown-item" role="menuitem" onclick={closeMenus}><Icon name="sparkles" size={16} /><span>我的装扮</span></a>
                 <a href="/favorites" class="dropdown-item" role="menuitem" onclick={closeMenus}><Icon name="bookmark" size={16} /><span>我的收藏</span></a>
                 <a href="/editor" class="dropdown-item" role="menuitem" onclick={closeMenus}><Icon name="pen-line" size={16} /><span>发布内容</span></a>
                 <a href="/settings" class="dropdown-item" role="menuitem" onclick={closeMenus}><Icon name="settings" size={16} /><span>账号设置</span></a>

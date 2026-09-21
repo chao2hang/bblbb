@@ -27,6 +27,8 @@
   import DogeIcon from '$lib/components/ui/DogeIcon.svelte';
   import HuajiIcon from '$lib/components/ui/HuajiIcon.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
   import { AVAILABLE_REACTIONS, getReactionDef } from '$lib/reactions';
   import { SHEET_MEDIA_QUERY, sheetDrag } from '$lib/utils/sheet-drag';
 
@@ -518,9 +520,9 @@
                 {@const def = getDef(u.reaction)}
                 <div class="rx-user-row">
                   <div class="rx-user-meta">
-                    <Avatar name={u.display_name || u.username} size="sm" seed={u.username ?? u.user_id} />
+                    <CosmeticAvatar name={u.display_name || u.username} size="sm" presentation={u.presentation_tokens} seed={u.username ?? u.user_id} avatarAttachmentId={u.avatar_attachment_id} />
                     <div class="rx-user-names">
-                      <span class="rx-user-display-name">{u.display_name || u.username}</span>
+                      <span class="rx-user-display-name"><CosmeticName name={u.display_name || u.username} presentation={u.presentation_tokens} /></span>
                       <span class="rx-user-handle">@{u.username}</span>
                     </div>
                   </div>
@@ -559,7 +561,7 @@
           }}
         >
           <Icon name="smile" size={15} />
-          <span class="reaction-add-label">{authed ? '+ 表情' : '表情'}</span>
+          <span class="reaction-add-label">表情</span>
         </button>
 
         {#if pickerOpen}
@@ -674,28 +676,26 @@
     flex-wrap: wrap;
   }
 
+  /* 收到的反应：无边框、无底色的「图标 + 次数」轻量样式，仅靠 hover 反馈可点击性 */
   .rx-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    /* 圆角跟随主题 radius.control（--radius-sm），与「+ 表情」按钮及全局控件一致；
-       不再硬编码 999px 胶囊形——零圆角主题下保持直角。 */
+    gap: 5px;
+    height: 24px;
+    padding: 0 5px;
     border-radius: var(--radius-sm, 6px);
-    border: 1px solid var(--color-border, #DFE3E7);
-    background: var(--color-bg-subtle, #F1F3F5);
+    border: none;
+    background: transparent;
     color: var(--color-text-secondary, #545C68);
     font-size: 13px;
     font-weight: var(--weight-medium, 500);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.15s ease;
   }
 
   .rx-pill:hover,
   .rx-pill.is-open {
     background: var(--color-surface-hover, #F1F3F5);
-    border-color: var(--color-border-strong, #B8C0C9);
   }
 
   .rx-pill:focus-visible {
@@ -874,7 +874,7 @@
     gap: 5px;
     height: 32px;
     padding: 0 10px;
-    border: 1px solid var(--color-border, #DFE3E7);
+    border: none;
     border-radius: var(--radius-sm, 6px);
     background: transparent;
     color: var(--color-text-secondary, #545C68);
@@ -885,7 +885,6 @@
 
   .reaction-add-btn:hover,
   .reaction-add-btn.is-open {
-    border-color: var(--color-brand, #2C4BD8);
     color: var(--color-brand, #2C4BD8);
     background: var(--color-surface-hover, #F1F3F5);
   }
