@@ -492,10 +492,8 @@ const STEAM_CLASS_BACKGROUNDS: u32 = 13;
 const STEAM_SYNC_LANGUAGE: &str = "schinese";
 const STEAM_SYNC_MAX_PAGES: usize = 40;
 
-const FRAMES_SNAPSHOT: &str =
-    include_str!("../../data/steam-avatar-frames.json");
-const BACKGROUNDS_SNAPSHOT: &str =
-    include_str!("../../data/steam-profile-backgrounds.json");
+const FRAMES_SNAPSHOT: &str = include_str!("../../data/steam-avatar-frames.json");
+const BACKGROUNDS_SNAPSHOT: &str = include_str!("../../data/steam-profile-backgrounds.json");
 
 #[derive(Debug, serde::Serialize)]
 pub struct SteamCatalogItem {
