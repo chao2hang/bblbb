@@ -913,6 +913,16 @@ async fn insert_message(
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
             let r: Result<(), sqlx::Error> = async {
                 sqlx::query(
+                    "UPDATE conversations SET last_message_at =
+                     CASE WHEN last_message_at < ? THEN ? ELSE last_message_at END
+                     WHERE id = ?",
+                )
+                    .bind(now)
+                    .bind(now)
+                    .bind(conversation_id)
+                    .execute(&mut *conn)
+                    .await?;
+                sqlx::query(
                     "INSERT INTO messages (id, conversation_id, sender_id, body, created_at, deleted_at)
                      VALUES (?, ?, ?, ?, ?, NULL)",
                 )
@@ -923,16 +933,6 @@ async fn insert_message(
                 .bind(now)
                 .execute(&mut *conn)
                 .await?;
-                sqlx::query(
-                    "UPDATE conversations SET last_message_at =
-                     CASE WHEN last_message_at < ? THEN ? ELSE last_message_at END
-                     WHERE id = ?",
-                )
-                    .bind(now)
-                    .bind(now)
-                    .bind(conversation_id)
-                    .execute(&mut *conn)
-                    .await?;
                 sqlx::query(
                     "UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND user_id = ?",
                 )
@@ -965,6 +965,16 @@ async fn insert_message(
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
             let r: Result<(), sqlx::Error> = async {
                 sqlx::query(
+                    "UPDATE conversations SET last_message_at =
+                     CASE WHEN last_message_at < ? THEN ? ELSE last_message_at END
+                     WHERE id = ?",
+                )
+                    .bind(now)
+                    .bind(now)
+                    .bind(conversation_id)
+                    .execute(&mut *tx)
+                    .await?;
+                sqlx::query(
                     "INSERT INTO messages (id, conversation_id, sender_id, body, created_at, deleted_at)
                      VALUES (?, ?, ?, ?, ?, NULL)",
                 )
@@ -975,16 +985,6 @@ async fn insert_message(
                 .bind(now)
                 .execute(&mut *tx)
                 .await?;
-                sqlx::query(
-                    "UPDATE conversations SET last_message_at =
-                     CASE WHEN last_message_at < ? THEN ? ELSE last_message_at END
-                     WHERE id = ?",
-                )
-                    .bind(now)
-                    .bind(now)
-                    .bind(conversation_id)
-                    .execute(&mut *tx)
-                    .await?;
                 sqlx::query(
                     "UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND user_id = ?",
                 )
