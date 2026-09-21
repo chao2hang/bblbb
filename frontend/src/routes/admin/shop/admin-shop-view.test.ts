@@ -157,18 +157,21 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
       props: { data: createPageData() as any, form: null }
     });
 
-    const cardGrids = container.querySelectorAll('.shop-admin-card-grid');
-    expect(cardGrids.length).toBeGreaterThan(0);
+    const activePanel = container.querySelector('.shop-tab-panel:not(.is-hidden)');
+    expect(activePanel).toBeTruthy();
 
-    const cards = container.querySelectorAll('.shop-admin-card');
-    expect(cards.length).toBe(6); // 3 样式卡片 + 3 商品卡片
+    const cardGrids = activePanel?.querySelectorAll('.shop-admin-card-grid');
+    expect(cardGrids?.length).toBeGreaterThan(0);
+
+    const cards = activePanel?.querySelectorAll('.shop-admin-card');
+    expect(cards?.length).toBe(3); // 默认商品货架 Tab 下渲染 3 件商品
 
     // 检查卡片内信息
-    expect(container.textContent).toContain('雷霆动效头像框');
-    expect(container.textContent).toContain('赛博夜景背景');
-    expect(container.textContent).toContain('极光渐变');
-    expect(container.textContent).toContain('在售');
-    expect(container.textContent).toContain('已停售');
+    expect(activePanel?.textContent).toContain('雷霆动效头像框');
+    expect(activePanel?.textContent).toContain('赛博夜景背景');
+    expect(activePanel?.textContent).toContain('极光渐变');
+    expect(activePanel?.textContent).toContain('在售');
+    expect(activePanel?.textContent).toContain('已停售');
   });
 
   it('点击「列表展示」切换为表格行列表展示', async () => {
@@ -183,17 +186,61 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
 
     await fireEvent.click(listBtn);
 
+    const activePanel = container.querySelector('.shop-tab-panel:not(.is-hidden)');
     // 切换后渲染 post-row
-    const postRows = container.querySelectorAll('.post-row');
-    expect(postRows.length).toBe(6); // 3 样式行 + 3 商品行
-    expect(container.querySelectorAll('.shop-admin-card-grid').length).toBe(0);
+    const postRows = activePanel?.querySelectorAll('.post-row');
+    expect(postRows?.length).toBe(3); // 3 件商品行
+    expect(activePanel?.querySelectorAll('.shop-admin-card-grid').length).toBe(0);
 
     // 再切回卡片展示
     const gridBtn = Array.from(container.querySelectorAll('.view-mode-btn')).find((b) =>
       b.textContent?.includes('卡片展示')
     ) as HTMLButtonElement;
     await fireEvent.click(gridBtn);
-    expect(container.querySelectorAll('.shop-admin-card-grid').length).toBeGreaterThan(0);
+    expect(activePanel?.querySelectorAll('.shop-admin-card-grid').length).toBeGreaterThan(0);
+  });
+
+  it('点击主业务 Tab 可在商品货架、装扮样式库与订单记录间无冲突切换', async () => {
+    const { container } = render(AdminShopPage, {
+      props: { data: createPageData() as any, form: null }
+    });
+
+    const productPanel = container.querySelector('#panel-products');
+    const cosmeticPanel = container.querySelector('#panel-cosmetics');
+    const orderPanel = container.querySelector('#panel-orders');
+
+    // 默认在「商品货架」激活，装扮样式库与订单被隐藏
+    expect(productPanel?.classList.contains('is-hidden')).toBe(false);
+    expect(cosmeticPanel?.classList.contains('is-hidden')).toBe(true);
+    expect(orderPanel?.classList.contains('is-hidden')).toBe(true);
+    expect(productPanel?.textContent).toContain('商品列表');
+
+    // 切换到「装扮样式库」
+    const cosmeticTab = Array.from(container.querySelectorAll('.shop-main-tabs .tab')).find((t) =>
+      t.textContent?.includes('装扮样式库')
+    ) as HTMLButtonElement;
+    expect(cosmeticTab).toBeTruthy();
+    await fireEvent.click(cosmeticTab);
+
+    // 当前视图展示装扮样式库，商品货架被隐藏
+    expect(productPanel?.classList.contains('is-hidden')).toBe(true);
+    expect(cosmeticPanel?.classList.contains('is-hidden')).toBe(false);
+    expect(orderPanel?.classList.contains('is-hidden')).toBe(true);
+    expect(cosmeticPanel?.textContent).toContain('已生效装扮样式库');
+    const cards = cosmeticPanel?.querySelectorAll('.shop-admin-card');
+    expect(cards?.length).toBe(3); // 3 个样式定义
+
+    // 切换到「订单记录」
+    const orderTab = Array.from(container.querySelectorAll('.shop-main-tabs .tab')).find((t) =>
+      t.textContent?.includes('订单记录')
+    ) as HTMLButtonElement;
+    expect(orderTab).toBeTruthy();
+    await fireEvent.click(orderTab);
+
+    expect(productPanel?.classList.contains('is-hidden')).toBe(true);
+    expect(cosmeticPanel?.classList.contains('is-hidden')).toBe(true);
+    expect(orderPanel?.classList.contains('is-hidden')).toBe(false);
+    expect(orderPanel?.textContent).toContain('订单');
   });
 
   it('点击类型 Tag 切换可按类型精准过滤商品与样式', async () => {
@@ -209,13 +256,10 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
 
     await fireEvent.click(avatarTag);
 
-    // 过滤后只显示头像框
+    // 过滤后只显示头像框商品
     expect(container.textContent).toContain('雷霆动效头像框');
-    // 商品列表只剩下 1 件
-    const productGrid = container.querySelectorAll('.app-card')[2]; // 商品列表卡片
-    expect(productGrid.textContent).toContain('雷霆动效头像框');
-    expect(productGrid.textContent).not.toContain('赛博夜景背景');
-    expect(productGrid.textContent).not.toContain('极光渐变');
+    expect(container.textContent).not.toContain('赛博夜景背景');
+    expect(container.textContent).not.toContain('极光渐变');
 
     // 切换至「个人资料背景」
     const spaceTag = Array.from(container.querySelectorAll('.shop-filter-tag')).find((t) =>
@@ -223,8 +267,8 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
     ) as HTMLButtonElement;
     await fireEvent.click(spaceTag!);
 
-    expect(productGrid.textContent).toContain('赛博夜景背景');
-    expect(productGrid.textContent).not.toContain('雷霆动效头像框');
+    expect(container.textContent).toContain('赛博夜景背景');
+    expect(container.textContent).not.toContain('雷霆动效头像框');
 
     // 切换回「全部」
     const allTag = Array.from(container.querySelectorAll('.shop-filter-tag')).find((t) =>
@@ -232,9 +276,9 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
     ) as HTMLButtonElement;
     await fireEvent.click(allTag!);
 
-    expect(productGrid.textContent).toContain('雷霆动效头像框');
-    expect(productGrid.textContent).toContain('赛博夜景背景');
-    expect(productGrid.textContent).toContain('极光渐变');
+    expect(container.textContent).toContain('雷霆动效头像框');
+    expect(container.textContent).toContain('赛博夜景背景');
+    expect(container.textContent).toContain('极光渐变');
   });
 
   it('支持搜索输入实时过滤商品', async () => {
@@ -247,8 +291,7 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
 
     await fireEvent.input(searchInput, { target: { value: '赛博' } });
 
-    const productGrid = container.querySelectorAll('.app-card')[2];
-    expect(productGrid.textContent).toContain('赛博夜景背景');
-    expect(productGrid.textContent).not.toContain('雷霆动效头像框');
+    expect(container.textContent).toContain('赛博夜景背景');
+    expect(container.textContent).not.toContain('雷霆动效头像框');
   });
 });
