@@ -470,7 +470,7 @@ async fn owner_edit_updates_tags() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/posts/{post_id}"))
+                .uri(format!("/api/v1/posts/{post_id}"))
                 .body(Body::empty())
                 .unwrap(),
         )

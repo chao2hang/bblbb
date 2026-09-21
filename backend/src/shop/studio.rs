@@ -923,7 +923,7 @@ mod tests {
         for kind in cosmetics::CUSTOMIZABLE_KINDS {
             let (product_kind, prefix, _slot) = kind_spec(kind).unwrap();
             assert!(!product_kind.is_empty());
-            assert!(prefix.ends_with('.') || prefix.ends_with("..") == false);
+            assert!(prefix.ends_with('.') || !prefix.ends_with(".."));
         }
         assert!(kind_spec("unknown").is_err());
     }

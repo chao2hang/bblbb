@@ -53,6 +53,7 @@ fn app_with(pool: DatabasePool) -> Router {
     build_router(AppConfig::default(), Some(pool))
 }
 
+#[allow(dead_code)]
 async fn login_session_cookie(app: &Router, email: &str) -> String {
     let (cookie, csrf) = common::fetch_preauth(app).await;
     let resp = app
@@ -270,7 +271,7 @@ async fn bootstrap_token_creates_first_admin_then_locks() {
         "已有 active administrator 时应拒绝生成 token"
     );
 
-    close_pool(&pool);
+    close_pool(&pool).await;
     cleanup(&dir);
 }
 
@@ -279,7 +280,7 @@ async fn last_active_admin_cannot_be_revoked_or_disabled() {
     let (pool, dir) = sqlite_pool_with_migrations().await;
     let app = app_with(pool.clone());
 
-    let (admin_id, email) = insert_login_user(&pool, "lastadmin").await;
+    let (admin_id, _email) = insert_login_user(&pool, "lastadmin").await;
     assign_global_role(&pool, &admin_id, "administrator").await;
     // M02-MFA-05：administrator 未完成 TOTP enrollment 时聚合降级为 member
     // 基线——高权限测试必须先完成 enrollment。
@@ -322,7 +323,7 @@ async fn last_active_admin_cannot_be_revoked_or_disabled() {
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "封禁最后管理员应 409：{body}");
 
-    close_pool(&pool);
+    close_pool(&pool).await;
     cleanup(&dir);
 }
 
@@ -333,7 +334,7 @@ async fn feature_flags_persist_and_gate_runtime() {
     let (pool, dir) = sqlite_pool_with_migrations().await;
     let app = app_with(pool.clone());
 
-    let (admin_id, email) = insert_login_user(&pool, "flagadmin").await;
+    let (admin_id, _email) = insert_login_user(&pool, "flagadmin").await;
     assign_global_role(&pool, &admin_id, "administrator").await;
     common::enroll_totp(&pool, &admin_id).await;
     // 直签会话（TOTP 已启用后密码登录走两步；管理端测试直签等价）。
@@ -416,7 +417,7 @@ async fn feature_flags_persist_and_gate_runtime() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK, "启用后 feature gate 应放行");
 
-    close_pool(&pool);
+    close_pool(&pool).await;
     cleanup(&dir);
 }
 
@@ -427,7 +428,7 @@ async fn shop_config_persists_and_guards_last_admin() {
     let (pool, dir) = sqlite_pool_with_migrations().await;
     let app = app_with(pool.clone());
 
-    let (admin_id, email) = insert_login_user(&pool, "shopadmin").await;
+    let (admin_id, _email) = insert_login_user(&pool, "shopadmin").await;
     assign_global_role(&pool, &admin_id, "administrator").await;
     common::enroll_totp(&pool, &admin_id).await;
     // 直签会话（TOTP 已启用后密码登录走两步；管理端测试直签等价）。
@@ -492,7 +493,7 @@ async fn shop_config_persists_and_guards_last_admin() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    close_pool(&pool);
+    close_pool(&pool).await;
     cleanup(&dir);
 }
 
@@ -538,7 +539,7 @@ async fn outbox_consumer_delivers_pending_events() {
         .unwrap();
     assert_eq!(again, 0);
 
-    close_pool(&pool);
+    close_pool(&pool).await;
     cleanup(&dir);
 }
 

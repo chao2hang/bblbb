@@ -211,7 +211,7 @@ async fn stats_idempotent_and_read_time_clamped() {
 
     // 阅读楼层幂等。
     let comment = insert_comment(&pool, &post, &user, now_millis()).await;
-    store::record_comment_reads(&pool, &user, &post, &[comment.clone()])
+    store::record_comment_reads(&pool, &user, &post, std::slice::from_ref(&comment))
         .await
         .unwrap();
     store::record_comment_reads(&pool, &user, &post, &[comment])
@@ -426,7 +426,7 @@ async fn seed_tl3_window(pool: &DatabasePool, user: &str, others: &[String]) {
     // 目标扩到 8 个：4 内容 × 2 份镜像不行（唯一键），改为 4 liker × 5 赞
     // 每人打 5 个不同 (类型, id)：4 内容 + 每人 1 个独占帖。
     let mut per_liker_extra = Vec::new();
-    for (li, liker) in others.iter().take(4).enumerate() {
+    for liker in others.iter().take(4) {
         let extra_post = insert_post(pool, user, now).await;
         per_liker_extra.push((liker.clone(), extra_post.clone()));
         for k in 0..4i64 {

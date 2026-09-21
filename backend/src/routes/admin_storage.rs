@@ -1258,9 +1258,11 @@ mod tests {
             // secret 留空：模拟页面提交已保存配置
         }))
         .unwrap();
-        let mut saved = StorageSettingsRow::default();
-        saved.storage_s3_access_key_id = "SAVEDKEY".to_string();
-        saved.storage_s3_secret_access_key = "SAVEDSECRET".to_string();
+        let saved = StorageSettingsRow {
+            storage_s3_access_key_id: "SAVEDKEY".to_string(),
+            storage_s3_secret_access_key: "SAVEDSECRET".to_string(),
+            ..Default::default()
+        };
         let result = run_storage_probe(&config, &candidate, Some(&saved)).await;
         // 无真实服务 → 网络失败，但凭据必须已注入（不再是 CredentialsNotLoaded）。
         assert!(!result.ok);

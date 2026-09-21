@@ -936,7 +936,7 @@ async fn studio_publish_creates_def_and_product_atomically() {
     let (pool, dir) = sqlite_pool_with_migrations().await;
     let owner = insert_user(&pool, "studio1").await;
 
-    let v = bblbb_backend::shop::studio::publish(&pool, &studio_body(None, None), &owner)
+    let v = bblbb_backend::shop::studio::publish(&pool, &studio_body(None, None), &owner, None)
         .await
         .unwrap();
     let def_id = v["cosmetic"]["id"].as_str().unwrap().to_string();
@@ -1019,6 +1019,7 @@ async fn studio_publish_idempotent_replay_and_conflict() {
         &pool,
         &studio_body(Some("replay-nick"), Some("crq-studio-1")),
         &owner,
+        None,
     )
     .await
     .unwrap();
@@ -1026,6 +1027,7 @@ async fn studio_publish_idempotent_replay_and_conflict() {
         &pool,
         &studio_body(Some("replay-nick"), Some("crq-studio-1")),
         &owner,
+        None,
     )
     .await
     .unwrap();
@@ -1042,7 +1044,7 @@ async fn studio_publish_idempotent_replay_and_conflict() {
     // 同 key 不同摘要 → 幂等冲突。
     let mut other = studio_body(Some("replay-nick-2"), Some("crq-studio-1"));
     other["product"]["unit_price"] = json!(999);
-    let err = bblbb_backend::shop::studio::publish(&pool, &other, &owner)
+    let err = bblbb_backend::shop::studio::publish(&pool, &other, &owner, None)
         .await
         .unwrap_err();
     assert!(
@@ -1089,6 +1091,7 @@ async fn studio_publish_updates_and_revives_archived_def() {
             "reason": "改版再发布"
         }),
         &owner,
+        None,
     )
     .await
     .unwrap();
@@ -1126,6 +1129,7 @@ async fn studio_publish_updates_and_revives_archived_def() {
             "product": { "title": "Mismatch", "unit_price": 1 }
         }),
         &owner,
+        None,
     )
     .await
     .unwrap_err();
@@ -1188,6 +1192,7 @@ async fn studio_publish_supports_all_customizable_kinds() {
                 "product": { "title": format!("Prod {kind}"), "unit_price": 10 }
             }),
             &owner,
+            None,
         )
         .await
         .unwrap_or_else(|e| panic!("kind {kind} publish failed: {e:?}"));
@@ -1229,6 +1234,7 @@ async fn studio_publish_rolls_back_on_validation_failure() {
             "product": { "title": "Bad", "unit_price": 1 }
         }),
         &owner,
+        None,
     )
     .await
     .unwrap_err();
@@ -1241,6 +1247,7 @@ async fn studio_publish_rolls_back_on_validation_failure() {
             "product": { "title": "Png", "unit_price": 1, "asset_attachment_id": "att-missing" }
         }),
         &owner,
+        None,
     )
     .await
     .unwrap_err();
