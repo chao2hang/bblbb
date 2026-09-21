@@ -287,6 +287,19 @@ describe('全局壳·移动端半屏用户菜单 (Bottom Sheet)', () => {
     expect(document.querySelector('.user-sheet-backdrop')).toBeNull();
   });
 
+  it('展开用户菜单时包含我的装扮等核心快捷入口', async () => {
+    const user = userEvent.setup();
+    render(Navbar, { props: { user: navUser } });
+
+    await user.click(screen.getByRole('button', { name: '用户菜单' }));
+    const menu = screen.getByRole('menu', { name: '用户菜单' });
+    expect(menu).toBeTruthy();
+
+    const wardrobeLink = menu.querySelector('a[href="/me/wardrobe"]');
+    expect(wardrobeLink).not.toBeNull();
+    expect(wardrobeLink?.textContent).toContain('我的装扮');
+  });
+
   it('点击遮罩层可收起半屏菜单', async () => {
     const user = userEvent.setup();
     render(Navbar, { props: { user: navUser } });

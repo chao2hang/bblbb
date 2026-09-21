@@ -99,13 +99,64 @@ describe('Avatar 组件', () => {
     });
     const img = container.querySelector('img')!;
     expect(img).not.toBeNull();
+    // 尚未报错前处于加载态，展示占位
+    expect(container.querySelector('.avatar-placeholder')).not.toBeNull();
 
     // 触发 onerror
     await fireEvent.error(img);
 
     expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('.avatar-placeholder')).toBeNull();
     const avatar = container.querySelector('.avatar');
     expect(avatar?.textContent?.trim()).toBe('D');
     expect(avatar?.getAttribute('style')).toContain('linear-gradient');
+  });
+
+  it('图片尚未加载完成时展示加载占位与 is-loading 状态', () => {
+    const { container } = render(Avatar, {
+      name: 'Frank',
+      src: '/avatar.jpg'
+    });
+    const avatar = container.querySelector('.avatar');
+    expect(avatar).not.toBeNull();
+    expect(avatar?.classList.contains('is-loading')).toBe(true);
+    expect(avatar?.getAttribute('aria-busy')).toBe('true');
+
+    const placeholder = container.querySelector('.avatar-placeholder');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.getAttribute('aria-hidden')).toBe('true');
+    expect(placeholder?.querySelector('svg.avatar-placeholder-icon')).not.toBeNull();
+  });
+
+  it('图片加载完成（onload）后加载占位移除并呈现已就绪状态', async () => {
+    const { container } = render(Avatar, {
+      name: 'Grace',
+      src: '/avatar-grace.png'
+    });
+    const img = container.querySelector('img')!;
+    expect(img).not.toBeNull();
+    expect(container.querySelector('.avatar-placeholder')).not.toBeNull();
+
+    // 触发 onload
+    await fireEvent.load(img);
+
+    expect(container.querySelector('.avatar-placeholder')).toBeNull();
+    const avatar = container.querySelector('.avatar');
+    expect(avatar?.classList.contains('is-loading')).toBe(false);
+    expect(avatar?.classList.contains('is-loaded')).toBe(true);
+    expect(avatar?.getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('显示指定 loading 属性时展示加载占位', () => {
+    const { container } = render(Avatar, {
+      name: 'Helen',
+      loading: true
+    });
+    const avatar = container.querySelector('.avatar');
+    expect(avatar).not.toBeNull();
+    expect(avatar?.classList.contains('is-loading')).toBe(true);
+    expect(container.querySelector('.avatar-placeholder')).not.toBeNull();
+    // 加载中不应露出兜底字母
+    expect(container.querySelector('.avatar')?.textContent?.trim()).toBe('');
   });
 });

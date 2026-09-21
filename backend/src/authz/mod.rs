@@ -731,6 +731,9 @@ mod tests {
             "openid",
             "openid.logout",
             "oauth_client.manage",
+            "passkey.read_own",
+            "passkey.enroll",
+            "passkey.revoke",
         ];
         let registry_names: std::collections::HashSet<&str> =
             PERMISSION_REGISTRY.iter().map(|p| p.name).collect();

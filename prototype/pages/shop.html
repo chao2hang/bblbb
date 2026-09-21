@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="BBLBB 社区原型 · 商城与积分">
 <meta name="theme-color" content="#F5F3EE" id="theme-color"><script>try{var p=localStorage.getItem("bblbb-theme")||"system";var t=p==="dark"||(p!=="light"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=p;document.documentElement.style.colorScheme=t;document.querySelector("#theme-color").setAttribute("content",t==="dark"?"#0D0D0D":"#F5F3EE")}catch(e){document.documentElement.dataset.theme="light"}</script><title>商城与积分 · BBLBB 社区</title>
-  <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/style.css">
 <link rel="stylesheet" href="../assets/prototype-app.css">
 <link rel="stylesheet" href="../assets/prototype-workflows.css">
 <link rel="stylesheet" href="../assets/chinese-elegance.css">
@@ -13,9 +13,459 @@
 <!-- 共享骨架（SVG sprite / 顶栏 / 底部导航 / Toast）由 assets/page-chrome.js 注入 -->
 <script src="../assets/page-chrome.js"></script>
 <main class="layout" id="main" tabindex="-1">
-<!-- 本文件既是独立页面（浏览器可直接打开预览），也是 SPA 的模板来源（prototype-app.js 提取 section.page 的内容挂载） -->
 <section class="page app-page app-route-shop" id="page-shop">
-<div class="app-route-head"><div class="app-route-head__copy"><span class="app-kicker">STYLE LAB / SHOP</span><h1 tabindex="-1">商城与积分</h1><p>装扮身份、购买权益与余额流水</p></div><div class="app-route-head__actions"><button type="button" class="btn ghost" data-go-billing="">查看账单</button></div></div><div class="app-account-cards"><div class="app-account-card"><small>经验</small><strong>2680</strong><span>成长等级 · Lv.3</span></div><div class="app-account-card"><small>B币余额</small><strong data-shop-balance="">328</strong><span>可用于购买装扮与解锁</span></div><div class="app-account-card"><small>贡献</small><strong>146</strong><span>距离下一称号还有 15</span></div></div><div class="app-notice" style="margin-top:14px">商城扣款仅为原型演示；正式环境必须由原子订单、幂等键、Outbox 和不可变账本保证一致性。</div><div class="app-article-grid" style="margin-top:14px"><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">头像框</span><h3>头像框·星河</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>30 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="30" data-buy-name="头像框·星河">购买</button></div></article><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">昵称特效</span><h3>昵称特效·流光</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>45 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="45" data-buy-name="昵称特效·流光">购买</button></div></article><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">主题皮肤</span><h3>主题皮肤·暗夜蓝</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>60 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="60" data-buy-name="主题皮肤·暗夜蓝">购买</button></div></article><article class="app-article-card"><div class="app-article-card__cover"></div><span class="sbadge sb-gray">实用道具</span><h3>置顶券</h3><p>让每一次发言都带上你的个人风格。</p><div class="app-article-card__meta"><b>20 B币</b><span class="app-spacer"></span><button type="button" class="btn primary" data-buy-price="20" data-buy-name="置顶券">购买</button></div></article></div>
+
+<!-- 路由头部 -->
+<div class="app-route-head">
+  <div class="app-route-head__copy">
+    <span class="app-kicker">POINTS SHOP / CLUSTER SHOWCASE</span>
+    <h1 tabindex="-1">商城与装扮 · 点数中心</h1>
+    <p>参考 Steam 点数商城主题聚类设计：装扮个人空间背景、定制名片与专属发言特效</p>
+  </div>
+  <div class="app-route-head__actions">
+    <button type="button" class="btn ghost" data-go-billing="">查看账单</button>
+  </div>
+</div>
+
+<!-- 个人账户资产与积分卡片（严格兼容 prototype-app.js 数据挂载） -->
+<div class="app-account-cards">
+  <div class="app-account-card">
+    <small>经验</small>
+    <strong>2680</strong>
+    <span>成长等级 · Lv.3</span>
+  </div>
+  <div class="app-account-card">
+    <small>B币余额</small>
+    <strong data-shop-balance="">328</strong>
+    <span>可用于兑换全景背景与个性装扮</span>
+  </div>
+  <div class="app-account-card">
+    <small>贡献</small>
+    <strong>146</strong>
+    <span>距离下一称号还有 15</span>
+  </div>
+</div>
+
+<!-- Steam 风格 Cluster #02 主题聚类 Banner -->
+<div class="shop-cluster-head">
+  <div class="shop-cluster-tag">Collection Cluster #02 · 官方主题聚类</div>
+  <div class="shop-cluster-title">深空巡弋与虚空霓虹 (Void Odyssey & Cyber Luminescence)</div>
+  <div class="shop-cluster-desc">
+    聚合 6 款 16:9 全景个人空间动态背景、配套迷你名片与星轨特效。点击任意卡片即可在下方「实时多视角试穿舞台」中预览个人主页全景、悬浮名片与论坛回帖的实际上身效果。
+  </div>
+  <div class="shop-cluster-badges">
+    <span class="shop-cluster-pill">✨ 16:9 宽屏电影画幅</span>
+    <span class="shop-cluster-pill">🌌 动态粒子流光</span>
+    <span class="shop-cluster-pill">🪪 支持迷你名片与全屏主页</span>
+    <span class="shop-cluster-pill">永久入库 · 自由装配</span>
+  </div>
+</div>
+
+<!-- Steam 风格 16:9 动态宽屏背景卡片网格 -->
+<div class="shop-section-head" style="margin-top:24px;">
+  <div>
+    <h2>主题聚类背景 · 16:9 宽画幅</h2>
+    <p>点击「试穿预览」即刻在下方舞台沉浸试穿；点击「购买」扣除 B 币直接入库</p>
+  </div>
+  <span class="shop-section-head__count">共 6 款全景空间背景</span>
+</div>
+
+<div class="shop-bg-grid" id="shop-bg-grid">
+  <!-- Card 1: 星际跃迁·深空星轨 -->
+  <article class="shop-bg-card is-previewing" data-card-bg="warp" data-card-name="星际跃迁·深空星轨" data-card-price="120">
+    <div class="shop-bg-card__screen bg-art-warp">
+      <span class="shop-bg-card__badge">动态背景</span>
+    </div>
+    <div class="shop-bg-card__content">
+      <div class="shop-bg-card__header">
+        <h3 class="shop-bg-card__title">星际跃迁·深空星轨</h3>
+      </div>
+      <div class="shop-bg-card__cluster">Cluster #02 · 超光速曲率光斑与深蓝星系</div>
+      <div class="shop-bg-card__actions">
+        <span class="shop-price-tag">🪙 120 B币</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn sm ghost" data-try-bg="warp" data-try-name="星际跃迁·深空星轨" data-try-price="120">试穿</button>
+          <button type="button" class="btn sm primary" data-buy-price="120" data-buy-name="星际跃迁·深空星轨">购买</button>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Card 2: 赛博霓虹·雨夜方舟 -->
+  <article class="shop-bg-card" data-card-bg="cyber" data-card-name="赛博霓虹·雨夜方舟" data-card-price="150">
+    <div class="shop-bg-card__screen bg-art-cyber">
+      <span class="shop-bg-card__badge">动态背景</span>
+    </div>
+    <div class="shop-bg-card__content">
+      <div class="shop-bg-card__header">
+        <h3 class="shop-bg-card__title">赛博霓虹·雨夜方舟</h3>
+      </div>
+      <div class="shop-bg-card__cluster">Cluster #02 · 霓虹粉紫流光与暗色雨夜反射</div>
+      <div class="shop-bg-card__actions">
+        <span class="shop-price-tag">🪙 150 B币</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn sm ghost" data-try-bg="cyber" data-try-name="赛博霓虹·雨夜方舟" data-try-price="150">试穿</button>
+          <button type="button" class="btn sm primary" data-buy-price="150" data-buy-name="赛博霓虹·雨夜方舟">购买</button>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Card 3: 浮世云烟·青绿山水 -->
+  <article class="shop-bg-card" data-card-bg="ink" data-card-name="浮世云烟·青绿山水" data-card-price="180">
+    <div class="shop-bg-card__screen bg-art-ink">
+      <span class="shop-bg-card__badge shop-bg-card__badge--gold">典藏限定</span>
+    </div>
+    <div class="shop-bg-card__content">
+      <div class="shop-bg-card__header">
+        <h3 class="shop-bg-card__title">浮世云烟·青绿山水</h3>
+      </div>
+      <div class="shop-bg-card__cluster">Cluster #02 · 东方水墨写意与青绿流动薄雾</div>
+      <div class="shop-bg-card__actions">
+        <span class="shop-price-tag">🪙 180 B币</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn sm ghost" data-try-bg="ink" data-try-name="浮世云烟·青绿山水" data-try-price="180">试穿</button>
+          <button type="button" class="btn sm primary" data-buy-price="180" data-buy-name="浮世云烟·青绿山水">购买</button>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Card 4: 极客终端·代码瀑布 -->
+  <article class="shop-bg-card" data-card-bg="matrix" data-card-name="极客终端·代码瀑布" data-card-price="90">
+    <div class="shop-bg-card__screen bg-art-matrix">
+      <span class="shop-bg-card__badge">动态背景</span>
+    </div>
+    <div class="shop-bg-card__content">
+      <div class="shop-bg-card__header">
+        <h3 class="shop-bg-card__title">极客终端·代码瀑布</h3>
+      </div>
+      <div class="shop-bg-card__cluster">Cluster #02 · 翠绿二进制光雨与等宽字符网格</div>
+      <div class="shop-bg-card__actions">
+        <span class="shop-price-tag">🪙 90 B币</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn sm ghost" data-try-bg="matrix" data-try-name="极客终端·代码瀑布" data-try-price="90">试穿</button>
+          <button type="button" class="btn sm primary" data-buy-price="90" data-buy-name="极客终端·代码瀑布">购买</button>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Card 5: 极地极光·雪国幻夜 -->
+  <article class="shop-bg-card" data-card-bg="aurora" data-card-name="极地极光·雪国幻夜" data-card-price="100">
+    <div class="shop-bg-card__screen bg-art-aurora">
+      <span class="shop-bg-card__badge">高人气</span>
+    </div>
+    <div class="shop-bg-card__content">
+      <div class="shop-bg-card__header">
+        <h3 class="shop-bg-card__title">极地极光·雪国幻夜</h3>
+      </div>
+      <div class="shop-bg-card__cluster">Cluster #02 · 极光绿与紫罗兰波纹交织</div>
+      <div class="shop-bg-card__actions">
+        <span class="shop-price-tag">🪙 100 B币</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn sm ghost" data-try-bg="aurora" data-try-name="极地极光·雪国幻夜" data-try-price="100">试穿</button>
+          <button type="button" class="btn sm primary" data-buy-price="100" data-buy-name="极地极光·雪国幻夜">购买</button>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Card 6: 炽热核心·熔火余烬 -->
+  <article class="shop-bg-card" data-card-bg="inferno" data-card-name="炽热核心·熔火余烬" data-card-price="130">
+    <div class="shop-bg-card__screen bg-art-inferno">
+      <span class="shop-bg-card__badge">动态背景</span>
+    </div>
+    <div class="shop-bg-card__content">
+      <div class="shop-bg-card__header">
+        <h3 class="shop-bg-card__title">炽热核心·熔火余烬</h3>
+      </div>
+      <div class="shop-bg-card__cluster">Cluster #02 · 赤红熔岩暗涌与悬浮余烬微粒</div>
+      <div class="shop-bg-card__actions">
+        <span class="shop-price-tag">🪙 130 B币</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn sm ghost" data-try-bg="inferno" data-try-name="炽热核心·熔火余烬" data-try-price="130">试穿</button>
+          <button type="button" class="btn sm primary" data-buy-price="130" data-buy-name="炽热核心·熔火余烬">购买</button>
+        </div>
+      </div>
+    </div>
+  </article>
+</div>
+
+<!-- Steam 灵魂级核心：多视角实时试穿预览舞台 (Live Profile Preview Stage) -->
+<section class="shop-preview-stage" id="shop-live-stage">
+  <div class="shop-stage-header">
+    <div class="shop-stage-headline">
+      <span class="sbadge sb-success">Live Preview</span>
+      <h2>实时多视角换装舞台</h2>
+      <small style="color:var(--color-text-muted);margin-left:4px;">无需跳页 · 真实模拟上身效果</small>
+    </div>
+    <div class="shop-stage-tabs" role="tablist">
+      <button type="button" class="shop-stage-tab is-active" data-stage-view="full">🌟 个人空间主页全景</button>
+      <button type="button" class="shop-stage-tab" data-stage-view="mini">🪪 悬浮迷你名片</button>
+      <button type="button" class="shop-stage-tab" data-stage-view="post">💬 论坛社区回帖</button>
+    </div>
+  </div>
+
+  <!-- 动态画布区：背景随所选主题实时切换 -->
+  <div class="shop-canvas-viewport bg-art-warp" id="preview-canvas">
+    <!-- View 1: 个人空间主页全景 (Full Profile) -->
+    <div class="profile-mock-full" id="view-mock-full">
+      <div class="profile-mock-full__head">
+        <div class="profile-mock-avatar">
+          <span>C</span>
+        </div>
+        <div class="profile-mock-details">
+          <div class="profile-mock-name">
+            <span>Chaos</span>
+            <span class="sbadge sb-hot">VIP</span>
+          </div>
+          <div class="profile-mock-status">
+            <i></i> 社区在线 · 活跃创作者
+          </div>
+          <p class="profile-mock-bio">在星轨与代码之间穿梭探索 · 欢迎来到我的个人主页</p>
+        </div>
+        <div class="profile-mock-level-badge">
+          <small>COMMUNITY</small>
+          <strong>LV.3</strong>
+        </div>
+      </div>
+      <div class="profile-mock-showcases">
+        <div class="profile-showcase-box">
+          <h4>个人成就展柜 (3/12)</h4>
+          <div class="profile-showcase-badges">
+            <span class="profile-showcase-badge-item" title="创世成员">🏆</span>
+            <span class="profile-showcase-badge-item" title="卓越作者">⚡</span>
+            <span class="profile-showcase-badge-item" title="深度贡献">💎</span>
+          </div>
+        </div>
+        <div class="profile-showcase-box">
+          <h4>社区影响力统计</h4>
+          <div style="font-size:12px;color:rgba(255,255,255,0.8);line-height:1.6;">
+            已发布 <strong>42</strong> 篇技术主题 · 获赞 <strong>1,280</strong> 次
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View 2: 悬浮迷你名片 (Mini Profile) -->
+    <div class="profile-mock-mini" id="view-mock-mini" style="display:none;">
+      <div class="profile-mock-mini__banner"></div>
+      <div class="profile-mock-mini__body">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+          <div class="profile-mock-mini__avatar">C</div>
+          <span class="sbadge sb-success" style="margin-bottom:4px;">Lv.3</span>
+        </div>
+        <h4 style="margin:8px 0 2px;font-size:15px;color:#fff;">Chaos</h4>
+        <small style="color:#7dd3fc;display:block;margin-bottom:8px;">社区创作者 · 技术漫游者</small>
+        <p style="font-size:11px;color:rgba(255,255,255,0.7);margin:0 0 12px;line-height:1.4;">
+          用简洁代码构建确定性世界。
+        </p>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn sm primary" style="flex:1;">关注</button>
+          <button type="button" class="btn sm ghost" style="flex:1;color:#fff;border-color:rgba(255,255,255,0.3);">发私信</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- View 3: 论坛社区回帖 (Forum Post) -->
+    <div class="profile-mock-post" id="view-mock-post" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
+        <span style="font-size:11px;color:rgba(255,255,255,0.6);">#12 楼 · 刚刚</span>
+        <span class="sbadge sb-gray">回帖演示</span>
+      </div>
+      <div style="display:flex;gap:14px;align-items:flex-start;">
+        <div style="width:42px;height:42px;border-radius:50%;background:#0284c7;display:grid;place-items:center;font-weight:700;font-size:16px;box-shadow:0 0 0 2px #38bdf8;">
+          C
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <strong style="color:#93c5fd;font-size:13px;">Chaos</strong>
+            <span class="sbadge sb-gray" style="font-size:10px;">资深探索者</span>
+          </div>
+          <p style="font-size:13px;line-height:1.6;margin:0 0 10px;color:rgba(255,255,255,0.88);">
+            这个背景在夜间模式下和论坛帖子的半透明骨架配合得非常自然，渐变不会喧宾夺主，同时让发言极具辨识度！
+          </p>
+          <div style="font-size:11px;color:rgba(255,255,255,0.5);display:flex;gap:16px;">
+            <span>👍 32 赞同</span>
+            <span>💬 引用回复</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 试穿底栏动作 -->
+  <div class="shop-stage-footer">
+    <div class="shop-stage-info">
+      <span>当前试穿：<strong id="stage-active-name" style="color:var(--color-brand,#0284c7);">星际跃迁·深空星轨</strong></span>
+      <span class="shop-price-tag" id="stage-active-price">🪙 120 B币</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button type="button" class="btn ghost sm" id="stage-reset-btn">恢复默认</button>
+      <button type="button" class="btn primary sm" id="stage-buy-btn" data-buy-price="120" data-buy-name="星际跃迁·深空星轨">立即兑换此背景</button>
+    </div>
+  </div>
+</section>
+
+<!-- 系列配套装扮区 -->
+<div class="shop-section-head" style="margin-top:32px;">
+  <div>
+    <h2>系列配套装扮与实用权益</h2>
+    <p>与全景背景同属 Cluster #02 的个性头像框、流光昵称与社区道具</p>
+  </div>
+</div>
+
+<div class="app-article-grid" style="margin-top:14px">
+  <article class="app-article-card">
+    <div class="app-article-card__cover" style="background:linear-gradient(135deg,#172554,#1e40af);display:grid;place-items:center;">
+      <div style="width:48px;height:48px;border-radius:50%;border:2px solid #60a5fa;box-shadow:0 0 16px #3b82f6;"></div>
+    </div>
+    <span class="sbadge sb-gray">头像框</span>
+    <h3>头像框·星河</h3>
+    <p>深空流光环绕头像，发言更具沉浸视觉。</p>
+    <div class="app-article-card__meta">
+      <b>30 B币</b>
+      <span class="app-spacer"></span>
+      <button type="button" class="btn primary" data-buy-price="30" data-buy-name="头像框·星河">购买</button>
+    </div>
+  </article>
+
+  <article class="app-article-card">
+    <div class="app-article-card__cover" style="background:linear-gradient(135deg,#311042,#581c87);display:grid;place-items:center;">
+      <span style="font-weight:800;font-size:16px;background:linear-gradient(90deg,#f472b6,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">流光特效</span>
+    </div>
+    <span class="sbadge sb-gray">昵称特效</span>
+    <h3>昵称特效·流光</h3>
+    <p>让全站发言都带上专属渐变霓虹光芒。</p>
+    <div class="app-article-card__meta">
+      <b>45 B币</b>
+      <span class="app-spacer"></span>
+      <button type="button" class="btn primary" data-buy-price="45" data-buy-name="昵称特效·流光">购买</button>
+    </div>
+  </article>
+
+  <article class="app-article-card">
+    <div class="app-article-card__cover" style="background:linear-gradient(135deg,#0c192c,#162a45);display:grid;place-items:center;">
+      <span style="font-size:24px;">🎨</span>
+    </div>
+    <span class="sbadge sb-gray">主题皮肤</span>
+    <h3>主题皮肤·暗夜蓝</h3>
+    <p>专属个人空间深色暗夜蓝主题配色方案。</p>
+    <div class="app-article-card__meta">
+      <b>60 B币</b>
+      <span class="app-spacer"></span>
+      <button type="button" class="btn primary" data-buy-price="60" data-buy-name="主题皮肤·暗夜蓝">购买</button>
+    </div>
+  </article>
+
+  <article class="app-article-card">
+    <div class="app-article-card__cover" style="background:linear-gradient(135deg,#1c1917,#292524);display:grid;place-items:center;">
+      <span style="font-size:24px;">📌</span>
+    </div>
+    <span class="sbadge sb-gray">实用道具</span>
+    <h3>置顶券</h3>
+    <p>使你的优质讨论帖在板块获得 24 小时置顶展示。</p>
+    <div class="app-article-card__meta">
+      <b>20 B币</b>
+      <span class="app-spacer"></span>
+      <button type="button" class="btn primary" data-buy-price="20" data-buy-name="置顶券">购买</button>
+    </div>
+  </article>
+</div>
+
+<script>
+(function initShopStageInteractions() {
+  function setup() {
+    var canvas = document.getElementById('preview-canvas');
+    var activeName = document.getElementById('stage-active-name');
+    var activePrice = document.getElementById('stage-active-price');
+    var buyBtn = document.getElementById('stage-buy-btn');
+    var resetBtn = document.getElementById('stage-reset-btn');
+    var cards = document.querySelectorAll('.shop-bg-card');
+
+    if (!canvas) return;
+
+    // 试穿背景切换
+    document.querySelectorAll('[data-try-bg]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var bgKey = btn.getAttribute('data-try-bg');
+        var name = btn.getAttribute('data-try-name');
+        var price = btn.getAttribute('data-try-price');
+
+        // 更新画布类
+        canvas.className = 'shop-canvas-viewport bg-art-' + bgKey;
+        if (activeName) activeName.textContent = name;
+        if (activePrice) activePrice.textContent = '🪙 ' + price + ' B币';
+        if (buyBtn) {
+          buyBtn.setAttribute('data-buy-price', price);
+          buyBtn.setAttribute('data-buy-name', name);
+          buyBtn.textContent = '立即兑换此背景 (' + price + ' B币)';
+        }
+
+        // 高亮卡片
+        cards.forEach(function(c) {
+          if (c.getAttribute('data-card-bg') === bgKey) {
+            c.classList.add('is-previewing');
+          } else {
+            c.classList.remove('is-previewing');
+          }
+        });
+
+        // 平滑定位到试穿舞台
+        var stage = document.getElementById('shop-live-stage');
+        if (stage && window.scrollY > stage.offsetTop) {
+          stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    });
+
+    // 视角切换 Tab
+    var viewTabs = document.querySelectorAll('[data-stage-view]');
+    var viewFull = document.getElementById('view-mock-full');
+    var viewMini = document.getElementById('view-mock-mini');
+    var viewPost = document.getElementById('view-mock-post');
+
+    viewTabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        var view = tab.getAttribute('data-stage-view');
+        viewTabs.forEach(function(t) { t.classList.remove('is-active'); });
+        tab.classList.add('is-active');
+
+        if (viewFull) viewFull.style.display = view === 'full' ? 'block' : 'none';
+        if (viewMini) viewMini.style.display = view === 'mini' ? 'block' : 'none';
+        if (viewPost) viewPost.style.display = view === 'post' ? 'block' : 'none';
+      });
+    });
+
+    // 恢复默认
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function() {
+        canvas.className = 'shop-canvas-viewport bg-art-warp';
+        if (activeName) activeName.textContent = '星际跃迁·深空星轨';
+        if (activePrice) activePrice.textContent = '🪙 120 B币';
+        if (buyBtn) {
+          buyBtn.setAttribute('data-buy-price', '120');
+          buyBtn.setAttribute('data-buy-name', '星际跃迁·深空星轨');
+          buyBtn.textContent = '立即兑换此背景 (120 B币)';
+        }
+        cards.forEach(function(c, idx) {
+          if (idx === 0) c.classList.add('is-previewing');
+          else c.classList.remove('is-previewing');
+        });
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+  } else {
+    setup();
+  }
+})();
+</script>
+
 </section>
 </main>
 </body>

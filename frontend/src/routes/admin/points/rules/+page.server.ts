@@ -151,12 +151,16 @@ export const actions: Actions = {
       }
       body.amount = amount;
     }
-    const daily = optionalInt(form, 'daily_limit');
-    if (!daily.ok) return fail(422, { message: daily.message });
-    if (daily.value != null && daily.value < 1) {
-      return fail(422, { message: '每日上限须 ≥ 1（留空 = 保持原值）' });
+    const dailyRaw = String(form.get('daily_limit') ?? '').trim();
+    if (dailyRaw === '0') {
+      body.daily_limit = null;
+    } else if (dailyRaw !== '') {
+      const daily = Number(dailyRaw);
+      if (!Number.isInteger(daily) || daily < 1) {
+        return fail(422, { message: '每日上限须 ≥ 1（输入 0 表示不限上限，留空保持原值）' });
+      }
+      body.daily_limit = daily;
     }
-    if (daily.value != null) body.daily_limit = daily.value;
     const cooldown = optionalInt(form, 'cooldown_seconds');
     if (!cooldown.ok) return fail(422, { message: cooldown.message });
     if (cooldown.value != null) body.cooldown_seconds = cooldown.value;

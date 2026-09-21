@@ -1515,17 +1515,93 @@
     });
 }
   function renderShop() {
-    var products = [['头像框·星河', 30, '头像框'], ['昵称特效·流光', 45, '昵称特效'], ['主题皮肤·暗夜蓝', 60, '主题皮肤'], ['置顶券', 20, '实用道具']];
     mountTpl('shop', 'shop', function () {
       var shopCards = qa('.app-account-cards .app-account-card strong');
       if (shopCards[0]) shopCards[0].textContent = state.balances.exp;
       if (shopCards[1]) shopCards[1].textContent = state.balances.coin;
       if (shopCards[2]) shopCards[2].textContent = state.balances.contrib;
 
-    var billingLink = q('[data-go-billing]'); if (billingLink) billingLink.addEventListener('click', function () { go('#billing'); });
-    qa('[data-buy-price]').forEach(function (b) { b.addEventListener('click', function () { if (state.balances.coin < Number(b.getAttribute('data-buy-price'))) { toast('B币不足'); return; } if (!requireAuth('#shop')) return; var price = Number(b.getAttribute('data-buy-price')); openModal('确认购买', '<p>购买 <strong>' + esc(b.getAttribute('data-buy-name')) + '</strong>，扣除 ' + price + ' B币。</p><p>当前余额 ' + state.balances.coin + ' B币，购买后 ' + (state.balances.coin - price) + ' B币。</p>', '取消 ' + button('确认购买', 'primary', 'data-confirm-buy')); q('[data-confirm-buy]').addEventListener('click', function () { state.balances.coin -= price; saveState(); closeModal(); renderShop(); toast('购买成功 · 余额已更新'); }); }); });
+      var billingLink = q('[data-go-billing]'); if (billingLink) billingLink.addEventListener('click', function () { go('#billing'); });
+      qa('[data-buy-price]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (state.balances.coin < Number(b.getAttribute('data-buy-price'))) { toast('B币不足'); return; }
+          if (!requireAuth('#shop')) return;
+          var price = Number(b.getAttribute('data-buy-price'));
+          openModal('确认购买', '<p>购买 <strong>' + esc(b.getAttribute('data-buy-name')) + '</strong>，扣除 ' + price + ' B币。</p><p>当前余额 ' + state.balances.coin + ' B币，购买后 ' + (state.balances.coin - price) + ' B币。</p>', '取消 ' + button('确认购买', 'primary', 'data-confirm-buy'));
+          q('[data-confirm-buy]').addEventListener('click', function () {
+            state.balances.coin -= price;
+            saveState();
+            closeModal();
+            renderShop();
+            toast('购买成功 · 余额已更新');
+          });
+        });
+      });
+
+      // Steam 风格实时试穿互动
+      var canvas = q('#preview-canvas');
+      var activeName = q('#stage-active-name');
+      var activePrice = q('#stage-active-price');
+      var buyBtn = q('#stage-buy-btn');
+      var resetBtn = q('#stage-reset-btn');
+      var cards = qa('.shop-bg-card');
+
+      qa('[data-try-bg]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var bgKey = btn.getAttribute('data-try-bg');
+          var name = btn.getAttribute('data-try-name');
+          var price = btn.getAttribute('data-try-price');
+          if (canvas) canvas.className = 'shop-canvas-viewport bg-art-' + bgKey;
+          if (activeName) activeName.textContent = name;
+          if (activePrice) activePrice.textContent = '🪙 ' + price + ' B币';
+          if (buyBtn) {
+            buyBtn.setAttribute('data-buy-price', price);
+            buyBtn.setAttribute('data-buy-name', name);
+            buyBtn.textContent = '立即兑换此背景 (' + price + ' B币)';
+          }
+          cards.forEach(function (c) {
+            if (c.getAttribute('data-card-bg') === bgKey) c.classList.add('is-previewing');
+            else c.classList.remove('is-previewing');
+          });
+          toast('已试穿背景：' + name);
+        });
+      });
+
+      var viewTabs = qa('[data-stage-view]');
+      var viewFull = q('#view-mock-full');
+      var viewMini = q('#view-mock-mini');
+      var viewPost = q('#view-mock-post');
+      viewTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          var view = tab.getAttribute('data-stage-view');
+          viewTabs.forEach(function (t) { t.classList.remove('is-active'); });
+          tab.classList.add('is-active');
+          if (viewFull) viewFull.style.display = view === 'full' ? 'block' : 'none';
+          if (viewMini) viewMini.style.display = view === 'mini' ? 'block' : 'none';
+          if (viewPost) viewPost.style.display = view === 'post' ? 'block' : 'none';
+        });
+      });
+
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+          if (canvas) canvas.className = 'shop-canvas-viewport bg-art-warp';
+          if (activeName) activeName.textContent = '星际跃迁·深空星轨';
+          if (activePrice) activePrice.textContent = '🪙 120 B币';
+          if (buyBtn) {
+            buyBtn.setAttribute('data-buy-price', '120');
+            buyBtn.setAttribute('data-buy-name', '星际跃迁·深空星轨');
+            buyBtn.textContent = '立即兑换此背景 (120 B币)';
+          }
+          cards.forEach(function (c, idx) {
+            if (idx === 0) c.classList.add('is-previewing');
+            else c.classList.remove('is-previewing');
+          });
+          toast('已恢复默认试穿');
+        });
+      }
     });
-}
+  }
   function renderBilling() {
     mountTpl('billing', 'billing', function () {
 

@@ -346,6 +346,32 @@
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   }
 
+  function handleInsertReplyHidden() {
+    if (mode === 'source') {
+      if (sourceTextarea) {
+        const start = sourceTextarea.selectionStart ?? sourceTextarea.value.length;
+        const end = sourceTextarea.selectionEnd ?? start;
+        const current = sourceTextarea.value;
+        const selected = current.slice(start, end).trim();
+        const snippet = selected
+          ? `\n\n:::reply\n${selected}\n:::\n\n`
+          : '\n\n:::reply\n此处填写回复后可见的内容\n:::\n\n';
+        insertTextAtSourceCursor(snippet);
+      } else {
+        insertTextAtSourceCursor('\n\n:::reply\n此处填写回复后可见的内容\n:::\n\n');
+      }
+      return;
+    }
+
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const selected = from < to ? editor.state.doc.textBetween(from, to, '\n').trim() : '';
+    const snippet = selected
+      ? `\n\n:::reply\n${selected}\n:::\n\n`
+      : '\n\n:::reply\n此处填写回复后可见的内容\n:::\n\n';
+    editor.chain().focus().insertContent(snippet).run();
+  }
+
   function onImageFileSelected(e: Event) {
     const input = e.target as HTMLInputElement;
     const f = input.files?.[0];
@@ -633,6 +659,16 @@
             onclick={() => editor?.chain().focus().setHorizontalRule().run()}
           >
             <Icon name="minus" size={15} />
+          </button>
+          <button
+            type="button"
+            class="toolbar-btn"
+            title="插入回复可见内容（仅回复本帖的用户可见）"
+            aria-label="插入回复可见内容"
+            disabled={disabled || isUploading}
+            onclick={handleInsertReplyHidden}
+          >
+            <Icon name="lock" size={15} />
           </button>
         </div>
       </div>

@@ -44,6 +44,8 @@ fn post_fields(body: &str) -> PostFields {
         author_username: Some("alice".into()),
         author_display_name: Some("爱丽丝".into()),
         author_level: 5,
+        author_presentation_tokens: None,
+        author_avatar_attachment_id: None,
         post_type: "discussion".into(),
         status: "published".into(),
         board_id: "b1".into(),

@@ -798,7 +798,7 @@ async fn recheck_edit_author_level(pool: &DatabasePool, post: &Post) -> Result<(
     let author_level = read_author_level(pool, &post.author_id).await?;
     let effective = current_effective_visibility(pool, &post.id).await?;
     let requested = effective.max(1);
-    if requested > author_level {
+    if requested > author_level.max(1) {
         return Err(PublishBlocked::VisibilityExceedsLevel {
             requested,
             author_level,

@@ -8,7 +8,7 @@
 // 行造成版本打架）；本页仅展示摘要计数与跳转入口。
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPatch, getAuthed } from '$lib/api/server';
+import { authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import { adminListState, type AdminLoadState } from '$lib/admin';
 import type { ActivityConfig, ActivityTask, Money } from '$lib/api/types';
 
@@ -21,6 +21,7 @@ export interface AdminActivityPageData {
 export interface AdminActivityActionData {
   message?: string;
   requestId?: string | null;
+  stepUpRequired?: boolean;
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
@@ -81,13 +82,51 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) return { message: '签到与活跃配置已保存' } satisfies AdminActivityActionData;
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminActivityActionData);
+      }
       if (result.status === 409) {
         return fail(409, { message: `版本冲突：${result.message}` } satisfies AdminActivityActionData);
       }
-      return fail(result.status, { message: result.message } satisfies AdminActivityActionData);
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminActivityActionData);
     } catch (e) {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminActivityActionData);
+    }
+  },
+
+  /** 重新验证身份（step-up 窗口过期后；与 storage/roles 页同款交互）。 */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        message: '请输入当前密码'
+      } satisfies AdminActivityActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminActivityActionData;
+      }
+      return fail(result.status, {
+        message: result.message
+      } satisfies AdminActivityActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '验证失败，请稍后重试'
+      } satisfies AdminActivityActionData);
     }
   }
 };

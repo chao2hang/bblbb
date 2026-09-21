@@ -208,7 +208,7 @@ async fn create_reserves_quota_and_returns_stream_transport() {
 #[tokio::test]
 async fn create_rejects_bad_input_and_over_limit_sizes() {
     let (pool, dir, storage) = setup().await;
-    let owner = insert_user(&pool, "owner", 1).await;
+    let owner = insert_user(&pool, "owner", 0).await;
 
     // size <= 0
     let err = upload::create_attachment(

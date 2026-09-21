@@ -2,7 +2,7 @@
 // 1) 全站流水（GET /admin/points/ledger：username/asset/kind/from/to 过滤 +
 //    after 游标分页，points.adjust 权限，403 独立降级）；
 // 2) 积分/活跃配置只读卡（activity.manage，后端账本为唯一裁决）。
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed } from '$lib/api/server';
 import { newClientRequestId } from '$lib/api/client';
@@ -42,6 +42,12 @@ export interface AdminPointsPageData {
   config: PointsConfigView | null;
   error: string | null;
   ledger: PointsLedgerState;
+}
+
+export interface AdminPointsActionData {
+  message?: string;
+  requestId?: string | null;
+  stepUpRequired?: boolean;
 }
 
 export const load: PageServerLoad = async ({ cookies, request, url }): Promise<AdminPointsPageData> => {
@@ -125,11 +131,49 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) {
-        return { message: `已成功为 ${username} 调整 ${amount > 0 ? '+' : ''}${amount} B币` };
+        return { message: `已成功为 ${username} 调整 ${amount > 0 ? '+' : ''}${amount} B币` } satisfies AdminPointsActionData;
       }
-      return fail(result.status, { message: result.message });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminPointsActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminPointsActionData);
     } catch {
-      return fail(503, { message: '调整积分服务暂不可用，请稍后重试' });
+      return fail(503, { message: '调整积分服务暂不可用，请稍后重试' } satisfies AdminPointsActionData);
+    }
+  },
+
+  /** 重新验证身份（step-up 窗口过期后；与 storage/roles 页同款交互）。 */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        message: '请输入当前密码'
+      } satisfies AdminPointsActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminPointsActionData;
+      }
+      return fail(result.status, {
+        message: result.message
+      } satisfies AdminPointsActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '验证失败，请稍后重试'
+      } satisfies AdminPointsActionData);
     }
   }
 };

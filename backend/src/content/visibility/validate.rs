@@ -43,7 +43,7 @@ pub fn validate_visibility_level(
     if requested < 1 {
         return Err(VisibilityError::Invalid);
     }
-    if requested > author_level {
+    if requested > author_level.max(1) {
         return Err(VisibilityError::ExceedsAuthorLevel {
             requested,
             author_level,

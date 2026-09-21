@@ -8,9 +8,9 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import { toastActionResult } from '$lib/ui/action-toast';
-  import type { AdminPointsPageData } from './+page.server';
+  import type { AdminPointsPageData, AdminPointsActionData } from './+page.server';
 
-  let { data, form }: { data: AdminPointsPageData; form?: { message?: string } | null } = $props();
+  let { data, form }: { data: AdminPointsPageData; form?: AdminPointsActionData | null } = $props();
 
   const ledger = $derived(data.ledger);
 
@@ -22,6 +22,15 @@
   let hasJs = $state(false);
   $effect(() => {
     hasJs = true;
+  });
+
+  // —— step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示 ——
+  let reauthLoading = $state(false);
+  let reauthCancelled = $state(false);
+  let reauthError = $state<string | null>(null);
+
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
   });
 
 
@@ -109,6 +118,14 @@
             <option value="debit" selected={filters.kind === 'debit'}>支出 (-)</option>
           </select>
         </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
+          起始日期
+          <input type="date" name="from" class="app-field" value={filters.from} />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
+          截止日期
+          <input type="date" name="to" class="app-field" value={filters.to} />
+        </label>
       </div>
 
       <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
@@ -140,9 +157,27 @@
               </td>
             </tr>
           {/each}
+          {#if displayRows.length === 0}
+            <tr>
+              <td colspan="4" style="text-align:center;padding:24px;color:var(--color-text-secondary);">
+                暂无符合条件的流水记录
+              </td>
+            </tr>
+          {/if}
         </tbody>
       </table>
     </div>
+
+    {#if data.ledger?.nextCursor}
+      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <a
+          class="btn secondary sm"
+          href={`/admin/points?after=${encodeURIComponent(data.ledger.nextCursor)}${filters.username ? `&username=${encodeURIComponent(filters.username)}` : ''}${filters.asset ? `&asset=${encodeURIComponent(filters.asset)}` : ''}${filters.kind ? `&kind=${encodeURIComponent(filters.kind)}` : ''}${filters.from ? `&from=${encodeURIComponent(filters.from)}` : ''}${filters.to ? `&to=${encodeURIComponent(filters.to)}` : ''}`}
+        >
+          下一页 →
+        </a>
+      </div>
+    {/if}
   </div>
 </section>
 
@@ -206,6 +241,48 @@
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button type="button" class="btn ghost sm" onclick={() => (adjustOpen = false)}>取消</button>
       <Button text="确认调整" variant="primary" size="sm" type="submit" />
+    </div>
+  </form>
+</Dialog>
+
+<!-- step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示。
+     无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="积分调整属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，可继续刚才的操作。"
+  onclose={() => (reauthCancelled = true)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'failure') {
+          reauthError = (result.data as unknown as AdminPointsActionData | null)?.message ?? '密码验证失败，请重试';
+          return;
+        }
+        toastActionResult(result);
+        await update();
+      };
+    }}
+    style="display:flex;flex-direction:column;gap:10px;"
+  >
+    <div>
+      <label class="input-label" for="pts-reauth-password">当前账号密码</label>
+      <input class="input-field" type="password" id="pts-reauth-password" name="password" autocomplete="current-password" required />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
     </div>
   </form>
 </Dialog>

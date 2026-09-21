@@ -1,34 +1,31 @@
 <script lang="ts">
-  // M02-UX-05：/me 页——服务端安全投影（仅渲染自身账号可见字段，不输出
-  // 任何会话 token）、账号状态/验证状态与 Session 设备管理。
-  // - load 已取 user 与设备列表（+page.server.ts）；
-  // - 设备列表：逐设备撤销（?/revoke，隐藏 session_id）与退出全部设备
-  //   （?/logoutall）为原生 form[method=POST]（无 JS 可用，use:enhance
-  //   渐进增强）；
-  // - 当前设备按 last_seen_at 最大标记（后端每次请求滑动更新）；
-  // - GAP-FIX 既有页面增强：账户卡（B币/签到，GET /activity/summary
-  //   失败时整卡隐藏）、我的处罚区块（GET /me/sanctions，后端端点落地前恒空；
-  //   有记录时显示类型/原因/时间 + 去申诉入口）。
-  // - 排版重构（2026-09）：账号卡下方增加 app-toolbar 快捷导航（对齐原型
-  //   me.html 的工具条：两步验证/登录设备/通知设置/OAuth 授权）；主栏收纳
-  //   账号信息 + 登录设备管理（#sessions）+ 两步验证（#mfa，M18-MFA-01
-  //   注册二维码）；侧栏为账户卡 + 快捷操作（去重）+ 图标化快捷入口。
-  import { enhance } from '$app/forms';
+  // M02-UX-05：/me 个人主页——概览枢纽。2026-09 功能拆分后本页只保留：
+  // - 个人资料卡（封面/头像/状态/签名/概览信息条，服务端安全投影，仅渲染
+  //   自身账号可见字段，不输出任何会话 token）；
+  // - 账号与安全状态卡（两步验证状态 + 设备数，管理入口 → /me/security；
+  //   会话撤销/退出全部设备与 TOTP/Passkey 管理已拆至 /me/security 与 /mfa）；
+  // - 侧栏：账户卡（B币/签到，GET /activity/summary 失败时整卡隐藏）、
+  //   M20-TRUST 信任等级进度卡、快捷入口网格（含全部子页入口）；
+  // - 我的处罚区块（GET /me/sanctions，后端端点落地前恒空；有记录时显示
+  //   类型/原因/时间 + 去申诉入口）。
   import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
   import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
   import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { formatRelative } from '$lib/utils';
-  import type { MeActionData, MePageData } from './+page.server';
+  import type { MePageData } from './+page.server';
+  import type { CosmeticDefStyle, PublicPresentationTokens } from '$lib/api/types';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import steamBackgrounds from '$lib/data/steam-profile-backgrounds.json';
+  import { normalizeSlot, projectEntitlementTokens } from '$lib/components/wardrobe/tokens';
+  import { profileEffectClass, profileEffectStyle } from '$lib/components/wardrobe/profile-effect';
 
-  let { data, form }: { data: MePageData; form?: MeActionData } = $props();
+  let { data }: { data: MePageData } = $props();
 
   const user = $derived(data.user);
   const presentation = $derived(data.presentation ?? null);
   const sessions = $derived(data.sessions);
-  const currentId = $derived(data.currentSessionId);
   const error = $derived(data.error);
   // GAP-FIX 账户卡 / 我的处罚（load 增强数据；缺失时安全降级不渲染）。
   const activity = $derived(data.activity ?? null);
@@ -36,13 +33,12 @@
   // M20-TRUST 信任等级进度（缺失时安全降级不渲染）。
   const trust = $derived(data.trust ?? null);
   const coinBalance = $derived((activity?.balances ?? []).find((b) => b.currency === 'coin'));
-  const topMessage = $derived(
-    form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
-  );
-  const mfaStep = $derived(form?.mfa);
 
   /** 侧栏图标化快捷入口。 */
   const quickLinks = [
+    { href: '/me/wardrobe', icon: 'sparkles', label: '我的装扮' },
+    { href: '/me/security', icon: 'shield', label: '安全中心' },
+    { href: '/settings', icon: 'settings', label: '账号设置' },
     { href: '/favorites', icon: 'star', label: '我的收藏' },
     { href: '/me/level', icon: 'award', label: '我的等级' },
     { href: '/me/attachments', icon: 'paperclip', label: '我的附件' },
@@ -105,23 +101,219 @@
     return map[r] ?? role;
   }
 
-  /** 从 User-Agent 派生设备简称（仅展示，不解析敏感信息）。 */
-  function deviceLabel(ua: string | null): string {
-    if (!ua) return '未知设备';
-    const s = ua.toLowerCase();
-    if (s.includes('iphone') || s.includes('android')) return '手机';
-    if (s.includes('ipad')) return '平板';
-    if (s.includes('mac')) return 'Mac';
-    if (s.includes('windows')) return 'Windows';
-    if (s.includes('linux')) return 'Linux';
-    return '浏览器';
+  const STEAM_CDN = 'https://shared.fastly.steamstatic.com/community_assets/images/items';
+  type ProfileMedia = {
+    image: string | null;
+    fallbackSrc: string | null;
+    webm: string | null;
+    mp4: string | null;
+  };
+  const EMPTY_PROFILE_MEDIA: ProfileMedia = {
+    image: null,
+    fallbackSrc: null,
+    webm: null,
+    mp4: null
+  };
+
+  function basename(value: string): string {
+    return value.split(/[/?#]/).pop() ?? value;
   }
 
-  function formatTs(ms: number): string {
-    const d = new Date(ms);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  function isHttpUrl(value: string): boolean {
+    return /^https?:\/\//i.test(value);
   }
+
+  function safeMediaUrl(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.includes('..')) return null;
+    if (isHttpUrl(trimmed)) {
+      try {
+        const url = new URL(trimmed);
+        return url.hostname === 'shared.fastly.steamstatic.com'
+          && url.pathname.startsWith('/community_assets/images/items/')
+          ? trimmed
+          : null;
+      } catch {
+        return null;
+      }
+    }
+    return trimmed.startsWith('/api/v1/steam-assets/backgrounds/') ? trimmed : null;
+  }
+
+  function localAsset(value: string | null | undefined): string | null {
+    if (!value || isHttpUrl(value) || value.startsWith('//') || value.includes('..')) return null;
+    if (/^[a-z][a-z\d+.-]*:/i.test(value)) return null;
+    const file = basename(value);
+    // Only static posters are bundled locally. Video filenames must continue
+    // to the Steam CDN; mapping them to a local path makes the <video> element
+    // fail silently before it ever reaches the working remote source.
+    return /\.(?:avif|gif|jpe?g|png|webp)$/i.test(file)
+      && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(file)
+      ? `/api/v1/steam-assets/backgrounds/${file}`
+      : null;
+  }
+
+  function steamAppId(value: string | number | null | undefined): string | null {
+    if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
+    if (typeof value !== 'string') return null;
+    if (/^\d+$/.test(value)) return value;
+    return value.match(/\/items\/(\d+)(?:\/|$)/)?.[1] ?? null;
+  }
+
+  function steamCdnUrl(value: string | null | undefined, sibling?: string | number | null): string | null {
+    if (!value) return null;
+    const safe = safeMediaUrl(value);
+    if (safe && isHttpUrl(safe)) return safe;
+    if (value.startsWith('/') || isHttpUrl(value) || value.startsWith('//')) return null;
+    if (value.includes('..') || /^[a-z][a-z\d+.-]*:/i.test(value)) return null;
+    const file = basename(value);
+    const appId = steamAppId(sibling);
+    return file && appId ? `${STEAM_CDN}/${appId}/${file}` : null;
+  }
+
+  function steamAssetUrl(
+    value: string | null | undefined,
+    sibling?: string | number | null,
+    allowLocal = true
+  ): string | null {
+    if (!value) return null;
+    const safe = safeMediaUrl(value);
+    if (safe) return safe;
+    if (value.startsWith('/') || isHttpUrl(value)) return null;
+    return steamCdnUrl(value, sibling) ?? (allowLocal ? localAsset(value) : null);
+  }
+
+  function findSteamBackground(title: string) {
+    const normalizedTitle = title.trim().toLowerCase();
+    if (!normalizedTitle) return null;
+    return steamBackgrounds
+      .filter((item) => {
+        const name = item.name.trim().toLowerCase();
+        return normalizedTitle === name || (name.length >= 3 && normalizedTitle.includes(name));
+      })
+      .sort((a, b) => b.name.length - a.name.length)[0] ?? null;
+  }
+
+  function findSteamBackgroundById(id: string | null | undefined) {
+    if (!id) return null;
+    return steamBackgrounds.find((item) => item.id === id || String(item.defid) === id) ?? null;
+  }
+
+  function findSteamBackgroundByAsset(value: string | null | undefined) {
+    if (!value) return null;
+    const file = basename(value).toLowerCase();
+    if (!file) return null;
+    return steamBackgrounds.find((item) =>
+      [item.image, item.webm, item.mp4].some(
+        (asset) => typeof asset === 'string' && basename(asset).toLowerCase() === file
+      )
+    ) ?? null;
+  }
+
+  function resolveProfileMedia(
+    style: CosmeticDefStyle | undefined,
+    title: string,
+    profileEffectId?: string | null
+  ): ProfileMedia {
+    const catalog = findSteamBackgroundById(profileEffectId)
+      ?? findSteamBackgroundByAsset(style?.image ?? style?.webm ?? style?.mp4 ?? style?.url)
+      ?? findSteamBackground(title);
+    const catalogImage = catalog?.image ?? null;
+    const catalogWebm = catalog?.webm ?? null;
+    const catalogMp4 = catalog?.mp4 ?? null;
+
+    if (!style && !catalog) return EMPTY_PROFILE_MEDIA;
+
+    const sibling = [style?.url, style?.image, style?.webm, style?.mp4].find(
+      (value) => value && (isHttpUrl(value) || /\/items\/\d+(?:\/|$)/.test(value))
+    ) ?? catalog?.appid ?? style?.url ?? style?.image ?? style?.webm ?? style?.mp4;
+    const imageSource = style?.url && isHttpUrl(style.url)
+      ? style.url
+      : style?.image ?? catalogImage ?? style?.url;
+    const image = imageSource && !imageSource.startsWith('/') && !isHttpUrl(imageSource)
+      ? localAsset(imageSource) ?? steamCdnUrl(imageSource, sibling)
+      : steamAssetUrl(imageSource, sibling);
+    const fallbackSrc = imageSource && !imageSource.startsWith('/') && !isHttpUrl(imageSource)
+      ? steamCdnUrl(imageSource, sibling)
+      : null;
+    const webmValue = style?.webm ?? catalogWebm;
+    const mp4Value = style?.mp4 ?? catalogMp4;
+    // Posters can be bundled locally; the animated streams stay on the Steam CDN.
+    // Mapping a video filename to /cosmetics/backgrounds first makes the browser
+    // fail silently before it ever reaches the working remote source.
+    const webm = catalog?.webm
+      ? `/api/v1/steam-assets/backgrounds/${catalog.webm}`
+      : steamAssetUrl(webmValue, sibling, false);
+    const mp4 = catalog?.mp4
+      ? `/api/v1/steam-assets/backgrounds/${catalog.mp4}`
+      : steamAssetUrl(mp4Value, sibling, false);
+    if (image || webm || mp4) return { image, fallbackSrc, webm, mp4 };
+    return EMPTY_PROFILE_MEDIA;
+  }
+
+  const meEntitlements = $derived(Array.isArray(data.entitlements) ? data.entitlements : []);
+  const meCosmetics = $derived(Array.isArray(data.cosmetics) ? data.cosmetics : []);
+  const equippedProfileEffect = $derived(
+    meEntitlements.find(
+      (entitlement) => entitlement.status === 'equipped'
+        && (normalizeSlot(entitlement.slot) === 'profile_effect' || entitlement.kind === 'profile_effect')
+    ) ?? null
+  );
+  const entitlementProjection = $derived(
+    equippedProfileEffect
+      ? projectEntitlementTokens(
+          equippedProfileEffect.presentation_tokens,
+          equippedProfileEffect.asset_attachment_id,
+          normalizeSlot(equippedProfileEffect.slot),
+          meCosmetics
+        )
+      : null
+  );
+  const cosmeticPresentation = $derived<PublicPresentationTokens>(
+    (presentation?.presentation_tokens ?? user?.presentation_tokens ?? {}) as PublicPresentationTokens
+  );
+  const effectId = $derived(
+    entitlementProjection?.visual.profile_effect
+      ?? (typeof cosmeticPresentation.profile_effect === 'string' ? cosmeticPresentation.profile_effect : null)
+      ?? presentation?.profile_effect_id
+      ?? equippedProfileEffect?.product_id
+  );
+  const matchedDef = $derived.by(() => {
+    const byId = effectId
+      ? meCosmetics.find((cosmetic) => cosmetic.kind === 'profile_effect' && cosmetic.id === effectId)
+      : null;
+    if (byId) return byId;
+    const normalizedTitle = equippedProfileEffect?.product_title?.trim().toLowerCase() ?? '';
+    if (!normalizedTitle) return null;
+    return meCosmetics
+      .filter((cosmetic) => {
+        if (cosmetic.kind !== 'profile_effect') return false;
+        const name = cosmetic.name.trim().toLowerCase();
+        return name === normalizedTitle
+          || (name.length >= 3 && normalizedTitle.length >= 3
+            && (normalizedTitle.includes(name) || name.includes(normalizedTitle)));
+      })
+      .sort((a, b) => b.name.length - a.name.length)[0] ?? null;
+  });
+  const effectStyle = $derived<CosmeticDefStyle | undefined>(
+    entitlementProjection?.visual.profile_effect_style
+      ?? cosmeticPresentation.profile_effect_style
+      ?? matchedDef?.style
+  );
+  const effectTitle = $derived(
+    equippedProfileEffect?.product_title?.trim() || matchedDef?.name?.trim() || ''
+  );
+  const profileMedia = $derived(
+    resolveProfileMedia(effectStyle, effectTitle, effectId)
+  );
+  const liveProfileEffectClass = $derived(profileEffectClass(effectStyle, effectId));
+  const liveProfileEffectStyle = $derived(profileEffectStyle(effectStyle));
+  const equippedCosmeticBadges = $derived(
+    (cosmeticPresentation.profile_badges ?? []).map((code, index) => ({
+      code,
+      label: cosmeticPresentation.profile_badge_names?.[index] ?? code
+    }))
+  );
 </script>
 
   <PageTitle title="我的" />
@@ -140,21 +332,30 @@
     <!-- 个人资料卡：参考信息小卡片设计，集中展示个人信息与账号状态 -->
     <section class="me-profile-card" aria-label="个人信息">
       <div class="me-coverwrap">
-        <ProfileCover attachmentId={data.cover?.attachment_id} label="个人资料背景" class="me-cover" />
+        <ProfileCover
+          attachmentId={data.cover?.attachment_id}
+          src={profileMedia.image}
+          fallbackSrc={profileMedia.fallbackSrc}
+          videoWebm={profileMedia.webm}
+          videoMp4={profileMedia.mp4}
+          label="个人资料背景"
+          class="me-cover {liveProfileEffectClass}"
+           style={liveProfileEffectStyle || undefined}
+        />
         <span class="badge badge-level me-cover-level">TL{trust?.level ?? user.level ?? 0}{trust?.name ? ` · ${trust.name}` : ''}</span>
         <div class="me-head">
           <div class="me-avatar">
             <CosmeticAvatar
               name={user.display_name || user.username}
               size="xl"
-              presentation={presentation}
+              presentation={cosmeticPresentation}
               avatarAttachmentId={user.avatar_attachment_id}
               seed={user.username ?? user.id}
             />
           </div>
           <div class="me-identity">
             <h2 class="me-name">
-              <CosmeticName name={user.display_name || user.username} presentation={presentation} />
+              <CosmeticName name={user.display_name || user.username} presentation={cosmeticPresentation} />
             </h2>
             <span class="me-handle">@{user.username}</span>
           </div>
@@ -173,9 +374,16 @@
             {#if user.mfa_enabled}
               <span class="badge badge-success">2FA 已开启</span>
             {/if}
+            {#each equippedCosmeticBadges as badge}
+              <span class="badge badge-neutral">✦ {badge.label}</span>
+            {/each}
+            {#if cosmeticPresentation.post_effect}
+              <span class="badge badge-brand">✨ {cosmeticPresentation.post_effect_name ?? '帖子装饰'}</span>
+            {/if}
           </div>
-          <div class="me-actions">
+          <div class="me-actions" style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
             <Button text="编辑资料" variant="secondary" size="sm" icon="edit-3" href="/settings" />
+            <Button text="我的装扮" variant="ghost" size="sm" icon="sparkles" href="/me/wardrobe" />
           </div>
         </div>
 
@@ -224,216 +432,42 @@
       </div>
     </section>
 
-    <!-- 快捷导航（紧贴资料卡下方，简洁行内链接） -->
+    <!-- 快捷导航（紧贴资料卡下方，简洁行内链接；设备与两步验证归入安全中心） -->
     <nav class="me-nav" aria-label="快捷导航">
-      <a href="/mfa"><Icon name="shield" size={14} />两步验证</a>
-      <a href="#sessions"><Icon name="smartphone" size={14} />登录设备</a>
+      <a href="/me/security"><Icon name="shield" size={14} />安全中心</a>
+      <a href="/settings"><Icon name="settings" size={14} />账号设置</a>
       <a href="/settings#settings-notifications"><Icon name="bell" size={14} />通知设置</a>
       <a href="/settings#settings-oauth"><Icon name="key" size={14} />OAuth 授权</a>
-      <a href="/settings"><Icon name="settings" size={14} />账号设置</a>
     </nav>
-
-    {#if topMessage}
-      <p class="input-hint is-error" role="alert" style="margin-top:var(--space-4);">{topMessage}</p>
-    {/if}
 
     <div class="content-grid" style="margin-top:var(--space-4);">
       <div class="main-col">
-        <!-- 登录设备管理 -->
-        <div class="card" id="sessions">
+        <!-- 账号与安全状态：概览计数 + 唯一管理入口（/me/security） -->
+        <div class="card" id="security">
           <div class="card-header">
-            <span class="card-title">登录设备管理</span>
-            <span class="text-secondary" style="font-size:var(--text-sm);">共 {sessions.length} 台设备</span>
+            <span class="card-title">账号与安全</span>
+            <a class="me-sec-link" href="/me/security">安全中心<Icon name="chevron-right" size={14} /></a>
           </div>
-          <div class="card-body">
-            {#if sessions.length === 0}
-              <p class="auth-hint">暂无登录设备。</p>
-            {:else}
-              <ul class="session-list" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2);">
-                {#each sessions as session (session.id)}
-                  <li class="session-item" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-md);">
-                    <div style="min-width:0;">
-                      <div style="display:flex;align-items:center;gap:var(--space-2);">
-                        <span class="badge badge-neutral">{deviceLabel(session.user_agent)}</span>
-                        {#if session.id === currentId}
-                          <span class="badge badge-success">当前设备</span>
-                        {/if}
-                      </div>
-                      {#if session.user_agent}
-                        <p class="text-secondary" style="font-size:var(--text-sm);margin:var(--space-1) 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px;">{session.user_agent}</p>
-                      {/if}
-                      <p class="text-secondary" style="font-size:var(--text-xs);margin:var(--space-1) 0 0;">
-                        最近活跃 {formatTs(session.last_seen_at)} · 登录于 {formatTs(session.created_at)} · 过期于 {formatTs(session.absolute_expires_at)}
-                      </p>
-                    </div>
-                    <div style="flex-shrink:0;">
-                      {#if session.id === currentId}
-                        <span class="text-secondary" style="font-size:var(--text-sm);">当前设备不可撤销</span>
-                      {:else}
-                        <form method="POST" action="?/revoke" use:enhance>
-                          <input type="hidden" name="session_id" value={session.id} />
-                          <Button text="撤销" variant="ghost" size="sm" type="submit" />
-                        </form>
-                      {/if}
-                    </div>
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-            <div style="margin-top:var(--space-3);display:flex;justify-content:flex-end;">
-              <form method="POST" action="?/logoutall" use:enhance>
-                <Button text="退出全部设备" variant="danger" size="sm" type="submit" />
-              </form>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
+            <div class="me-sec-strip">
+              <span class="me-sec-item">
+                <Icon name="shield" size={14} />
+                <span>两步验证</span>
+                <span class="badge {user.mfa_enabled ? 'badge-success' : 'badge-neutral'}">
+                  {user.mfa_enabled ? '已启用' : '未启用'}
+                </span>
+              </span>
+              <span class="me-sec-item">
+                <Icon name="smartphone" size={14} />
+                <span>登录设备 <strong>{sessions.length}</strong> 台</span>
+              </span>
             </div>
-            <p class="auth-hint" style="margin-top:var(--space-2);">
-              撤销设备后，该设备上的登录将立即失效；退出全部设备会把当前设备也一并退出。
-            </p>
-          </div>
-        </div>
-
-        <!-- 两步验证 -->
-        <div class="card" id="mfa">
-          <div class="card-header"><span class="card-title">两步验证（MFA）</span></div>
-          <div class="card-body">
-            {#if mfaStep?.kind === 'enroll-challenge'}
-              <!-- M18-MFA-01：注册二维码（服务端生成的 SVG data URL，<img>
-                   渲染，SSR/无 JS 可直接扫码）+ 手工录入降级。 -->
-              <div class="mfa-enroll">
-                <div class="mfa-enroll__qr">
-                  <p class="mfa-enroll__step"><span class="mfa-enroll__num">1</span>用认证器扫描二维码</p>
-                  {#if mfaStep.qr_data_url}
-                    <img
-                      class="otp-qr"
-                      src={mfaStep.qr_data_url}
-                      alt="两步验证注册二维码（用认证器 App 扫描添加）"
-                      width="180"
-                      height="180"
-                    />
-                  {:else}
-                    <p class="auth-hint" role="alert">二维码生成失败，请使用下方密钥手工添加。</p>
-                  {/if}
-                  <details class="mfa-manual">
-                    <summary>无法扫码？手工录入密钥</summary>
-                    <label class="input-label" for="mfa-secret">密钥（Base32）</label>
-                    <input
-                      type="text"
-                      class="input-field"
-                      id="mfa-secret"
-                      value={mfaStep.secret_base32}
-                      readonly
-                    />
-                    <p class="auth-hint mfa-manual__uri">{mfaStep.otpauth_uri}</p>
-                  </details>
-                </div>
-                <div class="mfa-enroll__confirm">
-                  <p class="mfa-enroll__step"><span class="mfa-enroll__num">2</span>输入 6 位动态验证码完成启用</p>
-                  <p class="auth-hint">扫码后，在认证器中找到本账号，输入当前 6 位动态验证码。</p>
-                  <form method="POST" action="?/mfa-confirm" use:enhance novalidate>
-                    <div class="input-wrapper">
-                      <label class="input-label" for="mfa-code">6 位验证码</label>
-                      <input
-                        type="text"
-                        class="input-field"
-                        id="mfa-code"
-                        name="code"
-                        placeholder="6 位验证码"
-                        inputmode="numeric"
-                        pattern="[0-9]{6}"
-                        maxlength="6"
-                        autocomplete="one-time-code"
-                      />
-                    </div>
-                    <div style="margin-top:var(--space-3);">
-                      <Button text="完成启用" variant="primary" size="sm" type="submit" />
-                    </div>
-                  </form>
-                  <form method="POST" action="?/mfa-cancel" use:enhance style="margin-top:var(--space-2);">
-                    <Button text="取消" variant="ghost" size="sm" type="submit" />
-                  </form>
-                </div>
-              </div>
-            {:else if mfaStep?.kind === 'enroll-confirmed'}
-              <p class="input-hint" role="status">两步验证已启用。建议立即生成恢复码并妥善保存（只显示一次）。</p>
-              <form method="POST" action="?/mfa-recovery" use:enhance>
-                <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
-              </form>
-            {:else if mfaStep?.kind === 'recovery-codes'}
-              <p class="input-hint" role="status">以下恢复码<b>只显示这一次</b>，请立即抄写或保存到安全的地方；遗失后只能通过重新生成恢复。</p>
-              <ul style="list-style:none;margin:var(--space-2) 0;padding:0;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:var(--space-2);">
-                {#each mfaStep.codes as code}
-                  <li style="font-family:var(--font-family-mono);font-variant-numeric:tabular-nums;padding:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);text-align:center;">{code}</li>
-                {/each}
-              </ul>
-              <div style="display:flex;gap:var(--space-2);align-items:center;">
-                <a class="btn btn-primary btn-sm" href="/me">我已保存</a>
-              </div>
-            {:else if mfaStep?.kind === 'disabled'}
-              <p class="input-hint" role="status">两步验证已停用，账号恢复仅凭密码登录。</p>
-              <form method="POST" action="?/mfa-enroll" use:enhance>
-                <Button text="重新启用两步验证" variant="primary" size="sm" type="submit" />
-              </form>
-            {:else if mfaStep?.kind === 'step-up'}
-              <p class="auth-hint">出于安全考虑，此操作需要重新输入密码确认身份（近期已认证则可直接执行）。</p>
-              <form method="POST" action="?/re-auth" use:enhance novalidate style="margin-top:var(--space-4);">
-                <input type="hidden" name="intent" value={mfaStep.intent} />
-                <div class="input-wrapper">
-                  <label class="input-label" for="reauth-password">密码</label>
-                  <input
-                    type="password"
-                    class="input-field"
-                    id="reauth-password"
-                    name="password"
-                    placeholder="输入当前密码"
-                    autocomplete="current-password"
-                  />
-                </div>
-                <div style="margin-top:var(--space-3);">
-                  <Button text="验证身份" variant="primary" size="sm" type="submit" />
-                </div>
-              </form>
-            {:else if mfaStep?.kind === 'reauth-done'}
-              <p class="input-hint" role="status">身份已验证，请再次点击原操作完成。</p>
-              {#if mfaStep.intent === 'disable'}
-                <form method="POST" action="?/mfa-disable" use:enhance>
-                  <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
-                </form>
-              {:else}
-                <form method="POST" action="?/mfa-recovery" use:enhance>
-                  <Button text="生成恢复码" variant="primary" size="sm" type="submit" />
-                </form>
-              {/if}
-            {:else}
-              <div class="mfa-status-row">
-                <div>
-                  {#if user.mfa_enabled}
-                    <span class="badge badge-success">已启用</span>
-                    <span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">登录时需要输入身份验证器验证码</span>
-                  {:else}
-                    <span class="badge badge-neutral">未启用</span>
-                    <span class="text-secondary" style="font-size:var(--text-sm);margin-left:var(--space-2);">开启后登录时需要输入身份验证器验证码，安全性更高</span>
-                  {/if}
-                </div>
-                <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
-                  {#if user.mfa_enabled}
-                    <form method="POST" action="?/mfa-recovery" use:enhance>
-                      <Button text="生成新恢复码" variant="secondary" size="sm" type="submit" />
-                    </form>
-                    <form method="POST" action="?/mfa-disable" use:enhance>
-                      <Button text="停用两步验证" variant="danger" size="sm" type="submit" />
-                    </form>
-                  {:else}
-                    <form method="POST" action="?/mfa-enroll" use:enhance>
-                      <Button text="启用两步验证" variant="primary" size="sm" type="submit" />
-                    </form>
-                  {/if}
-                </div>
-              </div>
-            {/if}
+            <p class="me-sec-hint">登录密码、两步验证（TOTP/Passkey）与在线设备管理都在安全中心。</p>
           </div>
         </div>
       </div>
       <div class="side-col">
-        <!-- 账户卡：资产 / 签到 + 快捷操作（等级体系已统一为信任等级 TL0–TL4） --\>
+        <!-- 账户卡：资产 / 签到 + 快捷操作（等级体系已统一为信任等级 TL0–TL4） -->
         {#if activity}
           <div class="card">
             <div class="card-header">
@@ -561,80 +595,6 @@
 </div>
 
 <style>
-  /* MFA 注册：扫码（QR）+ 确认码 双栏；窄屏折行为上下堆叠。 */
-  .mfa-enroll {
-    display: flex;
-    gap: var(--space-5);
-    flex-wrap: wrap;
-  }
-  .mfa-enroll__qr {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    flex: 0 0 auto;
-  }
-  .mfa-enroll__confirm {
-    flex: 1 1 240px;
-    min-width: 240px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .mfa-enroll__step {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin: 0;
-    font-size: var(--text-base);
-    font-weight: 600;
-  }
-  .mfa-enroll__num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--color-brand);
-    color: #fff;
-    font-size: var(--text-xs);
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-  .otp-qr {
-    width: 180px;
-    height: 180px;
-    padding: 8px;
-    background: #fff;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-  }
-  .mfa-manual {
-    width: 100%;
-    max-width: 220px;
-    font-size: var(--text-sm);
-  }
-  .mfa-manual summary {
-    cursor: pointer;
-    color: var(--color-brand);
-    user-select: none;
-  }
-  .mfa-manual .input-field {
-    margin-top: var(--space-2);
-  }
-  .mfa-manual__uri {
-    margin: var(--space-2) 0 0;
-    font-size: var(--text-xs);
-    word-break: break-all;
-  }
-  .mfa-status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
   /* 侧栏图标化快捷入口 */
   .quick-grid {
     display: grid;
@@ -682,6 +642,39 @@
   .me-nav a:hover {
     color: var(--color-brand);
     background: var(--color-bg-subtle);
+  }
+  /* 账号与安全状态卡 */
+  .me-sec-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: var(--text-sm);
+    color: var(--color-brand);
+    text-decoration: none;
+  }
+  .me-sec-link:hover {
+    text-decoration: underline;
+  }
+  .me-sec-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+    flex-wrap: wrap;
+  }
+  .me-sec-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+  }
+  .me-sec-item strong {
+    font-variant-numeric: tabular-nums;
+  }
+  .me-sec-hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
   /* 个人信息卡片（参考信息小卡片） */
   .me-profile-card {
@@ -849,10 +842,5 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-2);
     }
-  }
-  /* 工具条锚点滚定位时不被顶栏遮挡 */
-  #sessions,
-  #mfa {
-    scroll-margin-top: var(--space-6, 24px);
   }
 </style>

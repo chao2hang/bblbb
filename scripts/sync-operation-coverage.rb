@@ -188,7 +188,7 @@ existing = load_existing
 operations = operations_from(document, existing)
 operation_ids = operations.map { |entry| entry.fetch("operation_id") }
 raise "Duplicate operationId in OpenAPI" unless operation_ids.uniq.length == operation_ids.length
-raise "Expected 238 operations, got #{operations.length}" unless operations.length == 238
+raise "Expected 243 operations, got #{operations.length}" unless operations.length == 243
 
 payload = {
   "schema_version" => 1,
@@ -200,9 +200,31 @@ json = JSON.pretty_generate(payload) + "\n"
 markdown = markdown_for(payload)
 
 if ARGV.include?("--check")
-  abort "#{JSON_PATH} is stale; run ruby scripts/sync-operation-coverage.rb" unless File.file?(JSON_PATH) && File.read(JSON_PATH) == json
-  abort "#{MARKDOWN_PATH} is stale; run ruby scripts/sync-operation-coverage.rb" unless File.file?(MARKDOWN_PATH) && File.read(MARKDOWN_PATH) == markdown
-  puts "OpenAPI coverage OK: #{operations.length}/#{operations.length} operations assigned"
+  if File.file?(JSON_PATH) && File.file?(MARKDOWN_PATH)
+    file_json = File.read(JSON_PATH)
+    file_md = File.read(MARKDOWN_PATH)
+    file_json_parsed = begin
+      JSON.parse(file_json)
+    rescue StandardError
+      nil
+    end
+    expected_json_parsed = JSON.parse(json)
+    if file_json_parsed != expected_json_parsed
+      require "tempfile"
+      f1 = Tempfile.new("expected")
+      f1.write(json)
+      f1.close
+      system("diff -u #{JSON_PATH} #{f1.path} | head -n 40")
+      f1.unlink
+      abort "#{JSON_PATH} is stale; run ruby scripts/sync-operation-coverage.rb"
+    end
+    if file_md != markdown
+      abort "#{MARKDOWN_PATH} is stale; run ruby scripts/sync-operation-coverage.rb"
+    end
+    puts "OpenAPI coverage OK: #{operations.length}/#{operations.length} operations assigned"
+  else
+    abort "Missing coverage file"
+  end
 else
   File.write(JSON_PATH, json)
   File.write(MARKDOWN_PATH, markdown)

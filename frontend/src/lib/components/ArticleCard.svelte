@@ -8,6 +8,7 @@
     title,
     summary = '',
     author_name = '',
+    author_avatar_attachment_id = null,
     view_count = 0,
     color = '#0969DA'
   }: {
@@ -15,6 +16,7 @@
     title: string;
     summary?: string;
     author_name?: string;
+    author_avatar_attachment_id?: string | null;
     view_count?: number;
     color?: string;
   } = $props();
@@ -34,7 +36,7 @@
       <div class="article-card-author">
         {#if author_name}
           <span class="author-hover-trigger" aria-label="查看 {author_name} 的个人资料">
-            <Avatar name={author_name} size="xs" seed={author_name} />
+            <Avatar name={author_name} size="xs" seed={author_name} attachmentId={author_avatar_attachment_id} />
           </span>
           <span class="author-hover-name-trigger">{escapeHtml(author_name)}</span>
         {/if}

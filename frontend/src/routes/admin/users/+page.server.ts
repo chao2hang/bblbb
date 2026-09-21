@@ -2,7 +2,7 @@
 // recent-auth；管理 DTO 不含凭据）。
 // M18-ADMIN-DIALOG：新增批量 ?/batchUpdate——循环既有单条端点
 // PATCH /api/v1/admin/users/{id}（versions 与 ids 一一对应作 If-Match）。
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedDelete, authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import {
@@ -54,6 +54,7 @@ export interface AdminUsersActionData {
   message?: string;
   requestId?: string | null;
   conflict?: boolean;
+  stepUpRequired?: boolean;
 }
 
 export const load: PageServerLoad = async ({ cookies, request, url }): Promise<AdminUsersPageData> => {
@@ -118,10 +119,16 @@ export const actions: Actions = {
       if (result.ok) {
         return { message: `用户 ${result.data.username} 状态已更新为 ${result.data.status}` };
       }
-      if (result.status === 409) {
-        return fail(409, { conflict: true, message: `版本冲突：${result.message}（请刷新后重试）` });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminUsersActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.status === 409) {
+        return fail(409, { conflict: true, message: `版本冲突：${result.message}（请刷新后重试）` } satisfies AdminUsersActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminUsersActionData);
     } catch {
       return fail(503, { message: '保存失败，请稍后重试' });
     }
@@ -152,10 +159,16 @@ export const actions: Actions = {
         const suffix = result.data.changed === false ? '（等级未变化）' : '';
         return { message: `信任等级已设置为 TL${result.data.to_level}${suffix}` };
       }
-      if (result.status === 404) {
-        return fail(404, { message: '目标用户不存在' });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminUsersActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.status === 404) {
+        return fail(404, { message: '目标用户不存在' } satisfies AdminUsersActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminUsersActionData);
     } catch {
       return fail(503, { message: '保存失败，请稍后重试' });
     }
@@ -191,6 +204,11 @@ export const actions: Actions = {
         );
         if (result.ok) {
           outcome.okCount++;
+        } else if (result.code === 'step_up_required') {
+          return fail(403, {
+            message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+            stepUpRequired: true
+          } satisfies AdminUsersActionData);
         } else if (result.status === 409) {
           outcome.failures.push({ id: entry.id, message: `版本冲突：${result.message}` });
         } else {
@@ -230,12 +248,18 @@ export const actions: Actions = {
           message: `已将「${result.data.old_nickname}」重置为「${result.data.new_nickname}」并加入黑名单`
         };
       }
-      if (result.status === 404) {
-        return fail(404, { message: '目标用户不存在' });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminUsersActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.status === 404) {
+        return fail(404, { message: '目标用户不存在' } satisfies AdminUsersActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminUsersActionData);
     } catch {
-      return fail(503, { message: '随机昵称失败，请稍后重试' });
+      return fail(503, { message: '随机昵称失败，请稍后重试' } satisfies AdminUsersActionData);
     }
   },
 
@@ -257,9 +281,15 @@ export const actions: Actions = {
       if (result.ok) {
         return { message: `已将昵称「${nickname}」加入黑名单` };
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminUsersActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminUsersActionData);
     } catch {
-      return fail(503, { message: '添加失败，请稍后重试' });
+      return fail(503, { message: '添加失败，请稍后重试' } satisfies AdminUsersActionData);
     }
   },
 
@@ -279,9 +309,47 @@ export const actions: Actions = {
       if (result.ok) {
         return { message: '已从黑名单移除' };
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminUsersActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminUsersActionData);
     } catch {
-      return fail(503, { message: '删除失败，请稍后重试' });
+      return fail(503, { message: '删除失败，请稍后重试' } satisfies AdminUsersActionData);
+    }
+  },
+
+  /** 重新验证身份（step-up 窗口过期后；与 storage/roles 页同款交互）。 */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        message: '请输入当前密码'
+      } satisfies AdminUsersActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminUsersActionData;
+      }
+      return fail(result.status, {
+        message: result.message
+      } satisfies AdminUsersActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '验证失败，请稍后重试'
+      } satisfies AdminUsersActionData);
     }
   }
 };

@@ -36,8 +36,14 @@ FRONTEND_DIR="$ROOT_DIR/frontend"
 DB_FILE="${BBLBB_DB:-$ROOT_DIR/data/bblbb.sqlite}"
 
 BACKEND_BIND="${BBLBB__BIND_ADDRESS:-127.0.0.1:8080}"
+BACKEND_HOST="${BACKEND_BIND%:*}"
+BACKEND_PORT="${BACKEND_BIND##*:}"
+case "$BACKEND_HOST" in
+  0.0.0.0|"::"|"*") BACKEND_PROBE_HOST="127.0.0.1" ;;
+  *)                BACKEND_PROBE_HOST="$BACKEND_HOST" ;;
+esac
 BACKEND_URL="http://$BACKEND_BIND"
-HEALTH_URL="$BACKEND_URL/healthz"
+HEALTH_URL="http://$BACKEND_PROBE_HOST:$BACKEND_PORT/healthz"
 # 绑定地址与 frontend/vite.config.ts 默认一致（0.0.0.0，支持局域网/远程联调，
 # 如 https://10.10.10.10:5173）；BBLBB_DEV_HOST 可收窄为 127.0.0.1。
 FRONTEND_HOST="${BBLBB_DEV_HOST:-0.0.0.0}"
@@ -146,6 +152,7 @@ else
   (
     cd "$BACKEND_DIR"
     export BBLBB__ENV=development
+    export BBLBB__BIND_ADDRESS="$BACKEND_BIND"
     if [[ -n "$MIGRATE_FLAG" ]]; then
       export BBLBB__AUTO_MIGRATE=true
       exec cargo run --bin bblbb-backend -- --migrate

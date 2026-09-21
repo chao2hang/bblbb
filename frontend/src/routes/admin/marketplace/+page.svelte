@@ -39,6 +39,15 @@
     hasJs = true;
   });
 
+  // —— step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示 ——
+  let reauthLoading = $state(false);
+  let reauthCancelled = $state(false);
+  let reauthError = $state<string | null>(null);
+
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
+  });
+
   interface ClientItem {
     id: string;
     name: string;
@@ -61,7 +70,7 @@
 
   const overviewMetrics = $derived([
     { label: '启用应用', value: displayedList.filter((client) => client.status === 'active').length, note: `共 ${displayedList.length} 个` },
-    { label: '待审批', value: '暂无统计', note: '接口未提供审批汇总' },
+    { label: '待审批', value: displayedList.filter((client) => client.status === 'pending').length, note: '待审批商户' },
     { label: '待对账交易', value: '暂无统计', note: '请通过商户对账操作查看' },
     { label: '紧急开关', value: '按选中商户', note: '需要单选后操作' }
   ]);
@@ -576,6 +585,7 @@
       action="?/upsertClient"
       use:enhance={dialogEnhance(closeEdit)}
     >
+      <input type="hidden" name="client_id" value={editTarget?.id ?? ''} />
       <input type="hidden" name="id" value={editTarget?.id ?? ''} />
       <input type="hidden" name="version" value={String(editTarget?.version ?? '')} />
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);">
@@ -682,4 +692,46 @@
     <label class="input-label" for="mk-emergency-reason">停用原因（写审计）</label>
     <input id="mk-emergency-reason" class="input-field" bind:value={emergencyReason} placeholder="必填" required />
   </DangerConfirm>
+
+  <!-- step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示。
+       无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+  <Dialog
+    open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+    title="需要重新验证身份"
+    description="市场与客户端配置属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，可继续刚才的操作。"
+    onclose={() => (reauthCancelled = true)}
+  >
+    {#if reauthError}
+      <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+        {reauthError}
+      </div>
+    {/if}
+    <form
+      method="POST"
+      action="?/reauth"
+      use:enhance={() => {
+        reauthLoading = true;
+        reauthError = null;
+        return async ({ result, update }) => {
+          reauthLoading = false;
+          if (result.type === 'failure') {
+            reauthError = (result.data as unknown as AdminMarketplaceActionData | null)?.message ?? '密码验证失败，请重试';
+            return;
+          }
+          toastActionResult(result);
+          await update();
+        };
+      }}
+      style="display:flex;flex-direction:column;gap:10px;"
+    >
+      <div>
+        <label class="input-label" for="mk-reauth-password">当前账号密码</label>
+        <input class="input-field" type="password" id="mk-reauth-password" name="password" autocomplete="current-password" required />
+      </div>
+      <div style="display:flex;gap:8px;">
+        <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+        <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
+      </div>
+    </form>
+  </Dialog>
 {/if}

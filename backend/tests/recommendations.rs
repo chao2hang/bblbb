@@ -317,7 +317,7 @@ async fn tag_match_boosts_and_reports_reason() {
     seed_like(&pool, &engaged, &viewer).await;
 
     // 同板块新帖也打了 rust 标签 → 标签命中， reason = 相关标签。
-    let candidate = seed_post(&pool, &board, &alice, "新帖", NOW - 1 * HOUR, 0, 0).await;
+    let candidate = seed_post(&pool, &board, &alice, "新帖", NOW - HOUR, 0, 0).await;
     seed_tag(&pool, &candidate, "rust").await;
 
     let (items, strategy) = recommend_posts(&pool, Some(&viewer), 10, NOW, "test")

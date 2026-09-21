@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
   NICKNAME_COLORS,
   NICKNAME_EFFECTS,
+  avatarFrameRing,
+  avatarFrameRingVars,
   nicknameEffectClass,
   projectEntitlementTokens
 } from './tokens';
@@ -51,5 +53,30 @@ describe('projectEntitlementTokens（权益 → 视觉 Token 投影）', () => {
     const { visual, labels } = projectEntitlementTokens(['nickname.color.hacker_css']);
     expect(visual.nickname_color).toBeUndefined();
     expect(labels).toEqual([]);
+  });
+});
+
+describe('AVATAR_FRAME_COLORS（彩色头像框环白名单，M07-SHOP-UI-09）', () => {
+  it('彩色环 Token 投影为 avatar_frame 并带中文标签', () => {
+    const { visual, labels } = projectEntitlementTokens([
+      'avatar.frame.crimson',
+      'avatar.frame.rose_gold'
+    ]);
+    expect(visual.avatar_frame).toBe('rose_gold'); // 后值覆盖前值（同槽位）
+    expect(labels).toEqual(['绯红之环', '玫瑰金之环']);
+  });
+
+  it('avatarFrameRing：白名单内返回固定 class + CSS 变量，未知值返回 null', () => {
+    const ring = avatarFrameRing('sapphire');
+    expect(ring?.className).toBe('avatar-frame-ring');
+    expect(ring?.style).toContain('--avatar-frame-color:#1f6feb');
+    expect(ring?.style).toContain('--avatar-frame-glow:rgba(31,111,235,0.45)');
+    expect(avatarFrameRing('evil; color:red')).toBeNull();
+    expect(avatarFrameRing(42)).toBeNull();
+  });
+
+  it('avatarFrameRingVars：非法色值返回空串（不注入任意 CSS）', () => {
+    expect(avatarFrameRingVars('#ZZZZZZ')).toBe('');
+    expect(avatarFrameRingVars('url(evil)')).toBe('');
   });
 });

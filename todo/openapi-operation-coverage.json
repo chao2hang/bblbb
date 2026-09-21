@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 238,
+  "expected_operations": 243,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -2606,6 +2606,57 @@
       "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
+      "operation_id": "listAdminShopCosmetics",
+      "method": "GET",
+      "path": "/api/v1/admin/shop/cosmetics",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/admin_shop.rs::list_admin_cosmetics",
+      "tests": [
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
+      ],
+      "evidence": "管理员功能定义列表，包含归档项。"
+    },
+    {
+      "operation_id": "createAdminShopCosmetic",
+      "method": "POST",
+      "path": "/api/v1/admin/shop/cosmetics",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/admin_shop.rs::create_admin_cosmetic",
+      "tests": [
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
+      ],
+      "evidence": "结构化 schema 校验、审计记录、名称与样式定义创建。"
+    },
+    {
+      "operation_id": "updateAdminShopCosmetic",
+      "method": "PATCH",
+      "path": "/api/v1/admin/shop/cosmetics/{id}",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/admin_shop.rs::update_admin_cosmetic",
+      "tests": [
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
+      ],
+      "evidence": "改名、更新结构化样式、归档/恢复与审计记录。"
+    },
+    {
       "operation_id": "listAdminShopOrders",
       "method": "GET",
       "path": "/api/v1/admin/shop/orders",
@@ -2725,6 +2776,23 @@
       "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
     },
     {
+      "operation_id": "publishAdminShopStudio",
+      "method": "POST",
+      "path": "/api/v1/admin/shop/studio/publish",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/admin_shop.rs::studio_publish + backend/src/shop/studio.rs",
+      "tests": [
+        "backend/tests/shop/core.rs"
+      ],
+      "evidence": "样式 upsert + 商品创建单事务（SQLite BEGIN IMMEDIATE / MySQL tx），client_request_id 幂等（idempotency_records 24h），slug 标题派生+冲突后缀，归档 def 发布即恢复 active，审计同事务写入；0080 迁移修复 cosmetic_defs kind CHECK（cosmetic_badge/reaction_pack/utility/title_prefix 曾被拒）；cargo test --test shop_core studio 5 pass。"
+    },
+    {
       "operation_id": "get_me_entitlements",
       "method": "GET",
       "path": "/api/v1/me/entitlements",
@@ -2791,6 +2859,23 @@
         "backend/tests/shop/core.rs"
       ],
       "evidence": "cargo test --test shop_core 12 pass; contract=商品列表/下单(幂等+事务)/订单查询/权益装备卸下/装扮投影; commit=3a46751; review=buy_product_charges_and_grants_entitlement + same_idempotency_key_replays_without_double_charge；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "get_shop_cosmetics",
+      "method": "GET",
+      "path": "/api/v1/shop/cosmetics",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/shop.rs::list_public_cosmetics",
+      "tests": [
+        "backend/tests/shop/core.rs::cosmetic_defs_crud_and_projection_resolution"
+      ],
+      "evidence": "Active 自定义功能定义公开读取；前端商品/衣柜使用名称与结构化预览。"
     },
     {
       "operation_id": "post_shop_orders",

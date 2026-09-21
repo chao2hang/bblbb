@@ -2,7 +2,9 @@
   import Icon from './ui/Icon.svelte';
   import Badge from './ui/Badge.svelte';
   import Tag from './ui/Tag.svelte';
-  import Avatar from './ui/Avatar.svelte';
+  import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
+  import type { PublicPresentationTokens } from '$lib/api/types';
   import EmptyState from './ui/EmptyState.svelte';
   import UserCard from './UserCard.svelte';
   import { formatCount, formatRelative, escapeHtml } from '$lib/utils';
@@ -18,11 +20,20 @@
     author_id?: string | null;
     /** 嵌套作者投影（GET /posts、GET /boards/{slug}/posts）。
      *  display_name 为作者昵称；chip 优先昵称、缺省回退用户名。 */
-    author?: { id?: string; username?: string | null; display_name?: string | null } | null;
+    author?: {
+      id?: string;
+      username?: string | null;
+      display_name?: string | null;
+      avatar_attachment_id?: string | null;
+      presentation_tokens?: PublicPresentationTokens | null;
+    } | null;
     /** 平面作者用户名投影（搜索等）。 */
     author_username?: string | null;
     /** 作者昵称平面投影（与 author.display_name 同源）。 */
     author_display_name?: string | null;
+    /** 作者头像附件 ID。 */
+    author_avatar_attachment_id?: string | null;
+    author_presentation_tokens?: PublicPresentationTokens | null;
     reply_count?: number;
     view_count?: number;
     like_count?: number;
@@ -60,15 +71,17 @@
       {@const uname = authorUsername(post) ?? '匿名'}
       {@const account = authorUsername(post)}
       {@const label = authorLabel(post)}
+      {@const avatarId = post.author?.avatar_attachment_id ?? post.author_avatar_attachment_id ?? null}
+      {@const authorPresentation = post.author?.presentation_tokens ?? post.author_presentation_tokens ?? null}
       <div class="app-post-row" data-post-id={post.id}>
         {#if account}
           <!-- 头像即触发链接：hover/focus 出公开资料悬浮卡（UserCard portal），
                窄屏点击出底部卡；无账号投影（匿名）保持普通头像。 -->
-          <UserCard user={{ username: account, display_name: label }} label="查看 {label} 的个人资料">
-            <Avatar name={uname} size="md" seed={account ?? uname} />
+          <UserCard user={{ username: account, display_name: label, avatar_attachment_id: avatarId }} presentation={{ presentation_tokens: authorPresentation }} label="查看 {label} 的个人资料">
+            <CosmeticAvatar name={uname} size="md" presentation={authorPresentation} seed={account ?? uname} avatarAttachmentId={avatarId} />
           </UserCard>
         {:else}
-          <Avatar name={uname} size="md" seed={account ?? uname} />
+          <CosmeticAvatar name={uname} size="md" presentation={authorPresentation} seed={account ?? uname} avatarAttachmentId={avatarId} />
         {/if}
         <a class="app-post-row__main" href="/posts/{post.id}">
           <h3>
@@ -89,7 +102,7 @@
                 <span class="app-tag-subtle">#{tag}</span>
               {/each}
             {/if}
-            <span>· {authorLabel(post)}</span>
+            <span>· <CosmeticName name={authorLabel(post)} presentation={authorPresentation} /></span>
           </span>
         </a>
         <span class="app-post-row__right">

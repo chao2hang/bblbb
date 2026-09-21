@@ -32,6 +32,12 @@
   // navbar，无 JS 基线一致）；匿名/后端不可达为 null。
   let user = $state<User | null>(untrack(() => data?.user ?? null));
 
+  // SvelteKit invalidateAll（例如衣柜换装）会更新 layout data，但 layout 本身不重挂载；
+  // 同步服务端用户投影，保证 Navbar 立即反映最新昵称/头像框/背景装扮。
+  $effect(() => {
+    if (data?.user) user = data.user;
+  });
+
   // 通知徽标：共享铃铛态（bellState.svelte）在此渲染。SSR/整页加载由
   // +layout.server.ts 提供（登录用户 limit=3 + unread_count），每次 init 无条件
   // 播种（模块态跨请求共享，必须重新播种防泄漏；客户端 SPA 内 init 仅整页
@@ -55,7 +61,7 @@
   // 浏览器端 applyThemeTokens/previewThemeTokens 在预览与切换时同步该属性。
   const shellLayout = $derived(resolveLayoutMode(activeTheme?.tokens ?? null));
   const isAdmin = $derived(page.url.pathname.startsWith('/admin'));
-  const isAuthStandalone = $derived(page.url.pathname === '/login');
+  const isAuthStandalone = $derived(page.url.pathname === '/login' || page.url.pathname === '/register');
 
   // 全站生效主题 Token 动态应用
   $effect(() => {

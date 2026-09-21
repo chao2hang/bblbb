@@ -1,4 +1,32 @@
-## Unreleased — 手机端浮层标准化（Bottom Sheet 交互规范）
+## v1.0.0-rc.8 — 2026-09-16（装扮中心工坊、行内引用回复、审核版本对比、信任等级单轨与全站移动端适配）
+
+> 基线 commit 待打 tag 时补记。rc.7 之后的关键增量：
+> 1. 商城装扮中心与工坊系统（Cosmetic Studio & Wardrobe）：可配置装扮样式库（迁移 0079–0081）、Steam 动效头像框与背景资产、衣柜实时试穿与多槽位装备、后台装扮可视化设计工坊与一键发布货架；
+> 2. 交互与内容体验：评论区楼中楼行内引用回复与光标精准保持、后台内容审核版本对比组件（GitDiffViewer）、富文本编辑器增强；
+> 3. 移动端与全站体验：移动端 Bottom Sheet 浮层标准化（规范与手势关闭）、全站文案后台可配置化（GET /api/v1/site 与迁移 0065）、注册页全屏视觉体系重塑；
+> 4. 平台与权限：LinuxDo 信任等级管理单轨（TL0–TL4）与规则后台可配置化、附件上传类型策略化（OOXML/音视频/文本族白名单）、记住我会话 60 天长效与 Passkey 契约对齐、MariaDB collation 修复。
+> 发布顺序：后端迁移 → backend → worker → frontend。
+
+### 商城装扮中心与工坊系统（M07-SHOP-STUDIO / 迁移 0079–0081）
+
+- **数据与端点**：
+  - 新增迁移 0079/0080 `cosmetic_defs`（可配置装扮样式库，昵称渐变色标/呼吸光、头像框线宽/光晕/阴影/动效参数 schema 校验）与 0081 `steam_catalog`（Steam 动效头像框与背景目录镜像）。
+  - 后端新增装扮工坊端点：`POST /api/v1/admin/shop/studio/publish`（工坊作品一键上架商城）、`GET /api/v1/shop/cosmetics`（全量装扮样式查询）、`POST /api/v1/admin/shop/steam-catalog/sync`（Steam 目录同步）与 `GET /api/v1/steam-assets/{kind}/{file}`（静态媒体资产服务）。
+- **个人衣柜（/me/wardrobe）**：
+  - 支持头像框、昵称特效、个人主页全景特效、徽章多槽位装备与实时预览切换。
+  - 接入 Steam 动效头像框循环播放与高质量背景渲染，服务端与无 JS 状态兼容回退。
+- **后台装扮工坊（/admin/shop/studio）**：
+  - 提供可视化装扮设计器：多色标线性渐变调节器、呼吸光强度/周期调节、头像框内外发光与脉冲微调，支持本地草稿保存与一键上架。
+
+### 评论区行内引用回复与富文本编辑（Inline Quote Reply & Editor）
+
+- **行内引用回复**：
+  - 新增 `inline_reply.rs` 与 `caret.ts`，评论区支持楼中楼精准 `@` 用户提及与行内引用特定楼层。
+  - 编辑器光标定位与选区精准恢复，避免回复插入打断输入流畅度。
+- **内容审核版本比对（/admin/content）**：
+  - 集成 `GitDiffViewer.svelte`，在管理后台直接比对帖子/评论历史修订版本的高亮 Diff。
+
+### 手机端浮层标准化（Bottom Sheet 交互规范）
 
 > 确立「手机端弹层 = 底部上滑约半屏（50dvh）Bottom Sheet」为全站标准：scrim +
 > 抓手 + 72px 阈值下滑关闭 + 底部安全区 + aria-modal；桌面 ≥768px 保持锚定浮层不变。
@@ -15,20 +43,20 @@
   发布内容/账号设置/通知，与右侧头像用户菜单重复），抽屉仅保留退出登录；
   个人相关入口统一由头像菜单（Bottom Sheet）提供。
 
-## Unreleased — 2026-09-12（复核修正：M18 后端批量/导出未完成，安全审计发现待修复项）
+### 复核修正（M18 后端批量/导出未完成与安全审计待修复项）
 
 > 二次复核撤销上一轮对 M18-ADMIN-BATCH-01/02 的完成结论：当前代码只有前端 server action 逐条调用单条端点，`ExportButton` 只导出当前已加载数据；后端原子批量、全量流式 CSV、权限/审计端点尚未完成。
 >
 > 同轮审计确认并进入修复：幂等重放跨用户 IDOR、附件状态重签下载、S3 私有重定向缓存、个人/通知/下载响应缓存隔离、板块角色全局授予、board_mute 与 fail-open sanction lookup、管理员 step-up 及上传隔离对象清理等问题。
 
-## Unreleased — 2026-09-12（产品决策：取消 M19 设计系统重做）
+### 产品决策（取消 M19 设计系统重做，路线图收敛）
 
 > 经产品所有者确认，当前默认主题视觉与组件体验符合需求，取消 M19「冷墨」全站三层表面重做与 Panel 组件重构。
 
 - 执行册收敛：M19（5 工作包、42 叶子任务）正式下线并归档至 `todo/archived-M19-design-system.md`；路线图校验器与仪表盘收敛至 M0–M18。
 - 任务总数由 865 调整为 823 项；该条记录保留当时快照，当前状态以 `TODO.md` 为准。
 
-## Unreleased — 2026-09-12（后台表格化与批量盘点收口：levels 配额批量 + 管理矩阵）
+### 后台表格化与批量盘点收口（levels 配额批量 + 管理矩阵）
 
 > 全量盘点 27 个 admin 页面：列表型实体均已是表格形态 + 约定 B 批量
 > （14 页此前已接通：users/posts/attachments/notifications/boards/tags/
@@ -47,7 +75,7 @@
 - 证据：`npm run check` 0 错误 0 警告；SSR 用例补批量断言后 16/16；
   vitest 全量 821/821；`cargo clippy --workspace` 0 警告。
 
-## Unreleased — 2026-09-12（等级规则可配置化：TL 规则后台编辑 + 停用语义修复）
+### 等级规则可配置化（TL 规则后台编辑 + 停用语义修复）
 
 > 承接等级合并单轨：/admin/levels 的信任等级规则从只读种子升级为管理端
 > 可配置（名称/摘要/启用/全部阈值条件），并修复「停用实际不生效」的语义漏洞。
@@ -80,7 +108,7 @@
   （顺手修 RowActionsMenu role=menu 缺 tabindex 的 a11y 警告）；
   `ruby scripts/check-route-coverage.rb` OK。
 
-## Unreleased — 2026-09-12（等级管理合并单轨：/admin/levels = LinuxDo 信任等级）
+### 等级管理合并单轨（/admin/levels = LinuxDo 信任等级）
 
 > 产品决策：等级体系统一为 LinuxDo 式信任等级（TL0–TL4），后台单入口。
 > 体系对照见 `TRUST-LEVELS.md` §1.1；经验方案表（0050）保留为契约字段
@@ -120,7 +148,7 @@
   测试改写至新数据形状后 vitest 21/21 通过；`ruby
   scripts/check-route-coverage.rb` OK。
 
-## Unreleased — 2026-09-12（消息页移动端适配：实测校准 + 禁用缩放）
+### 消息页移动端适配（实测校准 + 禁用缩放）
 
 > 纯前端布局修复，无契约/后端变更；经 Playwright 注入测试会话在
 > 390×844 / 436×948 实测校准（测量用临时脚本/截图/临时会话行已清理）。
@@ -143,14 +171,14 @@
 - 证据：`npm run check`（svelte-check）0 错误；`vitest` 全量 801/801；
   Playwright 实测 `scrollable=false`、`gap_card_to_nav=0`（截图目检通过）。
 
-## Unreleased — 2026-09-12（管理后台工具栏统一单行布局）
+### 管理后台工具栏统一单行布局
 
 > 纯前端布局修复，无契约/后端变更。
 
 - 管理后台 7 个列表页（posts / attachments / boards / plugins / marketplace / notifications / audit）的「搜索 + 状态筛选 + 清除」工具条由两行全宽堆叠（`.app-field`/`.app-select` 默认 `width:100%`，`space-between` 行把「清除」挤到右缘裁切换行）统一为单行 flex：搜索框 `flex:1` 撑满、筛选下拉定宽 168px、「清除」为 `btn ghost sm`；窄屏自动换行。posts/attachments 的「清除」由裸文本链接升级为按钮样式（保留 no-JS GET 重置语义）。
 - 证据：`npm run check`（svelte-check）0 错误；`vitest` 全量 801/801 通过。
 
-## Unreleased — 2026-09-12（等级管理对齐：/admin/levels 改读真实经验方案阶梯）
+### 等级管理对齐（/admin/levels 改读真实经验方案阶梯）
 
 > 背景：/admin/levels 页面原展示 0062 `level_rules` 存档表（运行时无消费点，
 > 接口失败还回退硬编码 mock），与真实等级体系（经验方案 10 级 + 信任等级
@@ -173,7 +201,7 @@
   `npm run check`（svelte-check）0 错误；SSR 空安全测试更新至新数据形状。
   余项：`cargo clippy --workspace`、`cargo check`、vitest 全量见 TODO 收口。
 
-## Unreleased — 2026-09-12（文档对齐：等级管理以信任等级为准）
+### 文档对齐（等级管理以信任等级为准）
 
 > 纯文档修订（同日并入上一条的代码对齐）；保留原文档盘点结论。
 
@@ -182,7 +210,7 @@
 - `API.md` / `OPERATIONS.md` 为 `GET/PATCH /api/v1/admin/levels` 标注「管理端存档 CRUD」状态说明。
 - `PROTOTYPE-IA.md` §1.4/§1.5/§2.10 补实现差异：/admin/levels 已实现形态（规则存档列表 + 每级附件配额）、原型的晋升路径可视化未实现、新增 /admin/trust-levels（LinuxDo 式 TL0–TL4，等级管理主线）。
 
-## Unreleased — 2026-09-11（M06-UPLOAD 上传类型策略化）
+### 附件上传类型策略化（M06-UPLOAD）
 
 > 工作区收口记录，尚未对应 release tag；发布状态以 [`../TODO.md`](../TODO.md) 为准。
 
@@ -191,7 +219,7 @@
 - `GET /api/v1/attachments` 的 `quota` 摘要新增 `allowed_media_types` 投影；前端共享 `lib/upload/mediaTypes.ts`（扩展名权威归一化 + 策略缓存），编辑器与上传器选文件即预校验，不再把任意文件送到后端撞「存储请求参数有误」；该报错文案同步改为明确指出类型/大小不符。
 - 证据：`cargo test --test storage_upload`（20 pass，含策略 fail-open/OOXML/音视频魔法用例）、`cargo test --test storage_quota`（13 pass）、`cargo clippy --workspace` 0 警告、`vitest` upload 相关 24 pass、`svelte-check` 0 错误；E2E 实测 docx/mp4/csv 经 S3 预签名上传 ready，管理端关闭 office 类目后 docx create 即刻 400、恢复后放行。
 
-## Unreleased — 2026-09-09（M17-GAPFIX-07 私信验收）
+### 私信发布级验收与内容审核修订（M17-GAPFIX-07 / M18-ADMIN-CONTENT-01）
 
 > 工作区收口记录，尚未对应 release tag；发布状态以 [`../TODO.md`](../TODO.md) 为准。
 
@@ -199,15 +227,6 @@
 - 5 个 Messages operation 从 `implemented` 升为 `verified`；当前 OpenAPI 覆盖为 223/223，`verified=199`、`implemented=24`。
 - 清理已完成的 `prototype/todo.md` 与旧 `prototype/.verify/` 生成快照；正式对比报告和历史 RC 审计资料保留。
 - 内容审核页恢复可用（M18-ADMIN-CONTENT-01）：新增 `GET /api/v1/admin/posts/{id}/revisions`（管理域 documented non-contract，post.moderate，不限帖子状态）投影全量不可变修订；`/admin/content` 改为待审队列 + 最后两版「修改前/后」对比块，对比可用才放行通过/驳回（驳回理由改原生 details 展开，无 JS 可用），并修复 403/错误态误显示“没有待审核的内容”空态的问题。
-
-## v1.0.0-rc.8 — 2026-09-07（全站文案统一：站点文案后台可配）
-
-> 基线 commit 待发布时补记。rc.7 之后的增量：站点级文案（站点名称/描述、
-> 登录页与注册页的眉题/标题/说明）全部收敛到后台「系统设置 → 站点文案」，
-> 新增公开只读投影 `GET /api/v1/site` 与迁移 0065，前台各页（登录/注册/
-> 忘记密码/邮箱验证/错误页/首页/导航品牌/SEO 标题后缀）不再硬编码品牌文案，
-> 空值回退内置通用文案——面向开源论坛程序的自定义部署场景。发布顺序：
-> 后端迁移 → backend → worker → frontend。
 
 ### 全站文案统一（迁移 0065 / 公开端点 / 管理台）
 

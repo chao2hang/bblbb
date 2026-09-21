@@ -1,6 +1,7 @@
 <script lang="ts">
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { PublicPresentationTokens } from '$lib/api/types';
   import UserCard from '$lib/components/UserCard.svelte';
@@ -172,7 +173,13 @@
           <span>{boardLabel}</span>
         </span>
       {/if}
-      <span class="topic-row__author">{author}</span>
+      <span class="topic-row__author">
+        {#if authorPresentation}
+          <CosmeticName name={author} presentation={authorPresentation} />
+        {:else}
+          {author}
+        {/if}
+      </span>
       <span class="topic-row__separator" aria-hidden="true">·</span>
       <time datetime={toIsoTime(createdAt)}>{formatRelative(createdAt)}</time>
       {#if likeCount > 0}

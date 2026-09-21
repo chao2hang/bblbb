@@ -86,7 +86,10 @@ fn parse_create_tables(sql: &str) -> Vec<Table> {
             }
         }
         assert_eq!(depth, 0, "未匹配的括号: {name}");
-        tables.push(parse_table_body(&name, &sql[body_open + 1..body_end]));
+        // 忽略 SQLite 重建表时引入的临时表（如 `cosmetic_defs_new`）
+        if !name.ends_with("_new") && !name.ends_with("_temp") {
+            tables.push(parse_table_body(&name, &sql[body_open + 1..body_end]));
+        }
         idx = body_end + 1;
     }
     tables

@@ -921,20 +921,17 @@ async fn suggest_mention_users(
 
         let sql = "SELECT username_normalized, display_name, trust_level AS level
                    FROM users
-                   WHERE id <> ?
-                     AND status NOT IN ('deleted', 'pending_delete')
+                   WHERE status NOT IN ('deleted', 'pending_delete')
                      AND (username_normalized LIKE ? ESCAPE '!' OR (display_name IS NOT NULL AND LOWER(display_name) LIKE ? ESCAPE '!'))
                    LIMIT 50";
         let rows: Vec<(String, Option<String>, i64)> = match pool {
             Either::Left(p) => sqlx::query_as(sql)
-                .bind(&user.id)
                 .bind(&pattern)
                 .bind(&pattern)
                 .fetch_all(p)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?,
             Either::Right(p) => sqlx::query_as(sql)
-                .bind(&user.id)
                 .bind(&pattern)
                 .bind(&pattern)
                 .fetch_all(p)

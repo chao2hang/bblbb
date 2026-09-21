@@ -79,6 +79,7 @@
   };
   type AdminNavGroup = {
     label: string;
+    icon: string;
     items: AdminNavItem[];
     adminOnly?: boolean;
   };
@@ -94,6 +95,7 @@
   const navGroups: AdminNavGroup[] = [
     {
       label: '内容',
+      icon: 'layers',
       items: [
         { label: '帖子与文章', href: '/admin/posts', icon: 'file-text' },
         { label: '内容审核', href: '/admin/content', icon: 'clipboard-check' },
@@ -104,6 +106,7 @@
     },
     {
       label: '用户与权限',
+      icon: 'users',
       items: [
         { label: '用户管理', href: '/admin/users', icon: 'users', adminOnly: true },
         { label: '角色委派', href: '/admin/assignments', icon: 'user-check', adminOnly: true },
@@ -114,13 +117,14 @@
     },
     {
       label: '激励与交易',
+      icon: 'coins',
       adminOnly: true,
       items: [
         { label: '成就管理', href: '/admin/achievements', icon: 'trophy' },
         { label: '积分与货币', href: '/admin/points', icon: 'coins', exact: true },
         { label: '积分规则', href: '/admin/points/rules', icon: 'list' },
         { label: '等级管理', href: '/admin/levels', icon: 'shield-check' },
-        { label: '商城管理', href: '/admin/shop', icon: 'shopping-bag' },
+        { label: '商城管理', href: '/admin/shop', icon: 'shopping-bag', exact: true },
         { label: '签到与活跃', href: '/admin/activity', icon: 'activity' },
         { label: '市场与交易', href: '/admin/marketplace', icon: 'shopping-cart' },
         { label: '下载计费', href: '/admin/download-billing', icon: 'download' }
@@ -128,22 +132,24 @@
     },
     {
       label: '扩展与集成',
+      icon: 'puzzle',
       adminOnly: true,
       items: [
         { label: '主题管理', href: '/admin/themes', icon: 'palette' },
         { label: '插件管理', href: '/admin/plugins', icon: 'puzzle' },
-        { label: 'OAuth 客户端', href: '/admin/oauth', icon: 'shield' },
+        { label: 'OAuth 客户端', href: '/admin/oauth', icon: 'key' },
         { label: '大模型设置', href: '/admin/ai', icon: 'sparkles' },
         { label: '视频插件', href: '/admin/video', icon: 'video' }
       ]
     },
     {
       label: '系统',
+      icon: 'settings',
       adminOnly: true,
       items: [
         { label: '文件存储', href: '/admin/storage', icon: 'server' },
         { label: '通知与邮件', href: '/admin/notifications', icon: 'bell' },
-        { label: '审计日志', href: '/admin/audit', icon: 'file-text' },
+        { label: '审计日志', href: '/admin/audit', icon: 'scroll-text' },
         { label: '系统设置', href: '/admin/settings', icon: 'settings' },
         { label: '功能开关', href: '/admin/feature-flags', icon: 'toggle-right' },
         { label: 'BI 看板', href: '/admin/bi', icon: 'bar-chart' }
@@ -224,8 +230,16 @@
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     void tick().then(() => mobileFirstLink?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMobileMenu(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKey);
     };
   });
 
@@ -306,7 +320,7 @@
         <a
           href={primaryItem.href}
           bind:this={mobileFirstLink}
-          class="app-admin-nav-item is-dashboard"
+          class="app-admin-nav-item is-dashboard is-level-1"
           class:is-active={isItemActive(primaryItem)}
           aria-current={isItemActive(primaryItem) ? 'page' : undefined}
           onclick={() => closeMobileMenu()}
@@ -326,18 +340,30 @@
       <div class="app-admin-side__groups">
         {#each visibleNavGroups as group, index}
           {@const isExpanded = isGroupExpanded(index)}
-          <div class="app-admin-side__group" class:is-expanded={isExpanded}>
+          {@const hasActiveChild = group.items.some((item) => isItemActive(item))}
+          <div
+            class="app-admin-side__group"
+            class:is-expanded={isExpanded}
+            class:has-active-child={hasActiveChild}
+          >
             <button
               type="button"
-              class="app-admin-side__label"
+              class="app-admin-side__label is-level-1"
+              class:has-active-child={hasActiveChild}
               data-admin-group-toggle=""
               aria-controls={'admin-group-items-' + index}
               aria-expanded={isExpanded}
               onclick={() => toggleGroup(index)}
               onkeydown={handleAdminKeydown}
             >
+              <span class="app-admin-nav-icon">
+                <Icon name={group.icon} size={15} />
+              </span>
               <span class="app-admin-side__label-text">{group.label}</span>
-              <Icon name="chevron-down" size={12} class="app-admin-chevron" />
+              {#if hasActiveChild && !isExpanded}
+                <span class="app-admin-group-active-dot" title="当前激活项在此分类下" aria-hidden="true"></span>
+              {/if}
+              <Icon name="chevron-down" size={13} class="app-admin-chevron" />
             </button>
             <div
               class="app-admin-side__items"
@@ -348,14 +374,14 @@
               {#each group.items as item}
                 <a
                   href={item.href}
-                  class="app-admin-nav-item"
+                  class="app-admin-nav-item is-level-2"
                   class:is-active={isItemActive(item)}
                   aria-current={isItemActive(item) ? 'page' : undefined}
                   onclick={() => closeMobileMenu()}
                   onkeydown={handleAdminKeydown}
                 >
-                  <span class="app-admin-nav-icon">
-                    <Icon name={item.icon} size={14} />
+                  <span class="app-admin-nav-icon is-sub">
+                    <Icon name={item.icon} size={13.5} />
                   </span>
                   <span class="app-admin-nav-text">{item.label}</span>
                   {#if isItemActive(item)}

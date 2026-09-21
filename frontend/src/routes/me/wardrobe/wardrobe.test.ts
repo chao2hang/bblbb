@@ -34,7 +34,8 @@ describe('M07-UI-05 衣柜 load', () => {
     getAuthedMock
       .mockResolvedValueOnce({ ok: true, data: presentation })
       .mockResolvedValueOnce({ ok: true, data: { items: entitlements } })
-      .mockResolvedValueOnce({ ok: true, data: { id: 'u1', username: 'alice' } });
+      .mockResolvedValueOnce({ ok: true, data: { id: 'u1', username: 'alice' } })
+      .mockResolvedValueOnce({ ok: true, data: { cosmetics: [] } });
     const data = (await load(loadEvent())) as WardrobePageData;
     expect(data.presentation).toEqual(presentation);
     expect(data.entitlements).toHaveLength(1);

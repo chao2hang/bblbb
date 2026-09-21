@@ -643,6 +643,7 @@ async fn list_tag_posts(
     let sql = String::from(
         "SELECT p.id, p.title, p.author_id, u.username_normalized AS author_name,
                 u.display_name AS author_display_name,
+                u.avatar_attachment_id AS avatar_attachment_id,
                 p.reply_count, p.view_count, p.summary, p.created_at, p.last_reply_at,
                 b.slug AS board_slug, b.name AS board_name
          FROM post_tags pt
@@ -680,18 +681,26 @@ async fn list_tag_posts(
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
 
     let has_more = rows.len() as i64 > limit;
+    let author_ids: Vec<String> = rows.iter().map(|r| r.author_id.clone()).collect();
+    let author_tokens =
+        crate::routes::posts::fetch_author_presentation_tokens(pool, &author_ids).await;
     let items: Vec<Value> = rows
         .into_iter()
         .take(limit as usize)
         .map(|r| {
+            let mut author = json!({
+                "id": r.author_id,
+                "username": r.author_name,
+                "display_name": r.author_display_name,
+                "avatar_attachment_id": r.avatar_attachment_id,
+            });
+            if let Some(tokens) = author_tokens.get(author["id"].as_str().unwrap_or_default()) {
+                author["presentation_tokens"] = json!(tokens);
+            }
             json!({
                 "id": r.id,
                 "title": r.title,
-                "author": {
-                    "id": r.author_id,
-                    "username": r.author_name,
-                    "display_name": r.author_display_name,
-                },
+                "author": author,
                 "reply_count": r.reply_count,
                 "view_count": r.view_count,
                 "summary": r.summary,
@@ -734,6 +743,7 @@ struct TagPostRow {
     author_name: Option<String>,
     /// 作者昵称（users.display_name；前台列表优先显示昵称，缺省回退用户名）。
     author_display_name: Option<String>,
+    avatar_attachment_id: Option<String>,
     reply_count: i64,
     view_count: i64,
     summary: Option<String>,

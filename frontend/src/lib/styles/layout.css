@@ -425,7 +425,8 @@
   position: relative;
 }
 
-.auth-viewport-main #page-login.login-page {
+.auth-viewport-main #page-login.login-page,
+.auth-viewport-main #page-register.login-page {
   min-height: 100vh !important;
   min-height: 100dvh !important;
   height: 100% !important;

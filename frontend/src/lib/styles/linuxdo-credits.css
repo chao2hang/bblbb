@@ -746,3 +746,480 @@
   height: 100%;
   overflow: visible;
 }
+
+/* ============================================================
+   Balance page refinement — ledger rail + controlled density
+   ------------------------------------------------------------
+   The balance page has three kinds of information: a trend, a compact
+   account rail, and a recent ledger. Keep those layers distinct without
+   stacking nested cards or letting utility spacing drift between sections.
+   ============================================================ */
+
+.linuxdo-credits.credits-page {
+  max-width: min(100%, 1320px);
+  --credits-section-gap: clamp(2.5rem, 4vw, 3.5rem);
+  --credits-rule: color-mix(in srgb, var(--color-border) 82%, transparent);
+}
+
+.linuxdo-credits.credits-page.py-6 {
+  padding-top: clamp(1rem, 2vw, 1.5rem);
+  padding-bottom: 0;
+}
+
+/* The utility class is intentionally explicit here; this page uses a larger
+   chapter rhythm than the smaller in-card space-y helpers above. */
+.linuxdo-credits.credits-page.space-y-10 > * + * {
+  margin-top: var(--credits-section-gap);
+}
+
+.linuxdo-credits .credits-section {
+  min-width: 0;
+}
+
+.linuxdo-credits .credits-section-title {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  min-height: 2.25rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 0.8rem !important;
+  border-color: var(--credits-rule);
+  letter-spacing: -0.03em;
+}
+
+.linuxdo-credits .credits-section-title::after {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 3.25rem;
+  height: 2px;
+  content: '';
+  background: var(--color-brand);
+}
+
+.linuxdo-credits .credits-overview-section .credits-section-title {
+  margin-bottom: 0;
+}
+
+.linuxdo-credits .credits-primary-grid {
+  align-items: start;
+  gap: clamp(2rem, 4.5vw, 4.5rem) !important;
+}
+
+.linuxdo-credits .credits-chart-column,
+.linuxdo-credits .credits-metrics-column {
+  min-width: 0;
+}
+
+.linuxdo-credits .credits-chart-header {
+  min-height: 1.5rem;
+  margin-bottom: 0.5rem !important;
+}
+
+.linuxdo-credits .credits-chart-header h3 {
+  font-family: var(--font-family-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.linuxdo-credits .credits-chart-header > div {
+  gap: 1rem;
+}
+
+.linuxdo-credits .w-2\.5 {
+  width: 0.625rem;
+}
+
+.linuxdo-credits .h-2\.5 {
+  height: 0.625rem;
+}
+
+.linuxdo-credits .h-1\.5 {
+  height: 0.375rem;
+}
+
+.linuxdo-credits .font-mono {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.linuxdo-credits .p-2\.5 {
+  padding: 0.625rem;
+}
+
+.linuxdo-credits .border {
+  border: 1px solid var(--color-border);
+}
+
+.linuxdo-credits .shadow-lg {
+  box-shadow: var(--shadow-pop);
+}
+
+.linuxdo-credits [data-slot="chart"] {
+  height: clamp(220px, 22vw, 260px) !important;
+}
+
+.linuxdo-credits .chart-container {
+  height: 100% !important;
+  max-height: none !important;
+}
+
+@media (min-width: 768px) {
+  /* A single vertical rule turns the metrics into a readable account rail and
+     removes the visual ambiguity of three unrelated blocks in a column. */
+  .linuxdo-credits .credits-metrics-column {
+    padding-left: clamp(1.25rem, 2.5vw, 2.25rem);
+    border-left: 1px solid var(--credits-rule);
+  }
+
+  .linuxdo-credits .credits-metrics-column > div {
+    margin: 0 0 1.25rem;
+    padding: 0 0 1.25rem !important;
+    border-bottom: 1px solid var(--credits-rule) !important;
+  }
+
+  .linuxdo-credits .credits-metrics-column > div:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0 !important;
+    border-bottom: 0 !important;
+  }
+}
+
+.linuxdo-credits .credits-metrics-column > div [data-slot="counting-number"] {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.75rem, 2.8vw, 2.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.linuxdo-credits .credits-metrics-column button[aria-label="查看详情"] {
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+}
+
+.linuxdo-credits .credits-metrics-column .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.375rem;
+  padding: 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.linuxdo-credits .credits-metrics-column .badge.badge-warning {
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  color: #f59e0b;
+  border-color: color-mix(in srgb, #f59e0b 28%, transparent);
+}
+
+.linuxdo-credits .credits-metrics-column .badge.badge-success {
+  background: color-mix(in srgb, #10b981 14%, transparent);
+  color: #10b981;
+  border-color: color-mix(in srgb, #10b981 28%, transparent);
+}
+
+.linuxdo-credits .credits-metrics-column .badge.badge-neutral {
+  background: var(--color-bg-subtle, rgba(255, 255, 255, 0.06));
+  color: var(--color-text-secondary, #94a3b8);
+  border-color: var(--credits-rule);
+}
+
+.linuxdo-credits .credits-metrics-column form .btn {
+  height: 2.25rem;
+  min-height: 2.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease-in-out;
+}
+
+.linuxdo-credits .credits-metrics-column form .btn.btn-primary {
+  background: var(--color-brand, #2563eb);
+  color: #ffffff;
+  border: 1px solid transparent;
+}
+
+.linuxdo-credits .credits-metrics-column form .btn.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-brand, #2563eb) 35%, transparent);
+}
+
+.linuxdo-credits .credits-metrics-column form .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
+.linuxdo-credits .credits-overview-section .credits-overview-surface {
+  margin-top: 1rem !important;
+}
+
+/* Overview is one ledger surface, not a gray tray holding three smaller
+   boxes. Hairlines preserve grouping while making the section lighter. */
+.linuxdo-credits .credits-overview-surface {
+  margin-top: 1.25rem !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.linuxdo-credits .credits-overview-grid {
+  gap: 0 !important;
+  border-top: 1px solid var(--credits-rule);
+  border-bottom: 1px solid var(--credits-rule);
+}
+
+.linuxdo-credits .credits-overview-grid > [data-slot="card"] {
+  min-height: 0;
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.linuxdo-credits .credits-overview-grid > [data-slot="card"]:first-child {
+  padding-left: 0;
+}
+
+.linuxdo-credits .credits-overview-grid > [data-slot="card"]:last-child {
+  padding-right: 0;
+}
+
+.linuxdo-credits .credits-overview-grid > [data-slot="card"] + [data-slot="card"] {
+  border-left: 1px solid var(--credits-rule) !important;
+}
+
+.linuxdo-credits .credits-overview-grid [data-slot="card-header"] {
+  padding: 0 0 1rem;
+}
+
+.linuxdo-credits .credits-overview-grid [data-slot="card-content"] {
+  padding: 0;
+}
+
+.linuxdo-credits .credits-overview-grid [data-slot="card-footer"] {
+  height: auto;
+  min-height: 2.25rem;
+  margin-top: 1.25rem;
+  padding: 0.85rem 0 0;
+  border-top: 1px solid var(--credits-rule);
+}
+
+.linuxdo-credits .credits-overview-grid [data-slot="scroll-area"] {
+  height: auto;
+  overflow: visible;
+}
+
+.linuxdo-credits .credits-overview-grid [data-slot="scroll-area-viewport"] {
+  height: auto;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+.linuxdo-credits .credits-activity-list {
+  max-height: 15.25rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.linuxdo-credits .credits-activity-list > div {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--color-border-muted);
+  border-radius: 0;
+  background: transparent;
+}
+
+.linuxdo-credits .credits-activity-list > div:last-child {
+  border-bottom: 0;
+}
+
+.linuxdo-credits .credits-activity-list > div:hover {
+  background: var(--color-bg-subtle);
+}
+
+.linuxdo-credits .credits-stat-list > div {
+  padding-block: 0.125rem;
+}
+
+.linuxdo-credits .credits-overview-grid [data-slot="card-footer"],
+.linuxdo-credits .credits-activity-list > div > div > div {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* The old md utility turns the chart into a 2/3 + 1/3 grid too early.
+     Keep the tablet reading order vertical until the rail has room to breathe. */
+  .linuxdo-credits .credits-primary-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2.5rem !important;
+  }
+
+  .linuxdo-credits .credits-chart-column,
+  .linuxdo-credits .credits-metrics-column {
+    width: 100%;
+    grid-column: auto !important;
+  }
+
+  .linuxdo-credits .credits-metrics-column {
+    padding-left: 0 !important;
+    padding-top: 1.5rem !important;
+    border-top: 1px solid var(--credits-rule);
+    border-left: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .linuxdo-credits .credits-primary-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 0.8fr) !important;
+  }
+
+  .linuxdo-credits .credits-chart-column,
+  .linuxdo-credits .credits-metrics-column {
+    grid-column: auto !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Avoid a lonely third overview card on tablet widths. */
+  .linuxdo-credits .credits-overview-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"] {
+    padding-inline: 0 !important;
+  }
+
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"]:first-child,
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"]:last-child {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"] + [data-slot="card"] {
+    border-top: 1px solid var(--credits-rule) !important;
+    border-left: 0 !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .linuxdo-credits.credits-page {
+    --credits-section-gap: 2.75rem;
+  }
+
+  .linuxdo-credits .credits-section-title {
+    margin-bottom: 1.25rem;
+  }
+
+  .linuxdo-credits .credits-primary-grid {
+    gap: 2rem !important;
+  }
+
+  .linuxdo-credits .credits-chart-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    min-height: 0;
+  }
+
+  .linuxdo-credits .credits-chart-header > div {
+    flex-wrap: wrap;
+    gap: 0.65rem 0.9rem;
+  }
+
+  .linuxdo-credits .credits-metrics-column {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--credits-rule);
+  }
+
+  .linuxdo-credits .credits-metrics-column > div {
+    margin: 0;
+    padding: 1rem 0 !important;
+    border-bottom: 1px solid var(--credits-rule) !important;
+  }
+
+  .linuxdo-credits .credits-metrics-column > div:first-child {
+    padding-top: 0 !important;
+  }
+
+  .linuxdo-credits .credits-metrics-column > div + div {
+    border-top: 0 !important;
+  }
+
+  .linuxdo-credits .credits-metrics-column > div:last-child {
+    padding-bottom: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  .linuxdo-credits .credits-chart-column [data-slot="chart"],
+  .linuxdo-credits .credits-chart-column .chart-container {
+    height: 190px !important;
+    max-height: 190px !important;
+  }
+
+  .linuxdo-credits .credits-metrics-column form .btn {
+    min-height: 44px !important;
+    height: 44px !important;
+  }
+
+  .linuxdo-credits .credits-metrics-column button[aria-label="查看详情"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .linuxdo-credits .credits-overview-surface {
+    margin-top: 1rem !important;
+  }
+
+  .linuxdo-credits .credits-overview-grid {
+    display: block;
+  }
+
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"],
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"]:first-child,
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"]:last-child {
+    padding: 1.25rem 0;
+  }
+
+  .linuxdo-credits .credits-overview-grid > [data-slot="card"] + [data-slot="card"] {
+    border-top: 1px solid var(--credits-rule) !important;
+    border-left: 0 !important;
+  }
+
+  .linuxdo-credits .credits-overview-grid [data-slot="card-footer"] {
+    margin-top: 1rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .linuxdo-credits .credits-chart-column [data-slot="chart"],
+  .linuxdo-credits .credits-chart-column .chart-container {
+    height: 180px !important;
+    max-height: 180px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linuxdo-credits .credits-activity-list > div {
+    transition: none;
+  }
+}

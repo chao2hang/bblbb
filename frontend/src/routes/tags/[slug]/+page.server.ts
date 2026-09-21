@@ -59,7 +59,11 @@ export const load: PageServerLoad = async ({ params, url, cookies, request }) =>
 
   if (postsResult.ok) {
     const data = postsResult.data;
-    posts = data.items ?? [];
+    posts = (data.items ?? []).map((post) => ({
+      ...post,
+      author_avatar_attachment_id: post.author?.avatar_attachment_id ?? null,
+      author_presentation_tokens: post.author?.presentation_tokens ?? null
+    }));
     hasMore = data.has_more ?? data.page?.has_more ?? false;
     nextCursor = data.next_cursor ?? data.page?.next_cursor ?? null;
   } else {

@@ -165,7 +165,7 @@ document.fetch("paths", {}).each do |path, path_item|
   end
 end
 
-errors << "expected 238 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 238
+errors << "expected 243 operations, got #{operations.length} (repair: freeze a new baseline or fix a duplicate)" unless operations.length == 243
 
 # Every declared tag must be registered in the top-level tags list.
 registered_tags = document.fetch("tags", []).map { |tag| tag["name"] }
@@ -212,8 +212,8 @@ if File.file?(COVERAGE_PATH)
   begin
     coverage = JSON.parse(File.read(COVERAGE_PATH))
     rows = coverage.fetch("operations")
-    errors << "coverage manifest expected_operations must be 238, got #{coverage.fetch("expected_operations")}" unless coverage.fetch("expected_operations") == 238
-    errors << "coverage manifest has #{rows.length} rows, expected 238" unless rows.length == 238
+    errors << "coverage manifest expected_operations must be 243, got #{coverage.fetch("expected_operations")}" unless coverage.fetch("expected_operations") == 243
+    errors << "coverage manifest has #{rows.length} rows, expected 243" unless rows.length == 243
 
     seen = {}
     rows.each_with_index do |entry, index|

@@ -768,7 +768,7 @@ async fn board_icon_create_update_clear_and_invalid() {
         Either::Right(_) => panic!("SQLite only"),
     };
     assert_eq!(icon.as_deref(), Some("puzzle"), "icon 必须更新");
-    let (metadata): (String) = match &pool {
+    let metadata: String = match &pool {
         Either::Left(p) => sqlx::query_scalar(
             "SELECT metadata FROM audit_logs WHERE target_type = 'board' AND target_id = ? AND action = 'admin.board_update'",
         )

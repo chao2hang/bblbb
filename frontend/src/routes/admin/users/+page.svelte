@@ -45,6 +45,15 @@
   );
   const conflict = $derived(form?.conflict === true);
 
+  // —— step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示 ——
+  let reauthLoading = $state(false);
+  let reauthCancelled = $state(false);
+  let reauthError = $state<string | null>(null);
+
+  $effect(() => {
+    if (form?.stepUpRequired) reauthCancelled = false;
+  });
+
   // JS 启用：动作结果走全局 Toast 浮窗（成功绿/失败红）；顶部内联横幅仅保留为
   // 无 JS 回退（SSR HTML 仍渲染，见 hasJs）。
   let hasJs = $state(false);
@@ -102,6 +111,20 @@
     statusTarget = item;
     statusDraft = item.status;
     statusReason = '';
+  }
+
+  let isSubmitting = $state(false);
+
+  function openBatchBan(): void {
+    batchStatus = 'banned';
+    batchReason = '违规批量封禁';
+    batchStatusOpen = true;
+  }
+
+  function openBatchActive(): void {
+    batchStatus = 'active';
+    batchReason = '批量恢复正常状态';
+    batchStatusOpen = true;
   }
 
   /** 一键随机昵称弹层 */
@@ -293,6 +316,8 @@
         <!-- 批量工具条（选中 > 0 时渲染；批量参数在 Dialog 内填写） -->
         <BatchBar count={selectedIds.length} noun="名成员" onclear={() => (selectedIds = [])}>
           <Button text="批量设置状态" variant="secondary" size="sm" onclick={openBatchStatus} />
+          <Button text="一键封禁" variant="danger" size="sm" onclick={openBatchBan} />
+          <Button text="一键激活" variant="ghost" size="sm" onclick={openBatchActive} />
         </BatchBar>
 
         <div class="app-table-wrap">
@@ -426,10 +451,14 @@
     method="POST"
     action="?/update"
     use:enhance={() => {
+      isSubmitting = true;
       return async ({ result, update }) => {
+        isSubmitting = false;
         toastActionResult(result);
         await update();
-        statusTarget = null;
+        if (result.type === 'success') {
+          statusTarget = null;
+        }
       };
     }}
   >
@@ -454,7 +483,7 @@
         placeholder="必填"
       />
     </div>
-    <Button text="保存" variant="primary" size="sm" type="submit" />
+    <Button text={isSubmitting ? '保存中...' : '保存'} variant="primary" size="sm" type="submit" disabled={isSubmitting} />
   </form>
 </Dialog>
 
@@ -471,10 +500,14 @@
     method="POST"
     action="?/setTrust"
     use:enhance={() => {
+      isSubmitting = true;
       return async ({ result, update }) => {
+        isSubmitting = false;
         toastActionResult(result);
         await update();
-        trustTarget = null;
+        if (result.type === 'success') {
+          trustTarget = null;
+        }
       };
     }}
   >
@@ -498,7 +531,7 @@
         placeholder="必填"
       />
     </div>
-    <Button text="保存" variant="primary" size="sm" type="submit" />
+    <Button text={isSubmitting ? '保存中...' : '保存'} variant="primary" size="sm" type="submit" disabled={isSubmitting} />
   </form>
 </Dialog>
 
@@ -513,11 +546,15 @@
     method="POST"
     action="?/batchUpdate"
     use:enhance={() => {
+      isSubmitting = true;
       return async ({ result, update }) => {
+        isSubmitting = false;
         toastActionResult(result);
         await update();
-        selectedIds = [];
-        batchStatusOpen = false;
+        if (result.type === 'success') {
+          selectedIds = [];
+          batchStatusOpen = false;
+        }
       };
     }}
   >
@@ -542,7 +579,7 @@
         placeholder="必填"
       />
     </div>
-    <Button text="确认更新" variant="primary" size="sm" type="submit" />
+    <Button text={isSubmitting ? '更新中...' : '确认更新'} variant="primary" size="sm" type="submit" disabled={isSubmitting} />
   </form>
 </Dialog>
 
@@ -559,10 +596,14 @@
     method="POST"
     action="?/randomizeNickname"
     use:enhance={() => {
+      isSubmitting = true;
       return async ({ result, update }) => {
+        isSubmitting = false;
         toastActionResult(result);
         await update();
-        randomizeTarget = null;
+        if (result.type === 'success') {
+          randomizeTarget = null;
+        }
       };
     }}
   >
@@ -579,8 +620,8 @@
       />
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <Button text="取消" variant="secondary" size="sm" type="button" onclick={() => (randomizeTarget = null)} />
-      <Button text="确认随机并加入黑名单" variant="danger" size="sm" type="submit" />
+      <Button text="取消" variant="secondary" size="sm" type="button" onclick={() => (randomizeTarget = null)} disabled={isSubmitting} />
+      <Button text={isSubmitting ? '处理中...' : '确认随机并加入黑名单'} variant="danger" size="sm" type="submit" disabled={isSubmitting} />
     </div>
   </form>
 </Dialog>
@@ -664,4 +705,46 @@
       </div>
     {/if}
   </div>
+</Dialog>
+
+<!-- step-up 重新验证（M02-MFA-07）：高敏操作命中 403 step_up_required 时展示。
+     无 JS 时 Dialog 以固定层内联渲染，表单仍可用（SSR 基线保留）。 -->
+<Dialog
+  open={Boolean(form?.stepUpRequired) && !reauthCancelled}
+  title="需要重新验证身份"
+  description="用户修改属于高风险管理操作，要求近期重新认证。输入当前账号密码完成重新验证后，可继续刚才的操作。"
+  onclose={() => (reauthCancelled = true)}
+>
+  {#if reauthError}
+    <div class="alert alert-danger" role="alert" style="margin-bottom:10px;padding:8px 12px;font-size:12px;">
+      {reauthError}
+    </div>
+  {/if}
+  <form
+    method="POST"
+    action="?/reauth"
+    use:enhance={() => {
+      reauthLoading = true;
+      reauthError = null;
+      return async ({ result, update }) => {
+        reauthLoading = false;
+        if (result.type === 'failure') {
+          reauthError = (result.data as unknown as AdminUsersActionData | null)?.message ?? '密码验证失败，请重试';
+          return;
+        }
+        toastActionResult(result);
+        await update();
+      };
+    }}
+    style="display:flex;flex-direction:column;gap:10px;"
+  >
+    <div>
+      <label class="input-label" for="user-reauth-password">当前账号密码</label>
+      <input class="input-field" type="password" id="user-reauth-password" name="password" autocomplete="current-password" required />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <Button text={reauthLoading ? '验证中…' : '重新验证'} variant="primary" type="submit" disabled={reauthLoading} />
+      <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
+    </div>
+  </form>
 </Dialog>

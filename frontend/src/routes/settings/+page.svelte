@@ -8,8 +8,7 @@
   //   invalidateAll，无 JS 下整页刷新）；
   // - 保存成功 → form.user（更新后投影）直接渲染，use:enhance 默认
   //   invalidateAll 使 data 同步新版本；
-  // - GAP-FIX 既有页面增强：资料可见性选择器（?/visibility → PATCH /me
-  //   profile_visible_to）、修改密码表单（?/password → POST /me/password，
+  // - 修改密码表单（?/password → POST /me/password，
   //   成功后撤销其他会话）、OAuth 授权应用管理（?/revoke-oauth + DangerConfirm）；
   // - 只输出本人公开/账号字段，不输出任何会话 token（SSR 守卫见
   //   settings-nojs.test）。
@@ -37,6 +36,7 @@
   import type { OAuthGrantItem } from '$lib/api/types';
   import type { SettingsFormResult, SettingsPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import SettingsNav from '$lib/components/SettingsNav.svelte';
   import { registerPasskey, passkeyErrorMessage, passkeySupported } from '$lib/mfa/passkey';
   import type { PasskeyInfo } from '$lib/mfa/passkey-types';
 
@@ -51,7 +51,6 @@
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
   const passwordResult = $derived(form?.password);
-  const visibilityResult = $derived(form?.visibility);
   const revokeResult = $derived(form?.revokeOAuth);
 
   const limit = PROFILE_TEXT_LIMITS;
@@ -60,12 +59,16 @@
   let activeThemeId = $state('default');
   let currentAvatarId = $state<string | null>(null);
   let currentCoverId = $state<string | null>(null);
+  let displayNameVal = $state('');
+  let signatureVal = $state('');
 
   let initialSyncDone = false;
   $effect(() => {
     if (!initialSyncDone) {
       if (user) {
         currentAvatarId = user.avatar_attachment_id ?? null;
+        displayNameVal = user.display_name ?? '';
+        signatureVal = user.signature ?? '';
       }
       if (data?.cover !== undefined) {
         currentCoverId = data.cover?.attachment_id ?? null;
@@ -254,9 +257,18 @@
       const domThemeName = document.documentElement.dataset.themeName;
       activeThemeId = domThemeName && domThemeName !== 'default' ? domThemeName : 'default';
     }
-    const hash = window.location.hash.replace(/^#settings-/, '');
-    if (['profile', 'appearance', 'security', 'oauth', 'privacy', 'notifications'].includes(hash)) activeTab = hash;
-    if (activeTab === 'notifications') loadPrefs();
+    const parseHash = () => {
+      const hash = window.location.hash.replace(/^#(settings-)?/, '');
+      if (['profile', 'appearance', 'security', 'oauth', 'privacy', 'notifications'].includes(hash)) {
+        activeTab = hash;
+        if (hash === 'notifications') loadPrefs();
+      }
+    };
+    parseHash();
+    window.addEventListener('hashchange', parseHash);
+    return () => {
+      window.removeEventListener('hashchange', parseHash);
+    };
   });
 
   function selectTab(tab: string): void {
@@ -286,9 +298,6 @@
     show(`已应用「${themeItem.name}」主题`, 'success');
   }
 
-  /** 资料可见性当前值（契约 Me.profile_visible_to；缺省 everyone）。 */
-  const visibilityValue = $derived(user?.profile_visible_to ?? 'everyone');
-
   /** 后端时间戳为毫秒（M01-DB-08），formatRelative 口径为秒。 */
   function toSeconds(ts: number | null | undefined): number | null {
     if (typeof ts !== 'number' || !Number.isFinite(ts) || ts <= 0) return null;
@@ -304,14 +313,9 @@
     revokeTarget = grant;
   }
 
-  // ── 即时持久化头像与封面（无需点击底部“保存修改”） ──
+  // ── 即时持久化头像（上传即生效，无须等待点击底部“保存修改”） ──
   let updatingAvatar = $state(false);
-  let updatingCover = $state(false);
-
-  let avatarFormEl: HTMLFormElement | undefined = $state();
-  let coverFormEl: HTMLFormElement | undefined = $state();
-  let instantAvatarInputVal = $state('');
-  let instantCoverInputVal = $state('');
+  let avatarFormEl = $state<HTMLFormElement>();
 
   function instantUpdateAvatar(newAttachmentId: string | null) {
     if (!user) return;
@@ -319,18 +323,6 @@
     currentAvatarId = newAttachmentId;
     const form = document.getElementById('instant-avatar-form') as HTMLFormElement | null;
     const input = document.getElementById('instant-avatar-input') as HTMLInputElement | null;
-    if (input) {
-      input.value = newAttachmentId ?? '';
-    }
-    form?.requestSubmit();
-  }
-
-  function instantUpdateCover(newAttachmentId: string | null) {
-    if (!user) return;
-    updatingCover = true;
-    currentCoverId = newAttachmentId;
-    const form = document.getElementById('instant-cover-form') as HTMLFormElement | null;
-    const input = document.getElementById('instant-cover-input') as HTMLInputElement | null;
     if (input) {
       input.value = newAttachmentId ?? '';
     }
@@ -394,29 +386,7 @@
   <h1 class="u-visually-hidden">账号设置</h1>
 
   <div class="app-settings-layout">
-    <div class="app-settings-nav" role="tablist" aria-label="设置导航">
-      <button type="button" role="tab" aria-selected={activeTab === 'profile'} aria-controls="settings-panel-profile" class:is-active={activeTab === 'profile'} onclick={() => selectTab('profile')}>
-        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="user" size={14} /></span>个人资料
-      </button>
-      <button type="button" role="tab" aria-selected={activeTab === 'appearance'} aria-controls="settings-panel-appearance" class:is-active={activeTab === 'appearance'} onclick={() => selectTab('appearance')}>
-        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="palette" size={14} /></span>外观与主题
-      </button>
-      <button type="button" role="tab" aria-selected={activeTab === 'security'} aria-controls="settings-panel-security" class:is-active={activeTab === 'security'} onclick={() => selectTab('security')}>
-        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="shield" size={14} /></span>账号安全
-      </button>
-      <a href="/me#sessions">
-        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="monitor" size={14} /></span>登录设备
-      </a>
-      <button type="button" role="tab" aria-selected={activeTab === 'notifications'} aria-controls="settings-panel-notifications" class:is-active={activeTab === 'notifications'} onclick={() => selectTab('notifications')}>
-        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="bell" size={14} /></span>通知设置
-      </button>
-      <button type="button" role="tab" aria-selected={activeTab === 'oauth'} aria-controls="settings-panel-oauth" class:is-active={activeTab === 'oauth'} onclick={() => selectTab('oauth')}>
-        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="key" size={14} /></span>OAuth 授权
-      </button>
-      <a href="/settings/privacy">
-        <span class="app-settings-nav__icon" aria-hidden="true"><Icon name="eye-off" size={14} /></span>隐私设置
-      </a>
-    </div>
+    <SettingsNav active={activeTab} onSelectTab={selectTab} />
 
     <div class="settings-content">
       {#if error && !user}
@@ -453,7 +423,16 @@
           <input type="hidden" name="avatar_attachment_id" value={currentAvatarId ?? ''} />
           <input type="hidden" name="cover_attachment_id" value={currentCoverId ?? ''} />
 
-          <div class="card-header"><span class="card-title">基本资料</span></div>
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap;">
+            <div>
+              <span class="card-title">编辑资料</span>
+              <p class="input-hint" style="margin:2px 0 0;">修改你的头像、昵称与个性签名；背景装扮与主页效果请前往个人主页。</p>
+            </div>
+            <a href="/me" class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none;">
+              <Icon name="user" size={14} />
+              <span>查看主页展示</span>
+            </a>
+          </div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
             {#if conflict}
               <div class="alert alert-warning" role="alert" style="padding:var(--space-3);border:1px solid var(--color-warning);border-radius:var(--radius-md);">
@@ -467,46 +446,8 @@
               <p class="input-hint is-error" role="alert">{topMessage}</p>
             {/if}
 
-            <!-- 封面设置与实时展示 -->
-            <div class="cover-editor-section" style="display:flex;flex-direction:column;gap:var(--space-2);padding-bottom:var(--space-4);border-bottom:var(--border-default);">
-              <div>
-                <strong style="font-size:var(--text-sm);color:var(--color-text-primary);">个人封面（Cover）</strong>
-                <p class="input-hint" style="margin:2px 0 0;">用于主页与资料卡顶部背景，支持实时预览（上传或更换后立即自动保存并生效）。</p>
-              </div>
-              <div
-                class="cover-preview-wrapper"
-                style="width:100%;height:140px;border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--color-border);position:relative;background:var(--color-bg-subtle);"
-              >
-                <ProfileCover attachmentId={currentCoverId} label="个人资料封面实时预览" class="cover-live-preview" />
-              </div>
-              <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
-                <AttachmentUploader
-                  accept="image/*"
-                  label={updatingCover ? "正在保存封面…" : (currentCoverId ? "更换封面" : "上传新封面")}
-                  waitReady={true}
-                  showQuota={false}
-                  autoUpload={true}
-                  onReady={(a) => {
-                    void instantUpdateCover(a.id);
-                  }}
-                />
-                {#if currentCoverId}
-                  <Button
-                    text="恢复默认封面"
-                    variant="secondary"
-                    size="sm"
-                    type="button"
-                    disabled={updatingCover}
-                    onclick={() => {
-                      void instantUpdateCover(null);
-                    }}
-                  />
-                {/if}
-              </div>
-            </div>
-
             <!-- 头像设置与上传 -->
-            <div class="avatar-editor-section" style="display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-4);border-bottom:var(--border-default);">
+            <div class="avatar-editor-section" style="display:flex;align-items:center;gap:var(--space-4);padding-bottom:var(--space-4);border-bottom:var(--border-default);flex-wrap:wrap;">
               <div style="flex-shrink:0;">
                 <Avatar
                   name={user.display_name || user.username}
@@ -515,7 +456,7 @@
                   seed={user.username ?? user.id}
                 />
               </div>
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-2);">
+              <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:var(--space-2);">
                 <div>
                   <strong style="font-size:var(--text-sm);color:var(--color-text-primary);">个人头像</strong>
                   <p class="input-hint" style="margin:2px 0 0;">支持 JPG、PNG、WebP、GIF 等格式图片（上传或更换后立即自动保存并生效）。</p>
@@ -548,82 +489,42 @@
             </div>
 
             <div class="input-wrapper">
-              <label class="input-label" for="set-display-name">昵称</label>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-1);">
+                <label class="input-label" for="set-display-name" style="margin:0;">显示昵称</label>
+                <span class="input-hint" style="margin:0;font-size:var(--text-xs);font-variant-numeric:tabular-nums;">{displayNameVal.length} / {limit.display_name}</span>
+              </div>
               <input
                 type="text"
                 class="input-field"
                 id="set-display-name"
                 name="display_name"
-                value={user.display_name ?? ''}
-                placeholder="显示昵称"
+                bind:value={displayNameVal}
+                placeholder="设置你的展示昵称"
                 maxlength={limit.display_name}
               />
-              <p class="input-hint">用于帖子、回复和主页展示；留空则使用用户名（最多 {limit.display_name} 字）。</p>
+              <p class="input-hint">用于帖子、回复和主页展示；留空则默认展示用户名（最多 {limit.display_name} 字）。</p>
             </div>
 
             <div class="input-wrapper">
-              <label class="input-label" for="set-signature">签名</label>
-              <input
-                type="text"
-                class="input-field"
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-1);">
+                <label class="input-label" for="set-signature" style="margin:0;">个性签名</label>
+                <span class="input-hint" style="margin:0;font-size:var(--text-xs);font-variant-numeric:tabular-nums;">{signatureVal.length} / {limit.signature}</span>
+              </div>
+              <textarea
+                class="input-field app-textarea"
                 id="set-signature"
                 name="signature"
-                value={user.signature ?? ''}
-                placeholder="帖子下方展示的签名"
+                bind:value={signatureVal}
+                placeholder="介绍一下自己，或者写一句喜欢的格言（显示在帖子与回复下方）"
                 maxlength={limit.signature}
-              />
-              <p class="input-hint">显示在你帖子与回复的下方（最多 {limit.signature} 字）。</p>
+                rows="3"
+                style="resize:vertical;min-height:72px;"
+              >{user.signature ?? ''}</textarea>
+              <p class="input-hint">显示在你发表的帖子与回复底部（最多 {limit.signature} 字）。</p>
             </div>
 
             <div>
               <Button text="保存修改" variant="primary" size="sm" type="submit" />
-            </div>
-          </div>
-        </form>
-
-        <!-- GAP-FIX 资料可见性：PATCH /me profile_visible_to（后端已支持，
-             users.rs update_me）。独立 action，与基本资料表单互不影响。 -->
-        <form
-          class="card settings-panel settings-panel-profile"
-          method="POST"
-          action="?/visibility"
-          class:is-active={activeTab === 'profile'}
-          use:enhance={() => {
-            return async ({ result, update }) => {
-              if (result.type === 'success') {
-                const data = result.data as SettingsFormResult | undefined;
-                show(data?.visibility?.message ?? '资料可见性已保存', 'success');
-                await update();
-                await invalidateAll();
-              } else {
-                if (result.type === 'failure') {
-                  const data = result.data as SettingsFormResult | undefined;
-                  show(data?.visibility?.message ?? data?.message ?? '保存失败，请重试', 'danger');
-                }
-                await update();
-              }
-            };
-          }}
-        >
-          <input type="hidden" name="version" value={user.version} />
-          <div class="card-header"><span class="card-title">资料可见性</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
-            {#if visibilityResult && !visibilityResult.ok}
-              <p class="input-hint is-error" role="alert">{visibilityResult.message}</p>
-            {:else if visibilityResult?.ok}
-              <p class="input-hint" role="status">{visibilityResult.message}</p>
-            {/if}
-            <div class="input-wrapper">
-              <label class="input-label" for="set-visibility">谁可以查看我的主页</label>
-              <select class="input-field" id="set-visibility" name="profile_visible_to">
-                <option value="everyone" selected={visibilityValue === 'everyone'}>公开（所有人，含未登录）</option>
-                <option value="registered" selected={visibilityValue === 'registered'}>仅注册用户</option>
-                <option value="nobody" selected={visibilityValue === 'nobody'}>私密（仅自己）</option>
-              </select>
-              <p class="input-hint">公开资料始终只包含昵称/签名等安全投影；更严格的可见性会限制主页访问范围。</p>
-            </div>
-            <div>
-              <Button text="保存可见性" variant="primary" size="sm" type="submit" />
             </div>
           </div>
         </form>
@@ -1050,48 +951,7 @@
           </div>
         </div>
 
-        <div class="card settings-panel settings-panel-profile" class:is-active={activeTab === 'profile'}>
-          <div class="card-header"><span class="card-title">当前公开投影</span></div>
-          <div class="card-body">
-            <dl class="profile-about-list">
-              <div class="profile-about-item">
-                <dt>封面</dt>
-                <dd style="display:flex;align-items:center;gap:var(--space-2);">
-                  {#if currentCoverId}
-                    <div style="width:48px;height:24px;border-radius:var(--radius-xs);overflow:hidden;position:relative;">
-                      <ProfileCover attachmentId={currentCoverId} label="封面缩略" />
-                    </div>
-                    <span>已设置自定义封面</span>
-                  {:else}
-                    <span>默认渐变封面</span>
-                  {/if}
-                </dd>
-              </div>
-              <div class="profile-about-item">
-                <dt>头像</dt>
-                <dd style="display:flex;align-items:center;gap:var(--space-2);">
-                  <Avatar name={user.display_name || user.username} size="sm" attachmentId={user.avatar_attachment_id} seed={user.username ?? user.id} />
-                  <span>{user.avatar_attachment_id ? '已设置自定义头像' : '默认首字母头像'}</span>
-                </dd>
-              </div>
-              <div class="profile-about-item"><dt>昵称</dt><dd>{user.display_name || user.username}</dd></div>
-              <div class="profile-about-item"><dt>用户名</dt><dd>{user.username}</dd></div>
-              {#if user.signature}<div class="profile-about-item"><dt>签名</dt><dd>{user.signature}</dd></div>{/if}
-            </dl>
-            <p class="input-hint">保存后主页与资料卡将按此公开投影展示（版本 v{user.version}）。</p>
-          </div>
-        </div>
 
-        <div class="card settings-panel settings-panel-profile" class:is-active={activeTab === 'profile'} style="margin-top:var(--space-4);">
-          <div class="card-header"><span class="card-title">账号信息</span></div>
-          <div class="card-body">
-            <dl class="profile-about-list">
-              <div class="profile-about-item"><dt>邮箱</dt><dd>{user.email}</dd></div>
-              <div class="profile-about-item"><dt>状态</dt><dd>{user.status}</dd></div>
-              <div class="profile-about-item"><dt>等级</dt><dd>LV.{user.level}</dd></div>
-            </dl>
-          </div>
-        </div>
 
         <!-- 撤销 OAuth 授权：隐藏表单（client_id 取确认目标），DangerConfirm
              确认后 requestSubmit（模式同 admin/attachments 删除）。 -->
@@ -1136,7 +996,6 @@
         <!-- 隐藏表单：专门用于头像和封面的自动即时持久化（通过 use:enhance 自动处理 Cookie/CSRF 与刷新） -->
         <form
           id="instant-avatar-form"
-          bind:this={avatarFormEl}
           method="POST"
           action="?/update-avatar"
           style="display:none;"
@@ -1156,29 +1015,6 @@
         >
           <input type="hidden" name="version" value={user.version} />
           <input id="instant-avatar-input" type="hidden" name="avatar_attachment_id" value="" />
-        </form>
-
-        <form
-          id="instant-cover-form"
-          bind:this={coverFormEl}
-          method="POST"
-          action="?/update-cover"
-          style="display:none;"
-          use:enhance={() => {
-            return async ({ result, update }) => {
-              updatingCover = false;
-              if (result.type === 'success') {
-                show(currentCoverId ? '封面已更新并生效' : '已恢复默认封面', 'success');
-                await update();
-                await invalidateAll();
-              } else {
-                show('封面更新失败，请重试', 'danger');
-                await update();
-              }
-            };
-          }}
-        >
-          <input id="instant-cover-input" type="hidden" name="cover_attachment_id" value="" />
         </form>
       {:else if !error}
         <div class="empty-state"><div class="empty-state-title">加载中…</div></div>

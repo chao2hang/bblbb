@@ -95,12 +95,89 @@ export type User = Omit<
  *  （M03-PROFILE-01），严格公开字段（不含邮箱/状态/Session/IP）。 */
 export interface PublicPresentationTokens {
   nickname_color?: string;
+  /** 自定义昵称样式（M07-SHOP-UI-10）：样式库名称与结构化样式参数，
+   *  服务端校验后投影；仅样式库定义存在（注册枚举色无此字段）。 */
+  nickname_color_name?: string;
+  nickname_color_style?: CosmeticDefStyle;
   avatar_frame?: string;
+  /** 自定义头像框样式（M07-SHOP-UI-10）：样式库名称与结构化参数。 */
+  avatar_frame_name?: string;
+  avatar_frame_style?: CosmeticDefStyle;
   avatar_frame_attachment_id?: string;
+  /** 直接图片 URL 边框（内置 / Steam 实时预览） */
+  avatar_frame_url?: string;
   avatar_attachment?: string;
   profile_effect?: string;
+  profile_effect_name?: string;
+  profile_effect_style?: CosmeticDefStyle;
   post_effect?: string;
+  post_effect_name?: string;
+  post_effect_style?: CosmeticDefStyle;
   profile_badges?: string[];
+  profile_badge_names?: string[];
+  profile_badge_styles?: CosmeticDefStyle[];
+  title_prefix?: string;
+  title_prefix_name?: string;
+  title_prefix_style?: CosmeticDefStyle;
+}
+
+/** 装扮样式库定义的结构化样式参数（M07-SHOP-UI-10）：字段由服务端 schema
+ *  校验（颜色 #rrggbb、动画枚举、时长钳制），前端只渲染白名单字段。 */
+export interface CosmeticDefStyle {
+  /** nickname_color: solid | gradient | glow；avatar_frame: ring。 */
+  mode?: string;
+  color?: string;
+  /** 渐变 stops（2..=5）。 */
+  colors?: string[];
+  /** 动画枚举（扩展更多动效：flow | breathe | pulse | wave | shimmer | glitch | rainbow | flicker | fire | bounce | spin | ripple | float | aurora | scanline 等）。 */
+  animate?: string;
+  durationMs?: number;
+  widthPx?: number;
+  glowPx?: number;
+  shape?: 'circle' | 'rounded' | 'square';
+  icon?: string;
+  texture?: string;
+  baseColor?: string;
+  accentColor?: string;
+  notification?: 'none' | 'author';
+  dailyLimit?: number;
+  action?: string;
+  quantity?: number;
+  cooldownSec?: number;
+  /** 边框线型：solid | dashed | dotted | double | groove */
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'double' | 'groove';
+  /** 头像框贴合缩放百分比 (80..=200，默认 125 适配 Steam APNG) */
+  frameScale?: number;
+  /** Steam / 外部图片资源 URL 或文件名 */
+  url?: string;
+  image?: string;
+  webm?: string;
+  mp4?: string;
+  /** 光晕扩散大小（px） */
+  glowSpread?: number;
+  /** 文字阴影/发光大小（px） */
+  shadowPx?: number;
+  /** 字间距（px） */
+  letterSpacing?: number;
+  /** 渐变角度（deg 0..=360） */
+  angle?: number;
+  /** 纹理不透明度（% 10..=100） */
+  opacity?: number;
+  /** 开放自定义 CSS 代码定义 */
+  css?: string;
+  /** 开放自定义 JS 脚本定义（动画/画布 hook） */
+  js?: string;
+}
+
+/** 管理员自定义装扮样式定义（GET /shop/cosmetics 投影）。 */
+export interface CosmeticDef {
+  id: string;
+  kind: string;
+  name: string;
+  style: CosmeticDefStyle;
+  status: string;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export type PublicProfile = Omit<ContractPublicUser, 'presentation_tokens'> & {
@@ -113,6 +190,18 @@ export type PublicProfile = Omit<ContractPublicUser, 'presentation_tokens'> & {
    *  服务端裁决）；无装备/封禁降级为空数组。 */
   equipped_achievements: { code: string; name: string }[];
 };
+
+/** GET /api/v1/users/suggest 联想提及用户项 */
+export interface MentionSuggestionItem {
+  username: string;
+  display_name: string | null;
+  level: number;
+}
+
+/** GET /api/v1/users/suggest 响应体 */
+export interface MentionSuggestionsResult {
+  items: MentionSuggestionItem[];
+}
 
 /** 板块（GET /boards）投影：契约 Board（icon 公开投影即返回；parent_id/
  * visibility/posting_mode/post_count 仅已认证请求方可见，M03-BOARDS-08
@@ -632,10 +721,12 @@ export interface DownloadTransaction {
 export type ProductKind =
   | 'cosmetic_nickname'
   | 'cosmetic_avatar'
+  | 'cosmetic_avatar_attachment'
   | 'cosmetic_badge'
   | 'profile_effect'
   | 'post_effect'
   | 'reaction_pack'
+  | 'title_prefix'
   | 'utility';
 
 export type ProductStatus = 'draft' | 'pending_review' | 'published' | 'disabled' | 'retired';
@@ -755,6 +846,7 @@ export interface Presentation {
   avatar_frame_id?: string | null;
   profile_effect_id?: string | null;
   post_effect_id?: string | null;
+  title_prefix_id?: string | null;
   profile_badge_ids?: string[] | null;
   presentation_tokens?: Record<string, string | string[] | null>;
   updated_at: number;

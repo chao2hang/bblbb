@@ -587,9 +587,7 @@
     flex-shrink: 0;
   }
 
-  .messages-item-avatar-wrap :global(.avatar) {
-    border-radius: 8px !important;
-  }
+  /* 头像形状跟随全局 .avatar 圆形契约（--avatar-radius），不再本地覆盖。 */
 
   .messages-unread-badge {
     position: absolute;
@@ -938,10 +936,6 @@
   .msg-avatar {
     flex-shrink: 0;
     margin-top: 1px;
-  }
-
-  .msg-avatar :global(.avatar) {
-    border-radius: 6px !important;
   }
 
   .msg {

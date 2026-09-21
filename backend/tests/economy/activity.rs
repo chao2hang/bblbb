@@ -1016,8 +1016,10 @@ async fn admin_http_config_and_task_permission_gates() {
 
 // ─── 助手 ──────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 struct LedgerCmd;
 
+#[allow(dead_code)]
 impl LedgerCmd {
     fn award(user_id: &str, key: &str, amount: i64) -> ledger::LedgerCommand {
         ledger::LedgerCommand {

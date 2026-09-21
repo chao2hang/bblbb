@@ -287,19 +287,19 @@
   {/if}
 
   {#if summary}
-    <div class="linuxdo-credits py-6 space-y-10">
+    <div class="linuxdo-credits credits-page py-6 space-y-10">
       <!-- 今天与积分趋势 -->
-      <div>
-        <h1 class="text-2xl font-semibold border-b pb-2 mb-6">今天</h1>
-        <div class="flex flex-col md:grid md:grid-cols-3 gap-8 md:gap-12">
+      <section class="credits-section credits-primary-section" aria-labelledby="balance-today-title">
+        <h1 id="balance-today-title" class="credits-section-title text-2xl font-semibold border-b pb-2 mb-6">今天</h1>
+        <div class="credits-primary-grid flex flex-col md:grid md:grid-cols-3 gap-8 md:gap-12">
           <!-- 积分趋势图表 -->
-          <div class="md:col-span-2 order-1 md:order-none">
-            <div class="flex items-center justify-between mb-3">
+          <div class="credits-chart-column md:col-span-2 order-1 md:order-none">
+            <div class="credits-chart-header flex items-center justify-between mb-3">
               <h3 class="text-sm text-muted-foreground font-medium">收支趋势</h3>
               <div class="flex items-center gap-4 text-xs font-normal text-muted-foreground">
-                <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:hsl(217, 91%, 60%);"></span>总积分</span>
-                <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#10b981;"></span>收入</span>
-                <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#f43f5e;"></span>支出</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:var(--color-total);"></span>总积分</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:var(--color-income);"></span>收入</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:var(--color-expense);"></span>支出</span>
               </div>
             </div>
 
@@ -314,14 +314,14 @@
             >
               <style>
                 [data-chart="chart-_r_35_"] {
-                  --color-total: hsl(217, 91%, 60%);
-                  --color-income: #10b981;
-                  --color-expense: #f43f5e;
+                  --color-total: var(--color-brand, hsl(217, 91%, 60%));
+                  --color-income: var(--color-success, #10b981);
+                  --color-expense: var(--color-danger, #f43f5e);
                 }
                 .dark [data-chart="chart-_r_35_"] {
-                  --color-total: hsl(217, 91%, 60%);
-                  --color-income: #10b981;
-                  --color-expense: #f43f5e;
+                  --color-total: var(--color-brand, hsl(217, 91%, 60%));
+                  --color-income: var(--color-success, #10b981);
+                  --color-expense: var(--color-danger, #f43f5e);
                 }
               </style>
 
@@ -335,16 +335,16 @@
                         <rect x="0" y="0" height="200" width="800"></rect>
                       </clipPath>
                       <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stop-color="hsl(217, 91%, 60%)" stop-opacity="0.25"></stop>
-                        <stop offset="95%" stop-color="hsl(217, 91%, 60%)" stop-opacity="0.01"></stop>
+                        <stop offset="5%" stop-color="var(--color-total)" stop-opacity="0.25"></stop>
+                        <stop offset="95%" stop-color="var(--color-total)" stop-opacity="0.01"></stop>
                       </linearGradient>
                       <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stop-color="#10b981" stop-opacity="0.2"></stop>
-                        <stop offset="95%" stop-color="#10b981" stop-opacity="0"></stop>
+                        <stop offset="5%" stop-color="var(--color-income)" stop-opacity="0.2"></stop>
+                        <stop offset="95%" stop-color="var(--color-income)" stop-opacity="0"></stop>
                       </linearGradient>
                       <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stop-color="#f43f5e" stop-opacity="0.2"></stop>
-                        <stop offset="95%" stop-color="#f43f5e" stop-opacity="0"></stop>
+                        <stop offset="5%" stop-color="var(--color-expense)" stop-opacity="0.2"></stop>
+                        <stop offset="95%" stop-color="var(--color-expense)" stop-opacity="0"></stop>
                       </linearGradient>
                     </defs>
 
@@ -361,20 +361,20 @@
                       <path fill="url(#colorTotal)" stroke="none" class="recharts-curve recharts-area-area" d={chartData.totalArea}></path>
                       <path fill="none" stroke="var(--color-total)" stroke-width="2.5" class="recharts-curve recharts-area-curve" d={chartData.totalCurve}></path>
                       {#each chartData.totalPts as pt}
-                        <circle cx={pt.x} cy={pt.y} r="3" fill="#ffffff" stroke="var(--color-total)" stroke-width="2"></circle>
+                        <circle cx={pt.x} cy={pt.y} r="3" fill="var(--color-bg-card, #ffffff)" stroke="var(--color-total)" stroke-width="2"></circle>
                       {/each}
                     </g>
 
                     <!-- 收入 Area -->
                     <g class="recharts-layer recharts-area" clip-path="url(#recharts8-clip)">
                       <path fill="url(#colorIncome)" stroke="none" class="recharts-curve recharts-area-area" d={chartData.incomeArea}></path>
-                      <path fill="none" stroke="#10b981" stroke-width="1.8" stroke-dasharray="4 4" class="recharts-curve recharts-area-curve" d={chartData.incomeCurve}></path>
+                      <path fill="none" stroke="var(--color-income)" stroke-width="1.8" stroke-dasharray="4 4" class="recharts-curve recharts-area-curve" d={chartData.incomeCurve}></path>
                     </g>
 
                     <!-- 支出 Area -->
                     <g class="recharts-layer recharts-area" clip-path="url(#recharts8-clip)">
                       <path fill="url(#colorExpense)" stroke="none" class="recharts-curve recharts-area-area" d={chartData.expenseArea}></path>
-                      <path fill="none" stroke="#f43f5e" stroke-width="1.8" stroke-dasharray="4 4" class="recharts-curve recharts-area-curve" d={chartData.expenseCurve}></path>
+                      <path fill="none" stroke="var(--color-expense)" stroke-width="1.8" stroke-dasharray="4 4" class="recharts-curve recharts-area-curve" d={chartData.expenseCurve}></path>
                     </g>
 
                     <!-- X 轴日期刻度 -->
@@ -394,7 +394,7 @@
                     <!-- Hover 指针线 -->
                     {#if hoverIndex !== null}
                       <line x1={hoverX} y1="20" x2={hoverX} y2={baselineY} stroke="var(--color-border, #94a3b8)" stroke-width="1.2" stroke-dasharray="3 3"></line>
-                      <circle cx={hoverX} cy={hoverY} r="5" fill="hsl(217, 91%, 60%)" stroke="#ffffff" stroke-width="2.5"></circle>
+                      <circle cx={hoverX} cy={hoverY} r="5" fill="var(--color-total)" stroke="var(--color-bg-card, #ffffff)" stroke-width="2.5"></circle>
                     {/if}
                   </svg>
 
@@ -427,32 +427,32 @@
           </div>
 
           <!-- 右侧三大核心指标与签到操作 -->
-          <div class="md:col-span-1 order-2 md:order-none flex flex-col divide-y divide-border/70 md:divide-y-0 md:pt-px">
+          <aside class="credits-metrics-column md:col-span-1 order-2 md:order-none flex flex-col divide-y divide-border/70 md:divide-y-0 md:pt-px" aria-label="账户概览">
             <!-- 1. 可用 B 币 / COIN -->
             <div class="py-3 first:pt-0 md:border-b md:pb-4 md:pt-0">
               <div class="flex items-start justify-between gap-4 md:block">
                 <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center justify-between">
-                  <div class="flex items-center gap-1">
+                  <div class="flex items-center gap-1.5">
                     <span class="min-[400px]:hidden">可用余额</span>
                     <span class="hidden min-[400px]:inline">可用 B 币余额 (COIN)</span>
                     <button
                       type="button"
                       aria-label="查看详情"
-                      class="inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                      class="inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground cursor-pointer rounded-full p-0.5"
                       onclick={() => (showBalanceInfo = !showBalanceInfo)}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
                     </button>
                   </div>
-                  <a href="/shop" class="text-xs text-blue-600 hover:underline hidden md:inline-flex items-center gap-0.5">去商城 &rarr;</a>
+                  <a href="/shop" class="text-xs text-blue-600 hover:text-blue-500 hover:underline hidden md:inline-flex items-center gap-0.5 font-medium transition-colors">去商城 &rarr;</a>
                 </div>
-                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left">
-                  <span data-slot="counting-number">{coinBalance?.amount ?? 0}</span>
-                  <span class="text-xs text-muted-foreground font-normal ml-1">COIN</span>
+                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left flex items-baseline justify-end md:justify-start gap-1">
+                  <span data-slot="counting-number" class="font-mono">{coinBalance?.amount ?? 0}</span>
+                  <span class="text-xs text-muted-foreground font-normal ml-0.5">COIN</span>
                 </div>
               </div>
               {#if showBalanceInfo}
-                <p class="text-xs text-muted-foreground mt-2 bg-muted p-2 rounded-md">
+                <p class="text-xs text-muted-foreground mt-2.5 bg-muted/60 border border-border/40 p-2.5 rounded-lg leading-relaxed">
                   当前可自由消费的 B 币余额，可用于社区商城道具兑换、付费资源下载与内容解锁。
                 </p>
               {/if}
@@ -463,102 +463,122 @@
               <div class="flex items-start justify-between gap-4 md:block">
                 <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center justify-between">
                   <span>社区信任等级</span>
-                  <a href="/me/level" class="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5" title="行为信任标准体系">
+                  <a href="/me/level" class="text-xs text-blue-600 hover:text-blue-500 hover:underline inline-flex items-center gap-0.5 font-medium transition-colors" title="行为信任标准体系">
                     行为信任标准体系 &rarr;
                   </a>
                 </div>
                 <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left flex items-baseline justify-end md:justify-start gap-2">
-                  <span class="text-blue-600">TL{trustLevel}</span>
-                  <span class="text-base font-medium text-foreground">{trustName}</span>
+                  <span class="text-blue-600 dark:text-blue-400 font-mono tracking-tight font-bold">TL{trustLevel}</span>
+                  <span class="text-base font-semibold text-foreground">{trustName}</span>
                 </div>
               </div>
-              <div class="mt-2.5 flex items-center justify-between text-xs pt-1.5 border-t border-dashed border-border/60">
-                <span class="text-muted-foreground">
+              <div class="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="size-1.5 rounded-full bg-blue-500/70 inline-block"></span>
                   {#if trustNextLevel}
                     下一等级：TL{trustNextLevel.level} {trustNextLevel.name}
                   {:else}
                     行为信任体系评定状态
                   {/if}
                 </span>
-                <a href="/me/level" class="text-blue-600 hover:underline">查看要求 &rarr;</a>
+                <a href="/me/level" class="text-xs text-muted-foreground hover:text-blue-600 transition-colors inline-flex items-center gap-0.5">查看要求 &rarr;</a>
               </div>
             </div>
 
             <!-- 3. 今日签到奖励与签到 -->
             <div class="py-3 last:pb-0 md:pt-4 md:pb-0">
               <div class="flex items-start justify-between gap-4 md:block">
-                <div class="min-w-0 text-sm text-muted-foreground font-medium">
-                  今日签到奖励
+                <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center justify-between">
+                  <span>今日签到奖励</span>
+                  {#if checkInEnabled}
+                    <span class="text-xs text-muted-foreground hidden md:inline-flex items-center gap-1">
+                      连续签到 <strong class="font-semibold text-foreground font-mono">{streak}</strong> 天
+                    </span>
+                  {/if}
                 </div>
-                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left">
-                  <span data-slot="counting-number">{todayEarnedTotal > 0 ? `+${todayEarnedTotal}` : '0'}</span>
-                  <span class="text-xs text-muted-foreground font-normal ml-1">COIN</span>
-                </div>
-              </div>
-
-              <!-- 签到状态与按钮 -->
-              <div class="mt-3 pt-2.5 border-t" style="border-color: var(--color-border);">
-                <div class="flex items-center justify-between mb-2">
-                  <div class="flex items-center gap-1.5">
+                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left flex items-baseline justify-end md:justify-between gap-3">
+                  <div class="flex items-baseline gap-1">
+                    <span data-slot="counting-number" class={todayEarnedTotal > 0 ? 'text-green-600 dark:text-green-400 font-mono' : 'font-mono'}>
+                      {todayEarnedTotal > 0 ? `+${todayEarnedTotal}` : '0'}
+                    </span>
+                    <span class="text-xs text-muted-foreground font-normal ml-0.5">COIN</span>
+                  </div>
+                  <div class="hidden md:block">
                     {#if !checkInEnabled}
                       <span class="badge badge-neutral text-xs">签到未开启</span>
                     {:else}
                       <span class="badge {checkedIn ? 'badge-success' : 'badge-warning'} text-xs">
+                        <span class="size-1.5 rounded-full {checkedIn ? 'bg-green-500 dark:bg-green-400' : 'bg-amber-500 dark:bg-amber-400'}"></span>
                         {checkedIn ? '今日已签到' : '今日未签到'}
                       </span>
-                      <span class="text-secondary text-xs">连续签到 {streak} 天</span>
                     {/if}
                   </div>
-                  {#if todayEarned.length > 0}
-                    <span class="text-xs text-green-600 font-medium">+{todayEarnedTotal} COIN</span>
+                </div>
+              </div>
+
+              <!-- 移动端签到状态与天数行 -->
+              <div class="flex items-center justify-between text-xs mt-2 md:hidden">
+                <div class="flex items-center gap-1.5">
+                  {#if !checkInEnabled}
+                    <span class="badge badge-neutral text-xs">签到未开启</span>
+                  {:else}
+                    <span class="badge {checkedIn ? 'badge-success' : 'badge-warning'} text-xs">
+                      <span class="size-1.5 rounded-full {checkedIn ? 'bg-green-500 dark:bg-green-400' : 'bg-amber-500 dark:bg-amber-400'}"></span>
+                      {checkedIn ? '今日已签到' : '今日未签到'}
+                    </span>
+                    <span class="text-secondary text-xs">连续签到 {streak} 天</span>
                   {/if}
                 </div>
-
-                {#if retryAfter}
-                  <p class="input-hint is-error text-xs mb-2" role="alert">操作过于频繁，请约 {retryAfter} 秒后再试。</p>
+                {#if todayEarned.length > 0}
+                  <span class="text-xs text-green-600 font-medium font-mono">+{todayEarnedTotal} COIN</span>
                 {/if}
-
-                <form
-                  method="POST"
-                  action="?/visit"
-                  use:enhance={() => {
-                    return async ({ update }) => {
-                      idempotencyKey = newClientRequestId();
-                      await update();
-                    };
-                  }}
-                  class="mt-2"
-                >
-                  <input type="hidden" name="client_request_id" value={idempotencyKey} />
-                  <button
-                    type="submit"
-                    class="btn {checkedIn ? 'secondary btn-secondary' : 'primary btn-primary'} sm btn-sm w-full h-8"
-                    disabled={!checkInEnabled || checkedIn}
-                  >
-                    <span>{!checkInEnabled ? '签到未开启' : checkedIn ? '今日已签到' : '立即签到'}</span>
-                  </button>
-                </form>
-
-                <p class="text-[11px] text-muted-foreground mt-2 leading-relaxed">
-                  {#if !checkInEnabled}
-                    全站签到功能目前暂未开放。
-                  {:else if autoCheckInEnabled}
-                    每日首次访问或登录社区会自动签到；按每日重置时间结算。
-                  {:else}
-                    当前为手动签到模式，请点击上方按钮完成今日签到。
-                  {/if}
-                </p>
               </div>
+
+              {#if retryAfter}
+                <p class="input-hint is-error text-xs mt-2.5" role="alert">操作过于频繁，请约 {retryAfter} 秒后再试。</p>
+              {/if}
+
+              <!-- 签到表单与按钮 -->
+              <form
+                method="POST"
+                action="?/visit"
+                use:enhance={() => {
+                  return async ({ update }) => {
+                    idempotencyKey = newClientRequestId();
+                    await update();
+                  };
+                }}
+                class="mt-3 md:mt-3.5"
+              >
+                <input type="hidden" name="client_request_id" value={idempotencyKey} />
+                <button
+                  type="submit"
+                  class="btn {checkedIn ? 'secondary btn-secondary' : 'primary btn-primary'} w-full h-9 rounded-lg font-medium text-sm transition-all shadow-sm active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                  disabled={!checkInEnabled || checkedIn}
+                >
+                  <span>{!checkInEnabled ? '签到未开启' : checkedIn ? '今日已签到' : '立即签到'}</span>
+                </button>
+              </form>
+
+              <p class="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
+                {#if !checkInEnabled}
+                  全站签到功能目前暂未开放。
+                {:else if autoCheckInEnabled}
+                  每日首次访问或登录社区会自动签到；按每日重置时间结算。
+                {:else}
+                  当前为手动签到模式，请点击上方按钮完成今日签到。
+                {/if}
+              </p>
             </div>
-          </div>
+          </aside>
         </div>
-      </div>
+      </section>
 
       <!-- 近期概览：真实积分明细与 7 天收支统计 -->
-      <div>
-        <h1 class="text-2xl font-semibold border-b pb-2">近期概览</h1>
-        <div class="bg-muted rounded-lg p-2.5 mt-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+      <section class="credits-section credits-overview-section" aria-labelledby="balance-overview-title">
+        <h1 id="balance-overview-title" class="credits-section-title text-2xl font-semibold border-b pb-2">近期概览</h1>
+        <div class="credits-overview-surface bg-muted rounded-lg p-2.5 mt-3">
+          <div class="credits-overview-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
             <!-- 卡片 1：积分明细 -->
             <div data-slot="card" class="text-card-foreground gap-6 py-4 bg-background border shadow-none rounded-lg min-h-[240px] flex flex-col h-full">
               <div data-slot="card-header" class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 pb-2">
@@ -583,7 +603,7 @@
                         <p class="text-xs text-muted-foreground mt-2">暂无积分变动记录</p>
                       </div>
                     {:else}
-                      <div class="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
+                      <div class="credits-activity-list space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
                         {#each activities as item}
                           <div class="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-muted/40 hover:bg-muted/70 transition-colors">
                             <div class="flex-1 min-w-0">
@@ -634,7 +654,7 @@
               <div data-slot="card-content" class="px-4 relative flex-1">
                 <div data-slot="scroll-area" class="relative w-full">
                   <div data-slot="scroll-area-viewport" class="size-full">
-                    <div class="space-y-1.5 pr-2">
+                    <div class="credits-stat-list space-y-1.5 pr-2">
                       {#each past7Days as day}
                         <div class="space-y-1">
                           <div class="flex items-center justify-between">
@@ -686,7 +706,7 @@
               <div data-slot="card-content" class="px-4 relative flex-1">
                 <div data-slot="scroll-area" class="relative w-full">
                   <div data-slot="scroll-area-viewport" class="size-full">
-                    <div class="space-y-1.5 pr-2">
+                    <div class="credits-stat-list space-y-1.5 pr-2">
                       {#each past7Days as day}
                         <div class="space-y-1">
                           <div class="flex items-center justify-between">
@@ -722,7 +742,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   {:else if !error}
     <p class="input-hint" role="status">加载中…</p>

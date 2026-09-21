@@ -12,6 +12,7 @@ import { authedPost, getAuthed } from '$lib/api/server';
 import { activityCoinBalance } from '$lib/api/types';
 import type {
   ActivitySummary,
+  CosmeticDef,
   TrustLevelProgress,
   Entitlement,
   OrderCreateResult,
@@ -21,6 +22,7 @@ import type {
 
 export interface ShopProductPageData {
   product: ShopProduct | null;
+  cosmetics?: CosmeticDef[];
   balance: Money | null;
   level: number | null;
   /** 已持有该商品权益数（限购展示）。 */
@@ -44,7 +46,7 @@ export const load: PageServerLoad = async ({ cookies, request, params }) => {
   );
   if (!productResult.ok && productResult.status === 401) throw redirect(303, '/login');
   if (!productResult.ok) {
-    return { product: null, balance: null, level: null, ownedCount: 0, error: productResult.message } satisfies ShopProductPageData;
+    return { product: null, cosmetics: [], balance: null, level: null, ownedCount: 0, error: productResult.message } satisfies ShopProductPageData;
   }
 
   let balance: Money | null = null;
@@ -65,7 +67,10 @@ export const load: PageServerLoad = async ({ cookies, request, params }) => {
     ).length;
   }
 
-  return { product: productResult.data, balance, level, ownedCount, error: null } satisfies ShopProductPageData;
+  const cosmeticsResult = await getAuthed<{ cosmetics?: CosmeticDef[] }>(cookies, '/api/v1/shop/cosmetics', requestId);
+  // 样式库拉取失败/未实现时降级为空列表（与 entResult 同款可选链兜底），
+  // 不阻断商品详情展示。
+  return { product: productResult.data, cosmetics: cosmeticsResult?.ok ? cosmeticsResult.data.cosmetics ?? [] : [], balance, level, ownedCount, error: null } satisfies ShopProductPageData;
 };
 
 export const actions: Actions = {

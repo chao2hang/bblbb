@@ -17,12 +17,13 @@ import type { Actions, PageServerLoad } from './$types';
 import { authedPost, getAuthed, getPublic, SESSION_COOKIE } from '$lib/api/server';
 import { followUser, newClientRequestId, unfollowUser } from '$lib/api/client';
 import { problemMessage, type Problem } from '$lib/errors';
-import type { PublicProfile } from '$lib/api/types';
+import type { CosmeticDef, PublicProfile } from '$lib/api/types';
 
 export interface UserPageData {
   user: PublicProfile;
   /** 请求方是否带会话 Cookie（匿名 → 页面渲染登录引导而非关注表单）。 */
   authed: boolean;
+  cosmetics?: CosmeticDef[];
 }
 
 export interface UserFollowActionData {
@@ -45,11 +46,15 @@ export const load: PageServerLoad = async ({ params, cookies, request }) => {
   // （真值判断：cookies.get 缺失返回 undefined，非 null，`!== null` 恒真）。
   const authed = Boolean(cookies.get(SESSION_COOKIE));
   const profilePath = `/api/v1/users/${encodeURIComponent(username)}`;
-  const result = authed
-    ? await getAuthed<PublicProfile>(cookies, profilePath, requestId)
-    : await getPublic<PublicProfile>(profilePath, requestId);
+  const [result, cosmeticsResult] = await Promise.all([
+    authed
+      ? getAuthed<PublicProfile>(cookies, profilePath, requestId)
+      : getPublic<PublicProfile>(profilePath, requestId),
+    getAuthed<{ cosmetics?: CosmeticDef[] }>(cookies, '/api/v1/shop/cosmetics', requestId)
+  ]);
   if (result.ok) {
-    return { user: result.data, authed } satisfies UserPageData;
+    const cosmetics = cosmeticsResult?.ok && Array.isArray(cosmeticsResult.data?.cosmetics) ? cosmeticsResult.data.cosmetics : [];
+    return { user: result.data, authed, cosmetics } satisfies UserPageData;
   }
   if (result.status === 404) {
     throw error(404, '用户不存在或已注销');

@@ -3,6 +3,7 @@
      命中进入人工队列（pending_review），不自动封禁。 -->
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
@@ -12,6 +13,7 @@
   let { data, form }: { data: AdminRiskPageData; form?: AdminRiskActionData | null } = $props();
 
   let hasJs = $state(false);
+  let isSubmitting = $state(false);
   $effect(() => {
     hasJs = true;
   });
@@ -43,9 +45,15 @@
     method="POST"
     action="?/save"
     use:enhance={() => {
+      isSubmitting = true;
       return async ({ result, update }) => {
+        isSubmitting = false;
         toastActionResult(result);
-        await update();
+        if (result.type === 'failure' && (result.data as any)?.conflict) {
+          await invalidateAll();
+        } else {
+          await update();
+        }
       };
     }}
   >
@@ -97,7 +105,7 @@
           <span class="app-muted" style="display:block;font-size:11px;margin-bottom:4px;">操作原因（写入审计日志，必填）</span>
           <input type="text" name="reason" class="input-field" required placeholder="如：收紧垃圾广告规则" />
         </label>
-        <Button text="保存策略" variant="primary" size="sm" type="submit" />
+        <Button text={isSubmitting ? '保存中...' : '保存策略'} variant="primary" size="sm" type="submit" disabled={isSubmitting} />
       </footer>
     </section>
   </form>

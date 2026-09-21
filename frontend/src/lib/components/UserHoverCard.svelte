@@ -45,7 +45,8 @@
   } from '$lib/api/client';
   import { formatCount, formatRelative } from '$lib/utils';
   import { PROFILE_EFFECTS, BADGES, POST_EFFECT_LABELS } from '$lib/components/wardrobe/tokens';
-  import type { PublicPresentationTokens } from '$lib/api/types';
+  import { profileEffectClass as liveProfileEffectClass, profileEffectStyle as liveProfileEffectStyle, resolveSteamPanoramaMedia, type ProfileEffectMediaStyle } from '$lib/components/wardrobe/profile-effect';
+  import type { CosmeticDefStyle, PublicPresentationTokens } from '$lib/api/types';
 
   /** 触发卡公开字段（严格 allowlist；level/signature 可缺省）。 */
   export type HoverCardUser = Pick<PublicProfile, 'username' | 'display_name'> &
@@ -130,6 +131,12 @@
           out[key] = value as string | string[];
         }
       }
+      if (overrideTokens.profile_effect_style) {
+        out.profile_effect_style = overrideTokens.profile_effect_style as unknown as string;
+      }
+      if (overrideTokens.profile_effect_name) {
+        out.profile_effect_name = overrideTokens.profile_effect_name;
+      }
     }
     return out;
   });
@@ -138,8 +145,44 @@
     const v = tokens['profile_effect'];
     return typeof v === 'string' && v in PROFILE_EFFECTS ? PROFILE_EFFECTS[v] : null;
   });
+
+  const effectDefStyle = $derived((overrideTokens?.profile_effect_style ?? tokens.profile_effect_style) as ProfileEffectMediaStyle | undefined);
+  const profileEffectToken = $derived(typeof tokens.profile_effect === 'string' ? tokens.profile_effect : null);
+  const profileEffectName = $derived(typeof tokens.profile_effect_name === 'string' ? tokens.profile_effect_name : null);
+  const coverMedia = $derived(resolveSteamPanoramaMedia(effectDefStyle, profileEffectToken, profileEffectName));
+
+  const bgVideoWebm = $derived(coverMedia?.webm ?? null);
+
+  const bgVideoMp4 = $derived(coverMedia?.mp4 ?? null);
+
+  const bgImageSrc = $derived(coverMedia?.image ?? null);
+
+  const bgFallbackSrc = $derived(coverMedia?.fallbackSrc ?? null);
+
+  /** 自定义主页装饰只接受 DTO 中的结构化颜色/纹理枚举，不解释任意 CSS。 */
+  const profileEffectStyle = $derived.by(() => {
+    const style = tokens.profile_effect_style as CosmeticDefStyle | undefined;
+    if (!style || style.mode !== 'profile') return '';
+    const color = (value: unknown): string | null =>
+      typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null;
+    const base = color(style.baseColor);
+    const accent = color(style.accentColor);
+    if (!base || !accent) return '';
+    const texture = style.texture === 'dark_stars'
+      ? `radial-gradient(circle at 30% 40%, ${accent}99, transparent 55%), radial-gradient(circle at 70% 65%, ${accent}66, transparent 58%)`
+      : style.texture === 'grid'
+        ? `linear-gradient(${accent}33 1px, transparent 1px), linear-gradient(90deg, ${accent}33 1px, transparent 1px)`
+        : style.texture === 'dots'
+          ? `radial-gradient(${accent}66 1px, transparent 1px)`
+          : `radial-gradient(circle at 28% 30%, ${accent}88, transparent 55%), radial-gradient(circle at 72% 72%, ${accent}55, transparent 60%)`;
+    const size = style.texture === 'grid' ? '24px 24px' : style.texture === 'dots' ? '18px 18px' : 'auto';
+    return `background:${texture},${base};background-size:${size};`;
+  });
   // 佩戴徽章 = 成就墙装备槽的真实成就（服务端已裁决 ≤3；运行时仍逐项
   // 校验 code/name 为非空字符串，异常条目不渲染，恒截断到 3 枚）。
+  const coverMotionClass = $derived(liveProfileEffectClass(effectDefStyle, typeof tokens.profile_effect === 'string' ? tokens.profile_effect : null));
+  const coverMotionStyle = $derived(liveProfileEffectStyle(effectDefStyle));
+
   const equippedAchievements = $derived.by(() => {
     const items = profile?.equipped_achievements;
     if (!Array.isArray(items)) return [];
@@ -159,9 +202,14 @@
   const previewBadges = $derived.by(() => {
     const raw = tokens['profile_badges'];
     if (!Array.isArray(raw)) return [];
+    const names = Array.isArray(tokens.profile_badge_names) ? tokens.profile_badge_names : [];
     return raw
-      .filter((b): b is string => typeof b === 'string' && b in BADGES)
-      .map((b) => ({ code: b, name: `${BADGES[b].icon} ${BADGES[b].label}`, isBadge: true }));
+      .filter((b): b is string => typeof b === 'string')
+      .map((b, index) => ({
+        code: b,
+        name: `${BADGES[b]?.icon ?? '✦'} ${names[index] ?? BADGES[b]?.label ?? b}`,
+        isBadge: true
+      }));
   });
 
   const displayBadges = $derived.by(() => {
@@ -244,8 +292,13 @@
 >
   <div class="user-hover-coverwrap">
     <ProfileCover
-      attachmentId={profile?.cover_attachment_id ?? (user && 'cover_attachment_id' in user ? (user.cover_attachment_id as string | null) : null)}
-      class="user-hover-cover{profileEffectClass ? ` ${profileEffectClass}` : ''}"
+      attachmentId={bgImageSrc || bgVideoWebm || bgVideoMp4 ? null : (profile?.cover_attachment_id ?? (user && 'cover_attachment_id' in user ? (user.cover_attachment_id as string | null) : null))}
+      src={bgImageSrc}
+      fallbackSrc={bgFallbackSrc}
+      videoWebm={bgVideoWebm}
+      videoMp4={bgVideoMp4}
+      class="user-hover-cover{profileEffectClass ? ` ${profileEffectClass}` : ''}{coverMotionClass ? ` ${coverMotionClass}` : ''}"
+      style={bgImageSrc || bgVideoWebm || bgVideoMp4 ? 'background: #000;' : [profileEffectStyle, coverMotionStyle].filter(Boolean).join(';')}
     />
     {#if level !== null}
       <!-- 等级 chip：cover 左上（参考稿），绝对定位不占布局 -->

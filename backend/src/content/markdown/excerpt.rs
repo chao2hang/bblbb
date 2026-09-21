@@ -71,13 +71,14 @@ pub fn render_excerpt(markdown: &str) -> String {
 /// 2. **Markdown 安全处理**：复用 [`render_excerpt`] 的纯文本提取（原始
 ///    HTML 事件剔除、链接目标剔除、标签结构不输出），摘要公开可见。
 pub fn render_public_excerpt(body_markdown: &str, restricted_markdown: Option<&str>) -> String {
-    if body_markdown.trim().is_empty() {
+    let clean = super::inline_reply::strip_inline_reply(body_markdown);
+    if clean.trim().is_empty() {
         return String::new();
     }
     // 结构保证：摘要输入永远是公开正文；隐藏正文仅作为签名参数明确语义
     // 边界（调用方必须显式传入两部分，防误用隐藏正文生成摘要）。
     let _ = restricted_markdown;
-    render_excerpt(body_markdown)
+    render_excerpt(&clean)
 }
 
 #[cfg(test)]

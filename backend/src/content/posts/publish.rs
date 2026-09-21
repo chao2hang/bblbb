@@ -152,7 +152,7 @@ async fn recheck_author_level(
         .ok_or_else(|| PublishBlocked::AccountUnavailable("author not found".to_string()))?
         .clamp(0, i64::from(u32::MAX)) as u32;
     let requested = visibility_level.unwrap_or(1);
-    if requested > author_level {
+    if requested > author_level.max(1) {
         return Err(PublishBlocked::VisibilityExceedsLevel {
             requested,
             author_level,

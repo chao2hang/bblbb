@@ -698,6 +698,8 @@ impl StorageAdapter for S3Adapter {
 }
 
 /// 存储服务门面：按后端分发适配器，路由与域服务经此调用。
+/// 内部全为 Arc 句柄，克隆代价极低（可按值跨任务共享）。
+#[derive(Clone)]
 pub struct StorageService {
     local: std::sync::Arc<tokio::sync::RwLock<LocalAdapter>>,
     s3: std::sync::Arc<tokio::sync::RwLock<Option<S3Adapter>>>,

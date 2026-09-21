@@ -24,6 +24,7 @@ const entitlements: Entitlement[] = [
   { id: 'e-frame', product_id: 'p2', product_title: '金色头像框', kind: 'cosmetic_avatar', slot: 'avatar_frame', status: 'owned', quantity: 1, remaining_quantity: 1, valid_from: 0, expires_at: null, created_at: 0, presentation_tokens: ['avatar.frame.gold_ring'], asset_attachment_id: 'att-frame-1' },
   { id: 'e-badge-1', product_id: 'p3', product_title: '贡献者徽章', kind: 'cosmetic_badge', slot: 'profile_badges', status: 'equipped', quantity: 2, remaining_quantity: 1, valid_from: 0, expires_at: null, created_at: 0, presentation_tokens: ['badge.contributor'] },
   { id: 'e-badge-2', product_id: 'p4', product_title: '早期成员徽章', kind: 'cosmetic_badge', slot: 'profile_badges', status: 'equipped', quantity: 1, remaining_quantity: 1, valid_from: 0, expires_at: null, created_at: 0, presentation_tokens: ['badge.early_member'] },
+  { id: 'e-sparkle', product_id: 'p5-sparkle', product_title: '流光星芒', kind: 'profile_effect', slot: 'profile_effect', status: 'owned', quantity: 1, remaining_quantity: 1, valid_from: 0, expires_at: null, created_at: 0, presentation_tokens: ['profile.effect.sparkle'] },
   { id: 'e-expired', product_id: 'p5', product_title: '限时烟花', kind: 'profile_effect', slot: 'profile_effect', status: 'expired', quantity: 1, remaining_quantity: 0, valid_from: 0, expires_at: 1, created_at: 0, presentation_tokens: ['profile.effect.sparkle'] },
   { id: 'e-owned-badge', product_id: 'p6', product_title: '活跃达人徽章', kind: 'cosmetic_badge', slot: 'profile_badge', status: 'owned', quantity: 1, remaining_quantity: 1, valid_from: 0, expires_at: null, created_at: 0, presentation_tokens: ['badge.active'] }
 ];
@@ -31,7 +32,7 @@ const entitlements: Entitlement[] = [
 describe('M07-UI-05 衣柜 SSR', () => {
   it('渲染白名单 Token 预览（昵称颜色/头像框/徽章），未知槽位不渲染', () => {
     const { body } = render(WardrobePage, {
-      props: { data: { presentation, entitlements, error: null }, form: null }
+      props: { data: { presentation, entitlements, cosmetics: [], error: null }, form: null }
     });
     expect(body).toContain('#0969da'); // nickname_color=blue → 固定调色板
     expect(body).toContain('avatar-frame-gold');
@@ -43,7 +44,7 @@ describe('M07-UI-05 衣柜 SSR', () => {
 
   it('权益行内预览：头像框 PNG 素材、徽章章面、装饰色板、昵称前缀', () => {
     const { body } = render(WardrobePage, {
-      props: { data: { presentation, entitlements, error: null }, form: null }
+      props: { data: { presentation, entitlements, cosmetics: [], error: null }, form: null }
     });
     // 头像框权益 → CosmeticAvatar 渲染 PNG 素材附件（稳定内容端点）
     expect(body).toContain('/api/v1/attachments/att-frame-1/content');
@@ -57,7 +58,7 @@ describe('M07-UI-05 衣柜 SSR', () => {
       { id: 'e-gold', product_id: 'prod-nick-color-gold', product_title: null, kind: 'cosmetic_nickname', slot: 'nickname_color', status: 'owned', quantity: 1, remaining_quantity: 1, valid_from: 0, expires_at: null, created_at: 0, presentation_tokens: ['nickname.color.gold'] }
     ];
     const { body: fallbackBody } = render(WardrobePage, {
-      props: { data: { presentation: { ...presentation, presentation_tokens: { avatar_frame: 'gold_ring' } }, entitlements: untitled, error: null }, form: null }
+      props: { data: { presentation: { ...presentation, presentation_tokens: { avatar_frame: 'gold_ring' } }, entitlements: untitled, cosmetics: [], error: null }, form: null }
     });
     expect(fallbackBody).toContain('鎏金'); // nickname.color.gold → 昵称颜色展示名
     expect(fallbackBody).not.toContain('prod-nick-color-gold');
@@ -65,7 +66,7 @@ describe('M07-UI-05 衣柜 SSR', () => {
 
   it('已装备权益 → 卸下表单；未装备 → 装备表单（携带展示版本）', () => {
     const { body } = render(WardrobePage, {
-      props: { data: { presentation, entitlements, error: null }, form: null }
+      props: { data: { presentation, entitlements, cosmetics: [], error: null }, form: null }
     });
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/unequip"/);
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/equip"/);
@@ -75,7 +76,7 @@ describe('M07-UI-05 衣柜 SSR', () => {
 
   it('徽章最多 3 个：已装备 2 个 + 可装备徽章仍可装备；满 3 个后提示上限', () => {
     const { body } = render(WardrobePage, {
-      props: { data: { presentation, entitlements, error: null }, form: null }
+      props: { data: { presentation, entitlements, cosmetics: [], error: null }, form: null }
     });
     expect(body).toContain('活跃达人徽章');
 
@@ -89,23 +90,24 @@ describe('M07-UI-05 衣柜 SSR', () => {
       { id: 'e-badge-3', product_id: 'p7', product_title: '资深徽章', kind: 'cosmetic_badge', slot: 'profile_badges', status: 'equipped', quantity: 1, remaining_quantity: 1, valid_from: 0, expires_at: null, created_at: 0 }
     ];
     const { body: full } = render(WardrobePage, {
-      props: { data: { presentation: atLimit, entitlements: fullEntitlements, error: null }, form: null }
+      props: { data: { presentation: atLimit, entitlements: fullEntitlements, cosmetics: [], error: null }, form: null }
     });
     expect(full).toContain('资深徽章');
     expect(full).toContain('徽章最多 3 个');
   });
 
-  it('过期权益 → 显示已过期 + 到期自动卸下，不提供装备入口', () => {
+  it('过期权益不显示在装扮列表中', () => {
     const { body } = render(WardrobePage, {
-      props: { data: { presentation, entitlements, error: null }, form: null }
+      props: { data: { presentation, entitlements, cosmetics: [], error: null }, form: null }
     });
-    expect(body).toContain('已过期');
-    expect(body).toContain('已到期自动卸下');
+    expect(body).not.toContain('已过期');
+    expect(body).not.toContain('已到期自动卸下');
+    expect(body).not.toContain('限时烟花');
   });
 
   it('load 错误 → 错误横幅', () => {
     const { body } = render(WardrobePage, {
-      props: { data: { presentation: null, entitlements: [], error: '服务暂不可用' }, form: null }
+      props: { data: { presentation: null, entitlements: [], cosmetics: [], error: '服务暂不可用' }, form: null }
     });
     expect(body).toContain('服务暂不可用');
   });

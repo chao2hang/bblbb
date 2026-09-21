@@ -7,7 +7,7 @@
 // - save-settings action：PATCH /api/v1/admin/themes/{name}/settings（If-Match
 //   revision 乐观锁；409 版本冲突提示刷新）；
 // - 主题预览：Token 只在 SSR/浏览器端用 applyThemeTokens 应用安全投影。
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { authedDeleteBody, authedPatch, authedPost, authedPut, getAuthed } from '$lib/api/server';
 import { pickActiveTheme, fallbackDefaultTheme } from '$lib/theme/projection';
@@ -42,6 +42,7 @@ export interface AdminThemesActionData {
   requestId?: string | null;
   conflict?: boolean;
   uploaded?: string | null;
+  stepUpRequired?: boolean;
 }
 
 export const load: PageServerLoad = async ({ cookies, request }): Promise<AdminThemesPageData> => {
@@ -132,9 +133,15 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) return { message: `主题 ${result.data.theme.name} 已上传（disabled 隔离态）`, uploaded: result.data.theme.name };
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminThemesActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminThemesActionData);
     } catch {
-      return fail(503, { message: '上传失败，请稍后重试' });
+      return fail(503, { message: '上传失败，请稍后重试' } satisfies AdminThemesActionData);
     }
   },
   'set-default': async ({ request, cookies }) => {
@@ -150,9 +157,15 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) return { message: `主题 ${name} 已设为站点默认并激活` };
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminThemesActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminThemesActionData);
     } catch {
-      return fail(503, { message: '保存失败，请稍后重试' });
+      return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminThemesActionData);
     }
   },
   'save-settings': async ({ request, cookies }) => {
@@ -181,12 +194,18 @@ export const actions: Actions = {
       if (result.ok) {
         return { message: `主题 ${name} Token 已保存（revision v${result.data.theme.revision}）` };
       }
-      if (result.status === 409) {
-        return fail(409, { conflict: true, message: `版本冲突：${result.message}（请刷新后重试）` });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminThemesActionData);
       }
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.status === 409) {
+        return fail(409, { conflict: true, message: `版本冲突：${result.message}（请刷新后重试）` } satisfies AdminThemesActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminThemesActionData);
     } catch {
-      return fail(503, { message: '保存失败，请稍后重试' });
+      return fail(503, { message: '保存失败，请稍后重试' } satisfies AdminThemesActionData);
     }
   },
   delete: async ({ request, cookies }) => {
@@ -202,9 +221,46 @@ export const actions: Actions = {
         request.headers.get('x-request-id')
       );
       if (result.ok) return { message: `主题 ${name} 已成功删除` };
-      return fail(result.status, { message: result.message, requestId: result.requestId });
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminThemesActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminThemesActionData);
     } catch {
-      return fail(503, { message: '删除失败，请稍后重试' });
+      return fail(503, { message: '删除失败，请稍后重试' } satisfies AdminThemesActionData);
+    }
+  },
+  /** 重新验证身份（step-up 窗口过期后；与 storage/roles 页同款交互）。 */
+  reauth: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const password = String(form.get('password') ?? '');
+    if (!password) {
+      return fail(422, {
+        message: '请输入当前密码'
+      } satisfies AdminThemesActionData);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/auth/re-auth',
+        { password },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '已重新验证身份，请重试刚才的操作'
+        } satisfies AdminThemesActionData;
+      }
+      return fail(result.status, {
+        message: result.message
+      } satisfies AdminThemesActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '验证失败，请稍后重试'
+      } satisfies AdminThemesActionData);
     }
   }
 };

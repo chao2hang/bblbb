@@ -212,7 +212,8 @@
 }
 
 .app-admin-side__primary {
-  padding-bottom: 6px;
+  padding-bottom: 8px;
+  margin-bottom: 2px;
   border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
 }
 
@@ -221,17 +222,27 @@
   display: flex !important;
   align-items: center;
   gap: 9px;
-  min-height: 34px !important;
-  padding: 0 9px !important;
+  min-height: 32px !important;
+  padding: 0 8px !important;
   border-radius: var(--radius-sm, 6px) !important;
   color: var(--color-text-secondary) !important;
   font-size: 12.5px;
   line-height: 1.3;
   text-decoration: none !important;
   position: relative;
-  transition: background-color 140ms ease, color 140ms ease;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
   border: 0 !important;
   box-sizing: border-box;
+}
+
+/* 一级独立项规格（仪表盘）：与一级分组按钮高度和字号严格对齐 */
+.app-admin-nav-item.is-level-1,
+.app-admin-side__primary .app-admin-nav-item {
+  min-height: 36px !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
+  font-weight: 550 !important;
+  color: var(--color-text-secondary) !important;
 }
 
 .app-admin-nav-item:hover,
@@ -245,9 +256,9 @@
 .app-admin-nav-item.is-active,
 .app-admin-side a.is-active {
   background: var(--color-brand-soft) !important;
-  color: var(--color-text-primary) !important;
-  font-weight: 600;
-  border-left: 2px solid var(--color-brand) !important;
+  color: var(--color-brand) !important;
+  font-weight: 600 !important;
+  border-left: 2.5px solid var(--color-brand) !important;
 }
 
 .app-admin-nav-item.is-active .app-admin-nav-icon,
@@ -260,77 +271,157 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   color: var(--color-text-tertiary);
   transition: color 140ms ease;
 }
 
-.app-admin-nav-item:hover .app-admin-nav-icon {
+.app-admin-nav-icon.is-sub {
+  width: 16px;
+  height: 16px;
+}
+
+.app-admin-nav-item:hover .app-admin-nav-icon,
+.app-admin-side__label:hover .app-admin-nav-icon {
   color: var(--color-text-primary);
+}
+
+.app-admin-nav-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 分组样式 */
 .app-admin-side__groups {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .app-admin-side__group {
   display: flex !important;
   flex-direction: column !important;
-  gap: 2px !important;
+  gap: 1px !important;
   margin: 0 !important;
+  border-radius: var(--radius-sm, 6px);
+  transition: margin-bottom 160ms ease;
 }
 
+.app-admin-side__group.is-expanded {
+  margin-bottom: 6px !important;
+}
+
+/* 一级菜单折叠按钮 */
 .app-admin-side__label {
   display: flex !important;
   align-items: center;
-  justify-content: space-between;
+  gap: 9px;
   width: 100%;
-  min-height: 28px !important;
-  padding: 0 8px !important;
+  min-height: 36px !important;
+  padding: 0 10px !important;
   border: 0 !important;
   background: transparent !important;
-  color: var(--color-text-tertiary) !important;
+  color: var(--color-text-secondary) !important;
   cursor: pointer;
-  font: 650 9.5px/1.2 var(--font-family-mono) !important;
-  letter-spacing: 0.1em !important;
+  font: 550 13px/1.3 var(--font-family-base) !important;
+  font-family: var(--font-family-base) !important;
+  letter-spacing: 0.01em !important;
   text-align: left;
-  text-transform: uppercase;
-  border-radius: var(--radius-sm, 4px);
+  text-transform: none !important;
+  border-radius: var(--radius-sm, 6px);
   transition: color 140ms ease, background-color 140ms ease;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.app-admin-side__label .app-admin-side__label-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-admin-side__label:hover,
+.app-admin-side__label:focus-visible {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
 .app-admin-side__group.is-expanded > .app-admin-side__label {
   color: var(--color-text-primary) !important;
 }
 
+/* 一级菜单：含有激活子项时的优雅高亮 */
+.app-admin-side__label.has-active-child,
+.app-admin-side__group.has-active-child > .app-admin-side__label {
+  color: var(--color-text-primary) !important;
+  font-weight: 600 !important;
+}
+
+.app-admin-side__label.has-active-child .app-admin-nav-icon,
+.app-admin-side__group.has-active-child > .app-admin-side__label .app-admin-nav-icon {
+  color: var(--color-brand) !important;
+}
+
+/* 一级折叠态时如果包含激活子项，显示醒目的小圆点 */
+.app-admin-group-active-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 6px var(--color-brand);
+  margin-right: 4px;
+}
+
+/* 展开/收起箭头 */
 .app-admin-chevron {
+  flex-shrink: 0;
+  margin-left: auto;
   transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--color-text-tertiary);
 }
 
 .app-admin-side__group.is-expanded > .app-admin-side__label .app-admin-chevron {
   transform: rotate(180deg);
+  color: var(--color-text-secondary);
 }
 
+/* 二级菜单容器：左侧细腻导轨树状线 + 缩进 */
 .app-admin-side__items {
   display: flex !important;
   flex-direction: column !important;
-  gap: 1px !important;
+  gap: 2px !important;
+  margin-left: 19px !important;
+  padding-left: 10px !important;
+  border-left: 1.5px solid color-mix(in srgb, var(--color-border) 65%, transparent) !important;
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
   max-height: 0;
   overflow: hidden;
   opacity: 0;
   visibility: hidden;
-  transition: max-height 180ms cubic-bezier(0.4, 0, 0.2, 1), opacity 140ms ease, visibility 0s linear 180ms;
+  transition: max-height 200ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease, visibility 0s linear 200ms;
 }
 
 .app-admin-side__group.is-expanded > .app-admin-side__items {
-  max-height: 560px;
+  max-height: 800px;
   opacity: 1;
   visibility: visible;
   transition-delay: 0s;
+}
+
+/* 二级菜单项微调 */
+.app-admin-nav-item.is-level-2 {
+  min-height: 32px !important;
+  padding: 0 8px !important;
+  font-size: 12.5px !important;
+  border-radius: var(--radius-sm, 5px) !important;
 }
 
 /* 侧栏底部操作区 */

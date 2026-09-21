@@ -156,19 +156,39 @@
   });
 
   function selectAllInGroup(perms: { code: string }[]) {
+    if (currentRole?.isSystem) return;
     perms.forEach((p) => (enabledPerms[p.code] = true));
   }
 
   function clearAllInGroup(perms: { code: string }[]) {
+    if (currentRole?.isSystem) return;
     perms.forEach((p) => (enabledPerms[p.code] = false));
   }
 
   function selectAllGlobal() {
+    if (currentRole?.isSystem) return;
     allPermissions.forEach((code) => (enabledPerms[code] = true));
   }
 
   function clearAllGlobal() {
+    if (currentRole?.isSystem) return;
     allPermissions.forEach((code) => (enabledPerms[code] = false));
+  }
+
+  // —— 编辑角色资料 ——
+  let showEditProfile = $state(false);
+  let editDisplayName = $state('');
+  let editDescription = $state('');
+  let editReason = $state('');
+  let isSavingProfile = $state(false);
+  let isSavingPerms = $state(false);
+
+  function openEditProfile(): void {
+    if (!currentRole) return;
+    editDisplayName = currentRole.name;
+    editDescription = currentRole.desc;
+    editReason = '';
+    showEditProfile = true;
   }
 
   // —— 新建角色（完整 CRUD）——
@@ -242,7 +262,7 @@
   </div>
 {:else}
   {#if message}
-    <div class="app-error" role="status" style="margin-bottom:12px;">
+    <div class={form?.stepUpRequired ? 'app-error' : 'alert alert-success'} role="status" style="margin-bottom:12px;padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;">
       <b>{message}</b>
     </div>
   {/if}
@@ -439,7 +459,20 @@
       </span>
     </div>
 
-    <form method="POST" action="?/save" use:enhance class="app-card" style="margin-bottom:14px;">
+    <form
+      method="POST"
+      action="?/save"
+      use:enhance={() => {
+        isSavingPerms = true;
+        return async ({ result, update }) => {
+          isSavingPerms = false;
+          toastActionResult(result);
+          await update();
+        };
+      }}
+      class="app-card"
+      style="margin-bottom:14px;"
+    >
       <input type="hidden" name="id" value={currentRole.id} />
       <input type="hidden" name="version" value={currentRole.version} />
       <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
@@ -458,7 +491,7 @@
           <span class="badge badge-level" style="font-size:12px;padding:4px 8px;">
             {Object.values(enabledPerms).filter(Boolean).length} / {allPermissions.length} 已启用
           </span>
-          <button type="button" class="btn secondary sm" disabled title="角色资料编辑 action 尚未接入">编辑资料</button>
+          <button type="button" class="btn secondary sm" onclick={openEditProfile}>编辑资料</button>
           <a class="btn secondary sm" href="/admin/assignments" title="在角色委派页为用户授予或撤销该角色">管理成员</a>
         </div>
       </header>
@@ -474,9 +507,8 @@
           />
         </label>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button type="button" class="btn ghost sm" onclick={selectAllGlobal}>全部启用</button>
-          <button type="button" class="btn ghost sm" onclick={clearAllGlobal}>全部停用</button>
-          <button type="button" class="btn ghost sm" disabled title="权限预览尚未提供独立 action">预览生效权限</button>
+          <button type="button" class="btn ghost sm" disabled={currentRole.isSystem} onclick={selectAllGlobal}>全部启用</button>
+          <button type="button" class="btn ghost sm" disabled={currentRole.isSystem} onclick={clearAllGlobal}>全部停用</button>
         </div>
       </div>
 
@@ -491,8 +523,8 @@
                 <span class="text-secondary" style="font-size:11px;margin-left:8px;">{activeInGroup} / {group.perms.length} 已启用</span>
               </div>
               <div style="display:flex;gap:6px;">
-                <button type="button" class="btn ghost xs" style="font-size:11px;padding:2px 6px;" onclick={(e) => { e.stopPropagation(); selectAllInGroup(group.perms); }}>全选</button>
-                <button type="button" class="btn ghost xs" style="font-size:11px;padding:2px 6px;" onclick={(e) => { e.stopPropagation(); clearAllInGroup(group.perms); }}>清空</button>
+                <button type="button" class="btn ghost xs" style="font-size:11px;padding:2px 6px;" disabled={currentRole.isSystem} onclick={(e) => { e.stopPropagation(); selectAllInGroup(group.perms); }}>全选</button>
+                <button type="button" class="btn ghost xs" style="font-size:11px;padding:2px 6px;" disabled={currentRole.isSystem} onclick={(e) => { e.stopPropagation(); clearAllInGroup(group.perms); }}>清空</button>
               </div>
             </summary>
 
@@ -526,14 +558,91 @@
         <button
           type="submit"
           class="btn primary"
-          disabled={currentRole.isSystem}
+          disabled={currentRole.isSystem || isSavingPerms}
           title={currentRole.isSystem ? '系统角色权限由服务端保护，不能在此修改' : undefined}
         >
-          {currentRole.isSystem ? '系统角色不可修改' : `保存 ${currentRole.name} 权限`}
+          {currentRole.isSystem ? '系统角色不可修改' : (isSavingPerms ? '保存中...' : `保存 ${currentRole.name} 权限`)}
         </button>
       </footer>
     </form>
   {/if}
+{/if}
+
+<!-- 编辑角色资料 Dialog：?/updateProfile -->
+{#if currentRole}
+  <Dialog
+    open={showEditProfile}
+    title={`编辑角色资料：${currentRole.name}`}
+    description="更新角色的显示名称与描述信息，操作记录写入审计日志。"
+    onclose={() => (showEditProfile = false)}
+  >
+    <form
+      method="POST"
+      action="?/updateProfile"
+      use:enhance={() => {
+        isSavingProfile = true;
+        return async ({ result, update }) => {
+          isSavingProfile = false;
+          toastActionResult(result);
+          await update();
+          if (result.type === 'success') {
+            showEditProfile = false;
+          }
+        };
+      }}
+      style="display:flex;flex-direction:column;gap:12px;"
+    >
+      <input type="hidden" name="name" value={currentRole.id} />
+      <input type="hidden" name="version" value={currentRole.version} />
+
+      <div>
+        <label class="input-label" for="edit-role-display-name" style="font-size:13px;margin-bottom:4px;display:block;">
+          显示名称 <span style="color:var(--color-danger);">*</span>
+        </label>
+        <input
+          id="edit-role-display-name"
+          name="display_name"
+          class="input-field"
+          required
+          maxlength="64"
+          bind:value={editDisplayName}
+        />
+      </div>
+
+      <div>
+        <label class="input-label" for="edit-role-desc" style="font-size:13px;margin-bottom:4px;display:block;">
+          角色描述
+        </label>
+        <textarea
+          id="edit-role-desc"
+          name="description"
+          class="input-field"
+          rows="3"
+          maxlength="256"
+          bind:value={editDescription}
+        ></textarea>
+      </div>
+
+      <div>
+        <label class="input-label" for="edit-role-reason" style="font-size:13px;margin-bottom:4px;display:block;">
+          操作原因（写入审计日志） <span style="color:var(--color-danger);">*</span>
+        </label>
+        <input
+          id="edit-role-reason"
+          name="reason"
+          class="input-field"
+          required
+          bind:value={editReason}
+          placeholder="如：优化版主职责说明"
+        />
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+        <Button text="取消" variant="ghost" size="sm" type="button" onclick={() => (showEditProfile = false)} disabled={isSavingProfile} />
+        <Button text={isSavingProfile ? '保存中...' : '保存资料'} variant="primary" size="sm" type="submit" disabled={isSavingProfile} />
+      </div>
+    </form>
+  </Dialog>
 {/if}
 
 <!-- step-up 重新验证（M02-MFA-07）：save/create 命中 403 step_up_required 时展示。

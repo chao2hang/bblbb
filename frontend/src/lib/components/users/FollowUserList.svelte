@@ -11,6 +11,8 @@
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
+  import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
+  import type { PublicPresentationTokens } from '$lib/api/types';
   import { listFollowers, listFollowing } from '$lib/api/client';
   import { formatRelative } from '$lib/utils';
   import { infiniteScroll } from '$lib/utils/infinite-scroll';
@@ -18,9 +20,12 @@
 
   /** 服务端公开投影行（follows.rs follow_list_response）。 */
   export type FollowUserItem = {
+    id?: string;
     username: string;
     display_name: string | null;
     level: number;
+    avatar_attachment_id?: string | null;
+    presentation_tokens?: PublicPresentationTokens | null;
     /** 关注关系创建时间（Unix 毫秒）。 */
     created_at: number;
   };
@@ -110,12 +115,17 @@
         <CosmeticAvatar
           name={item.display_name || item.username}
           size="md"
+          presentation={item.presentation_tokens}
+          avatarAttachmentId={item.avatar_attachment_id}
           username={item.username}
           title={`@ ${item.username}`}
         />
         <div style="min-width:0;flex:1;">
           <div style="font-weight:var(--weight-medium);color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            {item.display_name || item.username}
+            <CosmeticName
+              name={item.display_name || item.username}
+              presentation={item.presentation_tokens}
+            />
           </div>
           <div class="text-secondary" style="font-size:var(--text-sm);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             @ {item.username}

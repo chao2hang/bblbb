@@ -15,6 +15,7 @@
   import { projectEntitlementTokens } from '$lib/components/wardrobe/tokens';
   import type { PublicPresentationTokens, ShopProduct, User } from '$lib/api/types';
   import type { ShopPageData } from './+page.server';
+  import steamBackgrounds from '$lib/data/steam-profile-backgrounds.json';
 
   let { data }: { data: ShopPageData & { user?: User | null } } = $props();
 
@@ -23,14 +24,15 @@
   const level = $derived(data.level);
   const error = $derived(data.error);
   const currentUser = $derived(data.user);
+  const cosmetics = $derived(data.cosmetics ?? []);
 
   // 预览昵称与头像
   const previewName = $derived(currentUser?.display_name || currentUser?.username || '夜猫子');
   const previewAvatarId = $derived(currentUser?.avatar_attachment_id ?? null);
   const previewSeed = $derived(currentUser?.username ?? currentUser?.id ?? 'preview');
 
-  // 分类与筛选状态
-  type CategoryTab = 'all' | 'nickname' | 'avatar' | 'space' | 'badge';
+  // 分类与筛选状态：仅保留彩色昵称、Steam动效头像框、个人资料背景三大专属品类
+  type CategoryTab = 'all' | 'nickname' | 'avatar' | 'space';
   let activeTab = $state<CategoryTab>('all');
   let searchQuery = $state('');
   let sortOption = $state<'default' | 'price-asc' | 'price-desc'>('default');
@@ -66,15 +68,54 @@
   }
 
   function resolveVisualTokens(p: ShopProduct): PublicPresentationTokens {
-    const projected = projectEntitlementTokens(p.presentation_tokens, p.asset_attachment_id, p.slot).visual;
+    const projected = projectEntitlementTokens(p.presentation_tokens, p.asset_attachment_id, p.slot, cosmetics).visual;
     for (const token of p.presentation_tokens ?? []) {
-      if (token.startsWith('nickname.color.')) projected.nickname_color = token.slice('nickname.color.'.length);
-      else if (token.startsWith('avatar.frame.')) projected.avatar_frame = token.slice('avatar.frame.'.length);
-      else if (token.startsWith('avatar.attachment.')) projected.avatar_attachment = token.slice('avatar.attachment.'.length);
-      else if (token.startsWith('profile.effect.')) projected.profile_effect = token.slice('profile.effect.'.length);
-      else if (token.startsWith('post.effect.')) projected.post_effect = token.slice('post.effect.'.length);
-      else if (token.startsWith('badge.')) {
-        projected.profile_badges = [...(projected.profile_badges ?? []), token.slice('badge.'.length)];
+      if (token.startsWith('profile.effect.')) {
+        const id = token.slice('profile.effect.'.length);
+        projected.profile_effect = id;
+        const matched = cosmetics.find((c) => c.id === id);
+        if (matched) {
+          projected.profile_effect_name = matched.name;
+          projected.profile_effect_style = matched.style;
+        }
+      } else if (token.startsWith('nickname.color.')) {
+        const id = token.slice('nickname.color.'.length);
+        projected.nickname_color = id;
+        const matched = cosmetics.find((c) => c.id === id);
+        if (matched) {
+          projected.nickname_color_name = matched.name;
+          projected.nickname_color_style = matched.style;
+        }
+      } else if (token.startsWith('avatar.frame.')) {
+        const id = token.slice('avatar.frame.'.length);
+        projected.avatar_frame = id;
+        const matched = cosmetics.find((c) => c.id === id);
+        if (matched) {
+          projected.avatar_frame_name = matched.name;
+          projected.avatar_frame_style = matched.style;
+        }
+      } else if (token.startsWith('avatar.attachment.')) {
+        projected.avatar_attachment = token.slice('avatar.attachment.'.length);
+      }
+    }
+    if (!projected.profile_effect_style && (p.slot === 'profile_effect' || (p.kind as string) === 'profile_effect')) {
+      const byName = cosmetics.find((c) => c.name === p.title || p.title.includes(c.name) || c.name.includes(p.title));
+      if (byName) {
+        projected.profile_effect = byName.id;
+        projected.profile_effect_name = byName.name;
+        projected.profile_effect_style = byName.style;
+      } else {
+        const steamItem = steamBackgrounds.find((s) => s.name.toLowerCase() === p.title.toLowerCase() || p.title.toLowerCase().includes(s.name.toLowerCase()));
+        if (steamItem) {
+          projected.profile_effect = steamItem.id;
+          projected.profile_effect_name = steamItem.name;
+          projected.profile_effect_style = {
+            mode: 'profile',
+            image: steamItem.image,
+            webm: steamItem.webm ? `https://shared.fastly.steamstatic.com/community_assets/images/items/${steamItem.appid}/${steamItem.webm}` : undefined,
+            mp4: steamItem.mp4 ? `https://shared.fastly.steamstatic.com/community_assets/images/items/${steamItem.appid}/${steamItem.mp4}` : undefined,
+          };
+        }
       }
     }
     if (p.asset_attachment_id && p.slot === 'avatar_frame') projected.avatar_frame_attachment_id = p.asset_attachment_id;
@@ -82,38 +123,18 @@
   }
 
   function titlePrefixText(p: ShopProduct): string | null {
-    for (const token of p.presentation_tokens ?? []) {
-      if (token.startsWith('title.prefix.')) {
-        const val = token.slice('title.prefix.'.length);
-        if (val === 'night_owl') return '夜猫子';
-        return val;
-      }
-    }
-    if ((p.kind as string) === 'title_prefix' || p.slot === 'title_prefix') {
-      const match = p.title.match(/称号[：:]\s*(.+)/);
-      return match ? match[1] : p.title;
-    }
     return null;
   }
 
   function isNicknameDeco(p: ShopProduct): boolean {
-    return p.slot === 'nickname_decoration' || (p.presentation_tokens ?? []).some((t) => t.startsWith('nickname.decoration.'));
+    return false;
   }
 
   function categoryOf(p: ShopProduct): CategoryTab {
     const k = p.kind as string;
     if (
-      k === 'cosmetic_nickname' ||
-      p.slot === 'nickname_color' ||
-      p.slot === 'nickname_decoration' ||
-      k === 'title_prefix' ||
-      p.slot === 'title_prefix'
-    ) {
-      return 'nickname';
-    }
-    if (
       k === 'cosmetic_avatar' ||
-      k === 'cosmetic_avatar_attachment' ||
+      k === 'avatar_frame' ||
       p.slot === 'avatar_frame' ||
       p.slot === 'avatar_attachment'
     ) {
@@ -121,26 +142,16 @@
     }
     if (
       k === 'profile_effect' ||
-      k === 'post_effect' ||
-      p.slot === 'profile_effect' ||
-      p.slot === 'post_effect'
+      p.slot === 'profile_effect'
     ) {
       return 'space';
-    }
-    if (
-      k === 'cosmetic_badge' ||
-      p.slot === 'profile_badge' ||
-      p.slot === 'profile_badges' ||
-      k === 'utility'
-    ) {
-      return 'badge';
     }
     return 'nickname';
   }
 
   // 分类统计
   const counts = $derived.by(() => {
-    const res: Record<CategoryTab, number> = { all: products.length, nickname: 0, avatar: 0, space: 0, badge: 0 };
+    const res: Record<CategoryTab, number> = { all: products.length, nickname: 0, avatar: 0, space: 0 };
     for (const p of products) {
       const c = categoryOf(p);
       res[c] = (res[c] ?? 0) + 1;
@@ -270,7 +281,7 @@
           onclick={() => (activeTab = 'nickname')}
         >
           <Icon name="wand-2" size={15} />
-          <span>昵称装扮</span>
+          <span>彩色昵称</span>
           <span class="tab-count">{counts.nickname}</span>
         </button>
         <button
@@ -280,7 +291,7 @@
           onclick={() => (activeTab = 'avatar')}
         >
           <Icon name="award" size={15} />
-          <span>头像装扮</span>
+          <span>Steam 动效头像框</span>
           <span class="tab-count">{counts.avatar}</span>
         </button>
         <button
@@ -290,21 +301,9 @@
           onclick={() => (activeTab = 'space')}
         >
           <Icon name="sparkles" size={15} />
-          <span>空间与帖子</span>
+          <span>个人资料背景</span>
           <span class="tab-count">{counts.space}</span>
         </button>
-        {#if counts.badge > 0}
-          <button
-            type="button"
-            class="tab"
-            class:is-active={activeTab === 'badge'}
-            onclick={() => (activeTab = 'badge')}
-          >
-            <Icon name="trophy" size={15} />
-            <span>徽章道具</span>
-            <span class="tab-count">{counts.badge}</span>
-          </button>
-        {/if}
       </div>
 
       <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;padding:var(--space-3) var(--space-4);">
@@ -395,39 +394,32 @@
                 seed={previewSeed}
                 presentation={tokens}
               />
-            {:else if prefix}
-              <div style="display:inline-flex;align-items:center;gap:var(--space-2);">
-                <span class="badge badge-primary">[{prefix}]</span>
-                <strong style="font-size:var(--text-sm);">{previewName}</strong>
+            {:else if category === 'space'}
+              {@const bgStyle = tokens.profile_effect_style}
+              {@const bgImg = bgStyle?.url || (bgStyle?.image ? `/api/v1/steam-assets/backgrounds/${bgStyle.image}` : null)}
+              {@const bgFallback = bgStyle?.image && (bgStyle.webm || bgStyle.mp4) ? `https://shared.fastly.steamstatic.com/community_assets/images/items/${(bgStyle.webm || bgStyle.mp4 || '').match(/\/items\/(\d+)\//)?.[1] || ''}/${bgStyle.image}` : null}
+              {@const bgWebm = bgStyle?.webm}
+              {@const bgMp4 = bgStyle?.mp4}
+              <div style="width:100%;height:80px;border-radius:var(--radius-md);overflow:hidden;position:relative;background:#090514;display:flex;align-items:center;justify-content:center;">
+                {#if bgWebm || bgMp4}
+                  <video autoplay loop muted playsinline disablepictureinpicture style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+                    {#if bgWebm}<source src={bgWebm} type="video/webm" />{/if}
+                    {#if bgMp4}<source src={bgMp4} type="video/mp4" />{/if}
+                  </video>
+                {/if}
+                {#if bgImg}
+                  <img src={bgImg} alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" onerror={(e) => { const t = e.currentTarget as HTMLImageElement; if (t && bgFallback && t.src !== bgFallback) t.src = bgFallback; }} />
+                {/if}
+                <span class="badge badge-neutral" style="position:absolute;bottom:4px;right:4px;font-size:10px;padding:2px 6px;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);color:#fff;border:none;">
+                  {bgWebm || bgMp4 ? '🎬 动态背景' : '全景背景'}
+                </span>
               </div>
-            {:else if isDeco}
-              <div style="display:inline-flex;align-items:center;gap:var(--space-1);">
-                <span style="font-size:18px;">👑</span>
-                <strong style="font-size:var(--text-sm);">{previewName}</strong>
-              </div>
-            {:else if product.slot === 'nickname_color'}
+            {:else}
               <CosmeticName
                 name={previewName}
                 presentation={tokens}
                 class="shop-preview-nickname"
               />
-            {:else if product.kind === 'profile_effect' || product.slot === 'profile_effect'}
-              <div style="display:inline-flex;align-items:center;gap:var(--space-2);">
-                <Icon name="sparkles" size={20} />
-                <span class="badge badge-neutral">星芒空间装扮</span>
-              </div>
-            {:else if product.kind === 'post_effect' || product.slot === 'post_effect'}
-              <div style="display:inline-flex;align-items:center;gap:var(--space-2);">
-                <span style="font-size:16px;">❤️</span>
-                <span class="badge badge-neutral">感谢作者</span>
-              </div>
-            {:else if product.kind === 'cosmetic_badge' || product.slot === 'profile_badge'}
-              <div style="display:inline-flex;align-items:center;gap:var(--space-2);">
-                <Icon name="award" size={20} />
-                <span class="badge badge-neutral">{product.title.replace(/徽章[：:]\s*/, '')}</span>
-              </div>
-            {:else}
-              <Icon name={iconFor(product)} size={30} />
             {/if}
           </div>
 

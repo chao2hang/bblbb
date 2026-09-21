@@ -9,6 +9,7 @@
   import type { ShopActionData, ShopProductPageData } from './+page.server';
   import type { PublicPresentationTokens, ShopProduct, User } from '$lib/api/types';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import steamBackgrounds from '$lib/data/steam-profile-backgrounds.json';
 
   let { data, form }: { data: ShopProductPageData & { user?: User | null }; form?: ShopActionData | null } = $props();
 
@@ -45,14 +46,54 @@
   }
 
   function visualTokens(p: ShopProduct): PublicPresentationTokens {
-    const projected = projectEntitlementTokens(p.presentation_tokens, p.asset_attachment_id, p.slot).visual;
+    const projected = projectEntitlementTokens(p.presentation_tokens, p.asset_attachment_id, p.slot, data.cosmetics).visual;
     for (const token of p.presentation_tokens ?? []) {
-      if (token.startsWith('nickname.color.')) projected.nickname_color = token.slice('nickname.color.'.length);
-      else if (token.startsWith('avatar.frame.')) projected.avatar_frame = token.slice('avatar.frame.'.length);
-      else if (token.startsWith('profile.effect.')) projected.profile_effect = token.slice('profile.effect.'.length);
-      else if (token.startsWith('post.effect.')) projected.post_effect = token.slice('post.effect.'.length);
-      else if (token.startsWith('badge.')) {
-        projected.profile_badges = [...(projected.profile_badges ?? []), token.slice('badge.'.length)];
+      if (token.startsWith('profile.effect.')) {
+        const id = token.slice('profile.effect.'.length);
+        projected.profile_effect = id;
+        const matched = data.cosmetics?.find((c) => c.id === id);
+        if (matched) {
+          projected.profile_effect_name = matched.name;
+          projected.profile_effect_style = matched.style;
+        }
+      } else if (token.startsWith('nickname.color.')) {
+        const id = token.slice('nickname.color.'.length);
+        projected.nickname_color = id;
+        const matched = data.cosmetics?.find((c) => c.id === id);
+        if (matched) {
+          projected.nickname_color_name = matched.name;
+          projected.nickname_color_style = matched.style;
+        }
+      } else if (token.startsWith('avatar.frame.')) {
+        const id = token.slice('avatar.frame.'.length);
+        projected.avatar_frame = id;
+        const matched = data.cosmetics?.find((c) => c.id === id);
+        if (matched) {
+          projected.avatar_frame_name = matched.name;
+          projected.avatar_frame_style = matched.style;
+        }
+      }
+    }
+    // 针对主页背景/装饰（profile_effect / space），如果还没匹配到 style，尝试按商品名称在 cosmetics 中对齐
+    if (!projected.profile_effect_style && (p.slot === 'profile_effect' || (p.kind as string) === 'profile_effect')) {
+      const byName = data.cosmetics?.find((c) => c.name === p.title || p.title.includes(c.name) || c.name.includes(p.title));
+      if (byName) {
+        projected.profile_effect = byName.id;
+        projected.profile_effect_name = byName.name;
+        projected.profile_effect_style = byName.style;
+      } else {
+        // 如果后端 cosmetics 数据未载入或未同步，直接按 steam 预设库标题匹配
+        const steamItem = steamBackgrounds.find((s) => s.name.toLowerCase() === p.title.toLowerCase() || p.title.toLowerCase().includes(s.name.toLowerCase()));
+        if (steamItem) {
+          projected.profile_effect = steamItem.id;
+          projected.profile_effect_name = steamItem.name;
+          projected.profile_effect_style = {
+            mode: 'profile',
+            image: steamItem.image,
+            webm: steamItem.webm ? `https://shared.fastly.steamstatic.com/community_assets/images/items/${steamItem.appid}/${steamItem.webm}` : undefined,
+            mp4: steamItem.mp4 ? `https://shared.fastly.steamstatic.com/community_assets/images/items/${steamItem.appid}/${steamItem.mp4}` : undefined,
+          };
+        }
       }
     }
     if (p.asset_attachment_id && p.slot === 'avatar_frame') projected.avatar_frame_attachment_id = p.asset_attachment_id;
@@ -113,7 +154,7 @@
     <div class="shop-checkout">
       <section class="shop-showcase" aria-label="商品预览">
         <div class="showcase-topline">
-          <span class="showcase-kicker">BBLBB / 装扮工作室</span>
+          <span class="showcase-kicker">BBLBB / 积分商城</span>
           <span class="showcase-index">ITEM 01</span>
         </div>
         <div class="showcase-stage">

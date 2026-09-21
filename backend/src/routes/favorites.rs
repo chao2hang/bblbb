@@ -318,6 +318,7 @@ struct FavoritePostRow {
     author_name: Option<String>,
     /// 作者昵称（users.display_name；前台列表优先显示昵称，缺省回退用户名）。
     author_display_name: Option<String>,
+    avatar_attachment_id: Option<String>,
     favorited_at: i64,
 }
 
@@ -346,7 +347,9 @@ async fn list_my_favorites(
     let sql = "SELECT p.id, p.board_id, p.author_id, p.post_type, p.title, p.status,
                       p.reply_count, p.view_count, p.created_at, p.updated_at, p.last_reply_at,
                       p.pinned_at, u.username_normalized AS author_name,
-                      u.display_name AS author_display_name, f.created_at AS favorited_at
+                      u.display_name AS author_display_name,
+                      u.avatar_attachment_id AS avatar_attachment_id,
+                      f.created_at AS favorited_at
                FROM favorites f
                JOIN posts p ON p.id = f.post_id
                LEFT JOIN users u ON u.id = p.author_id
@@ -389,17 +392,25 @@ async fn list_my_favorites(
     };
 
     // PostSummary 复用 posts.rs 列表投影字段集（同一键集）。
+    let author_ids: Vec<String> = page.iter().map(|p| p.author_id.clone()).collect();
+    let author_tokens =
+        crate::routes::posts::fetch_author_presentation_tokens(pool, &author_ids).await;
     let items: Vec<Value> = page
         .iter()
         .map(|p| {
+            let mut author = json!({
+                "id": p.author_id,
+                "username": p.author_name,
+                "display_name": p.author_display_name,
+                "avatar_attachment_id": p.avatar_attachment_id,
+            });
+            if let Some(tokens) = author_tokens.get(author["id"].as_str().unwrap_or_default()) {
+                author["presentation_tokens"] = json!(tokens);
+            }
             json!({
                 "id": p.id,
                 "board_id": p.board_id,
-                "author": {
-                    "id": p.author_id,
-                    "username": p.author_name,
-                    "display_name": p.author_display_name,
-                },
+                "author": author,
                 "post_type": p.post_type,
                 "title": p.title,
                 "status": p.status,
