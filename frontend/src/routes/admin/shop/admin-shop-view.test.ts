@@ -294,4 +294,37 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
     expect(container.textContent).toContain('赛博夜景背景');
     expect(container.textContent).not.toContain('雷霆动效头像框');
   });
+
+  it('上架弹窗支持配置有效期、库存数量、每人限购与等级门槛', async () => {
+    const { container } = render(AdminShopPage, {
+      props: { data: createPageData() as any, form: null }
+    });
+
+    const openFrameBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('上架 Steam 头像框')
+    );
+    expect(openFrameBtn).toBeTruthy();
+    await fireEvent.click(openFrameBtn!);
+
+    // 弹窗打开
+    const modal = container.querySelector('.sf-modal');
+    expect(modal).toBeTruthy();
+
+    // 点击第一项卡片进入定价表单
+    const card = modal?.querySelector('.sf-card');
+    expect(card).toBeTruthy();
+    await fireEvent.click(card!);
+
+    // 验证表单字段：标题、售价、库存、有效期、限购、等级门槛
+    expect(modal?.querySelector('#sp-title')).toBeTruthy();
+    expect(modal?.querySelector('#sp-price')).toBeTruthy();
+    expect(modal?.querySelector('#sp-stock')).toBeTruthy();
+    expect(modal?.querySelector('#sp-validity')).toBeTruthy();
+    expect(modal?.querySelector('#sp-limit')).toBeTruthy();
+    expect(modal?.querySelector('#sp-level')).toBeTruthy();
+    expect(modal?.textContent).toContain('上架数量 (库存)');
+    expect(modal?.textContent).toContain('有效期限');
+    expect(modal?.textContent).toContain('每人限购数量');
+    expect(modal?.textContent).toContain('最低购买等级门槛');
+  });
 });

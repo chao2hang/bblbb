@@ -51,6 +51,11 @@
   });
   let customTitle = $state('');
   let customPrice = $state(300);
+  let customStock = $state<string | number>('');
+  let validityPreset = $state<string>('0');
+  let customValidityDays = $state<number>(30);
+  let customLimit = $state<number>(1);
+  let customLevel = $state<number>(1);
   let submitting = $state(false);
 
   const CATEGORIES = [
@@ -106,6 +111,11 @@
     activeItem = item;
     customTitle = item.name.slice(0, 32);
     customPrice = Math.max(10, Math.round(item.cost / 10));
+    customStock = '';
+    validityPreset = '0';
+    customValidityDays = 30;
+    customLimit = 1;
+    customLevel = 1;
   }
 
   const cosmeticJson = $derived.by(() => {
@@ -129,12 +139,27 @@
 
   const productJson = $derived.by(() => {
     if (!activeItem) return '';
+
+    let validity_seconds: number | null = null;
+    if (validityPreset === 'custom') {
+      const days = Number(customValidityDays) || 0;
+      if (days > 0) validity_seconds = days * 86400;
+    } else {
+      const days = Number(validityPreset) || 0;
+      if (days > 0) validity_seconds = days * 86400;
+    }
+
+    const stockNum = customStock === '' || customStock === null ? null : Number(customStock);
+    const stock_remaining = stockNum != null && stockNum > 0 ? stockNum : null;
+
     return JSON.stringify({
       title: customTitle.trim() || activeItem.name.slice(0, 32),
       unit_price: Number(customPrice) || 0,
+      stock_remaining,
+      validity_seconds,
+      quantity_limit: Math.max(1, Number(customLimit) || 1),
+      required_level: Math.max(1, Number(customLevel) || 1),
       status: 'published',
-      required_level: 1,
-      quantity_limit: 1,
       refund_policy: 'non_refundable'
     });
   });
@@ -241,12 +266,49 @@
               <input id="sp-bg-title" class="input-field" type="text" required maxlength="32" bind:value={customTitle} disabled={submitting} />
             </div>
 
-            <div class="input-wrapper">
-              <label class="input-label" for="sp-bg-price">商城售价 (社区金币) *</label>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <input id="sp-bg-price" class="input-field" type="number" min="0" required bind:value={customPrice} disabled={submitting} style="flex:1;" />
-                <span style="font-size:12px;color:#d97706;white-space:nowrap;">(原 Steam: {activeItem.cost} 点数)</span>
+            <div class="sf-form-row">
+              <div class="input-wrapper">
+                <label class="input-label" for="sp-bg-price">商城售价 (社区金币) *</label>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <input id="sp-bg-price" class="input-field" type="number" min="0" required bind:value={customPrice} disabled={submitting} style="flex:1;" />
+                  <span style="font-size:11px;color:#d97706;white-space:nowrap;">(原: {activeItem.cost}点)</span>
+                </div>
               </div>
+
+              <div class="input-wrapper">
+                <label class="input-label" for="sp-bg-stock">上架数量 (库存)</label>
+                <input id="sp-bg-stock" class="input-field" type="number" min="0" placeholder="留空为不限数量" bind:value={customStock} disabled={submitting} />
+              </div>
+            </div>
+
+            <div class="sf-form-row">
+              <div class="input-wrapper">
+                <label class="input-label" for="sp-bg-validity">有效期限</label>
+                <select id="sp-bg-validity" class="input-field select-field" bind:value={validityPreset} disabled={submitting}>
+                  <option value="0">永久有效 (默认)</option>
+                  <option value="7">7 天 (体验版)</option>
+                  <option value="30">30 天 (月度卡)</option>
+                  <option value="90">90 天 (季度卡)</option>
+                  <option value="365">365 天 (年度卡)</option>
+                  <option value="custom">自定义有效天数...</option>
+                </select>
+                {#if validityPreset === 'custom'}
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+                    <input type="number" class="input-field" min="1" max="3650" placeholder="输入天数" bind:value={customValidityDays} disabled={submitting} style="flex:1;" />
+                    <span style="font-size:12px;color:var(--color-text-secondary);">天</span>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="input-wrapper">
+                <label class="input-label" for="sp-bg-limit">每人限购数量</label>
+                <input id="sp-bg-limit" class="input-field" type="number" min="1" max="999" placeholder="默认 1" bind:value={customLimit} disabled={submitting} />
+              </div>
+            </div>
+
+            <div class="input-wrapper">
+              <label class="input-label" for="sp-bg-level">最低购买等级门槛 (TL0-4)</label>
+              <input id="sp-bg-level" class="input-field" type="number" min="1" max="10" placeholder="默认 1" bind:value={customLevel} disabled={submitting} />
             </div>
 
             <div style="display:flex;gap:8px;margin-top:12px;">
@@ -524,27 +586,44 @@
   }
   .sf-pricing-box {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     gap: 36px;
-    padding: 30px;
+    padding: 26px 30px;
     border: 1px solid var(--color-border);
     border-radius: 12px;
     background: var(--color-bg-subtle);
-    max-width: 640px;
-    margin: 20px auto;
+    max-width: 720px;
+    margin: 16px auto;
   }
   .sf-pricing-preview {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
+    margin-top: 10px;
   }
   .sf-pricing-form {
     flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 10px;
+  }
+  .sf-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
+  }
+  @media (max-width: 640px) {
+    .sf-pricing-box {
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+    }
+    .sf-form-row {
+      grid-template-columns: 1fr;
+    }
   }
   .sf-footer {
     display: flex;
