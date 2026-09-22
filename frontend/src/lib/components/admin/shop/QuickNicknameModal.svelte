@@ -19,6 +19,11 @@
   let mode = $state<'solid' | 'gradient' | 'glow'>('gradient');
   let name = $state('');
   let price = $state(200);
+  let stock = $state<string | number>('');
+  let validityPreset = $state<string>('0');
+  let customValidityDays = $state<number>(30);
+  let limit = $state<number>(1);
+  let level = $state<number>(1);
   let color = $state('#f43f5e');
   let stops = $state<string[]>(['#f43f5e', '#f59e0b', '#8b5cf6']);
   let animate = $state('flow');
@@ -58,12 +63,26 @@
   });
 
   const productJson = $derived.by(() => {
+    let validity_seconds: number | null = null;
+    if (validityPreset === 'custom') {
+      const days = Number(customValidityDays) || 0;
+      if (days > 0) validity_seconds = days * 86400;
+    } else {
+      const days = Number(validityPreset) || 0;
+      if (days > 0) validity_seconds = days * 86400;
+    }
+
+    const stockNum = stock === '' || stock === null ? null : Number(stock);
+    const stock_remaining = stockNum != null && stockNum > 0 ? stockNum : null;
+
     return JSON.stringify({
       title: name.trim() || '未命名彩色昵称',
       unit_price: Number(price) || 0,
+      stock_remaining,
+      validity_seconds,
+      quantity_limit: Math.max(1, Number(limit) || 1),
+      required_level: Math.max(1, Number(level) || 1),
       status: 'published',
-      required_level: 1,
-      quantity_limit: 1,
       refund_policy: 'non_refundable'
     });
   });
@@ -123,6 +142,69 @@
             min="0"
             required
             bind:value={price}
+            disabled={submitting}
+          />
+        </div>
+      </div>
+
+      <!-- 库存与有效期 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);">
+        <div class="input-wrapper">
+          <label class="input-label" for="nc-stock">上架数量 (库存)</label>
+          <input
+            id="nc-stock"
+            class="input-field"
+            type="number"
+            min="0"
+            placeholder="留空为不限数量"
+            bind:value={stock}
+            disabled={submitting}
+          />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="nc-validity">有效期限</label>
+          <select id="nc-validity" class="input-field select-field" bind:value={validityPreset} disabled={submitting}>
+            <option value="0">永久有效 (默认)</option>
+            <option value="7">7 天 (体验版)</option>
+            <option value="30">30 天 (月度卡)</option>
+            <option value="90">90 天 (季度卡)</option>
+            <option value="365">365 天 (年度卡)</option>
+            <option value="custom">自定义天数...</option>
+          </select>
+          {#if validityPreset === 'custom'}
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+              <input type="number" class="input-field" min="1" max="3650" placeholder="输入天数" bind:value={customValidityDays} disabled={submitting} style="flex:1;" />
+              <span style="font-size:12px;color:var(--color-text-secondary);">天</span>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- 限购与等级门槛 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);">
+        <div class="input-wrapper">
+          <label class="input-label" for="nc-limit">每人限购数量</label>
+          <input
+            id="nc-limit"
+            class="input-field"
+            type="number"
+            min="1"
+            max="999"
+            placeholder="默认 1"
+            bind:value={limit}
+            disabled={submitting}
+          />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="nc-level">最低购买等级门槛 (TL0-4)</label>
+          <input
+            id="nc-level"
+            class="input-field"
+            type="number"
+            min="1"
+            max="10"
+            placeholder="默认 1"
+            bind:value={level}
             disabled={submitting}
           />
         </div>
