@@ -247,11 +247,22 @@ describe('TopicRow', () => {
     expect(screen.getByRole('img', { name: '匿名' })).toBeInTheDocument();
   });
 
-  it('keeps pinned and featured states textual', () => {
-    renderRow({ pinned: true, featured: true });
+  it('keeps pinned and featured states textual and placed before the title', () => {
+    const { container } = renderRow({ pinned: true, featured: true });
 
     expect(screen.getByText('置顶')).toBeInTheDocument();
     expect(screen.getByText('精华')).toBeInTheDocument();
+
+    const titleLine = container.querySelector('.topic-row__title-line');
+    const children = Array.from(titleLine?.children ?? []);
+    const pinnedIndex = children.findIndex((el) => el.textContent?.includes('置顶'));
+    const featuredIndex = children.findIndex((el) => el.textContent?.includes('精华'));
+    const titleIndex = children.findIndex((el) => el.classList.contains('topic-row__title'));
+
+    expect(pinnedIndex).toBeGreaterThanOrEqual(0);
+    expect(featuredIndex).toBeGreaterThanOrEqual(0);
+    expect(pinnedIndex).toBeLessThan(titleIndex);
+    expect(featuredIndex).toBeLessThan(titleIndex);
   });
 
   it('falls back to created time when there is no reply activity', () => {
