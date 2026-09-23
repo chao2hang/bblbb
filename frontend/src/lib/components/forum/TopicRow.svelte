@@ -161,8 +161,8 @@
   <div class="topic-row__main">
     <div class="topic-row__title-line">
       {#if pinned}<span class="topic-row__status topic-row__status--pinned">置顶</span>{/if}
-      <a class="topic-row__title" {href} aria-label="查看帖子：{title}">{title}</a>
       {#if featured}<span class="topic-row__status topic-row__status--featured">精华</span>{/if}
+      <a class="topic-row__title" {href} aria-label="查看帖子：{title}">{title}</a>
     </div>
     <div class="topic-row__meta">
       {#if boardLabel}
