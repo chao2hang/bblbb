@@ -36,6 +36,12 @@ body {
   transition: background-color var(--duration-slow) var(--ease-standard), color var(--duration-slow) var(--ease-standard);
 }
 
+/* 全局页面路由切换期间状态提示（与 NavigationProgress 协同） */
+html[data-navigating='true'],
+html[data-navigating='true'] body {
+  cursor: progress;
+}
+
 #app {
   min-height: calc(100vh - var(--header-h));
 }

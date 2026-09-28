@@ -23,7 +23,7 @@ export interface AdminUserItem {
   /** M20-TRUST 信任等级（TL0–TL4；0070 迁移后必有，旧 fixture 允许缺失）。 */
   trust_level?: number;
   roles: string[];
-  /** B币实时余额（point_accounts；无账户 = 0）。 */
+  /** 站点消费货币实时余额（point_accounts；无账户 = 0）。 */
   coin_balance: number;
   created_at: number;
   updated_at: number;

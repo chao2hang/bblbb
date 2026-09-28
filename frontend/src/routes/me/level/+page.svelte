@@ -4,11 +4,13 @@
   import PageTitle from '$lib/components/PageTitle.svelte';
   import { LINUXDO_TRUST_LEVELS, type TrustLevelProgress, type TrustLevelMeta } from '$lib/api/types';
   import type { LevelPageData } from './+page.server';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
 
   let { data }: { data: LevelPageData } = $props();
 
   const trust = $derived(data.trust);
   const error = $derived(data.error);
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
   // 当前信任等级与下一级元数据
   const currentLevel = $derived(trust?.level ?? 0);
@@ -56,7 +58,34 @@
   const requirementsPercentage = $derived(
     requirementsTotalCount > 0 ? Math.round((requirementsMetCount / requirementsTotalCount) * 100) : 0
   );
+
+  // 解析阶梯表各级晋升条件为结构化列表项
+  function parsePromotionItems(promotion: string): { title?: string; items: string[] } {
+    if (promotion.includes('：')) {
+      const parts = promotion.split('：');
+      const title = parts[0];
+      const rest = parts.slice(1).join('：');
+      const items = rest ? rest.split('、').map((s) => s.trim()).filter(Boolean) : [];
+      return { title, items: items.length > 0 ? items : [promotion] };
+    }
+    const items = promotion.split('、').map((s) => s.trim()).filter(Boolean);
+    return { items: items.length > 0 ? items : [promotion] };
+  }
+
+  // 移动端或点击切换时的展开浮窗（等级数字或 null）
+  let activePopoverTier = $state<number | null>(null);
 </script>
+
+<svelte:window
+  onclick={(e) => {
+    if (activePopoverTier !== null && !(e.target as HTMLElement)?.closest?.('.cond-popover-wrap')) {
+      activePopoverTier = null;
+    }
+  }}
+  onkeydown={(e) => {
+    if (e.key === 'Escape') activePopoverTier = null;
+  }}
+/>
 
 <PageTitle title="社区信任等级" />
 
@@ -99,15 +128,13 @@
         </div>
       </div>
       <div class="hero-meta">
-        <div class="hero-tag-line">
-          <span class="badge badge-level">{currentMeta.code}</span>
-          <span class="badge badge-neutral">{currentMeta.name}</span>
+        <div class="hero-title-row">
+          <h2 class="hero-title">{currentMeta.code} · {currentMeta.name}</h2>
           <span class="badge badge-success">当前生效</span>
           {#if isMaxLevel}
             <span class="badge badge-warning">巅峰满级</span>
           {/if}
         </div>
-        <h2 class="hero-title">{currentMeta.code} · {currentMeta.name}</h2>
         <p class="hero-desc">{trust?.summary || currentMeta.summary}</p>
       </div>
     </div>
@@ -309,13 +336,14 @@
                 <tr>
                   <th style="width: 72px;">等级</th>
                   <th style="width: 96px;">称谓</th>
-                  <th style="width: 280px;">晋升条件</th>
+                  <th style="width: 120px;">晋升条件</th>
                   <th>等级特权摘要</th>
                   <th style="width: 112px; text-align: right;">达成状态</th>
                 </tr>
               </thead>
               <tbody>
                 {#each trustTiers as tier (tier.level)}
+                  {@const parsed = parsePromotionItems(tier.promotion)}
                   <tr class="tier-row is-{tier.status}">
                     <td>
                       <div class="tier-badge-cell">
@@ -331,7 +359,71 @@
                     </td>
                     <td>
                       <div class="tier-condition-cell" data-label="晋升条件">
-                        {tier.promotion}
+                        <div
+                          class="cond-popover-wrap {activePopoverTier === tier.level ? 'is-active' : ''}"
+                        >
+                          <button
+                            type="button"
+                            class="cond-trigger"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              activePopoverTier = activePopoverTier === tier.level ? null : tier.level;
+                            }}
+                            aria-expanded={activePopoverTier === tier.level}
+                            aria-label="{tier.code} {tier.name} 晋升条件"
+                          >
+                            <Icon name="list" size={13} />
+                            <span>查看条件</span>
+                            <Icon name="chevron-down" size={11} class="cond-trigger-arrow" />
+                          </button>
+
+                          <div
+                            class="cond-popover {tier.level >= 2 ? 'popover-up' : 'popover-down'}"
+                            role="tooltip"
+                          >
+                            <div class="cond-popover-head">
+                              <div class="cond-popover-title-row">
+                                <span class="badge {tier.status === 'current' ? 'badge-level' : 'badge-neutral'}">{tier.code}</span>
+                                <strong class="cond-popover-title">{tier.name} · 晋升要求</strong>
+                              </div>
+                              {#if tier.level === 0}
+                                <span class="badge badge-neutral cond-head-tag">默认达到</span>
+                              {:else if tier.level === 3}
+                                <span class="badge badge-warning cond-head-tag">100天滚动</span>
+                              {:else if tier.level === 4}
+                                <span class="badge badge-warning cond-head-tag">人工审核</span>
+                              {:else}
+                                <span class="badge badge-neutral cond-head-tag">共 {parsed.items.length} 项</span>
+                              {/if}
+                            </div>
+
+                            {#if parsed.title}
+                              <div class="cond-popover-note">
+                                <Icon name="refresh-cw" size={12} />
+                                <span>{parsed.title}考核标准</span>
+                              </div>
+                            {/if}
+
+                            <ul class="cond-popover-list">
+                              {#each parsed.items as item}
+                                <li class="cond-popover-item">
+                                  <span class="cond-item-bullet">
+                                    {#if tier.level === 0}
+                                      <Icon name="check" size={12} />
+                                    {:else if tier.level === 4}
+                                      <Icon name="shield" size={12} />
+                                    {:else if tier.level === 3}
+                                      <Icon name="refresh-cw" size={12} />
+                                    {:else}
+                                      <Icon name="check" size={12} />
+                                    {/if}
+                                  </span>
+                                  <span class="cond-item-text">{item}</span>
+                                </li>
+                              {/each}
+                            </ul>
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -424,7 +516,7 @@
             </div>
             <h3 class="faq-title">积分与签到的作用</h3>
             <p class="faq-text">
-              日常签到与活跃所获得的 B 币与积分作为社区经济资产独立存在，可用于商城道具兑换与装扮购买，
+              日常签到与活跃所获得的 {currencyName} 与积分作为社区经济资产独立存在，可用于商城道具兑换与装扮购买，
               不与信任等级挂钩，真正做到经济系统与行为信任体系清晰解耦。
             </p>
           </div>
@@ -545,11 +637,10 @@
     min-width: 200px;
   }
 
-  .hero-tag-line {
+  .hero-title-row {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-bottom: 2px;
     flex-wrap: wrap;
   }
 
@@ -557,10 +648,11 @@
     margin: 0;
     font-size: var(--text-lg, 18px);
     font-weight: 700;
+    line-height: 1.3;
   }
 
   .hero-desc {
-    margin: 2px 0 0;
+    margin: var(--space-1) 0 0;
     font-size: var(--text-xs);
     color: var(--color-text-secondary);
     line-height: 1.4;
@@ -867,20 +959,26 @@
   }
 
   /* ── 阶梯一览表 ── */
+  .roadmap-card {
+    overflow: visible !important;
+  }
+
   /* card-body 全局层有 padding !important，会吃掉内联 padding:0；
-     这里以同优先级 !important 恢复「表格贴卡边」的设计意图。 */
+     这里以同优先级 !important 恢复「表格贴卡边」的设计意图，并放开 overflow 避免浮窗被父卡片裁切。 */
   .roadmap-card .card-body {
     padding: 0 !important;
+    overflow: visible !important;
   }
 
   .table-container {
     width: 100%;
-    overflow-x: auto;
+    overflow: visible !important;
   }
 
   .roadmap-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: var(--text-sm);
     text-align: left;
   }
@@ -937,6 +1035,210 @@
     font-size: var(--text-xs);
     color: var(--color-text-secondary);
     line-height: 1.4;
+  }
+
+  /* ── 阶梯表晋升条件浮窗 ── */
+  .cond-popover-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .tier-row:has(.cond-popover-wrap:hover),
+  .tier-row:has(.cond-popover-wrap:focus-within),
+  .tier-row:has(.cond-popover-wrap.is-active) {
+    position: relative;
+    z-index: 50;
+  }
+
+  .cond-popover-wrap:hover,
+  .cond-popover-wrap:focus-within,
+  .cond-popover-wrap.is-active {
+    z-index: 60;
+  }
+
+  .cond-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: var(--color-bg-subtle, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full, 9999px);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+    line-height: 1.4;
+  }
+
+  .cond-trigger:hover,
+  .cond-popover-wrap:hover .cond-trigger,
+  .cond-popover-wrap:focus-within .cond-trigger,
+  .cond-popover-wrap.is-active .cond-trigger {
+    color: var(--color-brand, #3b82f6);
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.35);
+  }
+
+  :global(.cond-trigger-arrow) {
+    transition: transform 0.15s ease;
+    opacity: 0.6;
+  }
+
+  .cond-popover-wrap:hover :global(.cond-trigger-arrow),
+  .cond-popover-wrap:focus-within :global(.cond-trigger-arrow),
+  .cond-popover-wrap.is-active :global(.cond-trigger-arrow) {
+    transform: rotate(180deg);
+    opacity: 1;
+  }
+
+  .cond-popover {
+    position: absolute;
+    left: 0;
+    z-index: 70;
+    width: max-content;
+    min-width: 250px;
+    max-width: 360px;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-card, #18181b);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 10px);
+    box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.5), 0 4px 12px -2px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(16px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  }
+
+  .cond-popover.popover-down {
+    top: calc(100% + 6px);
+    bottom: auto;
+    transform: translateY(-4px);
+  }
+
+  .cond-popover.popover-down::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -8px;
+    height: 8px;
+  }
+
+  .cond-popover.popover-up {
+    bottom: calc(100% + 6px);
+    top: auto;
+    transform: translateY(4px);
+  }
+
+  .cond-popover.popover-up::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -8px;
+    height: 8px;
+  }
+
+  .cond-popover-wrap:hover .cond-popover.popover-down,
+  .cond-popover-wrap:focus-within .cond-popover.popover-down,
+  .cond-popover-wrap.is-active .cond-popover.popover-down {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .cond-popover-wrap:hover .cond-popover.popover-up,
+  .cond-popover-wrap:focus-within .cond-popover.popover-up,
+  .cond-popover-wrap.is-active .cond-popover.popover-up {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .cond-popover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .cond-popover-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .cond-popover-title {
+    font-size: var(--text-xs, 12px);
+    font-weight: 700;
+    color: var(--color-text);
+    white-space: nowrap;
+  }
+
+  .cond-head-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    font-weight: 500;
+  }
+
+  .cond-popover-note {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: var(--radius-sm, 4px);
+    padding: 3px 8px;
+    margin-bottom: var(--space-2);
+  }
+
+  .cond-popover-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .cond-popover-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: var(--text-xs, 12px);
+    color: var(--color-text);
+    line-height: 1.4;
+  }
+
+  .cond-item-bullet {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--color-brand, #3b82f6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+
+  .cond-item-text {
+    flex: 1;
+    word-break: break-word;
   }
 
   .tier-perks-cell {

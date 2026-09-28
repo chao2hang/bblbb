@@ -111,7 +111,13 @@
   --color-danger-soft: var(--aui-danger-soft, rgb(239 68 68 / 10%));
 
   /* ---- Colors: Code / Focus / List states (来自 blbui) ---- */
-  --color-code-bg: var(--aui-code-bg, #080808);
+  --color-code-bg: #F6F8FA;
+  --color-code-header-bg: #EEF2F6;
+  --color-code-border: #D0D7DE;
+  --color-code-text: #24292F;
+  --color-code-inline-bg: #EFF2F5;
+  --color-code-inline-border: #D8DEE4;
+  --color-code-inline-text: #0969DA;
   --color-focus-ring: var(--aui-focus-ring, 0 0 0 2px rgb(161 161 170 / 28%));
   --color-visited: var(--aui-text-secondary, #737373);
   --color-highlight-soft: color-mix(in srgb, var(--aui-warning, #f59e0b) 14%, var(--aui-surface, #0f0f0f));
@@ -284,7 +290,13 @@ html.dark {
   --color-danger: #F2585B;
   --color-danger-soft: #3A1618;
 
-  --color-code-bg: #14181E;
+  --color-code-bg: #090D13;
+  --color-code-header-bg: #111620;
+  --color-code-border: #2B3340;
+  --color-code-text: #E6EDF3;
+  --color-code-inline-bg: rgba(255, 255, 255, 0.07);
+  --color-code-inline-border: rgba(255, 255, 255, 0.14);
+  --color-code-inline-text: #79C0FF;
   --color-focus-ring: rgba(123, 146, 255, 0.7);
   --color-visited: #79818D;
   --color-highlight-soft: #33280F;
@@ -362,7 +374,13 @@ html.dark {
     --color-warning-soft: #33280F;
     --color-danger: #F2585B;
     --color-danger-soft: #3A1618;
-    --color-code-bg: #14181E;
+    --color-code-bg: #090D13;
+    --color-code-header-bg: #111620;
+    --color-code-border: #2B3340;
+    --color-code-text: #E6EDF3;
+    --color-code-inline-bg: rgba(255, 255, 255, 0.07);
+    --color-code-inline-border: rgba(255, 255, 255, 0.14);
+    --color-code-inline-text: #79C0FF;
     --color-focus-ring: rgba(123, 146, 255, 0.7);
     --color-visited: #79818D;
     --color-highlight-soft: #33280F;

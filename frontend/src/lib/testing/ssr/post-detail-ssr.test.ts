@@ -112,7 +112,7 @@ describe('M04-UI-09 帖子详情无 JS 公开阅读（SSR）', () => {
     const { body } = render(PostPage, { props: { data: restrictedData } });
     expect(body).not.toContain('RESTRICTED-BODY-CANARY');
     expect(body).not.toContain('隐藏正文');
-    expect(body).toContain('LV.5');
+    expect(body).toContain('TL5');
     expect(body).toContain('内容需达到');
   });
 
@@ -169,7 +169,7 @@ describe('M04-UI-07 可见性可访问占位：hidden/after_reply/level/paid 不
   }> = [
     { policy: 'logged_in', expectText: '内容仅对登录用户开放' },
     { policy: 'after_reply', expectText: '回复后可解锁剩余内容' },
-    { policy: 'level', required_level: 7, expectText: '内容需达到 LV.7 后开放' },
+    { policy: 'level', required_level: 7, expectText: '内容需达到 TL7 后开放' },
     { policy: 'paid', expectText: '付费内容，解锁后可查看' }
   ];
 

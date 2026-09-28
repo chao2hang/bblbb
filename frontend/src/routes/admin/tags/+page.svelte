@@ -2,7 +2,7 @@
   // M03-UI-07：管理标签页——后端裁决状态渲染 + 标签 CRUD 行操作。
   // 原型对齐：prototype/pages/admin-tags.html
   // M18-ADMIN-DIALOG：写操作弹层化——
-  // - 「新建标签」常驻表单卡 → 页脚按钮 + Dialog（?/create）；
+  // - 「新建标签」常驻表单卡 → 顶部页头按钮 + Dialog（?/create）；
   // - 行「编辑」展开行 → 按钮 + Dialog（?/update，name/description + If-Match version + reason）；
   // - 行「启停」行内表单 → 按钮 + Dialog（?/toggle，reason 必填）；
   // - 行「合并」展开行 → 按钮 + DangerConfirm（?/merge，target_id + reason）；
@@ -199,8 +199,28 @@
 </svelte:head>
 
 <section class="app-card">
-  <header class="app-card__head">
+  <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <h2>标签列表</h2>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <Button text="新建标签" variant="primary" size="sm" onclick={openCreate} />
+      <ExportButton
+        label="导出标签"
+        filename="admin-tags"
+        columns={[
+          { key: 'name', label: '名称' },
+          { key: 'slug', label: 'slug' },
+          { key: 'usage', label: '使用次数' },
+          { key: 'status', label: '状态' }
+        ]}
+        getData={() =>
+          displayedItems.map((item) => ({
+            name: item.name,
+            slug: item.slug,
+            usage: item.usage_count ?? 0,
+            status: item.status === 'merged' ? '已合并' : !isActive(item) ? '已停用' : '正常'
+          }))}
+      />
+    </div>
   </header>
 
   <div class="app-card__body">
@@ -314,27 +334,6 @@
       <p class="input-hint" role="status" style="margin-top:12px;">{message}</p>
     {/if}
   </div>
-
-  <footer class="app-card__foot">
-    <Button text="新建标签" variant="primary" size="sm" onclick={openCreate} />
-    <ExportButton
-      label="导出标签"
-      filename="admin-tags"
-      columns={[
-        { key: 'name', label: '名称' },
-        { key: 'slug', label: 'slug' },
-        { key: 'usage', label: '使用次数' },
-        { key: 'status', label: '状态' }
-      ]}
-      getData={() =>
-        displayedItems.map((item) => ({
-          name: item.name,
-          slug: item.slug,
-          usage: item.usage_count ?? 0,
-          status: item.status === 'merged' ? '已合并' : !isActive(item) ? '已停用' : '正常'
-        }))}
-    />
-  </footer>
 </section>
 
 <!-- 新建标签 Dialog：name + reason（审计）→ ?/create。

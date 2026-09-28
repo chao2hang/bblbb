@@ -180,15 +180,27 @@ pub struct ObjectHead {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PresignedUrl {
     pub url: String,
+    /// 必须随请求发送的签名头（例如 PUT 的 Content-Type）。
+    pub headers: std::collections::BTreeMap<String, String>,
     /// 过期时刻（Unix 毫秒）；前端仅在过期时调后端重签。
     pub expires_at: i64,
     /// 传输方式（presigned PUT/GET）。
     pub method: &'static str,
 }
 
-/// 生成不可猜 object key（M06-ADAPTER-02）：`u/<owner>/<uuidv7>/<safe>`。
+/// 生成不可猜、不可由客户端写入的已完成对象 key：`u/<owner>/<uuidv7>/<safe>`。
 /// `<safe>` 仅保留白名单字符；路径穿越/绝对路径/符号链接由适配器层阻断。
 pub fn generate_object_key(owner_id: &str, original_name: Option<&str>) -> String {
+    format_key(owner_id, None, original_name)
+}
+
+/// 生成客户端可写 staging key。完成上传时服务端必须把扫描后的字节写入新的
+/// final key，再原子切换数据库指针；永不对 final key 签 PUT。
+pub fn generate_staging_object_key(attachment_id: &str) -> String {
+    format!("staging/attachments/{attachment_id}")
+}
+
+fn format_key(owner_id: &str, namespace: Option<&str>, original_name: Option<&str>) -> String {
     let safe = original_name
         .map(|n| {
             let cleaned: String = n
@@ -211,7 +223,11 @@ pub fn generate_object_key(owner_id: &str, original_name: Option<&str>) -> Strin
             s
         })
         .unwrap_or_else(|| "object".to_string());
-    format!("u/{owner_id}/{}/{safe}", uuid::Uuid::now_v7())
+    let unique = uuid::Uuid::now_v7();
+    match namespace {
+        Some(namespace) => format!("{namespace}/u/{owner_id}/{unique}/{safe}"),
+        None => format!("u/{owner_id}/{unique}/{safe}"),
+    }
 }
 
 /// 判断 storage_key 是否安全（无 `..` 路径段、非绝对路径、无空段），

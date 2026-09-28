@@ -1269,8 +1269,28 @@ paths:
             schema:
               "$ref": "#/components/schemas/AttachmentCreate"
       responses:
+        '200':
+          description: Idempotent replay for an attachment already ready
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentCreateReplayResponse'
         '201':
-          "$ref": "#/components/responses/GenericSuccess"
+          description: Attachment upload created
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentCreateResponse'
         '413':
           "$ref": "#/components/responses/ProblemResponse"
         '409':
@@ -2480,7 +2500,16 @@ paths:
       x-csrf: false
       responses:
         '200':
-          "$ref": "#/components/responses/GenericSuccess"
+          description: Activity summary including configured currency labels
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySummaryResponse'
         '204':
           description: No content
         '400':
@@ -8411,6 +8440,193 @@ components:
           - string
           - 'null'
           format: uuid
+    AttachmentRecord:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - owner_id
+      - status
+      - media_type
+      - size_bytes
+      - is_public
+      - quota_bytes_charged
+      - ref_count
+      - processing_version
+      - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, ready, quarantined, deleted]
+        media_type:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        original_name:
+          type: [string, 'null']
+        sha256:
+          type: string
+        width:
+          type: [integer, 'null']
+        height:
+          type: [integer, 'null']
+        is_public:
+          type: boolean
+        quota_bytes_charged:
+          type: integer
+          format: int64
+        ref_count:
+          type: integer
+        processing_version:
+          type: integer
+        processing_error:
+          type: [string, 'null']
+        created_at:
+          type: integer
+          format: int64
+        deleted_at:
+          type: [integer, 'null']
+          format: int64
+    AttachmentUploadTransport:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required: [mode, url, method, headers, expires_at]
+        properties:
+          mode:
+            type: string
+            const: presigned
+          url:
+            type: string
+            format: uri
+          method:
+            type: string
+            const: PUT
+          headers:
+            type: object
+            additionalProperties:
+              type: string
+          expires_at:
+            type: integer
+            format: int64
+      - type: object
+        additionalProperties: false
+        required: [mode]
+        properties:
+          mode:
+            type: string
+            const: stream
+    AttachmentCreateResponse:
+      type: object
+      additionalProperties: false
+      required: [id, attachment, upload]
+      properties:
+        id:
+          type: string
+          format: uuid
+        attachment:
+          $ref: '#/components/schemas/AttachmentRecord'
+        upload:
+          $ref: '#/components/schemas/AttachmentUploadTransport'
+    AttachmentCreateReplayResponse:
+      type: object
+      additionalProperties: false
+      required: [attachment]
+      properties:
+        attachment:
+          $ref: '#/components/schemas/AttachmentRecord'
+    ActivitySummaryResponse:
+      type: object
+      additionalProperties: true
+      required:
+      - activity_day
+      - checked_in_today
+      - check_in_enabled
+      - auto_check_in_enabled
+      - streak_days
+      - today_earned
+      - balances
+      - config
+      - timezone
+      properties:
+        activity_day:
+          type: string
+          format: date
+        checked_in_today:
+          type: boolean
+        check_in_enabled:
+          type: boolean
+        auto_check_in_enabled:
+          type: boolean
+        streak_days:
+          type: integer
+          minimum: 0
+        today_earned:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityReward'
+        balances:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityBalance'
+        config:
+          type: object
+          additionalProperties: true
+          required: [site_timezone, timezone_version, check_in_enabled, auto_check_in_enabled, day_reset_hour]
+          properties:
+            site_timezone:
+              type: string
+            timezone_version:
+              type: string
+            check_in_enabled:
+              type: boolean
+            auto_check_in_enabled:
+              type: boolean
+            day_reset_hour:
+              type: integer
+              minimum: 0
+              maximum: 23
+        timezone:
+          type: object
+          additionalProperties: true
+          required: [offset_secs, source, version]
+          properties:
+            offset_secs:
+              type: integer
+            source:
+              type: string
+              enum: [user, site, default]
+            version:
+              type: string
+    ActivityReward:
+      type: object
+      additionalProperties: false
+      required: [currency, amount]
+      properties:
+        currency:
+          type: string
+        amount:
+          type: integer
+          format: int64
+    ActivityBalance:
+      type: object
+      additionalProperties: false
+      required: [currency, amount, name]
+      properties:
+        currency:
+          type: string
+        amount:
+          type: integer
+          format: int64
+        name:
+          type: string
     PublicUser:
       type: object
       required:

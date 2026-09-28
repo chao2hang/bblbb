@@ -25,9 +25,13 @@
   import { adminStateLabel } from '$lib/admin';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
   import { toastActionResult } from '$lib/ui/action-toast';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
+
   import type { AdminUsersPageData, AdminUsersActionData, AdminUserItem } from './+page.server';
 
   let { data, form }: { data: AdminUsersPageData; form?: AdminUsersActionData | null } = $props();
+
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
 
   /** 状态选项（与 ?/update / ?/batchUpdate 服务端白名单一致）。 */
@@ -258,14 +262,39 @@
 <PageHeader title="用户管理" />
 
 <section class="app-card">
-  <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:center;">
+  <header class="app-card__head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
     <h2>成员列表</h2>
-    <Button
-      text={`昵称黑名单 (${data.blacklistTotal ?? 0})`}
-      variant="secondary"
-      size="sm"
-      onclick={() => (blacklistOpen = true)}
-    />
+    <div style="display:flex;gap:8px;align-items:center;">
+      <Button
+        text={`昵称黑名单 (${data.blacklistTotal ?? 0})`}
+        variant="secondary"
+        size="sm"
+        onclick={() => (blacklistOpen = true)}
+      />
+      <ExportButton
+        label="导出用户 CSV"
+        filename="admin-users"
+        columns={[
+          { key: 'username', label: '用户名' },
+          { key: 'email', label: '邮箱' },
+          { key: 'level', label: '等级' },
+          { key: 'coin', label: currencyName },
+          { key: 'roles', label: '角色' },
+          { key: 'status', label: '状态' },
+          { key: 'last', label: '最近活动' }
+        ]}
+        getData={() =>
+          filteredItems.map((item) => ({
+            username: item.username,
+            email: item.email,
+            level: item.level,
+            coin: item.coin_balance ?? 0,
+            roles: item.roles.join('|'),
+            status: statusLabel(item.status),
+            last: lastActiveLabel(item.last_login_at)
+          }))}
+      />
+    </div>
   </header>
 
   <div class="app-card__body">
@@ -334,7 +363,7 @@
                 </th>
                 <th>用户</th>
                 <th>等级</th>
-                <th>B币</th>
+                <th>{currencyName}</th>
                 <th>邮箱</th>
                 <th>状态</th>
                 <th>角色</th>
@@ -406,33 +435,6 @@
           </tbody>
           </table>
         </div>
-
-        <!-- M18：对齐原型底部导出卡片按钮 -->
-        <footer class="app-card__foot" style="margin-top:14px;">
-          <ExportButton
-            label="导出用户 CSV"
-            filename="admin-users"
-            columns={[
-              { key: 'username', label: '用户名' },
-              { key: 'email', label: '邮箱' },
-              { key: 'level', label: '等级' },
-              { key: 'coin', label: 'B币' },
-              { key: 'roles', label: '角色' },
-              { key: 'status', label: '状态' },
-              { key: 'last', label: '最近活动' }
-            ]}
-            getData={() =>
-              filteredItems.map((item) => ({
-                username: item.username,
-                email: item.email,
-                level: item.level,
-                coin: item.coin_balance ?? 0,
-                roles: item.roles.join('|'),
-                status: statusLabel(item.status),
-                last: lastActiveLabel(item.last_login_at)
-              }))}
-          />
-        </footer>
       {/if}
     {/if}
   </div>

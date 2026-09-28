@@ -12,8 +12,8 @@
 // 该编排脚本是 Playwright config 的 webServer.command；可单独运行以复现
 // E2E 环境（`node tests/playwright/fixtures/serve.mjs`）。
 import { spawn } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,14 +50,16 @@ function resolveBackendBin() {
 
 const BACKEND_BIN = resolveBackendBin();
 // 视觉检测等复用方可用环境变量改端口/库/输出；默认值与 Playwright 语义不变。
-const DB_PATH = join(REPO, 'data', process.env.E2E_DB_PATH ?? 'e2e.sqlite');
+const DATA_DIR = join(REPO, 'data');
+const DB_PATH = resolve(DATA_DIR, process.env.E2E_DB_PATH ?? 'e2e.sqlite');
+const STORAGE_DIR = resolve(DATA_DIR, process.env.E2E_STORAGE_DIR ?? 'e2e-uploads');
 const VITE_BIN = join(FRONTEND, 'node_modules', '.bin', 'vite');
 
 const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8080);
 const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 4173);
 const PUBLIC_ORIGIN = process.env.E2E_PUBLIC_ORIGIN ?? `https://localhost:${FRONTEND_PORT}`;
 const ALLOWED_ORIGINS = process.env.E2E_ALLOWED_ORIGINS ?? PUBLIC_ORIGIN;
-const HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/healthz`;
+const READY_URL = `http://127.0.0.1:${BACKEND_PORT}/readyz`;
 
 const children = [];
 
@@ -79,11 +81,11 @@ function spawnChild(name, command, args, opts = {}) {
   return child;
 }
 
-async function waitForHealth(timeoutMs = 30000) {
+async function waitForReady(timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const resp = await fetch(HEALTH_URL);
+      const resp = await fetch(READY_URL);
       if (resp.ok) return true;
     } catch {
       /* backend not up yet */
@@ -108,6 +110,12 @@ process.on('SIGTERM', () => cleanup(0));
 process.on('SIGINT', () => cleanup(0));
 
 async function main() {
+  // Fresh CI checkout has no tracked data/ or uploads/ directories (both gitignored).
+  // SQLite and /readyz require the parent/storage directories to exist before startup.
+  mkdirSync(dirname(DB_PATH), { recursive: true });
+  rmSync(STORAGE_DIR, { recursive: true, force: true });
+  mkdirSync(STORAGE_DIR, { recursive: true });
+
   // 1. 清理旧 e2e 库（含 WAL/SHM）。
   for (const suffix of ['', '-wal', '-shm']) {
     const path = `${DB_PATH}${suffix}`;
@@ -124,6 +132,7 @@ async function main() {
       env: {
         ...process.env,
         BBLBB__DATABASE_URL: `sqlite://${DB_PATH}`,
+        BBLBB__STORAGE_DIR: STORAGE_DIR,
         BBLBB__MFA_ENCRYPTION_KEY: 'e2e-mfa-encryption-key-0000',
         BBLBB__PUBLIC_ORIGIN: PUBLIC_ORIGIN,
          BBLBB__ALLOWED_ORIGINS: ALLOWED_ORIGINS,
@@ -134,8 +143,8 @@ async function main() {
     }
   );
 
-  await waitForHealth();
-  log('main', 'backend healthy');
+  await waitForReady();
+  log('main', 'backend ready (database, migrations, storage)');
 
   // 3. 铸 persona。
   const seed = spawn('node', [join(__dirname, 'seed-personas.mjs')], {

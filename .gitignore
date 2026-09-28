@@ -57,6 +57,8 @@ node_modules/
 # Test artifacts
 /playwright-report/
 /test-results/
+/frontend/test-results/.playwright-artifacts-*/
+/frontend/tests/a11y/playwright-results.json
 
 # Watcher state
 /scripts/.todo-snapshot.md5

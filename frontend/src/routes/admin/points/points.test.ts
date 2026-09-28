@@ -71,11 +71,11 @@ describe('M18-ADMIN-POINTS: 积分管理', () => {
     expect(sentPayload.reason).toBe('测试积分');
 
     expect(result).toEqual({
-      message: '已成功为 chaos 调整 +9999 B币'
+      message: '已成功为 chaos 调整 +9999 站点消费货币'
     });
   });
 
-  it('adjust action: 拒绝 exp 并返回 B币-only 中文提示', async () => {
+  it('adjust action: 拒绝 exp 并返回站点消费货币限制提示', async () => {
     const formData = new FormData();
     formData.set('username', 'chaos');
     formData.set('currency', 'exp');
@@ -96,7 +96,7 @@ describe('M18-ADMIN-POINTS: 积分管理', () => {
     } as any)) as any;
 
     expect(result.status).toBe(422);
-    expect(result.data.message).toBe('调账币种仅支持 B币');
+    expect(result.data.message).toBe('调账币种仅支持站点消费货币');
     expect(authedPostMock).not.toHaveBeenCalled();
   });
 

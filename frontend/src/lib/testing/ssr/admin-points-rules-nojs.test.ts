@@ -48,7 +48,7 @@ describe('M18-ADMIN-POINTS-03 积分规则配置 SSR', () => {
     }
     // 既有规则行：数额/币种/每日上限/冷却/版本只读展示（数据仍在 SSR）
     expect(body).toContain('+10');
-    expect(body).toContain('B币');
+    expect(body).toContain('金币');
     expect(body).not.toContain('经验 EXP');
     expect(body).not.toContain('经验值');
     expect(body).toContain('每日上限：1');

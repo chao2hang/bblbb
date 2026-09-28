@@ -53,8 +53,8 @@ BBLBB_STORAGE_LOCAL_PATH=/var/lib/bblbb/uploads
 # BBLBB_S3_ACCESS_KEY_ID=...
 # BBLBB_S3_SECRET_ACCESS_KEY=...
 # BBLBB_S3_PATH_STYLE=false
-# BBLBB_S3_PRESIGNED_UPLOADS=true
 # BBLBB_S3_SIGNED_URL_TTL_SECONDS=300
+# S3 presigned uploads remain blocked for production until AWS/MinIO/R2 integration evidence is recorded (M06-UPLOAD-03).
 BBLBB_UPLOAD_MAX_BYTES=20971520
 BBLBB_SECRET_KEY_FILE=/etc/bblbb/master-key
 BBLBB_SMTP_*=...

@@ -300,7 +300,21 @@ async fn create_attachment(
                     if attachment.owner_id != user.id {
                         return Err(AppError::not_found("attachment not found", request_id));
                     }
-                    // 重放：重新组装传输通道（S3 重新签发短 TTL PUT URL）
+                    if attachment.status == AttachmentStatus::Ready {
+                        // A ready row references only the server-published immutable key;
+                        // never re-issue a client PUT capability for it.
+                        return Ok(attachment_json_response(attachment, request_id));
+                    }
+                    if !matches!(
+                        attachment.status,
+                        AttachmentStatus::Pending | AttachmentStatus::Processing
+                    ) {
+                        return Err(AppError::conflict(
+                            "attachment is not uploadable",
+                            request_id,
+                        ));
+                    }
+                    // Pending/processing replay may refresh only its staging-key URL.
                     let transport = match attachment.storage_backend {
                         StorageBackend::S3 => {
                             let adapter = match storage.adapter(StorageBackend::S3) {
@@ -315,6 +329,7 @@ async fn create_attachment(
                             {
                                 Ok(p) => UploadTransport::Presigned {
                                     url: p.url,
+                                    headers: p.headers,
                                     method: p.method,
                                     expires_at: p.expires_at,
                                 },
@@ -864,11 +879,13 @@ fn create_response_json(
         upload = match t {
             UploadTransport::Presigned {
                 url,
+                headers,
                 method,
                 expires_at,
             } => json!({
                 "mode": "presigned",
                 "url": url,
+                "headers": headers,
                 "method": method,
                 "expires_at": expires_at,
             }),

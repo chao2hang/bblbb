@@ -90,7 +90,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   // 社交 / 付费内容（422 长尾，with_code 直发，注册表已收录）
   cannot_follow_self: '不能关注你自己',
   cannot_message_self: '不能给自己发送私信',
-  invalid_price_coin: '定价无效：价格需在 1–1000 金币之间，且仅付费内容可设置',
+  invalid_price_coin: '定价无效：价格需在 1–1000 之间，且仅付费内容可设置',
   post_not_paid: '该内容不是付费内容',
   price_not_configured: '付费内容未设置价格，暂无法购买',
   self_reaction: '不能对自己发布的内容表态',

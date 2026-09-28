@@ -4,7 +4,7 @@
   //   自身账号可见字段，不输出任何会话 token）；
   // - 账号与安全状态卡（两步验证状态 + 设备数，管理入口 → /me/security；
   //   会话撤销/退出全部设备与 TOTP/Passkey 管理已拆至 /me/security 与 /mfa）；
-  // - 侧栏：账户卡（B币/签到，GET /activity/summary 失败时整卡隐藏）、
+  // - 侧栏：账户卡（站点消费货币/签到，GET /activity/summary 失败时整卡隐藏）、
   //   M20-TRUST 信任等级进度卡、快捷入口网格（含全部子页入口）；
   // - 我的处罚区块（GET /me/sanctions，后端端点落地前恒空；有记录时显示
   //   类型/原因/时间 + 去申诉入口）。
@@ -20,6 +20,8 @@
   import steamBackgrounds from '$lib/data/steam-profile-backgrounds.json';
   import { normalizeSlot, projectEntitlementTokens } from '$lib/components/wardrobe/tokens';
   import { profileEffectClass, profileEffectStyle } from '$lib/components/wardrobe/profile-effect';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
+
 
   let { data }: { data: MePageData } = $props();
 
@@ -27,6 +29,7 @@
   const presentation = $derived(data.presentation ?? null);
   const sessions = $derived(data.sessions);
   const error = $derived(data.error);
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
   // GAP-FIX 账户卡 / 我的处罚（load 增强数据；缺失时安全降级不渲染）。
   const activity = $derived(data.activity ?? null);
   const sanctions = $derived(data.sanctions ?? []);
@@ -416,7 +419,7 @@
           </div>
           {#if activity}
             <div class="me-info-item">
-              <span class="me-info-label">B币</span>
+              <span class="me-info-label">{currencyName}</span>
               <span class="me-info-value"><strong>{coinBalance ? coinBalance.amount : 0}</strong></span>
             </div>
             <div class="me-info-item">
@@ -476,7 +479,7 @@
             </div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
               <div style="display:flex;justify-content:space-between;align-items:baseline;">
-                <span class="text-secondary" style="font-size:var(--text-sm);">B币余额</span>
+                <span class="text-secondary" style="font-size:var(--text-sm);">{currencyName}余额</span>
                 <strong style="font-variant-numeric:tabular-nums;">{coinBalance ? coinBalance.amount : '—'}</strong>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:baseline;">

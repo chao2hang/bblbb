@@ -440,6 +440,14 @@ pre,
   font-size: 13px !important;
 }
 
+pre code,
+.code-block pre code {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
 /* ========== 引用块 ========== */
 blockquote,
 .quote,
@@ -501,7 +509,8 @@ td,
 
 
 html[data-theme="dark"] .btn.primary,
-html[data-theme="dark"] .publish {
+html[data-theme="dark"] .publish,
+html[data-theme="dark"] .empty-state-cta {
   background: var(--color-brand) !important;
 }
 

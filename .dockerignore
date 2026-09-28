@@ -4,3 +4,30 @@
 # runtime COPY /src/backend/target/release/* 找不到文件（PR #4 合并后
 # 首次真实重编译即触发）。CI 的干净 checkout 不受影响，本地构建同理。
 backend/.cargo
+
+# Never send local credentials, databases, user data, logs, or build outputs to builders.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.db
+**/*.sqlite
+**/*.sqlite*
+**/*.db-*
+/data/
+/backend/data/
+/uploads/
+/backups/
+*.log
+.git/
+**/node_modules/
+**/target/
+/frontend/build/
+/frontend/.svelte-kit/
+/frontend/coverage/
+/frontend/test-results/
+/prototype/.verify/
+/dev/certs/
+*.pem
+*.key
+/playwright-report/
+/test-results/

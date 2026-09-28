@@ -50,7 +50,7 @@ head
 | `BBLBB_S3_SECRET_ACCESS_KEY` | — | Secret，不回显、不记录 |
 | `BBLBB_S3_PATH_STYLE` | `false` | MinIO 等兼容服务可开启 |
 | `BBLBB_S3_PUBLIC_BASE_URL` | `https://cdn.example.com` | 仅公开、不可变资源可使用 |
-| `BBLBB_S3_PRESIGNED_UPLOADS` | `true` | 是否启用浏览器预签名直传 |
+| `BBLBB__STORAGE_BACKEND=s3` | `true` | 选择 S3 即启用浏览器预签名 staging PUT；未通过 M06-UPLOAD-03 真实 provider 验证前，正式环境保持 `local` |
 | `BBLBB_S3_SIGNED_URL_TTL_SECONDS` | `300` | 私有下载建议 60–3600 秒 |
 | `BBLBB_UPLOAD_MAX_BYTES` | `20971520` | 站点硬上限；用途限制仍取更小值 |
 
@@ -178,7 +178,7 @@ X-Content-Type-Options: nosniff
 - Bucket 默认私有；“公开链接”指后端鉴权后生成的临时预签名 URL，不代表对象设置为 Public ACL。
 - 管理员在 `/admin/storage` 配置 `BBLBB_S3_SIGNED_URL_TTL_SECONDS`，建议 60–3600 秒，允许范围由部署配置限定。
 - URL 到期后只有该链接失效，附件元数据仍为 `ready`，S3 对象及其 variant 不删除、不占用清理队列。
-- **发布阻断：** 当前 S3 presigned PUT 只签名 object key 与 Content-Type，未绑定 Content-Length/checksum/一次性上传状态；在 URL TTL 内仍可能覆盖已完成对象。生产启用 S3 直传前必须改为不可覆盖的一次性上传策略并补集成测试。
+- **发布阻断（真实 provider 集成证据仍待完成）：** S3 预签名 PUT 只写入 `staging/attachments/<id>`；`complete` 校验实际读取字节、扫描后写入从未交给客户端的全新 final key，并在事务中原子切换 `attachments.storage_key`。ready 对象不会重签 PUT，URL 重放只能改 staging，不能覆盖已扫描的 final 对象。S3 bucket 必须配置 `staging/` 生命周期规则（建议 24 小时过期）清理进程崩溃或删除失败留下的 staging/orphan 对象。此仓库的 mock/Local 测试不能证明 AWS S3、MinIO、R2 对签名头/CORS/最终化及并发语义的真实兼容；正式启用 S3 前仍须对三种声明支持的 provider 做真实集成演练并保存证据。
 - 用户再次访问时，Rust 重新检查附件状态、引用内容可见性和 grant，再签发新 URL；不能无条件刷新旧链接。
 - 签名 URL 不进入数据库正文、搜索索引、通知、日志或长期缓存。公开页面也应通过稳定 attachment URL 获取临时跳转，避免把签名参数持久化。
 - 上传预签名 URL 与下载/公开访问 URL 可以使用不同 TTL；两者都只控制临时凭证，不控制对象生命周期。

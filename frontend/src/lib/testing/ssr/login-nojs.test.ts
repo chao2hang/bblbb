@@ -45,6 +45,7 @@ describe('无 JS：登录页（M02-UX-03）', () => {
           site: {
             siteName: 'BBLBB',
             siteDescription: 'BBLBB 社区论坛',
+            currencyName: '金币',
             loginEyebrow: 'WELCOME BACK',
             loginTitle: '登录 BBLBB',
             loginSubtitle: 'BBLBB 社区论坛',
@@ -72,6 +73,7 @@ describe('无 JS：登录页（M02-UX-03）', () => {
           site: {
             siteName: 'BBLBB',
             siteDescription: 'BBLBB 社区论坛',
+            currencyName: '金币',
             loginEyebrow: 'WELCOME BACK',
             loginTitle: '登录 BBLBB',
             loginSubtitle: 'BBLBB 社区论坛',

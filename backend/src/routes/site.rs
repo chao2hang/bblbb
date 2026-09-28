@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::app::AppState;
 use crate::error::AppError;
 
-use super::admin_ext::load_site_settings;
+use super::admin_ext::{load_currency_name, load_site_settings};
 
 /// 站点公开信息路由（全站文案统一，0065）。
 ///
@@ -34,6 +34,13 @@ async fn get_public_site(State(state): State<AppState>) -> Result<Response, AppE
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
     let row = load_site_settings(pool, request_id).await?;
+    let currency_name = match load_currency_name(pool, request_id).await {
+        Ok(name) => name,
+        Err(error) => {
+            tracing::warn!(error = ?error, request_id = %request_id, "failed to read public currency name; using default");
+            None
+        }
+    };
     let google_login_enabled =
         row.google_auth_enabled != 0 && !row.google_client_id.trim().is_empty();
     let github_login_enabled =
@@ -50,6 +57,7 @@ async fn get_public_site(State(state): State<AppState>) -> Result<Response, AppE
         "maintenance_mode": row.maintenance_mode != 0,
         "google_login_enabled": google_login_enabled,
         "github_login_enabled": github_login_enabled,
+        "currency_name": currency_name.unwrap_or_else(|| "金币".to_string()),
         "version": row.version,
     }))
     .into_response();

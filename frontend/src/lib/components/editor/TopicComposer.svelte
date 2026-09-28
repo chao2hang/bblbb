@@ -25,6 +25,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import {
     listBoards,
     listTags,
@@ -137,6 +138,13 @@
   let draftVersion = $state(1);
   let draftState = $state<'idle' | 'saved' | 'saving' | 'error' | 'conflict'>('idle');
   let dirty = $state(false);
+
+  // ── 全屏编写模式 ──
+  let isFullscreen = $state(false);
+
+  function toggleFullscreen() {
+    isFullscreen = !isFullscreen;
+  }
   let conflict = $state<Problem | null>(null);
 
   // —— step-up 重新验证（M02-MFA-07）：管理员代改命中 403 step_up_required 时弹窗 ——
@@ -370,14 +378,16 @@
     }
   }
 
-  /** 付费价格校验：access_policy=paid 时必填，1-1000 整数（B 币）。 */
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
+
+  /** 付费价格校验：access_policy=paid 时必填，1-1000 整数。 */
   const priceError = $derived.by(() => {
     if (accessPolicy !== 'paid') return null;
     const raw = priceCoinInput.trim();
-    if (!raw) return `付费帖子需设定价格（${PRICE_MIN}-${PRICE_MAX} B币）`;
+    if (!raw) return `付费帖子需设定价格（${PRICE_MIN}-${PRICE_MAX} ${currencyName}）`;
     const n = Number(raw);
     if (!Number.isInteger(n) || n < PRICE_MIN || n > PRICE_MAX) {
-      return `价格需为 ${PRICE_MIN}-${PRICE_MAX} 之间的整数（B币）`;
+      return `价格需为 ${PRICE_MIN}-${PRICE_MAX} 之间的整数（${currencyName}）`;
     }
     return null;
   });
@@ -667,6 +677,8 @@
       if (e.key === 'Escape') {
         if (openPanel) {
           openPanel = null;
+        } else if (isFullscreen) {
+          isFullscreen = false;
         } else {
           handleCancel();
         }
@@ -687,7 +699,11 @@
 
 <PageTitle title={editPostId ? (isDelegatedEdit ? '管理代改内容' : '编辑内容') : '发布内容'} />
 
-<div class="container page-content app-page linuxdo-composer-page" id="page-publish">
+<div
+  class="container page-content app-page linuxdo-composer-page"
+  class:is-fullscreen={isFullscreen}
+  id="page-publish"
+>
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -699,8 +715,18 @@
       }
     }}
   >
-    <section class="composer-window" aria-labelledby="composer-window-title">
-      <header class="composer-titlebar">
+    <section
+      class="composer-window"
+      class:is-fullscreen={isFullscreen}
+      aria-labelledby="composer-window-title"
+    >
+      <header
+        class="composer-titlebar"
+        ondblclick={(e) => {
+          if ((e.target as HTMLElement)?.closest('button, a, input, select')) return;
+          toggleFullscreen();
+        }}
+      >
         <span class="composer-titlebar__identity">
           <Icon name="pen-line" size={15} />
           <strong id="composer-window-title">{editPostId ? (isDelegatedEdit ? '管理代改' : '编辑内容') : '创建话题'}</strong>
@@ -709,7 +735,16 @@
           <span class="composer-draft-status {user ? 'is-active' : 'is-muted'}" role="status">{draftStateLabel ?? (user ? '草稿自动保存已开启' : '登录后保存草稿')}</span>
           <button
             type="button"
-            class="composer-window-close"
+            class="composer-window-btn composer-window-expand"
+            onclick={toggleFullscreen}
+            aria-label={isFullscreen ? '退出全屏' : '全屏'}
+            title={isFullscreen ? '退出全屏' : '全屏'}
+          >
+            <Icon name={isFullscreen ? 'minimize-2' : 'maximize-2'} size={15} />
+          </button>
+          <button
+            type="button"
+            class="composer-window-btn composer-window-close"
             onclick={handleCancel}
             aria-label="关闭编辑器"
             title="返回社区"
@@ -1039,7 +1074,7 @@
                     <div class="composer-select-wrapper">
                       <select class="input-field" id="publish-level" bind:value={visibilityLevel}>
                         {#each levelOptions as level}
-                          <option value={level} disabled={level > userLevel}>{level}（LV.{level}）</option>
+                          <option value={level} disabled={level > userLevel}>{level}（TL{level}）</option>
                         {/each}
                       </select>
                       <span class="composer-select-icon" aria-hidden="true">
@@ -1048,9 +1083,9 @@
                     </div>
                   {/if}
                   {#if accessPolicy === 'paid'}
-                    <!-- 付费可见（GAP-FIX 付费解锁）：价格 1-1000 B币，前端校验；
+                    <!-- 付费可见（GAP-FIX 付费解锁）：价格 1-1000，前端校验；
                          price_coin 随发布提交并由后端持久化。 -->
-                    <label class="input-label composer-field__sub" for="publish-price">价格（B币）</label>
+                    <label class="input-label composer-field__sub" for="publish-price">价格（{currencyName}）</label>
                     <input
                       type="number"
                       class="input-field"
@@ -1066,7 +1101,7 @@
                     {#if priceError}
                       <p class="input-hint is-error" role="alert">{priceError}</p>
                     {:else}
-                      <p class="input-hint">读者需支付 {PRICE_MIN}-{PRICE_MAX} B币解锁正文；余额不足时无法解锁。</p>
+                      <p class="input-hint">读者需支付 {PRICE_MIN}-{PRICE_MAX} {currencyName}解锁正文；余额不足时无法解锁。</p>
                     {/if}
                   {/if}
                   {#if !user}

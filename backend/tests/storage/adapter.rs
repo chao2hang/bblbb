@@ -19,7 +19,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use bblbb_backend::storage::adapter::{LocalAdapter, S3Adapter, S3Config, StorageAdapter};
 use bblbb_backend::storage::error::StorageError;
-use bblbb_backend::storage::model::{is_safe_key, PresignedUrl};
+use bblbb_backend::storage::model::{
+    generate_object_key, generate_staging_object_key, is_safe_key, PresignedUrl,
+};
 
 // ─── key 安全 ───────────────────────────────────────────────────────────────
 
@@ -27,6 +29,17 @@ use bblbb_backend::storage::model::{is_safe_key, PresignedUrl};
 fn safe_key_accepts_normal_paths() {
     assert!(is_safe_key("u/owner1/abc/photo.jpg"));
     assert!(is_safe_key("a/b/c"));
+}
+
+#[test]
+fn presigned_staging_keys_are_separate_from_published_keys() {
+    let staging = generate_staging_object_key("attachment-id");
+    let published = generate_object_key("owner-id", Some("photo.png"));
+    assert!(staging.starts_with("staging/attachments/"));
+    assert!(published.starts_with("u/owner-id/"));
+    assert_ne!(staging, published);
+    assert!(is_safe_key(&staging));
+    assert!(is_safe_key(&published));
 }
 
 #[test]
@@ -69,6 +82,16 @@ async fn local_adapter_full_contract() {
         adapter.read_object("u/a/obj1").await.unwrap(),
         b"hello storage"
     );
+
+    // Bounded reads allow exact-size input and reject files over the declared limit.
+    assert_eq!(
+        adapter.read_object_bounded("u/a/obj1", 13).await.unwrap(),
+        b"hello storage"
+    );
+    assert!(matches!(
+        adapter.read_object_bounded("u/a/obj1", 5).await,
+        Err(StorageError::Verification(_))
+    ));
 
     // range
     assert_eq!(
@@ -145,6 +168,10 @@ enum Scenario {
     Fault(u16),
     /// 完整 multipart 生命周期（Initiate/UploadPart/Complete/Abort）。
     Multipart,
+    /// GET 返回声明长度超限的对象，测试 bounded read 早期拒绝。
+    OversizedGet,
+    /// GET 返回 chunked 超限对象，测试无 Content-Length 时的逐块内存上限。
+    ChunkedOversizedGet,
 }
 
 fn s3_error_body(code: u16) -> (&'static str, &'static str, &'static str) {
@@ -189,6 +216,8 @@ async fn spawn_mock_s3(scenario: Scenario) -> (String, tokio::sync::mpsc::Receiv
             let scenario = match &scenario {
                 Scenario::Fault(code) => Scenario::Fault(*code),
                 Scenario::Multipart => Scenario::Multipart,
+                Scenario::OversizedGet => Scenario::OversizedGet,
+                Scenario::ChunkedOversizedGet => Scenario::ChunkedOversizedGet,
             };
             tokio::spawn(async move {
                 let mut buf = vec![0u8; 8192];
@@ -204,10 +233,40 @@ async fn spawn_mock_s3(scenario: Scenario) -> (String, tokio::sync::mpsc::Receiv
                 let method = parts.first().copied().unwrap_or("");
                 let target = parts.get(1).copied().unwrap_or("/");
 
+                if matches!(scenario, Scenario::ChunkedOversizedGet) && method == "GET" {
+                    let _ = socket
+                        .write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: application/octet-stream\r\n\r\n")
+                        .await;
+                    let _ = socket.write_all(b"10\r\n0123456789abcdef\r\n").await;
+                    let _ = socket
+                        .write_all(b"10\r\nghijklmnopqrstuv\r\n0\r\n\r\n")
+                        .await;
+                    let _ = socket.shutdown().await;
+                    return;
+                }
+
                 let (code, reason, body) = match &scenario {
                     Scenario::Fault(c) => {
                         let (code, reason, body) = s3_error_body(*c);
                         (code.to_string(), reason.to_string(), body.to_string())
+                    }
+                    Scenario::OversizedGet => {
+                        if method == "GET" {
+                            (
+                                "200".to_string(),
+                                "OK".to_string(),
+                                "0123456789abcdef".to_string(),
+                            )
+                        } else {
+                            (
+                                "200".to_string(),
+                                "OK".to_string(),
+                                "1234567890123".to_string(),
+                            )
+                        }
+                    }
+                    Scenario::ChunkedOversizedGet => {
+                        ("200".to_string(), "OK".to_string(), "".to_string())
                     }
                     Scenario::Multipart => {
                         if target.contains("uploads")
@@ -314,6 +373,26 @@ async fn s3_fault_5xx_maps_to_upstream_and_retryable() {
         "5xx → storage_upstream_error"
     );
     assert!(err.is_retryable(), "5xx 必须可重试");
+}
+
+#[tokio::test]
+async fn s3_bounded_get_rejects_oversized_content_length_before_buffering_body() {
+    let (adapter, _rx) = s3_with(Scenario::OversizedGet).await;
+    let err = adapter
+        .read_object_bounded("staging/object", 5)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, StorageError::Verification(_)));
+}
+
+#[tokio::test]
+async fn s3_bounded_get_stops_at_limit_for_chunked_response_without_content_length() {
+    let (adapter, _rx) = s3_with(Scenario::ChunkedOversizedGet).await;
+    let err = adapter
+        .read_object_bounded("staging/object", 5)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, StorageError::Verification(_)));
 }
 
 #[tokio::test]
@@ -475,6 +554,11 @@ async fn s3_presign_upload_method_is_put() {
         url.url.contains("X-Amz-Signature"),
         "必须携带 SigV4 签名参数"
     );
+    assert_eq!(
+        url.headers.get("content-type").map(String::as_str),
+        Some("image/png"),
+        "浏览器 PUT 必须发送签名时要求的 Content-Type"
+    );
 }
 
 #[test]
@@ -482,6 +566,7 @@ fn presigned_url_expiry_model() {
     let now = bblbb_backend::outbox::now_millis();
     let url = PresignedUrl {
         url: "https://mock.example/bucket/key".to_string(),
+        headers: Default::default(),
         expires_at: now + 60_000,
         method: "GET",
     };

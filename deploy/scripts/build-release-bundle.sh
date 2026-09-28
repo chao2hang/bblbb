@@ -13,6 +13,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="${BBLBB_RELEASE_VERSION:-}"
+TARGET_DIR="${CARGO_TARGET_DIR:-}"
+if [[ -z "$TARGET_DIR" ]]; then
+  TARGET_DIR="$(cd "$ROOT/backend" && cargo metadata --format-version 1 --no-deps --locked | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
+fi
 OUT_DIR=""
 BUILD_DIR=""
 
@@ -36,7 +40,12 @@ if [[ -z "$VERSION" ]]; then
   VERSION="$(git -C "$ROOT" describe --tags --always 2>/dev/null || echo "dev")"
 fi
 OUT_DIR="${OUT_DIR:-$ROOT/dist}"
+if [[ -n "$(git -C "$ROOT" status --porcelain)" ]]; then
+  echo "错误：release bundle 必须从干净工作区构建；请先提交所有发布内容。" >&2
+  exit 1
+fi
 BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
 
 echo "==> 构建 release bundle: version=$VERSION"
 echo "==> 后端 release 编译（使用 Cargo.lock）"
@@ -45,25 +54,36 @@ echo "==> 后端 release 编译（使用 Cargo.lock）"
   cargo build --release --locked
 )
 
-echo "==> 前端构建（使用 package-lock.json）"
+echo "==> 前端构建（隔离工作区，使用 package-lock.json）"
+FRONTEND_BUILD_DIR="$BUILD_DIR/frontend-build"
+mkdir -p "$FRONTEND_BUILD_DIR"
 (
   cd "$ROOT/frontend"
+  tar --exclude='./node_modules' --exclude='./build' --exclude='./.svelte-kit' \
+    --exclude='./coverage' --exclude='./test-results' --exclude='./.env' --exclude='./.env.*' \
+    -cf - . | tar -C "$FRONTEND_BUILD_DIR" -xf -
+)
+(
+  cd "$FRONTEND_BUILD_DIR"
   npm ci --silent
   npm run build
+  npm prune --omit=dev --ignore-scripts
 )
 
 echo "==> 组装 bundle"
-mkdir -p "$BUILD_DIR/backend" "$BUILD_DIR/frontend" "$BUILD_DIR/migrations"
-cp "$ROOT/backend/target/release/bblbb-backend" "$BUILD_DIR/backend/bblbb-backend"
-cp "$ROOT/backend/target/release/bblbb-migrate" "$BUILD_DIR/backend/bblbb-migrate"
-cp -R "$ROOT/frontend/build" "$BUILD_DIR/frontend/build"
-cp "$ROOT/frontend/package.json" "$ROOT/frontend/package-lock.json" "$BUILD_DIR/frontend/"
+mkdir -p "$BUILD_DIR/backend" "$BUILD_DIR/frontend" "$BUILD_DIR/migrations" "$BUILD_DIR/openapi"
+cp "$TARGET_DIR/release/bblbb-backend" "$BUILD_DIR/backend/bblbb-backend"
+cp "$TARGET_DIR/release/bblbb-migrate" "$BUILD_DIR/backend/bblbb-migrate"
+cp -R "$FRONTEND_BUILD_DIR/build" "$BUILD_DIR/frontend/build"
+cp -R "$FRONTEND_BUILD_DIR/node_modules" "$BUILD_DIR/frontend/node_modules"
+cp "$FRONTEND_BUILD_DIR/package.json" "$FRONTEND_BUILD_DIR/package-lock.json" "$BUILD_DIR/frontend/"
+# Keep only runtime artifacts; the temp source tree and its build tooling must not enter the bundle.
+rm -rf "$FRONTEND_BUILD_DIR"
 cp -R "$ROOT/migrations/sqlite" "$ROOT/migrations/mysql" "$ROOT/migrations/mariadb" "$BUILD_DIR/migrations/"
+cp -R "$ROOT/openapi/." "$BUILD_DIR/openapi/"
 echo "$VERSION" > "$BUILD_DIR/VERSION"
 
 mkdir -p "$OUT_DIR"
-tar -czf "$OUT_DIR/$VERSION.tar.gz" -C "$BUILD_DIR" .
-(cd "$OUT_DIR" && shasum -a 256 "$VERSION.tar.gz" > "$VERSION.tar.gz.sha256")
 
 echo "==> 生成 METADATA.json（M15-PACKAGE-02）"
 GIT_COMMIT="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
@@ -71,12 +91,24 @@ GIT_COMMIT_SHORT="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo "u
 RUST_VERSION="$(rustc --version 2>/dev/null || echo "unknown")"
 (
   cd "$ROOT/backend"
-  cargo tree --locked --prefix depth 0 > "$BUILD_DIR/deps-cargo.txt" 2>/dev/null || true
+  cargo tree --locked --prefix depth 0 > "$BUILD_DIR/deps-cargo.txt"
 )
 (
-  cd "$ROOT/frontend"
-  npm ls --json --all > "$BUILD_DIR/deps-npm.json" 2>/dev/null || true
+  cd "$BUILD_DIR/frontend"
+  npm ls --json --all --omit=dev > "$BUILD_DIR/deps-npm.json"
 )
+python3 - "$BUILD_DIR" <<'PYEOF'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+cargo_tree = (root / "deps-cargo.txt").read_text().splitlines()
+npm = json.loads((root / "deps-npm.json").read_text())
+(root / "SBOM.json").write_text(json.dumps({
+    "format": "bblbb-dependency-inventory-v1",
+    "generated_by": ["cargo tree --locked", "npm ls --json --all --omit=dev"],
+    "cargo_tree": cargo_tree,
+    "npm_production_dependencies": npm.get("dependencies", {}),
+}, ensure_ascii=False, indent=2) + "\n")
+PYEOF
 cat > "$BUILD_DIR/METADATA.json" <<EOF
 {
   "version": "$VERSION",
@@ -84,7 +116,7 @@ cat > "$BUILD_DIR/METADATA.json" <<EOF
   "build_commit_short": "$GIT_COMMIT_SHORT",
   "rust": "$RUST_VERSION",
   "dependency_locks": {
-    "backend": "backend/Cargo.lock",
+    "backend": "Cargo.lock",
     "frontend": "frontend/package-lock.json"
   },
   "sbom": "SBOM.json",

@@ -19,7 +19,8 @@ import NotificationsPage from '../../routes/notifications/+page.svelte';
 import type { Notification, User } from '$lib/api/client';
 
 vi.mock('$app/state', () => ({
-  page: { url: { pathname: '/', searchParams: new URLSearchParams() }, data: {} }
+  page: { url: { pathname: '/', searchParams: new URLSearchParams() }, data: {} },
+  navigating: { from: null, to: null, type: null, willUnload: false, delta: null, complete: null }
 }));
 vi.mock('$app/navigation', () => ({
   goto: vi.fn(),

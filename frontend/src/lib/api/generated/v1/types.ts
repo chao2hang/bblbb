@@ -29,6 +29,71 @@ export interface AttachmentCreate {
   target_type?: string | null;
   target_id?: string | null;
 }
+export interface AttachmentRecord {
+  id: string;
+  owner_id: string;
+  status: "pending" | "processing" | "ready" | "quarantined" | "deleted";
+  media_type: string;
+  size_bytes: number;
+  original_name?: string | null;
+  sha256?: string;
+  width?: number | null;
+  height?: number | null;
+  is_public: boolean;
+  quota_bytes_charged: number;
+  ref_count: number;
+  processing_version: number;
+  processing_error?: string | null;
+  created_at: number;
+  deleted_at?: number | null;
+}
+export type AttachmentUploadTransport = ({
+  mode: "presigned";
+  url: string;
+  method: "PUT";
+  headers: Record<string, string>;
+  expires_at: number;
+}) | ({
+  mode: "stream";
+});
+export interface AttachmentCreateResponse {
+  id: string;
+  attachment: AttachmentRecord;
+  upload: AttachmentUploadTransport;
+}
+export interface AttachmentCreateReplayResponse {
+  attachment: AttachmentRecord;
+}
+export interface ActivitySummaryResponse {
+  activity_day: string;
+  checked_in_today: boolean;
+  check_in_enabled: boolean;
+  auto_check_in_enabled: boolean;
+  streak_days: number;
+  today_earned: Array<ActivityReward>;
+  balances: Array<ActivityBalance>;
+  config: {
+    site_timezone: string;
+    timezone_version: string;
+    check_in_enabled: boolean;
+    auto_check_in_enabled: boolean;
+    day_reset_hour: number;
+  };
+  timezone: {
+    offset_secs: number;
+    source: "user" | "site" | "default";
+    version: string;
+  };
+}
+export interface ActivityReward {
+  currency: string;
+  amount: number;
+}
+export interface ActivityBalance {
+  currency: string;
+  amount: number;
+  name: string;
+}
 export interface PublicUser {
   id: string;
   username: string;

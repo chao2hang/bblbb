@@ -201,7 +201,9 @@ async fn copy_cross_backend(
             "copy source missing: {key}"
         )));
     }
-    let data = source.read_object(key).await?;
+    let data = source
+        .read_object_bounded(key, head.size_bytes.max(0) as u64)
+        .await?;
     target
         .write_object(key, &data, head.content_type.as_deref())
         .await
@@ -215,7 +217,15 @@ async fn verify_hash(
     expected: &str,
 ) -> Result<bool, StorageError> {
     let adapter = storage.adapter(backend)?;
-    let data = adapter.read_object(key).await?;
+    let head = adapter.head_object(key).await?;
+    if !head.exists || head.size_bytes < 0 {
+        return Err(StorageError::NotFound(format!(
+            "verify source missing: {key}"
+        )));
+    }
+    let data = adapter
+        .read_object_bounded(key, head.size_bytes as u64)
+        .await?;
     let actual = hex::encode(sha2_digest(&data));
     Ok(actual == expected)
 }

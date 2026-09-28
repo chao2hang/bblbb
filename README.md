@@ -111,12 +111,12 @@ Caddy
 
 v0.5 需求基线冻结于 2026-08-04（commit `5e17fa3`）；截至 2026-09-12，M18 前端交互对齐已完成，但后端原子批量与全量服务端导出仍待实现；M19 设计系统重做已由产品所有者确认取消（当前主题符合要求）；全仓 823 个叶子任务中 796 项完成、25 项阻塞、2 项待完成（S3 一次性上传策略仍是发布阻断项）：
 
-- Rust/axum 后端：认证闭环（注册/邮箱验证/登录/登出/找回密码/MFA/CSRF）、内容与楼层回复、板块与标签、举报/审核/处罚/申诉、通知、附件与下载计费、积分商城与装扮、活跃等级、搜索、AI Gateway、视频嵌入、OIDC、公开市场、主题与插件，以及社交/个人域（关注、收藏、双人私信、成就、API 密钥、改密、OAuth 授权管理、积分流水、付费内容解锁、站点统计与 RSS/Atom）——233 个契约 operation 均已分配，其中 201 个 verified、23 个 implemented、9 个 not_started（逐项登记见 [`todo/OPENAPI-COVERAGE.md`](todo/OPENAPI-COVERAGE.md)）；数据库支持 SQLite 与 MySQL/MariaDB，启动默认**不**自动迁移（需 `BBLBB__AUTO_MIGRATE=true` 或 `--migrate`才应用迁移，见 [`backend/README.md`](backend/README.md)）
+- Rust/axum 后端：认证闭环（注册/邮箱验证/登录/登出/找回密码/MFA/CSRF）、内容与楼层回复、板块与标签、举报/审核/处罚/申诉、通知、附件与下载计费、积分商城与装扮、活跃等级、搜索、AI Gateway、视频嵌入、OIDC、公开市场、主题与插件，以及社交/个人域（关注、收藏、双人私信、成就、API 密钥、改密、OAuth 授权管理、积分流水、付费内容解锁、站点统计与 RSS/Atom）——243 个契约 operation 均已分配，其中 201 个 verified、33 个 implemented、9 个 not_started（逐项登记见 [`todo/OPENAPI-COVERAGE.md`](todo/OPENAPI-COVERAGE.md)）；数据库支持 SQLite 与 MySQL/MariaDB，启动默认**不**自动迁移（需 `BBLBB__AUTO_MIGRATE=true` 或 `--migrate`才应用迁移，见 [`backend/README.md`](backend/README.md)）
 - SvelteKit 2 / Svelte 5 / adapter-node 前端：覆盖原型全站 IA（首页/发现/板块/标签/帖子/搜索/私信/收藏/成就/商城/市场/账单/设置/申诉/API 密钥与 29 个管理后台页面，共 69 个页面路由），SSR + 无 JS 降级可访问
 - 微信小程序端（见上文）
 - GitHub Actions CI：文档与 OpenAPI（含路线图/覆盖校验）、Rust（sccache 缓存）、前端、原型和三数据库基础检查
 - 58 路由高保真原型（34 前台 + 24 后台管理）
-- OpenAPI 3.1 契约：180 paths、233 operations、233 唯一 operationId
+- OpenAPI 3.1 契约：180 paths、243 operations、243 唯一 operationId
 - 102 个工作包、823 个叶子任务的执行册（796 完成、25 阻塞、2 待完成；M18 已完成 30/32；当前首要任务为 `M18-ADMIN-BATCH-01`）
 
 ### 开发命令

@@ -243,7 +243,7 @@ describe('M00-FRONTEND-09 隐私守卫：客户端 store（会话投影渲染）
     // 展开用户菜单：显示名称与等级，仍不出现邮箱/凭据值。
     await userEvent.click(screen.getByRole('button', { name: '用户菜单' }));
     expect(screen.getByText('爱丽丝')).toBeTruthy();
-    expect(screen.getByText('LV.7')).toBeTruthy();
+    expect(screen.getByText('TL7')).toBeTruthy();
 
     expect(document.body.textContent).not.toContain('alice@example.com');
     expect(document.body.textContent).not.toContain('CLIENT-STORE-HASH');

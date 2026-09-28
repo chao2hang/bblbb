@@ -1340,20 +1340,21 @@ export function productStatusLabel(status: ProductStatus | undefined): string {
 }
 
 // ── 货币展示（商城/余额/订单共用）─────────────────────────────────────────
-// 后端投影里 currency_id 可能是 UUID 形态，直接 toUpperCase() 渲染会在页面上出现整段 UUID。
-// 展示只识别 B 币；未知短代码安全降级为大写，未知 UUID 不原样外露。
+// 全站可消费货币（code='coin'）展示名称统一以后台系统设置为准（默认“金币”，可由管理员在系统设置中配置）。
+// 缺省 name 时使用内置兜底；组件应显式传入请求上下文的站点货币名；未知 UUID 引用不原样外露。
 
-const KNOWN_CURRENCY_CODES: Record<string, string> = {
-  coin: 'COIN',
-  'b_coin': 'COIN',
-  '01911fd5-0047-0000-0000-000000000002': 'COIN'
-};
+const DEFAULT_CURRENCY_NAME = '金币';
+
+function isBuiltinCoin(key: string): boolean {
+  const lower = key.toLowerCase();
+  return lower === 'coin' || lower === 'b_coin' || lower === '01911fd5-0047-0000-0000-000000000002';
+}
 
 function isCurrencyCode(value: string): boolean {
   return /^[a-z0-9_-]{1,16}$/i.test(value);
 }
 
-/** 货币展示标签（不带金额）。支持对象或字符串标识；将内置货币（含 UUID）归一化，未知 UUID 引用返回 ''。 */
+/** 货币展示标签（不带金额）。支持对象或字符串标识；内置货币归一化为系统设置名称，未知 UUID 引用返回 ''。 */
 export function currencyLabel(
   input:
     | {
@@ -1363,29 +1364,30 @@ export function currencyLabel(
       }
     | string
     | null
-    | undefined
+    | undefined,
+  fallbackName?: string
 ): string {
   if (!input) return '';
+  const fallback = fallbackName?.trim() || DEFAULT_CURRENCY_NAME;
   if (typeof input === 'string') {
     const raw = input.trim();
-    const lower = raw.toLowerCase();
-    return KNOWN_CURRENCY_CODES[lower] ?? (isCurrencyCode(raw) ? raw.toUpperCase() : '');
+    if (isBuiltinCoin(raw)) return fallback;
+    return isCurrencyCode(raw) ? raw.toUpperCase() : '';
   }
   const name = input.name?.trim();
   if (name) return name;
   const code = input.code?.trim();
   if (code) {
-    const lower = code.toLowerCase();
-    return KNOWN_CURRENCY_CODES[lower] ?? code.toUpperCase();
+    if (isBuiltinCoin(code)) return fallback;
+    return code.toUpperCase();
   }
   const id = input.id?.trim() ?? '';
   if (!id) return '';
-  const lower = id.toLowerCase();
-  if (KNOWN_CURRENCY_CODES[lower]) return KNOWN_CURRENCY_CODES[lower];
+  if (isBuiltinCoin(id)) return fallback;
   return isCurrencyCode(id) ? id.toUpperCase() : '';
 }
 
-/** 金额 + 货币标签（“100 COIN”；free: true 且金额为 0 时返回 “免费”；无标签时只渲染金额）。 */
+/** 金额 + 货币标签（“100 金币”；free: true 且金额为 0 时返回 “免费”；无标签时只渲染金额）。 */
 export function formatMoney(
   amount: number,
   input:
@@ -1393,10 +1395,10 @@ export function formatMoney(
     | string
     | null
     | undefined,
-  opts: { free?: boolean } = {}
+  opts: { free?: boolean; fallbackName?: string } = {}
 ): string {
   if (opts.free && amount === 0) return '免费';
-  const label = currencyLabel(input);
+  const label = currencyLabel(input, opts.fallbackName);
   return label ? `${amount} ${label}` : `${amount}`;
 }
 

@@ -34,6 +34,7 @@
 | 环境变量 | 类型化字段 | 默认值 | 环境适用范围 | 运行时变更 |
 |---|---|---|---|---|
 | `BBLBB__BIND_ADDRESS` | `bind_address` | `127.0.0.1:8080` | all | 重启 |
+| `BBLBB__CONTAINERIZED` | `containerized` | `false` | all；仅隔离容器内显式设 `true` 后允许 `0.0.0.0` | 重启 |
 | `BBLBB__LOG_FILTER` | `log_filter` | `bblbb_backend=info,tower_http=info` | all | 重启 |
 | `BBLBB__LOG_FORMAT` | `log_format` | `text` | all | 重启 |
 | `BBLBB__OPENAPI_PATH` | `openapi_path` | `../openapi/openapi.yaml` | all | 重启 |

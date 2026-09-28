@@ -33,6 +33,8 @@
 @import './lib/styles/mobile.css';
 /* 后台壳层最终交互契约：统一 rail/drawer 断点与工具条状态。 */
 @import './lib/styles/admin.css';
+/* 语法高亮与代码块外观增强：为正文与回复中的代码容器提供编辑器级质感与高亮 */
+@import './lib/styles/syntax-highlight.css';
 
 /* SvelteKit 根容器：与原型 #app 语义等价 */
 body > .sveltekit,

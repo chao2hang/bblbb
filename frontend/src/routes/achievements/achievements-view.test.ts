@@ -112,9 +112,9 @@ describe('成就墙 卡片展示 / 列表展示 切换与分类筛选', () => {
     expect(container.textContent).toContain('连续签到 7 天');
     expect(container.textContent).toContain('百帖');
     expect(container.textContent).toContain('???');
-    expect(container.textContent).toContain('已装备');
     expect(container.textContent).toContain('已解锁');
     expect(container.textContent).toContain('隐藏');
+    expect(container.textContent).not.toContain('正在装备');
   });
 
   it('点击「列表展示」切换为列表视图，且写入 localStorage', async () => {

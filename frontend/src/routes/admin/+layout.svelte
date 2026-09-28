@@ -440,7 +440,7 @@
 
         <!-- 面包屑导航 -->
         <nav class="app-admin-breadcrumb" aria-label="后台层级导航">
-          <a href="/admin" class="app-admin-breadcrumb__item app-admin-breadcrumb__root">
+          <a href="/admin" class="app-admin-breadcrumb__item app-admin-breadcrumb__root" aria-label="管理后台首页">
             <Icon name="layout-dashboard" size={13} />
             <span>管理后台</span>
           </a>

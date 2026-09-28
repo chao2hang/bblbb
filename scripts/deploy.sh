@@ -24,9 +24,10 @@ SERVER="root@SERVER_IP"  # TODO: 部署前替换为真实服务器 IP（如 root
 REMOTE_DIR="/opt/bblbb"
 REMOTE_BACKUP="/var/www/bblbb-backup-$(date '+%Y%m%d%H%M%S')"
 
-# SSH 兼容选项（服务器使用旧版算法）
-SSH_OPTS="-o ConnectTimeout=15 -o StrictHostKeyChecking=no -o KexAlgorithms=+diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -o ControlMaster=auto -o ControlPath=/tmp/bblbb-ssh-%r@%h:%p -o ControlPersist=600"
-SCP_OPTS="-o ConnectTimeout=15 -o StrictHostKeyChecking=no -o KexAlgorithms=+diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa"
+# Secure SSH defaults: provision the verified host key in known_hosts before deployment.
+# Never disable host-key verification or re-enable deprecated SHA-1/legacy KEX algorithms.
+SSH_OPTS="-o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o ControlMaster=auto -o ControlPath=/tmp/bblbb-ssh-%r@%h:%p -o ControlPersist=600"
+SCP_OPTS="-o ConnectTimeout=15 -o StrictHostKeyChecking=yes"
 RSYNC_SSH="ssh $SCP_OPTS"
 
 error() { echo "ERROR: $*" >&2; exit 1; }

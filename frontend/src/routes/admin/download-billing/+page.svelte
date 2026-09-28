@@ -248,8 +248,16 @@
 
 <!-- 卡片 2：下载记录（原型同款表格；计费流水无批量端点，不提供选择列） -->
 <section class="app-card">
-  <header class="app-card__head">
+  <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <h2>下载记录</h2>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button type="button" class="btn ghost sm" disabled={refreshing} onclick={refreshRecords}>
+        {refreshing ? '刷新中…' : '刷新记录'}
+      </button>
+      <button type="button" class="btn secondary sm" onclick={exportBilling}>
+        导出账单
+      </button>
+    </div>
   </header>
   <div class="app-card__body">
     <!-- 原型通用工具栏 -->
@@ -338,14 +346,5 @@
         </a>
       </div>
     {/if}
-
-    <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
-      <button type="button" class="btn secondary sm" onclick={exportBilling}>
-        导出账单
-      </button>
-      <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" disabled={refreshing} onclick={refreshRecords}>
-        {refreshing ? '刷新中…' : '刷新记录'}
-      </button>
-    </footer>
   </div>
 </section>

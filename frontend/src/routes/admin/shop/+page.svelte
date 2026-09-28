@@ -13,6 +13,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { adminStateLabel } from '$lib/admin';
   import { currencyLabel, formatMoney, productKindLabel, productStatusLabel } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
@@ -51,6 +52,7 @@
   const config = $derived(data.config);
   const cosmetics = $derived(data.cosmetics ?? []);
   const message = $derived(form?.message ?? null);
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
   // ── 主功能分区 Tab（商品货架 / 装扮样式库 / 订单记录）──
   type ShopMainTab = 'products' | 'cosmetics' | 'orders';
@@ -426,7 +428,7 @@
           {config.data.enabled === false ? '商城停用' : '商城启用'}
         </span>
         <span class="text-secondary" style="font-size:var(--text-sm);">
-          结算货币 {currencyLabel(config.data.currency_id ?? 'coin')} · 默认退款策略 {refundPolicyLabel(config.data.default_refund_policy ?? 'non_refundable')}
+          结算货币 {currencyLabel(config.data.currency_id ?? 'coin', currencyName)} · 默认退款策略 {refundPolicyLabel(config.data.default_refund_policy ?? 'non_refundable')}
         </span>
       </div>
     </div>
@@ -645,7 +647,7 @@
                     </div>
                     <div class="shop-admin-card__price-row">
                       <span class="shop-admin-card__price">
-                        {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true })}
+                        {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true, fallbackName: currencyName })}
                       </span>
                       <span class="text-secondary" style="font-size:var(--text-xs);font-family:var(--aui-font-mono, monospace);">
                         v{p.version}
@@ -691,7 +693,7 @@
                         {productStatusLabel(p.status)}
                       </span>
                       <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
-                        {p.slug} · {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true })} · v{p.version} · 更新于 {formatTs(p.updated_at)}
+                        {p.slug} · {formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true, fallbackName: currencyName })} · v{p.version} · 更新于 {formatTs(p.updated_at)}
                       </p>
                     </div>
                     <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
@@ -851,7 +853,7 @@
                       <span class="badge badge-warning">补偿待处理</span>
                     {/if}
                     <p class="text-secondary" style="font-size:var(--text-xs);margin:2px 0 0;">
-                      {o.id} · ×{o.quantity} · {formatMoney(o.total_amount, { id: o.currency_id, code: o.currency_code, name: o.currency_name }, { free: true })} · v{o.product_version} · {formatTs(o.created_at)}
+                      {o.id} · ×{o.quantity} · {formatMoney(o.total_amount, { id: o.currency_id, code: o.currency_code, name: o.currency_name }, { free: true, fallbackName: currencyName })} · v{o.product_version} · {formatTs(o.created_at)}
                     </p>
                   </div>
                   {#if o.status === 'succeeded'}

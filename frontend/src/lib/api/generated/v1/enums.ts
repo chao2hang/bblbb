@@ -8,6 +8,8 @@
  * Verify no drift with: ruby scripts/generate-ts-types.rb --check
  */
 
+export type AttachmentRecordStatus = "pending" | "processing" | "ready" | "quarantined" | "deleted";
+export type ActivitySummaryResponseTimezoneSource = "user" | "site" | "default";
 export type HealthStatus = "ok";
 export type PasskeyAssertionType = "public-key";
 export type PasskeyRegistrationType = "public-key";

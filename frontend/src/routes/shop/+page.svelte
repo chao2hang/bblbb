@@ -16,6 +16,7 @@
   import type { PublicPresentationTokens, ShopProduct, User } from '$lib/api/types';
   import type { ShopPageData } from './+page.server';
   import steamBackgrounds from '$lib/data/steam-profile-backgrounds.json';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
 
   let { data }: { data: ShopPageData & { user?: User | null } } = $props();
 
@@ -25,6 +26,7 @@
   const error = $derived(data.error);
   const currentUser = $derived(data.user);
   const cosmetics = $derived(data.cosmetics ?? []);
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
   // 预览昵称与头像
   const previewName = $derived(currentUser?.display_name || currentUser?.username || '夜猫子');
@@ -39,7 +41,11 @@
   let onlyFree = $state(false);
 
   function priceLabel(p: ShopProduct): string {
-    return formatMoney(p.unit_price, { id: p.currency_id, code: p.currency_code, name: p.currency_name }, { free: true });
+    return formatMoney(
+      p.unit_price,
+      { id: p.currency_id, code: p.currency_code, name: p.currency_name },
+      { free: true, fallbackName: currencyName }
+    );
   }
 
   function isSoldOut(p: ShopProduct): boolean {
@@ -206,7 +212,7 @@
       <Icon name="shopping-bag" size={26} />
       商城与积分
     </h1>
-    <p class="text-secondary" style="margin:0;">使用社区活动金币兑换专属头像框、流光特效与个性身份装扮</p>
+    <p class="text-secondary" style="margin:0;">使用社区活动{currencyName}兑换专属头像框、流光特效与个性身份装扮</p>
   </header>
 
   {#if error}
@@ -233,13 +239,13 @@
           <div style="display:flex;align-items:baseline;gap:var(--space-2);">
             <strong style="font-size:var(--text-base);">{currentUser?.display_name || currentUser?.username || '访客用户'}</strong>
             {#if typeof level === 'number'}
-              <span class="badge badge-level">LV.{level}</span>
+              <span class="badge badge-level">TL{level}</span>
             {/if}
           </div>
           <div style="display:inline-flex;align-items:center;gap:var(--space-2);padding-left:var(--space-3);border-left:1px solid var(--color-border);">
             <span class="badge badge-success">我的余额</span>
             <strong style="font-size:var(--text-lg);font-family:var(--aui-font-mono, monospace);">
-              {balance ? formatMoney(balance.amount, { id: balance.currency, code: balance.currency }) : '—'}
+              {balance ? formatMoney(balance.amount, { id: balance.currency, code: balance.currency, name: currencyName }) : '—'}
             </strong>
           </div>
         </div>
@@ -441,7 +447,7 @@
             {#if out}
               <span class="badge badge-danger">已售罄</span>
             {:else if lockedP}
-              <span class="badge badge-warning">需 LV.{product.required_level}</span>
+              <span class="badge badge-warning">需 TL{product.required_level}</span>
             {:else}
               <span class="btn primary sm" style="height:26px;min-height:26px;padding:0 10px;font-size:var(--text-xs);">
                 兑换

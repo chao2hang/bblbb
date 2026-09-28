@@ -67,7 +67,6 @@ function buildPatch(form: FormData, current: StorageConfig | null): Record<strin
   set('s3_region', String(form.get('s3_region') ?? '').trim() || 'us-east-1');
   set('s3_bucket', String(form.get('s3_bucket') ?? '').trim() || null);
   set('s3_path_style', boolForm(form, 's3_path_style'));
-  set('s3_presigned_uploads', boolForm(form, 's3_presigned_uploads'));
   set('s3_public_base_url', String(form.get('s3_public_base_url') ?? '').trim() || null);
   set('signed_url_ttl_seconds', numOrNull(form.get('signed_url_ttl_seconds')));
   const maxSizeMb = numOrNull(form.get('max_size_mb'));

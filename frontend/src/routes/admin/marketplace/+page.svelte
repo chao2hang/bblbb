@@ -296,8 +296,20 @@
 
   <!-- 卡片 2：应用 Client（原型同款表格） -->
   <section class="app-card" style="margin-bottom:14px;">
-    <header class="app-card__head">
+    <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
       <h2>应用 Client</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <Button text="开始对账" variant="secondary" size="sm" onclick={openReconcileAll} />
+        <Button text="退款重试" variant="secondary" size="sm" onclick={openRetryRefund} />
+        <Button text="导出交易" variant="secondary" size="sm" onclick={exportMarketplaceData} />
+        {#if selectedEmergency}
+          <Button text="紧急停用已选商户" variant="danger" size="sm" onclick={() => openEmergency(selectedEmergency)} />
+        {:else}
+          <button type="button" class="btn secondary sm" style="font-weight:700;" disabled title="请先在应用列表中选择一个商户">
+            选择商户后停用
+          </button>
+        {/if}
+      </div>
     </header>
     <div class="app-card__body">
       <!-- 工具栏：单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
@@ -383,23 +395,6 @@
           </tbody>
         </table>
       </div>
-
-      <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <Button text="开始对账" variant="secondary" size="sm" onclick={openReconcileAll} />
-          <Button text="退款重试" variant="secondary" size="sm" onclick={openRetryRefund} />
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <Button text="导出交易" variant="secondary" size="sm" onclick={exportMarketplaceData} />
-          {#if selectedEmergency}
-            <Button text="紧急停用已选商户" variant="danger" size="sm" onclick={() => openEmergency(selectedEmergency)} />
-          {:else}
-            <button type="button" class="btn secondary sm" style="font-weight:700;" disabled title="请先在应用列表中选择一个商户">
-              选择商户后停用
-            </button>
-          {/if}
-        </div>
-      </footer>
     </div>
   </section>
 

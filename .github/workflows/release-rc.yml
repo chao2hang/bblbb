@@ -7,6 +7,11 @@ name: Release-RC
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (for example 1.0.0-rc.12)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -29,11 +34,19 @@ jobs:
 
   release-drills:
     name: Release bundle + recovery + smoke + alerts + log scan
+    needs: [pr-suite, nightly-suite]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       # AGENTS.md §3.4：release 构建缓存（release 全量编译最慢，收益最大）
       - name: Install sccache
         run: |
@@ -64,25 +77,58 @@ jobs:
           restore-keys: |
             cargo-target-${{ runner.os }}-release-
             cargo-target-${{ runner.os }}-
-      - name: Build release backend
+      - name: Build release bundle
         env:
           RUSTC_WRAPPER: sccache
           SCCACHE_IDLE_TIMEOUT: "0"
-        working-directory: backend
-        run: cargo build --release
-      - name: Release bundle test
-        run: bash deploy/tests/test-release-bundle.sh
-      - name: Build release bundle
-        run: bash deploy/scripts/build-release-bundle.sh
-      - name: Recovery drills (SQLite restore + attachments + OIDC keys)
+          BBLBB_RELEASE_VERSION: ${{ inputs.version }}
+        run: bash deploy/scripts/build-release-bundle.sh --version "${{ inputs.version }}" --out-dir dist
+      - name: Test release bundle
+        run: bash deploy/tests/test-release-bundle.sh --bundle "dist/${{ inputs.version }}.tar.gz"
+      - name: Record and validate bundle metadata
+        run: bash deploy/scripts/record-release-metadata.sh --bundle "dist/${{ inputs.version }}.tar.gz"
+      - name: Recovery drills + post-release API smoke (built bundle, isolated SQLite)
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          bash ops/restore/verify.sh || true
-          bash ops/restore/verify-attachments.sh || true
-          bash ops/restore/verify-oidc-keys.sh || true
-          echo "recovery drills executed (M15-BACKUP-02/03/05 真实 MySQL/S3 演练为外部阻塞项)"
-      - name: Post-release smoke
-        run: bash ops/smoke/smoke.sh || echo "smoke needs a live server; executed locally in sandbox"
+          set -euo pipefail
+          bundle_dir="$RUNNER_TEMP/release-bundle"
+          db="$RUNNER_TEMP/release-smoke.sqlite"
+          storage="$RUNNER_TEMP/release-uploads"
+          port=18089
+          mkdir -p "$bundle_dir" "$storage"
+          tar -xzf "dist/${VERSION}.tar.gz" -C "$bundle_dir"
+          database_url="sqlite://$db"
+          "$bundle_dir/backend/bblbb-migrate" apply --db-url "$database_url" --migrations-dir "$GITHUB_WORKSPACE/migrations/sqlite"
+          ops/restore/verify.sh --db "$db" --migrations-dir "$GITHUB_WORKSPACE/migrations/sqlite"
+          ops/restore/verify-attachments.sh --db "$db" --storage "$storage"
+          oidc_keys=$(sqlite3 "$db" "SELECT COUNT(*) FROM oauth_signing_keys WHERE status='active';")
+          if [ "$oidc_keys" -gt 0 ]; then
+            ops/restore/verify-oidc-keys.sh --db "$db"
+          else
+            echo "::notice::OIDC disabled in smoke fixture; real key backup/restore remains an external GA gate"
+          fi
+          (
+            cd "$bundle_dir/backend"
+            BBLBB__ENV=development \
+            BBLBB__BIND_ADDRESS="127.0.0.1:${port}" \
+            BBLBB__DATABASE_URL="$database_url" \
+            BBLBB__MIGRATIONS_DIR="$GITHUB_WORKSPACE/migrations/sqlite" \
+            BBLBB__OPENAPI_PATH="$GITHUB_WORKSPACE/openapi/openapi.yaml" \
+            BBLBB__STORAGE_DIR="$storage" \
+            BBLBB__MFA_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+            ./bblbb-backend >"$RUNNER_TEMP/release-backend.log" 2>&1 &
+            echo $! > "$RUNNER_TEMP/release-backend.pid"
+          )
+          trap 'kill "$(cat "$RUNNER_TEMP/release-backend.pid")" 2>/dev/null || true; wait "$(cat "$RUNNER_TEMP/release-backend.pid")" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:${port}/readyz" >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1 || { cat "$RUNNER_TEMP/release-backend.log"; echo "::error::Bundled backend did not become ready"; exit 1; }
+          BBLBB_SMOKE_BASE_URL="http://127.0.0.1:${port}" BBLBB_SMOKE_DB="$db" ops/smoke/smoke.sh
       - name: Alerts drill + log sanitization scan
         run: |
           bash deploy/monitoring/alerts-drill.sh
-          bash ops/scan-log-corpus.sh --test || true
+          bash ops/scan-log-corpus.sh --test

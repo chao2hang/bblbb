@@ -41,7 +41,7 @@ describe('upload module', () => {
     mockedClient.createAttachment.mockResolvedValueOnce({
       id: 'att-123',
       upload: {
-        mode: 'presigned_put',
+        mode: 'presigned',
         url: null
       }
     });
@@ -68,11 +68,61 @@ describe('upload module', () => {
     );
   });
 
+  it('presigned PUT 精确透传签名头且不重复设置 Content-Type', async () => {
+    const mockedClient = vi.mocked(client);
+    mockedClient.createAttachment.mockResolvedValueOnce({
+      id: 'att-s3',
+      upload: {
+        mode: 'presigned',
+        url: 'https://s3.example.test/staging/object?signature=x',
+        method: 'PUT',
+        headers: { 'content-type': 'image/png', 'x-amz-meta-upload': 'signed' }
+      }
+    });
+    mockedClient.completeAttachment.mockResolvedValueOnce({
+      id: 'att-s3', owner_id: 'u1', status: 'ready', media_type: 'image/png', size_bytes: 4,
+      original_name: 'test.png', created_at: 1000
+    });
+
+    const requests: Array<{ method: string; url: string; headers: Array<[string, string]>; body: unknown; onload: (() => void) | null }> = [];
+    class FakeXHR {
+      method = '';
+      url = '';
+      headers: Array<[string, string]> = [];
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      status = 200;
+      open(method: string, url: string) { this.method = method; this.url = url; }
+      setRequestHeader(name: string, value: string) { this.headers.push([name, value]); }
+      send(body: unknown) {
+        requests.push({ method: this.method, url: this.url, headers: this.headers, body, onload: this.onload });
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    const originalXhr = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXHR as unknown as typeof XMLHttpRequest;
+    try {
+      const result = await uploadEditorAttachment(new File(['test'], 'test.png', { type: 'image/png' }));
+      expect(result.id).toBe('att-s3');
+      expect(requests).toHaveLength(1);
+      expect(requests[0].method).toBe('PUT');
+      expect(requests[0].url).toContain('s3.example.test/staging/object');
+      expect(requests[0].headers).toEqual([
+        ['content-type', 'image/png'],
+        ['x-amz-meta-upload', 'signed']
+      ]);
+      expect(requests[0].headers.filter(([name]) => name.toLowerCase() === 'content-type')).toHaveLength(1);
+      expect(mockedClient.completeAttachment).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.XMLHttpRequest = originalXhr;
+    }
+  });
+
   it('扩展名归一化：浏览器未识别的 docx/csv 按扩展名声明', async () => {
     const mockedClient = vi.mocked(client);
     mockedClient.createAttachment.mockResolvedValueOnce({
       id: 'att-doc',
-      upload: { mode: 'presigned_put', url: null }
+      upload: { mode: 'presigned', url: null }
     });
     mockedClient.completeAttachment.mockResolvedValueOnce({
       id: 'att-doc',

@@ -20,8 +20,8 @@ use crate::db::DatabasePool;
 use crate::storage::adapter::StorageService;
 use crate::storage::error::StorageError;
 use crate::storage::model::{
-    generate_object_key, AttachmentRecord, AttachmentStatus, NewAttachment, ObjectHead,
-    StorageBackend,
+    generate_object_key, generate_staging_object_key, AttachmentRecord, AttachmentStatus,
+    NewAttachment, ObjectHead, StorageBackend,
 };
 use crate::storage::quota::{self, get_policy_for_level, release_reserved, reserve_bytes};
 
@@ -854,6 +854,7 @@ pub enum UploadTransport {
     /// S3 直传：后端先签发短 TTL PUT URL（M06-UPLOAD-03）。
     Presigned {
         url: String,
+        headers: std::collections::BTreeMap<String, String>,
         method: &'static str,
         expires_at: i64,
     },
@@ -919,8 +920,14 @@ pub async fn create_attachment(
     reserve_bytes(pool, user_id, input.size_bytes, &policy, now).await?;
 
     let backend = storage.default_backend();
-    let storage_key = generate_object_key(user_id, name.as_deref());
     let attachment_id = uuid::Uuid::now_v7().to_string();
+    // S3 clients may replay a signed URL until expiry. Keep their writable object
+    // in a staging namespace; complete_attachment publishes scanned bytes under a
+    // new key that is never exposed through a presigned PUT.
+    let storage_key = match backend {
+        StorageBackend::S3 => generate_staging_object_key(&attachment_id),
+        StorageBackend::Local => generate_object_key(user_id, name.as_deref()),
+    };
 
     let insert = insert_attachment_row(
         pool,
@@ -957,6 +964,7 @@ pub async fn create_attachment(
                 .await?;
             UploadTransport::Presigned {
                 url: presigned.url,
+                headers: presigned.headers,
                 method: presigned.method,
                 expires_at: presigned.expires_at,
             }
@@ -1218,10 +1226,11 @@ pub async fn complete_attachment(
         ));
     }
 
-    // 服务端 HEAD 复检（M06-UPLOAD-04）
+    // 服务端 HEAD 复检（M06-UPLOAD-04）。对 S3 staging 对象，HEAD 仅作早期
+    // 诊断；最终一致性以随后读取到的字节快照为准，避免 HEAD→GET 期间替换。
     let adapter = storage.adapter(attachment.storage_backend)?;
-    let key = attachment.storage_key.clone();
-    let head = adapter.head_object(&key).await?;
+    let staging_key = attachment.storage_key.clone();
+    let head = adapter.head_object(&staging_key).await?;
     if !head.exists {
         quarantine_attachment(
             pool,
@@ -1240,8 +1249,28 @@ pub async fn complete_attachment(
         return Err(verification);
     }
 
-    // 读取对象字节（内容安全 worker 输入；S3 经 GetObject 流式读取）
-    let bytes = adapter.read_object(&key).await?;
+    // 有界读取：S3 staging URL 在 TTL 内可重放 PUT，HEAD 不能作为 GET 的内存
+    // 安全边界。adapter 必须在缓冲超过声明大小前停止读取；扫描/final 写入共用快照。
+    let bytes = match adapter
+        .read_object_bounded(&staging_key, attachment.size_bytes.max(0) as u64)
+        .await
+    {
+        Ok(bytes) => bytes,
+        Err(error @ StorageError::Verification(_)) => {
+            quarantine_attachment(pool, storage, &attachment, &error.to_string(), now).await?;
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
+    if bytes.len() as i64 != attachment.size_bytes {
+        let error = StorageError::Verification(format!(
+            "object body size {} does not match declared {}",
+            bytes.len(),
+            attachment.size_bytes
+        ));
+        quarantine_attachment(pool, storage, &attachment, &error.to_string(), now).await?;
+        return Err(error);
+    }
 
     // 内容安全 worker：magic/hash/图片重解码（M06-UPLOAD-05/09）
     let scan = scan_for_safety(
@@ -1257,23 +1286,55 @@ pub async fn complete_attachment(
         Ok(outcome) => outcome,
     };
 
-    // EXIF/GPS 剥离结果写回对象（本地重写二进制并重算 hash，M06-UPLOAD-09）
-    if outcome.scrubbed != bytes {
-        let adapter = storage.adapter(attachment.storage_backend)?;
+    // S3 的 presigned URL 是可重放 bearer token：它只指向 staging key。
+    // 永远把本次扫描的确切字节快照写入新 final key；该 key 从未交给客户端，
+    // 因而 URL 到期前重放 PUT 也不会改变 ready 附件。local 没有客户端可写 URL，
+    // 保持原 key，只在 EXIF 清理确有变化时重写。
+    let final_key = if attachment.storage_backend == StorageBackend::S3 {
+        let key = generate_object_key(&attachment.owner_id, attachment.original_name.as_deref());
         tokio::time::timeout(
             std::time::Duration::from_secs(20),
             adapter.write_object(&key, &outcome.scrubbed, Some(&attachment.media_type)),
         )
         .await
-        .map_err(|_| StorageError::Network("rewrite timed out".to_string()))??;
-    }
+        .map_err(|_| StorageError::Network("final object write timed out".to_string()))??;
+        Some(key)
+    } else {
+        if outcome.scrubbed != bytes {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(20),
+                adapter.write_object(
+                    &staging_key,
+                    &outcome.scrubbed,
+                    Some(&attachment.media_type),
+                ),
+            )
+            .await
+            .map_err(|_| StorageError::Network("rewrite timed out".to_string()))??;
+        }
+        None
+    };
 
-    // 原子最终化：容量结算 + 状态→ready + 审计 + Outbox（单事务，M06-QUOTA-05）。
-    // 并发 complete 只有一方发生状态迁移（`status IN ('pending','processing')`
-    // 守卫），迁移方负责结算，另一方幂等重放。
-    let transitioned = finalize_ready(pool, &attachment, &outcome, now).await?;
-    if !transitioned {
-        return Ok(CompleteOutcome::Ready);
+    // 原子最终化：容量结算 + 指针/状态切换 + 审计 + Outbox（单事务）。
+    // 只有状态迁移胜者会把 DB 指向自己的 immutable final key；并发 loser 删除孤儿。
+    let final_storage_key = final_key.as_deref().unwrap_or(&staging_key);
+    let transitioned =
+        match finalize_ready(pool, &attachment, &outcome, final_storage_key, now).await {
+            Ok(transitioned) => transitioned,
+            Err(error) => {
+                // The database commit outcome can be ambiguous after a connection loss.
+                // Never delete a final key here: the DB may already reference it.
+                return Err(error);
+            }
+        };
+    if let Some(key) = &final_key {
+        if transitioned {
+            // Cleanup is best-effort; this key is no longer referenced and stale-upload
+            // maintenance/lifecycle policy may reap an orphan if provider deletion fails.
+            let _ = adapter.delete_object(&staging_key).await;
+        } else {
+            let _ = adapter.delete_object(key).await;
+        }
     }
     Ok(CompleteOutcome::Ready)
 }
@@ -1324,6 +1385,37 @@ async fn quarantine_attachment(
         Either::Left(p) => Either::Left(p.begin_with("BEGIN IMMEDIATE").await?),
         Either::Right(p) => Either::Right(p.begin().await?),
     };
+    // Only the caller that transitions pending/processing owns the reservation.
+    // A concurrent complete may already have finalized/quarantined this row.
+    let affected = match &mut tx {
+        Either::Left(t) => sqlx::query(
+            "UPDATE attachments SET status = 'quarantined', processing_error = ?,
+             processing_version = processing_version + 1
+             WHERE id = ? AND status IN ('pending', 'processing')",
+        )
+        .bind(summary)
+        .bind(&attachment.id)
+        .execute(&mut **t)
+        .await?
+        .rows_affected(),
+        Either::Right(t) => sqlx::query(
+            "UPDATE attachments SET status = 'quarantined', processing_error = ?,
+             processing_version = processing_version + 1
+             WHERE id = ? AND status IN ('pending', 'processing')",
+        )
+        .bind(summary)
+        .bind(&attachment.id)
+        .execute(&mut **t)
+        .await?
+        .rows_affected(),
+    };
+    if affected != 1 {
+        match tx {
+            Either::Left(t) => t.rollback().await?,
+            Either::Right(t) => t.rollback().await?,
+        }
+        return Ok(());
+    }
     match &mut tx {
         Either::Left(t) => {
             // 回滚预留（pending/processing 阶段持有 reserved；负数钳制为 0）
@@ -1349,16 +1441,6 @@ async fn quarantine_attachment(
             .bind(&attachment.owner_id)
             .execute(&mut **t)
             .await?;
-            sqlx::query(
-                "UPDATE attachments
-                 SET status = 'quarantined', processing_error = ?,
-                     processing_version = processing_version + 1
-                 WHERE id = ? AND status IN ('pending', 'processing')",
-            )
-            .bind(summary)
-            .bind(&attachment.id)
-            .execute(&mut **t)
-            .await?;
         }
         Either::Right(t) => {
             sqlx::query(
@@ -1381,16 +1463,6 @@ async fn quarantine_attachment(
             .bind(attachment.size_bytes)
             .bind(now)
             .bind(&attachment.owner_id)
-            .execute(&mut **t)
-            .await?;
-            sqlx::query(
-                "UPDATE attachments
-                 SET status = 'quarantined', processing_error = ?,
-                     processing_version = processing_version + 1
-                 WHERE id = ? AND status IN ('pending', 'processing')",
-            )
-            .bind(summary)
-            .bind(&attachment.id)
             .execute(&mut **t)
             .await?;
         }
@@ -1421,6 +1493,7 @@ async fn finalize_ready(
     pool: &DatabasePool,
     attachment: &AttachmentRecord,
     outcome: &ScanOutcome,
+    final_storage_key: &str,
     now: i64,
 ) -> Result<bool, StorageError> {
     let mut tx = match pool {
@@ -1430,11 +1503,12 @@ async fn finalize_ready(
     let affected: u64 = match &mut tx {
         Either::Left(t) => sqlx::query(
             "UPDATE attachments
-                 SET status = 'ready', sha256 = ?, width = ?, height = ?,
+                 SET status = 'ready', storage_key = ?, sha256 = ?, width = ?, height = ?,
                      quota_bytes_charged = ?, processing_error = NULL,
                      processing_version = processing_version + 1
                  WHERE id = ? AND status IN ('pending', 'processing')",
         )
+        .bind(final_storage_key)
         .bind(&outcome.sha256)
         .bind(outcome.width)
         .bind(outcome.height)
@@ -1445,11 +1519,12 @@ async fn finalize_ready(
         .rows_affected(),
         Either::Right(t) => sqlx::query(
             "UPDATE attachments
-                 SET status = 'ready', sha256 = ?, width = ?, height = ?,
+                 SET status = 'ready', storage_key = ?, sha256 = ?, width = ?, height = ?,
                      quota_bytes_charged = ?, processing_error = NULL,
                      processing_version = processing_version + 1
                  WHERE id = ? AND status IN ('pending', 'processing')",
         )
+        .bind(final_storage_key)
         .bind(&outcome.sha256)
         .bind(outcome.width)
         .bind(outcome.height)
@@ -1751,6 +1826,28 @@ pub async fn reap_stale_uploads(
             }
         }
         reaped += 1;
+    }
+    // Reap staging keys left behind if the process crashed after switching a row to
+    // ready/deleted but before best-effort staging cleanup completed.
+    let finalized_s3_ids: Vec<String> = match pool {
+        Either::Left(p) => sqlx::query_scalar(
+            "SELECT id FROM attachments WHERE storage_backend = 's3' AND status IN ('ready', 'deleted') AND created_at < ?",
+        )
+        .bind(cutoff)
+        .fetch_all(p)
+        .await?,
+        Either::Right(p) => sqlx::query_scalar(
+            "SELECT id FROM attachments WHERE storage_backend = 's3' AND status IN ('ready', 'deleted') AND created_at < ?",
+        )
+        .bind(cutoff)
+        .fetch_all(p)
+        .await?,
+    };
+    if let Ok(adapter) = storage.adapter(StorageBackend::S3) {
+        for id in finalized_s3_ids {
+            let staging_key = generate_staging_object_key(&id);
+            let _ = adapter.delete_object(&staging_key).await;
+        }
     }
     Ok(reaped)
 }

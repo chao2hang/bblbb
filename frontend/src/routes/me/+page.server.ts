@@ -10,7 +10,7 @@
 // - load：转发浏览器会话 Cookie → GET /api/v1/me（安全投影，仅渲染自身
 //   账号可见字段，不输出任何会话 token）；401 → 跳登录；
 // - GAP-FIX 增强数据（非致命，失败只降级对应区块）：GET /activity/summary
-//   （账户卡：等级/经验/B币）与 GET /me/sanctions（我的处罚，失败 → 空列表）；
+//   （账户卡：等级/经验/站点消费货币）与 GET /me/sanctions（我的处罚，失败 → 空列表）；
 //   M20-TRUST：GET /me/trust-level（失败降级 null，卡片隐藏）。
 
 import { redirect } from '@sveltejs/kit';
@@ -23,7 +23,7 @@ export interface MePageData {
   user: User | null;
   sessions: DeviceSession[];
   error: string | null;
-  /** GAP-FIX 账户卡：等级/经验/B币（GET /activity/summary，失败降级 null）。
+  /** GAP-FIX 账户卡：等级/经验/站点消费货币（GET /activity/summary，失败降级 null）。
    *  可选：旧 fixture/渐进迁移下允许缺失（页面按 null 处理）。 */
   activity?: ActivitySummary | null;
   /** GAP-FIX 我的处罚（GET /me/sanctions；失败时页面按空列表处理）。
@@ -73,7 +73,7 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   }
 
   // GAP-FIX 账户卡 + 我的处罚（增强数据，非致命——失败只降级对应区块）：
-  // - GET /activity/summary：等级/经验/B币（economy.rs 已落地）；
+  // - GET /activity/summary：等级/经验/站点消费货币（economy.rs 已落地）；
   // - GET /me/sanctions：本人处罚记录；失败时降级为空列表。
   // M20-TRUST：GET /me/trust-level 信任等级进度（失败降级 null，卡片隐藏）。
   const [activityResult, sanctionsResult, trustResult, presentationResult, cosmeticsResult, entitlementsResult, coverResult] = await Promise.all([

@@ -16,7 +16,9 @@
 ├── frontend/
 │   ├── build/                          # npm run build（SvelteKit adapter-node）
 │   ├── package.json
-│   └── package-lock.json               # 依赖锁（SBOM 输入）
+│   ├── package-lock.json               # 依赖锁（SBOM 输入）
+│   └── node_modules/                   # npm ci --omit=dev（adapter-node runtime dependencies）
+├── openapi/openapi.yaml                 # backend runtime contract endpoint
 ├── migrations/
 │   ├── sqlite/*.sql                    # 三方言迁移（不可变，checksum 受保护）
 │   ├── mysql/*.sql
@@ -80,8 +82,8 @@ root/发布账号执行。该不变量由 `deploy/tests/test-release-bundle.sh` 
 
 ```sh
 deploy/scripts/build-release-bundle.sh --version 1.0.0-rc.2 --out-dir dist
-deploy/scripts/record-release-metadata.sh --bundle dist/bundle.tar.gz
-deploy/tests/test-release-bundle.sh --bundle dist/bundle.tar.gz
+deploy/scripts/record-release-metadata.sh --bundle dist/1.0.0-rc.2.tar.gz
+deploy/tests/test-release-bundle.sh --bundle dist/1.0.0-rc.2.tar.gz
 ```
 
 `test-release-bundle.sh` 断言：三方言迁移文件齐全、backend 二进制可执行、

@@ -19,6 +19,7 @@ export const FALLBACK_SITE_NAME = 'BBLBB';
 /** 各文案字段兜底（「站点描述」兜底为 `{站点名称} 社区论坛」）。 */
 export const COPY_DEFAULTS = {
   siteDescription: '社区论坛',
+  currencyName: '金币',
   loginEyebrow: 'WELCOME BACK',
   loginTitlePrefix: '登录',
   registerEyebrowPrefix: 'JOIN',
@@ -29,6 +30,7 @@ export const COPY_DEFAULTS = {
 export interface SiteCopyView {
   siteName: string;
   siteDescription: string;
+  currencyName: string;
   loginEyebrow: string;
   loginTitle: string;
   loginSubtitle: string;
@@ -43,7 +45,14 @@ export interface SiteCopyView {
 }
 
 /** 站点信息原始投影的宽松输入（接口失败/测试隔离时可缺省）。 */
-export type SiteCopyInput = SitePublicResult | null | undefined;
+export type SiteCopyInput = SitePublicResult | SiteCopyView | null | undefined;
+
+function getField<T>(site: SiteCopyInput, apiField: keyof SitePublicResult, viewField: keyof SiteCopyView): T | undefined {
+  if (!site) return undefined;
+  const source = site as unknown as Record<string, unknown>;
+  const value = source[apiField as string] ?? source[viewField as string];
+  return value as T | undefined;
+}
 
 function text(value: string | null | undefined): string {
   const v = (value ?? '').trim();
@@ -59,21 +68,25 @@ function text(value: string | null | undefined): string {
  * - 登录/注册页说明：空 → 站点描述（两级兜底）。
  */
 export function resolveSiteCopy(site: SiteCopyInput): SiteCopyView {
-  const siteName = text(site?.site_name) || FALLBACK_SITE_NAME;
+  const siteName = text(getField<string>(site, 'site_name', 'siteName')) || FALLBACK_SITE_NAME;
   const siteDescription =
-    text(site?.site_description) || `${siteName} ${COPY_DEFAULTS.siteDescription}`;
+    text(getField<string>(site, 'site_description', 'siteDescription')) ||
+    `${siteName} ${COPY_DEFAULTS.siteDescription}`;
+  const currencyName =
+    text(getField<string>(site, 'currency_name', 'currencyName')) || COPY_DEFAULTS.currencyName;
   return {
     siteName,
     siteDescription,
-    loginEyebrow: text(site?.login_eyebrow) || COPY_DEFAULTS.loginEyebrow,
-    loginTitle: text(site?.login_title) || `${COPY_DEFAULTS.loginTitlePrefix} ${siteName}`,
-    loginSubtitle: text(site?.login_subtitle) || siteDescription,
-    registerEyebrow: text(site?.register_eyebrow) || `${COPY_DEFAULTS.registerEyebrowPrefix} ${siteName}`,
-    registerTitle: text(site?.register_title) || COPY_DEFAULTS.registerTitle,
-    registerSubtitle: text(site?.register_subtitle) || siteDescription,
-    maintenanceMode: site?.maintenance_mode === true,
-    googleLoginEnabled: site?.google_login_enabled === true,
-    githubLoginEnabled: site?.github_login_enabled === true
+    currencyName,
+    loginEyebrow: text(getField<string>(site, 'login_eyebrow', 'loginEyebrow')) || COPY_DEFAULTS.loginEyebrow,
+    loginTitle: text(getField<string>(site, 'login_title', 'loginTitle')) || `${COPY_DEFAULTS.loginTitlePrefix} ${siteName}`,
+    loginSubtitle: text(getField<string>(site, 'login_subtitle', 'loginSubtitle')) || siteDescription,
+    registerEyebrow: text(getField<string>(site, 'register_eyebrow', 'registerEyebrow')) || `${COPY_DEFAULTS.registerEyebrowPrefix} ${siteName}`,
+    registerTitle: text(getField<string>(site, 'register_title', 'registerTitle')) || COPY_DEFAULTS.registerTitle,
+    registerSubtitle: text(getField<string>(site, 'register_subtitle', 'registerSubtitle')) || siteDescription,
+    maintenanceMode: getField<boolean>(site, 'maintenance_mode', 'maintenanceMode') === true,
+    googleLoginEnabled: getField<boolean>(site, 'google_login_enabled', 'googleLoginEnabled') === true,
+    githubLoginEnabled: getField<boolean>(site, 'github_login_enabled', 'githubLoginEnabled') === true
   };
 }
 

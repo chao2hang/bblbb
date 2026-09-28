@@ -6,6 +6,8 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Seo from '$lib/components/Seo.svelte';
   import Table from '$lib/components/ui/Table.svelte';
+  import { currencyLabel } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import type { MarketplacePageData } from './+page.server';
   import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
@@ -13,6 +15,7 @@
   let { data }: { data: MarketplacePageData & { site?: SiteCopyView | null } } = $props();
 
   const site = $derived<SiteCopyView>(data.site ?? resolveSiteCopy(null));
+  const currencyName = $derived(site.currencyName ?? getCurrencyNameContext()?.currencyName ?? '金币');
 
   const purchases = $derived(data.purchases);
   const totals = $derived(data.totals);
@@ -166,11 +169,11 @@
         <div class="stat-card-label">累计交易</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-value">{totals.currency ? `${totals.spent} ${totals.currency.toUpperCase()}` : totals.spent || '—'}</div>
+        <div class="stat-card-value">{totals.currency ? `${totals.spent} ${currencyLabel(totals.currency, currencyName)}` : totals.spent || '—'}</div>
         <div class="stat-card-label">累计支出</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-value">{totals.currency ? `${totals.fees} ${totals.currency.toUpperCase()}` : totals.fees || '—'}</div>
+        <div class="stat-card-value">{totals.currency ? `${totals.fees} ${currencyLabel(totals.currency, currencyName)}` : totals.fees || '—'}</div>
         <div class="stat-card-label">平台费合计</div>
       </div>
     </div>
@@ -205,8 +208,8 @@
                     {formatTs(p.created_at)} · ×{p.quantity}
                   </div>
                 </td>
-                <td class="table-cell-right">{p.amount} {p.currency_id.toUpperCase()}</td>
-                <td class="table-cell-right">{p.fee_amount} {p.currency_id.toUpperCase()}</td>
+                <td class="table-cell-right">{p.amount} {currencyLabel(p.currency_id, currencyName)}</td>
+                <td class="table-cell-right">{p.fee_amount} {currencyLabel(p.currency_id, currencyName)}</td>
                 <td><span class="badge {statusTone(p.status)}">{statusLabel(p.status)}</span></td>
               </tr>
             {/each}

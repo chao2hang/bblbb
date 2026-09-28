@@ -377,6 +377,7 @@ h4 {
 .btn--secondary,
 .btn--ghost,
 .publish,
+.empty-state-cta,
 button[type='submit'] {
   border-radius: var(--radius-sm) !important;
   font-family: var(--font-family-base) !important;
@@ -388,6 +389,7 @@ button[type='submit'] {
 .btn.primary,
 .btn--primary,
 .publish,
+.empty-state-cta,
 button[type='submit']:not(.secondary):not(.ghost) {
   background: var(--color-brand) !important;
   color: var(--color-text-on-solid) !important;
@@ -396,7 +398,8 @@ button[type='submit']:not(.secondary):not(.ghost) {
 
 .btn.primary:hover,
 .btn--primary:hover,
-.publish:hover {
+.publish:hover,
+.empty-state-cta:hover {
   background: var(--color-brand-hover) !important;
   border-color: var(--color-brand-hover) !important;
 }
@@ -636,9 +639,16 @@ textarea:focus,
 }
 
 .app-empty .ic,
-.thread-empty .icon {
+.thread-empty > .icon,
+.thread-empty > .empty-state-icon .icon {
   opacity: 0.3 !important;
   color: var(--color-text-tertiary) !important;
+}
+
+.thread-empty .empty-state-cta .icon,
+.thread-empty .btn .icon {
+  opacity: 1 !important;
+  color: inherit !important;
 }
 
 /* ============================================================
@@ -651,6 +661,27 @@ textarea:focus,
   background: var(--color-code-bg) !important;
   border: 1px solid var(--color-border-muted) !important;
   border-radius: var(--radius-md) !important;
+}
+
+.code-block-wrapper pre,
+.prose-pre-wrap pre,
+.prose .code-block-wrapper pre,
+.prose .prose-pre-wrap pre {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+pre code,
+.code-block-wrapper pre code,
+.prose-pre-wrap pre code,
+.prose pre code {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .prose blockquote,

@@ -82,7 +82,7 @@ describe('M06-UI-01 上传流程', () => {
   it('选择文件 → 开始上传 → presigned PUT（进度）→ complete → onReady', async () => {
     mocked.createAttachment.mockResolvedValueOnce({
       id: 'a1',
-      upload: { mode: 'presigned_put', url: 'https://s3.example.com/put', headers: { 'Content-Type': 'image/png' } },
+      upload: { mode: 'presigned', url: 'https://s3.example.com/put', headers: { 'Content-Type': 'image/png' } },
       quota: null
     });
     mocked.completeAttachment.mockResolvedValueOnce({ id: 'a1', media_type: 'image/png', size_bytes: 11, status: 'ready', created_at: 0 });
@@ -112,7 +112,7 @@ describe('M06-UI-01 上传流程', () => {
   });
 
   it('进度条带 role=progressbar；错误用 role=alert 播报', async () => {
-    mocked.createAttachment.mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned_put', url: 'https://s3.example.com/put' }, quota: null });
+    mocked.createAttachment.mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned', url: 'https://s3.example.com/put' }, quota: null });
     mocked.completeAttachment.mockResolvedValueOnce({ id: 'a1', media_type: 'image/png', size_bytes: 11, status: 'ready', created_at: 0 });
     const { container, getByText } = render(AttachmentUploader, { props: { showQuota: false, waitReady: false } });
     await selectFile(container);
@@ -127,7 +127,7 @@ describe('M06-UI-01 上传流程', () => {
   });
 
   it('取消：中止 XHR 并尽力删除服务端附件', async () => {
-    mocked.createAttachment.mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned_put', url: 'https://s3.example.com/put' }, quota: null });
+    mocked.createAttachment.mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned', url: 'https://s3.example.com/put' }, quota: null });
     const { container, getByText } = render(AttachmentUploader, { props: { showQuota: false, waitReady: false } });
     await selectFile(container);
     await fireEvent.click(getByText('开始上传'));
@@ -140,8 +140,8 @@ describe('M06-UI-01 上传流程', () => {
 
   it('URL 过期（403）→ 自动重新 create 获取新 URL，不删除附件', async () => {
     mocked.createAttachment
-      .mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned_put', url: 'https://s3.example.com/expired', headers: {} }, quota: null })
-      .mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned_put', url: 'https://s3.example.com/fresh', headers: {} }, quota: null });
+      .mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned', url: 'https://s3.example.com/expired', headers: {} }, quota: null })
+      .mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned', url: 'https://s3.example.com/fresh', headers: {} }, quota: null });
     mocked.completeAttachment.mockResolvedValue({ id: 'a1', media_type: 'image/png', size_bytes: 11, status: 'ready', created_at: 0 });
 
     const { container, getByText } = render(AttachmentUploader, { props: { showQuota: false, waitReady: false } });
@@ -161,8 +161,8 @@ describe('M06-UI-01 上传流程', () => {
 
   it('重试：失败后点击重试重新走完整流程', async () => {
     mocked.createAttachment
-      .mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned_put', url: 'https://s3.example.com/put1' }, quota: null })
-      .mockResolvedValueOnce({ id: 'a2', upload: { mode: 'presigned_put', url: 'https://s3.example.com/put2' }, quota: null });
+      .mockResolvedValueOnce({ id: 'a1', upload: { mode: 'presigned', url: 'https://s3.example.com/put1' }, quota: null })
+      .mockResolvedValueOnce({ id: 'a2', upload: { mode: 'presigned', url: 'https://s3.example.com/put2' }, quota: null });
     mocked.completeAttachment.mockResolvedValue({ id: 'a2', media_type: 'image/png', size_bytes: 11, status: 'ready', created_at: 0 });
 
     const { container, getByText } = render(AttachmentUploader, { props: { showQuota: false, waitReady: false } });
@@ -197,7 +197,7 @@ describe('M06-UI-01 上传流程', () => {
   });
 
   it('本地直传（无 presigned URL）→ 创建后直接 complete', async () => {
-    mocked.createAttachment.mockResolvedValueOnce({ id: 'a1', upload: { mode: 'local', url: null }, quota: null });
+    mocked.createAttachment.mockResolvedValueOnce({ id: 'a1', upload: { mode: 'stream', url: null }, quota: null });
     mocked.completeAttachment.mockResolvedValueOnce({ id: 'a1', media_type: 'image/png', size_bytes: 11, status: 'ready', created_at: 0 });
     const { container, getByText } = render(AttachmentUploader, { props: { showQuota: false, waitReady: false } });
     await selectFile(container);

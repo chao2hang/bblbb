@@ -42,7 +42,7 @@ while IFS='|' read -r STORAGE_KEY SIZE; do
   TOTAL=$((TOTAL+1))
   LOCAL="$STORAGE_DIR/$STORAGE_KEY"
   if [[ -f "$LOCAL" ]]; then
-    ACTUAL="$(stat -f%z "$LOCAL")"
+    ACTUAL="$(stat -c %s "$LOCAL" 2>/dev/null || stat -f%z "$LOCAL")"
     [[ "$ACTUAL" == "$SIZE" ]] || { SIZE_MISMATCH=$((SIZE_MISMATCH+1)); echo "  FAIL: size 不匹配 $STORAGE_KEY ($ACTUAL != $SIZE)"; }
   else
     SIZE_MISMATCH=$((SIZE_MISMATCH+1))

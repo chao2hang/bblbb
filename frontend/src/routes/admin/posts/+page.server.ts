@@ -47,6 +47,7 @@ export interface AdminPostsPageData {
   nextCursor: string | null;
   status: string;
   q: string;
+  limit: number;
   after: string | null;
   error: string | null;
   counts: AdminPostsCounts | null;
@@ -68,7 +69,10 @@ export const load: PageServerLoad = async ({
   const q = (url.searchParams.get('q') ?? '').trim();
   const after = url.searchParams.get('after');
 
-  const params = new URLSearchParams({ limit: '30' });
+  const rawLimit = Number(url.searchParams.get('limit'));
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(Math.max(rawLimit, 1), 100) : 20;
+
+  const params = new URLSearchParams({ limit: String(limit) });
   if (status) params.set('status', status);
   if (q) params.set('q', q);
   if (after) params.set('after', after);
@@ -81,12 +85,12 @@ export const load: PageServerLoad = async ({
   if (!result.ok) {
     if (result.status === 401) throw redirect(303, '/login');
     if (result.status === 403) {
-      return { state: 'forbidden', items: null, nextCursor: null, status, q, after, error: result.message, counts: null };
+      return { state: 'forbidden', items: null, nextCursor: null, status, q, limit, after, error: result.message, counts: null };
     }
     if (result.status === 501) {
-      return { state: 'not_implemented', items: null, nextCursor: null, status, q, after, error: result.message, counts: null };
+      return { state: 'not_implemented', items: null, nextCursor: null, status, q, limit, after, error: result.message, counts: null };
     }
-    return { state: 'error', items: null, nextCursor: null, status, q, after, error: result.message, counts: null };
+    return { state: 'error', items: null, nextCursor: null, status, q, limit, after, error: result.message, counts: null };
   }
   return {
     state: 'ok',
@@ -95,6 +99,7 @@ export const load: PageServerLoad = async ({
     counts: (result.data as { counts?: AdminPostsCounts }).counts ?? null,
     status,
     q,
+    limit,
     after,
     error: null
   };

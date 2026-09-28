@@ -61,6 +61,8 @@
   import { markPostRead } from '$lib/readState.svelte';
   import { show } from '$lib/ui/toast';
   import { formatDate, formatRelative, charCount, formatCount } from '$lib/utils';
+  import { enhanceCodeBlocksIn } from '$lib/utils/code-highlight';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import type { PostDetailPageData } from './+page.server';
 
   let { data }: { data: PostDetailPageData } = $props();
@@ -90,6 +92,7 @@
   /** 侧栏板块导航行（与 board 同源反查；空数组 → BoardNav 整卡不渲染）。
    *  帖子所在板块经 activeSlug 高亮，读帖时可直接跳转其他板块。 */
   const navBoards = $derived(data.boards ?? []);
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
   /** 正文不可见时的可访问占位（M04-UI-07 的简化版；正文绝不放进 DOM）。 */
   const accessPlaceholder = $derived.by(() => {
@@ -101,7 +104,7 @@
       case 'after_reply':
         return '回复后可解锁剩余内容';
       case 'level':
-        return s.required_level ? `内容需达到 LV.${s.required_level} 后开放` : '内容需达到更高等级后开放';
+        return s.required_level ? `内容需达到 TL${s.required_level} 后开放` : '内容需达到更高等级后开放';
       case 'paid':
         return '付费内容，解锁后可查看';
       default:
@@ -306,7 +309,7 @@
         return;
       }
       if (problem?.status === 409) {
-        show(problemMessage(problem) || 'B 币余额不足，无法解锁', 'danger');
+        show(problemMessage(problem) || `${currencyName}余额不足，无法解锁`, 'danger');
       } else {
         show(problemMessage(problem) || '解锁失败，请稍后重试', 'danger');
       }
@@ -692,39 +695,19 @@
     deletingId = null;
   }
 
-  // ── GAP-FIX：代码块复制按钮（正文渲染后 $effect 挂载）──
-  // SafeHtml 注入的节点不带 Svelte 作用域属性，样式用 :global；按钮为纯
-  // 文本无动画（prefers-reduced-motion 安全），pre 包一层 wrapper 使按钮
-  // 不随 pre 的 overflow-x 滚动。
+  // ── 代码块沉浸式容器与语法高亮（正文与回复渲染后挂载）──
+  // SafeHtml 注入的节点不带 Svelte 作用域属性，样式由 syntax-highlight.css 统管；
+  // 为 pre 注入语言标示头、复制按钮并执行纯 DOM 语法高亮（防 innerHTML XSS）。
+  let pageLayoutEl = $state<HTMLElement | undefined>(undefined);
   let proseEl = $state<HTMLDivElement | undefined>(undefined);
   $effect(() => {
     const html = post?.body_html;
-    if (!proseEl || !html) return;
-    const blocks = proseEl.querySelectorAll('pre > code');
-    for (const code of Array.from(blocks)) {
-      const pre = code.parentElement;
-      if (!pre || pre.dataset.copyMount === '1') continue;
-      pre.dataset.copyMount = '1';
-      const wrapper = document.createElement('div');
-      wrapper.className = 'prose-pre-wrap';
-      pre.replaceWith(wrapper);
-      wrapper.appendChild(pre);
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'code-copy-btn';
-      btn.textContent = '复制';
-      btn.setAttribute('aria-label', '复制代码');
-      btn.addEventListener('click', async () => {
-        const text = code.textContent ?? '';
-        try {
-          await navigator.clipboard.writeText(text);
-          show('代码已复制', 'success');
-        } catch {
-          show('复制失败，请手动选择复制', 'warning');
-        }
-      });
-      wrapper.appendChild(btn);
-    }
+    const commentsList = comments;
+    const target = pageLayoutEl ?? proseEl;
+    if (!target) return;
+    enhanceCodeBlocksIn(target, {
+      onCopy: () => show('代码已复制', 'success')
+    });
   });
 
   /** M04-UI-08：429 限流的冷却提示（Retry-After 秒数）。 */
@@ -832,7 +815,7 @@
   }
 />
 
-<div class="container app-page app-topic topic-layout">
+<div class="container app-page app-topic topic-layout" bind:this={pageLayoutEl}>
   <div class="main-col">
     {#if loadError && !post}
       <p class="input-hint is-error" role="alert">{loadError}</p>
@@ -999,7 +982,7 @@
                        price_coin（后端未投影时展示兜底文案）。 -->
                   <div style="margin-top:12px;">
                     <Button
-                      text={unlocking ? '解锁中…' : unlockPrice !== undefined ? `解锁（${unlockPrice} B币）` : '解锁（消耗 B币）'}
+                      text={unlocking ? '解锁中…' : unlockPrice !== undefined ? `解锁（${unlockPrice} ${currencyName}）` : `解锁（消耗 ${currencyName}）`}
                       variant="primary"
                       size="sm"
                       icon="coins"
@@ -1408,7 +1391,7 @@
                   <span style="display:block;font-weight:var(--weight-semibold);">
                     <CosmeticName name={authorCard.display_name || authorCard.username} presentation={authorCard.presentation_tokens} />
                   </span>
-                  <span class="text-secondary" style="font-size:var(--text-sm);">LV.{authorCard.level}</span>
+                  <span class="text-secondary" style="font-size:var(--text-sm);">TL{authorCard.level}</span>
                 </span>
               </span>
             </UserCard>
@@ -1646,28 +1629,7 @@
     font-weight: var(--weight-semibold, 600);
   }
 
-  /* 代码块复制按钮（$effect 注入的 DOM 无作用域属性 → :global）。
-     pre 外包一层 wrapper（position:relative），使按钮不随 pre 的
-     overflow-x 滚动；纯文本无动画，prefers-reduced-motion 安全。 */
-  :global(.prose-pre-wrap) {
-    position: relative;
-  }
-  :global(.code-copy-btn) {
-    position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
-    padding: 2px 10px;
-    font-size: var(--text-xs);
-    border: var(--border-default);
-    border-radius: var(--radius-sm);
-    background: var(--color-bg-raised);
-    color: var(--color-text-secondary);
-    cursor: pointer;
-  }
-  :global(.code-copy-btn:hover) {
-    color: var(--color-text-primary);
-    border-color: var(--color-border-strong);
-  }
+  /* 代码块外层容器、语言头部与语法高亮统一定义于 syntax-highlight.css 全局层 */
 
   @media (max-width: 768px) {
     :global(.topic-layout) {

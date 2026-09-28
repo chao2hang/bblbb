@@ -162,6 +162,24 @@
   $effect(() => {
     if (form?.stepUpRequired) reauthCancelled = false;
   });
+
+  function exportAttachmentsCsv(): void {
+    const rows = (data.items ?? []).map((i) => [
+      JSON.stringify(i.id),
+      JSON.stringify(i.filename),
+      i.size_bytes,
+      JSON.stringify(i.uploader_username || ''),
+      i.created_at
+    ].join(','));
+    const csv = ['id,filename,size_bytes,uploader,created_at', ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attachments-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 </script>
 
 <svelte:head>
@@ -171,7 +189,22 @@
 <PageHeader title="附件管理" />
 
 <div class="app-card">
-  <div class="app-card__head"><h2>附件列表</h2></div>
+  <div class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>附件列表</h2>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button type="button" class="btn secondary sm" onclick={() => showToast('全量附件完整性扫描已启动并纳入审计', 'success')}>
+        全部扫描
+      </button>
+      <button
+        type="button"
+        class="btn ghost sm"
+        style="font-size:var(--text-xs);"
+        onclick={exportAttachmentsCsv}
+      >
+        导出清单 (CSV)
+      </button>
+    </div>
+  </div>
   <div class="app-card__body">
     {#if data.state === 'forbidden'}
       <p class="input-hint is-error" role="alert"><Icon name="lock" size={14} /> {adminStateLabel('forbidden')}</p>
@@ -346,37 +379,6 @@
             <span class="text-secondary" style="font-size:var(--text-sm);">没有更多了</span>
           {/if}
         </nav>
-
-        <!-- M18：对齐原型底部操作行（全部扫描 + 导出清单） -->
-        <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;gap:12px;">
-          <button type="button" class="btn secondary sm" onclick={() => showToast('全量附件完整性扫描已启动并纳入审计', 'success')}>
-            全部扫描
-          </button>
-          <button
-            type="button"
-            class="btn ghost sm"
-            style="font-size:var(--text-xs);"
-            onclick={() => {
-              const rows = (data.items ?? []).map((i) => [
-                JSON.stringify(i.id),
-                JSON.stringify(i.filename),
-                i.size_bytes,
-                JSON.stringify(i.uploader_username || ''),
-                i.created_at
-              ].join(','));
-              const csv = ['id,filename,size_bytes,uploader,created_at', ...rows].join('\n');
-              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `attachments-${Date.now()}.csv`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            导出清单 (CSV)
-          </button>
-        </footer>
       {/if}
     {/if}
   </div>

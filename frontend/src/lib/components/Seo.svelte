@@ -10,7 +10,7 @@
   import { page as kitPage } from '$app/state';
   import JsonLd from './JsonLd.svelte';
   import { buildSeo, type SeoInput } from '$lib/seo/meta';
-  import { resolveSiteCopy } from '$lib/site/copy';
+  import { FALLBACK_SITE_NAME } from '$lib/site/copy';
 
   let {
     title,
@@ -36,7 +36,7 @@
   // （后台系统设置）；独立渲染/后端不可达时解析内置兜底。
   const siteName = $derived.by(() => {
     try {
-      return resolveSiteCopy(kitPage.data?.site ?? null).siteName;
+      return kitPage.data?.site?.siteName ?? FALLBACK_SITE_NAME;
     } catch {
       return '';
     }

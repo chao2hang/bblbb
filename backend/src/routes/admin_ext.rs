@@ -973,7 +973,7 @@ fn settings_json(r: &SiteSettingsRow, currency_name: Option<&str>) -> Value {
 }
 
 /// 读取核心货币（code='coin'）名称。
-async fn load_currency_name(
+pub(crate) async fn load_currency_name(
     pool: &crate::db::DatabasePool,
     request_id: &str,
 ) -> Result<Option<String>, AppError> {

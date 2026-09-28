@@ -187,8 +187,14 @@
 
   <!-- 卡片 1：转码队列（原型同款表格；只读 Mock 投影，无写端点 → 无选择列） -->
   <section class="app-card" style="margin-bottom:14px;">
-    <header class="app-card__head">
+    <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <h2>转码队列</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button type="button" class="btn ghost sm" disabled={refreshing} onclick={handleRefreshQueue}>
+          {refreshing ? '刷新中…' : '刷新队列'}
+        </button>
+        <Button text="导出任务" variant="secondary" size="sm" onclick={exportTasks} />
+      </div>
     </header>
     <div class="app-card__body">
       <!-- 原型通用工具栏 -->
@@ -256,15 +262,6 @@
           </tbody>
         </table>
       </div>
-
-      {#if displayedTasks.length > 0}
-        <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
-          <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" disabled={refreshing} onclick={handleRefreshQueue}>
-            {refreshing ? '刷新中…' : '刷新队列'}
-          </button>
-          <Button text="导出任务" variant="secondary" size="sm" onclick={exportTasks} />
-        </footer>
-      {/if}
     </div>
   </section>
 

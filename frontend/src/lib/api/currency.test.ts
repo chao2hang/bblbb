@@ -10,27 +10,32 @@ describe('currencyLabel（货币展示标签）', () => {
     expect(currencyLabel({ id: '01911fd5-0047-0000-0000-000000000002', code: 'coin', name: '金币' })).toBe('金币');
   });
 
-  it('缺 name 时用已知 coin 代号或短 code 大写', () => {
-    expect(currencyLabel({ id: '01911fd5-0047-0000-0000-000000000002', code: 'coin' })).toBe('COIN');
-    expect(currencyLabel({ code: 'gems' })).toBe('GEMS');
+  it('缺 name 时用显式后台系统设置货币名称或短 code 大写', () => {
+    expect(currencyLabel({ id: '01911fd5-0047-0000-0000-000000000002', code: 'coin' }, '金币')).toBe('金币');
+    expect(currencyLabel({ code: 'gems' }, 'B币')).toBe('GEMS');
+  });
+
+  it('支持调用方传入动态后台系统设置货币名称', () => {
+    expect(currencyLabel({ code: 'coin' }, 'B币')).toBe('B币');
+    expect(currencyLabel('coin', 'B币')).toBe('B币');
   });
 
   it('只有 id：已知 coin 映射命中，未知 UUID 形态返回空串', () => {
-    expect(currencyLabel({ id: 'coin' })).toBe('COIN');
+    expect(currencyLabel({ id: 'coin' }, '金币')).toBe('金币');
     expect(currencyLabel({ id: '01911fd5-0047-0000-0000-000000000001' })).toBe('');
     expect(currencyLabel({ id: '098765ab-12cd-0000-0000-000000000099' })).toBe('');
   });
 
   it('字符串入参与空输入', () => {
-    expect(currencyLabel('coin')).toBe('COIN');
+    expect(currencyLabel('coin')).toBe('金币');
     expect(currencyLabel(null)).toBe('');
     expect(currencyLabel({})).toBe('');
   });
 });
 
 describe('formatMoney（金额 + 货币标签）', () => {
-  it('有标签 → “100 COIN”', () => {
-    expect(formatMoney(100, { code: 'coin' })).toBe('100 COIN');
+  it('有标签 → “100 金币”', () => {
+    expect(formatMoney(100, { code: 'coin' }, { fallbackName: '金币' })).toBe('100 金币');
   });
 
   it('free 选项：0 金额渲染“免费”', () => {

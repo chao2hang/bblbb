@@ -246,7 +246,9 @@
       <a href="/boards/{board.slug}" class="home-cat-chip">
         <span class="home-cat-chip__icon" style="color:{visuals.color};"><Icon name={visuals.icon} size={13} /></span>
         <span>{board.name}</span>
-        <em class="home-cat-chip__count">{formatCount(board.post_count)}</em>
+        {#if typeof board.post_count === 'number'}
+          <em class="home-cat-chip__count">{formatCount(board.post_count)}</em>
+        {/if}
       </a>
     {/each}
   </nav>
@@ -264,7 +266,9 @@
             <span class="cat-name__icon" style="color:{visuals.color};"><Icon name={visuals.icon} size={15} /></span>
             {board.name}
           </span>
-          <em>{formatCount(board.post_count)}</em>
+          {#if typeof board.post_count === 'number'}
+            <em>{formatCount(board.post_count)}</em>
+          {/if}
         </a>
       {/each}
     </aside>
@@ -608,9 +612,9 @@
   }
   .publish {
     border: 0;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--color-brand);
-    color: #07151a;
+    color: var(--color-text-on-solid);
     font-size: 14px;
     font-weight: 500;
     padding: 8px 20px;

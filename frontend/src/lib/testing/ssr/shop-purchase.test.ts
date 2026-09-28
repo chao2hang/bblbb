@@ -46,7 +46,7 @@ describe('M07-UI-03 购买确认页 SSR', () => {
     });
     expect(body).toContain('蓝色昵称');
     expect(body).toContain('50');
-    expect(body).toContain('COIN');
+    expect(body).toContain('金币');
     expect(body).toContain('200'); // 当前余额
     expect(body).toContain('150'); // 200 - 50 = 购买后余额
     expect(body).toContain('数字装扮确认后不可退款');
@@ -65,8 +65,8 @@ describe('M07-UI-03 购买确认页 SSR', () => {
     const { body } = render(ShopProductPage, {
       props: { data: confirmData({ level: 2, product: { ...product, required_level: 3 } }), form: null }
     });
-    expect(body).toContain('需要 LV.3');
-    expect(body).toContain('你的当前等级是 LV.2');
+    expect(body).toContain('需要 TL3');
+    expect(body).toContain('你的当前等级是 TL2');
     expect(body).not.toContain('确认购买');
   });
 
@@ -118,7 +118,7 @@ describe('M07-UI-03 购买确认页 SSR', () => {
     const { body } = render(ShopProductPage, {
       props: { data: confirmData({ product: coinProduct }), form: null }
     });
-    expect(body).toContain('88 COIN');
+    expect(body).toContain('88 金币');
     expect(body).not.toContain('01911fd5-0047-0000-0000-000000000002');
     expect(body).not.toContain('01911FD5-0047-0000-0000-000000000002');
   });
@@ -226,7 +226,7 @@ describe('M07-UI-04 订单结果页 SSR', () => {
     });
     expect(body).toContain('购买成功');
     expect(body).toContain('50');
-    expect(body).toContain('COIN');
+    expect(body).toContain('金币');
     expect(body).toContain('已到账');
     expect(body).toContain('/me/wardrobe');
   });

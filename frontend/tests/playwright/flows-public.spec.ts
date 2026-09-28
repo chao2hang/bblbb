@@ -34,7 +34,7 @@ test.describe('匿名浏览（public read，SSR）', () => {
   test('/users/alice 用户主页显示公开投影', async ({ page }) => {
     await page.goto('/users/alice');
     await expect(page.getByText('@ alice')).toBeVisible();
-    await expect(page.getByText(/LV\./).first()).toBeVisible();
+    await expect(page.getByText(/TL\d/).first()).toBeVisible();
   });
 
   test('匿名搜索：输入关键词并提交（原生 GET 表单）', async ({ page }) => {

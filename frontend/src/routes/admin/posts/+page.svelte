@@ -39,6 +39,8 @@
     { value: 'deleted', label: '已删除' }
   ];
 
+  const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
+
   /** 审核动作白名单（与 ?/moderate 服务端契约一致；删除含在行操作弹层中）。 */
   const MODERATE_ACTIONS = [
     'approve',
@@ -138,10 +140,12 @@
     return formatDateTime(ms);
   }
 
-  function tabHref(status: string): string {
+  function tabHref(status: string, overrideLimit?: number): string {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
     if (data.q) params.set('q', data.q);
+    const l = overrideLimit ?? data.limit;
+    if (l) params.set('limit', String(l));
     const qs = params.toString();
     return qs ? `/admin/posts?${qs}` : '/admin/posts';
   }
@@ -152,6 +156,7 @@
           const params = new URLSearchParams();
           if (data.status) params.set('status', data.status);
           if (data.q) params.set('q', data.q);
+          if (data.limit) params.set('limit', String(data.limit));
           params.set('after', data.nextCursor);
           return `/admin/posts?${params.toString()}`;
         })()
@@ -192,6 +197,15 @@
   function handleStatusChange(val: string) {
     selectedIds = [];
     goto(tabHref(val), { keepFocus: true });
+  }
+
+  function handleLimitChange(val: number) {
+    selectedIds = [];
+    const params = new URLSearchParams();
+    if (data.status) params.set('status', data.status);
+    if (data.q) params.set('q', data.q);
+    params.set('limit', String(val));
+    goto(`/admin/posts?${params.toString()}`, { keepFocus: true });
   }
 
   // M18：复选框与批量选择状态（对齐原型后台表格）
@@ -362,13 +376,16 @@
 <!-- 原型顶部状态过滤 Tab（带计数，M17-GAPFIX-07） -->
 <FilterTabs
   ariaLabel="帖子状态筛选"
-  tabs={POST_STATUS_TABS.map((t) => ({
-    value: t.value,
-    label: t.label,
-    href: tabHref(t.value),
-    active: data.status === t.value,
-    count: data.counts ? (data.counts[t.value as keyof typeof data.counts] ?? 0) : undefined
-  }))}
+  tabs={POST_STATUS_TABS.map((t) => {
+    const countKey = (t.value || 'all') as keyof typeof data.counts;
+    return {
+      value: t.value,
+      label: t.label,
+      href: tabHref(t.value),
+      active: data.status === t.value,
+      count: data.counts ? (data.counts[countKey] ?? 0) : undefined
+    };
+  })}
 />
 
 {#if data.state === 'forbidden'}
@@ -386,12 +403,35 @@
   {/if}
 
   <section class="app-card">
-    <header class="app-card__head">
+    <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <h2>帖子列表</h2>
+      <ExportButton
+        label="导出内容清单"
+        filename="admin-posts"
+        columns={[
+          { key: 'id', label: 'id' },
+          { key: 'title', label: '标题' },
+          { key: 'author', label: '作者' },
+          { key: 'board', label: '板块' },
+          { key: 'status', label: '状态' },
+          { key: 'review', label: '审核' },
+          { key: 'time', label: '时间' }
+        ]}
+        getData={() =>
+          displayedItems.map((item) => ({
+            id: item.id,
+            title: item.title,
+            author: item.author_username,
+            board: item.board_name || item.board_slug,
+            status: item.status,
+            review: item.review_status,
+            time: relativeTime(item.created_at)
+          }))}
+      />
     </header>
 
     <div class="app-card__body">
-      <!-- 原型对齐工具条：搜索 + 状态筛选 + 清除，单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
+      <!-- 原型对齐工具条：搜索 + 状态筛选 + 每页数量 + 清除，单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
       <form method="GET" action="/admin/posts" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
         <input
           type="search"
@@ -415,7 +455,19 @@
             <option value={tab.value}>{tab.label}</option>
           {/each}
         </select>
-        {#if data.q || data.status}
+        <select
+          name="limit"
+          class="app-select"
+          value={data.limit}
+          aria-label="每页数量"
+          onchange={(e) => handleLimitChange(Number(e.currentTarget.value))}
+          style="flex:0 0 auto;width:120px;"
+        >
+          {#each PAGE_SIZE_OPTIONS as size}
+            <option value={size}>{size} 条 / 页</option>
+          {/each}
+        </select>
+        {#if data.q || data.status || (data.limit && data.limit !== 20)}
           <a href="/admin/posts" class="btn ghost sm" style="flex:0 0 auto;">清除</a>
         {/if}
       </form>
@@ -499,39 +551,33 @@
           </table>
         </div>
 
-        <footer class="app-card__foot" style="margin-top:14px;justify-content:space-between;">
-          <div>
+        <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div style="display:flex;align-items:center;gap:12px;">
             {#if data.after}
               <a class="btn secondary sm" href={tabHref(data.status)}>第一页</a>
             {/if}
+            <span class="text-secondary" style="font-size:12px;">
+              当前页显示 {displayedItems.length} 条
+            </span>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary);">
+              <span>每页显示</span>
+              <select
+                class="app-select"
+                style="height:30px;padding:2px 8px;font-size:12px;width:auto;"
+                value={data.limit}
+                aria-label="每页显示数量"
+                onchange={(e) => handleLimitChange(Number(e.currentTarget.value))}
+              >
+                {#each PAGE_SIZE_OPTIONS as size}
+                  <option value={size}>{size} 条</option>
+                {/each}
+              </select>
+            </label>
             {#if nextHref}
               <a class="btn secondary sm" href={nextHref}>下一页</a>
             {/if}
-            <ExportButton
-              label="导出内容清单"
-              filename="admin-posts"
-              columns={[
-                { key: 'id', label: 'id' },
-                { key: 'title', label: '标题' },
-                { key: 'author', label: '作者' },
-                { key: 'board', label: '板块' },
-                { key: 'status', label: '状态' },
-                { key: 'review', label: '审核' },
-                { key: 'time', label: '时间' }
-              ]}
-              getData={() =>
-                displayedItems.map((item) => ({
-                  id: item.id,
-                  title: item.title,
-                  author: item.author_username,
-                  board: item.board_name || item.board_slug,
-                  status: item.status,
-                  review: item.review_status,
-                  time: relativeTime(item.created_at)
-                }))}
-            />
           </div>
         </footer>
       {/if}

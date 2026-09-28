@@ -1,7 +1,7 @@
 name: bblbb
 services:
   migrate:
-    image: bblbb:github-main
+    image: ghcr.io/chao2hang/bblbb:main
     command: ["migrate"]
     env_file: .env
     volumes:
@@ -9,7 +9,7 @@ services:
     networks: [default, shared-net]
     restart: "no"
   backend:
-    image: bblbb:github-main
+    image: ghcr.io/chao2hang/bblbb:main
     command: ["backend"]
     env_file: .env
     volumes:
@@ -17,12 +17,18 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     ports:
       - "127.0.0.1:8080:8080"
     networks: [default, shared-net]
     restart: unless-stopped
   worker:
-    image: bblbb:github-main
+    image: ghcr.io/chao2hang/bblbb:main
     command: ["worker"]
     env_file: .env
     volumes:
@@ -33,15 +39,23 @@ services:
     networks: [default, shared-net]
     restart: unless-stopped
   frontend:
-    image: bblbb:github-main
+    image: ghcr.io/chao2hang/bblbb:main
     command: ["frontend"]
     environment:
       INTERNAL_API_ORIGIN: http://backend:8080
+      ORIGIN: ${BBLBB__PUBLIC_ORIGIN:?set BBLBB__PUBLIC_ORIGIN in .env}
       PORT: "3000"
       HOST: 0.0.0.0
+      BODY_SIZE_LIMIT: 3M
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     ports:
       - "127.0.0.1:3000:3000"
     networks: [default]

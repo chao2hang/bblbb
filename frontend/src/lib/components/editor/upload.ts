@@ -64,12 +64,14 @@ export async function uploadEditorAttachment(
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', targetUrl);
-      // S3 预签名通常绑定了 Content-Type，必须与声明的 media_type 严格一致
-      xhr.setRequestHeader('Content-Type', mediaType);
-      if (upload.headers) {
-        for (const [k, v] of Object.entries(upload.headers)) {
-          xhr.setRequestHeader(k, v);
-        }
+      // 预签名响应的 headers 是 SigV4 输入的权威值，必须逐项只设置一次。
+      const signedHeaders = Object.entries(upload.headers ?? {});
+      const signedContentType = signedHeaders.some(([name]) => name.toLowerCase() === 'content-type');
+      for (const [name, value] of signedHeaders) {
+        xhr.setRequestHeader(name, value);
+      }
+      if (!signedContentType) {
+        xhr.setRequestHeader('Content-Type', mediaType);
       }
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {

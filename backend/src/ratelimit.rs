@@ -6,9 +6,9 @@
 //! - 429 返回 `Retry-After`（OpenAPI `RateLimited` 响应，错误码 `rate_limited`），
 //!   并按 docs/API.md §17 附 `RateLimit-Limit/Remaining/Reset` 头。
 //!
-//! 实现为固定窗口（fixed window）：`now_ms - now_ms % window_ms` 确定窗口起点，
-//! 窗口内计数达上限即拒绝。注册场景低频（每小时 3 次），窗口边界突发可接受，
-//! 换取 O(1) 与无后台清理线程（条目随窗口滚动自然重置；上限由 key 空间决定）。
+//! 实现为每 key 锚定窗口（fixed window）：首次请求时间确定窗口起点，
+//! 窗口内计数达上限即拒绝，避免 UTC 对齐边界产生双倍突发。换取 O(1) 与
+//! 无后台清理线程（条目随请求窗口滚动自然重置；上限由 key 空间决定）。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -73,15 +73,13 @@ impl RateLimiter {
     pub fn check(&self, key: &str, limit: u32, window_ms: i64, now_ms: i64) -> RateLimitStatus {
         let window_ms = window_ms.max(1);
         let limit = limit.max(1);
-        let window_start = now_ms - now_ms.rem_euclid(window_ms);
-
         let mut inner = self.inner.lock().expect("ratelimit mutex poisoned");
         let entry = inner.entry(key.to_string()).or_insert(Window {
-            window_start,
+            window_start: now_ms,
             count: 0,
         });
-        if entry.window_start != window_start {
-            entry.window_start = window_start;
+        if now_ms >= entry.window_start.saturating_add(window_ms) {
+            entry.window_start = now_ms;
             entry.count = 0;
         }
 
@@ -90,7 +88,7 @@ impl RateLimiter {
             entry.count += 1;
         }
 
-        let reset_at_ms = window_start + window_ms;
+        let reset_at_ms = entry.window_start + window_ms;
         let remaining = limit.saturating_sub(entry.count);
         let retry_after_secs = if allowed {
             0
@@ -171,7 +169,7 @@ mod tests {
         }
         assert!(!limiter.check("k", 3, window_ms, t0 + 10_000).allowed);
 
-        // 下一个窗口起点 → 计数重置
+        // 首次请求锚定窗口；过期后下一次请求开启新窗口。
         let next = t0 + window_ms;
         assert!(limiter.check("k", 3, window_ms, next).allowed);
         assert_eq!(limiter.check("k", 3, window_ms, next + 1).remaining, 1);
@@ -193,8 +191,8 @@ mod tests {
     #[test]
     fn reset_and_retry_after_are_reported() {
         let limiter = RateLimiter::new();
-        // 对齐到窗口边界，保证 t0..t0+59s 属于同一窗口
-        let t0 = (1_700_000_000_000i64 / 60_000) * 60_000;
+        // 每 key 的窗口从首个请求时刻开始，不依赖 UTC wall-clock 对齐。
+        let t0 = 1_700_000_000_123i64;
         let window_ms = 60_000;
         for _ in 0..2 {
             limiter.check("k", 2, window_ms, t0);

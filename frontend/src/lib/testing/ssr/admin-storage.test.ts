@@ -12,7 +12,6 @@ const config: StorageConfig = {
   s3_region: 'ap-southeast-1',
   s3_bucket: 'bblbb-attachments',
   s3_path_style: true,
-  s3_presigned_uploads: true,
   signed_url_ttl_seconds: 300,
   upload_max_bytes: 20971520,
   secret_configured: true,
