@@ -314,9 +314,22 @@ async fn create_post(
 
     match outcome {
         crate::idempotency::IdempotencyOutcome::Created { record_id } => {
-            let published = publish_new_post(pool, &cmd, &user.id, now_millis())
-                .await
-                .map_err(map_publish_error)?;
+            // 发布失败（事务回滚、无帖子行）必须 mark_failed：否则记录滞留
+            // in_progress，同 key 重试 10 分钟内稳定 409（与 conversations.rs 同模式）。
+            let published = match publish_new_post(pool, &cmd, &user.id, now_millis()).await {
+                Ok(published) => published,
+                Err(error) => {
+                    if let Err(mark_error) = crate::idempotency::mark_failed(pool, &record_id).await
+                    {
+                        tracing::error!(
+                            board_id = %cmd.board_id,
+                            error = %mark_error,
+                            "failed to mark post idempotency record as failed"
+                        );
+                    }
+                    return Err(map_publish_error(error));
+                }
+            };
             let _ = crate::idempotency::complete(pool, &record_id, &published.post.id)
                 .await
                 .map_err(|e| AppError::internal(e.to_string(), request_id))?;
@@ -2282,7 +2295,9 @@ async fn create_comment(
         crate::idempotency::IdempotencyOutcome::Created { record_id } => {
             let comment_id = uuid::Uuid::now_v7().to_string();
             let now = now_millis();
-            let created = service_create_comment(
+            // 失败必须 mark_failed（与 conversations.rs 同模式）：否则记录滞留
+            // in_progress，同 key 重试 10 分钟内稳定 409，过期接管后还会重复建评论。
+            let created = match service_create_comment(
                 pool,
                 &CreateCommentInput {
                     comment_id: comment_id.clone(),
@@ -2294,21 +2309,56 @@ async fn create_comment(
                 },
             )
             .await
-            .map_err(|e| match e {
-                CreateCommentError::FloorContended => AppError::conflict(
-                    "floor allocation raced with a concurrent reply; retry with a new idempotency key",
+            {
+                Ok(created) => created,
+                Err(e) => {
+                    if let Err(mark_error) = crate::idempotency::mark_failed(pool, &record_id).await
+                    {
+                        tracing::error!(
+                            post_id = %id,
+                            error = %mark_error,
+                            "failed to mark comment idempotency record as failed"
+                        );
+                    }
+                    return Err(match e {
+                        CreateCommentError::FloorContended => AppError::conflict(
+                            "floor allocation raced with a concurrent reply; retry with a new idempotency key",
+                            request_id,
+                        ),
+                        CreateCommentError::Db(msg) => AppError::internal(msg, request_id),
+                    });
+                }
+            };
+            let completed = match crate::idempotency::complete(pool, &record_id, &comment_id).await
+            {
+                Ok(completed) => completed,
+                Err(e) => {
+                    if let Err(mark_error) = crate::idempotency::mark_failed(pool, &record_id).await
+                    {
+                        tracing::error!(
+                            post_id = %id,
+                            error = %mark_error,
+                            "failed to mark comment idempotency record as failed"
+                        );
+                    }
+                    return Err(AppError::internal(e.to_string(), request_id));
+                }
+            };
+            if !completed {
+                let _ = crate::idempotency::mark_failed(pool, &record_id).await;
+                return Err(AppError::internal(
+                    "comment idempotency record changed before completion",
                     request_id,
-                ),
-                CreateCommentError::Db(msg) => AppError::internal(msg, request_id),
-            })?;
-            let _ = crate::idempotency::complete(pool, &record_id, &comment_id)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                ));
+            }
             // 重读投影（含作者卡 display_name/level）组装响应
-            let projection = load_comment_projection(pool, &comment_id)
-                .await
-                .map_err(|e| AppError::internal(e.to_string(), request_id))?
-                .ok_or_else(|| AppError::internal("comment not found after insert", request_id))?;
+            let projection = match load_comment_projection(pool, &comment_id).await {
+                Ok(projection) => projection,
+                Err(e) => {
+                    return Err(AppError::internal(e.to_string(), request_id));
+                }
+            }
+            .ok_or_else(|| AppError::internal("comment not found after insert", request_id))?;
             // 成就钩子（best-effort）：comment_count 类成就；失败只 warn。
             if let Err(e) = crate::achievements::evaluate(pool, &user.id).await {
                 tracing::warn!(user_id = %user.id, error = %e, "achievement evaluate failed (comment)");
