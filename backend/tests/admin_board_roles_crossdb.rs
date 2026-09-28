@@ -264,7 +264,7 @@ async fn mysql_family_board_role_assignment_contract() {
     let url = std::env::var("BBLBB_TEST_MYSQL_URL").expect("BBLBB_TEST_MYSQL_URL 未设置");
     let pool = create_pool(&url).await.unwrap();
     let engine = common::mysql_family_migrations_dir(&pool).await;
-    let files = read_migration_files(&migrations_dir(&engine)).unwrap();
+    let files = read_migration_files(&migrations_dir(engine)).unwrap();
     run_migrations(&pool, &files).await.unwrap();
     seed_builtin_roles(&pool).await.unwrap();
     let app = build_router(AppConfig::default(), Some(pool.clone()));
