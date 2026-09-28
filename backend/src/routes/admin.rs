@@ -1845,8 +1845,11 @@ async fn list_board_role_assignments(
         String,
     );
     let rows: Vec<AssignmentRow> = match pool {
-        Either::Left(p) => sqlx::query_as(sql).fetch_all(p).await,
-        Either::Right(p) => sqlx::query_as(sql).fetch_all(p).await,
+        // 注意：SQL 含 1 个 `?` 占位符，必须绑定 board_id——漏绑时 SQLite
+        // 把未绑参数当 NULL 静默返回 0 行（掩盖缺陷），MariaDB/MySQL
+        // prepared statement 参数数不匹配直接 1210 → 500（GA 生产实测）。
+        Either::Left(p) => sqlx::query_as(sql).bind(&id).fetch_all(p).await,
+        Either::Right(p) => sqlx::query_as(sql).bind(&id).fetch_all(p).await,
     }
     .map_err(|e| AppError::internal(e.to_string(), request_id))?;
     let assignments: Vec<Value> = rows
