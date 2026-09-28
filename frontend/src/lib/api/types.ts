@@ -60,7 +60,7 @@ export type {
   AccessSummaryPolicy,
   SearchResultType,
   ReportCreateTargetType,
-  ReportCreateReasonCode,
+  ReportCreateReason,
   SanctionCreateType,
   // M6/M7 契约类型（generated 兜底，供 client/页面直接引用）
   AttachmentCreate,

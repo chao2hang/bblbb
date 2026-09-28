@@ -10108,7 +10108,7 @@ components:
       required:
       - target_type
       - target_id
-      - reason_code
+      - reason
       properties:
         target_type:
           type: string
@@ -10116,22 +10116,21 @@ components:
           - post
           - comment
           - user
-          - attachment
+          - board
         target_id:
           type: string
           format: uuid
-        reason_code:
+        reason:
           type: string
           enum:
           - spam
           - harassment
-          - illegal_content
-          - privacy
-          - copyright
-          - malware
-          - wrong_board
+          - illegal
+          - nsfw
+          - misinformation
+          - impersonation
           - other
-        details:
+        detail:
           type:
           - string
           - 'null'

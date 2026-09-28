@@ -478,10 +478,10 @@ export type Revision = ResourceMeta & {
   reason: string;
 };
 export interface ReportCreate {
-  target_type: "post" | "comment" | "user" | "attachment";
+  target_type: "post" | "comment" | "user" | "board";
   target_id: string;
-  reason_code: "spam" | "harassment" | "illegal_content" | "privacy" | "copyright" | "malware" | "wrong_board" | "other";
-  details?: string | null;
+  reason: "spam" | "harassment" | "illegal" | "nsfw" | "misinformation" | "impersonation" | "other";
+  detail?: string | null;
 }
 export interface AppealCreate {
   sanction_id: string;
