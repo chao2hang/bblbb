@@ -165,14 +165,16 @@ async fn side_effect(
             let Some(user_id) = user_id else {
                 return Err("user.registered payload missing user_id".into());
             };
-            // SMTP 未配置时不入队邮件任务（transport 为桩，入队只会死信）。
+            // DB SMTP 与 HTTP 中继（BBLBB__MAIL_RELAY_*，GA P1-10）任一就绪
+            // 即入队邮件任务；都未配置时跳过（transport 为桩，入队只会死信）。
             // settings_key 由 main 传入（P0 整改：smtp_pass 静态加密）。
             let smtp = crate::email::service::load_smtp_config_from_db(pool, settings_key).await?;
             let smtp_ready = smtp
                 .as_ref()
                 .map(|c| c.enabled && !c.host.is_empty())
                 .unwrap_or(false);
-            if !smtp_ready {
+            let relay_ready = crate::email::relay::RelaySender::from_env().is_some();
+            if !smtp_ready && !relay_ready {
                 tracing::warn!(
                     event_id = %event.id,
                     user_id = %user_id,

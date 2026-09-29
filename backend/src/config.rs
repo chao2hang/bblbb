@@ -193,6 +193,13 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         reload: "restart",
     },
     ConfigEntry {
+        env_var: "BBLBB__PUBLIC_ORIGIN",
+        field: "public_origin",
+        default: "（空 = OIDC 端点 server_error；Passkey 要求非空且与 rp_id 域一致）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
         env_var: "BBLBB__DB_MAX_CONNECTIONS",
         field: "db_max_connections",
         default: "8",
@@ -1113,6 +1120,7 @@ mod tests {
             "openapi_path",
             "passkey_rp_id",
             "passkey_rp_name",
+            "public_origin",
             "s3_access_key_id",
             "s3_bucket",
             "s3_endpoint",
