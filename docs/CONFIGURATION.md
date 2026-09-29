@@ -53,6 +53,7 @@
 | `BBLBB__AUTO_MIGRATE` | `auto_migrate` | `false` | dev, ci | 重启 |
 | `BBLBB__ALLOWED_HOSTS` | `allowed_hosts` | 空 = 宽松模式（仅记录） | all | 重启 |
 | `BBLBB__ALLOWED_ORIGINS` | `allowed_origins` | 空 = 宽松模式（仅记录） | all | 重启 |
+| `BBLBB__PUBLIC_ORIGIN` | `public_origin` | 空 = OIDC 端点 server_error（Passkey 要求非空且与 rp_id 域一致） | all | 重启 |
 | `BBLBB__MAIL_RELAY_URL` | `mail_relay_url` | 空 = 未配置，回落数据库 SMTP 分支 | all | 重启 |
 | `BBLBB__MAIL_RELAY_TOKEN` | `mail_relay_token` | 空 = 未配置 | all | 重启 |
 | `BBLBB__DB_MAX_CONNECTIONS` | `db_max_connections` | `8` | all | 重启 |
