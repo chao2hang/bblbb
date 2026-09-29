@@ -125,6 +125,7 @@ pub async fn request_password_reset(
     email_normalized: &str,
     request_id: &str,
     limits: &PasswordResetLimits,
+    settings_key: &str,
 ) -> Result<RequestResetOutcome, RequestResetError> {
     let now = outbox::now_millis();
 
@@ -176,6 +177,7 @@ pub async fn request_password_reset(
         &user_id,
         now,
         now + RESET_TOKEN_TTL_MS,
+        settings_key,
     )
     .await
     .map_err(RequestResetError::Database)?;
@@ -401,36 +403,41 @@ async fn invalidate_old_tokens<'e>(
     }
 }
 
-/// 插入新 reset token（token 为随机生成，DB 只存 hash）。
+/// 插入新 reset token（SHA-256 hash 校验；明文 settings-key 加密密文列存储，
+/// GA P0-2 收尾：邮件投递时解密渲染一次性链接）。
 async fn insert_reset_token<'e>(
     tx: &mut OutboxTx<'e>,
     token_id: &str,
     user_id: &str,
     now: i64,
     expires_at: i64,
+    settings_key: &str,
 ) -> Result<(), sqlx::Error> {
     let token = crate::auth::token::generate_token();
     let token_hash = hash_token(&token);
+    let token_sealed = crate::auth::token::seal_token(settings_key, &token);
     match tx {
         Either::Left(t) => sqlx::query(
-            "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO password_reset_tokens (id, user_id, token_hash, token_encrypted, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(token_id)
         .bind(user_id)
         .bind(&token_hash)
+        .bind(&token_sealed)
         .bind(expires_at)
         .bind(now)
         .execute(&mut **t)
         .await
         .map(|_| ()),
         Either::Right(t) => sqlx::query(
-            "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO password_reset_tokens (id, user_id, token_hash, token_encrypted, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(token_id)
         .bind(user_id)
         .bind(&token_hash)
+        .bind(&token_sealed)
         .bind(expires_at)
         .bind(now)
         .execute(&mut **t)

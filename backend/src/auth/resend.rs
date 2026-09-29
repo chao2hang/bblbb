@@ -91,6 +91,7 @@ pub async fn resend_verification_email(
     email_normalized: &str,
     request_id: &str,
     limits: &ResendLimits,
+    settings_key: &str,
 ) -> Result<ResendOutcome, ResendError> {
     let now = outbox::now_millis();
 
@@ -137,11 +138,20 @@ pub async fn resend_verification_email(
 
     let token = generate_token();
     let token_hash = hash_token(&token);
+    let token_sealed = crate::auth::token::seal_token(settings_key, &token);
     let token_id = uuid::Uuid::now_v7().to_string();
     let expires_at = now + VERIFY_TOKEN_TTL_MS;
-    insert_verify_token(&mut tx, &token_id, &user_id, &token_hash, expires_at, now)
-        .await
-        .map_err(ResendError::Database)?;
+    insert_verify_token(
+        &mut tx,
+        &token_id,
+        &user_id,
+        &token_hash,
+        &token_sealed,
+        expires_at,
+        now,
+    )
+    .await
+    .map_err(ResendError::Database)?;
 
     AuditEntry::user_action(&user_id, "auth.resend_verification")
         .with_target("user", &user_id)
@@ -227,18 +237,20 @@ async fn insert_verify_token<'e>(
     token_id: &str,
     user_id: &str,
     token_hash: &str,
+    token_sealed: &str,
     expires_at: i64,
     now: i64,
 ) -> Result<(), sqlx::Error> {
     match tx {
         Either::Left(t) => {
             sqlx::query(
-                "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO email_verification_tokens (id, user_id, token_hash, token_encrypted, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)",
             )
             .bind(token_id)
             .bind(user_id)
             .bind(token_hash)
+            .bind(token_sealed)
             .bind(expires_at)
             .bind(now)
             .execute(&mut **t)
@@ -247,12 +259,13 @@ async fn insert_verify_token<'e>(
         }
         Either::Right(t) => {
             sqlx::query(
-                "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO email_verification_tokens (id, user_id, token_hash, token_encrypted, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)",
             )
             .bind(token_id)
             .bind(user_id)
             .bind(token_hash)
+            .bind(token_sealed)
             .bind(expires_at)
             .bind(now)
             .execute(&mut **t)

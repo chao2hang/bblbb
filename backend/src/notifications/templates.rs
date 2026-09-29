@@ -44,10 +44,14 @@ pub enum TemplateKey {
     AppealChanged,
     LevelUp,
     SecurityNotice,
+    /// 邮箱验证（GA P0-2 收尾）：params 由 deliver 路径注入 `verify_url`。
+    EmailVerification,
+    /// 密码重置：params 由 deliver 路径注入 `reset_url`。
+    PasswordReset,
 }
 
 impl TemplateKey {
-    pub const ALL: [TemplateKey; 9] = [
+    pub const ALL: [TemplateKey; 11] = [
         TemplateKey::ReplyCreated,
         TemplateKey::QuoteReferenced,
         TemplateKey::MentionCreated,
@@ -57,6 +61,8 @@ impl TemplateKey {
         TemplateKey::AppealChanged,
         TemplateKey::LevelUp,
         TemplateKey::SecurityNotice,
+        TemplateKey::EmailVerification,
+        TemplateKey::PasswordReset,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -70,6 +76,8 @@ impl TemplateKey {
             TemplateKey::AppealChanged => "appeal.changed",
             TemplateKey::LevelUp => "level.up",
             TemplateKey::SecurityNotice => "security.notice",
+            TemplateKey::EmailVerification => "email.verification",
+            TemplateKey::PasswordReset => "email.password_reset",
         }
     }
 
@@ -89,6 +97,8 @@ impl TemplateKey {
             | TemplateKey::AppealChanged => "moderation",
             TemplateKey::LevelUp => "badge",
             TemplateKey::SecurityNotice => "system",
+            // 邮件专用模板不落站内通知表；归类 system 保持穷举完整
+            TemplateKey::EmailVerification | TemplateKey::PasswordReset => "system",
         }
     }
 }
@@ -128,6 +138,8 @@ pub fn render(
         TemplateKey::AppealChanged => "申诉状态更新".to_string(),
         TemplateKey::LevelUp => "等级提升".to_string(),
         TemplateKey::SecurityNotice => "安全提醒".to_string(),
+        TemplateKey::EmailVerification => "BBLBB 邮箱验证".to_string(),
+        TemplateKey::PasswordReset => "BBLBB 密码重置".to_string(),
     };
     let body = match key {
         TemplateKey::ReplyCreated => p("actor_name").map(|name| format!("{name} 回复了你的内容")),
@@ -169,6 +181,24 @@ pub fn render(
             let kind = p("kind").unwrap_or_else(|| "安全更新".to_string());
             Some(format!("账户安全提醒：{kind}，详情请查看站内安全中心"))
         }
+        TemplateKey::EmailVerification => p("verify_url").map(|url| {
+            let minutes = p("expires_minutes").unwrap_or_else(|| "30".into());
+            format!(
+                "你好 {}，\n\n请点击以下链接完成邮箱验证（{} 分钟内有效）：\n{}\n\n如无法点击，请复制链接到浏览器打开。\n\n如非本人操作，请忽略本邮件。\n\n—— BBLBB",
+                p("username").unwrap_or_else(|| "用户".into()),
+                minutes,
+                url
+            )
+        }),
+        TemplateKey::PasswordReset => p("reset_url").map(|url| {
+            let minutes = p("expires_minutes").unwrap_or_else(|| "30".into());
+            format!(
+                "你好 {}，\n\n请点击以下链接重置密码（{} 分钟内有效）：\n{}\n\n如无法点击，请复制链接到浏览器打开。\n\n如非本人操作，请立即检查账户安全并忽略本邮件。\n\n—— BBLBB",
+                p("username").unwrap_or_else(|| "用户".into()),
+                minutes,
+                url
+            )
+        }),
     };
     RenderedNotification { title, body }
 }

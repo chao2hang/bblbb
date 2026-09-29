@@ -182,16 +182,42 @@ async fn side_effect(
                 );
                 return Ok(());
             }
+            // 按 kind 选模板（GA P0-2 收尾）：email_verification → 邮箱验证；
+            // password_reset → 密码重置。params 只带 token_id 引用 + 用户名 +
+            // 有效期（分钟）——明文 token 由邮件 worker 投递时经 token_id 解密
+            // 构造一次性链接（M01-JOBS-12：payload 无明文 token）。
+            let kind = event
+                .payload
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("email_verification");
+            let (template, params, resource) = match kind {
+                "password_reset" => (
+                    crate::notifications::templates::TemplateKey::PasswordReset,
+                    serde_json::json!({
+                        "username": event.payload.get("username").and_then(|v| v.as_str()).unwrap_or(""),
+                        "expires_minutes": 30,
+                        "token_id": event.payload.get("password_reset_token_id").and_then(|v| v.as_str()).unwrap_or(""),
+                    }),
+                    Some("password_reset"),
+                ),
+                _ => (
+                    crate::notifications::templates::TemplateKey::EmailVerification,
+                    serde_json::json!({
+                        "username": event.payload.get("username").and_then(|v| v.as_str()).unwrap_or(""),
+                        "expires_minutes": 30,
+                        "token_id": event.payload.get("email_verification_token_id").and_then(|v| v.as_str()).unwrap_or(""),
+                    }),
+                    Some("email_verification"),
+                ),
+            };
             crate::email::service::enqueue_email(
                 pool,
                 user_id,
-                crate::notifications::templates::TemplateKey::SecurityNotice,
-                serde_json::from_value(serde_json::json!({ "kind": "email_verification" }))?,
-                Some("email_verification"),
-                event
-                    .payload
-                    .get("email_verification_token_id")
-                    .and_then(|v| v.as_str()),
+                template,
+                serde_json::from_value(params)?,
+                resource,
+                None,
                 outbox::now_millis(),
             )
             .await

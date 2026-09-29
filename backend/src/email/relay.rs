@@ -109,6 +109,7 @@ pub async fn deliver_job_via_relay(
     pool: &DatabasePool,
     job_id: &str,
     sender: &RelaySender,
+    settings_key: &str,
 ) -> Result<(), RelayDeliveryError> {
     let row: Option<(String, i64)> = match pool {
         Either::Left(p) => sqlx::query_as::<_, (String, i64)>(
@@ -188,6 +189,19 @@ pub async fn deliver_job_via_relay(
             class: RetryClass::Permanent,
         });
     };
+
+    let params = crate::email::service::expand_verification_params(
+        pool,
+        settings_key,
+        template_key,
+        &params,
+    )
+    .await
+    .map_err(|reason| RelayDeliveryError {
+        error: EmailError::Invalid(sanitize_log("", "verification link unavailable", &reason)),
+        class: RetryClass::Permanent,
+    })?
+    .unwrap_or(params);
 
     let rendered = render(template_key, &params);
     let body = format!(

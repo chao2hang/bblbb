@@ -327,7 +327,14 @@ async fn register(
         ));
     }
 
-    match register_user(pool, &registration, request_id).await {
+    match register_user(
+        pool,
+        &registration,
+        request_id,
+        &state.config.settings_encryption_key,
+    )
+    .await
+    {
         Ok(_) => Ok((StatusCode::CREATED, Json(json!({ "ok": true })))),
         // 不泄漏用户名/邮箱是否已存在：与成功响应完全一致
         Err(RegisterUserError::AlreadyExists) => {
@@ -547,6 +554,7 @@ async fn resend_verification(
         &email_normalized,
         request_id,
         &ResendLimits::default(),
+        &state.config.settings_encryption_key,
     )
     .await
     {
@@ -984,6 +992,7 @@ async fn request_password_reset(
         &email_normalized,
         request_id,
         &PasswordResetLimits::default(),
+        &state.config.settings_encryption_key,
     )
     .await
     {

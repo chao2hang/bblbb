@@ -28,6 +28,28 @@ pub fn verify_token(token: &str, hash: &str) -> bool {
     result == 0
 }
 
+/// 令牌明文的可还原密文（GA P0-2 收尾：邮件投递需要明文渲染一次性链接）。
+///
+/// 设计：DB 不存明文、jobs payload 不带明文（M01-JOBS-12 / M05-NOTIFY 不变）；
+/// 存 `enc1:` 密文（BBLBB__SETTINGS_ENCRYPTION_KEY 加密），邮件 worker 投递时
+/// 解密。key 为空时（仅 dev）`encrypt_setting` 明文回落。
+pub fn seal_token(settings_key: &str, token: &str) -> String {
+    crate::config::secret_crypto::encrypt_setting(settings_key, token)
+}
+
+/// 解开 [`seal_token`] 的密文；空/无法解密返回 None（调用方按不可投递处理）。
+pub fn open_token(settings_key: &str, sealed: &str) -> Option<String> {
+    if sealed.is_empty() {
+        return None;
+    }
+    let plain = crate::config::secret_crypto::decrypt_setting(settings_key, sealed);
+    if plain.is_empty() {
+        None
+    } else {
+        Some(plain)
+    }
+}
+
 /// URL-safe base64 编码（无填充）
 fn base64_url_no_pad(bytes: &[u8]) -> String {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};

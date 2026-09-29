@@ -71,6 +71,7 @@ pub async fn register_user(
     pool: &DatabasePool,
     registration: &NormalizedRegistration,
     request_id: &str,
+    settings_key: &str,
 ) -> Result<RegistrationOutcome, RegisterUserError> {
     let mut tx = begin_tx(pool).await.map_err(RegisterUserError::Database)?;
 
@@ -88,14 +89,25 @@ pub async fn register_user(
     }
     inserted.map_err(RegisterUserError::Database)?;
 
-    // 2) 一次性验证 token（只存 SHA-256 hash；原始 token 不入库、不进 payload）
+    // 2) 一次性验证 token（SHA-256 hash 用于校验；明文以 settings-key 加密
+    //    密文列存储（GA P0-2 收尾），供邮件投递时解密渲染一次性链接；
+    //    payload 仍只含 token_id 引用，M01-JOBS-12 不变）
     let verify_token = generate_token();
     let token_hash = hash_token(&verify_token);
+    let token_sealed = crate::auth::token::seal_token(settings_key, &verify_token);
     let token_id = uuid::Uuid::now_v7().to_string();
     let expires_at = now + VERIFY_TOKEN_TTL_MS;
-    insert_verify_token(&mut tx, &token_id, &user_id, &token_hash, expires_at, now)
-        .await
-        .map_err(RegisterUserError::Database)?;
+    insert_verify_token(
+        &mut tx,
+        &token_id,
+        &user_id,
+        &token_hash,
+        &token_sealed,
+        expires_at,
+        now,
+    )
+    .await
+    .map_err(RegisterUserError::Database)?;
 
     // 3) 审计（与业务变更同事务提交）
     AuditEntry::user_action(&user_id, "auth.register")
@@ -189,18 +201,20 @@ async fn insert_verify_token<'e>(
     token_id: &str,
     user_id: &str,
     token_hash: &str,
+    token_sealed: &str,
     expires_at: i64,
     now: i64,
 ) -> Result<(), sqlx::Error> {
     match tx {
         Either::Left(t) => {
             sqlx::query(
-                "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO email_verification_tokens (id, user_id, token_hash, token_encrypted, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)",
             )
             .bind(token_id)
             .bind(user_id)
             .bind(token_hash)
+            .bind(token_sealed)
             .bind(expires_at)
             .bind(now)
             .execute(&mut **t)
@@ -209,12 +223,13 @@ async fn insert_verify_token<'e>(
         }
         Either::Right(t) => {
             sqlx::query(
-                "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
-                 VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO email_verification_tokens (id, user_id, token_hash, token_encrypted, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)",
             )
             .bind(token_id)
             .bind(user_id)
             .bind(token_hash)
+            .bind(token_sealed)
             .bind(expires_at)
             .bind(now)
             .execute(&mut **t)
