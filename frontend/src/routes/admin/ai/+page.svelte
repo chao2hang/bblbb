@@ -489,8 +489,11 @@
 
   <!-- 卡片 4：任务队列（行按钮 + 批量重试） -->
   <section class="app-card">
-    <header class="app-card__head">
+    <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
       <h2 style="margin:0;">任务队列</h2>
+      <button type="button" class="btn ghost sm" disabled title="任务清理 action 尚未接入">
+        清理已完成
+      </button>
     </header>
     <div class="app-card__body">
       <BatchBar count={selectedTasks.size} noun="个任务" onclear={() => (selectedTasks = new Set())}>
@@ -543,11 +546,6 @@
           </tbody>
         </table>
       </div>
-      <footer class="app-card__foot" style="margin-top:14px;">
-        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;" disabled title="任务清理 action 尚未接入">
-          清理已完成
-        </button>
-      </footer>
     </div>
   </section>
 {/if}

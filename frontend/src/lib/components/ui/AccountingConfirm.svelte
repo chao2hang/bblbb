@@ -10,13 +10,15 @@
   import type { Snippet } from 'svelte';
   import Dialog from './Dialog.svelte';
   import Button from './Button.svelte';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
 
+  const currencyContext = getCurrencyNameContext();
   let {
     open = false,
     title = '确认支付',
     description = '',
     amount = 0,
-    currency = 'B币',
+    currency = '',
     balanceAfter = null as number | null,
     fee = null as number | null,
     confirmText = '确认支付',
@@ -44,11 +46,12 @@
     oncancel?: () => void;
     children?: Snippet;
   } = $props();
+  const resolvedCurrency = $derived(currency || currencyContext?.currencyName || '金币');
 </script>
 
 <Dialog {open} {title} {description} onclose={oncancel}>
   <dl class="accounting-confirm-summary">
-    <div class="accounting-confirm-row"><dt>支付金额</dt><dd><strong>{amount} {currency}</strong></dd></div>
+    <div class="accounting-confirm-row"><dt>支付金额</dt><dd><strong>{amount} {resolvedCurrency}</strong></dd></div>
     {#if fee !== null}
       <div class="accounting-confirm-row"><dt>手续费</dt><dd>{fee} {currency}</dd></div>
     {/if}

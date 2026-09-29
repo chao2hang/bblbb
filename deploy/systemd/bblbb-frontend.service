@@ -20,6 +20,7 @@ EnvironmentFile=/etc/bblbb/frontend.env
 # adapter-node 默认读取 PORT/HOST；生产强制 loopback
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
+Environment=BODY_SIZE_LIMIT=3M
 ExecStart=/usr/bin/env node /opt/bblbb/current/frontend/build/index.js
 
 # ── 加固 ────────────────────────────────────────────────────

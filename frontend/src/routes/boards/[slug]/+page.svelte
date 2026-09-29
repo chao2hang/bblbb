@@ -595,9 +595,9 @@
 
   .publish {
     border: 0;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--color-brand);
-    color: #07151a;
+    color: var(--color-text-on-solid);
     font-size: 14px;
     font-weight: 500;
     padding: 8px 20px;

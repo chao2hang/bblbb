@@ -88,7 +88,7 @@ check-tx-io: ## 写事务 IO 边界扫描（禁止事务内 SMTP/S3/AI/视频/�
 
 check-migrations: ## 三数据库迁移结构等价断言（M01-DB-09）
 	@printf "$(GREEN)>>> [check-migrations] 迁移结构等价断言$(RESET)\n"
-	@cd $(BACKEND_DIR) && $(CARGO) test --test migration_equivalence --quiet 2>&1 | tail -n 8
+	@set -o pipefail; cd $(BACKEND_DIR) && $(CARGO) test --test migration_equivalence --quiet 2>&1 | tail -n 8
 
 check-frontend: ## 前端 Svelte check + TypeScript 类型检查 + HTML sink 静态检查
 	@printf "$(GREEN)>>> [check-frontend] SvelteKit check$(RESET)\n"
@@ -176,9 +176,9 @@ test-frontend: ## 前端测试
 	@printf "$(GREEN)>>> [test-frontend] 前端单测$(RESET)\n"
 	@cd $(FRONTEND_DIR) && npm test --if-present
 
-test-prototype: ## 原型检查
-	@printf "$(GREEN)>>> [test-prototype] 原型检查$(RESET)\n"
-	@cd $(PROTOTYPE_DIR) && npm run check:all
+test-prototype: ## 原型验收（复用前端 Playwright，无独立 npm package）
+	@printf "$(GREEN)>>> [test-prototype] 原型渲染 + 交互检查$(RESET)\n"
+	@$(MAKE) check-prototype
 
 ##@ 构建
 build: build-backend build-frontend ## 构建后端和前端
@@ -218,9 +218,8 @@ migrate-check-sqlite: ## 检查 SQLite 迁移（不应用）
 		rm -f $$DB
 
 ##@ 清理
-clean: ## 清理构建产物
-	@printf "$(YELLOW)>>> 清理构建产物...$(RESET)\n"
-	@cd $(BACKEND_DIR) && cargo clean 2>/dev/null || true
+clean: ## 清理前端构建产物（保留昂贵的 Rust 增量缓存）
+	@printf "$(YELLOW)>>> 清理前端构建产物（Rust target 缓存保留）...$(RESET)\n"
 	@rm -rf $(FRONTEND_DIR)/build $(FRONTEND_DIR)/.svelte-kit 2>/dev/null || true
 	@printf "$(GREEN)完成$(RESET)\n"
 
@@ -228,5 +227,5 @@ clean: ## 清理构建产物
 install: ## 安装依赖
 	@printf "$(GREEN)>>> 安装前端依赖...$(RESET)\n"
 	@cd $(FRONTEND_DIR) && ([ -d node_modules ] || npm ci)
-	@cd $(PROTOTYPE_DIR) && ([ -d node_modules ] || npm ci)
+	@printf "$(YELLOW)>>> 原型为静态 SPA，复用 frontend/node_modules 中的 Playwright$(RESET)\n"
 	@printf "$(GREEN)>>> Rust 依赖将由 cargo 自动拉取$(RESET)\n"

@@ -1,0 +1,310 @@
+/* ============================================================
+   BBLBB 语法高亮与代码块设计规范 (Syntax Highlighting & Code Blocks)
+   ============================================================ */
+
+/* 代码块外层容器：区分于帖子卡片，呈现内凹沉浸式编辑器质感 */
+.code-block-wrapper,
+.prose-pre-wrap {
+  position: relative;
+  margin: var(--space-5, 20px) 0;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-code-border, rgba(255, 255, 255, 0.12)) !important;
+  background: var(--color-code-bg, #090d13) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+/* 顶部头部工具条：语言指示与复制按钮 */
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 6px 14px;
+  background: var(--color-code-header-bg, rgba(255, 255, 255, 0.03));
+  border-bottom: 1px solid var(--color-code-border, rgba(255, 255, 255, 0.1));
+  user-select: none;
+}
+
+.code-block-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code-block-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-brand, #3b82f6);
+  opacity: 0.85;
+}
+
+.code-block-lang {
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary, #8b949e);
+}
+
+/* 复制代码按钮 */
+.code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-family: var(--font-family-base);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #a2aab6);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.code-copy-btn:hover {
+  color: var(--color-text-primary, #ffffff);
+  border-color: var(--color-border-strong, #52525b);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.code-copy-btn.is-copied {
+  color: var(--color-success, #3dbe6b) !important;
+  border-color: var(--color-success, #3dbe6b) !important;
+  background: rgba(61, 190, 107, 0.12) !important;
+}
+
+.code-copy-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* pre 与 code 样式 */
+.code-block-wrapper pre,
+.prose-pre-wrap pre,
+.prose .code-block-wrapper pre,
+.prose .prose-pre-wrap pre {
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow-x: auto;
+  font-size: var(--text-sm, 13px);
+  line-height: 1.7;
+}
+
+.code-block-wrapper pre code,
+.prose-pre-wrap pre code,
+.prose .code-block-wrapper pre code,
+.prose .prose-pre-wrap pre code,
+.prose pre code {
+  display: block;
+  min-width: 0;
+  width: max-content;
+  max-width: none;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-size: inherit;
+  font-family: var(--font-family-mono);
+  color: var(--color-code-text, #e6edf3);
+}
+
+/* 兜底：未包裹的 raw pre 样式（SSR / 禁用 JS 环境） */
+.prose pre {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  background: var(--color-code-bg);
+  border: 1px solid var(--color-code-border, var(--color-border));
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+/* 行内代码增强：在正文中鲜明可辨 */
+.prose :not(pre) > code {
+  font-family: var(--font-family-mono);
+  font-size: 0.86em;
+  padding: 2px 6px;
+  margin: 0 2px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-code-inline-border, rgba(255, 255, 255, 0.14));
+  background: var(--color-code-inline-bg, rgba(255, 255, 255, 0.07));
+  color: var(--color-code-inline-text, #79c0ff);
+  word-break: break-word;
+}
+
+/* ============================================================
+   Prism 语法高亮 Token 色板体系 (GitHub Dark / One Dark 灵感)
+   ============================================================ */
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.token.punctuation {
+  color: #8b949e;
+}
+
+.token.namespace {
+  opacity: 0.8;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #f0883e;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #7ee787;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #79c0ff;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #ff7b72;
+  font-weight: 500;
+}
+
+.token.function,
+.token.class-name {
+  color: #d2a8ff;
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+  color: #ffa657;
+}
+
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
+}
+
+/* ============================================================
+   亮色模式色彩适配 (Light Theme)
+   ============================================================ */
+
+html.light .code-block-wrapper,
+html.light .prose-pre-wrap {
+  border-color: #d0d7de !important;
+  background: #f6f8fa !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+html.light .code-block-header {
+  background: #eef2f6;
+  border-bottom-color: #d0d7de;
+}
+
+html.light .code-copy-btn {
+  background: #ffffff;
+  color: #57606a;
+  border-color: #d0d7de;
+}
+
+html.light .code-copy-btn:hover {
+  color: #24292f;
+  border-color: #8c959f;
+  background: #f3f4f6;
+}
+
+html.light .code-block-wrapper pre code,
+html.light .prose-pre-wrap pre code {
+  color: #24292f;
+}
+
+html.light .token.comment,
+html.light .token.prolog,
+html.light .token.doctype,
+html.light .token.cdata {
+  color: #6e7781;
+}
+
+html.light .token.punctuation {
+  color: #57606a;
+}
+
+html.light .token.property,
+html.light .token.tag,
+html.light .token.boolean,
+html.light .token.number,
+html.light .token.constant,
+html.light .token.symbol,
+html.light .token.deleted {
+  color: #953800;
+}
+
+html.light .token.selector,
+html.light .token.attr-name,
+html.light .token.string,
+html.light .token.char,
+html.light .token.builtin,
+html.light .token.inserted {
+  color: #0a3069;
+}
+
+html.light .token.operator,
+html.light .token.entity,
+html.light .token.url {
+  color: #0550ae;
+}
+
+html.light .token.atrule,
+html.light .token.attr-value,
+html.light .token.keyword {
+  color: #cf222e;
+}
+
+html.light .token.function,
+html.light .token.class-name {
+  color: #8250df;
+}
+
+html.light .token.regex,
+html.light .token.important,
+html.light .token.variable {
+  color: #953800;
+}
+
+html.light .prose :not(pre) > code {
+  background: #eff2f5;
+  border-color: #d8dee4;
+  color: #0969da;
+}

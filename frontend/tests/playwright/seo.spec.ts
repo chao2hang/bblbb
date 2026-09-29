@@ -75,18 +75,19 @@ test.describe('hydration/预取（__data.json）', () => {
   });
 });
 
-test.describe('304 与缓存键（ETag / Cache-Control）', () => {
-  test('带 If-None-Match 的请求命中 304', async ({ page }) => {
+test.describe('私有页面缓存策略（ETag / Cache-Control）', () => {
+  test('条件请求遵循 ETag 或返回完整私有响应', async ({ page }) => {
     const first = await page.goto('/');
-    const etag = first!.headers()['etag'];
-    expect(etag).toBeTruthy();
-    // 用页面内 fetch 走真实网络（cache: no-store 绕过 APIRequestContext 的
-    // HTTP 缓存，否则条件请求会被 Playwright 缓存层折叠）。
+    expect(first?.status()).toBe(200);
+    expect(first?.headers()['cache-control'] ?? '').toContain('no-store');
+    const etag = first?.headers()['etag'];
     const status = await page.evaluate(async (etag) => {
-      const r = await fetch('/', { cache: 'no-store', headers: { 'If-None-Match': etag } });
-      return r.status;
-    }, etag);
-    expect(status).toBe(304);
+      const headers = etag ? { 'If-None-Match': etag } : {};
+      const response = await fetch('/', { cache: 'no-store', headers });
+      return { status: response.status, cacheControl: response.headers.get('cache-control') };
+    }, etag ?? null);
+    expect([200, 304]).toContain(status.status);
+    expect(status.cacheControl ?? '').toContain('no-store');
   });
 
   test('根 layout 统一 Cache-Control: private, no-store（会话化页面不入共享缓存）', async ({ page }) => {

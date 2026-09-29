@@ -45,9 +45,13 @@ for field in ("version", "build_commit", "rust", "dependency_locks", "sbom", "ch
 print(f"  version={meta['version']} commit={meta['build_commit']} built_at={meta['built_at']}")
 PYEOF
 
-echo "==> 校验产物必须存在（backend 二进制 / frontend build / 三方言迁移）"
+echo "==> 校验产物必须存在（backend 二进制 / frontend runtime / OpenAPI / SBOM / 三方言迁移）"
 test -x "$WORK/backend/bblbb-backend"
+test -x "$WORK/backend/bblbb-migrate"
 test -d "$WORK/frontend/build"
+test -d "$WORK/frontend/node_modules"
+test -f "$WORK/openapi/openapi.yaml"
+test -f "$WORK/SBOM.json"
 for d in sqlite mysql mariadb; do
   test -d "$WORK/migrations/$d"
 done

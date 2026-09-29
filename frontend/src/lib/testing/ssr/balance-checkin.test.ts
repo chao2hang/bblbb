@@ -19,7 +19,7 @@ describe('M07-UI-01 积分页 SSR', () => {
     expect(body).toContain('社区信任等级');
     expect(body).toContain('/me/level');
     expect(body).toContain('1500');
-    expect(body).toContain('COIN');
+    expect(body).toContain('金币');
     expect(body).toContain('+10');
     expect(body).toContain('连续签到 4 天');
   });

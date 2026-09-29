@@ -2,6 +2,7 @@
 <script lang="ts">
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   // 目录数据：默认用内置快照兜底，弹窗打开时从 API 拉取实时镜像。
   import backgroundsFallback from '$lib/data/steam-profile-backgrounds.json';
   import { enhance } from '$app/forms';
@@ -27,6 +28,8 @@
     enhanceHandler: SubmitFunction;
   } = $props();
 
+  const currencyContext = getCurrencyNameContext();
+  const currencyName = $derived(currencyContext?.currencyName ?? '金币');
   let searchKeyword = $state('');
   let selectedCategory = $state('all');
   let currentPage = $state(1);
@@ -268,7 +271,7 @@
 
             <div class="sf-form-row">
               <div class="input-wrapper">
-                <label class="input-label" for="sp-bg-price">商城售价 (社区金币) *</label>
+                <label class="input-label" for="sp-bg-price">商城售价 ({currencyName}) *</label>
                 <div style="display:flex;align-items:center;gap:6px;">
                   <input id="sp-bg-price" class="input-field" type="number" min="0" required bind:value={customPrice} disabled={submitting} style="flex:1;" />
                   <span style="font-size:11px;color:#d97706;white-space:nowrap;">(原: {activeItem.cost}点)</span>

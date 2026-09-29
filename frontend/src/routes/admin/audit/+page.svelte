@@ -79,8 +79,33 @@
 <PageHeader title="审计日志" />
 
 <section class="app-card">
-  <header class="app-card__head">
+  <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <h2>审计日志（不可变）</h2>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <ExportButton
+        label="导出 CSV"
+        filename="audit-logs"
+        columns={[
+          { key: 'time', label: '时间' },
+          { key: 'actor', label: '操作人' },
+          { key: 'action', label: '操作' }
+        ]}
+        getData={() =>
+          displayedItems.map((item) => ({
+            time: formatShortTime(item.created_at),
+            actor: item.actor_username || 'system',
+            action: actionFriendlyLabel(item.action, item.detail)
+          }))}
+      />
+      <button
+        type="button"
+        class="btn secondary sm"
+        disabled
+        title="审计日志不可变，清理必须由运维流程执行"
+      >
+        审计日志不可清空
+      </button>
+    </div>
   </header>
   <div class="app-card__body">
     <!-- 工具栏：单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
@@ -162,32 +187,5 @@
         <span class="text-secondary" style="font-size:var(--text-sm);">没有更多日志了</span>
       {/if}
     </nav>
-
-    <!-- 原型底部按钮（导出 CSV + 清空日志） -->
-    <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;gap:10px;">
-      <ExportButton
-        label="导出 CSV"
-        filename="audit-logs"
-        columns={[
-          { key: 'time', label: '时间' },
-          { key: 'actor', label: '操作人' },
-          { key: 'action', label: '操作' }
-        ]}
-        getData={() =>
-          displayedItems.map((item) => ({
-            time: formatShortTime(item.created_at),
-            actor: item.actor_username || 'system',
-            action: actionFriendlyLabel(item.action, item.detail)
-          }))}
-      />
-      <button
-        type="button"
-        class="btn secondary sm"
-        disabled
-        title="审计日志不可变，清理必须由运维流程执行"
-      >
-        审计日志不可清空
-      </button>
-    </footer>
   </div>
 </section>

@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { invalidate } from '$app/navigation';
   import { currencyLabel } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import type { ShopOrderPageData } from './+page.server';
@@ -10,6 +11,7 @@
 
   let { data }: { data: ShopOrderPageData } = $props();
 
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
   const order = $derived(data.order);
   const error = $derived(data.error);
   const pendingEntitlement = $derived(order?.entitlement_status === 'pending' && !order.entitlement_id);
@@ -19,7 +21,7 @@
   let refreshMessage = $state('');
 
   const currency = $derived(
-    order ? currencyLabel({ id: order.currency_id, code: order.currency_code, name: order.currency_name }) : ''
+    order ? currencyLabel({ id: order.currency_id, code: order.currency_code, name: order.currency_name }, currencyName) : ''
   );
 
   function money(amount: number): string {

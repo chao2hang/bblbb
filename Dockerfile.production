@@ -50,10 +50,14 @@ COPY openapi /app/openapi
 COPY Docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod 0755 /app/entrypoint.sh /app/bin/* && chown -R bblbb:bblbb /app
 USER bblbb
+ENV BBLBB__ENV=production
+ENV BBLBB__CONTAINERIZED=true
 ENV BBLBB__BIND_ADDRESS=0.0.0.0:8080
 ENV BBLBB__MIGRATIONS_DIR=/app/migrations/mariadb
 ENV BBLBB__OPENAPI_PATH=/app/openapi/openapi.yaml
 ENV BBLBB__STORAGE_DIR=/app/uploads
+ENV BBLBB__AUTO_MIGRATE=false
+ENV BODY_SIZE_LIMIT=3M
 EXPOSE 8080 3000
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["frontend"]

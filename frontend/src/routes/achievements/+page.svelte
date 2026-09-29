@@ -1,15 +1,10 @@
 <script lang="ts">
   // GAP-FIX（社交域·成就）：/achievements——成就墙 SSR。
   //
-  // - 总览卡：已解锁 X/Y + 装备 n/maxSlots + 总进度条；
-  // - 成就卡片网格：已解锁（含解锁时间/装备按钮/已装备徽章）、进行中
-  //   （进度条）、隐藏未解锁（???）；
-  // - equip/unequip：form action + use:enhance → toast + invalidateAll；
-  // - 无 JS 基线：原生 form POST 整页刷新，form.message 状态行可见。
-  import { enhance } from '$app/forms';
+  // - 总览卡：已解锁 X/Y + 进行中 + 总进度条；引导前往「我的装扮」；
+  // - 成就卡片网格：已解锁（含解锁时间）、进行中（进度条）、隐藏未解锁（???）；
+  // - 原型对齐：装扮功能统一集中在个人装扮（/me/wardrobe），成就墙纯净展示成就与进度。
   import { invalidateAll } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import LoadFailureState from '$lib/components/LoadFailureState.svelte';
   import ProblemState from '$lib/components/ProblemState.svelte';
@@ -18,7 +13,6 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { isTransientProblem } from '$lib/errors';
   import { announceTransientProblem } from '$lib/ui/problem-toast';
-  import { show } from '$lib/ui/toast';
   import { formatTime } from '$lib/utils';
   import type {
     AchievementsActionData,
@@ -27,7 +21,7 @@
   } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
 
-  let { data, form }: {
+  let { data, form = null }: {
     data: AchievementsPageData;
     form?: AchievementsActionData | null;
   } = $props();
@@ -39,7 +33,6 @@
     announceTransientProblem(data.problem);
   });
 
-  const actionMessage = $derived(form?.message ?? null);
   const overallPct = $derived(
     data.stats.total > 0 ? Math.round((data.stats.unlocked / data.stats.total) * 100) : 0
   );
@@ -76,7 +69,6 @@
     } catch {}
   }
 
-  const equippedCards = $derived(data.cards.filter((c) => c.equipped));
   const unlockedCards = $derived(data.cards.filter((c) => c.unlocked));
   const inProgressCards = $derived(data.cards.filter((c) => !c.unlocked && (!c.isHidden || c.progress > 0)));
   const hiddenCards = $derived(data.cards.filter((c) => c.isHidden));
@@ -112,30 +104,9 @@
     if (card.target <= 0) return 0;
     return Math.min(100, Math.round((card.progress / card.target) * 100));
   }
-
-  /** equip/unequip 共用 enhance 回调（按成功文案区分）。 */
-  function enhanceHandler(successText: string): SubmitFunction {
-    return () => {
-      return async ({ result, update }) => {
-        if (result.type === 'success') {
-          show(successText, 'success');
-          await update();
-          await invalidateAll();
-        } else {
-          if (result.type === 'failure') {
-            show(
-              String((result.data as AchievementsActionData | undefined)?.message ?? '操作失败'),
-              'danger'
-            );
-          }
-          await update();
-        }
-      };
-    };
-  }
 </script>
 
-  <PageTitle title="成就墙" />
+<PageTitle title="成就墙" />
 
 <div class="container page-content" id="page-achievements">
   <!-- 原型对齐（prototype/pages/achievements.html）：仅 sr-only h1，无可见页头、无面包屑。 -->
@@ -146,48 +117,27 @@
   {:else if data.problem}
     <ProblemState problem={data.problem} />
   {:else}
-    <!-- 总览卡：已解锁 / 装备槽 + 总进度 -->
+    <!-- 总览卡：已解锁 / 进行中 + 总进度 -->
     <div class="card">
-      <div class="card-header"><span class="card-title">成就总览</span></div>
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <span class="card-title">成就总览</span>
+        <a href="/me/wardrobe" class="btn btn-ghost sm" style="font-size:var(--text-xs);gap:var(--space-1);display:inline-flex;align-items:center;">
+          <Icon name="sparkles" size={14} />
+          <span>我的装扮</span>
+        </a>
+      </div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
-        {#if actionMessage}
-          <p class="input-hint" role="status" style="margin:0;">{actionMessage}</p>
-        {/if}
         <div class="stats-row">
-          <StatCard label="已解锁" value="{data.stats.unlocked}/{data.stats.total}" />
-          <StatCard label="已装备徽章" value="{data.stats.equipped}/{data.stats.maxSlots}" />
-          <StatCard label="总进度" value="{overallPct}%" />
+          <StatCard label="已解锁" value={`${data.stats.unlocked}/${data.stats.total}`} />
+          <StatCard label="已装备徽章" value={`${data.stats.equipped ?? 0}/${data.stats.maxSlots ?? 3}`} />
+          <StatCard label="总进度" value={`${overallPct}%`} />
         </div>
         <div class="points-progress" role="progressbar" aria-valuenow={overallPct} aria-valuemin={0} aria-valuemax={100} aria-label="成就总进度">
           <span style="width:{overallPct}%;"></span>
         </div>
         <p class="input-hint" style="margin:0;">
-          在个人资料页展示已装备的成就徽章；最多可同时装备 {data.stats.maxSlots} 枚。
+          完成社区参与与成长目标解锁成就；成就徽章可在 <a href="/me/wardrobe" style="color:var(--color-brand);text-decoration:underline;">我的装扮</a> 中佩戴展示。
         </p>
-      </div>
-    </div>
-
-    <!-- M18-ACH-02：正在装备区块（原型同款 3 槽位：已装备卡片 + 虚线空槽） -->
-    <div class="card" style="margin-top:var(--space-4);">
-      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <span class="card-title">正在装备</span>
-        <span class="app-muted" style="font-size:var(--text-xs);">{equippedCards.length}/{data.stats.maxSlots} 槽位</span>
-      </div>
-      <div class="card-body">
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);">
-          {#each equippedCards as eq (eq.code)}
-            <div style="border:var(--border-default);border-radius:var(--radius-md);padding:var(--space-2);text-align:center;background:var(--color-bg-subtle);">
-              <Icon name="award" size={24} />
-              <div style="font-size:var(--text-xs);font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{eq.name}</div>
-            </div>
-          {/each}
-          {#each Array(Math.max(0, data.stats.maxSlots - equippedCards.length)) as _}
-            <div style="border:1px dashed var(--color-border-strong);border-radius:var(--radius-md);padding:var(--space-3);text-align:center;color:var(--color-text-tertiary);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70px;">
-              <Icon name="plus" size={18} />
-              <span style="font-size:var(--text-xs);margin-top:2px;">空槽位</span>
-            </div>
-          {/each}
-        </div>
       </div>
     </div>
 
@@ -283,14 +233,9 @@
                   <div
                     class="achievement-icon-box"
                     class:is-unlocked={card.unlocked}
-                    class:is-equipped={card.equipped}
                     aria-hidden="true"
                   >
-                    {#if card.equipped}
-                      <Icon name="award" size={20} />
-                    {:else}
-                      <Icon name="trophy" size={20} />
-                    {/if}
+                    <Icon name="trophy" size={20} />
                   </div>
                 {/if}
                 <div class="achievement-card__title-wrap">
@@ -298,9 +243,7 @@
                     <span class="achievement-name" class:is-unknown={card.isHidden && !card.unlocked}>
                       {card.name}
                     </span>
-                    {#if card.equipped}
-                      <Badge text="已装备" type="success" />
-                    {:else if card.unlocked}
+                    {#if card.unlocked}
                       <Badge text="已解锁" type="pinned" />
                     {:else if card.isHidden}
                       <Badge text="隐藏" type="neutral" />
@@ -339,22 +282,14 @@
                 </span>
                 {#if card.unlocked}
                   {#if card.equipped}
-                    <form
-                      method="POST"
-                      action="?/unequip"
-                      use:enhance={enhanceHandler('徽章已卸下')}
-                    >
+                    <form method="POST" action="?/unequip">
                       <input type="hidden" name="code" value={card.code} />
-                      <Button type="submit" text="卸下" variant="ghost" size="sm" />
+                      <button type="submit" class="btn btn-ghost sm">卸下</button>
                     </form>
                   {:else}
-                    <form
-                      method="POST"
-                      action="?/equip"
-                      use:enhance={enhanceHandler('徽章已装备')}
-                    >
+                    <form method="POST" action="?/equip">
                       <input type="hidden" name="code" value={card.code} />
-                      <Button type="submit" text="装备" variant="secondary" size="sm" />
+                      <button type="submit" class="btn btn-secondary sm">装备</button>
                     </form>
                   {/if}
                 {/if}
@@ -547,12 +482,6 @@
     color: var(--color-brand);
   }
 
-  .achievement-icon-box.is-equipped {
-    background: var(--color-brand);
-    color: var(--on-brand, #ffffff);
-    border-color: var(--color-brand);
-  }
-
   .achievement-icon-box.is-locked {
     opacity: 0.6;
     color: var(--color-text-tertiary);
@@ -612,21 +541,21 @@
 
   @media (max-width: 767px) {
     .achievement-toolbar {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .achievement-toolbar .tabs {
-      overflow-x: auto;
-      flex-wrap: nowrap;
-    }
-
-    .view-mode-toggle {
-      align-self: flex-start;
-    }
-
-    .achievement-grid.is-grid {
-      grid-template-columns: 1fr;
-    }
+    flex-direction: column;
+    align-items: stretch;
   }
+
+  .achievement-toolbar .tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .view-mode-toggle {
+    align-self: flex-start;
+  }
+
+  .achievement-grid.is-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

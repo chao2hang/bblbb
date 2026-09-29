@@ -60,7 +60,7 @@ export type {
   AccessSummaryPolicy,
   SearchResultType,
   ReportCreateTargetType,
-  ReportCreateReasonCode,
+  ReportCreateReason,
   SanctionCreateType,
   // M6/M7 契约类型（generated 兜底，供 client/页面直接引用）
   AttachmentCreate,
@@ -642,8 +642,10 @@ export interface AttachmentCreateResult {
   id: string;
   status?: Attachment['status'];
   upload?: {
-    mode: 'presigned_put' | 'local';
+    mode: 'presigned' | 'stream';
     url?: string | null;
+    method?: 'PUT' | 'GET';
+    /** Required signed request headers (e.g. Content-Type) for the PUT. */
     headers?: Record<string, string>;
     expires_at?: number | null;
   } | null;
@@ -854,6 +856,11 @@ export interface Presentation {
 
 // ── 活跃与等级（M07-LEVELS） ───────────────────────────────────────────────
 
+export interface ActivityBalance extends Money {
+  /** coin 的展示名称来自站点设置；其他币种使用其资源投影名称。 */
+  name?: string;
+}
+
 /** 活动摘要（GET /activity/summary）。只描述签到和 B 币余额；等级由
  * `/me/trust-level` 单独提供，避免把经济活动投影误当作等级来源。 */
 export interface ActivitySummary {
@@ -868,7 +875,7 @@ export interface ActivitySummary {
   /** 今日已入账奖励。 */
   today_earned?: Money[];
   /** 账户余额（可多币种；展示取 coin）。 */
-  balances?: Money[];
+  balances?: ActivityBalance[];
   /** 今日任务（含签到）。 */
   tasks?: Array<{
     id?: string;
@@ -957,7 +964,6 @@ export interface StorageConfig {
   s3_region?: string | null;
   s3_bucket?: string | null;
   s3_path_style?: boolean;
-  s3_presigned_uploads?: boolean;
   s3_public_base_url?: string | null;
   /** S3 签名 URL TTL（秒）；修改只影响新签发 URL。 */
   signed_url_ttl_seconds?: number;
@@ -989,7 +995,6 @@ export interface StorageConfigPatch {
   s3_region?: string | null;
   s3_bucket?: string | null;
   s3_path_style?: boolean;
-  s3_presigned_uploads?: boolean;
   s3_public_base_url?: string | null;
   signed_url_ttl_seconds?: number;
   upload_max_bytes?: number;
@@ -1832,6 +1837,7 @@ export interface SitePublicResult {
   register_title: string;
   register_subtitle: string;
   maintenance_mode: boolean;
+  currency_name?: string;
   google_login_enabled?: boolean;
   github_login_enabled?: boolean;
   version: number;

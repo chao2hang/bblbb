@@ -8,6 +8,8 @@
  * Verify no drift with: ruby scripts/generate-ts-types.rb --check
  */
 
+export type AttachmentRecordStatus = "pending" | "processing" | "ready" | "quarantined" | "deleted";
+export type ActivitySummaryResponseTimezoneSource = "user" | "site" | "default";
 export type HealthStatus = "ok";
 export type PasskeyAssertionType = "public-key";
 export type PasskeyRegistrationType = "public-key";
@@ -29,8 +31,8 @@ export type DraftCreateType = "article" | "discussion";
 export type DraftCreateAccessPolicy = "public" | "logged_in" | "after_reply" | "level" | "paid";
 export type DraftPatchAccessPolicy = "public" | "logged_in" | "after_reply" | "level" | "paid";
 export type DraftType = "article" | "discussion";
-export type ReportCreateTargetType = "post" | "comment" | "user" | "attachment";
-export type ReportCreateReasonCode = "spam" | "harassment" | "illegal_content" | "privacy" | "copyright" | "malware" | "wrong_board" | "other";
+export type ReportCreateTargetType = "post" | "comment" | "user" | "board";
+export type ReportCreateReason = "spam" | "harassment" | "illegal" | "nsfw" | "misinformation" | "impersonation" | "other";
 export type SanctionCreateType = "warning" | "rate_limit" | "mute" | "board_mute" | "ban";
 export type DownloadRequestTargetType = "post" | "comment";
 export type AdminStudioPublishRequestCosmeticKind = "nickname_color" | "avatar_frame" | "cosmetic_badge" | "profile_effect" | "post_effect" | "reaction_pack" | "utility" | "title_prefix";

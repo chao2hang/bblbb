@@ -110,7 +110,7 @@
       <div class="empty-state-title">{emptyTitle}</div>
       <p class="empty-state-desc">{emptyDesc}</p>
       {#if emptyCta}
-        <a class="empty-state-cta" href={emptyCta.href}>
+        <a class="btn btn-primary empty-state-cta" href={emptyCta.href}>
           <Icon name="plus" size={15} />
           <span>{emptyCta.label}</span>
         </a>
@@ -180,15 +180,20 @@
     margin-top: 14px;
     padding: 8px 18px;
     border-radius: var(--radius-sm);
-    background: var(--color-brand);
-    color: var(--color-text-on-brand);
+    background: var(--color-brand) !important;
+    color: var(--color-text-on-solid) !important;
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);
     text-decoration: none;
     transition: background var(--duration-fast);
   }
   .empty-state-cta:hover {
-    background: var(--color-brand-hover);
+    background: var(--color-brand-hover) !important;
+    border-color: var(--color-brand-hover) !important;
+  }
+  .empty-state-cta :global(.icon) {
+    color: inherit !important;
+    opacity: 1 !important;
   }
 
   /* 表头随 TopicRow 的列收缩同步降级：窄屏先隐藏「参与者」列，再整行隐藏

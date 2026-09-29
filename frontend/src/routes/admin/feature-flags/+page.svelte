@@ -90,8 +90,9 @@
   {/if}
 
   <section class="app-card" style="margin-bottom:14px;">
-    <header class="app-card__head">
+    <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
       <h2>可选能力</h2>
+      <Button text="紧急关闭全部" variant="danger" size="sm" disabled={data.kill_switch} onclick={() => (killOpen = true)} />
     </header>
     <div class="app-card__body">
       <div class="app-table-wrap">
@@ -135,11 +136,10 @@
         </table>
       </div>
     </div>
-    <footer class="app-card__foot" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;">
+    <footer class="app-card__foot" style="padding:12px 16px;">
       <span class="app-muted" style="font-size:11px;">
         变更即时生效（同进程原地重载）；reason 写入审计日志。Flag 不绕过权限、CSRF 与账务。
       </span>
-      <Button text="紧急关闭全部" variant="secondary" size="sm" disabled={data.kill_switch} onclick={() => (killOpen = true)} />
     </footer>
   </section>
 {:else if data.state === 'forbidden'}

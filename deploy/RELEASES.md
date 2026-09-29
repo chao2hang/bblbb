@@ -8,7 +8,11 @@
 
 | Release | 迁移兼容性 | API 兼容性 | 前后端发布顺序 | 回滚 | 状态 |
 |---|---|---|---|---|---|
-| v1.0.0-rc.7 | 迁移 1..64（新增 0064_admin_settings_smtp，纯增量配置项建表/插入，可逆） | 兼容新增：管理端系统设置 SMTP 持久化及主题管理 API 完善 | 后端迁移 → backend → worker → frontend；后端先于前端 | 0064 为纯增量，代码回滚需先验证兼容；前端回退即 git revert | 规划中（commit `5380a86`） |
+| v1.0.0-rc.11 | 无新增迁移（当前迁移集 1..81） | 商城快速上架增加有效期、库存、限购与等级门槛；兼容新增 | backend → worker → frontend（确认本次实际二进制组合） | 需基于发布前备份；执行实测迁移/回滚演练 | 已打 tag；bundle/checksum/生产演练证据未归档 |
+| v1.0.0-rc.10 | 无新增迁移（1..81） | 后台商城 Tab 分区重构；前端视图调整 | frontend | 前端回退并重建 | 已打 tag；bundle/checksum/演练证据未归档 |
+| v1.0.0-rc.9 | 无新增迁移（1..81） | MySQL/MariaDB 聚合解码与容器存储权限修复；Nightly E2E 构建管线调整 | backend → worker → frontend | 代码回退需保留存储权限检查；无 DB 迁移 | 已打 tag；bundle/checksum/演练证据未归档 |
+| v1.0.0-rc.8 | 新增 0065..0081；含数据回填/归一化及 0080 cosmetic_defs 表重建，需备份后演练，不假定可逆 | 站点文案、信任等级、附件策略、Passkey、装扮目录等兼容新增 | 后端迁移 → backend → worker → frontend | 0065..0081 回滚未有生产证据；禁止跳过备份/恢复演练 | 已打 tag；bundle/checksum/迁移演练证据未归档 |
+| v1.0.0-rc.7 | 迁移 1..64（新增 0064_admin_settings_smtp，纯增量配置项建表/插入，可逆） | 兼容新增：管理端系统设置 SMTP 持久化及主题管理 API 完善 | 后端迁移 → backend → worker → frontend；后端先于前端 | 0064 为纯增量，代码回滚需先验证兼容；前端回退即 git revert | 已打 tag（commit `3d79ad7`）；发布证据待补齐 |
 | v1.0.0-rc.6 | 无新增迁移（同 rc.4/rc.5 的 `1..63`；本次无数据库变更） | 无契约变化（223 operations 不变；`openapi.yaml` 未改动，无后端运行时变更） | 无运行时变更，无独立发布要求；若随 rc.5/rc.3 内容一同出包则沿用 rc.3 顺序（后端迁移 → backend → worker → frontend） | 不涉及数据库与运行时行为；workflow/profile 回退即 git revert（`[profile.test]` 仅影响 `cargo test`，不影响 release 构建） | 被 rc.7 取代（未发布） |
 | v1.0.0-rc.5 | 无新增迁移（同 rc.4 的 `1..63`；本次纯前端交付，不涉及数据库） | 无契约变化（223 operations 不变；`openapi.yaml` 未改动，无后端变更） | 仅前端：`frontend` 重新构建部署即可（无后端/worker 依赖）；若随 rc.4/rc.3 内容一同首发出包则沿用 rc.3 顺序（后端迁移 → backend → worker → frontend） | 无数据库与后端行为变化；前端回退即 git revert 重新构建部署 | 被 rc.6 取代（未发布） |
 | v1.0.0-rc.4 | 无新增迁移（同 rc.3 的 `1..63`；本次纯文档 + 测试交付，不涉及数据库） | 无契约变化（223 operations 不变；无新增/变更 operation，`openapi.yaml` 未改动） | 无运行时变更，无独立发布要求；若随 rc.3 内容一同出包则沿用 rc.3 顺序（后端迁移 → backend → worker → frontend） | 不涉及数据库与运行时行为；文档回退即 git revert | 被 rc.5 取代（未发布） |
@@ -19,7 +23,11 @@
 
 | 版本 | commit | bundle | sha256 | 迁移 drill | 备份恢复 drill | 冒烟 | 部署/回滚记录 |
 |---|---|---|---|---|---|---|---|
-| v1.0.0-rc.7 | 5380a86 | `dist/<version>.tar.gz`（待填） | 待填 | 待填（含 0064 SMTP 设置增量迁移） | 待填 | 待填（本地验证：前端 vitest 94 文件 634 用例全绿、`npm run check` 0 错误、后端 clippy 0 警告、theme/admin_ext 单元测试全过） | 待填 |
+| v1.0.0-rc.11 | 9cfa7ec | 未归档 | 未归档 | 无新增迁移，证据未归档 | 未归档 | 未归档 | 未归档 |
+| v1.0.0-rc.10 | c55b057 | 未归档 | 未归档 | 无新增迁移，证据未归档 | 未归档 | 未归档 | 未归档 |
+| v1.0.0-rc.9 | 903834c | 未归档 | 未归档 | 无新增迁移，证据未归档 | 未归档 | 未归档 | 未归档 |
+| v1.0.0-rc.8 | 0192dde | 未归档 | 未归档 | 0065..0081 演练证据未归档 | 未归档 | 未归档 | 未归档 |
+| v1.0.0-rc.7 | 3d79ad7 | `dist/<version>.tar.gz`（待填） | 待填 | 待填（含 0064 SMTP 设置增量迁移） | 待填 | 待填（本地验证：前端 vitest 94 文件 634 用例全绿、`npm run check` 0 错误、后端 clippy 0 警告、theme/admin_ext 单元测试全过） | 待填 |
 | v1.0.0-rc.6 | 16b4e59 | `dist/<version>.tar.gz`（待填） | 待填 | 待填（无迁移变更，不触发 drill 要求） | 待填 | 待填（本地验证：`cargo clippy --workspace --all-targets --all-features -- -D warnings` 0 错误、`cargo test --workspace --all-features` 160+ target 全过、`cargo fmt --check` 干净；main CI run 34084293347 全 6 job 绿） | 待填 |
 | v1.0.0-rc.5 | f7fbe8c | `dist/<version>.tar.gz`（待填） | 待填 | 待填（纯前端交付，无迁移变更，不触发 drill 要求） | 待填 | 待填（本地验证：前端 `npx vitest run` 92 文件 616 用例全绿、`npm run check` 0 错误、`ruby scripts/check-html-sinks.rb` 通过、`npm run build` 通过） | 待填 |
 | v1.0.0-rc.4 | d234486 | `dist/<version>.tar.gz`（待填） | 待填 | 待填（纯文档 + 测试交付，无迁移变更，不触发 drill 要求） | 待填 | 待填（本地验证：`cargo test --lib plugins::` 8 passed、`cargo clippy --lib` 0 警告、`make check-secrets`/`check-docs` 通过） | 待填 |

@@ -85,7 +85,7 @@ export const actions: Actions = {
       return fail(422, { message: '奖励数额须为非负整数' });
     }
     if (currency !== 'coin') {
-      return fail(422, { message: '奖励币种仅支持 B币' });
+      return fail(422, { message: '奖励币种仅支持站点消费货币' });
     }
     if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
 
@@ -114,7 +114,7 @@ export const actions: Actions = {
         body,
         request.headers.get('x-request-id')
       );
-      if (result.ok) return { message: `规则已创建（${kind} +${amount} B币）` };
+      if (result.ok) return { message: `规则已创建（${kind} +${amount} 站点消费货币）` };
       return fail(result.status, { message: result.message, requestId: result.requestId });
     } catch {
       return fail(503, { message: '创建失败，请稍后重试' });
@@ -134,13 +134,13 @@ export const actions: Actions = {
     if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
 
     const body: Record<string, unknown> = { is_enabled: isEnabled, reason, currency_id: 'coin' };
-    // 币种字段即使数额留空也必须是 B币，避免旧表单绕过币种限制。
+    // 币种字段即使数额留空也必须是站点消费货币，避免旧表单绕过币种限制。
     const currencyField = form.get('currency');
     const currency = currencyField == null || String(currencyField).trim() === ''
       ? 'coin'
       : String(currencyField).trim().toLowerCase();
     if (currency !== 'coin') {
-      return fail(422, { message: '奖励币种仅支持 B币' });
+      return fail(422, { message: '奖励币种仅支持站点消费货币' });
     }
     // 数额留空 = 保持原值（后端 None = 沿用 current）。
     const amountRaw = String(form.get('amount') ?? '').trim();

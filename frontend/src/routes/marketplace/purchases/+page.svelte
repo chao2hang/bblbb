@@ -5,11 +5,14 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { currencyLabel } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import type { PurchasesActionData, PurchasesPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
 
   let { data, form }: { data: PurchasesPageData; form?: PurchasesActionData | null } = $props();
 
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
   const purchases = $derived(data.purchases ?? []);
   const error = $derived(data.error);
 
@@ -63,16 +66,16 @@
           {#each purchases as p (p.id)}
             <li class="purchase-item" style="border:1px solid var(--color-border,#d0d7de);border-radius:var(--radius-md,8px);padding:var(--space-3);display:grid;gap:var(--space-1);">
               <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2);">
-                <strong>{p.amount} {p.currency_id.toUpperCase()} · {formatTs(p.created_at)}</strong>
+                <strong>{p.amount} {currencyLabel(p.currency_id, currencyName)} · {formatTs(p.created_at)}</strong>
                 <span class="badge {p.status === 'succeeded' ? 'badge-neutral' : 'badge-warning'}">{statusLabel(p.status)}</span>
               </div>
               <div style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-1) var(--space-4);">
                 <span class="input-hint">购买 ID</span><span class="mono input-hint">{p.id}</span>
                 <span class="input-hint">商户订单号</span><span class="mono input-hint">{p.merchant_order_id}</span>
                 <span class="input-hint">商品版本</span><span class="input-hint">v{p.offer_version} × {p.quantity}</span>
-                <span class="input-hint">平台费</span><span class="input-hint">{p.fee_amount} {p.currency_id.toUpperCase()}</span>
+                <span class="input-hint">平台费</span><span class="input-hint">{p.fee_amount} {currencyLabel(p.currency_id, currencyName)}</span>
                 {#if p.refunded_amount > 0}
-                  <span class="input-hint">已退款</span><span class="input-hint">{p.refunded_amount} {p.currency_id.toUpperCase()}</span>
+                  <span class="input-hint">已退款</span><span class="input-hint">{p.refunded_amount} {currencyLabel(p.currency_id, currencyName)}</span>
                 {/if}
               </div>
               {#if p.refunds && p.refunds.length > 0}
@@ -81,7 +84,7 @@
                   <ul style="margin:var(--space-2) 0 0;padding-left:var(--space-4);">
                     {#each p.refunds as r (r.id)}
                       <li class="input-hint">
-                        {r.status === 'processed' ? '已退款' : '退款处理中'} {r.amount} {p.currency_id.toUpperCase()}
+                        {r.status === 'processed' ? '已退款' : '退款处理中'} {r.amount} {currencyLabel(p.currency_id, currencyName)}
                         {#if r.status === 'requested'}（待商户资金到位后由平台处理）{/if}
                       </li>
                     {/each}

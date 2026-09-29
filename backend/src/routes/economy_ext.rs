@@ -629,7 +629,11 @@ async fn admin_points_adjust(
 
             // 通知被调整用户（best-effort：通知失败不回滚账本——资金变动
             // 已入账且可从流水追溯，通知属于提醒性质）。
-            let currency_label = "金币";
+            let currency_label = crate::routes::admin_ext::load_currency_name(pool, request_id)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "金币".to_string());
             let sign = if req.amount > 0 { "+" } else { "" };
             let _ = insert_system_notification(
                 pool,
@@ -1885,6 +1889,7 @@ async fn notify_author_sqlite(
     author_id: &str,
     post_id: &str,
     price: i64,
+    currency_name: &str,
     now: i64,
 ) -> Result<(), sqlx::Error> {
     let id = uuid::Uuid::now_v7().to_string();
@@ -1895,7 +1900,7 @@ async fn notify_author_sqlite(
     .bind(&id)
     .bind(author_id)
     .bind("你的付费内容被解锁")
-    .bind(format!("你的付费帖子（{price} 金币）被解锁，收益已入账。"))
+    .bind(format!("你的付费帖子（{price} {currency_name}）被解锁，收益已入账。"))
     .bind(format!("/posts/{post_id}"))
     .bind(now)
     .execute(&mut *conn)
@@ -1909,6 +1914,7 @@ async fn notify_author_mysql(
     author_id: &str,
     post_id: &str,
     price: i64,
+    currency_name: &str,
     now: i64,
 ) -> Result<(), sqlx::Error> {
     let id = uuid::Uuid::now_v7().to_string();
@@ -1919,7 +1925,7 @@ async fn notify_author_mysql(
     .bind(&id)
     .bind(author_id)
     .bind("你的付费内容被解锁")
-    .bind(format!("你的付费帖子（{price} 金币）被解锁，收益已入账。"))
+    .bind(format!("你的付费帖子（{price} {currency_name}）被解锁，收益已入账。"))
     .bind(format!("/posts/{post_id}"))
     .bind(now)
     .execute(&mut **tx)
@@ -2067,6 +2073,11 @@ async fn unlock_post(
     match outcome {
         IdempotencyOutcome::Created { record_id } => {
             let now = now_millis();
+            let currency_name = crate::routes::admin_ext::load_currency_name(pool, request_id)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "金币".to_string());
             let result: Result<i64, AppError> = match pool {
                 Either::Left(p) => {
                     let mut conn = p
@@ -2117,9 +2128,16 @@ async fn unlock_post(
                         .await
                         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
                         // 通知作者（同事务）。
-                        notify_author_sqlite(&mut conn, &post.author_id, &post.id, price, now)
-                            .await
-                            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                        notify_author_sqlite(
+                            &mut conn,
+                            &post.author_id,
+                            &post.id,
+                            price,
+                            &currency_name,
+                            now,
+                        )
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
                         Ok(balance_after)
                     }
                     .await;
@@ -2171,9 +2189,16 @@ async fn unlock_post(
                         insert_grant_mysql(&mut tx, &user.id, &post, Some(&op.operation_id), now)
                             .await
                             .map_err(|e| AppError::internal(e.to_string(), request_id))?;
-                        notify_author_mysql(&mut tx, &post.author_id, &post.id, price, now)
-                            .await
-                            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+                        notify_author_mysql(
+                            &mut tx,
+                            &post.author_id,
+                            &post.id,
+                            price,
+                            &currency_name,
+                            now,
+                        )
+                        .await
+                        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
                         Ok(balance_after)
                     }
                     .await;

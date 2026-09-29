@@ -44,6 +44,13 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         reload: "restart",
     },
     ConfigEntry {
+        env_var: "BBLBB__CONTAINERIZED",
+        field: "containerized",
+        default: "false",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
         env_var: "BBLBB__LOG_FILTER",
         field: "log_filter",
         default: "bblbb_backend=info,tower_http=info",
@@ -376,6 +383,9 @@ pub struct AppConfig {
     /// 运行环境（development / test / production；M01-CONFIG-02）
     #[serde(default = "default_env")]
     pub env: String,
+    /// 容器网络显式声明：允许容器内绑定 unspecified address；宿主机仍须限制端口暴露。
+    #[serde(default)]
+    pub containerized: bool,
     /// Secret 受限文件目录（M01-CONFIG-03；空 = 未启用）
     #[serde(default)]
     pub secrets_dir: PathBuf,
@@ -561,10 +571,14 @@ impl AppConfig {
             }
         }
 
-        // 非 loopback 内部端口：生产禁止对外监听
-        if !is_loopback_address(&self.bind_address) {
+        // Host/systemd deployments bind loopback. Container networking requires
+        // 0.0.0.0/:: inside the isolated namespace, and is allowed only with an
+        // explicit containerized declaration; host port exposure remains an operator control.
+        if !is_loopback_address(&self.bind_address)
+            && !(self.containerized && self.bind_address.ip().is_unspecified())
+        {
             errors.push(format!(
-                "bind_address must be loopback in production: {}",
+                "bind_address must be loopback unless containerized=true and address is unspecified: {}",
                 self.bind_address
             ));
         }
@@ -703,6 +717,7 @@ impl Default for AppConfig {
             db_idle_timeout_ms: default_db_idle_timeout_ms(),
             db_slow_query_ms: default_db_slow_query_ms(),
             env: default_env(),
+            containerized: false,
             secrets_dir: PathBuf::new(),
             secrets_systemd_unit: String::new(),
             feature_kill_switch: false,
@@ -1053,6 +1068,7 @@ mod tests {
             "allowed_origins",
             "auto_migrate",
             "bind_address",
+            "containerized",
             "database_url",
             "db_connect_timeout_ms",
             "db_idle_timeout_ms",
@@ -1141,6 +1157,31 @@ mod tests {
             ..AppConfig::default()
         };
         assert!(config.validate_production().is_ok());
+    }
+
+    #[test]
+    fn production_container_allows_unspecified_bind_only_when_explicit() {
+        let mut config = AppConfig {
+            env: "production".to_owned(),
+            containerized: true,
+            allowed_origins: vec!["https://forum.example.com".to_owned()],
+            bind_address: "0.0.0.0:8080".parse().unwrap(),
+            database_url: "mysql://user:real-secret@db.internal:3306/bblbb".to_owned(),
+            settings_encryption_key: "prod-settings-key-material".to_owned(),
+            ..AppConfig::default()
+        };
+        assert!(config.validate_production().is_ok());
+        config.containerized = false;
+        assert!(config
+            .validate_production()
+            .unwrap_err()
+            .contains("bind_address must be loopback"));
+        config.bind_address = "192.0.2.10:8080".parse().unwrap();
+        config.containerized = true;
+        assert!(config
+            .validate_production()
+            .unwrap_err()
+            .contains("bind_address must be loopback"));
     }
 
     #[test]

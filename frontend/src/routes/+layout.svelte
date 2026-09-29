@@ -10,19 +10,26 @@
     type User
   } from '$lib/api/client';
   import { getBellUnread, getBellRecent, syncBell, setBellUnread, setBellRecent } from '$lib/notifications/bellState.svelte';
+  import { setCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import { goto } from '$app/navigation';
   import Navbar from '$lib/components/Navbar.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
   import ToastHost from '$lib/components/ui/ToastHost.svelte';
+  import NavigationProgress from '$lib/components/ui/NavigationProgress.svelte';
   import NoJsNotice from '$lib/components/ui/NoJsNotice.svelte';
   import { show as showToast } from '$lib/ui/toast';
   import { applyThemeTokens, clearThemeTokens, resolveLayoutMode, type ActiveThemeView } from '$lib/theme/projection';
   import { registerAdminElements } from '@chaos_team/blbui-core/register';
+  import { setupExternalLinkInterceptor } from '$lib/link/interceptor';
   import type { LayoutData } from './$types';
   import type { Snippet } from 'svelte';
 
   onMount(() => {
     registerAdminElements();
+    const cleanupInterceptor = setupExternalLinkInterceptor();
+    return () => {
+      cleanupInterceptor?.();
+    };
   });
 
   // data 在 SvelteKit 运行时恒有（LayoutData）；测试隔离渲染时可缺省。
@@ -34,8 +41,13 @@
 
   // SvelteKit invalidateAll（例如衣柜换装）会更新 layout data，但 layout 本身不重挂载；
   // 同步服务端用户投影，保证 Navbar 立即反映最新昵称/头像框/背景装扮。
+  // Request-scoped reactive context: never store per-request site settings in a module singleton.
+  const currencyContext = $state({ currencyName: untrack(() => data?.site?.currencyName ?? '金币') });
+  setCurrencyNameContext(currencyContext);
+
   $effect(() => {
-    if (data?.user) user = data.user;
+    user = data?.user ?? null;
+    currencyContext.currencyName = data?.site?.currencyName ?? '金币';
   });
 
   // 通知徽标：共享铃铛态（bellState.svelte）在此渲染。SSR/整页加载由
@@ -62,6 +74,8 @@
   const shellLayout = $derived(resolveLayoutMode(activeTheme?.tokens ?? null));
   const isAdmin = $derived(page.url.pathname.startsWith('/admin'));
   const isAuthStandalone = $derived(page.url.pathname === '/login' || page.url.pathname === '/register');
+  const isLinkStandalone = $derived(page.url.pathname === '/link');
+  const isStandaloneViewport = $derived(isAuthStandalone || isLinkStandalone);
 
   // 全站生效主题 Token 动态应用
   $effect(() => {
@@ -144,19 +158,21 @@
   <meta name="description" content={siteDescription} />
 </svelte:head>
 
+<NavigationProgress />
+
 <a class="skip-link" href="#main-content">跳转到主要内容</a>
 
 <NoJsNotice />
 
 <!-- .app-shell：主题结构预设作用域（data-theme-layout 由服务端数据解析，
      classic 为缺省；预览/切换由 projection 写入同一属性保持一致） -->
-<div class="app-shell" class:app-shell--admin={isAdmin} class:app-shell--auth={isAuthStandalone} data-theme-layout={shellLayout}>
+<div class="app-shell" class:app-shell--admin={isAdmin} class:app-shell--auth={isStandaloneViewport} data-theme-layout={shellLayout}>
   {#if isAdmin}
     <main id="main-content" tabindex="-1" class="admin-viewport-main">
       {@render children()}
     </main>
-  {:else if isAuthStandalone}
-    <main id="main-content" tabindex="-1" class="auth-viewport-main">
+  {:else if isStandaloneViewport}
+    <main id="main-content" tabindex="-1" class="auth-viewport-main" class:link-viewport-main={isLinkStandalone}>
       {@render children()}
     </main>
   {:else}

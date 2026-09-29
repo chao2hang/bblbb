@@ -40,7 +40,7 @@ test.describe('商城（shop）', () => {
 test.describe('衣柜（wardrobe）', () => {
   test('衣柜页展示展示位/权益或空态', async ({ page }) => {
     await page.goto('/me/wardrobe');
-    await expect(page.getByRole('main')).toBeVisible();
+    await expect(page.locator('#main-content')).toBeVisible();
   });
 });
 

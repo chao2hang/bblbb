@@ -164,10 +164,10 @@ describe('GAP-FIX /me/billing SSR', () => {
         form: null
       }
     });
-    // 币种显示「B币」（对齐原型，原断言为英文 key「COIN」）
-    expect(body).toContain('328 B币');
+    // 币种显示后台系统设置单位（默认「金币」）
+    expect(body).toContain('328 金币');
     expect(body).toContain('report.zip');
-    expect(body).toContain('10 B币');
+    expect(body).toContain('10 金币');
     expect(body).toMatch(/action="\?\/sign"/);
     expect(body).toContain('重新下载');
     expect(body).toContain('前端永远不会接触对象存储 Secret');

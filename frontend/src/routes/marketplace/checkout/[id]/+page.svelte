@@ -7,7 +7,8 @@
 -->
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { newClientRequestId } from '$lib/api/client';
+  import { currencyLabel, newClientRequestId } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import type { CheckoutActionData, CheckoutPageData } from './+page.server';
@@ -15,6 +16,7 @@
 
   let { data, form }: { data: CheckoutPageData; form?: CheckoutActionData | null } = $props();
 
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
   const checkout = $derived(data.checkout);
   const loadError = $derived(data.error);
   const idempotencyKey = $state(newClientRequestId());
@@ -64,7 +66,7 @@
         <dl class="checkout-meta" style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);margin:0;">
           <dt>商户</dt><dd>{checkout.merchant_name}</dd>
           <dt>商品</dt><dd>{checkout.offer_title} × {checkout.quantity}</dd>
-          <dt>金额</dt><dd>{form?.purchase?.amount ?? checkout.amount} {checkout.currency_id.toUpperCase()}</dd>
+          <dt>金额</dt><dd>{form?.purchase?.amount ?? checkout.amount} {currencyLabel(checkout.currency_id, currencyName)}</dd>
           <dt>状态</dt><dd>succeeded</dd>
           <dt>请求 ID</dt><dd class="mono">{form?.requestId ?? '—'}</dd>
           <dt>购买 ID</dt><dd class="mono">{form?.purchase?.id ?? '—'}</dd>
@@ -127,12 +129,12 @@
           <dt>商品</dt><dd>{checkout.offer_title}{checkout.offer_description ? ` — ${checkout.offer_description}` : ''}</dd>
           <dt>商品版本</dt><dd>v{checkout.offer_version}</dd>
           <dt>数量</dt><dd>{checkout.quantity}</dd>
-          <dt>金额（准确）</dt><dd><strong>{checkout.amount} {checkout.currency_id.toUpperCase()}</strong></dd>
-          <dt>当前余额</dt><dd>{checkout.balance} {checkout.currency_id.toUpperCase()}</dd>
+          <dt>金额（准确）</dt><dd><strong>{checkout.amount} {currencyLabel(checkout.currency_id, currencyName)}</strong></dd>
+          <dt>当前余额</dt><dd>{checkout.balance} {currencyLabel(checkout.currency_id, currencyName)}</dd>
           <dt>扣款后余额</dt>
           <dd>
             <strong class={checkout.balance_after < 0 ? 'is-danger' : ''}>
-              {checkout.balance_after} {checkout.currency_id.toUpperCase()}
+              {checkout.balance_after} {currencyLabel(checkout.currency_id, currencyName)}
             </strong>
           </dd>
           <dt>请求的权限</dt>

@@ -1178,6 +1178,14 @@ let process_items = async |item: &str| {
                 VALUES (?, ?, ?)
             """, (user_id_map["casual_bob"], pid, now_ms - 3600000))
 
+    # 同步板块 post_count 计数
+    cur.execute("""
+        UPDATE boards SET post_count = (
+            SELECT COUNT(*) FROM posts p
+            WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL
+        )
+    """)
+
     # 8. 社交关注关系 (user_follows)
     print("[*] 建立用户社交关注网络...")
     follow_relations = [

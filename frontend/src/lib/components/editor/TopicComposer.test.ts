@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, fireEvent } from '@testing-library/svelte';
 import TopicComposer from './TopicComposer.svelte';
 
 vi.mock('$app/navigation', () => ({
@@ -91,5 +91,42 @@ describe('TopicComposer 再次编辑标签自动带入', () => {
       expect(screen.getByRole('button', { name: '移除标签 svelte' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: '移除标签 rust' })).toBeInTheDocument();
     });
+  });
+
+  it('点击全屏按钮可切换全屏模式，并支持 ESC 退出全屏与双击标题栏切换', async () => {
+    const { container } = render(TopicComposer);
+    const expandBtn = screen.getByRole('button', { name: '全屏' });
+    expect(expandBtn).toBeInTheDocument();
+
+    const pagePublish = container.querySelector('#page-publish');
+    const composerWindow = container.querySelector('.composer-window');
+    expect(pagePublish).not.toHaveClass('is-fullscreen');
+    expect(composerWindow).not.toHaveClass('is-fullscreen');
+
+    // 点击进入全屏
+    await fireEvent.click(expandBtn);
+    expect(pagePublish).toHaveClass('is-fullscreen');
+    expect(composerWindow).toHaveClass('is-fullscreen');
+    expect(screen.getByRole('button', { name: '退出全屏' })).toBeInTheDocument();
+
+    // 再次点击退出全屏
+    await fireEvent.click(screen.getByRole('button', { name: '退出全屏' }));
+    expect(pagePublish).not.toHaveClass('is-fullscreen');
+    expect(composerWindow).not.toHaveClass('is-fullscreen');
+    expect(screen.getByRole('button', { name: '全屏' })).toBeInTheDocument();
+
+    // 点击进入全屏后按 ESC 退出全屏
+    await fireEvent.click(screen.getByRole('button', { name: '全屏' }));
+    expect(pagePublish).toHaveClass('is-fullscreen');
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    expect(pagePublish).not.toHaveClass('is-fullscreen');
+
+    // 双击标题栏进入全屏
+    const titlebar = container.querySelector('.composer-titlebar');
+    expect(titlebar).not.toBeNull();
+    await fireEvent.dblClick(titlebar!);
+    expect(pagePublish).toHaveClass('is-fullscreen');
+    await fireEvent.dblClick(titlebar!);
+    expect(pagePublish).not.toHaveClass('is-fullscreen');
   });
 });

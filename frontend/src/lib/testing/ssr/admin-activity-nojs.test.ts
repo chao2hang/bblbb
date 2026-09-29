@@ -53,7 +53,7 @@ describe('M07-UI-08 签到页优化 SSR', () => {
     expect(body).toContain('已开启');
     expect(body).toContain('发放中');
     expect(body).toContain('+10');
-    expect(body).toContain('B币');
+    expect(body).toContain('金币');
     expect(body).toContain('每日≤1 次');
     expect(body).toContain('跨天刷新 04:00');
     expect(body).toContain('href="/admin/points/rules"');

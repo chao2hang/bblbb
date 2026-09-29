@@ -35,3 +35,13 @@ ruby scripts/check-client-compat.rb
 每次 v1.x 契约冻结后，把当时的 `openapi/openapi.yaml` 复制到
 `compat/frozen-client-v<上一版本>/`，并让 `check-client-compat.rb` 对每个
 frozen 版本逐一校验。v1.0.0 发布时冻结的第一个版本即本目录。
+
+## 2026-09-28 基线刷新（GA 生产验证，批准的 breaking change）
+
+- 契约 `POST /api/v1/reports` 请求体由 `reason_code`（8 值枚举）/`details` 修正为
+  `reason`（7 值枚举）/`detail`，`target_type` 枚举 `attachment`→`board`。
+- 理由：原契约与实现（backend `CreateReportRequest`、前端 `client.ts` 与举报页、
+  DB 0041 CHECK）三方均不一致，唯契约漂移；生产实测按契约发送 `reason_code`
+  返回 422——**不存在依赖旧契约字段的可工作客户端**，故本次 breaking 为
+  契约纠偏而非行为破坏。证据：GA 生产验证报告 P1-6（/tmp，2026-09-28）。
+- 基线刷新为本发布（v1.0.0 GA 部署）的批准变更；后续新漂移仍会被本门禁拦截。

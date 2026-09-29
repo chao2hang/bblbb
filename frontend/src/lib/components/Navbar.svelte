@@ -556,7 +556,7 @@
                   <div class="user-menu-name">
                     <CosmeticName name={user.display_name || user.username} presentation={user.presentation_tokens} />
                   </div>
-                  <div class="user-menu-level">LV.{user.level ?? 1}</div>
+                  <div class="user-menu-level">TL{user.level ?? 0}</div>
                 </div>
                 <button type="button" class="user-menu-close" aria-label="关闭" onclick={closeMenus}>
                   <Icon name="x" size={20} />

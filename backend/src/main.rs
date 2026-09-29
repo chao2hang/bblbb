@@ -88,10 +88,18 @@ async fn main() -> ExitCode {
             // M15-OBSERVE-04：数据库连接失败指标（metric 白名单见 observability/metrics.rs）
             bblbb_backend::observability::metrics::registry()
                 .counter_inc("bblbb_db_connect_failures_total", 1);
+            if config.is_production() {
+                tracing::error!(
+                    url = %bblbb_backend::db::pool::redact_dsn(&config.database_url),
+                    %error,
+                    "database pool creation failed in production; refusing to start"
+                );
+                return ExitCode::FAILURE;
+            }
             tracing::warn!(
                 url = %bblbb_backend::db::pool::redact_dsn(&config.database_url),
                 %error,
-                "failed to create database pool, starting without database"
+                "failed to create database pool, starting without database (development only)"
             );
             None
         }

@@ -60,9 +60,9 @@ export const actions: Actions = {
     };
     const amountRaw = String(form.get('check_in_amount') ?? '').trim();
     const currency = String(form.get('check_in_currency') ?? 'coin').trim().toLowerCase();
-    // 管理端签到奖励统一使用 B币；拒绝任何其他币种，避免绕过仅 coin 的表单选项。
+    // 管理端签到奖励统一使用站点消费货币；拒绝其他币种，避免绕过仅 coin 的表单选项。
     if (currency !== 'coin') {
-      return fail(422, { message: '签到奖励币种仅支持 B币' } satisfies AdminActivityActionData);
+      return fail(422, { message: '签到奖励币种仅支持站点消费货币' } satisfies AdminActivityActionData);
     }
     changes.check_in_currency = 'coin';
     if (amountRaw !== '') {

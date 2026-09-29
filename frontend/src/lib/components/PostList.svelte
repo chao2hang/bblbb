@@ -73,7 +73,7 @@
       {@const label = authorLabel(post)}
       {@const avatarId = post.author?.avatar_attachment_id ?? post.author_avatar_attachment_id ?? null}
       {@const authorPresentation = post.author?.presentation_tokens ?? post.author_presentation_tokens ?? null}
-      <div class="app-post-row" data-post-id={post.id}>
+      <div class="app-post-row" role="article" aria-label={post.title} data-post-id={post.id}>
         {#if account}
           <!-- 头像即触发链接：hover/focus 出公开资料悬浮卡（UserCard portal），
                窄屏点击出底部卡；无账号投影（匿名）保持普通头像。 -->

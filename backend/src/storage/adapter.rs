@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use aws_sdk_s3::presigning::{PresignedRequest, PresigningConfig};
 use aws_sdk_s3::primitives::ByteStream;
+use tokio::io::AsyncReadExt;
 
 use crate::storage::error::StorageError;
 use crate::storage::model::{is_safe_key, ObjectHead, PresignedUrl, StorageBackend};
@@ -67,8 +68,13 @@ pub trait StorageAdapter: Send + Sync {
     /// 对象头（head；用于 complete 复检与配额核对，M06-UPLOAD-04）。
     async fn head_object(&self, key: &str) -> Result<ObjectHead, StorageError>;
 
-    /// 读取整个对象（内容安全 worker 流式处理用）。
+    /// 读取整个对象（仅限调用方已知有界的对象）。
     async fn read_object(&self, key: &str) -> Result<Vec<u8>, StorageError>;
+
+    /// 最多读取 `max_bytes + 1` 字节，超过上限时在完整缓冲对象前拒绝。
+    /// 上传完成流程必须用声明大小调用，绝不能把 HEAD 当作 GET 内存边界。
+    async fn read_object_bounded(&self, key: &str, max_bytes: u64)
+        -> Result<Vec<u8>, StorageError>;
 
     /// Range 读取（下载端点与封面预览用；`start`/`len` 已服务端校验）。
     async fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, StorageError>;
@@ -213,6 +219,33 @@ impl StorageAdapter for LocalAdapter {
                 StorageError::from(e)
             }
         })
+    }
+
+    async fn read_object_bounded(
+        &self,
+        key: &str,
+        max_bytes: u64,
+    ) -> Result<Vec<u8>, StorageError> {
+        let path = local_path(&self.root, key)?;
+        let file = tokio::fs::File::open(&path).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                StorageError::NotFound(format!("object {key}"))
+            } else {
+                StorageError::from(e)
+            }
+        })?;
+        let cap = max_bytes.saturating_add(1);
+        let mut bytes = Vec::with_capacity(cap.min(1024 * 1024) as usize);
+        file.take(cap)
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(StorageError::from)?;
+        if bytes.len() as u64 > max_bytes {
+            return Err(StorageError::Verification(format!(
+                "object exceeds bounded read limit of {max_bytes} bytes"
+            )));
+        }
+        Ok(bytes)
     }
 
     async fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, StorageError> {
@@ -399,6 +432,10 @@ fn presigned_to_url(req: PresignedRequest, method: &'static str, ttl_secs: u64) 
     let expires_at = crate::outbox::now_millis() + (ttl_secs * 1000) as i64;
     PresignedUrl {
         url: req.uri().to_string(),
+        headers: req
+            .headers()
+            .map(|(name, value)| (name.to_owned(), value.to_owned()))
+            .collect(),
         expires_at,
         method,
     }
@@ -486,6 +523,48 @@ impl StorageAdapter for S3Adapter {
             .await
             .map_err(|e| StorageError::Network(format!("s3 get body failed: {e}")))?;
         Ok(bytes.into_bytes().to_vec())
+    }
+
+    async fn read_object_bounded(
+        &self,
+        key: &str,
+        max_bytes: u64,
+    ) -> Result<Vec<u8>, StorageError> {
+        let resp = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| classify_sdk(&e, "get"))?;
+        if let Some(content_length) = resp.content_length() {
+            if content_length < 0 || content_length as u64 > max_bytes {
+                return Err(StorageError::Verification(format!(
+                    "object content length exceeds declared limit of {max_bytes} bytes"
+                )));
+            }
+        }
+
+        let mut body = resp.body;
+        let mut bytes = Vec::with_capacity(max_bytes.min(1024 * 1024) as usize);
+        let mut total = 0u64;
+        while let Some(chunk) = body
+            .try_next()
+            .await
+            .map_err(|e| StorageError::Network(format!("s3 get body failed: {e}")))?
+        {
+            total = total
+                .checked_add(chunk.len() as u64)
+                .ok_or_else(|| StorageError::Verification("object size overflow".to_string()))?;
+            if total > max_bytes {
+                return Err(StorageError::Verification(format!(
+                    "object exceeds declared limit of {max_bytes} bytes"
+                )));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
     }
 
     async fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, StorageError> {
@@ -840,6 +919,24 @@ impl DynamicAdapter {
         }
     }
 
+    pub async fn read_object_bounded(
+        &self,
+        key: &str,
+        max_bytes: u64,
+    ) -> Result<Vec<u8>, StorageError> {
+        match self {
+            DynamicAdapter::Local(l) => l.read().await.read_object_bounded(key, max_bytes).await,
+            DynamicAdapter::S3(s) => {
+                let guard = s.read().await;
+                guard
+                    .as_ref()
+                    .ok_or_else(|| StorageError::Invalid("s3 backend not configured".to_string()))?
+                    .read_object_bounded(key, max_bytes)
+                    .await
+            }
+        }
+    }
+
     pub async fn read_range(
         &self,
         key: &str,
@@ -1063,6 +1160,14 @@ impl StorageAdapter for DynamicAdapter {
 
     async fn read_object(&self, key: &str) -> Result<Vec<u8>, StorageError> {
         self.read_object(key).await
+    }
+
+    async fn read_object_bounded(
+        &self,
+        key: &str,
+        max_bytes: u64,
+    ) -> Result<Vec<u8>, StorageError> {
+        DynamicAdapter::read_object_bounded(self, key, max_bytes).await
     }
 
     async fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, StorageError> {

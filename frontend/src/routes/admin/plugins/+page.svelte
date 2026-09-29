@@ -250,7 +250,7 @@
         <h2 style="margin:0;">插件列表</h2>
         <span class="app-muted" style="font-size:12px;">管理已注册插件的状态、权限和运行日志</span>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;align-items:center;">
         <Button text="+ 安装插件" variant="primary" size="sm" onclick={openInstall} />
         <button
           type="button"
@@ -266,6 +266,7 @@
         >
           <Icon name="rotate-cw" size={12} /> 刷新
         </button>
+        <button type="button" class="btn ghost sm" onclick={exportPluginsList}>导出清单</button>
       </div>
     </header>
 
@@ -377,9 +378,8 @@
         </table>
       </div>
 
-      <footer class="app-card__foot" style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);">
+      <footer class="app-card__foot" style="margin-top:14px;font-size:12px;color:var(--color-text-secondary);">
         <span>不支持上传和执行任意插件代码（沙箱安全保护）</span>
-        <button type="button" class="text-link" style="font-size:12px;background:none;border:none;cursor:pointer;padding:0;" onclick={exportPluginsList}>导出清单</button>
       </footer>
     </div>
   </section>

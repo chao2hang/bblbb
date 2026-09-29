@@ -2,6 +2,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { currencyLabel, formatMoney, newClientRequestId, productKindLabel } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import { projectEntitlementTokens, slotLabel } from '$lib/components/wardrobe/tokens';
   import Icon from '$lib/components/ui/Icon.svelte';
   import UserHoverCard, { type HoverCardUser } from '$lib/components/UserHoverCard.svelte';
@@ -35,8 +36,9 @@
   const totalPrice = $derived((product?.unit_price ?? 0) * quantity);
   const balanceAfter = $derived((balance?.amount ?? 0) - totalPrice);
   const affordable = $derived(Boolean(product && balance && balance.amount >= totalPrice));
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
   const currency = $derived(
-    product ? currencyLabel({ id: product.currency_id, code: product.currency_code, name: product.currency_name }) : ''
+    product ? currencyLabel({ id: product.currency_id, code: product.currency_code, name: product.currency_name }, currencyName) : ''
   );
 
   function iconFor(p: ShopProduct): string {
@@ -203,7 +205,7 @@
 
         <dl class="product-facts">
           <div><dt>库存</dt><dd>{#if soldOut}<span class="fact-danger">已售罄</span>{:else if typeof product.stock_remaining === 'number'}{product.stock_remaining} 件{:else}不限量{/if}</dd></div>
-          <div><dt>等级门槛</dt><dd>{product.required_level > 1 ? `LV.${product.required_level} 起` : '无限制'}</dd></div>
+          <div><dt>等级门槛</dt><dd>{product.required_level > 0 ? `TL${product.required_level} 起` : '无限制'}</dd></div>
           <div><dt>个人限购</dt><dd>{product.quantity_limit > 0 ? `${product.quantity_limit} 件 · 已购 ${ownedCount}` : '不限购'}</dd></div>
           <div><dt>交付</dt><dd>购买成功后立即进入衣柜</dd></div>
         </dl>
@@ -214,7 +216,7 @@
               <span class="shop-eyebrow">购买信息</span>
               <h2>把它加入我的衣柜</h2>
             </div>
-            {#if balance}<span class="balance-chip">余额 {formatMoney(balance.amount, { id: balance.currency, code: balance.currency })}</span>{/if}
+            {#if balance}<span class="balance-chip">余额 {formatMoney(balance.amount, { id: balance.currency, code: balance.currency, name: product.currency_name }, { fallbackName: currencyName })}</span>{/if}
           </div>
 
           {#if form?.message}
@@ -225,7 +227,7 @@
           {/if}
 
           {#if locked}
-            <div class="purchase-state purchase-state--danger" role="alert">该商品需要 LV.{product.required_level}，你的当前等级是 LV.{level}。</div>
+            <div class="purchase-state purchase-state--danger" role="alert">该商品需要 TL{product.required_level}，你的当前等级是 TL{level}。</div>
           {:else if soldOut}
             <div class="purchase-state purchase-state--danger" role="alert">这件商品已经售罄。</div>
           {:else if limitReached}
@@ -255,13 +257,13 @@
                 </div>
                 <div class="purchase-total">
                   <span>本次应付</span>
-                  <strong>{formatMoney(totalPrice, { id: product.currency_id, code: product.currency_code, name: product.currency_name }, { free: true })}</strong>
+                  <strong>{formatMoney(totalPrice, { id: product.currency_id, code: product.currency_code, name: product.currency_name }, { free: true, fallbackName: currencyName })}</strong>
                 </div>
               </div>
 
               <div class="balance-summary">
-                <div><span>当前余额</span><strong>{balance ? formatMoney(balance.amount, { id: balance.currency, code: balance.currency }) : '—'}</strong></div>
-                <div><span>购买后余额</span><strong class:summary-danger={!affordable}>{balance ? formatMoney(balanceAfter, { id: product.currency_id, code: product.currency_code }) : '—'}</strong></div>
+                <div><span>当前余额</span><strong>{balance ? formatMoney(balance.amount, { id: balance.currency, code: balance.currency, name: product?.currency_name }, { fallbackName: currencyName }) : '—'}</strong></div>
+                <div><span>购买后余额</span><strong class:summary-danger={!affordable}>{balance ? formatMoney(balanceAfter, { id: product.currency_id, code: product.currency_code, name: product.currency_name }, { fallbackName: currencyName }) : '—'}</strong></div>
               </div>
 
               <Button

@@ -10,6 +10,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { formatMoney } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import { slugify } from './slugify';
   import { VALIDITY_OPTIONS, formatValidity } from './duration';
   import {
@@ -51,7 +52,9 @@
   const slugValue = $derived(value.slugTouched ? value.slug : slugify(value.title));
 
   const validitySeconds = $derived(publishValiditySeconds(value));
-  const pricePreview = $derived(formatMoney(Math.max(0, Math.round(value.unitPrice || 0)), { code: 'coin' }, { free: true }));
+  const currencyContext = getCurrencyNameContext();
+  const currencyName = $derived(currencyContext?.currencyName ?? '金币');
+  const pricePreview = $derived(formatMoney(Math.max(0, Math.round(value.unitPrice || 0)), { code: 'coin' }, { free: true, fallbackName: currencyName }));
 </script>
 
 <div class="publish-panel">
@@ -147,9 +150,9 @@
     <h4 class="pp-section__title">价格与库存</h4>
     <div class="pp-grid">
       <div class="input-wrapper">
-        <label class="input-label" for="{idPrefix}-price">价格（金币）*</label>
+        <label class="input-label" for="{idPrefix}-price">价格（{currencyName}）*</label>
         <input id="{idPrefix}-price" name="unit_price" type="number" min="0" step="1" class="input-field" bind:value={value.unitPrice} {disabled} required />
-        <p class="input-hint">前台展示：{pricePreview}{#if priceHint} · 此类装扮建议 {priceHint} 金币{/if}</p>
+        <p class="input-hint">前台展示：{pricePreview}{#if priceHint} · 此类装扮建议 {priceHint} {currencyName}{/if}</p>
         {#if errors.unit_price}<p class="input-error">{errors.unit_price}</p>{/if}
       </div>
       <div class="input-wrapper">

@@ -5,13 +5,13 @@
   // 独立渲染（vitest ssr）/后端不可达时解析内置兜底（与 Seo.svelte 的
   // fallbackCanonical 同容错策略）。各页面不再手写 `— BBLBB` 后缀。
   import { page } from '$app/state';
-  import { FALLBACK_SITE_NAME, pageTitle, resolveSiteCopy } from '$lib/site/copy';
+  import { FALLBACK_SITE_NAME, pageTitle } from '$lib/site/copy';
 
   let { title }: { title: string } = $props();
 
   const siteName = $derived.by(() => {
     try {
-      return resolveSiteCopy(page.data?.site ?? null).siteName;
+      return page.data?.site?.siteName ?? FALLBACK_SITE_NAME;
     } catch {
       return FALLBACK_SITE_NAME;
     }

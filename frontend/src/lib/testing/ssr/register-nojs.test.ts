@@ -37,6 +37,7 @@ describe('无 JS：注册页服务端表单（M02-UX-01）', () => {
           site: {
             siteName: 'BBLBB',
             siteDescription: 'BBLBB 社区论坛',
+            currencyName: '金币',
             loginEyebrow: 'WELCOME BACK',
             loginTitle: '登录 BBLBB',
             loginSubtitle: 'BBLBB 社区论坛',

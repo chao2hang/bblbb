@@ -14,10 +14,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BUNDLE="${1:-}"
+BUNDLE="${BUNDLE:-}"
 PORT="${TEST_PORT:-18080}"
 PASS=0
 FAIL=0
+WORK=""
+trap '[[ -z "$WORK" ]] || rm -rf "$WORK"' EXIT
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --bundle) BUNDLE="${2:?--bundle requires a path}"; shift 2 ;;
+    -h|--help) echo "用法: $0 --bundle <bundle.tar.gz>"; exit 0 ;;
+    *)
+      if [[ -z "$BUNDLE" ]]; then BUNDLE="$1"; shift;
+      else echo "未知参数: $1" >&2; exit 2; fi
+      ;;
+  esac
+done
 
 ok()   { echo "  ok: $*"; PASS=$((PASS+1)); }
 bad()  { echo "  FAIL: $*" >&2; FAIL=$((FAIL+1)); }
@@ -32,6 +45,9 @@ else
   test -x "$WORK/backend/bblbb-backend" && ok "backend 二进制可执行" || bad "backend 二进制缺失"
   test -x "$WORK/backend/bblbb-migrate" && ok "bblbb-migrate 存在" || bad "bblbb-migrate 缺失"
   test -d "$WORK/frontend/build" && ok "frontend build 存在" || bad "frontend build 缺失"
+  test -d "$WORK/frontend/node_modules" && ok "frontend production node_modules 存在" || bad "frontend production node_modules 缺失"
+  test -f "$WORK/openapi/openapi.yaml" && ok "OpenAPI 契约存在" || bad "OpenAPI 契约缺失"
+  test -f "$WORK/SBOM.json" && ok "SBOM.json 存在" || bad "SBOM.json 缺失"
   for d in sqlite mysql mariadb; do
     test -d "$WORK/migrations/$d" && ok "迁移 $d 存在" || bad "迁移 $d 缺失"
   done
@@ -52,7 +68,6 @@ else
   else
     echo "  （无 su nobody 环境，权限不变量由 deploy/RELEASE-BUNDLE.md 声明 + 发布流程执行）"
   fi
-  rm -rf "$WORK"
 fi
 
 echo "==> 2/6 Caddyfile 模板静态校验"
@@ -73,7 +88,7 @@ else
 fi
 
 echo "==> 3/6 错误配置快速失败"
-BACKEND_BIN="$ROOT/backend/target/debug/bblbb-backend"
+BACKEND_BIN="${WORK:-}/backend/bblbb-backend"
 if [[ -x "$BACKEND_BIN" ]]; then
   # 非法 DB URL → 启动失败
   if BBLBB__ENV=development BBLBB__DATABASE_URL="postgres://x@y/z" "$BACKEND_BIN" >/dev/null 2>&1; then
@@ -82,8 +97,9 @@ if [[ -x "$BACKEND_BIN" ]]; then
     ok "非法 DB URL 快速失败"
   fi
   # 生产 + 不安全 origin → 拒绝
-  if BBLBB__ENV=production BBLBB__ALLOWED_ORIGINS="http://x.example.com" BBLBB__DATABASE_URL="sqlite:///tmp/x.sqlite" \
-     timeout 5 "$BACKEND_BIN" >/dev/null 2>&1; then
+  if BBLBB__ENV=production BBLBB__ALLOWED_ORIGINS="http://x.example.com" \
+     BBLBB__SETTINGS_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" \
+     BBLBB__DATABASE_URL="sqlite:///tmp/x.sqlite" timeout 5 "$BACKEND_BIN" >/dev/null 2>&1; then
     bad "生产模式不安全 origin 未拒绝"
   else
     ok "生产模式不安全 origin 拒绝"

@@ -28,8 +28,8 @@ const mockData: AdminContentPageData = {
   }
 };
 
-describe('Admin Content Page - Modal and Git Diff', () => {
-  it('opens audit modal when clicking the review button on the list row', async () => {
+describe('Admin Content Page - Refactored Review Modal', () => {
+  it('opens audit modal showing post content, poster info, and pass/reject buttons', async () => {
     const { container } = render(AdminContentPage, { props: { data: mockData, form: null } });
 
     // Find the review button in table
@@ -45,22 +45,35 @@ describe('Admin Content Page - Modal and Git Diff', () => {
     // Modal dialog is now opened
     const dialog = document.querySelector('.modal');
     expect(dialog).not.toBeNull();
-    expect(dialog?.textContent).toContain('审核管理 · 测试文章：Git Diff 与弹窗审核管理');
-    expect(dialog?.textContent).toContain('v1 → v2');
-    expect(dialog?.textContent).toContain('+2');
-    expect(dialog?.textContent).toContain('-1');
 
-    // Shows Git diff view inside modal
+    // 1) Shows post title & author info
+    expect(dialog?.textContent).toContain('审核管理 · 测试文章：Git Diff 与弹窗审核管理');
+    expect(dialog?.textContent).toContain('developer');
+    expect(dialog?.textContent).toContain('发帖人');
+    expect(dialog?.textContent).toContain('技术讨论');
+
+    // 2) Shows post content
+    expect(dialog?.textContent).toContain('测试文章：Git Diff 与弹窗审核管理');
+    expect(dialog?.textContent).toContain('新增正文第三行');
+
+    // 3) Shows bottom action buttons: 通过审核 & 不通过
+    expect(dialog?.textContent).toContain('通过审核');
+    expect(dialog?.textContent).toContain('不通过');
+
+    // 4) Can switch to Git diff view
+    const diffTab = Array.from(dialog?.querySelectorAll('.view-tab-btn') ?? []).find(
+      (btn) => btn.textContent?.includes('版本比对')
+    );
+    expect(diffTab).not.toBeUndefined();
+    await fireEvent.click(diffTab!);
+
     expect(dialog?.textContent).toContain('分栏');
     expect(dialog?.textContent).toContain('统一');
-
-    // Shows audit management panel
-    expect(dialog?.textContent).toContain('审核处置管理');
-    expect(dialog?.textContent).toContain('通过审核（公开发布）');
-    expect(dialog?.textContent).toContain('驳回修改（退回草稿）');
+    expect(dialog?.textContent).toContain('+2');
+    expect(dialog?.textContent).toContain('-1');
   });
 
-  it('switches between approve and reject actions with quick reasons', async () => {
+  it('switches to reject reason input when clicking 不通过 and supports quick chips', async () => {
     const { container } = render(AdminContentPage, { props: { data: mockData, form: null } });
 
     const reviewBtn = container.querySelector('.review-action-btn');
@@ -69,21 +82,26 @@ describe('Admin Content Page - Modal and Git Diff', () => {
     const dialog = document.querySelector('.modal');
     expect(dialog).not.toBeNull();
 
-    // Switch to reject
-    const rejectBtn = dialog?.querySelector('.audit-tab-btn--reject');
+    // Initially reject reason box is not displayed
+    expect(dialog?.querySelector('.reject-panel')).toBeNull();
+
+    // Click 不通过
+    const rejectBtn = dialog?.querySelector('.audit-op-btn--reject');
     expect(rejectBtn).not.toBeNull();
     await fireEvent.click(rejectBtn!);
 
-    // Check button label updated to reject
-    expect(dialog?.textContent).toContain('确认驳回并退回');
+    // Reject panel is now open
+    expect(dialog?.querySelector('.reject-panel')).not.toBeNull();
+    expect(dialog?.textContent).toContain('请填写不通过理由');
+    expect(dialog?.textContent).toContain('确认不通过并驳回');
 
     // Click a quick reason chip
-    const quickChip = dialog?.querySelector('.audit-quick-chip');
+    const quickChip = dialog?.querySelector('.quick-reason-chip');
     expect(quickChip).not.toBeNull();
     const chipText = quickChip?.textContent?.trim();
     await fireEvent.click(quickChip!);
 
-    const input = dialog?.querySelector('#content-modal-reason') as HTMLInputElement;
-    expect(input.value).toBe(chipText);
+    const textarea = dialog?.querySelector('#content-modal-reason') as HTMLTextAreaElement;
+    expect(textarea.value).toBe(chipText);
   });
 });

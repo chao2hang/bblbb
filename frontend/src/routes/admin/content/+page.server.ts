@@ -36,6 +36,7 @@ export interface AdminContentDiff {
   reason: string | null;
   before_body: string | null;
   after_body: string;
+  after_html?: string | null;
 }
 
 export interface AdminContentPageData {
@@ -114,7 +115,8 @@ export const load: PageServerLoad = async ({ cookies, request, url }) => {
           to_version: after.version,
           reason: after.reason ?? null,
           before_body: before ? before.body_markdown : null,
-          after_body: after.body_markdown
+          after_body: after.body_markdown,
+          after_html: after.body_html ?? null
         };
       }
     }
@@ -134,7 +136,7 @@ export const actions: Actions = {
   approve: async ({ request, cookies }) => {
     const form = await request.formData();
     const id = String(form.get('id') ?? '').trim();
-    const reason = String(form.get('reason') ?? '通过审核').trim();
+    const reason = String(form.get('reason') ?? '内容合规，同意发布').trim() || '内容合规，同意发布';
     try {
       const result = await authedPost(
         cookies,

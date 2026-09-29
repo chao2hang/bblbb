@@ -337,9 +337,14 @@ async fn grant_reply_if_after_reply_sqlite(
     user_id: &str,
     now: i64,
 ) -> Result<(), sqlx::Error> {
+    // INNER JOIN：public 帖子 `access_policy_id IS NULL`，LEFT JOIN 会产出
+    // (NULL, NULL) 行；sqlx 的 MySQL/MariaDB 驱动把 NULL 解码进非 Option
+    // `(String, String)` 直接 500（SQLite 驱动宽容地把 NULL 解成 ""，掩盖了
+    // 该问题）。无策略行时本就该无 grant——INNER JOIN 使其返回零行。
     let policy: Option<(String, String)> = sqlx::query_as(
         "SELECT pol.kind, pol.id
-         FROM posts p LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
+         FROM posts p
+         JOIN content_access_policies pol ON pol.id = p.access_policy_id
          WHERE p.id = ?",
     )
     .bind(post_id)
@@ -419,9 +424,14 @@ async fn grant_reply_if_after_reply_mysql(
     user_id: &str,
     now: i64,
 ) -> Result<(), sqlx::Error> {
+    // INNER JOIN：public 帖子 `access_policy_id IS NULL`，LEFT JOIN 会产出
+    // (NULL, NULL) 行；sqlx 的 MySQL/MariaDB 驱动把 NULL 解码进非 Option
+    // `(String, String)` 直接 500（SQLite 驱动宽容地把 NULL 解成 ""，掩盖了
+    // 该问题）。无策略行时本就该无 grant——INNER JOIN 使其返回零行。
     let policy: Option<(String, String)> = sqlx::query_as(
         "SELECT pol.kind, pol.id
-         FROM posts p LEFT JOIN content_access_policies pol ON pol.id = p.access_policy_id
+         FROM posts p
+         JOIN content_access_policies pol ON pol.id = p.access_policy_id
          WHERE p.id = ?",
     )
     .bind(post_id)

@@ -75,6 +75,83 @@ html:has(#page-publish) {
   border-radius: var(--radius-lg, 8px) var(--radius-lg, 8px) 0 0;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
   cursor: default;
+  transition: width var(--duration-fast, 150ms) ease, height var(--duration-fast, 150ms) ease;
+}
+
+/* ---- Fullscreen Mode ---- */
+
+#page-publish.is-fullscreen,
+#main-content > #page-publish.linuxdo-composer-page.is-fullscreen {
+  inset: 0 !important;
+  z-index: calc(var(--z-modal, 1000) + 10) !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+}
+
+#page-publish.is-fullscreen .composer-stage {
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  height: 100% !important;
+  cursor: default;
+}
+
+#page-publish.is-fullscreen .composer-window {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100dvh !important;
+  min-height: 100% !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#page-publish.is-fullscreen .composer-form {
+  flex: 1 1 auto;
+  height: calc(100% - 56px);
+  max-height: calc(100% - 56px);
+}
+
+#page-publish.is-fullscreen .composer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 20px clamp(20px, 4vw, 48px) 24px;
+}
+
+#page-publish.is-fullscreen .composer-editor {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#page-publish.is-fullscreen .composer-editor .rich-editor-wrapper {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#page-publish.is-fullscreen .rich-editor-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#page-publish.is-fullscreen .prosemirror-mount {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#page-publish.is-fullscreen .prosemirror-mount .ProseMirror,
+#page-publish.is-fullscreen .source-textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 /* ---- Titlebar ---- */
@@ -88,6 +165,7 @@ html:has(#page-publish) {
   padding: 8px 12px 8px 18px;
   background: var(--composer-surface);
   border-bottom: 1px solid var(--composer-line);
+  user-select: none;
 }
 
 #page-publish .composer-titlebar__identity {
@@ -138,6 +216,7 @@ html:has(#page-publish) {
   border-color: var(--color-success);
 }
 
+#page-publish .composer-window-btn,
 #page-publish .composer-window-close {
   display: inline-flex;
   align-items: center;
@@ -153,6 +232,7 @@ html:has(#page-publish) {
   transition: all var(--duration-fast, 150ms);
 }
 
+#page-publish .composer-window-btn:hover,
 #page-publish .composer-window-close:hover {
   color: var(--color-text-primary);
   background: var(--composer-accent-soft);
@@ -160,6 +240,7 @@ html:has(#page-publish) {
   text-decoration: none;
 }
 
+#page-publish .composer-window-btn:focus-visible,
 #page-publish .composer-window-close:focus-visible {
   outline: 2px solid var(--composer-accent);
   outline-offset: 2px;
@@ -994,7 +1075,8 @@ html:has(#page-publish) {
     padding: 6px 10px 6px 14px;
   }
 
-  #page-publish .composer-draft-status {
+  #page-publish .composer-draft-status,
+  #page-publish .composer-window-expand {
     display: none;
   }
 
@@ -1086,6 +1168,8 @@ html:has(#page-publish) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #page-publish .composer-window,
+  #page-publish .composer-window-btn,
   #page-publish .composer-window-close,
   #page-publish .toolbar-btn,
   #page-publish .composer-tool-btn,

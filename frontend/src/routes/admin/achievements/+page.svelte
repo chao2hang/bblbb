@@ -19,6 +19,7 @@
   import StatCard from '$lib/components/admin/StatCard.svelte';
   import { adminStateLabel } from '$lib/admin';
   import { toastActionResult } from '$lib/ui/action-toast';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import type {
     AdminAchievementItem,
     AdminAchievementsActionData,
@@ -29,6 +30,7 @@
     data: AdminAchievementsPageData;
     form?: AdminAchievementsActionData | null;
   } = $props();
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
   /** 条件类型（与后端 CONDITION_TYPES 一致）。 */
   const CONDITION_TYPES = [
@@ -272,7 +274,7 @@
             <input id="ac-threshold" name="condition_threshold" type="number" min="0" step="1" class="input-field" required value="1" />
           </div>
           <div class="input-wrapper">
-            <label class="input-label" for="ac-reward-coin">奖励金币</label>
+            <label class="input-label" for="ac-reward-coin">奖励 {currencyName}</label>
             <input id="ac-reward-coin" name="reward_coin" type="number" min="0" step="1" class="input-field" value="0" />
           </div>
           <div class="input-wrapper">

@@ -309,6 +309,7 @@ describe('P1-03: 帖子列表状态筛选', () => {
           nextCursor: null,
           status: 'published',
           q: '',
+          limit: 20,
           after: null,
           error: null,
           counts: null
@@ -327,6 +328,7 @@ describe('P1-03: 帖子列表状态筛选', () => {
           nextCursor: null,
           status: 'pending_review',
           q: '',
+          limit: 20,
           after: null,
           error: null,
           counts: null
@@ -336,6 +338,49 @@ describe('P1-03: 帖子列表状态筛选', () => {
     });
     expect(pending.body).toContain('待审核的内容规范违规检查');
     expect(pending.body).not.toContain('全栈架构设计的最佳实践');
+  });
+
+  it('状态 Tab 正确显示全部总数 counts.all 而非 0，并支持每页数量选择器', () => {
+    const res = render(AdminPostsPage, {
+      props: {
+        data: {
+          state: 'ok',
+          items: adminPostFixtures,
+          nextCursor: '1699900000000',
+          status: '',
+          q: '',
+          limit: 20,
+          after: null,
+          error: null,
+          counts: {
+            all: 158,
+            pending_review: 10,
+            published: 148,
+            featured: 0,
+            hidden: 0,
+            deleted: 0
+          }
+        },
+        form: null
+      }
+    });
+    // 全部 Tab 应当显示总数 158，而不是 0
+    expect(res.body).toContain('全部');
+    expect(res.body).toContain('158');
+    expect(res.body).toContain('公开');
+    expect(res.body).toContain('148');
+    expect(res.body).toContain('待审核');
+    expect(res.body).toContain('10');
+
+    // 每页数量选择器与每页显示
+    expect(res.body).toContain('aria-label="每页数量"');
+    expect(res.body).toContain('aria-label="每页显示数量"');
+    expect(res.body).toContain('10 条 / 页');
+    expect(res.body).toContain('20 条 / 页');
+    expect(res.body).toContain('30 条 / 页');
+    expect(res.body).toContain('50 条 / 页');
+    expect(res.body).toContain('100 条 / 页');
+    expect(res.body).toContain('limit=20');
   });
 });
 

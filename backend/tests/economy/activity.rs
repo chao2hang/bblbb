@@ -792,7 +792,7 @@ async fn http_summary_and_visit_flow() {
     assert_eq!(body["streak_days"], 0);
     assert_eq!(
         body["balances"],
-        json!([{ "currency": "coin", "amount": 0 }])
+        json!([{ "currency": "coin", "amount": 0, "name": "金币" }])
     );
     assert!(body.get("experience").is_none());
     assert!(body.get("xp").is_none());

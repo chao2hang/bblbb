@@ -7,6 +7,7 @@
   import { newClientRequestId } from '$lib/api/client';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import type { BalanceActionData, BalancePageData } from './+page.server';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
 
   let { data, form }: { data: BalancePageData; form?: BalanceActionData | null } = $props();
 
@@ -22,8 +23,9 @@
 
   const coinBalance = $derived(
     (summary?.balances ?? []).find((b) => b.currency === 'coin') ??
-      (summary ? { currency: 'coin', amount: 0 } : undefined)
+      (summary ? { currency: 'coin', amount: 0, name: '金币' } : undefined)
   );
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? coinBalance?.name ?? '金币');
 
   const summaryAny = $derived(summary as unknown as Record<string, unknown> | null);
   const lvlNum = $derived.by(() => {
@@ -178,7 +180,7 @@
       return transactions.slice(0, 30).map((t) => ({
         id: t.id,
         title: t.memo || formatTxKind(t.kind),
-        amountText: `${t.amount >= 0 ? '+' : ''}${t.amount} COIN`,
+        amountText: `${t.amount >= 0 ? '+' : ''}${t.amount} ${currencyName}`,
         isPositive: t.amount >= 0,
         time: formatTxTime(t.created_at),
         balanceAfter: t.balance_after
@@ -188,7 +190,7 @@
       return todayEarned.map((e, idx) => ({
         id: `earned-${idx}`,
         title: '每日签到奖励',
-        amountText: `+${e.amount} COIN`,
+        amountText: `+${e.amount} ${currencyName}`,
         isPositive: true,
         time: currentTimeStr
       }));
@@ -410,7 +412,7 @@
                           <span>总额:</span>
                           <span class="font-mono font-medium">{past7Days[hoverIndex].total.toFixed(2)}</span>
                         </div>
-                        <div class="flex justify-between items-center text-green-600">
+                        <div class="flex justify-between items-center text-success">
                           <span>收入:</span>
                           <span class="font-mono font-medium">+{past7Days[hoverIndex].income.toFixed(2)}</span>
                         </div>
@@ -429,50 +431,46 @@
           <!-- 右侧三大核心指标与签到操作 -->
           <aside class="credits-metrics-column md:col-span-1 order-2 md:order-none flex flex-col divide-y divide-border/70 md:divide-y-0 md:pt-px" aria-label="账户概览">
             <!-- 1. 可用 B 币 / COIN -->
-            <div class="py-3 first:pt-0 md:border-b md:pb-4 md:pt-0">
-              <div class="flex items-start justify-between gap-4 md:block">
-                <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center justify-between">
-                  <div class="flex items-center gap-1.5">
-                    <span class="min-[400px]:hidden">可用余额</span>
-                    <span class="hidden min-[400px]:inline">可用 B 币余额 (COIN)</span>
-                    <button
-                      type="button"
-                      aria-label="查看详情"
-                      class="inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground cursor-pointer rounded-full p-0.5"
-                      onclick={() => (showBalanceInfo = !showBalanceInfo)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-                    </button>
-                  </div>
-                  <a href="/shop" class="text-xs text-blue-600 hover:text-blue-500 hover:underline hidden md:inline-flex items-center gap-0.5 font-medium transition-colors">去商城 &rarr;</a>
+            <div class="py-2.5 first:pt-0 md:border-b md:pb-3 md:pt-0">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
+                  <span class="min-[400px]:hidden">可用余额</span>
+                  <span class="hidden min-[400px]:inline">可用{currencyName}</span>
+                  <button
+                    type="button"
+                    aria-label="查看详情"
+                    class="inline-flex shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer rounded-full p-0.5"
+                    onclick={() => (showBalanceInfo = !showBalanceInfo)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  </button>
                 </div>
-                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left flex items-baseline justify-end md:justify-start gap-1">
-                  <span data-slot="counting-number" class="font-mono">{coinBalance?.amount ?? 0}</span>
-                  <span class="text-xs text-muted-foreground font-normal ml-0.5">COIN</span>
-                </div>
+                <a href="/shop" class="text-xs text-blue-600 hover:text-blue-500 hover:underline inline-flex items-center gap-0.5 font-medium transition-colors">去商城 &rarr;</a>
+              </div>
+              <div class="mt-1 flex items-baseline gap-1.5">
+                <span data-slot="counting-number" class="font-mono text-2xl font-bold tracking-tight text-foreground">{coinBalance?.amount ?? 0}</span>
+                <span class="text-xs text-muted-foreground font-normal ml-0.5">{currencyName}</span>
               </div>
               {#if showBalanceInfo}
-                <p class="text-xs text-muted-foreground mt-2.5 bg-muted/60 border border-border/40 p-2.5 rounded-lg leading-relaxed">
-                  当前可自由消费的 B 币余额，可用于社区商城道具兑换、付费资源下载与内容解锁。
+                <p class="text-xs text-muted-foreground mt-2 bg-muted/60 border border-border/40 p-2.5 rounded-lg leading-relaxed">
+                  当前可自由消费的{currencyName}余额，可用于社区商城道具兑换、付费资源下载与内容解锁。
                 </p>
               {/if}
             </div>
 
             <!-- 2. 社区信任等级 -->
-            <div class="py-3 md:border-b md:pt-4 md:pb-4">
-              <div class="flex items-start justify-between gap-4 md:block">
-                <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center justify-between">
-                  <span>社区信任等级</span>
-                  <a href="/me/level" class="text-xs text-blue-600 hover:text-blue-500 hover:underline inline-flex items-center gap-0.5 font-medium transition-colors" title="行为信任标准体系">
-                    行为信任标准体系 &rarr;
-                  </a>
-                </div>
-                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left flex items-baseline justify-end md:justify-start gap-2">
-                  <span class="text-blue-600 dark:text-blue-400 font-mono tracking-tight font-bold">TL{trustLevel}</span>
-                  <span class="text-base font-semibold text-foreground">{trustName}</span>
-                </div>
+            <div class="py-2.5 md:border-b md:py-3">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm text-muted-foreground font-medium">社区信任等级</span>
+                <a href="/me/level" class="text-xs text-blue-600 hover:text-blue-500 hover:underline inline-flex items-center gap-0.5 font-medium transition-colors" title="行为信任标准体系">
+                  行为信任标准体系 &rarr;
+                </a>
               </div>
-              <div class="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
+              <div class="mt-1 flex items-baseline gap-2">
+                <span class="text-blue-600 dark:text-blue-400 font-mono tracking-tight font-bold text-2xl">TL{trustLevel}</span>
+                <span class="text-base font-semibold text-foreground">{trustName}</span>
+              </div>
+              <div class="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
                 <span class="inline-flex items-center gap-1.5">
                   <span class="size-1.5 rounded-full bg-blue-500/70 inline-block"></span>
                   {#if trustNextLevel}
@@ -486,81 +484,74 @@
             </div>
 
             <!-- 3. 今日签到奖励与签到 -->
-            <div class="py-3 last:pb-0 md:pt-4 md:pb-0">
-              <div class="flex items-start justify-between gap-4 md:block">
-                <div class="min-w-0 text-sm text-muted-foreground font-medium flex items-center justify-between">
-                  <span>今日签到奖励</span>
-                  {#if checkInEnabled}
-                    <span class="text-xs text-muted-foreground hidden md:inline-flex items-center gap-1">
-                      连续签到 <strong class="font-semibold text-foreground font-mono">{streak}</strong> 天
-                    </span>
-                  {/if}
-                </div>
-                <div class="shrink-0 text-right text-2xl font-bold leading-none md:pt-2 md:text-left flex items-baseline justify-end md:justify-between gap-3">
-                  <div class="flex items-baseline gap-1">
-                    <span data-slot="counting-number" class={todayEarnedTotal > 0 ? 'text-green-600 dark:text-green-400 font-mono' : 'font-mono'}>
-                      {todayEarnedTotal > 0 ? `+${todayEarnedTotal}` : '0'}
-                    </span>
-                    <span class="text-xs text-muted-foreground font-normal ml-0.5">COIN</span>
-                  </div>
-                  <div class="hidden md:block">
-                    {#if !checkInEnabled}
-                      <span class="badge badge-neutral text-xs">签到未开启</span>
-                    {:else}
-                      <span class="badge {checkedIn ? 'badge-success' : 'badge-warning'} text-xs">
-                        <span class="size-1.5 rounded-full {checkedIn ? 'bg-green-500 dark:bg-green-400' : 'bg-amber-500 dark:bg-amber-400'}"></span>
-                        {checkedIn ? '今日已签到' : '今日未签到'}
-                      </span>
-                    {/if}
-                  </div>
-                </div>
-              </div>
-
-              <!-- 移动端签到状态与天数行 -->
-              <div class="flex items-center justify-between text-xs mt-2 md:hidden">
-                <div class="flex items-center gap-1.5">
-                  {#if !checkInEnabled}
-                    <span class="badge badge-neutral text-xs">签到未开启</span>
-                  {:else}
-                    <span class="badge {checkedIn ? 'badge-success' : 'badge-warning'} text-xs">
-                      <span class="size-1.5 rounded-full {checkedIn ? 'bg-green-500 dark:bg-green-400' : 'bg-amber-500 dark:bg-amber-400'}"></span>
-                      {checkedIn ? '今日已签到' : '今日未签到'}
-                    </span>
-                    <span class="text-secondary text-xs">连续签到 {streak} 天</span>
-                  {/if}
-                </div>
-                {#if todayEarned.length > 0}
-                  <span class="text-xs text-green-600 font-medium font-mono">+{todayEarnedTotal} COIN</span>
+            <div class="py-2.5 last:pb-0 md:pt-3 md:pb-0">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm text-muted-foreground font-medium">今日签到奖励</span>
+                {#if checkInEnabled}
+                  <span class="text-xs text-muted-foreground inline-flex items-center gap-1">
+                    连续签到 {streak} 天
+                  </span>
                 {/if}
+              </div>
+              <div class="mt-1 flex items-center justify-between gap-3">
+                <div class="flex items-baseline gap-1">
+                  <span data-slot="counting-number" class={todayEarnedTotal > 0 ? 'text-green-700 dark:text-green-300 font-mono text-2xl font-bold tracking-tight' : 'font-mono text-2xl font-bold tracking-tight text-foreground'}>
+                    {todayEarnedTotal > 0 ? `+${todayEarnedTotal}` : '0'}
+                  </span>
+                  <span class="text-xs text-muted-foreground font-normal ml-0.5">{currencyName}</span>
+                </div>
+
+                <form
+                  method="POST"
+                  action="?/visit"
+                  use:enhance={() => {
+                    return async ({ update }) => {
+                      idempotencyKey = newClientRequestId();
+                      await update();
+                    };
+                  }}
+                  class="shrink-0 flex items-center"
+                >
+                  <input type="hidden" name="client_request_id" value={idempotencyKey} />
+                  {#if !checkInEnabled}
+                    <button
+                      type="button"
+                      disabled
+                      class="badge badge-neutral text-xs cursor-not-allowed"
+                    >
+                      签到未开启
+                    </button>
+                  {:else if checkedIn}
+                    <button
+                      type="button"
+                      disabled
+                      class="badge badge-success text-xs inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full border border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-300 font-medium cursor-default disabled:opacity-100"
+                    >
+                      <span class="size-1.5 rounded-full bg-green-500 dark:bg-green-400"></span>
+                      <span>今日已签到</span>
+                    </button>
+                  {:else}
+                    <div class="flex items-center gap-2">
+                      <span class="badge badge-warning text-xs inline-flex items-center gap-1 py-0.5 px-2 rounded-full border border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                        <span class="size-1.5 rounded-full bg-amber-500 dark:bg-amber-400"></span>
+                        今日未签到
+                      </span>
+                      <button
+                        type="submit"
+                        class="btn btn-primary h-7 px-3 rounded-md font-medium text-xs shadow-sm hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <span>立即签到</span>
+                      </button>
+                    </div>
+                  {/if}
+                </form>
               </div>
 
               {#if retryAfter}
-                <p class="input-hint is-error text-xs mt-2.5" role="alert">操作过于频繁，请约 {retryAfter} 秒后再试。</p>
+                <p class="input-hint is-error text-xs mt-1.5" role="alert">操作过于频繁，请约 {retryAfter} 秒后再试。</p>
               {/if}
 
-              <!-- 签到表单与按钮 -->
-              <form
-                method="POST"
-                action="?/visit"
-                use:enhance={() => {
-                  return async ({ update }) => {
-                    idempotencyKey = newClientRequestId();
-                    await update();
-                  };
-                }}
-                class="mt-3 md:mt-3.5"
-              >
-                <input type="hidden" name="client_request_id" value={idempotencyKey} />
-                <button
-                  type="submit"
-                  class="btn {checkedIn ? 'secondary btn-secondary' : 'primary btn-primary'} w-full h-9 rounded-lg font-medium text-sm transition-all shadow-sm active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
-                  disabled={!checkInEnabled || checkedIn}
-                >
-                  <span>{!checkInEnabled ? '签到未开启' : checkedIn ? '今日已签到' : '立即签到'}</span>
-                </button>
-              </form>
-
-              <p class="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
+              <p class="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
                 {#if !checkInEnabled}
                   全站签到功能目前暂未开放。
                 {:else if autoCheckInEnabled}
@@ -617,7 +608,7 @@
                                 {/if}
                               </div>
                             </div>
-                            <span class="font-mono text-xs font-semibold ml-2 shrink-0 {item.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
+                            <span class="font-mono text-xs font-semibold ml-2 shrink-0 {item.isPositive ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}">
                               {item.amountText}
                             </span>
                           </div>
@@ -647,7 +638,7 @@
                 </div>
                 <div class="pt-0.5">
                   <div class="text-xl font-bold tracking-tight">
-                    B 币 <span data-slot="counting-number" class="text-green-600 font-mono">+{total7dIncome.toFixed(2)}</span>
+                    {currencyName} <span data-slot="counting-number" class="text-success font-mono">+{total7dIncome.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -659,12 +650,14 @@
                         <div class="space-y-1">
                           <div class="flex items-center justify-between">
                             <span class="text-[11px] text-muted-foreground">{day.date}</span>
-                            <span class="text-[11px] text-green-600 font-semibold">+{day.income.toFixed(2)}</span>
+                            <span class="text-[11px] text-green-700 dark:text-green-300 font-semibold">+{day.income.toFixed(2)}</span>
                           </div>
                           <div class="bg-muted rounded-full overflow-hidden h-1.5">
                             <div
                               aria-valuemax={100}
                               aria-valuemin={0}
+                              aria-valuetext={`${day.date} 收入 ${day.income.toFixed(2)}`}
+                              aria-label={`${day.date} 收入占七日最高值比例`}
                               role="progressbar"
                               data-slot="progress"
                               class="relative w-full overflow-hidden bg-muted h-full rounded-full"
@@ -699,7 +692,7 @@
                 </div>
                 <div class="pt-0.5">
                   <div class="text-xl font-bold tracking-tight">
-                    B 币 <span data-slot="counting-number" class="text-red-500 font-mono">-{total7dExpense.toFixed(2)}</span>
+                    {currencyName} <span data-slot="counting-number" class="text-red-500 font-mono">-{total7dExpense.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -717,6 +710,8 @@
                             <div
                               aria-valuemax={100}
                               aria-valuemin={0}
+                              aria-valuetext={`${day.date} 支出 ${day.expense.toFixed(2)}`}
+                              aria-label={`${day.date} 支出占七日最高值比例`}
                               role="progressbar"
                               data-slot="progress"
                               class="relative w-full overflow-hidden bg-muted h-full rounded-full"

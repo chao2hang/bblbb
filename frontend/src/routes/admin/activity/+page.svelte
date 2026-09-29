@@ -12,11 +12,13 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { ActivityTask } from '$lib/api/types';
   import type { AdminActivityPageData, AdminActivityActionData } from './+page.server';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
 
   let { data, form }: { data: AdminActivityPageData; form?: AdminActivityActionData | null } = $props();
 
   const config = $derived(data.config);
   const tasks = $derived(data.tasks);
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
   const message = $derived(form?.message ?? null);
 
   // 约定 A（按钮→弹层）：签到全局配置 = 「全局配置」按钮 + Dialog（?/save-config）；
@@ -98,7 +100,7 @@
     {@const isAutoEnabled = config.data.auto_check_in_enabled !== false && config.data.check_in?.auto_enabled !== false}
     {@const isCheckInEnabled = config.data.check_in_enabled !== false && config.data.check_in?.enabled !== false}
     {@const isRewardsEnabled = config.data.rewards_enabled !== false}
-    {@const currencyLabel = 'B币'}
+    {@const currencyLabel = currencyName}
 
     <!-- ── 运行概览：状态磁贴 + 当前规则摘要（只读，随保存刷新） ── -->
     <div class="app-card" style="margin-bottom:var(--space-4);">
@@ -220,7 +222,7 @@
               启用全站奖励发放
             </label>
             <p class="text-secondary" style="font-size:var(--text-xs);margin:6px 0 0;line-height:1.5;">
-              所有活跃奖励实时入账的总闸（含签到与积分规则页配置的各类 B币奖励）。
+              所有活跃奖励实时入账的总闸（含签到与积分规则页配置的各类 {currencyLabel} 奖励）。
             </p>
           </div>
         </div>
@@ -258,7 +260,7 @@
             <div style="display:flex;gap:6px;">
               <input id="ac-amount" name="check_in_amount" type="number" min="0" class="input-field" value={currentAmount} style="flex:1;" />
               <input type="hidden" name="check_in_currency" value="coin" />
-              <span class="input-field" style="width:120px;display:flex;align-items:center;justify-content:center;">B币</span>
+              <span class="input-field" style="width:120px;display:flex;align-items:center;justify-content:center;">{currencyLabel}</span>
             </div>
             <small class="text-secondary" style="display:block;margin-top:4px;font-size:11px;">
               每次成功签到发放的资产数量（当前 +{currentAmount} {currencyLabel}）。

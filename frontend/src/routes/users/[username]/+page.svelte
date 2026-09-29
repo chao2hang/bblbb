@@ -392,7 +392,7 @@
                     {@const authorName = post.author?.display_name || post.author_display_name || post.author?.username || post.author_name || user.display_name || user.username}
                     {@const postPresentation = post.author?.presentation_tokens ?? (post.author?.username === user.username ? user.presentation_tokens : null)}
                     {@const postAvatarId = post.author?.avatar_attachment_id ?? (post.author?.username === user.username ? user.avatar_attachment_id : null)}
-                    <div class="app-post-row" data-post-id={post.id}>
+                    <div class="app-post-row" role="article" aria-label={post.title} data-post-id={post.id}>
                       <CosmeticAvatar name={authorName} size="md" presentation={postPresentation} avatarAttachmentId={postAvatarId} seed={post.author?.username ?? post.author?.id ?? user.username ?? user.id} />
                       <div class="app-post-row__main">
                         <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">

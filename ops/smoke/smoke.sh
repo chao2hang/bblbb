@@ -125,7 +125,7 @@ if [[ -n "$DB" ]]; then
   USER_ID="$(sqlite3 "$DB" "SELECT id FROM users WHERE username_normalized='$USERNAME';")"
   BALANCE="$(sqlite3 "$DB" "SELECT balance FROM point_accounts WHERE user_id='$USER_ID' AND currency_id='01911fd5-0047-0000-0000-000000000001';")"
   [[ -n "$BALANCE" ]] && ok "账本余额可读（exp=${BALANCE}）" || bad "账本账户不存在"
-  SUM_DELTA="$(sqlite3 "$DB" "SELECT COALESCE(SUM(delta_balance),0) FROM point_transactions WHERE user_id='$USER_ID';")"
+  SUM_DELTA="$(sqlite3 "$DB" "SELECT COALESCE(SUM(delta_balance),0) FROM point_transactions WHERE user_id='$USER_ID' AND currency_id='01911fd5-0047-0000-0000-000000000001';")"
   [[ "$SUM_DELTA" == "$BALANCE" ]] && ok "账本恒等式 Σ(delta)=balance ($SUM_DELTA)" || bad "账本恒等式不成立"
   ACT_HTTP="$(http_status GET "$BASE_URL/api/v1/activity/summary")"
   [[ "$ACT_HTTP" == "200" ]] && ok "activity summary API → 200" || bad "activity summary → $ACT_HTTP"

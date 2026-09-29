@@ -2,13 +2,13 @@
   // M03-UI-07：管理板块页——后端裁决状态渲染 + 板块 CRUD 行操作。
   // 原型对齐：prototype/pages/admin-boards.html
   // M18-ADMIN-DIALOG：写操作弹层化——
-  // - 「新建板块」常驻表单卡 → 页脚按钮 + Dialog（?/create）；
+  // - 「新建板块」常驻表单卡 → 顶部页头按钮 + Dialog（?/create）；
   // - 行「编辑」展开行 → 按钮 + Dialog（?/update，If-Match version + reason）；
   // - 行「置顶」行内表单 → 按钮 + Dialog（?/update，sort_order=0 + reason）；
   // - 批量：选择列 + BatchBar + 批量启用/停用 Dialog → ?/batchUpdate
   //   （后端已有板块级单条写端点 PATCH /api/v1/admin/boards/{id}，见
   //   backend/src/routes/admin.rs update_admin_board：is_active + reason + If-Match）。
-  // 页脚保留 ExportButton（客户端 CSV 导出）作为数据导出能力。
+  // 页头保留 ExportButton（客户端 CSV 导出）作为数据导出能力。
   // M18-ADMIN-OPS（约定 D）：行内写操作收敛为**每行一个「⋮」三点菜单**（RowActionsMenu：
   // 编辑/置顶，菜单项直接打开对应动作的 Dialog 表单节；两节均提交到既有 ?/update，
   // 但字段不同：编辑 = 名称/可见性/发帖策略/排序/状态，置顶 = sort_order=0；
@@ -214,8 +214,34 @@
 </svelte:head>
 
 <section class="app-card">
-  <header class="app-card__head">
+  <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <h2>板块列表</h2>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <Button text="新建板块" variant="primary" size="sm" onclick={openCreate} />
+      <ExportButton
+        label="导出板块"
+        filename="admin-boards"
+        columns={[
+          { key: 'name', label: '名称' },
+          { key: 'slug', label: '路径' },
+          { key: 'posts', label: '主题数' },
+          { key: 'visibility', label: '可见性' },
+          { key: 'mode', label: '发帖策略' },
+          { key: 'mods', label: '版主' },
+          { key: 'active', label: '状态' }
+        ]}
+        getData={() =>
+          displayedItems.map((item) => ({
+            name: item.name,
+            slug: `/${item.slug}`,
+            posts: item.post_count ?? 0,
+            visibility: visibilityBadge(item.visibility).label,
+            mode: postingModeLabel(item.posting_mode),
+            mods: (item.moderators ?? []).join('|'),
+            active: item.is_active ? '启用' : '停用'
+          }))}
+      />
+    </div>
   </header>
 
   <div class="app-card__body">
@@ -361,33 +387,6 @@
       <p class="input-hint is-error" role="alert" style="margin-top:14px;">{message}</p>
     {/if}
   </div>
-
-  <footer class="app-card__foot">
-    <Button text="新建板块" variant="primary" size="sm" onclick={openCreate} />
-    <ExportButton
-      label="导出板块"
-      filename="admin-boards"
-      columns={[
-        { key: 'name', label: '名称' },
-        { key: 'slug', label: '路径' },
-        { key: 'posts', label: '主题数' },
-        { key: 'visibility', label: '可见性' },
-        { key: 'mode', label: '发帖策略' },
-        { key: 'mods', label: '版主' },
-        { key: 'active', label: '状态' }
-      ]}
-      getData={() =>
-        displayedItems.map((item) => ({
-          name: item.name,
-          slug: `/${item.slug}`,
-          posts: item.post_count ?? 0,
-          visibility: visibilityBadge(item.visibility).label,
-          mode: postingModeLabel(item.posting_mode),
-          mods: (item.moderators ?? []).join('|'),
-          active: item.is_active ? '启用' : '停用'
-        }))}
-    />
-  </footer>
 </section>
 
 <!-- 新建板块 Dialog：name/slug/description/visibility + reason（审计）→ ?/create -->

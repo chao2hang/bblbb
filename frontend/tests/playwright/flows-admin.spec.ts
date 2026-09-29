@@ -20,7 +20,7 @@ test.describe('admin 后台（动态菜单 + 权限一致）', () => {
       }
       await expect(shell).toHaveClass(/admin-menu-open/);
     }
-    await expect(page.getByRole('navigation', { name: '管理后台导航' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: '管理后台导航' })).toBeVisible();
     await expect(page.getByRole('link', { name: '用户管理', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: '主题管理', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: '大模型设置', exact: true })).toBeVisible();

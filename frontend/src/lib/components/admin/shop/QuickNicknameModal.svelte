@@ -5,6 +5,7 @@
   import GradientEditor from '$lib/components/admin/shop/studio/controls/GradientEditor.svelte';
   import SegmentedSpeed from '$lib/components/admin/shop/studio/controls/SegmentedSpeed.svelte';
   import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
 
@@ -16,6 +17,8 @@
     enhanceHandler: SubmitFunction;
   } = $props();
 
+  const currencyContext = getCurrencyNameContext();
+  const currencyName = $derived(currencyContext?.currencyName ?? '金币');
   let mode = $state<'solid' | 'gradient' | 'glow'>('gradient');
   let name = $state('');
   let price = $state(200);
@@ -134,7 +137,7 @@
           />
         </div>
         <div class="input-wrapper">
-          <label class="input-label" for="nc-price">售价 (金币) *</label>
+          <label class="input-label" for="nc-price">售价 ({currencyName}) *</label>
           <input
             id="nc-price"
             class="input-field"

@@ -9,6 +9,8 @@
   import Table from '$lib/components/ui/Table.svelte';
   import { show as showToast } from '$lib/ui/toast';
   import { formatRelative } from '$lib/utils';
+  import { formatMoney } from '$lib/api/client';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import type { BillingActionData, BillingPageData, BillingRow } from './+page.server';
   import { resolveSiteCopy, type SiteCopyView } from '$lib/site/copy';
 
@@ -18,6 +20,7 @@
   const rows = $derived(data.rows);
   const totals = $derived(data.totals);
   const error = $derived(data.error);
+  const currencyName = $derived(data.site?.currencyName ?? getCurrencyNameContext()?.currencyName ?? '金币');
 
   /** 行级幂等键：由行 id 确定性生成（SSR/hydration 一致；同键重放不重复扣费）。 */
   function rowKey(row: BillingRow): string {
@@ -36,8 +39,7 @@
 
   function coinBalance(): string {
     const coin = (summary?.balances ?? []).find((b) => b.currency === 'coin');
-    // 对齐原型：币种显示「B币」而非原始 key「COIN」。
-    return coin ? `${coin.amount} B币` : '—';
+    return coin ? `${coin.amount} ${currencyName}` : '—';
   }
 
   function formatTs(ms: number): string {
@@ -69,14 +71,14 @@
   <div class="stats-grid stats-grid-3" style="margin-bottom:var(--space-4);">
     <div class="stat-card">
       <div class="stat-card-value">{coinBalance()}</div>
-      <div class="stat-card-label">B 币余额</div>
+      <div class="stat-card-label">{currencyName}余额</div>
     </div>
     <div class="stat-card">
       <div class="stat-card-value">{totals.count}</div>
       <div class="stat-card-label">下载次数</div>
     </div>
     <div class="stat-card">
-      <div class="stat-card-value">{totals.spentCoin} B币</div>
+      <div class="stat-card-value">{totals.spentCoin} {currencyName}</div>
       <div class="stat-card-label">累计下载支出</div>
     </div>
   </div>
@@ -121,7 +123,7 @@
                   <span class="text-secondary">—</span>
                 {/if}
               </td>
-              <td class="table-cell-right">{row.amount} {row.currency.toUpperCase()}</td>
+              <td class="table-cell-right">{formatMoney(row.amount, { code: row.currency }, { fallbackName: currencyName })}</td>
               <td>
                 {#if row.balance_after !== null}
                   <span class="badge badge-success">已完成</span>

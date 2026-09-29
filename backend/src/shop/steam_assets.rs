@@ -95,7 +95,10 @@ async fn ensure_object(
     // 默认后端已有 → 拉回本地缓存（仅当返回长度与对象一致时可信）。
     if local_missing && !default_missing {
         if let Some(head) = &default_head {
-            if let Ok(d) = adapter.read_object(&key).await {
+            if let Ok(d) = adapter
+                .read_object_bounded(&key, head.size_bytes.max(0) as u64)
+                .await
+            {
                 if d.len() as i64 == head.size_bytes {
                     data = Some(d);
                 } else {
@@ -345,7 +348,7 @@ async fn read_served(storage: &StorageService, _kind: &str, key: &str) -> Option
     if let Ok(local) = storage.adapter(crate::storage::StorageBackend::Local) {
         if let Ok(head) = local.head_object(key).await {
             if head.exists && head.size_bytes > 0 && (head.size_bytes as u64) <= MAX_ASSET_BYTES {
-                if let Ok(data) = local.read_object(key).await {
+                if let Ok(data) = local.read_object_bounded(key, head.size_bytes as u64).await {
                     return Some(data);
                 }
             }
@@ -359,7 +362,7 @@ async fn read_served(storage: &StorageService, _kind: &str, key: &str) -> Option
     }
     let size = head.size_bytes as u64;
     if matches!(adapter, crate::storage::adapter::DynamicAdapter::Local(_)) {
-        return adapter.read_object(key).await.ok();
+        return adapter.read_object_bounded(key, size).await.ok();
     }
     // 对象存储：实测部分网关整段 GET 在 1MiB 处截断、SDK 流式 Range 不稳，
     // 但「预签名 URL + 自发 HTTP Range 分段」可靠（已验证尾部字节吻合）。
@@ -367,7 +370,7 @@ async fn read_served(storage: &StorageService, _kind: &str, key: &str) -> Option
         return Some(data);
     }
     // 兜底：SDK 整读（仅在返回长度与对象一致时可信）。
-    match adapter.read_object(key).await {
+    match adapter.read_object_bounded(key, size).await {
         Ok(data) if data.len() as u64 == size => Some(data),
         Ok(data) => {
             tracing::warn!(key = %key, size, got = data.len(), "steam asset full read length mismatch");

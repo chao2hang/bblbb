@@ -34,7 +34,7 @@ describe('M12-UI-04 购买记录页 SSR', () => {
       props: { data: { purchases: [purchase()], error: null }, form: null }
     });
     expect(body).toContain('300');
-    expect(body).toContain('COIN');
+    expect(body).toContain('金币');
     expect(body).toContain('交易成功');
     expect(body).toContain('ord-1');
   });

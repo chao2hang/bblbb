@@ -36,6 +36,8 @@ export default defineConfig({
   webServer: {
     command: 'node tests/playwright/fixtures/serve.mjs',
     url: BASE_URL,
+    stdout: 'pipe',
+    stderr: 'pipe',
     ignoreHTTPSErrors: true,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000

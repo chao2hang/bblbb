@@ -277,8 +277,8 @@
               name={user?.display_name || user?.username || "我的昵称"}
               presentation={presentation}
             />
-            {#if user?.level}
-              <span class="badge badge-neutral stage-level">LV.{user.level}</span>
+            {#if typeof user?.level === 'number'}
+              <span class="badge badge-neutral stage-level">TL{user.level}</span>
             {/if}
           </div>
 
@@ -343,10 +343,10 @@
             </div>
             <div class="gear-slot-action">
               {#if equippedFrame}
-                <form method="POST" action="?/unequip" use:enhance onclick={(e) => e.stopPropagation()}>
+                <form method="POST" action="?/unequip" use:enhance>
                   <input type="hidden" name="entitlement_id" value={equippedFrame.id} />
                   <input type="hidden" name="expected_presentation_version" value={presentationVersion} />
-                  <Button text="卸下" variant="ghost" size="sm" type="submit" />
+                  <Button text="卸下" variant="ghost" size="sm" type="submit" onclick={(e) => e.stopPropagation()} />
                 </form>
               {:else}
                 <Icon name="chevron-right" size={14} class="slot-arrow" />
@@ -388,10 +388,10 @@
             </div>
             <div class="gear-slot-action">
               {#if equippedNickname}
-                <form method="POST" action="?/unequip" use:enhance onclick={(e) => e.stopPropagation()}>
+                <form method="POST" action="?/unequip" use:enhance>
                   <input type="hidden" name="entitlement_id" value={equippedNickname.id} />
                   <input type="hidden" name="expected_presentation_version" value={presentationVersion} />
-                  <Button text="卸下" variant="ghost" size="sm" type="submit" />
+                  <Button text="卸下" variant="ghost" size="sm" type="submit" onclick={(e) => e.stopPropagation()} />
                 </form>
               {:else}
                 <Icon name="chevron-right" size={14} class="slot-arrow" />
@@ -433,10 +433,10 @@
             </div>
             <div class="gear-slot-action">
               {#if equippedProfileEffect}
-                <form method="POST" action="?/unequip" use:enhance onclick={(e) => e.stopPropagation()}>
+                <form method="POST" action="?/unequip" use:enhance>
                   <input type="hidden" name="entitlement_id" value={equippedProfileEffect.id} />
                   <input type="hidden" name="expected_presentation_version" value={presentationVersion} />
-                  <Button text="卸下" variant="ghost" size="sm" type="submit" />
+                  <Button text="卸下" variant="ghost" size="sm" type="submit" onclick={(e) => e.stopPropagation()} />
                 </form>
               {:else}
                 <Icon name="chevron-right" size={14} class="slot-arrow" />
@@ -477,9 +477,9 @@
                       {:else}
                         <span class="badge-socket-emoji">🎖</span>
                       {/if}
-                      <form method="POST" action="?/unequip" use:enhance onclick={(e) => e.stopPropagation()}>
+                      <form method="POST" action="?/unequip" use:enhance>
                         <input type="hidden" name="achievement_code" value={badge.code} />
-                        <button type="submit" class="badge-socket-remove" title="卸下 {badge.name}" aria-label="卸下 {badge.name}">
+                        <button type="submit" class="badge-socket-remove" title="卸下 {badge.name}" aria-label="卸下 {badge.name}" onclick={(e) => e.stopPropagation()}>
                           <Icon name="x" size={10} />
                         </button>
                       </form>
@@ -1266,6 +1266,7 @@
     font-size: 11px;
     color: var(--color-text-secondary);
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;

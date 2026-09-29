@@ -121,17 +121,24 @@ async fn list_boards(
     };
 
     // 稳定排序：sort_order ASC, created_at ASC, id ASC（id 兜底确定性）
+    // post_count 动态统计 published 且未删除帖子（与 admin 域保持一致口径，避免计数不同步）
     let boards =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT boards.id, boards.slug, boards.name, boards.description, boards.icon,
+                        boards.parent_id, boards.sort_order, boards.visibility, boards.posting_mode,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count,
+                        boards.created_at, boards.updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
                  ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
             .fetch_all(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT boards.id, boards.slug, boards.name, boards.description, boards.icon,
+                        boards.parent_id, boards.sort_order, boards.visibility, boards.posting_mode,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count,
+                        boards.created_at, boards.updated_at
                  FROM boards WHERE is_active = 1 AND deleted_at IS NULL
                  ORDER BY sort_order ASC, created_at ASC, id ASC",
             )
@@ -229,14 +236,20 @@ async fn get_board(
     let row =
         match pool {
             Either::Left(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT boards.id, boards.slug, boards.name, boards.description, boards.icon,
+                        boards.parent_id, boards.sort_order, boards.visibility, boards.posting_mode,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count,
+                        boards.created_at, boards.updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)
             .fetch_optional(p)
             .await,
             Either::Right(p) => sqlx::query_as::<_, BoardRow>(
-                "SELECT id, slug, name, description, icon, parent_id, sort_order, visibility, posting_mode, post_count, created_at, updated_at
+                "SELECT boards.id, boards.slug, boards.name, boards.description, boards.icon,
+                        boards.parent_id, boards.sort_order, boards.visibility, boards.posting_mode,
+                        (SELECT COUNT(*) FROM posts p WHERE p.board_id = boards.id AND p.status = 'published' AND p.deleted_at IS NULL) AS post_count,
+                        boards.created_at, boards.updated_at
                  FROM boards WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL",
             )
             .bind(&slug)

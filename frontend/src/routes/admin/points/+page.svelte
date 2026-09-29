@@ -8,11 +8,14 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import { toastActionResult } from '$lib/ui/action-toast';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
+
   import type { AdminPointsPageData, AdminPointsActionData } from './+page.server';
 
   let { data, form }: { data: AdminPointsPageData; form?: AdminPointsActionData | null } = $props();
 
   const ledger = $derived(data.ledger);
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
   // 调整积分 Dialog（约定 A：按钮打开弹层，成功后关闭并刷新数据）。
   let adjustOpen = $state(false);
@@ -41,7 +44,7 @@
         id: r.id,
         user: r.username,
         act: r.memo || (r.kind === 'credit' ? '系统入账' : '消费/扣减'),
-        asset: 'B币',
+        asset: currencyName,
         change: `${r.amount > 0 ? '+' : ''}${r.amount}`
       }));
     }
@@ -78,7 +81,7 @@
         <div>
           <strong style="font-size:16px;">管理员控制台</strong>
           <div class="text-secondary" style="font-size:13px;margin-top:2px;">
-            仅支持手动调账 B币，可发放系统奖励或扣减违规积分。
+            仅支持手动调账 {currencyName}，可发放系统奖励或扣减违规积分。
           </div>
         </div>
       </div>
@@ -107,7 +110,7 @@
           资产类型
           <select name="asset" class="app-select">
             <option value="" selected={!filters.asset}>全部资产</option>
-            <option value="coin" selected={filters.asset === 'coin' || filters.asset === 'b_coin'}>B币</option>
+            <option value="coin" selected={filters.asset === 'coin' || filters.asset === 'b_coin'}>{currencyName}</option>
           </select>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;">
@@ -210,7 +213,7 @@
     action="?/adjust"
     use:enhance={() => {
       return async ({ result, update }) => {
-        // 动作结果 → 全局 Toast（成功显示 B币/失败显示服务端文案）。
+        // 动作结果 → 全局 Toast（成功显示站点消费货币/失败显示服务端文案）。
         toastActionResult(result);
         await update();
         if (result.type === 'success') adjustOpen = false;
@@ -227,7 +230,7 @@
       <label>
         <span class="field-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">货币种类</span>
         <input type="hidden" name="currency" value="coin" />
-        <span class="app-select" style="width:100%;display:flex;align-items:center;">B币</span>
+        <span class="app-select" style="width:100%;display:flex;align-items:center;">{currencyName}</span>
       </label>
       <label>
         <span class="field-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">调整数值（正增负减）</span>

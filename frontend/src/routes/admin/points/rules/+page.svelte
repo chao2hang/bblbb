@@ -17,6 +17,7 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import type { ActivityTask } from '$lib/api/types';
   import type { AdminPointsRulesPageData } from './+page.server';
+  import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
 
   let { data, form }: {
     data: AdminPointsRulesPageData;
@@ -87,8 +88,10 @@
     return KINDS.find((k) => k.kind === kind)?.label ?? kind;
   }
 
+  const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
+
   function currencyLabel(_c: string): string {
-    return 'B币';
+    return currencyName;
   }
 
   // ── 编辑 Dialog（一个 Dialog 服务全部规则行，target 区分行） ──
@@ -277,7 +280,7 @@
         <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;">
           币种
           <input type="hidden" name="currency" value="coin" />
-          <span class="app-select" style="width:100%;display:flex;align-items:center;">B币</span>
+          <span class="app-select" style="width:100%;display:flex;align-items:center;">{currencyName}</span>
         </label>
         <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;">
           每日上限（空=不变）
@@ -293,7 +296,7 @@
       </label>
       <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;">
         修改原因（审计必填）
-        <input name="reason" class="input-field" required placeholder="例如：调整发帖奖励至 10 B币" aria-label="修改原因" />
+        <input name="reason" class="input-field" required placeholder={`例如：调整发帖奖励至 10 ${currencyName}`} aria-label="修改原因" />
       </label>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button type="button" class="btn ghost sm" onclick={() => (updateTarget = null)}>取消</button>
@@ -331,7 +334,7 @@
       <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;">
         币种
         <input type="hidden" name="currency" value="coin" />
-        <span class="app-select" style="width:100%;display:flex;align-items:center;">B币</span>
+        <span class="app-select" style="width:100%;display:flex;align-items:center;">{currencyName}</span>
       </label>
       <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;">
         每日上限（空=不限）

@@ -593,7 +593,7 @@ async fn last_claim_time(
 /// 幂等语义：先查已有 claim——存在则重放（pending 占位自动补完成，崩溃恢复），
 /// 不存在才做「每日上限/冷却 → 原子插入 → 账本」。`INSERT OR IGNORE` 唯一键
 /// `(rule_id,user_id,key)` 兜底并发竞态；账本 `(scope,key)` 幂等保证同 key
-/// 只奖励一次。重放/并发绝不触碰每日上限分支（不会误报 daily limit reached）。
+/// 只奖励一次。若并发请求在 limit 查询间插入同 key，limit 分支会再次检查并按重放处理。
 pub async fn claim_rule(
     pool: &DatabasePool,
     rule: &ActivityRuleRow,
@@ -614,20 +614,16 @@ pub async fn claim_rule(
 
     // 幂等重放/崩溃补完成：已有 claim 优先。
     if let Some(existing) = load_claim(pool, &rule.id, user_id, deduplication_key).await? {
-        if existing.point_operation_id.starts_with("pending:") {
-            // 崩溃遗留：补完成（账本幂等，不会重复奖励）。
-            let op_id =
-                grant_via_ledger(pool, rule, user_id, deduplication_key, now, &existing.id).await?;
-            update_claim_operation(pool, &existing.id, &op_id).await?;
-            emit_claimed(pool, rule, user_id, deduplication_key, activity_day, &op_id).await;
-            return Ok(ClaimOutcome {
-                claimed: true,
-                amount: rule.amount,
-                currency_id: rule.currency_id.clone(),
-                operation_id: Some(op_id),
-            });
-        }
-        return Err(ActivityError::AlreadyClaimed);
+        return resume_or_reject_existing(
+            pool,
+            rule,
+            user_id,
+            deduplication_key,
+            activity_day,
+            now,
+            existing,
+        )
+        .await;
     }
 
     // 每日上限 + 冷却（仅对新领取生效；重放走上面分支）。
@@ -639,6 +635,20 @@ pub async fn claim_rule(
         }
         let granted = count_granted(pool, &rule.id, user_id, activity_day).await?;
         if granted >= limit {
+            // Close the TOCTOU window: another request may have inserted this exact
+            // idempotency key after our initial load_claim but before this count.
+            if let Some(existing) = load_claim(pool, &rule.id, user_id, deduplication_key).await? {
+                return resume_or_reject_existing(
+                    pool,
+                    rule,
+                    user_id,
+                    deduplication_key,
+                    activity_day,
+                    now,
+                    existing,
+                )
+                .await;
+            }
             return Err(ActivityError::NotEligible(
                 "daily limit reached".to_string(),
             ));
@@ -705,6 +715,32 @@ pub async fn claim_rule(
 struct ClaimRow {
     id: String,
     point_operation_id: String,
+}
+
+/// Replays an existing idempotent claim or completes a crash-left pending claim.
+async fn resume_or_reject_existing(
+    pool: &DatabasePool,
+    rule: &ActivityRuleRow,
+    user_id: &str,
+    deduplication_key: &str,
+    activity_day: &str,
+    now: i64,
+    existing: ClaimRow,
+) -> Result<ClaimOutcome, ActivityError> {
+    if !existing.point_operation_id.starts_with("pending:") {
+        return Err(ActivityError::AlreadyClaimed);
+    }
+
+    // Multiple concurrent recovery attempts share the ledger idempotency key.
+    let op_id = grant_via_ledger(pool, rule, user_id, deduplication_key, now, &existing.id).await?;
+    update_claim_operation(pool, &existing.id, &op_id).await?;
+    emit_claimed(pool, rule, user_id, deduplication_key, activity_day, &op_id).await;
+    Ok(ClaimOutcome {
+        claimed: true,
+        amount: rule.amount,
+        currency_id: rule.currency_id.clone(),
+        operation_id: Some(op_id),
+    })
 }
 
 async fn load_claim(
@@ -1222,6 +1258,23 @@ pub async fn activity_summary(
         .await
         .unwrap_or_default();
 
+    let currency_name = match pool {
+        sqlx::Either::Left(p) => {
+            sqlx::query_scalar::<_, String>("SELECT name FROM currencies WHERE code = 'coin'")
+                .fetch_optional(p)
+                .await
+                .ok()
+                .flatten()
+        }
+        sqlx::Either::Right(p) => {
+            sqlx::query_scalar::<_, String>("SELECT name FROM currencies WHERE code = 'coin'")
+                .fetch_optional(p)
+                .await
+                .ok()
+                .flatten()
+        }
+    };
+
     Ok(json!({
         "activity_day": activity_day,
         "checked_in_today": checked_in_today,
@@ -1230,7 +1283,7 @@ pub async fn activity_summary(
         "streak_days": streak,
         "today_earned": today_earned,
         "balances": [
-            { "currency": "coin", "amount": coin_balance },
+            { "currency": "coin", "amount": coin_balance, "name": currency_name.unwrap_or_else(|| "金币".to_string()) },
         ],
         "config": {
             "site_timezone": config.site_timezone,

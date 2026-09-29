@@ -43,7 +43,7 @@ describe('M12-UI-01/02 托管确认页 SSR', () => {
     expect(body).toContain('测试商户');
     expect(body).toContain('会员礼包');
     expect(body).toContain('500');
-    expect(body).toContain('COIN');
+    expect(body).toContain('金币');
     expect(body).toContain('1000'); // 当前余额
     expect(body).toContain('500'); // 扣款后余额（balance_after）
     expect(body).toContain('marketplace.checkout.create');
