@@ -49,7 +49,16 @@ impl From<sqlx::Error> for EmailError {
 /// SMTP 发件抽象（测试用 RecordingSender；生产由 HTTP 中继实现，见 `relay`）。
 pub trait EmailSender: Send + Sync {
     /// 投递一封邮件；`Err` 返回 Provider 错误（SMTP 应答码等）。
-    async fn send(&self, to: &str, subject: &str, body: &str) -> Result<(), ProviderError>;
+    ///
+    /// 以 desugar 形式声明（而非 `async fn`）：`async_fn_in_trait` lint
+    /// 在 `-D warnings` 下拒绝公共 trait 的 `async fn`（auto trait
+    /// bounds 不可指定），desugar 显式给出 `+ Send`。
+    fn send(
+        &self,
+        to: &str,
+        subject: &str,
+        body: &str,
+    ) -> impl std::future::Future<Output = Result<(), ProviderError>> + Send;
 }
 
 /// 数据库中的 SMTP 配置（0064 site_settings 扩展）。
