@@ -172,6 +172,20 @@ pub const CONFIG_REGISTRY: &[ConfigEntry] = &[
         reload: "restart",
     },
     ConfigEntry {
+        env_var: "BBLBB__MAIL_RELAY_URL",
+        field: "mail_relay_url",
+        default: "（空 = 未配置，回落数据库 SMTP 分支）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
+        env_var: "BBLBB__MAIL_RELAY_TOKEN",
+        field: "mail_relay_token",
+        default: "（空 = 未配置）",
+        scope: "all",
+        reload: "restart",
+    },
+    ConfigEntry {
         env_var: "BBLBB__ALLOWED_ORIGINS",
         field: "allowed_origins",
         default: "（空 = 宽松模式，仅记录）",
@@ -372,6 +386,14 @@ pub struct AppConfig {
     /// 严格模式下允许的 Host 头集合（默认空 = 宽松模式，仅记录日志）
     #[serde(default)]
     pub allowed_hosts: Vec<String>,
+    /// 邮件 HTTP 中继基地址（GA P1-10：源站出站 SMTP 端口被封，投递经
+    /// mail.bblbb.com 中继；见 `email::relay`）。空 = 未配置，回落数据库
+    /// SMTP 分支。
+    #[serde(default)]
+    pub mail_relay_url: String,
+    /// 邮件 HTTP 中继提交桥 token（`X-Relay-Token`）。
+    #[serde(default)]
+    pub mail_relay_token: String,
     /// 严格模式下允许的 Origin 集合（默认空 = 宽松模式，仅记录日志）
     #[serde(default)]
     pub allowed_origins: Vec<String>,
@@ -710,6 +732,8 @@ impl Default for AppConfig {
             steam_assets_download_on_publish: default_steam_assets_download_on_publish(),
             auto_migrate: default_auto_migrate(),
             allowed_hosts: Vec::new(),
+            mail_relay_url: String::new(),
+            mail_relay_token: String::new(),
             allowed_origins: Vec::new(),
             db_max_connections: default_db_max_connections(),
             db_min_connections: default_db_min_connections(),

@@ -13,7 +13,9 @@ backend/.cargo
 **/*.sqlite
 **/*.sqlite*
 **/*.db-*
-/data/
+/data/*
+!data/steam-avatar-frames.json
+!data/steam-profile-backgrounds.json
 /backend/data/
 /uploads/
 /backups/

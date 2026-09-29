@@ -6,4 +6,5 @@
 //! 投递时查库；`sanitize_log` 掩码邮箱、剥离正文、脱敏 token 与
 //! Provider 响应后才进入日志。
 
+pub mod relay;
 pub mod service;
