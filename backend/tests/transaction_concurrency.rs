@@ -215,7 +215,6 @@ async fn mysql_row_lock_blocks_concurrent_updater_until_commit() {
 
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
-    let b_finished = std::sync::Arc::new(AtomicBool::new(false));
 
     let a_pool = pool.clone();
     let a_table = table.clone();
@@ -230,35 +229,35 @@ async fn mysql_row_lock_blocks_concurrent_updater_until_commit() {
         tx.commit().await.unwrap();
     });
 
-    let b_pool = pool.clone();
-    let b_table = table.clone();
-    let b_finished_flag = b_finished.clone();
-    let b = tokio::spawn(async move {
-        let mut tx = b_pool.begin().await.unwrap();
-        sqlx::query(&format!("UPDATE {b_table} SET val = val + 2 WHERE id = 1"))
-            .execute(&mut *tx)
-            .await
-            .unwrap();
-        tx.commit().await.unwrap();
-        b_finished_flag.store(true, Ordering::SeqCst);
-    });
-
     ready_rx.await.unwrap();
-    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // tx2 在独立事务中更新同一行：确定性断言锁语义——tx2 显式将锁等待
+    // 超时压到 1 秒，必须以 1205（ER_LOCK_WAIT_TIMEOUT）失败，且在 tx1
+    // 提交前不产生任何写入。不使用「sleep + 否定断言」的时序探测
+    // （CI 负载/引擎版本敏感，曾在 CI MySQL 8 两次假失败）。
+    let mut btx = pool.begin().await.unwrap();
+    sqlx::query("SET innodb_lock_wait_timeout = 1")
+        .execute(&mut *btx)
+        .await
+        .unwrap();
+    let b_err = sqlx::query(&format!("UPDATE {table} SET val = val + 2 WHERE id = 1"))
+        .execute(&mut *btx)
+        .await
+        .expect_err("tx1 持行锁期间 tx2 更新同一行必须锁等待超时");
     assert!(
-        !b_finished.load(Ordering::SeqCst),
-        "tx1 持行锁期间 tx2 更新同一行必须阻塞"
+        mysql_error_code(&b_err).as_deref() == Some("1205"),
+        "期望 1205 锁等待超时，实际：{b_err}"
     );
+    btx.rollback().await.unwrap();
 
     let _ = release_tx.send(());
     a.await.unwrap();
-    b.await.unwrap();
 
     let val: i64 = sqlx::query_scalar(&format!("SELECT val FROM {table} WHERE id = 1"))
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(val, 3);
+    assert_eq!(val, 1, "tx2 已锁超时回滚，最终值只含 tx1 的写入");
 
     sqlx::query(&format!("DROP TABLE {table}"))
         .execute(&pool)
