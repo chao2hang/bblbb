@@ -146,7 +146,7 @@ async fn register_rolls_back_all_rows_when_token_insert_fails() {
     let (pool, dir) = pool_with_migrations().await;
     inject_failure(&pool, "BEFORE INSERT", "email_verification_tokens").await;
 
-    let err = register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1")
+    let err = register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1", "")
         .await
         .unwrap_err();
     assert!(
@@ -321,7 +321,7 @@ async fn resend_rolls_back_old_token_invalidation_when_new_insert_fails() {
     }
     inject_failure(&pool, "BEFORE INSERT", "email_verification_tokens").await;
 
-    let err = resend_verification_email(&pool, &limiter, &email, "req-1", &ResendLimits::default())
+    let err = resend_verification_email(&pool, &limiter, &email, "req-1", &ResendLimits::default(), "")
         .await
         .unwrap_err();
     assert!(
@@ -389,6 +389,7 @@ async fn reset_request_rolls_back_when_token_insert_fails() {
         &email,
         "req-1",
         &PasswordResetLimits::default(),
+        "",
     )
     .await
     .unwrap_err();

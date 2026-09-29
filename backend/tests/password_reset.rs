@@ -192,6 +192,7 @@ async fn request_reset_creates_token_invalidates_old_and_enqueues_mail() {
         &email,
         "req-reset-1",
         &PasswordResetLimits::default(),
+        "",
     )
     .await
     .expect("请求重置必须成功");
@@ -248,6 +249,7 @@ async fn request_reset_unknown_email_returns_noop() {
         "ghost@example.com",
         "req-1",
         &PasswordResetLimits::default(),
+        "",
     )
     .await
     .expect("未知邮箱必须 Ok(Noop)");
@@ -275,6 +277,7 @@ async fn request_reset_cooldown_blocks_second() {
         &email,
         "req-1",
         &PasswordResetLimits::default(),
+        "",
     )
     .await
     .expect("第一次请求成功");
@@ -285,6 +288,7 @@ async fn request_reset_cooldown_blocks_second() {
         &email,
         "req-2",
         &PasswordResetLimits::default(),
+        "",
     )
     .await
     .unwrap_err();
@@ -313,16 +317,16 @@ async fn request_reset_daily_limit_blocks_after_limit() {
         daily_window_ms: 24 * 60 * 60 * 1000,
         daily_limit: 2,
     };
-    request_password_reset(&pool, &limiter, &email, "req-1", &limits)
+    request_password_reset(&pool, &limiter, &email, "req-1", &limits, "")
         .await
         .expect("第 1 次成功");
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    request_password_reset(&pool, &limiter, &email, "req-2", &limits)
+    request_password_reset(&pool, &limiter, &email, "req-2", &limits, "")
         .await
         .expect("第 2 次成功");
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
 
-    let err = request_password_reset(&pool, &limiter, &email, "req-3", &limits)
+    let err = request_password_reset(&pool, &limiter, &email, "req-3", &limits, "")
         .await
         .unwrap_err();
     assert!(
