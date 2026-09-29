@@ -53,6 +53,8 @@
 | `BBLBB__AUTO_MIGRATE` | `auto_migrate` | `false` | dev, ci | 重启 |
 | `BBLBB__ALLOWED_HOSTS` | `allowed_hosts` | 空 = 宽松模式（仅记录） | all | 重启 |
 | `BBLBB__ALLOWED_ORIGINS` | `allowed_origins` | 空 = 宽松模式（仅记录） | all | 重启 |
+| `BBLBB__MAIL_RELAY_URL` | `mail_relay_url` | 空 = 未配置，回落数据库 SMTP 分支 | all | 重启 |
+| `BBLBB__MAIL_RELAY_TOKEN` | `mail_relay_token` | 空 = 未配置 | all | 重启 |
 | `BBLBB__DB_MAX_CONNECTIONS` | `db_max_connections` | `8` | all | 重启 |
 | `BBLBB__DB_MIN_CONNECTIONS` | `db_min_connections` | `1` | all | 重启 |
 | `BBLBB__DB_CONNECT_TIMEOUT_MS` | `db_connect_timeout_ms` | `10000` | all | 重启 |

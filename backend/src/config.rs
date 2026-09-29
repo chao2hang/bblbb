@@ -1103,6 +1103,8 @@ mod tests {
             "feature_kill_switch",
             "log_filter",
             "log_format",
+            "mail_relay_token",
+            "mail_relay_url",
             "marketplace_webhook_encryption_key",
             "mfa_encryption_key",
             "migrations_dir",
