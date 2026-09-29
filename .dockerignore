@@ -16,7 +16,9 @@ backend/.cargo
 /data/*
 !data/steam-avatar-frames.json
 !data/steam-profile-backgrounds.json
-/backend/data/
+/backend/data/*
+!backend/data/steam-avatar-frames.json
+!backend/data/steam-profile-backgrounds.json
 /uploads/
 /backups/
 *.log
