@@ -9,7 +9,7 @@
 //! | `markdown.rerender` | default | `content::markdown::rerender::handle_rerender_job` |
 //! | `content.publish` | default | `content::posts::publish_job::handle_publish_job` |
 //! | `account_deletion` | default | `users::deletion::handle_account_deletion` |
-//! | `email.deliver` | mail | 需要 SMTP sender（当前无生产 SMTP 客户端）；未配置时按临时失败返回，重试至 `max_attempts` 后进入 dead-letter |
+//! | `email.deliver` | mail | 生产：HTTP 中继（`BBLBB__MAIL_RELAY_URL`/`BBLBB__MAIL_RELAY_TOKEN`，见 `email::relay`）；未配置中继时回落数据库 SMTP 分支（当前仍为 stub，按临时失败重试至 dead-letter） |
 //!
 //! 未知 kind 按永久失败（dead-letter）处理：可观测、不静默丢弃。
 //! worker 停机语义（停止领取、租约处理、总超时）由
@@ -35,6 +35,26 @@ pub async fn dispatch_job(pool: &DatabasePool, settings_key: &str, job: ClaimedJ
         }
         "account_deletion" => crate::users::deletion::handle_account_deletion(pool, &job).await,
         "email.deliver" => {
+            // 优先：HTTP 中继（GA 生产验证 P1-10：源站出站 SMTP 端口被机房
+            // 封禁，投递经 mail.bblbb.com 中继完成；未配置时回落 DB SMTP 分支）。
+            if let Some(relay) = crate::email::relay::RelaySender::from_env() {
+                return match crate::email::relay::deliver_job_via_relay(pool, &job.id, &relay).await
+                {
+                    Ok(()) => JobOutcome::Succeeded,
+                    Err(e) => {
+                        tracing::warn!(
+                            job_id = %job.id,
+                            class = ?e.class,
+                            error = ?e.error,
+                            "email.deliver job: relay delivery failed"
+                        );
+                        JobOutcome::Failed {
+                            class: e.class,
+                            error: format!("{:?}", e.error),
+                        }
+                    }
+                };
+            }
             // 从数据库读取 SMTP 发信配置（P0 整改：smtp_pass 静态加密解密）
             let smtp_conf = match crate::email::service::load_smtp_config_from_db(
                 pool,

@@ -46,10 +46,19 @@ impl From<sqlx::Error> for EmailError {
     }
 }
 
-/// SMTP 发件抽象（测试用 RecordingSender；生产由 SMTP 客户端实现）。
+/// SMTP 发件抽象（测试用 RecordingSender；生产由 HTTP 中继实现，见 `relay`）。
 pub trait EmailSender: Send + Sync {
     /// 投递一封邮件；`Err` 返回 Provider 错误（SMTP 应答码等）。
-    fn send(&self, to: &str, subject: &str, body: &str) -> Result<(), ProviderError>;
+    ///
+    /// 以 desugar 形式声明（而非 `async fn`）：`async_fn_in_trait` lint
+    /// 在 `-D warnings` 下拒绝公共 trait 的 `async fn`（auto trait
+    /// bounds 不可指定），desugar 显式给出 `+ Send`。
+    fn send(
+        &self,
+        to: &str,
+        subject: &str,
+        body: &str,
+    ) -> impl std::future::Future<Output = Result<(), ProviderError>> + Send;
 }
 
 /// 数据库中的 SMTP 配置（0064 site_settings 扩展）。
@@ -110,7 +119,7 @@ pub struct RecordingSender {
 }
 
 impl EmailSender for RecordingSender {
-    fn send(&self, to: &str, subject: &str, body: &str) -> Result<(), ProviderError> {
+    async fn send(&self, to: &str, subject: &str, body: &str) -> Result<(), ProviderError> {
         {
             let mut guard = self.failures.lock().unwrap();
             if let Some(err) = guard.pop() {
@@ -219,11 +228,11 @@ pub async fn enqueue_email(
 /// 渲染模板（安全参数）；成功后 `complete_job`，失败按 Provider 分类
 /// `fail_job`（临时→退避重试，永久→死信）；`last_error` 经
 /// [`sanitize_log`] 处理。
-pub async fn deliver_email_job(
+pub async fn deliver_email_job<S: EmailSender + Sync>(
     pool: &DatabasePool,
     worker_id: &str,
     job_id: &str,
-    sender: &dyn EmailSender,
+    sender: &S,
 ) -> Result<(), EmailError> {
     let row: Option<(String, i64)> = match pool {
         Either::Left(p) => {
@@ -293,7 +302,7 @@ pub async fn deliver_email_job(
         "如非本人操作请及时修改密码。"
     );
 
-    match sender.send(&recipient, &rendered.title, &body) {
+    match sender.send(&recipient, &rendered.title, &body).await {
         Ok(()) => {
             let _ = complete_job(pool, worker_id, job_id).await;
             Ok(())
