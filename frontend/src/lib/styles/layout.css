@@ -519,6 +519,61 @@
   text-align: center;
 }
 
+/* ---- 认证页通用元素（M02-UX-02 / GA 修复：verify-email、password-reset
+   等无组件 <style> 的页面此前裸排版——「或」分隔线顶格、错误提示无色、
+   说明区无节奏。此处提升为全局；login/register 的组件作用域同名规则
+   优先级更高，互不影响。） ---- */
+
+/* 「或」分隔线：两侧细线 + 居中文字 */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+/* 未验证账号说明区 */
+.auth-unverified {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+  border-left: 3px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+}
+
+.auth-unverified p {
+  margin: 0 0 var(--space-2);
+}
+
+.auth-unverified p:last-child {
+  margin-bottom: 0;
+}
+
+/* 错误提示（与全局 .input-hint.has-error 同规则的 is-error 命名；认证页
+   模板沿用组件层惯例 is-error） */
+.input-hint.is-error {
+  color: var(--color-danger);
+}
+
+/* 认证卡内表单节奏：输入区与按钮的间距（全局 input-wrapper 是无外距的
+   flex column，在卡片语境下需要与后续控件的间隙） */
+.auth-card .input-wrapper {
+  margin-bottom: var(--space-4);
+}
+
 /* ---- Admin layout ---- */
 .admin-layout {
   display: grid;
