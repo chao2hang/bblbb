@@ -8,10 +8,7 @@
   } from '$lib/api/client';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import ListRow from '$lib/components/ui/ListRow.svelte';
-  import Meta from '$lib/components/ui/Meta.svelte';
-  import Panel from '$lib/components/ui/Panel.svelte';
-  import { formatRelative } from '$lib/utils';
+  import { formatRelative, formatDate } from '$lib/utils';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import { setBellUnread, decrementBellUnread } from '$lib/notifications/bellState.svelte';
 
@@ -20,6 +17,8 @@
   let loading = $state(true);
   let tab = $state('all');
   let actionError = $state<string | null>(null);
+  /** 展开的详情通知 id（点行切换展开/收起）。 */
+  let expandedId = $state<string | null>(null);
 
   const tabs = [
     { key: 'all', label: '全部' },
@@ -29,6 +28,23 @@
     { key: 'reaction', label: '点赞' },
     { key: 'system', label: '系统' }
   ];
+
+  /** 类别中文名（详情面板展示）。 */
+  const categoryLabels: Record<string, string> = {
+    activity: '互动',
+    reply: '回复',
+    mention: '提及',
+    reaction: '点赞',
+    moderation: '审核',
+    system: '系统',
+    security: '安全',
+    digest: '摘要'
+  };
+
+  function categoryLabel(item: Notification): string {
+    const cat = item.category ?? 'system';
+    return categoryLabels[cat] ?? cat;
+  }
 
   /** 类型图标（对齐原型）：提及@、回复、点赞、系统铃铛。 */
   function typeIcon(item: Notification): string {
@@ -63,12 +79,19 @@
     try {
       await markNotificationRead(fetch, item.id);
       item.is_read = true;
+      item.read_at = Date.now();
       if (unreadCount > 0) unreadCount -= 1;
       // 同步铃铛角标：停留在本页不触发路由变化，layout 不会自动重取。
       decrementBellUnread(1);
     } catch {
       actionError = '标记已读失败，请稍后重试';
     }
+  }
+
+  /** 点击行：展开/收起详情；展开的同时自动标已读（幂等，重复点不报错）。 */
+  function toggle(item: Notification) {
+    expandedId = expandedId === item.id ? null : item.id;
+    if (expandedId === item.id) void onRead(item);
   }
 
   async function onReadAll() {
@@ -122,55 +145,77 @@
       {:else if items.length === 0}
         <EmptyState icon="bell" title="暂无通知" desc="有新动态时会在这里提醒你" />
       {:else}
-        <div style="display:flex;flex-direction:column;">
-          {#each items as item}
-            <ListRow class={!item.is_read ? 'post-row notify-unread' : 'post-row'}>
-              <!-- 原型同款类型图标卡（圆角底） -->
-              <div
-                class="notify-icon-box"
-                style="width:36px;height:36px;border-radius:var(--radius-md);background:var(--color-bg-subtle, rgba(0,0,0,0.04));display:flex;align-items:center;justify-content:center;color:var(--color-brand);flex-shrink:0;"
-                aria-hidden="true"
+        <ul class="notif-list" role="list">
+          {#each items as item (item.id)}
+            {@const expanded = expandedId === item.id}
+            <li class="notif-item {!item.is_read ? 'is-unread' : ''}">
+              <button
+                type="button"
+                class="notif-row"
+                aria-expanded={expanded ? 'true' : 'false'}
+                onclick={() => toggle(item)}
+                data-testid={`notif-row-${item.id}`}
               >
-                <Icon name={typeIcon(item)} size={18} />
-              </div>
-              {#if item.unavailable}
-                <div style="min-width:0;flex:1;">
-                  <div style="font-weight:var(--weight-medium);">{item.title}</div>
-                  <div class="text-secondary" style="font-size:var(--text-sm);margin-top:2px;">{item.body}</div>
-                </div>
-                <span class="badge badge-warning">已失效</span>
-              {:else}
-                <a
-                  href={item.link ?? undefined}
-                  onclick={() => onRead(item)}
-                  class="post-row-link"
-                  style="min-width:0;flex:1;text-decoration:none;display:block;"
+                <span
+                  class="notif-icon-box"
+                  class:is-unread={!item.is_read}
+                  aria-hidden="true"
                 >
-                  <div style="font-weight:var(--weight-medium);display:flex;align-items:center;gap:6px;">
+                  <Icon name={typeIcon(item)} size={18} />
+                </span>
+                <span class="notif-main">
+                  <span class="notif-title">
                     {#if !item.is_read}
-                      <span class="nav-dot" style="width:6px;height:6px;border-radius:50%;background:var(--color-brand);display:inline-block;flex-shrink:0;" aria-label="未读"></span>
+                      <span class="nav-dot notif-unread-dot" aria-label="未读"></span>
                     {/if}
                     {item.title}
+                  </span>
+                  {#if item.body && !expanded}
+                    <span class="notif-body-preview">{item.body}</span>
+                  {/if}
+                </span>
+                <span class="notif-side">
+                  <span class="notif-time">{formatRelative(item.created_at)}</span>
+                  <span class="notif-chevron" class:is-open={expanded} aria-hidden="true">
+                    <Icon name="chevron-down" size={16} />
+                  </span>
+                </span>
+              </button>
+              {#if expanded}
+                <div class="notif-detail" data-testid={`notif-detail-${item.id}`}>
+                  <div class="notif-detail-meta">
+                    <span class="badge badge-secondary">{categoryLabel(item)}</span>
+                    <span class="notif-detail-time" title={String(item.created_at)}>
+                      {formatDate(item.created_at)}
+                    </span>
+                    <span class="notif-read-state {item.is_read ? 'is-read' : 'is-unread'}">
+                      {item.is_read ? '已读' : '未读'}
+                    </span>
                   </div>
-                  {#if item.body}<div class="text-secondary" style="font-size:var(--text-sm);margin-top:2px;">{item.body}</div>{/if}
-                </a>
+                  {#if item.body}
+                    <p class="notif-detail-body">{item.body}</p>
+                  {/if}
+                  <div class="notif-detail-actions">
+                    {#if item.link && !item.unavailable}
+                      <a href={item.link} class="btn btn-primary btn-sm">
+                        <Icon name="link" size={14} />
+                        查看来源
+                      </a>
+                    {/if}
+                    {#if !item.is_read && !item.unavailable}
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        onclick={() => onRead(item)}
+                        data-testid={`read-${item.id}`}
+                      >标为已读</button>
+                    {/if}
+                  </div>
+                </div>
               {/if}
-              <!-- 右侧操作区：「标为已读」与时间同行顶对齐（对齐标题行/图标中心），
-                   避免按钮悬在时间上方造成的错位。 -->
-              <div style="display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;padding-top:4px;">
-                {#if !item.unavailable && !item.is_read}
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-sm"
-                    onclick={() => onRead(item)}
-                    data-testid={`read-${item.id}`}
-                  >标为已读</button>
-                {/if}
-                <Meta items={[formatRelative(item.created_at)]} />
-              </div>
-            </ListRow>
+            </li>
           {/each}
-        </div>
+        </ul>
       {/if}
     </div>
   </div>
@@ -180,3 +225,165 @@
     如需调整通知接收渠道，请前往<a href="/settings#settings-notifications" class="text-link">账号设置 → 通知设置</a>
   </p>
 </div>
+
+<style>
+  /* 通知列表：行式布局（图标 | 标题+预览 | 时间+展开箭头），点击整行展开详情 */
+  .notif-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .notif-item + .notif-item {
+    border-top: 1px solid var(--color-border, rgba(128, 128, 128, 0.2));
+  }
+  .notif-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    transition: background-color var(--transition-fast, 0.15s) ease;
+  }
+  .notif-row:hover {
+    background: var(--color-bg-subtle, rgba(128, 128, 128, 0.06));
+  }
+  .notif-row:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: -2px;
+  }
+  .notif-icon-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle, rgba(128, 128, 128, 0.08));
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+  }
+  .notif-icon-box.is-unread {
+    background: color-mix(in srgb, var(--color-brand) 12%, transparent);
+    color: var(--color-brand);
+  }
+  .notif-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  .notif-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: var(--weight-medium);
+  }
+  .notif-item.is-unread .notif-title {
+    font-weight: var(--weight-semibold);
+  }
+  .notif-unread-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-brand);
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .notif-body-preview {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    display: -webkit-box;
+    line-clamp: 1;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+  }
+  .notif-side {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    color: var(--color-text-tertiary, var(--color-text-secondary));
+    padding-top: 2px;
+  }
+  .notif-time {
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+  .notif-chevron {
+    display: inline-flex;
+    transition: transform var(--transition-fast, 0.15s) ease;
+  }
+  .notif-chevron.is-open {
+    transform: rotate(180deg);
+  }
+
+  /* 展开详情：缩进对齐标题列，浅底面板 */
+  .notif-detail {
+    padding: 0 var(--space-4) var(--space-4) calc(var(--space-4) + 36px + var(--space-3));
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    animation: notif-expand var(--transition-fast, 0.15s) ease;
+  }
+  @keyframes notif-expand {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .notif-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .notif-detail-time {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .notif-read-state {
+    font-size: var(--text-xs, 0.75rem);
+    padding: 1px 8px;
+    border-radius: 999px;
+  }
+  .notif-read-state.is-read {
+    color: var(--color-success, #16a34a);
+    background: color-mix(in srgb, var(--color-success, #16a34a) 12%, transparent);
+  }
+  .notif-read-state.is-unread {
+    color: var(--color-warning, #d97706);
+    background: color-mix(in srgb, var(--color-warning, #d97706) 14%, transparent);
+  }
+  .notif-detail-body {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.7;
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .notif-detail-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .notif-detail {
+      padding-left: var(--space-4);
+    }
+  }
+</style>
