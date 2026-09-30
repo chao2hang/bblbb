@@ -189,6 +189,13 @@ pub async fn deliver_job_via_relay(
             class: RetryClass::Permanent,
         });
     };
+    // 换绑确认等定向邮件：params.to_email 覆盖默认收件人（新邮箱确认前
+    // users.email_normalized 仍是旧邮箱，GA 邮箱换绑）
+    let recipient = params
+        .get("to_email")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or(recipient);
 
     let params = crate::email::service::expand_verification_params(
         pool,

@@ -365,3 +365,70 @@ async fn confirm_rejects_when_email_taken_between_request_and_confirm() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+#[tokio::test]
+async fn expand_injects_confirm_url_for_email_change_template() {
+    // GA 回归：expand_verification_params 必须覆盖 email.change（此前漏分支
+    // 导致确认邮件正文无链接，text 只剩尾部两行）。
+    use bblbb_backend::email::service::expand_verification_params;
+    use bblbb_backend::notifications::templates::{render, TemplateKey};
+
+    let (pool, dir) = pool_with_migrations().await;
+    let (user_id, email) = insert_user(&pool, "erin").await;
+    let limiter = RateLimiter::new();
+    let outcome = request_email_change(
+        &pool,
+        &limiter,
+        &user_id,
+        "erin",
+        &email,
+        PASSWORD,
+        "erin.new@example.com",
+        "req-1",
+        &EmailChangeLimits::default(),
+        "",
+    )
+    .await
+    .unwrap();
+
+    let mut params = serde_json::Map::new();
+    params.insert(
+        "username".to_string(),
+        serde_json::Value::String("erin".to_string()),
+    );
+    params.insert(
+        "expires_minutes".to_string(),
+        serde_json::Value::String("30".to_string()),
+    );
+    params.insert(
+        "token_id".to_string(),
+        serde_json::Value::String(outcome.token_id.clone()),
+    );
+
+    let expanded = expand_verification_params(&pool, "", TemplateKey::EmailChange, &params)
+        .await
+        .expect("expand 必须成功")
+        .expect("email.change 必须命中展开分支");
+    let confirm_url = expanded
+        .get("confirm_url")
+        .and_then(|v| v.as_str())
+        .expect("必须注入 confirm_url");
+    assert!(
+        confirm_url.contains("/email-change/confirm?token="),
+        "confirm_url 必须指向换绑确认页: {confirm_url}"
+    );
+
+    // 渲染正文必须包含链接（投递邮件含一次性链接的最终保证）
+    let rendered = render(TemplateKey::EmailChange, &expanded);
+    assert!(
+        rendered
+            .body
+            .as_deref()
+            .unwrap_or_default()
+            .contains("email-change/confirm?token="),
+        "渲染正文必须包含确认链接"
+    );
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
