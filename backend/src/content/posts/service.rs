@@ -115,7 +115,11 @@ fn generate_slug(title: &str, post_id: &str) -> String {
     } else {
         base
     };
-    format!("{base}-{}", &post_id[..post_id.len().min(8)])
+    // 唯一性取 post_id 尾部 8 hex（UUIDv7 尾部是随机位）：头部 8 位是
+    // 毫秒时间戳，同一毫秒创建的两个帖子会生成相同前缀，base 相同
+    // （如纯中文标题都回退 "post"）时 (board_id, slug) 唯一约束必撞。
+    let tail = &post_id[post_id.len().saturating_sub(8)..];
+    format!("{base}-{tail}")
 }
 
 /// 组装发布预检输入（createPost 路径）。
