@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 243,
+  "expected_operations": 245,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -55,6 +55,23 @@
         "backend/tests/auth_crossdb.rs"
       ],
       "evidence": "M02-SESSION-07/08: 已认证会话绑定 synchronizer token / 未认证预认证 token；private no-store；handler/集成测试/SSR 前端证据齐备；Playwright E2E 待 M13/M16 专项 Gate 建立；文档：docs/SCHEMA.md、docs/ERROR-CODES.md、docs/CONFIGURATION.md、docs/PERMISSION-MATRIX.md；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "post_auth_email_change_confirm",
+      "method": "POST",
+      "path": "/api/v1/auth/email-change/confirm",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/auth.rs::confirm_email_change",
+      "tests": [
+        "backend/tests/email_change.rs"
+      ],
+      "evidence": "GA 邮箱换绑闭环（迁移 0084_email_change_tokens）：cargo test --test email_change 通过（SQLite，5/5）；三库迁移同步；scripts/check-openapi.rb 全绿"
     },
     {
       "operation_id": "login",
@@ -509,6 +526,23 @@
         "backend/tests/conversations.rs"
       ],
       "evidence": "M17-GAPFIX-01（社交域，迁移 0060_social）：cargo test --test favorites_follows --test conversations 通过（SQLite）；三库迁移同步；scripts/check-openapi.rb 全绿"
+    },
+    {
+      "operation_id": "post_me_email_change",
+      "method": "POST",
+      "path": "/api/v1/me/email-change",
+      "primary_tag": "Auth",
+      "milestone": "M2",
+      "work_package": "M02-IDENTITY",
+      "priority": "P0",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "agent/backend",
+      "handler": "backend/src/routes/auth.rs::request_email_change",
+      "tests": [
+        "backend/tests/email_change.rs"
+      ],
+      "evidence": "GA 邮箱换绑闭环（迁移 0084_email_change_tokens）：cargo test --test email_change 通过（SQLite，5/5）；三库迁移同步；scripts/check-openapi.rb 全绿"
     },
     {
       "operation_id": "post_me_password",
