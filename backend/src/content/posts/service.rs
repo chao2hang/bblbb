@@ -98,11 +98,16 @@ impl RiskReview {
 }
 
 /// 从标题生成板块内唯一 slug（低冲突：base-slug + post_id 前 8 位）。
+///
+/// slug 消费方（搜索索引 `SearchDocument::new`）只接受 ASCII 字母/数字/_/-；
+/// `is_alphanumeric` 会放行中文等 Unicode 字母，纯中文标题生成中文 slug 后
+/// 索引侧被 SlugInvalid 永久拒绝（search.index job 反复死亡）。此处改为
+/// ASCII 口径：非 ASCII 字符视为分隔符，纯中文标题回退 base="post"。
 fn generate_slug(title: &str, post_id: &str) -> String {
     let base: String = title
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
     let base = base.trim_matches('-').to_string();
     let base = if base.is_empty() {

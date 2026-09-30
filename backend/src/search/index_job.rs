@@ -284,9 +284,16 @@ pub(crate) async fn reindex_post(pool: &DatabasePool, post_id: &str) -> Result<(
                 row.policy_version,
                 admin.updated_at,
             ]);
+            // slug 只接受 ASCII 字母/数字/_/-（SearchDocument::new 校验）；
+            // 纯中文标题生成的中文 slug 会被 SlugInvalid 永久拒绝，导致
+            // search.index job 反复死亡——非 ASCII slug 一律回退帖子 id。
             let slug = row
                 .slug
                 .filter(|s| !s.is_empty())
+                .filter(|s| {
+                    s.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                })
                 .unwrap_or_else(|| row.id.clone());
             let doc = SearchDocument::new(
                 row.id.clone(),
