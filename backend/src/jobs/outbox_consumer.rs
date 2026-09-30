@@ -258,6 +258,8 @@ async fn side_effect(
                 "expires_minutes": 30,
                 "token_id": event.payload.get("email_change_token_id").and_then(|v| v.as_str()).unwrap_or(""),
                 "to_email": event.payload.get("new_email").and_then(|v| v.as_str()).unwrap_or(""),
+                // 模板正文展示用（"你申请将绑定邮箱更换为 {new_email}"）
+                "new_email": event.payload.get("new_email").and_then(|v| v.as_str()).unwrap_or(""),
             });
             crate::email::service::enqueue_email(
                 pool,

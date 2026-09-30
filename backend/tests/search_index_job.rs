@@ -547,3 +547,54 @@ async fn board_tag_user_indexing_gates() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+/// GA 回归：纯中文标题生成的中文 slug 必须回退帖子 id 入索引，
+/// 不得被 SlugInvalid 永久拒绝（此前 search.index job 反复死亡）。
+#[tokio::test]
+async fn chinese_slug_falls_back_to_post_id() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let (_, _, post_id, _) = seed_post_fixture(&pool).await;
+
+    // 把标题与 slug 改成纯中文（模拟旧 generate_slug 行为落库的存量行）。
+    exec(
+        &pool,
+        "UPDATE posts SET title = ?, slug = ?, updated_at = ? WHERE id = ?",
+        &[
+            "我的第一个帖子",
+            "我的第一个帖子-abcdef12",
+            &now_millis().to_string(),
+            &post_id,
+        ],
+    )
+    .await;
+
+    let outcome = handle_index_job(&pool, &claimed_job("post", &post_id)).await;
+    assert!(
+        matches!(outcome, JobOutcome::Succeeded),
+        "中文 slug 不得拒绝入索引: {outcome:?}"
+    );
+    assert_eq!(
+        scalar(
+            &pool,
+            "SELECT COUNT(*) FROM search_documents WHERE doc_id = ?",
+            &[&post_id]
+        )
+        .await,
+        1
+    );
+    // slug 必须回退为帖子 id。
+    let stored_slug: String = match &pool {
+        Either::Left(p) => {
+            sqlx::query_scalar::<_, String>("SELECT slug FROM search_documents WHERE doc_id = ?")
+                .bind(&post_id)
+                .fetch_one(p)
+                .await
+                .unwrap()
+        }
+        Either::Right(_) => panic!("SQLite only"),
+    };
+    assert_eq!(stored_slug, post_id);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
