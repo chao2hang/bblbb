@@ -404,6 +404,11 @@ async fn expand_injects_confirm_url_for_email_change_template() {
         "token_id".to_string(),
         serde_json::Value::String(outcome.token_id.clone()),
     );
+    // 入队路径（outbox_consumer）必须带 new_email（正文"更换为 {new_email}"）
+    params.insert(
+        "new_email".to_string(),
+        serde_json::Value::String("erin.new@example.com".to_string()),
+    );
 
     let expanded = expand_verification_params(&pool, "", TemplateKey::EmailChange, &params)
         .await
@@ -427,6 +432,15 @@ async fn expand_injects_confirm_url_for_email_change_template() {
             .unwrap_or_default()
             .contains("email-change/confirm?token="),
         "渲染正文必须包含确认链接"
+    );
+    // 正文必须回显新邮箱（此前入队 params 缺 new_email 导致"更换为（空）"）
+    assert!(
+        rendered
+            .body
+            .as_deref()
+            .unwrap_or_default()
+            .contains("erin.new@example.com"),
+        "渲染正文必须包含 new_email"
     );
 
     close_pool(&pool).await;
