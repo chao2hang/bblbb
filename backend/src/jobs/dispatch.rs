@@ -38,7 +38,13 @@ pub async fn dispatch_job(pool: &DatabasePool, settings_key: &str, job: ClaimedJ
             // 优先：HTTP 中继（GA 生产验证 P1-10：源站出站 SMTP 端口被机房
             // 封禁，投递经 mail.bblbb.com 中继完成；未配置时回落 DB SMTP 分支）。
             if let Some(relay) = crate::email::relay::RelaySender::from_env() {
-                return match crate::email::relay::deliver_job_via_relay(pool, &job.id, &relay).await
+                return match crate::email::relay::deliver_job_via_relay(
+                    pool,
+                    &job.id,
+                    &relay,
+                    settings_key,
+                )
+                .await
                 {
                     Ok(()) => JobOutcome::Succeeded,
                     Err(e) => {

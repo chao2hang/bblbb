@@ -115,6 +115,7 @@ async fn register_creates_user_token_audit_and_outbox_in_one_tx() {
         &pool,
         &valid_reg(" Alice ", "Alice@Example.COM"),
         "req-reg-1",
+        "",
     )
     .await
     .expect("注册事务必须成功");
@@ -205,12 +206,12 @@ async fn register_creates_user_token_audit_and_outbox_in_one_tx() {
 async fn register_duplicate_username_rolls_back_entire_transaction() {
     let (pool, dir) = pool_with_migrations().await;
 
-    register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1")
+    register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1", "")
         .await
         .expect("首次注册必须成功");
 
     // 相同规范化用户名、不同邮箱、不同密码 → 唯一约束冲突
-    let err = register_user(&pool, &valid_reg("ALICE", "other@example.com"), "req-2")
+    let err = register_user(&pool, &valid_reg("ALICE", "other@example.com"), "req-2", "")
         .await
         .unwrap_err();
     assert!(
@@ -233,11 +234,11 @@ async fn register_duplicate_username_rolls_back_entire_transaction() {
 async fn register_duplicate_email_rolls_back_entire_transaction() {
     let (pool, dir) = pool_with_migrations().await;
 
-    register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1")
+    register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1", "")
         .await
         .expect("首次注册必须成功");
 
-    let err = register_user(&pool, &valid_reg("bob", "Alice@Example.com"), "req-2")
+    let err = register_user(&pool, &valid_reg("bob", "Alice@Example.com"), "req-2", "")
         .await
         .unwrap_err();
     assert!(matches!(err, RegisterUserError::AlreadyExists));
@@ -401,14 +402,14 @@ async fn register_rate_limit_is_isolated_per_ip() {
 async fn duplicate_register_does_not_short_circuit_expensive_hash() {
     let (pool, dir) = pool_with_migrations().await;
 
-    register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1")
+    register_user(&pool, &valid_reg("alice", "alice@example.com"), "req-1", "")
         .await
         .expect("首次注册必须成功");
 
     // 已存在路径（唯一约束冲突）耗时下限：若短路（不哈希）会是微秒级。
     // Argon2id m=19456 在 debug 构建下实测 ≥10ms；取 5ms 保守下限。
     let start = Instant::now();
-    let err = register_user(&pool, &valid_reg("alice", "again@example.com"), "req-2")
+    let err = register_user(&pool, &valid_reg("alice", "again@example.com"), "req-2", "")
         .await
         .unwrap_err();
     let elapsed_ms = start.elapsed().as_millis() as i64;

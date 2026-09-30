@@ -152,6 +152,7 @@ async fn resend_creates_new_token_invalidates_old_and_enqueues_mail() {
         &email,
         "req-resend-1",
         &ResendLimits::default(),
+        "",
     )
     .await
     .expect("重发必须成功");
@@ -195,13 +196,27 @@ async fn resend_cooldown_blocks_second_request_within_window() {
     let (user_id, email) = insert_pending_user(&pool, "bob").await;
     let _ = insert_verify_token(&pool, &user_id).await;
 
-    resend_verification_email(&pool, &limiter, &email, "req-1", &ResendLimits::default())
-        .await
-        .expect("第一次重发成功");
+    resend_verification_email(
+        &pool,
+        &limiter,
+        &email,
+        "req-1",
+        &ResendLimits::default(),
+        "",
+    )
+    .await
+    .expect("第一次重发成功");
 
-    let err = resend_verification_email(&pool, &limiter, &email, "req-2", &ResendLimits::default())
-        .await
-        .unwrap_err();
+    let err = resend_verification_email(
+        &pool,
+        &limiter,
+        &email,
+        "req-2",
+        &ResendLimits::default(),
+        "",
+    )
+    .await
+    .unwrap_err();
     let ResendError::RateLimited {
         retry_after_secs, ..
     } = err
@@ -229,16 +244,16 @@ async fn resend_daily_limit_blocks_after_limit() {
         daily_limit: 2,
     };
 
-    resend_verification_email(&pool, &limiter, &email, "req-1", &limits)
+    resend_verification_email(&pool, &limiter, &email, "req-1", &limits, "")
         .await
         .expect("第 1 次重发成功");
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    resend_verification_email(&pool, &limiter, &email, "req-2", &limits)
+    resend_verification_email(&pool, &limiter, &email, "req-2", &limits, "")
         .await
         .expect("第 2 次重发成功");
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
 
-    let err = resend_verification_email(&pool, &limiter, &email, "req-3", &limits)
+    let err = resend_verification_email(&pool, &limiter, &email, "req-3", &limits, "")
         .await
         .unwrap_err();
     let ResendError::RateLimited { .. } = err else {
@@ -336,6 +351,7 @@ async fn resend_unknown_email_returns_noop_without_side_effects() {
         "ghost@example.com",
         "req-1",
         &ResendLimits::default(),
+        "",
     )
     .await
     .expect("未知邮箱必须 Ok(Noop)");
@@ -377,10 +393,16 @@ async fn resend_activated_user_returns_noop() {
     }
     assert_eq!(user_status(&pool, &user_id).await, "active");
 
-    let outcome =
-        resend_verification_email(&pool, &limiter, &email, "req-1", &ResendLimits::default())
-            .await
-            .expect("已激活用户必须 Ok(Noop)");
+    let outcome = resend_verification_email(
+        &pool,
+        &limiter,
+        &email,
+        "req-1",
+        &ResendLimits::default(),
+        "",
+    )
+    .await
+    .expect("已激活用户必须 Ok(Noop)");
     assert!(matches!(outcome, ResendOutcome::Noop));
     assert_eq!(
         table_count(&pool, "outbox_events").await,

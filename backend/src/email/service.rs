@@ -233,6 +233,7 @@ pub async fn deliver_email_job<S: EmailSender + Sync>(
     worker_id: &str,
     job_id: &str,
     sender: &S,
+    settings_key: &str,
 ) -> Result<(), EmailError> {
     let row: Option<(String, i64)> = match pool {
         Either::Left(p) => {
@@ -295,6 +296,25 @@ pub async fn deliver_email_job<S: EmailSender + Sync>(
         return Err(EmailError::NotFound("recipient user not found".to_string()));
     };
 
+    let params = match expand_verification_params(pool, settings_key, template_key, &params).await {
+        Ok(Some(p)) => p,
+        Ok(None) => params,
+        Err(reason) => {
+            // token 已消费/过期/无法解密：永久失败（重试无意义）
+            let safe = sanitize_log("", "verification link unavailable", &reason);
+            let _ = fail_job(
+                pool,
+                worker_id,
+                job_id,
+                &safe,
+                RetryClass::Permanent,
+                &email_retry_policy(),
+            )
+            .await;
+            return Err(EmailError::Invalid(safe));
+        }
+    };
+
     let rendered = render(template_key, &params);
     let body = format!(
         "{}\n\n{}\n\n（此邮件由 BBLBB 自动发送，请勿直接回复）",
@@ -324,6 +344,71 @@ pub async fn deliver_email_job<S: EmailSender + Sync>(
             Err(EmailError::Invalid(safe))
         }
     }
+}
+
+/// 邮件投递前的一次性链接展开（GA P0-2 收尾）。
+///
+/// 对 `email.verification` / `email.password_reset` 模板：用 params 里的
+/// `token_id` 查 token 密文列（`token_encrypted`，GA migration 0083），以
+/// settings key 解密明文，构造站点一次性链接注入 `verify_url`/`reset_url`。
+/// payload 全程不携带明文 token（M01-JOBS-12）。
+///
+/// 返回 None：模板不涉及链接（原样透传 params）；`Some(Err)`：token 缺失/
+/// 无法解密（调用方按永久失败处理——token 已消费或过期，重试无意义）。
+pub async fn expand_verification_params(
+    pool: &DatabasePool,
+    settings_key: &str,
+    template_key: TemplateKey,
+    params: &serde_json::Map<String, Value>,
+) -> Result<Option<serde_json::Map<String, Value>>, String> {
+    use crate::notifications::templates::TemplateKey as TK;
+    let (table, url_path, url_key) = match template_key {
+        TK::EmailVerification => (
+            "email_verification_tokens",
+            "/verify-email?token=",
+            "verify_url",
+        ),
+        TK::PasswordReset => (
+            "password_reset_tokens",
+            "/password-reset/confirm?token=",
+            "reset_url",
+        ),
+        _ => return Ok(None),
+    };
+    let token_id = params
+        .get("token_id")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "verification params missing token_id".to_string())?;
+    let sql = format!("SELECT token_encrypted FROM {table} WHERE id = ?");
+    let sealed: Option<String> = match pool {
+        Either::Left(p) => {
+            sqlx::query_scalar(&sql)
+                .bind(token_id)
+                .fetch_optional(p)
+                .await
+        }
+        Either::Right(p) => {
+            sqlx::query_scalar(&sql)
+                .bind(token_id)
+                .fetch_optional(p)
+                .await
+        }
+    }
+    .map_err(|e| format!("token lookup failed: {e}"))?;
+    let sealed = sealed.ok_or_else(|| "token not found (expired or consumed)".to_string())?;
+    let token = crate::auth::token::open_token(settings_key, &sealed)
+        .ok_or_else(|| "token cannot be decrypted (expired or key rotated)".to_string())?;
+    let origin = std::env::var("BBLBB__PUBLIC_ORIGIN")
+        .unwrap_or_default()
+        .trim_end_matches('/')
+        .to_string();
+    let mut out = params.clone();
+    out.insert(
+        url_key.to_string(),
+        Value::String(format!("{origin}{url_path}{}", token)),
+    );
+    Ok(Some(out))
 }
 
 /// 管理员重放邮件 Job（M05-NOTIFY-07）：dead → queued。

@@ -466,7 +466,7 @@ async fn email_job_transient_retry_permanent_dead_replay() {
         .await
         .unwrap();
     assert_eq!(claimed.len(), 1);
-    deliver_email_job(&pool, "w1", &job_id, &sender)
+    deliver_email_job(&pool, "w1", &job_id, &sender, "")
         .await
         .unwrap_err();
     let (status, attempts) = job_status(&pool, &job_id).await;
@@ -479,7 +479,7 @@ async fn email_job_transient_retry_permanent_dead_replay() {
         .await
         .unwrap();
     assert_eq!(claimed.len(), 1);
-    deliver_email_job(&pool, "w1", &job_id, &sender)
+    deliver_email_job(&pool, "w1", &job_id, &sender, "")
         .await
         .unwrap();
     let (status, _) = job_status(&pool, &job_id).await;
@@ -512,7 +512,7 @@ async fn email_job_transient_retry_permanent_dead_replay() {
         .await
         .unwrap();
     assert_eq!(claimed.len(), 1);
-    deliver_email_job(&pool, "w1", &job_id2, &sender2)
+    deliver_email_job(&pool, "w1", &job_id2, &sender2, "")
         .await
         .unwrap_err();
     let (status, _) = job_status(&pool, &job_id2).await;
