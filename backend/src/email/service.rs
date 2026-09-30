@@ -295,6 +295,13 @@ pub async fn deliver_email_job<S: EmailSender + Sync>(
         .await;
         return Err(EmailError::NotFound("recipient user not found".to_string()));
     };
+    // 换绑确认等定向邮件：params.to_email 覆盖默认收件人（新邮箱确认前
+    // users.email_normalized 仍是旧邮箱，GA 邮箱换绑）
+    let recipient = params
+        .get("to_email")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or(recipient);
 
     let params = match expand_verification_params(pool, settings_key, template_key, &params).await {
         Ok(Some(p)) => p,

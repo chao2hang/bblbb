@@ -25,6 +25,8 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { PROFILE_TEXT_LIMITS } from '$lib/profile';
   import { show } from '$lib/ui/toast';
+  import CooldownButton from '$lib/components/ui/CooldownButton.svelte';
+  import { resendVerification } from '$lib/api/client';
   import { formatRelative } from '$lib/utils';
   import { readPreference, applyTheme, type ThemePreference } from '$lib/theme';
   import { applyThemeTokens, clearThemeTokens, type ActiveThemeView } from '$lib/theme/projection';
@@ -51,6 +53,39 @@
     form?.message ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message) : null
   );
   const passwordResult = $derived(form?.password);
+  const emailChangeResult = $derived(form?.emailChange);
+  // 邮箱验证状态（Me.email_verified；GA 邮箱换绑 + 验证状态可见性）
+  const emailVerified = $derived(Boolean(user?.email_verified));
+  const userEmail = $derived(user?.email ?? '');
+  // 未验证时重发验证邮件（复用匿名 resend 端点 + CooldownButton）
+  let resendCooldown = $state(0);
+  let resendAttempt = $state(0);
+  let resendMsg = $state<string | null>(null);
+  let resendErr = $state<string | null>(null);
+  let resending = $state(false);
+  async function resendVerificationEmail() {
+    if (!userEmail || resending) return;
+    resending = true;
+    resendErr = null;
+    resendMsg = null;
+    try {
+      await resendVerification(fetch, userEmail);
+      resendMsg = '验证邮件已发送，请查收（30 分钟内有效）';
+      resendCooldown = 60;
+      resendAttempt += 1;
+    } catch (problem: any) {
+      const retry = typeof problem?.retry_after === 'number' ? problem.retry_after : null;
+      if (retry != null) {
+        resendCooldown = retry;
+        resendAttempt += 1;
+        resendErr = `发送过于频繁，请 ${retry} 秒后再试`;
+      } else {
+        resendErr = problem?.detail ?? '发送失败，请稍后重试';
+      }
+    } finally {
+      resending = false;
+    }
+  }
   const revokeResult = $derived(form?.revokeOAuth);
 
   const limit = PROFILE_TEXT_LIMITS;
@@ -712,6 +747,94 @@
             </div>
           </div>
         </form>
+
+        <!-- GA 邮箱换绑：绑定邮箱 + 验证状态徽章 + 换绑申请（确认邮件发往新邮箱）。 -->
+        <section
+          class="card settings-panel settings-panel-security"
+          class:is-active={activeTab === 'security'}
+          style="margin-top:var(--space-4);"
+          aria-labelledby="settings-email-title"
+        >
+          <div class="card-header"><span class="card-title" id="settings-email-title">绑定邮箱</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
+            <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+              <b style="font-size:var(--text-sm);">{userEmail || '未绑定邮箱'}</b>
+              {#if emailVerified}
+                <span class="badge" style="background:color-mix(in srgb, #22c55e 18%, transparent);color:#4ade80;">已验证</span>
+              {:else}
+                <span class="badge" style="background:color-mix(in srgb, #f59e0b 20%, transparent);color:#fbbf24;">未验证</span>
+                <span style="font-size:var(--text-xs);color:var(--color-text-tertiary);">未验证邮箱的账号不能发帖、回复与参与交易</span>
+              {/if}
+            </div>
+            {#if !emailVerified && userEmail}
+              <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;">
+                <CooldownButton
+                  text={resending ? '发送中…' : '重新发送验证邮件'}
+                  cooldown={resendCooldown}
+                  attempt={resendAttempt}
+                  class="btn btn-primary btn-sm"
+                  onclick={resendVerificationEmail}
+                  disabled={resending}
+                />
+                <a href="/verify-email" class="text-link" style="font-size:var(--text-xs);">前往验证页</a>
+              </div>
+              {#if resendMsg}<p class="input-hint" role="status">{resendMsg}</p>{/if}
+              {#if resendErr}<p class="input-hint is-error" role="alert">{resendErr}</p>{/if}
+            {/if}
+
+            <form
+              method="POST"
+              action="?/email-change"
+              use:enhance={() => {
+                return async ({ result, update }) => {
+                  await update();
+                  if (result.type === 'success') {
+                    const d = result.data as SettingsFormResult | undefined;
+                    if (d?.emailChange?.message) show(d.emailChange.message, 'success');
+                  } else if (result.type === 'failure') {
+                    const d = result.data as SettingsFormResult | undefined;
+                    const message = d?.emailChange?.fieldError ?? d?.emailChange?.message;
+                    if (message) show(message, 'danger');
+                  }
+                };
+              }}
+            >
+              <div class="input-wrapper">
+                <label class="input-label" for="set-new-email">更换绑定邮箱</label>
+                <input
+                  type="email"
+                  class="input-field"
+                  id="set-new-email"
+                  name="new_email"
+                  placeholder="输入新的邮箱地址"
+                  autocomplete="email"
+                  required
+                />
+                {#if emailChangeResult?.fieldError}
+                  <p class="input-hint is-error" role="alert">{emailChangeResult.fieldError}</p>
+                {/if}
+              </div>
+              <div class="input-wrapper">
+                <label class="input-label" for="set-email-password">当前密码（确认身份）</label>
+                <input
+                  type="password"
+                  class="input-field"
+                  id="set-email-password"
+                  name="current_password"
+                  autocomplete="current-password"
+                  required
+                />
+                <p class="input-hint">提交后确认邮件发送至新邮箱，点击邮件内链接完成换绑；换绑后新邮箱自动视为已验证。</p>
+              </div>
+              {#if emailChangeResult?.ok}
+                <p class="input-hint" role="status">{emailChangeResult.message}</p>
+              {/if}
+              <div>
+                <Button text="发送换绑确认邮件" variant="primary" size="sm" type="submit" />
+              </div>
+            </form>
+          </div>
+        </section>
 
         <!-- 两步验证 (2FA / TOTP) 设置卡片 -->
         <section

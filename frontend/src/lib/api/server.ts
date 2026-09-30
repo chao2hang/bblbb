@@ -207,6 +207,15 @@ export async function registerViaServer(
 }
 
 /** POST /api/v1/auth/verify-email（M02-UX-02）：token 一次性验证。 */
+/** POST /api/v1/auth/email-change/confirm（GA 邮箱换绑确认，一次性 token）。 */
+export async function confirmEmailChangeViaServer(
+  cookies: Cookies,
+  token: string,
+  requestId: string | null = null
+): Promise<{ ok: true } | ServerWriteFailure> {
+  return postWithCsrf(cookies, '/api/v1/auth/email-change/confirm', { token }, requestId);
+}
+
 export async function verifyEmailViaServer(
   cookies: Cookies,
   token: string,

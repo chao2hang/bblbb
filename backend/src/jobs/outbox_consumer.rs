@@ -230,6 +230,57 @@ async fn side_effect(
             })?;
             Ok(())
         }
+        crate::events::types::USER_EMAIL_CHANGE_REQUESTED => {
+            // 换绑确认邮件（GA 邮箱换绑）：收件人经 params.to_email 定向新邮箱；
+            // params 只带 token_id 引用（明文 token 由 worker 投递时解密构造链接）。
+            let user_id = event
+                .payload
+                .get("user_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if user_id.is_empty() {
+                return Ok(());
+            }
+            let relay_ready = crate::email::relay::RelaySender::from_env().is_some();
+            let smtp_ready = {
+                let smtp =
+                    crate::email::service::load_smtp_config_from_db(pool, settings_key).await?;
+                smtp.as_ref()
+                    .map(|c| c.enabled && !c.host.is_empty())
+                    .unwrap_or(false)
+            };
+            if !smtp_ready && !relay_ready {
+                tracing::warn!(event_id = %event.id, user_id = %user_id, "email_change_requested: no mail transport configured; skipped");
+                return Ok(());
+            }
+            let params = serde_json::json!({
+                "username": event.payload.get("username").and_then(|v| v.as_str()).unwrap_or(""),
+                "expires_minutes": 30,
+                "token_id": event.payload.get("email_change_token_id").and_then(|v| v.as_str()).unwrap_or(""),
+                "to_email": event.payload.get("new_email").and_then(|v| v.as_str()).unwrap_or(""),
+            });
+            crate::email::service::enqueue_email(
+                pool,
+                user_id,
+                crate::notifications::templates::TemplateKey::EmailChange,
+                serde_json::from_value(params)?,
+                Some("email_change"),
+                event
+                    .payload
+                    .get("email_change_token_id")
+                    .and_then(|v| v.as_str()),
+                outbox::now_millis(),
+            )
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                match e {
+                    crate::email::service::EmailError::Db(m)
+                    | crate::email::service::EmailError::Invalid(m)
+                    | crate::email::service::EmailError::NotFound(m) => m.into(),
+                }
+            })?;
+            Ok(())
+        }
         other => {
             // 占位消费者：标记已投递并保留可观测日志；领域里程碑在此追加副作用。
             tracing::debug!(event_type = %other, event_id = %event.id, "outbox event delivered (no-op consumer)");

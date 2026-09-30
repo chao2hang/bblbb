@@ -65,6 +65,7 @@
   import { videoProviderLabel } from '$lib/video/labels';
   import { charCount } from '$lib/utils';
   import { SHEET_MEDIA_QUERY, sheetDrag } from '$lib/utils/sheet-drag';
+  import VerificationRequiredCard from '$lib/components/auth/VerificationRequiredCard.svelte';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
 
@@ -188,6 +189,9 @@
   let lastSaved = $state('');
 
   const userLevel = $derived(user?.level ?? 1);
+  // GA：邮箱验证门槛——未验证的登录用户不渲染发布表单（后端本就 403），
+  // 展示 Flarum 风格验证提示卡（就地重发 + 前往验证页）。
+  const verificationBlocked = $derived(Boolean(user && user.email_verified === false));
   const titleError = $derived(fieldError(error, 'title'));
   const markdownError = $derived(fieldError(error, 'markdown'));
   const boardError = $derived(fieldError(error, 'board_id'));
@@ -756,6 +760,11 @@
 
       <h1 class="sr-only" tabindex="-1">{editPostId ? '编辑内容' : '发布内容'}</h1>
 
+      {#if verificationBlocked}
+        <div class="composer-body">
+          <VerificationRequiredCard email={user?.email ?? null} />
+        </div>
+      {:else}
       <form class="composer-form" aria-busy={submitting} onsubmit={handleSubmit}>
         <div class="composer-body">
           {#if setupLoading}
@@ -1164,6 +1173,7 @@
           {/if}
         </footer>
       </form>
+      {/if}
     </section>
   </div>
 </div>

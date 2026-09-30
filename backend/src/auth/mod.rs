@@ -1,3 +1,4 @@
+pub mod email_change;
 pub mod identity;
 pub mod login;
 pub mod mfa;
