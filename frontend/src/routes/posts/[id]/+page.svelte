@@ -55,6 +55,7 @@
   import SafeHtml from '$lib/components/SafeHtml.svelte';
   import UserCard from '$lib/components/UserCard.svelte';
   import SimpleCommentEditor from '$lib/components/editor/SimpleCommentEditor.svelte';
+  import VerificationRequiredCard from '$lib/components/auth/VerificationRequiredCard.svelte';
   // M14-SEO-01/02/03：文章/讨论页统一 SEO；未发布/未解锁内容 noindex。
   import Seo from '$lib/components/Seo.svelte';
   import BoardNav from '$lib/components/forum/BoardNav.svelte';
@@ -123,6 +124,12 @@
   // 看到完整回复表单（导航栏已是登录/注册，表单提交必 401）。
   const sessionUser = $derived(data.user ?? null);
   const authed = $derived(Boolean(sessionUser || user));
+  // GA：邮箱验证门槛——未验证的登录用户不渲染编辑器（后端本就 403），
+  // 展示 Flarum 风格验证提示卡（就地重发 + 前往验证页）。
+  const sessionAccount = $derived(sessionUser ?? user);
+  const emailVerified = $derived(Boolean(sessionAccount?.email_verified !== false && sessionAccount));
+  const needsVerification = $derived(authed && !emailVerified);
+  const accountEmail = $derived(sessionAccount?.email ?? null);
   const replyHref = $derived(
     !authed
       ? `/login?next=${encodeURIComponent(`/posts/${post?.id ?? ''}#comment-input`)}`
@@ -916,7 +923,7 @@
             <!-- 右侧组：编辑入口 + 发布时间（时间排在「编辑内容」之后）。
                  浏览量/回复数已下移到主贴底部统计行，不再出现在标题行。 -->
             <span style="margin-left:auto;display:inline-flex;align-items:center;gap:var(--space-3);">
-              {#if canEdit}
+              {#if canEdit && emailVerified}
                 <a
                   href="/editor?post_id={encodeURIComponent(post.id)}"
                   class="btn ghost sm"
@@ -1319,6 +1326,8 @@
               <span class="text-secondary">该帖已锁定，不能继续回复。</span>
             </div>
           </div>
+        {:else if needsVerification}
+          <VerificationRequiredCard email={accountEmail} />
         {:else if authed}
           <form class="topic-editor" style="margin-top:14px;" method="POST" onsubmit={handleSubmit}>
             <label class="input-label" for="comment-input">发表回复</label>

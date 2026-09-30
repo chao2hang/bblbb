@@ -1001,6 +1001,38 @@ paths:
         '429':
           "$ref": "#/components/responses/RateLimited"
       summary: register
+  "/api/v1/auth/email-change/confirm":
+    post:
+      tags:
+      - Auth
+      operationId: post_auth_email_change_confirm
+      summary: 确认换绑邮箱（匿名，一次性 token）
+      security: []
+      x-permission: public
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - token
+              properties:
+                token:
+                  type: string
+                  maxLength: 128
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '409':
+          "$ref": "#/components/responses/ProblemResponse"
+        '422':
+          "$ref": "#/components/responses/ProblemResponse"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
   "/api/v1/auth/verify-email":
     post:
       tags:
@@ -7616,6 +7648,53 @@ paths:
           "$ref": "#/components/responses/ProblemResponse"
         '429':
           "$ref": "#/components/responses/RateLimited"
+  "/api/v1/me/email-change":
+    post:
+      tags:
+      - Auth
+      operationId: post_me_email_change
+      summary: 申请换绑邮箱（当前密码确认，确认邮件发往新邮箱）
+      security:
+      - sessionCookie: []
+      x-permission: authenticated
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/EmailChangeRequest"
+      responses:
+        '202':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: 确认邮件已发送至新邮箱
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  expires_at:
+                    type: integer
+                    format: int64
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/ProblemResponse"
+        '409':
+          "$ref": "#/components/responses/ProblemResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
   "/api/v1/me/password":
     post:
       tags:
@@ -10834,6 +10913,19 @@ components:
           minLength: 8
           maxLength: 128
           writeOnly: true
+    EmailChangeRequest:
+      type: object
+      required:
+      - new_email
+      - current_password
+      properties:
+        new_email:
+          type: string
+          format: email
+          maxLength: 320
+        current_password:
+          type: string
+          maxLength: 128
     UnlockRequest:
       type: object
       additionalProperties: false

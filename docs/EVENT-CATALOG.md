@@ -27,6 +27,7 @@ Payload 默认只含 ID、状态和必要公开字段，不复制密码、Token�
 | event_type | 同事务触发 | 主要 Consumer | PII/保留 |
 |---|---|---|---|
 | `user.registered.v1` | User 创建 | 邮件、审计 | 用户 ID；按账户保留 |
+| `user.email_change_requested.v1` | 换绑邮箱申请 | 邮件、审计 | 新邮箱 + token 引用；不含明文 token |
 | `user.status_changed.v1` | 用户状态迁移 | Session 撤销、通知 | 最小原因码 |
 | `post.published.v1` | Post 发布 | 搜索、通知、SEO/AI | 不含隐藏正文 |
 | `post.visibility_changed.v1` | 隐藏/恢复/删除 | 索引清理、缓存失效 | 仅 ID/状态 |

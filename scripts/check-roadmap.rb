@@ -441,7 +441,7 @@ begin
     end
   end
 
-  errors << "Expected frozen OpenAPI baseline of 243 operations, got #{contract_operations.length}" unless contract_operations.length == 243
+  errors << "Expected frozen OpenAPI baseline of 245 operations, got #{contract_operations.length}" unless contract_operations.length == 245
 
   coverage = JSON.parse(File.read(COVERAGE_PATH))
   errors << "Coverage schema_version must be 1" unless coverage["schema_version"] == 1

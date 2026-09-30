@@ -11,6 +11,7 @@
 pub mod types {
     pub const USER_REGISTERED: &str = "user.registered.v1";
     pub const USER_STATUS_CHANGED: &str = "user.status_changed.v1";
+    pub const USER_EMAIL_CHANGE_REQUESTED: &str = "user.email_change_requested.v1";
     pub const POST_PUBLISHED: &str = "post.published.v1";
     pub const POST_VISIBILITY_CHANGED: &str = "post.visibility_changed.v1";
     pub const COMMENT_CREATED: &str = "comment.created.v1";

@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**243**
-- 唯一 operationId：**243**
-- 实现状态：`implemented` 33；`not_started` 9；`verified` 201
-- 里程碑分配：`M0` 1；`M2` 28；`M3` 34；`M4` 21；`M5` 24；`M6` 20；`M7` 41；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 11；`M17` 6
+- 契约操作：**245**
+- 唯一 operationId：**245**
+- 实现状态：`implemented` 35；`not_started` 9；`verified` 201
+- 里程碑分配：`M0` 1；`M2` 30；`M3` 34；`M4` 21；`M5` 24；`M6` 20；`M7` 41；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 11；`M17` 6
 
 ## 状态规则
 
@@ -26,6 +26,7 @@
 | `getHealth` | `GET` | `/healthz` | Health | `M0` / `M00-BACKEND` | `P0` | `verified` | `platform/backend` |
 | `bootstrapAdmin` | `POST` | `/api/v1/auth/bootstrap` | Auth | `M2` / `M02-IDENTITY` | `P0` | `not_started` | `unassigned` |
 | `getCsrfToken` | `GET` | `/api/v1/auth/csrf` | Auth | `M2` / `M02-SESSION` | `P0` | `verified` | `backend-auth` |
+| `post_auth_email_change_confirm` | `POST` | `/api/v1/auth/email-change/confirm` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
 | `login` | `POST` | `/api/v1/auth/login` | Auth | `M2` / `M02-SESSION` | `P0` | `verified` | `backend-auth` |
 | `loginMfa` | `POST` | `/api/v1/auth/login/mfa` | Auth | `M2` / `M02-IDENTITY` | `P0` | `verified` | `backend-auth` |
 | `loginMfaPasskeyOptions` | `POST` | `/api/v1/auth/login/mfa/passkey/options` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `backend-auth` |
@@ -51,6 +52,7 @@
 | `get_me_api_keys` | `GET` | `/api/v1/me/api-keys` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
 | `post_me_api_keys` | `POST` | `/api/v1/me/api-keys` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
 | `delete_me_api_keys_id` | `DELETE` | `/api/v1/me/api-keys/{id}` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
+| `post_me_email_change` | `POST` | `/api/v1/me/email-change` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
 | `post_me_password` | `POST` | `/api/v1/me/password` | Auth | `M2` / `M02-IDENTITY` | `P0` | `implemented` | `agent/backend` |
 | `listAdminBoards` | `GET` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `platform/admin-platform` |
 | `createAdminBoard` | `POST` | `/api/v1/admin/boards` | Boards | `M3` / `M03-BOARDS` | `P1` | `verified` | `backend-content` |

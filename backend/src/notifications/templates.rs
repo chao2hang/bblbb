@@ -48,10 +48,12 @@ pub enum TemplateKey {
     EmailVerification,
     /// 密码重置：params 由 deliver 路径注入 `reset_url`。
     PasswordReset,
+    /// 换绑邮箱确认：params 由 deliver 路径注入 `confirm_url`（发往新邮箱）。
+    EmailChange,
 }
 
 impl TemplateKey {
-    pub const ALL: [TemplateKey; 11] = [
+    pub const ALL: [TemplateKey; 12] = [
         TemplateKey::ReplyCreated,
         TemplateKey::QuoteReferenced,
         TemplateKey::MentionCreated,
@@ -63,6 +65,7 @@ impl TemplateKey {
         TemplateKey::SecurityNotice,
         TemplateKey::EmailVerification,
         TemplateKey::PasswordReset,
+        TemplateKey::EmailChange,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -78,6 +81,7 @@ impl TemplateKey {
             TemplateKey::SecurityNotice => "security.notice",
             TemplateKey::EmailVerification => "email.verification",
             TemplateKey::PasswordReset => "email.password_reset",
+            TemplateKey::EmailChange => "email.change",
         }
     }
 
@@ -98,7 +102,9 @@ impl TemplateKey {
             TemplateKey::LevelUp => "badge",
             TemplateKey::SecurityNotice => "system",
             // 邮件专用模板不落站内通知表；归类 system 保持穷举完整
-            TemplateKey::EmailVerification | TemplateKey::PasswordReset => "system",
+            TemplateKey::EmailVerification
+            | TemplateKey::PasswordReset
+            | TemplateKey::EmailChange => "system",
         }
     }
 }
@@ -140,6 +146,7 @@ pub fn render(
         TemplateKey::SecurityNotice => "安全提醒".to_string(),
         TemplateKey::EmailVerification => "BBLBB 邮箱验证".to_string(),
         TemplateKey::PasswordReset => "BBLBB 密码重置".to_string(),
+        TemplateKey::EmailChange => "BBLBB 邮箱换绑确认".to_string(),
     };
     let body = match key {
         TemplateKey::ReplyCreated => p("actor_name").map(|name| format!("{name} 回复了你的内容")),
@@ -195,6 +202,17 @@ pub fn render(
             format!(
                 "你好 {}，\n\n请点击以下链接重置密码（{} 分钟内有效）：\n{}\n\n如无法点击，请复制链接到浏览器打开。\n\n如非本人操作，请立即检查账户安全并忽略本邮件。\n\n—— BBLBB",
                 p("username").unwrap_or_else(|| "用户".into()),
+                minutes,
+                url
+            )
+        }),
+        TemplateKey::EmailChange => p("confirm_url").map(|url| {
+            let minutes = p("expires_minutes").unwrap_or_else(|| "30".into());
+            let new_email = p("new_email").unwrap_or_default();
+            format!(
+                "你好 {}，\n\n你申请将绑定邮箱更换为 {}。请点击以下链接确认换绑（{} 分钟内有效）：\n{}\n\n确认后新邮箱即完成验证并成为登录邮箱。\n\n如非本人操作，请立即修改密码并忽略本邮件。\n\n—— BBLBB",
+                p("username").unwrap_or_else(|| "用户".into()),
+                new_email,
                 minutes,
                 url
             )

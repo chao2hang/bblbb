@@ -683,6 +683,10 @@ export interface PasswordChangeRequest {
   current_password: string;
   new_password: string;
 }
+export interface EmailChangeRequest {
+  new_email: string;
+  current_password: string;
+}
 export interface UnlockRequest {
   client_request_id: string;
 }

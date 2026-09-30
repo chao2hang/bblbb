@@ -109,6 +109,13 @@ pub struct TokenRequest {
     pub token: String,
 }
 
+/// 换绑邮箱申请（登录态）：需当前密码确认（GA 邮箱换绑）。
+#[derive(Deserialize)]
+pub struct EmailChangeRequest {
+    pub new_email: String,
+    pub current_password: String,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PasswordResetRequest {
@@ -146,6 +153,11 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/auth/csrf", get(get_csrf_token))
         .route("/api/v1/auth/register", post(register))
         .route("/api/v1/auth/verify-email", post(verify_email))
+        .route("/api/v1/me/email-change", post(request_email_change))
+        .route(
+            "/api/v1/auth/email-change/confirm",
+            post(confirm_email_change),
+        )
         .route(
             "/api/v1/auth/resend-verification",
             post(resend_verification),
@@ -1108,6 +1120,141 @@ fn email_validation_error(request_id: &str) -> AppError {
         "code": "validation_failed",
         "message_key": "email_invalid",
     }])))
+}
+
+/// POST /api/v1/me/email-change — 申请换绑邮箱（登录态 + 当前密码确认）
+///
+/// 202：确认邮件已发往**新邮箱**（链接一次性，30 分钟）。错误映射：
+/// 422 validation_failed（格式/同邮箱）| 409 email_taken | 403 wrong_password
+/// | 429 rate_limited。
+async fn request_email_change(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    headers: HeaderMap,
+    Json(req): Json<EmailChangeRequest>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let request_id = "email-change";
+    let user = auth.require_auth(request_id)?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    // IP 维度防刷（同 resend：向任意新邮箱发信的滥用面在请求源收敛）
+    let ip = client_ip(&headers);
+    let now_ms = crate::outbox::now_millis();
+    let ip_status = state.limiter.check(
+        &format!("email_change:ip:{ip}"),
+        RESEND_IP_LIMIT,
+        RESEND_IP_WINDOW_MS,
+        now_ms,
+    );
+    if !ip_status.allowed {
+        return Err(AppError::rate_limited(
+            "too many email change requests, try again later",
+            request_id,
+            ip_status.retry_after_secs,
+            ip_status.limit,
+            ip_status.remaining,
+            ip_status.reset_at_ms / 1000,
+        ));
+    }
+
+    match crate::auth::email_change::request_email_change(
+        pool,
+        &state.limiter,
+        &user.id,
+        &user.username,
+        &user.email,
+        &req.current_password,
+        &req.new_email,
+        request_id,
+        &Default::default(),
+        &state.config.settings_encryption_key,
+    )
+    .await
+    {
+        Ok(outcome) => Ok((
+            StatusCode::ACCEPTED,
+            Json(json!({ "ok": true, "expires_at": outcome.expires_at })),
+        )),
+        Err(crate::auth::email_change::EmailChangeError::InvalidEmail)
+        | Err(crate::auth::email_change::EmailChangeError::SameEmail) => {
+            Err(email_validation_error(request_id))
+        }
+        Err(crate::auth::email_change::EmailChangeError::EmailTaken) => Err(AppError::with_code(
+            StatusCode::CONFLICT,
+            "email_taken",
+            "Conflict",
+            "email already in use",
+            request_id,
+        )),
+        Err(crate::auth::email_change::EmailChangeError::WrongPassword) => {
+            Err(AppError::with_code(
+                StatusCode::FORBIDDEN,
+                "wrong_password",
+                "Forbidden",
+                "current password is incorrect",
+                request_id,
+            ))
+        }
+        Err(crate::auth::email_change::EmailChangeError::RateLimited {
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        }) => Err(AppError::rate_limited(
+            "too many email change requests, try again later",
+            request_id,
+            retry_after_secs,
+            limit,
+            remaining,
+            reset_at_unix_secs,
+        )),
+        Err(crate::auth::email_change::EmailChangeError::InvalidToken) => {
+            Err(email_validation_error(request_id))
+        }
+        Err(crate::auth::email_change::EmailChangeError::Database(e)) => {
+            Err(AppError::internal(e.to_string(), request_id))
+        }
+    }
+}
+
+/// POST /api/v1/auth/email-change/confirm — 确认换绑（匿名，一次性 token）
+///
+/// 200：换绑生效（新邮箱成为绑定邮箱且视为已验证）。422：token 无效/过期/
+/// 已消费（统一错误，防枚举）；409：新邮箱在确认前被他人占用。
+async fn confirm_email_change(
+    State(state): State<AppState>,
+    Json(req): Json<TokenRequest>,
+) -> Result<Json<GenericSuccess>, AppError> {
+    let request_id = "email-change-confirm";
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    match crate::auth::email_change::confirm_email_change(pool, &req.token, request_id).await {
+        Ok(_new_email) => Ok(Json(GenericSuccess { ok: true })),
+        Err(e) if e.is_token_invalid() => Err(AppError::with_code(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "email_change_token_invalid",
+            "Unprocessable Entity",
+            "invalid or expired email change token",
+            request_id,
+        )),
+        Err(crate::auth::email_change::EmailChangeError::EmailTaken) => Err(AppError::with_code(
+            StatusCode::CONFLICT,
+            "email_taken",
+            "Conflict",
+            "email already in use",
+            request_id,
+        )),
+        Err(crate::auth::email_change::EmailChangeError::Database(e)) => {
+            Err(AppError::internal(e.to_string(), request_id))
+        }
+        Err(e) => Err(AppError::internal(e.to_string(), request_id)),
+    }
 }
 
 /// 基础邮箱格式检查（规范化后：恰好一个 @、本地/域名非空、域名含 `.`）。

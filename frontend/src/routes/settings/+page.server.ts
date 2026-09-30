@@ -61,6 +61,14 @@ export interface SettingsFormResult {
   visibility?: { ok: boolean; message?: string };
   /** ?/revoke-oauth 撤销授权结果。 */
   revokeOAuth?: { ok: boolean; message?: string };
+  /** ?/email-change 换绑邮箱申请结果（202 = 确认邮件已发往新邮箱）。 */
+  emailChange?: {
+    ok: boolean;
+    sent?: boolean;
+    newEmail?: string;
+    fieldError?: string;
+    message?: string;
+  };
 }
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
@@ -297,6 +305,67 @@ export const actions: Actions = {
       if (isRedirect(e)) throw e;
       return fail(503, {
         password: { ok: false, message: '密码服务暂不可用，请稍后重试' }
+      } satisfies SettingsFormResult);
+    }
+  },
+
+  // GA 邮箱换绑：POST /api/v1/me/email-change（当前密码确认 → 确认邮件发往新邮箱）。
+  // 202 成功不即时换绑——新邮箱点确认链接后才生效（Flarum 同款语义）。
+  'email-change': async ({ request, cookies }) => {
+    const form = await request.formData();
+    const newEmail = String(form.get('new_email') ?? '').trim();
+    const currentPassword = String(form.get('current_password') ?? '');
+
+    if (!newEmail || !/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(newEmail)) {
+      return fail(422, {
+        emailChange: { ok: false, fieldError: '请输入有效的新邮箱地址' }
+      } satisfies SettingsFormResult);
+    }
+    if (!currentPassword) {
+      return fail(422, {
+        emailChange: { ok: false, fieldError: '请输入当前密码以确认身份' }
+      } satisfies SettingsFormResult);
+    }
+    try {
+      const result = await authedPost(
+        cookies,
+        '/api/v1/me/email-change',
+        { new_email: newEmail, current_password: currentPassword },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          emailChange: {
+            ok: true,
+            sent: true,
+            newEmail: newEmail,
+            message: `确认邮件已发送至 ${newEmail}，请在新邮箱中点击链接完成换绑（30 分钟内有效）`
+          }
+        } satisfies SettingsFormResult;
+      }
+      if (result.status === 403) {
+        return fail(403, {
+          emailChange: { ok: false, fieldError: '当前密码不正确' }
+        } satisfies SettingsFormResult);
+      }
+      if (result.status === 409) {
+        return fail(409, {
+          emailChange: { ok: false, fieldError: '该邮箱已被其他账号使用' }
+        } satisfies SettingsFormResult);
+      }
+      if (result.status === 429) {
+        return fail(429, {
+          emailChange: { ok: false, fieldError: '发送过于频繁，请稍后再试' }
+        } satisfies SettingsFormResult);
+      }
+      return fail(result.status, {
+        emailChange: { ok: false, message: result.message || '换绑申请失败，请稍后重试' },
+        requestId: result.requestId
+      } satisfies SettingsFormResult);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        emailChange: { ok: false, message: '换绑服务暂不可用，请稍后重试' }
       } satisfies SettingsFormResult);
     }
   },

@@ -363,6 +363,17 @@ export async function verifyEmail(
   });
 }
 
+/** POST /auth/resend-verification（重发验证邮件；429 抛 problem 带 retry_after）。 */
+export async function resendVerification(
+  fetchFn: typeof fetch,
+  email: string
+): Promise<{ ok: boolean }> {
+  return request(fetchFn, '/auth/resend-verification', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
 export async function requestPasswordReset(
   fetchFn: typeof fetch,
   email: string
