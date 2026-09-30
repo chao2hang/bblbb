@@ -321,9 +321,16 @@ async fn resend_rolls_back_old_token_invalidation_when_new_insert_fails() {
     }
     inject_failure(&pool, "BEFORE INSERT", "email_verification_tokens").await;
 
-    let err = resend_verification_email(&pool, &limiter, &email, "req-1", &ResendLimits::default(), "")
-        .await
-        .unwrap_err();
+    let err = resend_verification_email(
+        &pool,
+        &limiter,
+        &email,
+        "req-1",
+        &ResendLimits::default(),
+        "",
+    )
+    .await
+    .unwrap_err();
     assert!(
         matches!(err, bblbb_backend::auth::ResendError::Database(_)),
         "新 token INSERT 注入失败必须报 Database 错误"

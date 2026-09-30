@@ -196,13 +196,27 @@ async fn resend_cooldown_blocks_second_request_within_window() {
     let (user_id, email) = insert_pending_user(&pool, "bob").await;
     let _ = insert_verify_token(&pool, &user_id).await;
 
-    resend_verification_email(&pool, &limiter, &email, "req-1", &ResendLimits::default(), "")
-        .await
-        .expect("第一次重发成功");
+    resend_verification_email(
+        &pool,
+        &limiter,
+        &email,
+        "req-1",
+        &ResendLimits::default(),
+        "",
+    )
+    .await
+    .expect("第一次重发成功");
 
-    let err = resend_verification_email(&pool, &limiter, &email, "req-2", &ResendLimits::default(), "")
-        .await
-        .unwrap_err();
+    let err = resend_verification_email(
+        &pool,
+        &limiter,
+        &email,
+        "req-2",
+        &ResendLimits::default(),
+        "",
+    )
+    .await
+    .unwrap_err();
     let ResendError::RateLimited {
         retry_after_secs, ..
     } = err
@@ -379,10 +393,16 @@ async fn resend_activated_user_returns_noop() {
     }
     assert_eq!(user_status(&pool, &user_id).await, "active");
 
-    let outcome =
-        resend_verification_email(&pool, &limiter, &email, "req-1", &ResendLimits::default(), "")
-            .await
-            .expect("已激活用户必须 Ok(Noop)");
+    let outcome = resend_verification_email(
+        &pool,
+        &limiter,
+        &email,
+        "req-1",
+        &ResendLimits::default(),
+        "",
+    )
+    .await
+    .expect("已激活用户必须 Ok(Noop)");
     assert!(matches!(outcome, ResendOutcome::Noop));
     assert_eq!(
         table_count(&pool, "outbox_events").await,
