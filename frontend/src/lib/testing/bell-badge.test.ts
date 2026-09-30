@@ -138,9 +138,10 @@ describe('通知铃铛角标回归（已读后角标即时减少/消失）', () 
 
     // 布局播种 + 会话刷新路径：首帧与服务端一致为 2。
     expect(bellDot(container)?.textContent).toBe('2');
-    await screen.findByTestId('read-n1'); // 页面 load() 完成（onMount）
+    // 新交互：点行展开详情（同时自动标已读），详情内另有「标为已读」按钮。
+    await screen.findByTestId('notif-row-n1'); // 页面 load() 完成（onMount）
 
-    await user.click(screen.getByTestId('read-n1'));
+    await user.click(screen.getByTestId('notif-row-n1'));
     // 关键回归：无路由变化，角标也要减少。
     await waitFor(() => expect(bellDot(container)?.textContent).toBe('1'));
     expect(screen.getByText('1 未读')).toBeTruthy();

@@ -591,7 +591,15 @@ export async function markNotificationRead(
   fetchFn: typeof fetch,
   id: string
 ): Promise<void> {
-  await request(fetchFn, `/notifications/${id}/read`, { method: 'POST' });
+  try {
+    await request(fetchFn, `/notifications/${id}/read`, { method: 'POST' });
+  } catch (problem) {
+    // 后端对「已读过」返回 404（"not found or already read"）：行点击与
+    // 按钮双触发、快速双击时必须视为幂等成功，否则误报「标记已读失败」。
+    const status = (problem as Problem | null)?.status;
+    if (status === 404) return;
+    throw problem;
+  }
 }
 
 export async function markAllNotificationsRead(
