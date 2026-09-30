@@ -380,6 +380,11 @@ pub async fn expand_verification_params(
             "/password-reset/confirm?token=",
             "reset_url",
         ),
+        TK::EmailChange => (
+            "email_change_tokens",
+            "/email-change/confirm?token=",
+            "confirm_url",
+        ),
         _ => return Ok(None),
     };
     let token_id = params
