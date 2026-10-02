@@ -1,3 +1,58 @@
+## v1.0.0-rc.12 — 2026-09-30（邮箱验证全链路：验证门槛、换绑闭环与通知中心交互升级）
+
+> 邮箱验证与通知体验版本。围绕「未验证用户无法发帖」的论坛治理核心链路完成端到端落地：
+> 1. 注册/重置邮件带一次性链接（token 密文列 + 投递时解密渲染），接入生产 HTTP 中继；
+> 2. 未验证用户发帖/回复门槛（Flarum 模式提示卡 + 就地重发），验证状态在设置页可见；
+> 3. 换绑邮箱完整闭环（当前密码确认 → 新邮箱收确认邮件 → 确认后新邮箱生效并自动验证）；
+> 4. 通知中心行式交互：点行展开详情（类别/完整时间/正文/来源），已读幂等修复。
+> 发布顺序：backend → frontend。
+
+### 邮件链路修复（M17-GAPFIX）
+
+- **验证/重置邮件带一次性链接**（PR #34）：`email_verification_tokens` /
+  `password_reset_tokens` 增加密文列（`token_encrypted`，enc1 信封加密），
+  投递时解密构造 `verify_url` / `reset_url`，正文含完整确认链接；
+- **注册验证邮件接入 HTTP 中继**（PR #33）：outbox 消费者按 relay → SMTP
+  顺序选路，relay 未配置才跳过；`CONFIG_REGISTRY` 补登记 `public_origin`
+  修复生产模式启动死锁；
+- **换绑确认邮件投递修复**（PR #37/#39）：`expand_verification_params`
+  补 `email.change` 分支（此前确认邮件正文无链接）、收件人按
+  `params.to_email` 定向新邮箱、入队参数补 `new_email`（正文回显新邮箱）。
+
+### 邮箱验证门槛（Flarum 模式，PR #36）
+
+- 未验证用户在帖子页/话题编辑器不再渲染编辑器，显示
+  `VerificationRequiredCard` 提示卡（类别/时间/来源展示 + 60s 冷却就地
+  重发 + 前往验证页）；
+- 设置页「绑定邮箱」卡片：邮箱 + 已验证（绿）/未验证（橙）徽章、未验证
+  就地重发、换绑表单（新邮箱 + 当前密码）；
+- 新契约 `POST /api/v1/me/email-change`（202/401/403/409/422/429）与
+  `POST /api/v1/auth/email-change/confirm`（匿名一次性 token），
+  OpenAPI 基线 243 → 245，migration 0084 `email_change_tokens`。
+
+### 通知中心交互升级（PR #38）
+
+- 通知列表改行式布局：类型图标（未读高亮）｜标题＋单行预览｜相对时间＋
+  展开箭头，点击整行展开详情面板（类别徽章、完整日期、正文全文、
+  已读状态、「查看来源」链接、标为已读）；
+- 展开即自动标已读；`markNotificationRead` 对 404（already read）幂等
+  成功，修复行点击与按钮双触发时误报「标记已读失败」。
+
+### 搜索索引与内容修复
+
+- **纯中文标题不再导致索引死亡**：`generate_slug` 改 ASCII 口径（非
+  ASCII 字符视为分隔符，纯中文标题回退 base="post"），索引侧非 ASCII
+  slug 回退帖子 id（兜住存量数据）；slug 唯一段取 post_id 尾部随机位，
+  修复同毫秒创建两个中文标题帖子时 `(board_id, slug)` 唯一约束冲突
+  （此前 `search.index` job 反复死亡）。
+
+### 构建与 CI
+
+- `.dockerignore` 豁免 `backend/data` Steam 快照（修镜像构建，PR #32）；
+- nightly 修复：clippy 1.99 对 `#[async_trait]` 宏展开的
+  `double_must_use` 误报放行；Playwright job 生成一次性自签 TLS 证书
+  （vite https，`dev/certs/` 为 gitignore 路径）。
+
 ## v1.0.0-rc.11 — 2026-09-22（商城一键选品上架支持自定义有效期、库存数量、限购与等级门槛）
 
 > 选品上架功能增强版本。针对后台商城管理快捷上架流程进行深度易用性升级：
