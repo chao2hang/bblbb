@@ -5,6 +5,12 @@ edition = "2021"
 publish = false
 default-run = "bblbb-backend"
 
+[lints.clippy]
+# clippy 1.99 对 #[async_trait] 宏展开的 trait 方法误报 double_must_use
+#（宏自动生成的 must_use 提示与 trait 声明重复，无法逐处标注）；nightly
+# 工具链升级后首次触发（15 处，均在 StorageAdapter 等 async trait）。
+double_must_use = "allow"
+
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
 axum-extra = { version = "0.10", features = ["cookie", "typed-header"] }

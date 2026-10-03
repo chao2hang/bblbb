@@ -84,6 +84,17 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      # vite dev 的 https 由 dev/certs/{dev.crt,dev.key} 提供（.gitignore，
+      # 仓库不含私钥）；CI checkout 后缺失会使 vite 退回 HTTP，而
+      # playwright webServer 以 https://localhost:4173 探测 → 120s 超时。
+      # 此处生成一次性自签证书（webServer 与用例均 ignoreHTTPSErrors）。
+      - name: Generate dev TLS cert for vite (gitignored path)
+        run: |
+          mkdir -p dev/certs
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout dev/certs/dev.key -out dev/certs/dev.crt \
+            -days 2 -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
       - name: Run E2E + axe (desktop + mobile, real backend + personas)
         working-directory: frontend
         env:
