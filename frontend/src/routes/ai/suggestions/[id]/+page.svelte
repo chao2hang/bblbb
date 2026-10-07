@@ -81,7 +81,7 @@
 
         {#if isModeration()}
           <!-- M09-UI-05：moderation 建议信息边界。 -->
-          <div class="alert" style="padding:var(--space-3);border:1px solid var(--color-info, #4a90d9);border-radius:var(--radius-md);">
+          <div class="alert" style="padding:var(--space-3);border:1px solid var(--color-info);border-radius:var(--radius-md);">
             <p style="margin:0 0 var(--space-2);"><strong>审核建议（仅审核人员可见）</strong></p>
             <p style="margin:0 0 var(--space-2);">目标类型：{suggestion.moderation?.target_type ?? 'post'}</p>
             {#if suggestion.moderation?.summary}
@@ -105,7 +105,7 @@
                   {/if}
                 </div>
                 {#if field.field === 'content' || field.field === 'markdown'}
-                  <pre class="ai-diff" style="margin:0 0 var(--space-2);max-height:280px;overflow:auto;font-size:var(--text-sm);white-space:pre-wrap;background:var(--color-bg-subtle, rgba(0,0,0,0.04));border-radius:var(--radius-md);padding:var(--space-2);">
+                  <pre class="ai-diff" style="margin:0 0 var(--space-2);max-height:280px;overflow:auto;font-size:var(--text-sm);white-space:pre-wrap;background:var(--color-bg-subtle);border-radius:var(--radius-md);padding:var(--space-2);">
 {#each renderTextDiff(field.current ?? '', field.proposed) as line (line.text + line.type)}
 {line.type === 'removed' ? '-' : line.type === 'added' ? '+' : ' '} {line.text}{/each}</pre>
                 {:else}

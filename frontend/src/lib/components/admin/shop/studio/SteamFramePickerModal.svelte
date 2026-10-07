@@ -214,7 +214,6 @@
               <div class="sf-card__info">
                 <span class="sf-card__name" title={item.name}>{item.name}</span>
                 <div class="sf-card__meta">
-                  <span class="sf-card__points">🪙 {item.cost} 点数</span>
                   <button type="button" class="sf-use-btn" onclick={(e) => { e.stopPropagation(); handleSelect(item); }}>
                     试穿
                   </button>
@@ -439,16 +438,14 @@
   .sf-card__meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-top: 2px;
-  }
-  .sf-card__points {
-    font-size: 11px;
-    color: #d97706;
+    justify-content: center;
+    margin-top: 4px;
+    width: 100%;
   }
   .sf-use-btn {
+    width: 100%;
     font-size: 11px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     border-radius: 4px;
     background: rgba(102, 192, 244, 0.15);
     color: #0284c7;

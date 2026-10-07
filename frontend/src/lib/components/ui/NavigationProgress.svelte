@@ -145,10 +145,10 @@
     height: 100%;
     background: linear-gradient(
       90deg,
-      var(--color-brand, #2C4BD8),
-      var(--color-accent, #60a5fa)
+      var(--color-brand),
+      var(--color-accent)
     );
-    box-shadow: 0 0 8px color-mix(in srgb, var(--color-brand, #2C4BD8) 60%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-brand) 60%, transparent);
     transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -160,8 +160,8 @@
     width: 70px;
     opacity: 0.85;
     box-shadow:
-      0 0 10px var(--color-brand, #2C4BD8),
-      0 0 5px var(--color-accent, #60a5fa);
+      0 0 10px var(--color-brand),
+      0 0 5px var(--color-accent);
     transform: rotate(3deg) translateY(-2px);
   }
 

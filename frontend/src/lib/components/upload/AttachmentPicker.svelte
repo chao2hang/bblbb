@@ -174,13 +174,13 @@
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2);
-    border: 1px solid var(--color-border, #d0d7de);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm, 6px);
     cursor: pointer;
   }
   .picker-item.is-selected {
-    border-color: var(--color-primary, #0969da);
-    box-shadow: 0 0 0 1px var(--color-primary, #0969da);
+    border-color: var(--color-brand);
+    box-shadow: var(--color-focus-ring);
   }
   .picker-radio {
     position: absolute;
@@ -193,7 +193,7 @@
     height: 48px;
     object-fit: cover;
     border-radius: 4px;
-    background: var(--color-bg-subtle, #f6f8fa);
+    background: var(--color-bg-subtle);
   }
   .picker-thumb-file {
     display: inline-flex;
@@ -216,6 +216,6 @@
   }
   .picker-sub {
     font-size: var(--text-xs, 12px);
-    color: var(--color-text-secondary, #666);
+    color: var(--color-text-secondary);
   }
 </style>

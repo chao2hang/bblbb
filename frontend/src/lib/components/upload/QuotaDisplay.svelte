@@ -67,10 +67,10 @@
     >
       <div class="quota-bar-fill" style="width:{pct(quota.used_bytes, quota.total_bytes)}%;"></div>
     </div>
-    <p class="input-hint">
+    <p class="quota-hint">
       {#if typeof quota.daily_upload_bytes === 'number' && typeof quota.daily_used_bytes === 'number'}
         今日上传 {formatBytes(quota.daily_used_bytes)} / {formatBytes(quota.daily_upload_bytes)}
-        ·{' '}
+        <span class="quota-hint-sep">·</span>
       {/if}
       附件在物理删除后才释放容量
     </p>
@@ -80,38 +80,60 @@
 </div>
 
 <style>
+  .quota-card {
+    display: flex;
+    flex-direction: column;
+  }
   .quota-title {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-md);
+    margin: 0 0 var(--space-3, 12px);
+    font-size: var(--text-base, 15px);
+    font-weight: 600;
+    color: var(--color-text-primary);
   }
   .quota-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: var(--space-2);
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: var(--space-3, 12px) var(--space-5, 20px);
     margin: 0;
   }
   .quota-item dt {
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary, #666);
+    font-size: var(--text-xs, 12px);
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
   }
   .quota-item dd {
-    margin: 2px 0 0;
+    margin: 0;
+    font-size: var(--text-base, 15px);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+    line-height: 1.25;
   }
   .quota-item .is-warning {
-    color: var(--color-danger, #cf222e);
+    color: var(--color-danger);
   }
   .quota-bar {
-    margin-top: var(--space-3);
-    height: 8px;
-    border-radius: 4px;
-    background: var(--color-border, #d0d7de);
+    margin-top: var(--space-4, 16px);
+    height: 7px;
+    border-radius: 999px;
+    background: var(--color-bg-subtle);
     overflow: hidden;
   }
   .quota-bar-fill {
     height: 100%;
-    background: var(--color-primary, #0969da);
+    border-radius: 999px;
+    background: var(--color-brand);
     transition: width 0.3s ease;
+  }
+  .quota-hint {
+    margin: var(--space-2, 8px) 0 0;
+    font-size: var(--text-xs, 12px);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+  }
+  .quota-hint-sep {
+    display: inline-block;
+    margin: 0 4px;
+    color: var(--color-text-tertiary);
   }
 </style>

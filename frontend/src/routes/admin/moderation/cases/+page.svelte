@@ -1,21 +1,23 @@
 <script lang="ts">
-  // M18-ADMIN-REPORTS：举报案件队列（对齐原型 #admin-reports 布局与交互）。
+  // M18-ADMIN-REPORTS：举报案件队列（表格列表布局）。
   // M18-ADMIN-BATCH：原「标记处理中/批量关闭/批量驳回」死按钮接通——
   // BatchBar + 两个批量 Dialog + 两个 DangerConfirm（关闭/驳回需原因写审计），
   // 服务端循环调用案件状态更新端点（与详情页 transition 同端点）。
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
   import BatchBar from '$lib/components/admin/BatchBar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import DangerConfirm from '$lib/components/ui/DangerConfirm.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import TablePagination from '$lib/components/admin/TablePagination.svelte';
+  import { formatRelative } from '$lib/utils';
   import { toastActionResult } from '$lib/ui/action-toast';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
-
 
   function getStatus(): string {
     try {
@@ -54,17 +56,40 @@
     return allCases.filter((c) => c.status === currentStatus);
   });
 
+  let currentPage = $state(1);
+  let pageSize = $state(10);
+
+  $effect(() => {
+    void currentStatus;
+    currentPage = 1;
+  });
+
+  const pagedCases = $derived(
+    displayedCases.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  );
+
   let selectedIds = $state<string[]>([]);
   let allSelected = $derived(
-    displayedCases.length > 0 && selectedIds.length === displayedCases.length
+    pagedCases.length > 0 && pagedCases.every((i) => selectedIds.includes(i.id))
   );
   function toggleAll() {
-    if (allSelected) selectedIds = [];
-    else selectedIds = displayedCases.map((i) => i.id);
+    if (allSelected) {
+      const pagedSet = new Set(pagedCases.map((i) => i.id));
+      selectedIds = selectedIds.filter((id) => !pagedSet.has(id));
+    } else {
+      const set = new Set([...selectedIds, ...pagedCases.map((i) => i.id)]);
+      selectedIds = Array.from(set);
+    }
   }
   function toggleRow(id: string) {
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
     else selectedIds = [...selectedIds, id];
+  }
+
+  function handleRowClick(e: MouseEvent, id: string) {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('input, button, a, label')) return;
+    goto(`/admin/moderation/cases/${id}`);
   }
 
   // ── 批量操作弹层（M18-ADMIN-BATCH） ──
@@ -122,6 +147,28 @@
   <title>举报与审核 — BBLBB Admin</title>
 </svelte:head>
 
+<!-- 统一工作台 Tab -->
+<div class="tabs" role="tablist" aria-label="审核工作台" style="margin-bottom:12px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);padding:2px;display:inline-flex;">
+  <a
+    role="tab"
+    aria-selected={false}
+    href="/admin/moderation?tab=content"
+    class="tab"
+    style="padding:6px 14px;font-size:13px;text-decoration:none;"
+  >
+    待发内容审核
+  </a>
+  <a
+    role="tab"
+    aria-selected={true}
+    href="/admin/moderation/cases"
+    class="tab is-active"
+    style="padding:6px 14px;font-size:13px;text-decoration:none;"
+  >
+    用户举报案件 {allCases.length > 0 ? `(${allCases.length})` : ''}
+  </a>
+</div>
+
 <!-- 原型对齐：顶栏 Tabs -->
 <div class="tabs" role="tablist" aria-label="案件状态筛选" style="margin-bottom:14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);padding:2px;">
   {#each statusTabs as tab}
@@ -152,26 +199,14 @@
   </section>
 {/if}
 
-<!-- 批量操作卡片（原型同款；死按钮已接通为 BatchBar + 批量弹层） -->
-<section class="app-card" style="margin-bottom:14px;">
-  <div class="app-card__body" style="padding:14px 16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;user-select:none;">
-        <input type="checkbox" checked={allSelected} onchange={toggleAll} aria-label="全选当前列表案件" />
-        <b>全选当前列表</b>
-        <span class="app-muted">| {selectedIds.length} 项已选</span>
-      </label>
-    </div>
-    <BatchBar count={selectedIds.length} noun="个案件" onclear={clearSelection}>
-      <Button text="标记处理中" variant="secondary" size="sm" onclick={() => (batchStatusOpen = true)} />
-      <Button text="批量关闭" variant="danger" size="sm" onclick={() => (batchCloseOpen = true)} />
-      <Button text="批量驳回" variant="danger" size="sm" onclick={() => (batchRejectOpen = true)} />
-    </BatchBar>
-    <div class="app-muted" style="font-size:11px;margin-top:8px;">选择举报后执行批量操作</div>
-  </div>
-</section>
+<!-- 批量工具条（选中 > 0 时渲染） -->
+<BatchBar count={selectedIds.length} noun="个案件" onclear={clearSelection}>
+  <Button text="标记处理中" variant="secondary" size="sm" onclick={() => (batchStatusOpen = true)} />
+  <Button text="批量关闭" variant="danger" size="sm" onclick={() => (batchCloseOpen = true)} />
+  <Button text="批量驳回" variant="danger" size="sm" onclick={() => (batchRejectOpen = true)} />
+</BatchBar>
 
-<!-- 案件卡片列表（原型高保真卡片结构） -->
+<!-- 案件表格列表 -->
 {#if displayedCases.length === 0}
   <div class="app-card">
     <div class="app-card__body">
@@ -179,43 +214,120 @@
     </div>
   </div>
 {:else}
-  <div style="display:flex;flex-direction:column;gap:14px;">
-    {#each displayedCases as item (item.id)}
-      {@const p = priorityBadge(item.priority)}
-      {@const s = statusBadge(item.status)}
-      <div class="app-card">
-        <div class="app-card__body" style="padding:16px;">
-          <!-- 头部行：复选框 + 单号 + 优先级 + 状态 -->
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-            <input
-              type="checkbox"
-              checked={selectedIds.includes(item.id)}
-              onchange={() => toggleRow(item.id)}
-              aria-label="选择案件 {item.id}"
-            />
-            <strong style="font-size:15px;letter-spacing:0.5px;">{item.id}</strong>
-            <span class={p.cls} style="padding:2px 6px;border-radius:4px;font-size:11px;">{p.label}</span>
-            <span class={s.cls} style="padding:2px 6px;border-radius:4px;font-size:11px;">{s.label}</span>
-          </div>
-
-          <!-- 内容摘要引用块（原型灰色内凹卡，左侧深色坚线） -->
-          <div style="background:var(--color-bg-subtle, rgba(0,0,0,0.03));padding:12px 14px;border-left:3px solid var(--color-text-secondary);border-radius:0 var(--radius-sm) var(--radius-sm) 0;margin-bottom:12px;">
-            <p style="margin:0;font-size:13px;line-height:1.5;color:var(--color-text-primary);">
-              {item.title || '（无标题案件）'}
-            </p>
-          </div>
-
-          <!-- 脚注行：负责人 / 操作（后端投影无举报人字段，不伪造展示） -->
-          <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);">
-            <span>负责人 {item.assigned_to ?? '未指派'}</span>
-            <a href="/admin/moderation/cases/{item.id}" class="text-link" style="font-weight:600;">
-              {item.status === 'resolved' ? '查看' : '处理'}
-            </a>
-          </div>
-        </div>
+  <section class="app-card">
+    <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--color-border);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <h2 style="font-size:15px;margin:0;font-weight:600;">案件列表</h2>
+        <span class="app-muted" style="font-size:12px;">共 {displayedCases.length} 个案件{#if selectedIds.length > 0} · 已选 {selectedIds.length} 项{/if}</span>
       </div>
-    {/each}
-  </div>
+    </header>
+    <div class="app-card__body" style="padding:0;">
+      <div class="app-table-wrap">
+        <table class="app-table moderation-table" aria-label="案件列表">
+          <thead>
+            <tr>
+              <th class="th-select" style="width:40px;text-align:center;">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onchange={toggleAll}
+                  aria-label="全选当前列表"
+                  title="全选当前列表"
+                />
+              </th>
+              <th style="width:140px;">案件编号</th>
+              <th style="min-width:260px;">案件标题</th>
+              <th style="width:100px;">优先级</th>
+              <th style="width:90px;">状态</th>
+              <th style="width:140px;">负责人</th>
+              <th style="width:110px;">提交时间</th>
+              <th style="width:110px;text-align:right;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each pagedCases as item (item.id)}
+              {@const p = priorityBadge(item.priority)}
+              {@const s = statusBadge(item.status)}
+              <tr
+                class="case-row"
+                class:is-selected={selectedIds.includes(item.id)}
+                onclick={(e) => handleRowClick(e, item.id)}
+              >
+                <td class="td-select" style="text-align:center;">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onchange={() => toggleRow(item.id)}
+                    aria-label="选择案件 {item.id}"
+                  />
+                </td>
+                <td>
+                  <a
+                    href="/admin/moderation/cases/{item.id}"
+                    class="text-link"
+                    style="font-family:var(--font-mono, monospace);font-size:12px;font-weight:600;"
+                    title={item.id}
+                  >
+                    {item.id.length > 16 ? item.id.slice(0, 8) + '…' + item.id.slice(-4) : item.id}
+                  </a>
+                </td>
+                <td>
+                  <a
+                    href="/admin/moderation/cases/{item.id}"
+                    class="text-link"
+                    style="font-weight:600;font-size:13px;line-height:1.4;color:var(--color-text-primary);display:inline-block;"
+                  >
+                    {item.title || '（无标题案件）'}
+                  </a>
+                </td>
+                <td>
+                  <span class={p.cls} style="padding:2px 6px;border-radius:4px;font-size:11px;">{p.label}</span>
+                </td>
+                <td>
+                  <span class={s.cls} style="padding:2px 6px;border-radius:4px;font-size:11px;">{s.label}</span>
+                </td>
+                <td>
+                  <span
+                    class="text-secondary"
+                    style="font-size:12px;"
+                    title={item.assigned_to ?? '未指派'}
+                  >
+                    {#if !item.assigned_to}
+                      未指派
+                    {:else if item.assigned_to.length > 16}
+                      {item.assigned_to.slice(0, 8)}…{item.assigned_to.slice(-4)}
+                    {:else}
+                      {item.assigned_to}
+                    {/if}
+                  </span>
+                </td>
+                <td>
+                  <span class="text-secondary" style="font-size:12px;white-space:nowrap;">
+                    {formatRelative(item.created_at)}
+                  </span>
+                </td>
+                <td style="text-align:right;">
+                  <a
+                    href="/admin/moderation/cases/{item.id}"
+                    class="btn secondary sm"
+                    style="text-decoration:none;font-size:12px;white-space:nowrap;"
+                  >
+                    进入管理
+                  </a>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <TablePagination
+      bind:currentPage
+      bind:pageSize
+      totalItems={displayedCases.length}
+      noun="个案件"
+    />
+  </section>
 {/if}
 
 <!-- 批量标记处理中：Dialog 内选目标状态（端点不要求原因） → POST batchStatus。 -->
@@ -349,3 +461,16 @@
   <label class="input-label" for="batch-reject-reason">驳回原因（写审计）</label>
   <input id="batch-reject-reason" class="input-field" bind:value={batchRejectReason} placeholder="必填" required />
 </DangerConfirm>
+
+<style>
+  .case-row {
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+  .case-row:hover td {
+    background: var(--color-bg-subtle, rgba(0, 0, 0, 0.02));
+  }
+  .case-row.is-selected td {
+    background: var(--color-brand-soft, rgba(46, 117, 246, 0.08)) !important;
+  }
+</style>

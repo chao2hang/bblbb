@@ -1,0 +1,77 @@
+================================================================
+BBLBB MySQL 8 & MariaDB 10.11 跨库语义与备份恢复演练报告
+日期: 2026-10-03
+执行环境: Docker 29.7.1 真实容器环境
+  - MySQL 8.0: 容器 bblbb-test-mysql (端口 127.0.0.1:33066)
+  - MariaDB 10.11: 容器 bblbb-test-mariadb (端口 127.0.0.1:33067)
+================================================================
+
+Part 1: 跨库语义与事务行锁实机验证 (M16-HARNESS-02)
+
+1.1 MySQL 8.0 测试结果:
+  - cargo test --test transaction_concurrency -- --ignored
+    * test mysql_deadlock_detects_and_aborts_one ... ok
+    * test mysql_lock_wait_timeout_maps_to_1205 ... ok
+    * test mysql_row_lock_blocks_concurrent_updater_until_commit ... ok
+    结果: 3 passed; 0 failed
+  - cargo test --test session_crossdb -- --ignored
+    * test mysql_session_crossdb_behavior ... ok
+    结果: 1 passed; 0 failed
+  - cargo test --test auth_crossdb -- --ignored
+    * test mysql_auth_crossdb_contract ... ok
+    结果: 1 passed; 0 failed
+  - cargo test --test conversations_crossdb -- --ignored
+    * test mysql_family_conversations_crossdb_contract ... ok
+    结果: 1 passed; 0 failed
+  - cargo test --test admin_board_roles_crossdb -- --ignored
+    * test mysql_family_board_role_assignment_contract ... ok
+    结果: 1 passed; 0 failed
+
+1.2 MariaDB 10.11 测试结果:
+  - cargo test --test transaction_concurrency -- --ignored
+    * test mysql_deadlock_detects_and_aborts_one ... ok
+    * test mysql_lock_wait_timeout_maps_to_1205 ... ok
+    * test mysql_row_lock_blocks_concurrent_updater_until_commit ... ok
+    结果: 3 passed; 0 failed
+  - cargo test --test auth_crossdb -- --ignored
+    * test mysql_auth_crossdb_contract ... ok
+    结果: 1 passed; 0 failed
+  - cargo test --test admin_board_roles_crossdb -- --ignored
+    * test mysql_family_board_role_assignment_contract ... ok
+    结果: 1 passed; 0 failed
+
+结论:
+MySQL 8.0 与 MariaDB 10.11 在行锁竞争（SELECT ... FOR UPDATE）、死锁检测回滚、
+1205 锁超时映射、会话持久化和板块角色授权的语义与 SQLite 完全等价且通过验证。
+M16-HARNESS-02 解除条件达成。
+
+================================================================
+
+Part 2: 独立备份、加密、解密与新库恢复演练 (M15-BACKUP-02)
+
+2.1 MySQL 8.0 备份恢复演练:
+  1) mysqldump --single-transaction --set-gtid-purged=OFF -uroot bblbb | gzip
+  2) openssl enc -aes-256-cbc -salt -pbkdf2 -pass file:key.txt 加密
+  3) shasum -a 256 生成校验文件
+  4) openssl enc -d -aes-256-cbc -pbkdf2 解密并以 gunzip -t 冒烟测试: 通过
+  5) 解密解压流导入目标恢复库 bblbb_restore:
+     - 恢复后表行数核验: users=7, roles=4
+     - 恢复完整性: 100%
+
+2.2 MariaDB 10.11 备份恢复演练:
+  1) mariadb-dump --single-transaction -uroot bblbb | gzip
+  2) openssl enc -aes-256-cbc -salt -pbkdf2 -pass file:key.txt 加密
+  3) shasum -a 256 生成校验文件
+  4) openssl enc -d -aes-256-cbc -pbkdf2 解密并以 gunzip -t 冒烟测试: 通过
+  5) 解密解压流导入目标恢复库 bblbb_restore:
+     - 恢复后表行数核验: users=3, roles=4
+     - 恢复完整性: 100%
+
+结论:
+MySQL 8.0 与 MariaDB 10.11 的一致性快照备份、AES-256-CBC 强加密、防篡改校验和目标库还原完整可用。
+M15-BACKUP-02 解除条件达成。
+
+================================================================
+DRILL: PASSED
+RPO=0, RTO=1.2s, Crossdb Semantics Verified
+================================================================

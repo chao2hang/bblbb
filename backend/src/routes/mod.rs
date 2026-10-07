@@ -15,6 +15,7 @@ pub mod ready;
 pub mod achievements;
 pub mod admin;
 pub mod admin_activity;
+pub mod admin_batch;
 pub mod admin_download;
 pub mod admin_ext;
 pub mod admin_plugins;

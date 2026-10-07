@@ -726,7 +726,7 @@ pub async fn buy_product(
                     delta_frozen: 0,
                     source_type: Some("product".to_string()),
                     source_id: Some(product.id.clone()),
-                    memo: format!("shop purchase {} x{}", product.title, quantity),
+                    memo: format!("商城购买 {} x{}", product.title, quantity),
                     reverses_operation_id: None,
                 };
                 let op = ledger::apply_operation_in_sqlite_tx(&mut *conn, cmd, now).await?;
@@ -805,7 +805,7 @@ pub async fn buy_product(
                 AuditEntry::user_action(user_id, "shop.purchase")
                     .with_target("product", &product.id)
                     .with_target("order", &order_id)
-                    .with_reason("shop purchase")
+                    .with_reason("商城购买")
                     .with_policy_version(AUTHZ_POLICY_VERSION)
                     .record_into_sqlite(&mut *conn)
                     .await
@@ -946,7 +946,7 @@ pub async fn buy_product(
                     delta_frozen: 0,
                     source_type: Some("product".to_string()),
                     source_id: Some(product.id.clone()),
-                    memo: format!("shop purchase {} x{}", product.title, quantity),
+                    memo: format!("商城购买 {} x{}", product.title, quantity),
                     reverses_operation_id: None,
                 };
                 let op = ledger::apply_operation_in_mysql_tx(&mut tx, cmd, now).await?;
@@ -1022,7 +1022,7 @@ pub async fn buy_product(
                 AuditEntry::user_action(user_id, "shop.purchase")
                     .with_target("product", &product.id)
                     .with_target("order", &order_id)
-                    .with_reason("shop purchase")
+                    .with_reason("商城购买")
                     .with_policy_version(AUTHZ_POLICY_VERSION)
                     .record_into_mysql(&mut tx)
                     .await
@@ -2582,7 +2582,7 @@ pub async fn refund_order(
                     delta_frozen: 0,
                     source_type: Some("order".to_string()),
                     source_id: Some(order_id.to_string()),
-                    memo: format!("refund {reason}"),
+                    memo: format!("退款: {reason}"),
                     reverses_operation_id: Some(op_id),
                 };
                 let op = ledger::apply_operation_in_sqlite_tx(&mut *conn, cmd, now).await?;
@@ -2665,7 +2665,7 @@ pub async fn refund_order(
                     delta_frozen: 0,
                     source_type: Some("order".to_string()),
                     source_id: Some(order_id.to_string()),
-                    memo: format!("refund {reason}"),
+                    memo: format!("退款: {reason}"),
                     reverses_operation_id: Some(op_id),
                 };
                 let op = ledger::apply_operation_in_mysql_tx(&mut tx, cmd, now).await?;

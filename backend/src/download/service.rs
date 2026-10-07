@@ -434,7 +434,7 @@ pub async fn download(
                         delta_frozen: 0,
                         source_type: Some("attachment".to_string()),
                         source_id: Some(attachment.id.clone()),
-                        memo: format!("download attachment {}", attachment.id),
+                        memo: format!("下载附件 {}", attachment.id),
                         reverses_operation_id: None,
                     };
                     let op = ledger::apply_operation_in_sqlite_tx(&mut *conn, cmd, now).await?;
@@ -484,7 +484,7 @@ pub async fn download(
                 AuditEntry::user_action(user_id, "download.authorize")
                     .with_target("attachment", &attachment.id)
                     .with_target("authorization", &auth_id)
-                    .with_reason("attachment download")
+                    .with_reason("下载附件")
                     .record_into_sqlite(&mut *conn)
                     .await?;
                 enqueue_sqlite(
@@ -565,7 +565,7 @@ pub async fn download(
                         delta_frozen: 0,
                         source_type: Some("attachment".to_string()),
                         source_id: Some(attachment.id.clone()),
-                        memo: format!("download attachment {}", attachment.id),
+                        memo: format!("下载附件 {}", attachment.id),
                         reverses_operation_id: None,
                     };
                     let op = ledger::apply_operation_in_mysql_tx(&mut tx, cmd, now).await?;
@@ -609,7 +609,7 @@ pub async fn download(
                 AuditEntry::user_action(user_id, "download.authorize")
                     .with_target("attachment", &attachment.id)
                     .with_target("authorization", &auth_id)
-                    .with_reason("attachment download")
+                    .with_reason("下载附件")
                     .record_into_mysql(&mut tx)
                     .await?;
                 enqueue_mysql(

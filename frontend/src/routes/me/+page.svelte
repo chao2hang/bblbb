@@ -1,13 +1,17 @@
 <script lang="ts">
-  // M02-UX-05：/me 个人主页——概览枢纽。2026-09 功能拆分后本页只保留：
-  // - 个人资料卡（封面/头像/状态/签名/概览信息条，服务端安全投影，仅渲染
-  //   自身账号可见字段，不输出任何会话 token）；
-  // - 账号与安全状态卡（两步验证状态 + 设备数，管理入口 → /me/security；
-  //   会话撤销/退出全部设备与 TOTP/Passkey 管理已拆至 /me/security 与 /mfa）；
-  // - 侧栏：账户卡（站点消费货币/签到，GET /activity/summary 失败时整卡隐藏）、
-  //   M20-TRUST 信任等级进度卡、快捷入口网格（含全部子页入口）；
-  // - 我的处罚区块（GET /me/sanctions，后端端点落地前恒空；有记录时显示
+  // M02-UX-05：/me 个人主页——个人中心（tag「账户资产」默认页）。
+  // 移动端 IA 对齐成熟个人中心（淘宝/哔哩哔哩：统计条 + 分组列表；
+  // linux.do/GitHub：身份头 + 独立 tab 页），结构：
+  // - 资料卡（通栏 hero：封面/头像/徽章/双按钮/签名，服务端安全投影，
+  //   不输出任何会话 token）；
+  // - 资产统计条（三个可点统计卡：余额/签到 → /me/balance，设备 →
+  //   /me/security；GET /activity/summary 失败时整条隐藏）；
+  // - 分组 cell 列表（内容与互动 / 资产与凭证 / 账户与偏好，全部入口）；
+  // - 我的处罚区块（GET /me/sanctions，空列表不渲染；有记录时显示
   //   类型/原因/时间 + 去申诉入口）。
+  // 分区导航：MeIdentityBar 身份条 + MeSectionTabs tag 栏（每个 tag
+  // 独立路由页面）——账号安全 → /me/security，信任等级 → /me/level，
+  // 状态/进度详情在对应页面，本页不重复。
   import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
   import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
   import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
@@ -21,7 +25,8 @@
   import { normalizeSlot, projectEntitlementTokens } from '$lib/components/wardrobe/tokens';
   import { profileEffectClass, profileEffectStyle } from '$lib/components/wardrobe/profile-effect';
   import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
-
+  import MeSectionTabs from '$lib/components/MeSectionTabs.svelte';
+  import MeIdentityBar from '$lib/components/MeIdentityBar.svelte';
 
   let { data }: { data: MePageData } = $props();
 
@@ -37,19 +42,43 @@
   const trust = $derived(data.trust ?? null);
   const coinBalance = $derived((activity?.balances ?? []).find((b) => b.currency === 'coin'));
 
-  /** 侧栏图标化快捷入口。 */
-  const quickLinks = [
-    { href: '/me/wardrobe', icon: 'sparkles', label: '我的装扮' },
-    { href: '/me/security', icon: 'shield', label: '安全中心' },
-    { href: '/settings', icon: 'settings', label: '账号设置' },
+  // ── 分区导航 ─────────────────────────────────────────────────────────
+  // 移动端 tag 栏（MeSectionTabs）：每个 tag 是独立路由页面
+  // （/me 账户资产 · /me/security 账号安全 · /me/level 信任等级），
+  // 账号安全与信任等级的状态/进度详情已拆至对应页面，本页不再重复。
+  // 身份条（MeIdentityBar）置于资料卡与 tag 栏之间，≤767px 吸顶：
+  // 与另两个 tag 页共用，滚动/切页时身份恒定可见。
+
+  // ── 分组功能列表（成熟个人中心 IA：统计条 + 分组 cell 列表）──────────
+  // 参考淘宝/哔哩哔哩个人中心（统计条 + 分组列表）与 linux.do/GitHub
+  // （身份头 + 独立 tab 页）的通用解剖：全部功能入口按领域分组，
+  // 每行 = 图标 + 名称 + 动态值 + chevron，整行可点。高频分区走 tag 栏
+  // （独立路由页面），此处是完整清单。
+  interface MeCell {
+    href: string;
+    icon: string;
+    label: string;
+  }
+
+  const contentCells: MeCell[] = [
     { href: '/favorites', icon: 'star', label: '我的收藏' },
-    { href: '/me/level', icon: 'award', label: '我的等级' },
     { href: '/me/attachments', icon: 'paperclip', label: '我的附件' },
+    { href: '/messages', icon: 'mail', label: '私信' }
+  ];
+
+  const assetCells: MeCell[] = [
     { href: '/me/balance', icon: 'coins', label: '积分明细' },
-    { href: '/messages', icon: 'mail', label: '私信' },
-    { href: '/apikeys', icon: 'key', label: 'API 密钥' },
-    { href: '/me/billing', icon: 'download', label: '下载账单' }
-  ] as const;
+    { href: '/me/billing', icon: 'download', label: '下载账单' },
+    { href: '/apikeys', icon: 'key', label: 'API 密钥' }
+  ];
+
+  const accountCells: MeCell[] = [
+    { href: '/me/security', icon: 'shield', label: '账号与安全' },
+    { href: '/settings', icon: 'settings', label: '账号设置' },
+    { href: '/settings#settings-notifications', icon: 'bell', label: '通知设置' },
+    { href: '/settings#settings-oauth', icon: 'key', label: 'OAuth 授权' },
+    { href: '/me/level', icon: 'award', label: '信任等级' }
+  ];
 
   /** 处罚类型中文标签（moderation SanctionKind；未知值原样展示）。 */
   const sanctionKindLabels: Record<string, string> = {
@@ -384,9 +413,9 @@
               <span class="badge badge-brand">✨ {cosmeticPresentation.post_effect_name ?? '帖子装饰'}</span>
             {/if}
           </div>
-          <div class="me-actions" style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+          <div class="me-actions">
             <Button text="编辑资料" variant="secondary" size="sm" icon="edit-3" href="/settings" />
-            <Button text="我的装扮" variant="ghost" size="sm" icon="sparkles" href="/me/wardrobe" />
+            <Button text="我的装扮" variant="secondary" size="sm" icon="sparkles" href="/me/wardrobe" />
           </div>
         </div>
 
@@ -395,167 +424,91 @@
         {:else}
           <p class="me-bio is-empty">暂无个性签名</p>
         {/if}
-
-        <div class="me-info-strip">
-          <div class="me-info-item">
-            <span class="me-info-label">用户名</span>
-            <span class="me-info-value">@{user.username}</span>
-          </div>
-          <div class="me-info-item">
-            <span class="me-info-label">账号状态</span>
-            <span class="me-info-value">
-              <span class="badge {statusBadge(user.status)}">{statusLabel[user.status] ?? user.status}</span>
-            </span>
-          </div>
-          <div class="me-info-item">
-            <span class="me-info-label">角色</span>
-            <span class="me-info-value">
-              {#if user.roles.length > 0}
-                <span class="badge badge-role-admin">{roleLabel(user.roles[0])}</span>
-              {:else}
-                <span class="badge badge-neutral">成员</span>
-              {/if}
-            </span>
-          </div>
-          {#if activity}
-            <div class="me-info-item">
-              <span class="me-info-label">{currencyName}</span>
-              <span class="me-info-value"><strong>{coinBalance ? coinBalance.amount : 0}</strong></span>
-            </div>
-            <div class="me-info-item">
-              <span class="me-info-label">签到</span>
-              <span class="me-info-value"><strong>{activity.streak_days}</strong> 天</span>
-            </div>
-          {/if}
-          <div class="me-info-item">
-            <span class="me-info-label">登录设备</span>
-            <span class="me-info-value"><strong>{sessions.length}</strong> 台</span>
-          </div>
-        </div>
       </div>
     </section>
 
-    <!-- 快捷导航（紧贴资料卡下方，简洁行内链接；设备与两步验证归入安全中心） -->
-    <nav class="me-nav" aria-label="快捷导航">
-      <a href="/me/security"><Icon name="shield" size={14} />安全中心</a>
-      <a href="/settings"><Icon name="settings" size={14} />账号设置</a>
-      <a href="/settings#settings-notifications"><Icon name="bell" size={14} />通知设置</a>
-      <a href="/settings#settings-oauth"><Icon name="key" size={14} />OAuth 授权</a>
-    </nav>
+    <!-- 固定身份条（≤767px 吸顶）：头像/昵称/等级，与分区 tag 栏叠成连续头部 -->
+    <MeIdentityBar
+      name={user.display_name || user.username}
+      username={user.username}
+      level={trust?.level ?? user.level ?? 0}
+      avatarAttachmentId={user.avatar_attachment_id}
+      seed={user.username ?? user.id}
+    />
 
-    <div class="content-grid" style="margin-top:var(--space-4);">
+    <!-- 分区 tag 栏：每个 tag = 独立路由页面（账户资产 /me · 账号安全
+         /me/security · 信任等级 /me/level）。桌面隐藏。 -->
+    <MeSectionTabs />
+
+    <!-- 资产统计条：三个可点统计卡（淘宝式）——余额/签到 → 积分明细，设备 → 安全 -->
+    {#if activity}
+      <div class="me-stat-row" style="margin-top:10px;" role="group" aria-label="账户资产统计">
+        <a class="me-stat" href="/me/balance">
+          <span class="me-stat-value">{coinBalance ? coinBalance.amount : 0}</span>
+          <span class="me-stat-label">{currencyName}余额</span>
+        </a>
+        <a class="me-stat" href="/me/balance">
+          <span class="me-stat-value">{activity.streak_days}<span class="me-stat-unit">天</span></span>
+          <span class="me-stat-label">{activity.checked_in_today ? '今日已签' : '连续签到'}</span>
+        </a>
+        <a class="me-stat" href="/me/security">
+          <span class="me-stat-value">{sessions.length}<span class="me-stat-unit">台</span></span>
+          <span class="me-stat-label">登录设备</span>
+        </a>
+      </div>
+    {/if}
+
+    <!-- 分组功能列表：全部入口按领域分组（成熟个人中心 IA 的导航主体） -->
+    <div class="content-grid" style="margin-top:10px;">
       <div class="main-col">
-        <!-- 账号与安全状态：概览计数 + 唯一管理入口（/me/security） -->
-        <div class="card" id="security">
-          <div class="card-header">
-            <span class="card-title">账号与安全</span>
-            <a class="me-sec-link" href="/me/security">安全中心<Icon name="chevron-right" size={14} /></a>
+        <div class="card me-cell-card">
+          <div class="card-header"><span class="card-title">内容与互动</span></div>
+          <div class="card-body me-cell-list">
+            <a class="me-cell" href="/users/{encodeURIComponent(user.username)}?tab=posts">
+              <span class="me-cell-icon"><Icon name="list" size={16} /></span>
+              <span class="me-cell-label">我的帖子</span>
+              <Icon class="me-cell-chevron" name="chevron-right" size={14} />
+            </a>
+            {#each contentCells as cell (cell.href)}
+              <a class="me-cell" href={cell.href}>
+                <span class="me-cell-icon"><Icon name={cell.icon} size={16} /></span>
+                <span class="me-cell-label">{cell.label}</span>
+                <Icon class="me-cell-chevron" name="chevron-right" size={14} />
+              </a>
+            {/each}
           </div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2);">
-            <div class="me-sec-strip">
-              <span class="me-sec-item">
-                <Icon name="shield" size={14} />
-                <span>两步验证</span>
-                <span class="badge {user.mfa_enabled ? 'badge-success' : 'badge-neutral'}">
-                  {user.mfa_enabled ? '已启用' : '未启用'}
-                </span>
-              </span>
-              <span class="me-sec-item">
-                <Icon name="smartphone" size={14} />
-                <span>登录设备 <strong>{sessions.length}</strong> 台</span>
-              </span>
-            </div>
-            <p class="me-sec-hint">登录密码、两步验证（TOTP/Passkey）与在线设备管理都在安全中心。</p>
+        </div>
+
+        <div class="card me-cell-card">
+          <div class="card-header"><span class="card-title">资产与凭证</span></div>
+          <div class="card-body me-cell-list">
+            {#each assetCells as cell (cell.href)}
+              <a class="me-cell" href={cell.href}>
+                <span class="me-cell-icon"><Icon name={cell.icon} size={16} /></span>
+                <span class="me-cell-label">{cell.label}</span>
+                {#if cell.href === '/me/balance' && activity}
+                  <span class="me-cell-value">{coinBalance ? coinBalance.amount : 0}</span>
+                {/if}
+                <Icon class="me-cell-chevron" name="chevron-right" size={14} />
+              </a>
+            {/each}
           </div>
         </div>
       </div>
       <div class="side-col">
-        <!-- 账户卡：资产 / 签到 + 快捷操作（等级体系已统一为信任等级 TL0–TL4） -->
-        {#if activity}
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">账户与资产</span>
-              <span class="badge badge-level">TL{trust?.level ?? user.level ?? 0}</span>
-            </div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;">
-                <span class="text-secondary" style="font-size:var(--text-sm);">{currencyName}余额</span>
-                <strong style="font-variant-numeric:tabular-nums;">{coinBalance ? coinBalance.amount : '—'}</strong>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:baseline;">
-                <span class="text-secondary" style="font-size:var(--text-sm);">连续签到</span>
-                <span style="font-variant-numeric:tabular-nums;">{activity.streak_days} 天{activity.checked_in_today ? '（今日已签）' : ''}</span>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-1);padding-top:var(--space-3);border-top:var(--border-default);">
-                <Button text="发布新帖" variant="primary" size="sm" icon="pen-line" href="/editor" />
-                <a class="btn btn-secondary btn-sm" href="/me/balance" style="text-align:center;">签到 / 积分明细</a>
-                <a class="btn btn-secondary btn-sm" href="/me/level" style="text-align:center;">社区信任等级中心</a>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        <!-- M20-TRUST 信任等级卡：当前等级 + 下一级逐项进度（LinuxDo 式 TL0–TL4） -->
-        {#if trust}
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">信任等级</span>
-              <span class="badge badge-level">TL{trust.level} · {trust.name}</span>
-            </div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3);">
-              {#if trust.grace_until}
-                <p class="input-hint" style="margin:0;">
-                  TL3 考核宽限期至 {new Date(trust.grace_until).toLocaleDateString()}，期间不降级。
-                </p>
-              {/if}
-              {#if trust.next_level}
-                {@const next = trust.next_level}
-                {#if next.manual_only}
-                  <p class="input-hint" style="margin:0;">
-                    TL{next.level}（{next.name}）仅可由工作人员手动授予。
-                  </p>
-                {:else}
-                  <p class="input-hint" style="margin:0;">
-                    距 TL{next.level}（{next.name}）
-                    {next.eligible ? '条件已全部满足，待系统晋升。' : '：'}
-                  </p>
-                  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-1);">
-                    {#each next.requirements as req (req.key)}
-                      <li style="display:flex;justify-content:space-between;gap:var(--space-2);font-size:var(--text-sm);">
-                        <span style={req.met ? 'color:var(--color-success);' : 'color:var(--color-danger);'}>
-                          {req.met ? '✓' : '·'} {req.label}
-                        </span>
-                        <span style="font-variant-numeric:tabular-nums;white-space:nowrap;" class="text-secondary">
-                          {req.current} / {req.required}
-                        </span>
-                      </li>
-                    {/each}
-                  </ul>
+        <div class="card me-cell-card">
+          <div class="card-header"><span class="card-title">账户与偏好</span></div>
+          <div class="card-body me-cell-list">
+            {#each accountCells as cell (cell.href)}
+              <a class="me-cell" href={cell.href}>
+                <span class="me-cell-icon"><Icon name={cell.icon} size={16} /></span>
+                <span class="me-cell-label">{cell.label}</span>
+                {#if cell.href === '/me/security'}
+                  <span class="me-cell-value">{sessions.length} 台设备</span>
                 {/if}
-              {/if}
-              {#if trust.summary}
-                <p class="input-hint" style="margin:0;">{trust.summary}</p>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        <!-- 快捷入口 -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">快捷入口</span></div>
-          <div class="card-body">
-            <div class="quick-grid">
-              {#each quickLinks as link (link.href)}
-                <a href={link.href} class="quick-link">
-                  <Icon name={link.icon} size={15} />
-                  <span>{link.label}</span>
-                </a>
-              {/each}
-              <a href="/users/{encodeURIComponent(user.username)}?tab=posts" class="quick-link">
-                <Icon name="list" size={15} />
-                <span>我的帖子</span>
+                <Icon class="me-cell-chevron" name="chevron-right" size={14} />
               </a>
-            </div>
+            {/each}
           </div>
         </div>
       </div>
@@ -563,7 +516,7 @@
 
     {#if sanctions.length > 0}
       <!-- GAP-FIX 我的处罚：load 取 GET /me/sanctions；空列表时不渲染此卡。 -->
-      <div class="card" style="margin-top:var(--space-5);border-color:var(--color-warning);">
+      <div class="card" id="sanctions" style="margin-top:var(--space-5);border-color:var(--color-warning);">
         <div class="card-header">
           <span class="card-title">我的处罚记录</span>
           <span class="badge badge-warning">{sanctions.length} 条</span>
@@ -598,87 +551,95 @@
 </div>
 
 <style>
-  /* 侧栏图标化快捷入口 */
-  .quick-grid {
+  /* ── 资产统计条：一张卡三列可点统计（≤767px 在 mobile.css §20 通栏化） */
+  .me-stat-row {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-2);
-  }
-  .quick-link {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: 10px 11px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     background: var(--color-bg-card);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    text-decoration: none;
-    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
   }
-  .quick-link:hover {
-    border-color: var(--color-brand);
-    color: var(--color-brand);
-    background: var(--color-bg-subtle);
-  }
-  /* 快捷导航条：紧贴资料卡下方，行内图标链接 */
-  .me-nav {
+  .me-stat {
     display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    margin-top: var(--space-3);
-    padding: var(--space-2) 0;
-    flex-wrap: wrap;
-  }
-  .me-nav a {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    text-decoration: none;
-    transition: color 0.15s, background 0.15s;
-  }
-  .me-nav a:hover {
-    color: var(--color-brand);
-    background: var(--color-bg-subtle);
-  }
-  /* 账号与安全状态卡 */
-  .me-sec-link {
-    display: inline-flex;
+    flex-direction: column;
     align-items: center;
     gap: 2px;
-    font-size: var(--text-sm);
-    color: var(--color-brand);
+    padding: 14px 8px 12px;
     text-decoration: none;
+    transition: background 0.15s ease;
   }
-  .me-sec-link:hover {
-    text-decoration: underline;
+  .me-stat + .me-stat {
+    border-left: 1px solid var(--color-border);
   }
-  .me-sec-strip {
+  .me-stat:hover {
+    background: var(--color-bg-subtle);
+  }
+  .me-stat-value {
+    font-size: 18px;
+    font-weight: var(--weight-bold);
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .me-stat-unit {
+    font-size: 12px;
+    font-weight: var(--weight-medium);
+    color: var(--color-text-tertiary);
+    margin-left: 1px;
+  }
+  .me-stat-label {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* ── 分组 cell 列表：iOS 设置式行（图标 + 名称 + 值 + chevron）──────── */
+  .me-cell-list {
+    display: flex;
+    flex-direction: column;
+    padding: 0 !important;
+  }
+  .me-cell {
     display: flex;
     align-items: center;
-    gap: var(--space-2) var(--space-4);
-    flex-wrap: wrap;
-  }
-  .me-sec-item {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-sm);
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 14px;
     color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transition: background 0.15s ease;
   }
-  .me-sec-item strong {
-    font-variant-numeric: tabular-nums;
+  .me-cell + .me-cell {
+    border-top: 1px solid var(--color-border-muted, var(--color-border));
   }
-  .me-sec-hint {
-    margin: 0;
+  .me-cell:hover {
+    background: var(--color-bg-subtle);
+  }
+  .me-cell-icon {
+    display: inline-flex;
+    color: var(--color-text-secondary);
+  }
+  .me-cell-label {
+    flex: 1;
+    min-width: 0;
+  }
+  .me-cell-value {
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
+  .me-cell-chevron {
+    color: var(--color-text-tertiary);
+    flex: 0 0 auto;
+  }
+
   /* 个人信息卡片（参考信息小卡片） */
   .me-profile-card {
     position: relative;
@@ -748,7 +709,7 @@
     white-space: nowrap;
   }
   :global(html.dark) .me-name {
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 1px 4px var(--color-overlay);
   }
   .me-handle {
     font-size: var(--text-xs);
@@ -756,7 +717,7 @@
     line-height: 1.2;
   }
   :global(html.dark) .me-handle {
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 1px 3px var(--color-overlay);
   }
   .me-body {
     position: relative;
@@ -794,31 +755,6 @@
     color: var(--color-text-tertiary);
     font-style: italic;
   }
-  .me-info-strip {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    padding: var(--space-2) var(--space-3);
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    font-size: var(--text-xs);
-  }
-  .me-info-item {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .me-info-label {
-    color: var(--color-text-tertiary);
-  }
-  .me-info-value {
-    color: var(--color-text-primary);
-  }
-  .me-info-value strong {
-    font-variant-numeric: tabular-nums;
-  }
   @media (max-width: 767px) {
     :global(.me-cover) {
       height: 110px;
@@ -839,11 +775,6 @@
     .me-body {
       padding: var(--space-3);
       padding-top: calc(var(--space-3) + 16px);
-    }
-    .me-info-strip {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-2);
     }
   }
 </style>

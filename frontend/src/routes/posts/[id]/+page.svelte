@@ -19,7 +19,9 @@
   // 保持零 POST 表单（M04-UI-09 回归测试约束），收藏/解锁需 JS 属可接受
   // 退化（分享/举报无 JS 仍可用：链接文本 + 普通链接）。
   import { onMount } from 'svelte';
+  import { page } from '$app/state';
   import { goto, invalidateAll } from '$app/navigation';
+  import ReportDialog from '$lib/components/ReportDialog.svelte';
   import {
     listComments,
     createComment,
@@ -197,6 +199,27 @@
   let editText = $state('');
   let editProblem = $state<Problem | null>(null);
   let deletingId = $state<string | null>(null);
+
+  // ── 举报弹窗（弹窗代替单独页面）──
+  let reportDialogOpen = $state(false);
+  let reportTargetType = $state<'post' | 'comment' | string>('post');
+  let reportTargetId = $state('');
+  let reportTargetTitle = $state('');
+
+  function openReportModal(type: 'post' | 'comment' | string, id: string, title?: string) {
+    reportTargetType = type;
+    reportTargetId = id;
+    reportTargetTitle = title ?? '';
+    reportDialogOpen = true;
+  }
+
+  let autoReportHandled = false;
+  $effect(() => {
+    if (!autoReportHandled && authed && post && page.url.searchParams.get('report')) {
+      autoReportHandled = true;
+      openReportModal('post', post.id, post.title);
+    }
+  });
 
   // ── GAP-FIX：收藏（viewer 态来自 load 投影，交互后乐观更新）──
   let favorited = $state(false);
@@ -846,7 +869,7 @@
             <div
               class="admin-preview-banner is-deleted"
               role="status"
-              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(239, 68, 68, 0.12);border:1px solid rgba(239, 68, 68, 0.35);color:#ef4444;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:var(--color-danger-soft);border:1px solid var(--color-danger-border);color:var(--color-danger);font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
             >
               <Icon name="alert-triangle" size={16} />
               <span>【管理员预览】此帖子已被软删除，当前仅具备管理权限的人员可见。</span>
@@ -855,7 +878,7 @@
             <div
               class="admin-preview-banner is-pending"
               role="status"
-              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(245, 158, 11, 0.12);border:1px solid rgba(245, 158, 11, 0.35);color:#d97706;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:var(--color-warning-soft);border:1px solid color-mix(in srgb, var(--color-warning) 35%, transparent);color:var(--color-warning);font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
             >
               <Icon name="shield-alert" size={16} />
               <span>【待审核预览】此帖子处于待审核状态（pending_review），尚未公开。</span>
@@ -864,7 +887,7 @@
             <div
               class="admin-preview-banner is-draft"
               role="status"
-              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(100, 116, 139, 0.12);border:1px solid rgba(100, 116, 139, 0.35);color:#64748b;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:var(--color-bg-subtle);border:1px solid var(--color-border);color:var(--color-text-secondary);font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
             >
               <Icon name="file-text" size={16} />
               <span>【草稿预览】此帖子为草稿状态，尚未公开发布。</span>
@@ -873,7 +896,7 @@
             <div
               class="admin-preview-banner is-hidden"
               role="status"
-              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:rgba(107, 114, 128, 0.12);border:1px solid rgba(107, 114, 128, 0.35);color:#6b7280;font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
+              style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md, 6px);background:var(--color-bg-subtle);border:1px solid var(--color-border);color:var(--color-text-tertiary);font-size:13px;font-weight:600;margin-bottom:var(--space-4);"
             >
               <Icon name="eye-off" size={16} />
               <span>【已隐藏预览】此帖子已被下架隐藏，仅管理人员可见。</span>
@@ -1075,6 +1098,12 @@
                   : `/login?next=${encodeURIComponent(`/moderation/report?post=${post.id}`)}`}
                 class="btn btn-ghost btn-sm"
                 style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px;"
+                onclick={(event) => {
+                  if (authed) {
+                    event.preventDefault();
+                    openReportModal('post', post.id, post.title);
+                  }
+                }}
               >
                 <Icon name="flag" size={14} />
                 <span>{authed ? '举报' : '登录后举报'}</span>
@@ -1288,6 +1317,12 @@
                               class="btn btn-ghost btn-sm"
                               style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;"
                               aria-label="举报 {authorLabel(comment)} 的回复"
+                              onclick={(event) => {
+                                if (authed) {
+                                  event.preventDefault();
+                                  openReportModal('comment', comment.id, `${authorLabel(comment)} 的回复`);
+                                }
+                              }}
                             >
                               <Icon name="flag" size={14} />
                               举报
@@ -1505,6 +1540,12 @@
               href={authed
                 ? `/moderation/report?post=${encodeURIComponent(post.id)}`
                 : `/login?next=${encodeURIComponent(`/moderation/report?post=${post.id}`)}`}
+              onclick={authed
+                ? (event) => {
+                    event.preventDefault();
+                    openReportModal('post', post.id, post.title);
+                  }
+                : undefined}
             />
           </div>
           {#if favoriteCount > 0}
@@ -1522,6 +1563,15 @@
     </div>
   {/if}
 </div>
+
+{#if authed}
+  <ReportDialog
+    bind:open={reportDialogOpen}
+    targetType={reportTargetType}
+    targetId={reportTargetId}
+    targetTitle={reportTargetTitle}
+  />
+{/if}
 
 <style>
   /* 未登录引导 CTA：长文案在侧栏操作区独占整行。

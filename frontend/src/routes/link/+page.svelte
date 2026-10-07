@@ -87,12 +87,12 @@
     width: 100%;
     min-height: 100vh;
     min-height: 100dvh;
-    background-color: #16171a;
-    color: #ffffff;
+    background-color: var(--color-bg-page);
+    color: var(--color-text-primary);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    font-family: var(--font-family-base);
     padding: 24px 32px;
   }
 
@@ -108,7 +108,7 @@
     align-items: center;
     gap: 10px;
     text-decoration: none;
-    color: #ffffff;
+    color: var(--color-text-primary);
     transition: opacity 0.2s;
   }
 
@@ -122,9 +122,10 @@
     flex-shrink: 0;
     width: 26px;
     height: 26px;
-    border: 1px solid #64748b;
+    border: 1px solid var(--color-border);
     border-radius: 50%;
-    color: #e2e8f0;
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
     font-size: 18px;
   }
 
@@ -132,7 +133,7 @@
     font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.2px;
-    color: #ffffff;
+    color: var(--color-text-primary);
   }
 
   /* 主体区域 */
@@ -161,10 +162,10 @@
     place-items: center;
     width: 112px;
     height: 112px;
-    border: 1px solid #64748b;
+    border: 1px solid var(--color-border);
     border-radius: 50%;
-    background: radial-gradient(circle, #293241 0%, #1d232c 70%);
-    color: #e2e8f0;
+    background: var(--color-bg-card);
+    color: var(--color-brand);
     font-size: 64px;
     line-height: 1;
   }
@@ -173,7 +174,7 @@
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #f3f4f6;
+    color: var(--color-text-primary);
     letter-spacing: 0.3px;
     line-height: 1.5;
   }
@@ -181,14 +182,14 @@
   .link-url-text {
     margin-top: 10px;
     font-size: 13px;
-    color: #8c92a4;
+    color: var(--color-text-secondary);
     word-break: break-all;
     max-width: min(640px, 90vw);
     line-height: 1.5;
   }
 
   .link-url-error {
-    color: #d1d5db;
+    color: var(--color-danger);
   }
 
   .link-action-group {
@@ -199,12 +200,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background-color: #b9380b;
-    color: #ffffff;
+    background-color: var(--color-brand);
+    color: var(--color-text-on-brand);
     font-size: 14px;
     font-weight: 500;
     padding: 8px 30px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     text-decoration: none;
     cursor: pointer;
     transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
@@ -212,8 +213,8 @@
   }
 
   .link-proceed-btn:hover {
-    background-color: #a53009;
-    box-shadow: 0 4px 14px rgba(242, 95, 34, 0.4);
+    background-color: var(--color-brand-hover);
+    box-shadow: var(--shadow-control);
   }
 
   .link-proceed-btn:active {
@@ -221,16 +222,18 @@
   }
 
   .link-proceed-btn:focus-visible {
-    box-shadow: 0 0 0 3px rgba(242, 95, 34, 0.5);
+    box-shadow: var(--color-focus-ring);
   }
 
   .link-home-btn {
-    background-color: #374151;
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
   }
 
   .link-home-btn:hover {
-    background-color: #4b5563;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    background-color: var(--color-surface-hover);
+    box-shadow: var(--shadow-control);
   }
 
   /* 底栏 */
@@ -245,14 +248,14 @@
   }
 
   .link-footer-item {
-    color: #cbd5e1;
+    color: var(--color-text-secondary);
     text-decoration: underline;
     text-underline-offset: 0.2em;
     transition: color 0.2s;
   }
 
   .link-footer-item:hover {
-    color: #ffffff;
+    color: var(--color-text-primary);
   }
 
   /* 移动端适配 */

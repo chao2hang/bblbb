@@ -177,7 +177,7 @@
 </script>
 
 {#if frameCustom?.css}
-  <svelte:element this={'style'}>
+  <svelte:element this={'style'} style="display:none;">
     {frameCustom.css}
   </svelte:element>
 {/if}
@@ -228,6 +228,9 @@
 </span>
 
 <style>
+  :global(style) {
+    display: none !important;
+  }
   .cosmetic-avatar { position: relative; display: inline-flex; flex: 0 0 auto; width: max-content; height: max-content; vertical-align: middle; }
   /* 头像与头像边框圆角联动：
      1. 若明确标记为圆形框，头像裁切为 50% 完美正圆；

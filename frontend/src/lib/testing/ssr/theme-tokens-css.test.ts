@@ -116,4 +116,49 @@ describe('M13-THEME theme-tokens.css 契约', () => {
     expect(elegance).not.toContain('html[data-theme="midnight"]');
     expect(elegance).not.toContain('html[data-theme="cyberpunk"]');
   });
+
+  it('tokens.css 包含完整的幽灵 Token 别名桥（保证历史类与组件统一跟随主题）', () => {
+    const tokensCss = readFileSync(`${STYLES_DIR}tokens.css`, 'utf8');
+    const requiredAliases = [
+      '--title: var(--color-text-primary)',
+      '--muted: var(--color-text-secondary)',
+      '--faint: var(--color-text-tertiary)',
+      '--on-brand: var(--color-text-on-brand)',
+      '--color-text: var(--color-text-primary)',
+      '--color-primary: var(--color-brand)',
+      '--color-primary-rgb:',
+      '--color-bg: var(--color-bg-page)',
+      '--color-bg-secondary: var(--color-bg-subtle)',
+      '--color-surface-muted: var(--color-bg-subtle)',
+      '--font-mono: var(--font-family-mono)',
+      '--shadow-sm:'
+    ];
+    for (const alias of requiredAliases) {
+      expect(tokensCss).toContain(alias);
+    }
+  });
+
+  it('tokens.css html.dark 与 media query 暗色回退块严格对齐（零漂移契约）', () => {
+    const tokensCss = readFileSync(`${STYLES_DIR}tokens.css`, 'utf8');
+    const darkStart = tokensCss.indexOf('html.dark {');
+    const darkEnd = tokensCss.indexOf('}\n\n/* System-level dark fallback', darkStart);
+    const darkBlock = tokensCss.slice(darkStart, darkEnd);
+
+    const mediaStart = tokensCss.indexOf('html:not(.light):not(.dark) {', darkEnd);
+    const mediaEnd = tokensCss.indexOf('  }\n}', mediaStart);
+    const mediaBlock = tokensCss.slice(mediaStart, mediaEnd);
+
+    const extractVars = (block: string) =>
+      block
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.startsWith('--'))
+        .sort();
+
+    const darkVars = extractVars(darkBlock);
+    const mediaVars = extractVars(mediaBlock);
+
+    expect(darkVars.length).toBeGreaterThan(50);
+    expect(darkVars).toEqual(mediaVars);
+  });
 });

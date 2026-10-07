@@ -21,6 +21,7 @@
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import BatchBar from '$lib/components/admin/BatchBar.svelte';
   import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
+  import TablePagination from '$lib/components/admin/TablePagination.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
   import { adminStateLabel } from '$lib/admin';
@@ -58,18 +59,32 @@
     if (statusFilter === 'merged') list = list.filter((i) => i.status === 'merged');
     return list;
   });
+
+  let currentPage = $state(1);
+  let pageSize = $state(10);
+
+  $effect(() => {
+    void q;
+    void statusFilter;
+    currentPage = 1;
+  });
+
+  const pagedItems = $derived(
+    displayedItems.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  );
+
   let submitting = $state(false);
   const allSelected = $derived(
-    displayedItems.length > 0 && displayedItems.every((item) => selectedIds.includes(item.id))
+    pagedItems.length > 0 && pagedItems.every((item) => selectedIds.includes(item.id))
   );
   const someSelected = $derived(
-    displayedItems.some((item) => selectedIds.includes(item.id))
+    pagedItems.some((item) => selectedIds.includes(item.id))
   );
   function toggleAll() {
     if (allSelected) {
-      selectedIds = selectedIds.filter((id) => !displayedItems.some((i) => i.id === id));
+      selectedIds = selectedIds.filter((id) => !pagedItems.some((i) => i.id === id));
     } else {
-      const currentIds = displayedItems.map((i) => i.id);
+      const currentIds = pagedItems.map((i) => i.id);
       selectedIds = Array.from(new Set([...selectedIds, ...currentIds]));
     }
   }
@@ -291,7 +306,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each displayedItems as item (item.id)}
+              {#each pagedItems as item (item.id)}
                 <tr>
                   <td style="text-align:center;">
                     <input
@@ -327,6 +342,13 @@
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        bind:currentPage
+        bind:pageSize
+        totalItems={displayedItems.length}
+        noun="个标签"
+      />
     {/if}
     {/if}
 

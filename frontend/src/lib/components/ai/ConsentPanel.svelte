@@ -80,7 +80,7 @@
       {/if}
     {:else}
       <strong>发送前请阅读并确认</strong>
-      <pre class="ai-disclosure" style="white-space:pre-wrap;font-family:inherit;margin:0;padding:var(--space-2);background:var(--color-bg-subtle, rgba(0,0,0,0.04));border-radius:var(--radius-md);font-size:var(--text-sm);">{disclosureText}</pre>
+      <pre class="ai-disclosure" style="white-space:pre-wrap;font-family:inherit;margin:0;padding:var(--space-2);background:var(--color-bg-subtle);border-radius:var(--radius-md);font-size:var(--text-sm);">{disclosureText}</pre>
       <p class="input-hint" style="margin:0;">
         数据模式：{aiDataModeLabel(dataMode)} · 披露版本 v{disclosureVersion}（hash {disclosureHashValue}）。
         发送内容仅用于本次建议，不会自动处罚或修改权限。

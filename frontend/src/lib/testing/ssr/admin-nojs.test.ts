@@ -10,6 +10,8 @@ import AdminBoards from '../../../routes/admin/boards/+page.svelte';
 import AdminTags from '../../../routes/admin/tags/+page.svelte';
 import AdminRoles from '../../../routes/admin/roles/+page.svelte';
 import AdminAssignments from '../../../routes/admin/assignments/+page.svelte';
+import AdminRisk from '../../../routes/admin/moderation/risk/+page.svelte';
+import AdminAchievements from '../../../routes/admin/achievements/+page.svelte';
 
 describe('M03-UI-07 管理板块页 SSR', () => {
   it('ok 状态渲染列表；not_implemented 渲染开发中状态', () => {
@@ -132,5 +134,81 @@ describe('M03-UI-07 管理标签/角色/Assignment 页 SSR', () => {
     expect(body).toMatch(/<form[^>]*action="\/admin\/assignments"[^>]*method="GET"|<form[^>]*method="GET"[^>]*action="\/admin\/assignments"/);
     expect(body).toContain('查找用户');
     expect(body).toContain('板块版主');
+  });
+});
+
+describe('M05-RISK-08 管理风控策略页 SSR', () => {
+  it('ok 状态：SSR 渲染发布风险规则与操作原因回退输入框', () => {
+    const { body } = render(AdminRisk, {
+      props: {
+        data: {
+          state: 'ok',
+          version: 1,
+          thresholds: {
+            new_user_max_posts: 3,
+            new_user_grace_secs: 604800,
+            max_links: 3,
+            sensitive_words: ['广告'],
+            max_frequency_posts: 10,
+            frequency_window_secs: 3600,
+            duplicate_window_secs: 604800
+          },
+          error: null
+        }
+      }
+    });
+    expect(body).toContain('发布风险规则');
+    expect(body).toContain('当前版本 v1');
+    expect(body).toContain('操作原因（写入审计日志，必填）');
+    expect(body).toContain('保存策略');
+  });
+
+  it('403 渲染无权限态', () => {
+    const { body } = render(AdminRisk, {
+      props: { data: { state: 'forbidden', version: 0, thresholds: null, error: 'forbidden' } }
+    });
+    expect(body).toContain('无权限');
+  });
+});
+
+describe('GAP-FIX 管理成就页 SSR（约定 A：按钮→弹层）', () => {
+  it('ok 状态：渲染「新建成就」触发按钮，创建表单收进 Dialog 不进 SSR HTML', () => {
+    const { body } = render(AdminAchievements, {
+      props: {
+        data: {
+          state: 'ok',
+          items: [
+            {
+              code: 'first_post',
+              name: '初来乍到',
+              description: '发布第一篇主题',
+              category: 'community',
+              icon_url: null,
+              condition_type: 'post_count',
+              condition_threshold: 1,
+              reward_coin: 10,
+              sort_order: 0,
+              is_hidden: false,
+              is_enabled: true,
+              version: 1,
+              unlocked_count: 5
+            }
+          ],
+          error: null
+        }
+      }
+    });
+    expect(body).toContain('成就定义');
+    expect(body).toContain('初来乍到');
+    // 写操作弹层化（约定 A）：SSR 渲染触发按钮，但不渲染常驻新建表单
+    expect(body).toContain('新建成就');
+    expect(body).not.toContain('action="?/create"');
+  });
+
+  it('403 渲染无权限态', () => {
+    const { body } = render(AdminAchievements, {
+      props: { data: { state: 'forbidden', items: null, error: 'forbidden' } }
+    });
+    expect(body).toContain('无权限');
   });
 });

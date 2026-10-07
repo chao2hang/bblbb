@@ -8,6 +8,7 @@
   import PageTitle from '$lib/components/PageTitle.svelte';
   import type { BalanceActionData, BalancePageData } from './+page.server';
   import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
+  import { formatLedgerAction } from '$lib/points/format';
 
   let { data, form }: { data: BalancePageData; form?: BalanceActionData | null } = $props();
 
@@ -179,7 +180,7 @@
     if (transactions.length > 0) {
       return transactions.slice(0, 30).map((t) => ({
         id: t.id,
-        title: t.memo || formatTxKind(t.kind),
+        title: formatLedgerAction(t.memo, t.kind, t.amount),
         amountText: `${t.amount >= 0 ? '+' : ''}${t.amount} ${currencyName}`,
         isPositive: t.amount >= 0,
         time: formatTxTime(t.created_at),
@@ -316,14 +317,14 @@
             >
               <style>
                 [data-chart="chart-_r_35_"] {
-                  --color-total: var(--color-brand, hsl(217, 91%, 60%));
-                  --color-income: var(--color-success, #10b981);
-                  --color-expense: var(--color-danger, #f43f5e);
+                  --color-total: var(--color-brand);
+                  --color-income: var(--color-success);
+                  --color-expense: var(--color-danger);
                 }
                 .dark [data-chart="chart-_r_35_"] {
-                  --color-total: var(--color-brand, hsl(217, 91%, 60%));
-                  --color-income: var(--color-success, #10b981);
-                  --color-expense: var(--color-danger, #f43f5e);
+                  --color-total: var(--color-brand);
+                  --color-income: var(--color-success);
+                  --color-expense: var(--color-danger);
                 }
               </style>
 
@@ -352,10 +353,10 @@
 
                     <!-- 背景参考栅格网格 -->
                     <g class="recharts-cartesian-grid" opacity="0.3">
-                      <line x1={startX} y1="40" x2={startX + chartWidth} y2="40" stroke="var(--color-border, #cbd5e1)" stroke-dasharray="3 3"></line>
-                      <line x1={startX} y1="88" x2={startX + chartWidth} y2="88" stroke="var(--color-border, #cbd5e1)" stroke-dasharray="3 3"></line>
-                      <line x1={startX} y1="138" x2={startX + chartWidth} y2="138" stroke="var(--color-border, #cbd5e1)" stroke-dasharray="3 3"></line>
-                      <line x1={startX} y1={baselineY} x2={startX + chartWidth} y2={baselineY} stroke="var(--color-border, #cbd5e1)"></line>
+                      <line x1={startX} y1="40" x2={startX + chartWidth} y2="40" stroke="var(--color-border)" stroke-dasharray="3 3"></line>
+                      <line x1={startX} y1="88" x2={startX + chartWidth} y2="88" stroke="var(--color-border)" stroke-dasharray="3 3"></line>
+                      <line x1={startX} y1="138" x2={startX + chartWidth} y2="138" stroke="var(--color-border)" stroke-dasharray="3 3"></line>
+                      <line x1={startX} y1={baselineY} x2={startX + chartWidth} y2={baselineY} stroke="var(--color-border)"></line>
                     </g>
 
                     <!-- 总积分 Area -->
@@ -363,7 +364,7 @@
                       <path fill="url(#colorTotal)" stroke="none" class="recharts-curve recharts-area-area" d={chartData.totalArea}></path>
                       <path fill="none" stroke="var(--color-total)" stroke-width="2.5" class="recharts-curve recharts-area-curve" d={chartData.totalCurve}></path>
                       {#each chartData.totalPts as pt}
-                        <circle cx={pt.x} cy={pt.y} r="3" fill="var(--color-bg-card, #ffffff)" stroke="var(--color-total)" stroke-width="2"></circle>
+                        <circle cx={pt.x} cy={pt.y} r="3" fill="var(--color-bg-card)" stroke="var(--color-total)" stroke-width="2"></circle>
                       {/each}
                     </g>
 
@@ -387,7 +388,7 @@
                           y={baselineY + 22}
                           text-anchor="middle"
                           font-size="11"
-                          fill="var(--color-text-secondary, #64748b)"
+                          fill="var(--color-text-secondary)"
                           font-family="inherit"
                         >{day.date}</text>
                       {/each}
@@ -395,8 +396,8 @@
 
                     <!-- Hover 指针线 -->
                     {#if hoverIndex !== null}
-                      <line x1={hoverX} y1="20" x2={hoverX} y2={baselineY} stroke="var(--color-border, #94a3b8)" stroke-width="1.2" stroke-dasharray="3 3"></line>
-                      <circle cx={hoverX} cy={hoverY} r="5" fill="var(--color-total)" stroke="var(--color-bg-card, #ffffff)" stroke-width="2.5"></circle>
+                      <line x1={hoverX} y1="20" x2={hoverX} y2={baselineY} stroke="var(--color-border-strong)" stroke-width="1.2" stroke-dasharray="3 3"></line>
+                      <circle cx={hoverX} cy={hoverY} r="5" fill="var(--color-total)" stroke="var(--color-bg-card)" stroke-width="2.5"></circle>
                     {/if}
                   </svg>
 

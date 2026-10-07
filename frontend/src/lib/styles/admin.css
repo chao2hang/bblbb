@@ -67,7 +67,7 @@
   border: 0 !important;
   border-right: 1px solid var(--color-border) !important;
   border-radius: 0 !important;
-  background: var(--color-bg-card, #10141a) !important;
+  background: var(--color-bg-card) !important;
   box-shadow: none !important;
   z-index: 40;
   overflow: hidden;
@@ -140,10 +140,10 @@
   gap: 4px;
   padding: 2px 6px;
   border-radius: var(--radius-full, 9999px);
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.28);
+  background: var(--color-success-soft);
+  border: 1px solid color-mix(in srgb, var(--color-success) 28%, transparent);
   font: 600 8.5px/1 var(--font-family-mono);
-  color: #10b981;
+  color: var(--color-success);
   letter-spacing: 0.06em;
 }
 
@@ -151,8 +151,8 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 5px rgba(16, 185, 129, 0.85);
+  background: var(--color-success);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--color-success) 85%, transparent);
   animation: adminPulse 2.4s infinite ease-in-out;
 }
 
@@ -573,7 +573,7 @@
 }
 
 .app-admin-icon-btn:hover {
-  border-color: var(--color-border-strong, #888);
+  border-color: var(--color-border-strong);
   color: var(--color-text-primary);
   background: var(--color-surface-hover);
 }
@@ -585,7 +585,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--color-danger, #ef4444);
+  background: var(--color-danger);
   box-shadow: 0 0 0 2px var(--color-bg-page);
 }
 
@@ -606,7 +606,7 @@
 }
 
 .app-admin-topbar__btn:hover {
-  border-color: var(--color-border-strong, #888);
+  border-color: var(--color-border-strong);
   color: var(--color-text-primary);
   background: var(--color-surface-hover);
 }
@@ -676,9 +676,9 @@
 }
 
 .app-admin-user__logout:hover {
-  border-color: color-mix(in srgb, var(--color-danger, #ef4444) 40%, transparent);
-  background: color-mix(in srgb, var(--color-danger, #ef4444) 10%, transparent);
-  color: var(--color-danger, #ef4444);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
 }
 
 /* 主内容容器 */
@@ -741,22 +741,45 @@
 }
 
 .admin-filter-bar > .app-field,
-.admin-filter-bar > input[type='search'] {
-  min-width: 220px;
-  flex: 1 1 260px;
+.admin-filter-bar > input[type='search'],
+.admin-filter-bar > input {
+  min-width: 200px;
+  max-width: 320px;
+  width: auto;
+  flex: 1 1 240px;
+  height: 38px !important;
+  min-height: 38px !important;
+  box-sizing: border-box;
 }
 
 .admin-filter-bar > .app-select,
 .admin-filter-bar > select {
-  min-width: 148px;
+  min-width: 120px;
+  width: 140px;
+  flex: 0 0 140px;
+  height: 38px !important;
+  min-height: 38px !important;
+  box-sizing: border-box;
+}
+
+.admin-filter-bar > .btn,
+.admin-filter-bar > button {
+  height: 38px !important;
+  min-height: 38px !important;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .admin-filter-bar__summary {
-  margin-right: auto;
+  margin-left: auto;
   color: var(--color-text-tertiary);
   font: 11px/1.4 var(--font-family-mono);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .admin-batch-bar {

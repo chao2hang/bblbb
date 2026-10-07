@@ -272,10 +272,7 @@
             <div class="sf-form-row">
               <div class="input-wrapper">
                 <label class="input-label" for="sp-bg-price">商城售价 ({currencyName}) *</label>
-                <div style="display:flex;align-items:center;gap:6px;">
-                  <input id="sp-bg-price" class="input-field" type="number" min="0" required bind:value={customPrice} disabled={submitting} style="flex:1;" />
-                  <span style="font-size:11px;color:#d97706;white-space:nowrap;">(原: {activeItem.cost}点)</span>
-                </div>
+                <input id="sp-bg-price" class="input-field" type="number" min="0" required bind:value={customPrice} disabled={submitting} />
               </div>
 
               <div class="input-wrapper">
@@ -352,7 +349,6 @@
               <div class="sbg-card__info">
                 <span class="sbg-card__name" title={item.name}>{item.name}</span>
                 <div class="sbg-card__meta">
-                  <span class="sbg-card__points">🪙 {item.cost} 点</span>
                   <button type="button" class="sbg-use-btn" onclick={(e) => { e.stopPropagation(); pickForPricing(item); }}>
                     定价上架
                   </button>
@@ -566,16 +562,14 @@
   .sbg-card__meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-top: 2px;
-  }
-  .sbg-card__points {
-    font-size: 11px;
-    color: #d97706;
+    justify-content: center;
+    margin-top: 4px;
+    width: 100%;
   }
   .sbg-use-btn {
+    width: 100%;
     font-size: 11px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     border-radius: 4px;
     background: rgba(192, 132, 252, 0.15);
     color: #9333ea;

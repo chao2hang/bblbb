@@ -24,8 +24,8 @@ use crate::storage::model::{AttachmentStatus, QuotaCounters, QuotaPolicy};
 pub const SITE_TOTAL_HARD_LIMIT_BYTES: i64 = 8 * 1024 * 1024 * 1024; // 8 GiB
 /// 单文件绝对硬上限（任何等级策略都不得超过）。
 pub const SITE_SINGLE_FILE_HARD_LIMIT_BYTES: i64 = 128 * 1024 * 1024; // 128 MiB
-/// 默认保留期（天，M06-QUOTA-09）。
-pub const DEFAULT_RETENTION_DAYS: i64 = 30;
+/// 默认保留期（天，M06-QUOTA-09；默认 7 天）。
+pub const DEFAULT_RETENTION_DAYS: i64 = 7;
 /// 预签名 URL 默认 TTL（秒；S3 直传/下载用，M06-QUOTA-08）。
 pub const PRESIGN_TTL_SECS: u64 = 300;
 /// 每日上传窗口（毫秒；滚动 24 小时口径）。
@@ -1096,7 +1096,10 @@ struct PurgeRow {
 }
 
 /// 附件当前引用数（`ref_count` 与 attachment_links 计数取非零较大者）。
-async fn reference_count(pool: &DatabasePool, attachment_id: &str) -> Result<i64, StorageError> {
+pub async fn reference_count(
+    pool: &DatabasePool,
+    attachment_id: &str,
+) -> Result<i64, StorageError> {
     let (cached, links): (i64, i64) = match pool {
         Either::Left(p) => {
             let cached: i64 = sqlx::query_scalar("SELECT ref_count FROM attachments WHERE id = ?")
@@ -1153,7 +1156,7 @@ async fn retention_days_for_owner(
 }
 
 /// 物理删除附件行（清理完成；对象已删除、容量已释放）。
-async fn delete_attachment_row(
+pub async fn delete_attachment_row(
     pool: &DatabasePool,
     attachment_id: &str,
 ) -> Result<(), StorageError> {

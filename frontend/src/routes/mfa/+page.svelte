@@ -314,7 +314,7 @@
     height: 22px;
     border-radius: 50%;
     background: var(--color-brand);
-    color: var(--color-on-brand, #fff);
+    color: var(--color-text-on-brand);
     font-size: var(--text-xs);
     font-weight: 700;
     flex-shrink: 0;

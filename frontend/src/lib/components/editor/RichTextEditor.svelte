@@ -9,6 +9,7 @@
   import { TableRow } from '@tiptap/extension-table-row';
   import { TableCell } from '@tiptap/extension-table-cell';
   import { TableHeader } from '@tiptap/extension-table-header';
+  import { ReplyHidden } from './reply-hidden-extension';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { uploadEditorAttachment, formatUploadErrorMessage, type UploadResult } from './upload';
 
@@ -215,7 +216,8 @@
         }),
         TableRow,
         TableHeader,
-        TableCell
+        TableCell,
+        ReplyHidden
       ],
       editorProps: {
         handlePaste: (_view, event) => {
@@ -366,9 +368,8 @@
     if (!editor) return;
     const { from, to } = editor.state.selection;
     const selected = from < to ? editor.state.doc.textBetween(from, to, '\n').trim() : '';
-    const snippet = selected
-      ? `\n\n:::reply\n${selected}\n:::\n\n`
-      : '\n\n:::reply\n此处填写回复后可见的内容\n:::\n\n';
+    const innerText = selected || '此处填写回复后可见的内容';
+    const snippet = `\n:::reply\n${innerText}\n:::\n`;
     editor.chain().focus().insertContent(snippet).run();
   }
 
@@ -752,7 +753,7 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    background: var(--color-bg-card, #fff);
+    background: var(--color-bg-card);
     border-radius: var(--radius-md, 6px);
   }
 
@@ -764,8 +765,8 @@
     flex-wrap: wrap;
     gap: var(--space-2, 8px);
     padding: var(--space-2, 8px) var(--space-3, 12px);
-    border-bottom: var(--border-default, 1px solid var(--color-border, #e5e7eb));
-    background: var(--color-bg-card, #fff);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-card);
   }
 
   .rich-editor-toolbar {
@@ -791,7 +792,7 @@
     padding: 0;
     font-size: var(--text-xs, 12px);
     font-family: inherit;
-    color: var(--color-text-secondary, #4b5563);
+    color: var(--color-text-secondary);
     background: transparent;
     border: none;
     border-radius: var(--radius-sm, 4px);
@@ -807,8 +808,8 @@
     min-width: 14px;
     height: 14px;
     padding: 0 3px;
-    color: var(--color-text-on-brand, #ffffff);
-    background: var(--color-brand, #b23e2a);
+    color: var(--color-text-on-brand);
+    background: var(--color-brand);
     border-radius: 7px;
     font-size: 9px;
     font-weight: 700;
@@ -819,8 +820,8 @@
   }
 
   .toolbar-btn:hover:not(:disabled) {
-    background: var(--color-bg-subtle, #f3f4f6);
-    color: var(--color-text-primary, #111827);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
   }
 
   .toolbar-btn:active:not(:disabled) {
@@ -833,8 +834,8 @@
   }
 
   .toolbar-btn.is-active {
-    background: var(--color-primary-subtle, rgba(178, 62, 42, 0.12));
-    color: var(--color-primary, #b23e2a);
+    background: var(--color-brand-soft);
+    color: var(--color-brand);
     font-weight: 600;
   }
 
@@ -850,16 +851,16 @@
     width: 1px;
     height: 16px;
     margin: 0 4px;
-    background: var(--color-border, #e5e7eb);
+    background: var(--color-border);
   }
 
   .rich-editor-mode-switch {
     display: inline-flex;
     align-items: center;
-    border: 1px solid var(--color-border, #e5e7eb);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 6px);
     padding: 2px;
-    background: var(--color-bg-subtle, #f9fafb);
+    background: var(--color-bg-subtle);
   }
 
   .mode-btn {
@@ -867,17 +868,17 @@
     font-size: var(--text-xs, 12px);
     border: none;
     background: transparent;
-    color: var(--color-text-secondary, #4b5563);
+    color: var(--color-text-secondary);
     border-radius: var(--radius-sm, 4px);
     cursor: pointer;
     transition: background-color 0.15s, color 0.15s;
   }
 
   .mode-btn.is-active {
-    background: var(--color-bg-card, #fff);
-    color: var(--color-text-primary, #111827);
+    background: var(--color-bg-card);
+    color: var(--color-text-primary);
     font-weight: 600;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-control);
   }
 
   .upload-progress-banner {
@@ -885,9 +886,9 @@
     align-items: center;
     gap: 8px;
     padding: 6px var(--space-4, 16px);
-    background: var(--color-primary-subtle, rgba(178, 62, 42, 0.08));
-    border-bottom: 1px solid rgba(178, 62, 42, 0.2);
-    color: var(--color-primary, #b23e2a);
+    background: var(--color-brand-soft);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-brand) 25%, transparent);
+    color: var(--color-brand);
     font-size: var(--text-xs, 12px);
   }
 
@@ -931,38 +932,38 @@
     align-items: center;
     gap: 6px;
     padding: 6px var(--space-3, 12px);
-    background: var(--color-bg-subtle, #f9fafb);
-    border-bottom: var(--border-default, 1px solid var(--color-border, #e5e7eb));
+    background: var(--color-bg-subtle);
+    border-bottom: 1px solid var(--color-border);
     font-size: var(--text-xs, 12px);
   }
 
   .table-actions-title {
-    color: var(--color-text-secondary, #6b7280);
+    color: var(--color-text-secondary);
     margin-right: 4px;
   }
 
   .table-btn {
     padding: 2px 8px;
     font-size: var(--text-xs, 12px);
-    border: 1px solid var(--color-border, #d1d5db);
-    background: var(--color-bg-card, #fff);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
     border-radius: var(--radius-sm, 4px);
     cursor: pointer;
-    color: var(--color-text-secondary, #374151);
+    color: var(--color-text-secondary);
   }
 
   .table-btn:hover {
-    background: var(--color-bg-subtle, #f3f4f6);
-    color: var(--color-text-primary, #111827);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
   }
 
   .table-btn.is-danger {
-    color: var(--color-danger, #dc2626);
-    border-color: rgba(220, 38, 38, 0.3);
+    color: var(--color-danger);
+    border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
   }
 
   .table-btn.is-danger:hover {
-    background: rgba(220, 38, 38, 0.08);
+    background: var(--color-danger-soft);
   }
 
   .rich-editor-body {
@@ -982,8 +983,8 @@
     font-family: var(--font-family-mono, monospace);
     font-size: var(--text-sm, 14px);
     line-height: 1.7;
-    color: var(--color-text-primary, #111827);
-    background: var(--color-bg-card, #fff);
+    color: var(--color-text-primary);
+    background: var(--color-bg-card);
     box-sizing: border-box;
   }
 
@@ -1004,7 +1005,7 @@
   :global(.prosemirror-mount .ProseMirror p.is-editor-empty:first-child::before) {
     content: attr(data-placeholder);
     float: left;
-    color: var(--color-text-tertiary, #9ca3af);
+    color: var(--color-text-tertiary);
     pointer-events: none;
     height: 0;
   }
@@ -1031,15 +1032,15 @@
   }
 
   :global(.prosemirror-mount .ProseMirror blockquote) {
-    border-left: 3px solid var(--color-primary, #b23e2a);
+    border-left: 3px solid var(--color-brand);
     padding-left: var(--space-3, 12px);
     margin: 1em 0;
-    color: var(--color-text-secondary, #4b5563);
+    color: var(--color-text-secondary);
     font-style: italic;
   }
 
   :global(.prosemirror-mount .ProseMirror pre) {
-    background: var(--color-bg-subtle, #f3f4f6);
+    background: var(--color-bg-subtle);
     border-radius: var(--radius-md, 6px);
     padding: var(--space-3, 12px);
     font-family: var(--font-family-mono, monospace);
@@ -1049,7 +1050,7 @@
   }
 
   :global(.prosemirror-mount .ProseMirror code) {
-    background: var(--color-bg-subtle, rgba(0, 0, 0, 0.05));
+    background: var(--color-bg-subtle);
     border-radius: 3px;
     padding: 0.15em 0.35em;
     font-family: var(--font-family-mono, monospace);
@@ -1077,7 +1078,7 @@
   :global(.prosemirror-mount .ProseMirror table td),
   :global(.prosemirror-mount .ProseMirror table th) {
     min-width: 1em;
-    border: 1px solid var(--color-border, #d1d5db);
+    border: 1px solid var(--color-border);
     padding: 6px 10px;
     vertical-align: top;
     box-sizing: border-box;
@@ -1087,11 +1088,11 @@
   :global(.prosemirror-mount .ProseMirror table th) {
     font-weight: 600;
     text-align: left;
-    background-color: var(--color-bg-subtle, #f9fafb);
+    background-color: var(--color-bg-subtle);
   }
 
   :global(.prosemirror-mount .ProseMirror a) {
-    color: var(--color-primary, #b23e2a);
+    color: var(--color-link);
     text-decoration: underline;
   }
 
@@ -1105,7 +1106,58 @@
 
   :global(.prosemirror-mount .ProseMirror hr) {
     border: none;
-    border-top: 1px solid var(--color-border, #e5e7eb);
+    border-top: 1px solid var(--color-border);
     margin: 1.5em 0;
+  }
+
+  /* ---- ReplyHidden (回复可见) 所见即所得编辑框样式 ---- */
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-box) {
+    margin: var(--space-4) 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1.5px dashed var(--color-brand);
+    border-radius: var(--radius-md);
+    background: var(--color-brand-soft);
+    position: relative;
+    transition: border-color 0.15s ease-in-out;
+  }
+
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-box:hover) {
+    border-color: var(--color-brand);
+  }
+
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-banner) {
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px dashed color-mix(in srgb, var(--color-brand) 30%, transparent);
+    font-size: var(--text-xs);
+  }
+
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-badge) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: var(--color-brand);
+  }
+
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-hint) {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+  }
+
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-content) {
+    min-height: 2em;
+  }
+
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-content > *:first-child) {
+    margin-top: 0;
+  }
+
+  :global(.prosemirror-mount .ProseMirror .topic-restricted-editor-content > *:last-child) {
+    margin-bottom: 0;
   }
 </style>

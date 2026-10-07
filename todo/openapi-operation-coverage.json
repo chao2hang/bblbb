@@ -29,13 +29,13 @@
       "work_package": "M02-IDENTITY",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/backend",
+      "handler": "backend/src/routes/auth.rs::bootstrap_admin",
       "tests": [
-
+        "backend/tests/platform_governance.rs"
       ],
-      "evidence": null
+      "evidence": "首管理员一次性 bootstrap token 校验与创建，防止空库提权；测试覆盖无 token 422、有效 token 201、已消费重放 422"
     },
     {
       "operation_id": "getCsrfToken",
@@ -638,13 +638,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::list_board_role_assignments",
       "tests": [
-
+        "backend/tests/admin_board_roles_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "板块角色 assignment 列表（0022 结构投影）；测试覆盖三库授予/列表/撤销全链路"
     },
     {
       "operation_id": "assignAdminBoardRole",
@@ -655,13 +655,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::assign_board_role",
       "tests": [
-
+        "backend/tests/admin_board_roles_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "授予板块角色（role.manage 权限门 + 审计）；测试覆盖授予 board_moderator 及列表存在性验证"
     },
     {
       "operation_id": "revokeAdminBoardRole",
@@ -672,13 +672,13 @@
       "work_package": "M03-BOARDS",
       "priority": "P1",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/admin.rs::revoke_board_role",
       "tests": [
-
+        "backend/tests/admin_board_roles_crossdb.rs"
       ],
-      "evidence": null
+      "evidence": "撤销板块角色（role.manage 权限门 + 审计）；测试覆盖撤销后列表恢复为空"
     },
     {
       "operation_id": "listBoards",
@@ -1689,13 +1689,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/moderation.rs::get_admin_risk_policy",
       "tests": [
-
+        "backend/tests/moderation/risk.rs"
       ],
-      "evidence": null
+      "evidence": "读取当前生效风控策略版本与阈值配置；测试覆盖 load_policy 与版本投影"
     },
     {
       "operation_id": "updateAdminRiskPolicy",
@@ -1706,13 +1706,13 @@
       "work_package": "M05-CASES",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/moderation.rs::update_admin_risk_policy",
       "tests": [
-
+        "backend/tests/moderation/risk.rs"
       ],
-      "evidence": null
+      "evidence": "版本化更新风控策略（If-Match 乐观锁 + 审计）；测试覆盖版本冲突 409、审计落库与生效策略加载"
     },
     {
       "operation_id": "listOwnAppeals",
@@ -3997,13 +3997,13 @@
       "work_package": "M13-ADMIN",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/feature_flags.rs::list_flags",
       "tests": [
-
+        "backend/tests/platform_governance.rs"
       ],
-      "evidence": null
+      "evidence": "读取当前 Feature Flags 快照与 kill switch 状态；测试覆盖快照获取与版本字段"
     },
     {
       "operation_id": "killAdminFeatureFlags",
@@ -4014,13 +4014,13 @@
       "work_package": "M13-ADMIN",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/feature_flags.rs::kill_switch",
       "tests": [
-
+        "backend/tests/platform_governance.rs"
       ],
-      "evidence": null
+      "evidence": "紧急关闭所有可选特性并写入审计；测试覆盖 kill switch 触发与快照置真"
     },
     {
       "operation_id": "updateAdminFeatureFlag",
@@ -4031,13 +4031,13 @@
       "work_package": "M13-ADMIN",
       "priority": "P0",
       "contract_status": "frozen",
-      "implementation_status": "not_started",
-      "owner": "unassigned",
-      "handler": null,
+      "implementation_status": "verified",
+      "owner": "platform/admin-platform",
+      "handler": "backend/src/routes/feature_flags.rs::update_flag",
       "tests": [
-
+        "backend/tests/platform_governance.rs"
       ],
-      "evidence": null
+      "evidence": "启停单个特性（expected_version 乐观锁 + reason 审计）；测试覆盖版本更新与冲突 409、运行时快照重载"
     },
     {
       "operation_id": "get_admin_themes",

@@ -136,9 +136,7 @@ export const actions: Actions = {
   },
 
   /**
-   * 批量审核（M18-ADMIN-DIALOG）：循环既有单条端点
-   * POST /api/v1/admin/posts/{id}/action（action/reason，与单条 ?/moderate
-   * 完全一致——帖子动作端点不使用 If-Match），逐条 try/catch 汇总成败。
+   * 批量审核（M18-ADMIN-BATCH-01）：对接后端原生 POST /api/v1/admin/posts/batch 单事务原子接口。
    */
   batchModerate: async ({ request, cookies }) => {
     const form = await request.formData();
@@ -153,27 +151,19 @@ export const actions: Actions = {
       const empty = batchResult(emptyBatchSelection(), '批量审核');
       return fail(empty.status, { message: empty.message });
     }
-    const outcome: BatchOutcome = { okCount: 0, failures: [] };
-    for (const id of ids) {
-      try {
-        const result = await authedPost<unknown>(
-          cookies,
-          `/api/v1/admin/posts/${encodeURIComponent(id)}/action`,
-          { action, reason },
-          request.headers.get('x-request-id')
-        );
-        if (result.ok) {
-          outcome.okCount++;
-        } else if (result.status === 409) {
-          outcome.failures.push({ id, message: `状态冲突：${result.message}` });
-        } else {
-          outcome.failures.push({ id, message: result.message });
-        }
-      } catch {
-        outcome.failures.push({ id, message: '网络错误' });
+    try {
+      const result = await authedPost<{ ok: boolean; affected: number; ids: string[] }>(
+        cookies,
+        '/api/v1/admin/posts/batch',
+        { ids, action, reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `成功批量处理 ${result.data.affected} 篇帖子（动作：${action}）` };
       }
+      return fail(result.status, { message: result.message });
+    } catch {
+      return fail(503, { message: '网络错误，批量操作失败' });
     }
-    const summary = batchResult(outcome, '批量审核');
-    return summary.ok ? { message: summary.message } : fail(summary.status, { message: summary.message });
   }
 };

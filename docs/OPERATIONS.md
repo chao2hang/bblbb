@@ -515,6 +515,8 @@ DOCUMENTED_NON_CONTRACT 登记为准），权限均为相应 `*.manage`/`post.mo
   写审计 `admin.user.randomize_nickname`）、`GET /api/v1/admin/nickname-blacklist`
   （分页与模糊查询黑名单）、`POST /api/v1/admin/nickname-blacklist`（手动加入黑名单）、
   `DELETE /api/v1/admin/nickname-blacklist/{id}`（移出黑名单，写审计 `admin.nickname_blacklist.delete`）
+- 批量管理端点（M18-ADMIN-BATCH-01）：`POST /api/v1/admin/posts/batch`（approve/reject/hide/restore/delete/feature/unfeature/pin/unpin/lock/unlock，单事务原子 + 聚合审计）、`POST /api/v1/admin/boards/batch`（启停/发帖模式，单事务 + 审计）、`POST /api/v1/admin/tags/batch`（启停，单事务 + 审计）、`POST /api/v1/admin/users/batch`（状态变更，单事务 + 保护最后管理员 + 审计）
+- 流式全量 CSV 导出端点（M18-ADMIN-BATCH-02）：`GET /api/v1/admin/posts/export.csv`、`GET /api/v1/admin/boards/export.csv`、`GET /api/v1/admin/tags/export.csv`、`GET /api/v1/admin/users/export.csv`、`GET /api/v1/admin/audit/export.csv`（UTF-8 BOM 头，权限门控，记录导出审计）
 - 成就管理：`GET/POST /api/v1/admin/achievements`、
   `PATCH/DELETE /api/v1/admin/achievements/{code}`、
   `POST /api/v1/admin/achievements/{code}/grant`

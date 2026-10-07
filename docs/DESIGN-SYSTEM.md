@@ -215,6 +215,56 @@ surface.css            ★ 三层表面纪律（最后，压过上游 !important
 画布不同色，卡片成立。新增语义变量必须在 `theme-tokens.css` 补映射
 （如 `--color-bg-raised` / `--color-link`），否则自定义主题下会回退到默认值。
 
+### 3.4 幽灵 Token 别名桥（Alias Bridge 根治机制）
+
+历史上由于组件手写、原型迁移与不同开发批次，部分代码曾引用未在标准体系定义的"幽灵变量名"
+（如 `--title`、`--muted`、`--color-primary`、`--color-text`、`--color-bg` 等），导致属性失效或回退到写死字面色。
+
+`tokens.css` 已固化**标准语义别名桥**（在 `:root`、`html.dark` 以及系统偏好媒体查询块严格同步）：
+
+| 历史/非标变量 | 标准映射目标 | 说明 |
+|---|---|---|
+| `--title` | `var(--color-text-primary)` | 标题与高强调文字 |
+| `--muted` | `var(--color-text-secondary)` | 次级文本 |
+| `--faint` | `var(--color-text-tertiary)` | 弱化/元信息文字 |
+| `--on-brand` / `--color-on-brand` | `var(--color-text-on-brand)` | 强调色背景上的前景色 |
+| `--color-text` | `var(--color-text-primary)` | 正文颜色 |
+| `--color-text-muted` | `var(--color-text-tertiary)` | 次弱文字 |
+| `--color-primary` | `var(--color-brand)` | 品牌强调色 |
+| `--color-primary-rgb` / `--color-brand-rgb` | 对应当前模式 RGB 三元组（亮 `44, 75, 216` / 暗 `123, 146, 255`） | 供 `rgba()` 透明度派生 |
+| `--color-primary-subtle` | `var(--color-brand-soft)` | 浅淡强调背景 |
+| `--color-bg` | `var(--color-bg-page)` | 页面底色 |
+| `--color-bg-secondary` / `--color-surface-muted` | `var(--color-bg-subtle)` | 浅层容器背景 |
+| `--color-bg-subtle-hover` | `var(--color-surface-hover)` | 容器悬停背景 |
+| `--color-danger-subtle` | `var(--color-danger-soft)` | 危险浅色背景 |
+| `--color-danger-border` | `color-mix(in srgb, var(--color-danger) 40%, transparent)` | 危险描边 |
+| `--color-border-subtle` | `var(--color-border-muted)` | 弱化发丝线 |
+| `--font-mono` | `var(--font-family-mono)` | 等宽字体 |
+| `--shadow-sm` / `--shadow-card` | `var(--shadow-control)` | 基础轻微阴影 |
+| `--line-strong` | `var(--color-border-strong)` | 强调分割线 |
+| `--backdrop` | `var(--color-overlay)` | 遮罩蒙层 |
+| `--transition-fast` | `var(--duration-fast) var(--ease-out)` | 快速过渡动效 |
+| `--weight-bold` | `700` | 粗体字重 |
+
+**新写组件严禁使用左列历史变量，必须统一使用右列标准语义 Token。**
+
+### 3.5 语法高亮与代码块 Token 色板
+
+代码块（`syntax-highlight.css`）不再针对暗色写死字面量，已全面升级为自适应 Token 体系：
+
+- 容器：背景 `--color-code-bg`、描边 `--color-code-border`、阴影 `--color-code-shadow`；
+- 工具栏：背景 `--color-code-header-bg`、复制按钮跟随 `--color-bg-card` 与 `--color-border`；
+- 行内代码：`--color-code-inline-bg` / `--color-code-inline-border` / `--color-code-inline-text`；
+- Prism 词法 Token：`--token-comment`、`--token-punctuation`、`--token-number`、`--token-string`、`--token-operator`、`--token-keyword`、`--token-function`、`--token-variable`。
+亮色与暗色模式分别加载 GitHub Light 与 GitHub Dark 标准色，切换主题与系统日夜偏好时无缝响应。
+
+### 3.6 零依赖样式架构门禁（CI Guard）
+
+项目内置 `node scripts/style-audit.mjs`（集成于 `npm run check`、`npm run style:check` 与 `make check-frontend`）：
+1. **幽灵 Token 零容忍**：遍历全站 Svelte 与 CSS 文件，任何未在 Token 系统声明且非受控动态变量的 `var(--foo)` 直接报错中断构建；
+2. **硬编码颜色门禁**：对除明确第三方品牌资源（Google OAuth Logo）和商品外观预设外的所有普通页面与组件，禁止手写 `#hex`、`rgb()`、`rgba()` 字面色；
+3. **日夜回退严格对齐契约**：Vitest 自动化测试断言 `tokens.css` 中 `html.dark` 与 `@media (prefers-color-scheme: dark)` 声明集 100% 对齐，杜绝暗色模式分化漂移。
+
 ---
 
 ## 4. 组件封装规范
@@ -343,3 +393,4 @@ surface.css            ★ 三层表面纪律（最后，压过上游 !important
 - [ ] 390px 下是否可用、触控目标是否 ≥44px？
 - [ ] 亮色与暗色都验证过？
 - [ ] 无 JS 基线是否仍可读可导航？
+- [ ] 本地运行 `npm run style:check` 确认通过（零幽灵 Token、零未授权硬编码色）？

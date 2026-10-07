@@ -5,6 +5,21 @@ import RichTextEditor from './RichTextEditor.svelte';
 
 /** 等待 ProseMirror 实例真正挂载（$effect 异步创建编辑器）。 */
 async function waitForProseMirror(container: HTMLElement): Promise<HTMLElement> {
+  // jsdom 缺少 Range.prototype.getClientRects，补全避免 ProseMirror scrollToSelection 报错
+  if (typeof Range !== 'undefined' && !Range.prototype.getClientRects) {
+    Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+    Range.prototype.getBoundingClientRect = () => ({
+      bottom: 0,
+      height: 0,
+      left: 0,
+      right: 0,
+      top: 0,
+      width: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => {}
+    });
+  }
   let pm: HTMLElement | null = null;
   await vi.waitFor(() => {
     pm = container.querySelector('.prosemirror-mount .ProseMirror');
@@ -126,5 +141,44 @@ describe('RichTextEditor', () => {
     await userEvent.click(videoBtn);
     expect(oninsertvideo).toHaveBeenCalledTimes(1);
     expect(video.container.querySelector('.toolbar-badge')?.textContent).toBe('2');
+  });
+
+  it('点击插入回复可见按钮正确插入回复可见标记块并在所见即所得渲染卡片', async () => {
+    let currentValue = '';
+    const { container } = render(RichTextEditor, {
+      value: '',
+      id: 'test-reply-editor',
+      onchange: (v: string) => {
+        currentValue = v;
+      }
+    });
+    const pm = await waitForProseMirror(container);
+
+    const lockBtn = screen.getByRole('button', { name: '插入回复可见内容' });
+    expect(lockBtn).toBeInTheDocument();
+    await userEvent.click(lockBtn);
+
+    expect(currentValue).toContain(':::reply');
+    expect(currentValue).toContain('此处填写回复后可见的内容');
+    expect(currentValue).toContain(':::');
+
+    // 所见即所得 DOM 验证：渲染回复可见卡片及标题栏
+    const box = pm.querySelector('.topic-restricted-editor-box');
+    expect(box).toBeTruthy();
+    expect(box?.textContent).toContain('🔒 回复可见内容');
+    expect(box?.textContent).toContain('此处填写回复后可见的内容');
+  });
+
+  it('初始 Markdown 带有 :::reply 时所见即所得正确反序列化为回复可见卡片', async () => {
+    const { container } = render(RichTextEditor, {
+      value: '前文段落\n\n:::reply\n隐藏内容666\n:::\n\n后文段落',
+      id: 'test-reply-initial'
+    });
+    const pm = await waitForProseMirror(container);
+
+    const box = pm.querySelector('.topic-restricted-editor-box');
+    expect(box).toBeTruthy();
+    expect(box?.textContent).toContain('🔒 回复可见内容');
+    expect(box?.textContent).toContain('隐藏内容666');
   });
 });

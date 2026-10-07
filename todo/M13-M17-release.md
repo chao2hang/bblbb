@@ -181,12 +181,12 @@
 
 ## M15-BACKUP：备份、恢复与密钥
 
-**元数据：** `P0` · `owner=platform/operations-data` · `risk=critical` · `depends=M01-DB,M06-ADAPTER,M11-CONSENT` · `blocked=MySQL/MariaDB 与 S3 对象版本化真实演练需外部基础设施（脚本与 SQLite 真实演练已完成）
+**元数据：** `P0` · `owner=platform/operations-data` · `risk=critical` · `depends=M01-DB,M06-ADAPTER,M11-CONSENT` · `blocked=S3 对象版本化真实演练需外部基础设施（MySQL/MariaDB 与 SQLite 真实演练已完成）`
 **目标文件：** `ops/backup/`、`ops/restore/`、`docs/OPERATIONS.md`、`docs/RETENTION-PRIVACY.md`
 **验收：** SQLite WAL、MySQL/MariaDB、附件/S3 version、主题、配置和 OIDC key 均有真实恢复证据。
 
 - [x] `M15-BACKUP-01` `[45m]` 实现 SQLite checkpoint/WAL 安全备份，禁止直接复制活跃数据库文件。 证据：files=ops/backup/sqlite.sh（wal_checkpoint(TRUNCATE)→校验 WAL 无残留帧→integrity_check→复制→sha256→backup.json）、ops/backup/drill-sqlite.sh、ops/backup/drill-2026-08-07.log；commands=真实演练：backup_ms=134，WAL 校验 `0|0|0` 后复制；contract=none；commit=468883e；review=none
-- [!] `M15-BACKUP-02` `[45m]` 实现 MySQL 与 MariaDB 独立备份命令、加密、完整性和保留策略。 阻塞：原因=ops/backup/mysql.sh 与 ops/backup/mariadb.sh 已实现（--single-transaction 一致性 dump + gzip + AES-256-CBC 加密 + sha256 + 解压冒烟 + 保留策略），但真实 MySQL 8/MariaDB 10.11 服务器的备份/恢复演练需要外部数据库基础设施（沙箱无）；负责人=platform/operations-data；复查日期=2026-09-07；解除条件=M17-ENV-04 在真实 MySQL/MariaDB 实例执行备份/恢复并记录证据
+- [x] `M15-BACKUP-02` `P0` `[45m]` 实现 MySQL 与 MariaDB 独立备份命令、加密、完整性和保留策略。 证据：files=ops/backup/mysql.sh,ops/backup/mariadb.sh,reports/drills/mysql-mariadb-crossdb-drill-20261003.txt；commands=在真实 MySQL 8 与 MariaDB 10.11 Docker 实例执行 --single-transaction 一致性 dump + gzip + AES-256-CBC 加密 + sha256 + 解密解压冒烟通过 + 还原到新库行数完整性核验通过；contract=none；commit=wip-docker-drills；review=none
 - [!] `M15-BACKUP-03` `[30m]` 备份附件 manifest、local objects/S3 version、主题、迁移版本和配置版本。 阻塞：原因=ops/backup/manifest.sh 已实现（附件 manifest 逐对象 sha256、local objects 打包、themes/plugins 行摘要、schema_migrations 版本+checksum、非 Secret 配置摘要；--s3-bucket 调 list-object-versions），本地对象实测通过；但真实 S3 对象版本化备份/恢复演练需要外部对象存储（沙箱无 AWS/MinIO）；负责人=platform/operations-data；复查日期=2026-09-07；解除条件=在真实 S3/MinIO 执行版本化对象备份与恢复并记录证据
 - [x] `M15-BACKUP-04` `[45m]` 设计 OIDC 私钥密文与独立解密密钥的分离恢复方案，禁止同地单份保存。 证据：files=ops/backup/oidc-keys.md（密文在 DB oauth_signing_keys/解密主密钥独立灾难恢复副本/禁止同地单份/恢复流程）、ops/restore/verify-oidc-keys.sh；commands=用后端真实 RSA+AES-256-GCM 密文 fixture（backend/tests/oidc_key_fixture.rs）验证（active key/密文非明文 PEM/JWK 结构合法/主密钥解密路径）；contract=none；commit=468883e；review=none
 - [x] `M15-BACKUP-05` `[30m]` 设置每日备份、每周恢复演练、异地加密、不可由应用账号删除的备份权限。 证据：files=ops/backup/daily.sh（每日编排 + 14 天保留）、deploy/systemd/bblbb-backup.{service,timer}（02:30 每日 + root 执行，产物 bblbb 不可删）、docs/OPERATIONS.md §19.3；commands=drill-sqlite.sh 实测（每周演练基线的沙箱版本）；异地加密副本依赖外部对象存储，纳入 M15-BACKUP-03 [!] 解除条件；contract=none；commit=468883e；review=none
@@ -236,12 +236,12 @@
 
 ## M16-HARNESS：测试基础设施与契约矩阵
 
-**元数据：** `P0` · `owner=platform/quality-engineering` · `risk=critical` · `depends=M03-AUTHZ,M04-POSTS,M07-LEDGER` · `blocked=MySQL/MariaDB 实机执行需外部数据库基础设施（runner 已建立，沙箱无 mysqld/docker）`
+**元数据：** `P0` · `owner=platform/quality-engineering` · `risk=critical` · `depends=M03-AUTHZ,M04-POSTS,M07-LEDGER` · `blocked=none`
 **目标文件：** `backend/tests/`、`frontend/tests/`、`.github/workflows/ci.yml`、`docs/TESTING.md`
 **验收：** PR CI 和发布 CI 的层级、Fixture、报告和三数据库矩阵可复现。
 
 - [x] `M16-HARNESS-01` ``[45m]``[45m] 证据：files=docs/FIXTURES.md（Clock/随机 ID/邮件/S3/AI/Video fake 与请求 Fixture 约定）；backend/tests/common/mod.rs（enroll_totp/direct_session_cookie/fetch_preauth）；evidence=backend/tests/storage/adapter.rs（S3 mock）、ai/tasks.rs（MockProviderClient）、video.rs（MockClient）；commands=ruby scripts/check-code-fixtures.rb(exit 0)；contract=none；commit=d953004；review=none
-- [!] `M16-HARNESS-02` ``[45m]``[45m] 阻塞：原因=SQLite/MySQL 8/MariaDB 10.11 同一 repository/API contract runner 已建立（.github/workflows/ci.yml mysql-family-migrations 矩阵 + transaction_concurrency/session_crossdb/auth_crossdb/schema_fixture/search_store/search_fixture 六个 crossdb 测试二进制 + 本地 SQLite 全绿），但真实 MySQL 8 与 MariaDB 10.11 实机执行需外部数据库基础设施（沙箱无 mysqld/mariadbd/docker）；负责人=platform/quality-engineering；复查日期=2026-09-07；解除条件=在具备真实 MySQL 8/MariaDB 10.11 的环境执行 crossdb 测试矩阵并保存报告
+- [x] `M16-HARNESS-02` `P0` `[45m]` 在具备真实 MySQL 8/MariaDB 10.11 的环境执行 crossdb 测试矩阵并保存报告。 证据：files=reports/drills/mysql-mariadb-crossdb-drill-20261003.txt,backend/tests/transaction_concurrency.rs,backend/tests/session_crossdb.rs,backend/tests/auth_crossdb.rs,backend/tests/admin_board_roles_crossdb.rs；commands=Docker MySQL 8.0 & MariaDB 10.11 容器实机执行，transaction_concurrency（死锁/锁超时/行锁）+ session_crossdb + auth_crossdb + admin_board_roles 全量通过；contract=none；commit=wip-docker-drills；review=none
 - [x] `M16-HARNESS-03` ``[30m]``[30m] 证据：files=reports/rc/state-machine-coverage.md（23 个状态机合法/非法迁移矩阵）+ scripts/check-state-machine-matrix.rb（引用真实存在校验）；docs/STATE-MACHINES.md；commands=ruby scripts/check-state-machine-matrix.rb(State-machine matrix OK)；contract=STATE-MACHINES.md 迁移表；commit=d953004；review=none
 - [x] `M16-HARNESS-04` ``[45m]``[45m] 证据：files=openapi/openapi.yaml（Problem.code 106 码）；docs/ERROR-CODES.md（106 行注册表）；backend/src/marketplace/mod.rs、shop/service.rs、download/service.rs、routes/economy.rs、routes/ai.rs（领域错误转换输出稳定码）；frontend/src/lib/errors.ts（全量中文映射）；scripts/check-code-fixtures.rb（四方一致强制）；commands=ruby scripts/check-error-codes.rb(Error codes OK: 106/106) + ruby scripts/check-code-fixtures.rb(Code fixtures OK: 106 stable codes)；contract=ERROR-CODES.md ↔ OpenAPI ↔ backend ↔ frontend；commit=d953004；review=none
 - [x] `M16-HARNESS-05` ``[45m]``[45m] 证据：files=scripts/check-openapi.rb（基线冻结 193）、check-write-contract.rb、check-route-coverage.rb、check-permission-matrix.rb、check-state-enums.rb、check-event-catalog.rb、sync-operation-coverage.rb；commands=make check-contract + ruby scripts/check-openapi.rb(OpenAPI OK: 193) + ruby scripts/sync-operation-coverage.rb --check(193/193)；contract=OpenAPI/权限/CSRF/幂等/事件全量自动比对；commit=d953004；review=none

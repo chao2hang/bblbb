@@ -10,7 +10,7 @@ import { adminListState, type AdminLoadState } from '$lib/admin';
 import {
   batchResult,
   emptyBatchSelection,
-  parseBatchEntries,
+  parseBatchIds,
   type BatchOutcome
 } from '$lib/admin-batch';
 import type { Tag } from '$lib/api/types';
@@ -177,42 +177,35 @@ export const actions: Actions = {
    * PATCH /api/v1/admin/tags/{id}（is_active/reason + If-Match，与 ?/toggle
    * 完全一致），versions 与 ids 顺序一一对应；逐条 try/catch 汇总成败。
    */
+  /**
+   * 批量启用/停用（M18-ADMIN-BATCH-01）：对接后端原生 POST /api/v1/admin/tags/batch 单事务原子接口。
+   */
   batchToggle: async ({ request, cookies }) => {
     const form = await request.formData();
-    const entries = parseBatchEntries(form);
+    const ids = parseBatchIds(form);
     const reason = String(form.get('reason') ?? '').trim();
     const nextActive = String(form.get('is_active') ?? '') === 'true';
     const label = nextActive ? '批量启用' : '批量停用';
     if (!reason) return fail(422, { message: '操作原因必填（写审计）' } satisfies AdminTagsActionData);
-    if (entries.length === 0) {
+    if (ids.length === 0) {
       const empty = batchResult(emptyBatchSelection(), label);
       return fail(empty.status, { message: empty.message } satisfies AdminTagsActionData);
     }
-    const outcome: BatchOutcome = { okCount: 0, failures: [] };
-    for (const entry of entries) {
-      try {
-        const result = await authedPatch<unknown>(
-          cookies,
-          `/api/v1/admin/tags/${encodeURIComponent(entry.id)}`,
-          { is_active: nextActive, reason },
-          entry.version ? { 'If-Match': entry.version } : {},
-          request.headers.get('x-request-id')
-        );
-        if (result.ok) {
-          outcome.okCount++;
-        } else if (result.status === 409) {
-          outcome.failures.push({ id: entry.id, message: `版本冲突：${result.message}` });
-        } else {
-          outcome.failures.push({ id: entry.id, message: result.message });
-        }
-      } catch {
-        outcome.failures.push({ id: entry.id, message: '网络错误' });
+    try {
+      const result = await authedPost<{ ok: boolean; affected: number; ids: string[] }>(
+        cookies,
+        '/api/v1/admin/tags/batch',
+        { ids, is_active: nextActive, reason },
+        request.headers.get('x-request-id')
+      );
+      const loadState = await reloadTags(cookies, request.headers.get('x-request-id'));
+      if (result.ok) {
+        return { loadState, message: `${label}成功：已更新 ${result.data.affected} 个标签` } satisfies AdminTagsActionData;
       }
+      return fail(result.status, { loadState, message: result.message } satisfies AdminTagsActionData);
+    } catch {
+      const loadState = await reloadTags(cookies, request.headers.get('x-request-id'));
+      return fail(503, { loadState, message: '网络错误，批量操作失败' } satisfies AdminTagsActionData);
     }
-    const summary = batchResult(outcome, label);
-    const loadState = await reloadTags(cookies, request.headers.get('x-request-id'));
-    return summary.ok
-      ? { loadState, message: summary.message } satisfies AdminTagsActionData
-      : fail(summary.status, { loadState, message: summary.message } satisfies AdminTagsActionData);
   }
 };

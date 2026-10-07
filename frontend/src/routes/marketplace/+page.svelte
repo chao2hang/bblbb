@@ -132,7 +132,7 @@
             <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);">
               <span
                 aria-hidden="true"
-                style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:var(--radius-md);background:var(--color-accent-soft,#e8f0fe);color:var(--color-accent);"
+                style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:var(--radius-md);background:var(--color-accent-soft);color:var(--color-accent);"
               >
                 <Icon name={app.icon} size={20} />
               </span>

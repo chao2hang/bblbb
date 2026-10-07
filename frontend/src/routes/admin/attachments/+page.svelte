@@ -218,7 +218,7 @@
       {/if}
 
       <!-- M18：原型对齐工具条：单行 flex（搜索自动撑满；修复全宽控件与右缘清除按钮被裁切的问题） -->
-      <form method="GET" action="/admin/attachments" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+      <form method="GET" action="/admin/attachments" class="admin-filter-bar">
         <input
           type="search"
           name="q"
@@ -229,7 +229,7 @@
           style="flex:1 1 220px;min-width:0;"
         />
         {#if data.q}
-          <a href="/admin/attachments" class="btn ghost sm" style="flex:0 0 auto;">清除搜索</a>
+          <a href="/admin/attachments" class="btn ghost" style="flex:0 0 auto;">清除搜索</a>
         {/if}
       </form>
 

@@ -377,7 +377,7 @@
     max-width: 320px;
     margin: var(--space-4) auto var(--space-3);
     z-index: 1;
-    filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.28));
+    filter: drop-shadow(0 10px 24px var(--color-overlay));
   }
   .stage-card-wrap :global(.user-hover-card) {
     text-align: left;

@@ -15,6 +15,7 @@ import type { Attachment, AttachmentQuota } from '$lib/api/types';
 /** 页面数据（load 投影；列表与容量可独立缺失）。 */
 export interface MeAttachmentsPageData {
   items: Attachment[];
+  deletedItems: Attachment[];
   quota: AttachmentQuota | null;
   error: string | null;
 }
@@ -28,25 +29,38 @@ export interface MeAttachmentsActionData {
 
 export const load: PageServerLoad = async ({ cookies, request }) => {
   const requestId = request.headers.get('x-request-id');
-  const result = await getAuthed<{ items?: Attachment[]; quota?: AttachmentQuota | null }>(
-    cookies,
-    '/api/v1/attachments',
-    requestId
-  );
-  if (!result.ok) {
-    if (result.status === 401) throw redirect(303, '/login');
-    return { items: [], quota: null, error: result.message } satisfies MeAttachmentsPageData;
+  const [activeResult, deletedResult] = await Promise.all([
+    getAuthed<{ items?: Attachment[]; quota?: AttachmentQuota | null }>(
+      cookies,
+      '/api/v1/attachments?status=active',
+      requestId
+    ),
+    getAuthed<{ items?: Attachment[] }>(
+      cookies,
+      '/api/v1/attachments?status=deleted',
+      requestId
+    )
+  ]);
+
+  if (!activeResult.ok) {
+    if (activeResult.status === 401) throw redirect(303, '/login');
+    return { items: [], deletedItems: [], quota: null, error: activeResult.message } satisfies MeAttachmentsPageData;
   }
-  const data = result.data;
+  const data = activeResult.data;
+  const deletedItems = deletedResult.ok && Array.isArray(deletedResult.data?.items)
+    ? deletedResult.data.items
+    : [];
+
   return {
     items: Array.isArray(data.items) ? data.items : [],
+    deletedItems,
     quota: data.quota ?? null,
     error: null
   } satisfies MeAttachmentsPageData;
 };
 
 export const actions: Actions = {
-  /** 删除本人附件（软删除；未引用附件进入保留期后物理清理）。 */
+  /** 软删除本人附件（进入保留期）。 */
   remove: async ({ request, cookies }) => {
     const form = await request.formData();
     const id = String(form.get('id') ?? '').trim();
@@ -61,7 +75,7 @@ export const actions: Actions = {
       );
       if (result.ok) {
         return {
-          message: '附件已删除，进入保留期（到期后物理清理并释放空间）',
+          message: '附件已移入保留期（到期后物理清理并释放空间）',
           messageKind: 'success'
         } satisfies MeAttachmentsActionData;
       }
@@ -82,6 +96,101 @@ export const actions: Actions = {
       if (isRedirect(e)) throw e;
       return fail(503, {
         message: '删除失败，请稍后重试',
+        messageKind: 'error'
+      } satisfies MeAttachmentsActionData);
+    }
+  },
+
+  /** 彻底删除单个附件（立即释放配额）。 */
+  purge: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const id = String(form.get('id') ?? '').trim();
+    if (!id) {
+      return fail(422, { message: '缺少附件标识', messageKind: 'error' } satisfies MeAttachmentsActionData);
+    }
+    try {
+      const result = await authedDelete(
+        cookies,
+        `/api/v1/attachments/${encodeURIComponent(id)}?purge=true`,
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return {
+          message: '附件已彻底删除，存储空间已释放',
+          messageKind: 'success'
+        } satisfies MeAttachmentsActionData;
+      }
+      if (result.status === 401) throw redirect(303, '/login');
+      return fail(result.status, {
+        message: result.message || '彻底删除失败',
+        messageKind: 'error',
+        requestId: result.requestId
+      } satisfies MeAttachmentsActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '操作失败，请稍后重试',
+        messageKind: 'error'
+      } satisfies MeAttachmentsActionData);
+    }
+  },
+
+  /** 清空回收站：彻底删除名下所有保留期中的附件并释放全部配额。 */
+  purgeAll: async ({ cookies, request }) => {
+    const requestId = request.headers.get('x-request-id');
+    try {
+      const listRes = await getAuthed<{ items?: Attachment[] }>(
+        cookies,
+        '/api/v1/attachments?status=deleted',
+        requestId
+      );
+      if (!listRes.ok) {
+        if (listRes.status === 401) throw redirect(303, '/login');
+        return fail(listRes.status, { message: '获取保留期附件失败', messageKind: 'error' });
+      }
+      const deletedList = listRes.data?.items || [];
+      if (deletedList.length === 0) {
+        return { message: '保留期中没有附件需要清空', messageKind: 'success' };
+      }
+
+      let purgedCount = 0;
+      let failureCount = 0;
+      let lastErrorMessage = '';
+      for (const item of deletedList) {
+        const delRes = await authedDelete(
+          cookies,
+          `/api/v1/attachments/${encodeURIComponent(item.id)}?purge=true`,
+          requestId
+        );
+        if (delRes.ok) {
+          purgedCount++;
+        } else {
+          failureCount++;
+          if (!lastErrorMessage && !delRes.ok && 'message' in delRes && delRes.message) {
+            lastErrorMessage = delRes.message;
+          }
+        }
+      }
+
+      if (purgedCount === 0 && failureCount > 0) {
+        return fail(400, {
+          message: `清理失败：${lastErrorMessage || '所有保留期附件均无法彻底删除（可能仍被帖子或资料引用）'}`,
+          messageKind: 'error'
+        } satisfies MeAttachmentsActionData);
+      }
+
+      const msg = failureCount > 0
+        ? `已彻底清理 ${purgedCount} 个附件，${failureCount} 个附件因被引用或限制未能清理`
+        : `已彻底清理 ${purgedCount} 个附件，存储空间已释放`;
+
+      return {
+        message: msg,
+        messageKind: 'success'
+      } satisfies MeAttachmentsActionData;
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, {
+        message: '清空操作失败，请稍后重试',
         messageKind: 'error'
       } satisfies MeAttachmentsActionData);
     }

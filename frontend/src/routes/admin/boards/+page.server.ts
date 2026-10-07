@@ -11,7 +11,7 @@ import { adminListState, type AdminLoadState } from '$lib/admin';
 import {
   batchResult,
   emptyBatchSelection,
-  parseBatchEntries,
+  parseBatchIds,
   type BatchOutcome
 } from '$lib/admin-batch';
 import type { Board } from '$lib/api/types';
@@ -155,48 +155,36 @@ export const actions: Actions = {
   },
 
   /**
-   * 批量启用/停用（M18-ADMIN-DIALOG）：循环既有单条端点
-   * PATCH /api/v1/admin/boards/{id}（is_active/reason + If-Match，与 ?/update
-   * 完全一致），versions 与 ids 顺序一一对应；逐条 try/catch 汇总成败。
+   * 批量启用/停用（M18-ADMIN-BATCH-01）：对接后端原生 POST /api/v1/admin/boards/batch 单事务原子接口。
    */
   batchUpdate: async ({ request, cookies }) => {
     const form = await request.formData();
-    const entries = parseBatchEntries(form);
+    const ids = parseBatchIds(form);
     const reason = String(form.get('reason') ?? '').trim();
     const nextActive = String(form.get('is_active') ?? '') === 'true';
     const label = nextActive ? '批量启用' : '批量停用';
     if (!reason) {
       return fail(422, { loadState: await reloadBoards(cookies, null), message: '操作原因必填（写入审计日志）' } satisfies AdminBoardsPageData);
     }
-    if (entries.length === 0) {
+    if (ids.length === 0) {
       const empty = batchResult(emptyBatchSelection(), label);
       return fail(empty.status, { loadState: await reloadBoards(cookies, null), message: empty.message } satisfies AdminBoardsPageData);
     }
-    const outcome: BatchOutcome = { okCount: 0, failures: [] };
-    for (const entry of entries) {
-      try {
-        const result = await authedPatch<unknown>(
-          cookies,
-          `/api/v1/admin/boards/${encodeURIComponent(entry.id)}`,
-          { is_active: nextActive, reason },
-          entry.version ? { 'If-Match': entry.version } : {},
-          request.headers.get('x-request-id')
-        );
-        if (result.ok) {
-          outcome.okCount++;
-        } else if (result.status === 409) {
-          outcome.failures.push({ id: entry.id, message: `版本冲突：${result.message}` });
-        } else {
-          outcome.failures.push({ id: entry.id, message: result.message });
-        }
-      } catch {
-        outcome.failures.push({ id: entry.id, message: '网络错误' });
+    try {
+      const result = await authedPost<{ ok: boolean; affected: number; ids: string[] }>(
+        cookies,
+        '/api/v1/admin/boards/batch',
+        { ids, is_active: nextActive, reason },
+        request.headers.get('x-request-id')
+      );
+      const loadState = await reloadBoards(cookies, request.headers.get('x-request-id'));
+      if (result.ok) {
+        return { loadState, message: `${label}成功：已更新 ${result.data.affected} 个板块` } satisfies AdminBoardsPageData;
       }
+      return fail(result.status, { loadState, message: result.message } satisfies AdminBoardsPageData);
+    } catch {
+      const loadState = await reloadBoards(cookies, request.headers.get('x-request-id'));
+      return fail(503, { loadState, message: '网络错误，批量操作失败' } satisfies AdminBoardsPageData);
     }
-    const summary = batchResult(outcome, label);
-    const loadState = await reloadBoards(cookies, request.headers.get('x-request-id'));
-    return summary.ok
-      ? { loadState, message: summary.message } satisfies AdminBoardsPageData
-      : fail(summary.status, { loadState, message: summary.message } satisfies AdminBoardsPageData);
   }
 };

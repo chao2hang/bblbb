@@ -392,7 +392,7 @@
     right: 18%;
     width: 380px;
     height: 380px;
-    background: radial-gradient(circle, color-mix(in srgb, #6366f1 10%, transparent) 0%, transparent 70%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-brand) 10%, transparent) 0%, transparent 70%);
     filter: blur(80px);
   }
 
@@ -401,7 +401,7 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-image: radial-gradient(color-mix(in srgb, var(--color-text-primary) 5%, transparent) 1px, transparent 1px);
     background-size: 28px 28px;
     mask-image: radial-gradient(ellipse at 50% 50%, black 40%, transparent 80%);
     -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 40%, transparent 80%);
@@ -454,11 +454,10 @@
     width: 100%;
     padding: 34px 32px 28px;
     background: color-mix(in srgb, var(--color-bg-card) 94%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-border) 75%, rgba(255, 255, 255, 0.08));
+    border: 1px solid var(--color-border);
     border-radius: 16px;
     box-shadow:
-      0 20px 40px -15px rgba(0, 0, 0, 0.45),
-      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      var(--shadow-modal),
       0 0 50px -15px color-mix(in srgb, var(--color-brand) 12%, transparent);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -482,7 +481,7 @@
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    background: linear-gradient(135deg, var(--color-brand), color-mix(in srgb, var(--color-brand) 65%, #6366f1));
+    background: linear-gradient(135deg, var(--color-brand), color-mix(in srgb, var(--color-brand) 65%, var(--color-accent)));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -493,13 +492,13 @@
   .brand-initial {
     font-size: 19px;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--color-text-on-brand);
     font-family: var(--font-family-mono, monospace);
     line-height: 1;
   }
 
   :global(.brand-avatar-icon) {
-    color: #ffffff;
+    color: var(--color-text-on-brand);
   }
 
   .brand-meta {
@@ -550,10 +549,10 @@
     gap: var(--space-2, 8px);
     padding: 10px 14px;
     margin-bottom: var(--space-3, 12px);
-    background: var(--color-danger-soft, rgba(239, 68, 68, 0.08));
-    border: 1px solid var(--color-danger-border, rgba(239, 68, 68, 0.25));
+    background: var(--color-danger-soft);
+    border: 1px solid var(--color-danger-border);
     border-radius: 8px;
-    color: var(--color-danger, #ef4444);
+    color: var(--color-danger);
     font-size: 13px;
     line-height: 1.4;
     word-break: break-word;
@@ -562,7 +561,7 @@
   :global(.auth-alert-icon) {
     flex-shrink: 0;
     margin-top: 2px;
-    color: var(--color-danger, #ef4444);
+    color: var(--color-danger);
   }
 
   .auth-alert-text {
@@ -706,7 +705,7 @@
 
   .submit-wrap :global(.btn-primary) {
     height: 44px;
-    background: linear-gradient(135deg, var(--color-brand), color-mix(in srgb, var(--color-brand) 80%, #6366f1));
+    background: linear-gradient(135deg, var(--color-brand), color-mix(in srgb, var(--color-brand) 80%, var(--color-accent)));
     border: none;
     border-radius: 8px;
     font-size: 15px;
@@ -843,7 +842,7 @@
     background: var(--color-surface-hover, var(--color-bg-card));
     border-color: color-mix(in srgb, var(--color-border) 60%, var(--color-brand));
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-pop);
   }
 
   .oauth-icon {

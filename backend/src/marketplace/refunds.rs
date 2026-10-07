@@ -466,7 +466,7 @@ async fn execute_refund(
                     delta_frozen: 0,
                     source_type: Some("marketplace_refund".to_string()),
                     source_id: Some(refund_id.clone()),
-                    memo: format!("marketplace refund {refund_id}: {}", input.reason_code),
+                    memo: format!("应用市场退款 {refund_id}: {}", input.reason_code),
                     reverses_operation_id: Some(purchase.point_operation_id.clone()),
                 };
                 let buyer_op =
@@ -483,7 +483,7 @@ async fn execute_refund(
                     delta_frozen: 0,
                     source_type: Some("marketplace_refund".to_string()),
                     source_id: Some(refund_id.clone()),
-                    memo: format!("marketplace merchant refund {refund_id}"),
+                    memo: format!("应用市场商户退款 {refund_id}"),
                     reverses_operation_id: Some(purchase.merchant_operation_id.clone()),
                 };
                 let _merchant_op =
@@ -502,7 +502,7 @@ async fn execute_refund(
                             delta_frozen: 0,
                             source_type: Some("marketplace_refund".to_string()),
                             source_id: Some(refund_id.clone()),
-                            memo: format!("marketplace fee refund {refund_id}"),
+                            memo: format!("应用市场平台手续费退款 {refund_id}"),
                             reverses_operation_id: Some(fee_op_id.clone()),
                         };
                         Some(
@@ -667,7 +667,7 @@ async fn execute_refund(
                     delta_frozen: 0,
                     source_type: Some("marketplace_refund".to_string()),
                     source_id: Some(refund_id.clone()),
-                    memo: format!("marketplace refund {refund_id}: {}", input.reason_code),
+                    memo: format!("应用市场退款 {refund_id}: {}", input.reason_code),
                     reverses_operation_id: Some(purchase.point_operation_id.clone()),
                 };
                 let buyer_op =
@@ -684,7 +684,7 @@ async fn execute_refund(
                     delta_frozen: 0,
                     source_type: Some("marketplace_refund".to_string()),
                     source_id: Some(refund_id.clone()),
-                    memo: format!("marketplace merchant refund {refund_id}"),
+                    memo: format!("应用市场商户退款 {refund_id}"),
                     reverses_operation_id: Some(purchase.merchant_operation_id.clone()),
                 };
                 let _merchant_op =
@@ -703,7 +703,7 @@ async fn execute_refund(
                             delta_frozen: 0,
                             source_type: Some("marketplace_refund".to_string()),
                             source_id: Some(refund_id.clone()),
-                            memo: format!("marketplace fee refund {refund_id}"),
+                            memo: format!("应用市场平台手续费退款 {refund_id}"),
                             reverses_operation_id: Some(fee_op_id.clone()),
                         };
                         Some(ledger::apply_operation_in_mysql_tx(&mut tx, fee_reversal, now).await?)

@@ -78,10 +78,17 @@ pub fn router() -> Router<AppState> {
 
 // ────────────────────────── 本人附件列表 + 容量摘要 ────────────────────────
 
-/// GET /api/v1/attachments 查询参数（`limit` 缺省 100，钳制 1..=100）。
+/// GET /api/v1/attachments 查询参数（`limit` 缺省 100，钳制 1..=100；`status` 可选 'all' / 'active' / 'deleted'）。
 #[derive(Debug, Deserialize)]
 struct ListAttachmentsQuery {
     limit: Option<i64>,
+    status: Option<String>,
+}
+
+/// DELETE /api/v1/attachments/{id} 查询参数（可选 `purge=true` 立即彻底删除释放配额）。
+#[derive(Debug, Deserialize)]
+struct DeleteAttachmentQuery {
+    purge: Option<bool>,
 }
 
 /// 容量摘要投影（M06-QUOTA 口径；前台「我的附件」页与上传组件共用形状）。
@@ -159,9 +166,14 @@ async fn list_my_attachments(
     let records = list_attachments_for_owner(pool, &user.id, limit)
         .await
         .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    let status_filter = q.status.as_deref().unwrap_or("active");
     let items: Vec<Value> = records
         .iter()
-        .filter(|a| a.status != AttachmentStatus::Deleted)
+        .filter(|a| match status_filter {
+            "all" => true,
+            "deleted" => a.status == AttachmentStatus::Deleted,
+            _ => a.status != AttachmentStatus::Deleted,
+        })
         .map(attachment_json)
         .collect();
 
@@ -587,12 +599,13 @@ async fn get_attachment(
     Ok(attachment_json_response(attachment, request_id))
 }
 
-/// DELETE /api/v1/attachments/{id} — 软删除进入 30 天保留（M06-QUOTA-09）。
+/// DELETE /api/v1/attachments/{id} — 软删除进入保留期（默认）或传入 `{"purge": true}` / `?purge=true` 立即彻底删除并释放配额。
 async fn delete_attachment(
     State(state): State<AppState>,
     auth: AuthSession,
     Path(id): Path<String>,
-    _body: Bytes,
+    Query(query): Query<DeleteAttachmentQuery>,
+    body: Bytes,
 ) -> Result<Response, AppError> {
     let request_id = "deleteAttachmentsId";
     let user = auth.require_auth(request_id)?;
@@ -600,6 +613,70 @@ async fn delete_attachment(
         .db
         .as_deref()
         .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+
+    let purge_requested = query.purge.unwrap_or(false)
+        || serde_json::from_slice::<Value>(&body)
+            .ok()
+            .and_then(|v| v.get("purge").and_then(Value::as_bool))
+            .unwrap_or(false);
+
+    if purge_requested {
+        let attachment = upload::load_attachment(pool, &id)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            .ok_or_else(|| AppError::not_found("attachment not found", request_id))?;
+
+        if attachment.owner_id != user.id {
+            return Err(AppError::forbidden(
+                "attachment belongs to another user",
+                request_id,
+            ));
+        }
+
+        // 检查引用数：被引用的附件不可彻底删除
+        if crate::storage::quota::reference_count(pool, &id)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?
+            > 0
+        {
+            return Err(AppError::conflict(
+                "attachment is still referenced",
+                request_id,
+            ));
+        }
+
+        let now = now_millis();
+        if let Some(storage) = state.storage.as_deref() {
+            if let Ok(adapter) = storage.adapter(attachment.storage_backend) {
+                // 物理删除对象存储文件：设置 3 秒超时并容忍静默失败，避免远端 S3 / 网络异常阻塞导致整体请求超时失败
+                let _ = tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    adapter.delete_object(&attachment.storage_key),
+                )
+                .await;
+            }
+        }
+
+        if attachment.quota_bytes_charged > 0 {
+            crate::storage::quota::release_charged(
+                pool,
+                &attachment.owner_id,
+                attachment.quota_bytes_charged,
+                now,
+            )
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+        }
+
+        crate::storage::quota::delete_attachment_row(pool, &id)
+            .await
+            .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+
+        let mut deleted = attachment;
+        deleted.status = AttachmentStatus::Deleted;
+        deleted.deleted_at = Some(now);
+        return Ok(attachment_json_response(deleted, request_id));
+    }
 
     let deleted = match delete_attachment_service(pool, &user.id, &id, now_millis()).await {
         Ok(deleted) => deleted,

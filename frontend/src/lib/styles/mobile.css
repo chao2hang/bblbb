@@ -3065,6 +3065,126 @@
     padding: 0 !important;
   }
 
+  /* ── /me 移动端个人中心（成熟 IA 重构版）────────────────────────────
+     解剖对齐淘宝/哔哩哔哩个人中心与 linux.do/GitHub 用户页：
+       资料卡（通栏 hero）→ 身份条（吸顶）→ tag 栏（吸顶，tag = 独立路由页）
+       → 资产统计条（三列可点统计卡）→ 分组 cell 列表（全部功能入口）。
+     统计条/cell 组的交互行替代了旧版的 资产卡 CTA 堆叠 + 快捷入口网格 +
+     me-nav 行内链接 + info-strip（全部删除，入口收敛到组列表）。 */
+
+  /* 资料卡头部：徽章行独立成行，编辑/装扮双按钮等宽一行 */
+  #main-content #page-me .me-body-header {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  #main-content #page-me .me-badges {
+    grid-column: 1 / -1 !important;
+  }
+
+  #main-content #page-me .me-actions {
+    display: contents !important;
+  }
+
+  #main-content #page-me .me-actions .btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* main-col/side-col 解除栅格：卡片纵向通栏堆叠（DOM 顺序即展示顺序） */
+  #main-content #page-me .content-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    margin-top: 10px !important;
+  }
+
+  #main-content #page-me .main-col,
+  #main-content #page-me .side-col {
+    display: contents !important;
+  }
+
+  /* 资料卡通栏化：与 §20 其余卡片同一解剖（去左右边框/圆角/投影）；
+     封面压扁到 120px，首屏多露一行内容 */
+  #main-content #page-me .me-profile-card {
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-top: 0 !important;
+    border-radius: 0 !important;
+    margin: 0 0 10px !important;
+    box-shadow: none !important;
+  }
+
+  #main-content #page-me .me-cover {
+    height: 120px !important;
+    min-height: 120px !important;
+  }
+
+  /* 资产统计条：通栏卡，三列统计 + 分隔线（值 16px / 标签 11px） */
+  #main-content #page-me .me-stat-row {
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+    margin: 0 0 10px !important;
+    box-shadow: none !important;
+  }
+
+  #main-content #page-me .me-stat {
+    padding: 12px 4px 10px !important;
+  }
+
+  #main-content #page-me .me-stat-value {
+    font-size: 16px !important;
+  }
+
+  #main-content #page-me .me-stat-label {
+    font-size: 11px !important;
+  }
+
+  /* 分组 cell 列表：通栏卡 + 44px 行 + hairline 分隔 */
+  #main-content #page-me .me-cell-card {
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  #main-content #page-me .me-cell-card .card-header {
+    padding: 12px 14px 6px !important;
+  }
+
+  #main-content #page-me .me-cell-card .card-title {
+    font-size: 13px !important;
+  }
+
+  #main-content #page-me .me-cell {
+    min-height: 44px !important;
+    padding: 0 12px !important;
+  }
+
+  #main-content #page-me .me-cell:active {
+    background: var(--color-bg-subtle) !important;
+  }
+
+  /* ── 固定身份条（MeIdentityBar，三页共用）───────────────────────────
+     样式内置于组件（in-flow sticky，顶栏正下方，44px）。此处只做：
+     分区 tag 栏让位到身份条下方（52 + 44），三个 tag 页统一。 */
+  #main-content #page-me .me-tabs,
+  #main-content #page-me-security .me-tabs,
+  #main-content #page-level .me-tabs {
+    top: calc(var(--mobile-header-h, 52px) + 44px) !important;
+  }
+
+  /* 分区 tag 栏已承担跨页导航（首项即 /me），隐藏各 tag 页冗余的
+     返回链接 / 面包屑（桌面端 tag 栏不渲染，链接保留）。 */
+  #main-content #page-me-security .sec-back,
+  #main-content #page-level .header-breadcrumbs {
+    display: none !important;
+  }
+
   /* 设置页（/settings & /settings/privacy & /me/security）规范 */
   #main-content #page-settings,
   #main-content #page-settings-privacy,
@@ -3608,13 +3728,6 @@
 
   #main-content .articles-grid .card {
     margin: 0 !important;
-  }
-
-  /* 21c. 个人中心快捷导航条：行内 12px + 轨道 4px = 16px 全站边距，
-       与资料卡/卡片头对齐（实测首项 L0）。 */
-  #main-content #page-me .me-nav {
-    padding-left: 4px !important;
-    padding-right: 4px !important;
   }
 
   /* 21d. 举报/申诉/API 密钥等表单页：卡片体内容与提交按钮吃 §11 的

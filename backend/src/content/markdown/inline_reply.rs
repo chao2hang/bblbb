@@ -20,11 +20,11 @@ pub enum MarkdownSegment<'a> {
 /// 快速检测 Markdown 原文中是否可能包含内嵌回复可见标记。
 pub fn has_inline_reply(markdown: &str) -> bool {
     let lower = markdown.to_ascii_lowercase();
-    if !lower.contains(":::reply")
-        && !lower.contains(":::hide")
-        && !lower.contains("[reply]")
-        && !lower.contains("[hide]")
-    {
+    let might_have_directive = lower.contains(":::reply")
+        || lower.contains(":::hide")
+        || (lower.contains(":::") && (lower.contains("reply") || lower.contains("hide")));
+    let might_have_bbcode = lower.contains("[reply]") || lower.contains("[hide]");
+    if !might_have_directive && !might_have_bbcode {
         return false;
     }
     split_inline_reply(markdown)
@@ -49,7 +49,13 @@ pub fn split_inline_reply(markdown: &str) -> Vec<MarkdownSegment<'_>> {
         let mut search_pos = 0;
         while let Some(rel_idx) = remaining[search_pos..].find(":::") {
             let abs_rel = search_pos + rel_idx;
-            let is_line_start = abs_rel == 0 || remaining.as_bytes()[abs_rel - 1] == b'\n';
+            let line_start_pos = match remaining[..abs_rel].rfind('\n') {
+                Some(p) => p + 1,
+                None => 0,
+            };
+            let is_line_start = remaining[line_start_pos..abs_rel]
+                .chars()
+                .all(|c| c == ' ' || c == '\t');
             if is_line_start {
                 let tag_rest = &remaining[abs_rel + 3..];
                 let trimmed = tag_rest.trim_start_matches([' ', '\t']);
@@ -69,31 +75,43 @@ pub fn split_inline_reply(markdown: &str) -> Vec<MarkdownSegment<'_>> {
                 if let Some(after_tag) = is_reply.or(is_hide) {
                     if let Some(newline_pos) = after_tag.find('\n') {
                         let line_end = &after_tag[..newline_pos];
-                        if line_end.trim().is_empty() {
+                        if line_end.trim_matches([' ', '\t', '\r', '\\']).is_empty() {
                             let content_start =
                                 abs_rel + 3 + (tag_rest.len() - after_tag.len()) + newline_pos + 1;
                             let inner_rest = &remaining[content_start..];
                             let mut close_pos = 0;
                             while let Some(c_idx) = inner_rest[close_pos..].find(":::") {
                                 let c_abs = close_pos + c_idx;
-                                let c_line_start =
-                                    c_abs == 0 || inner_rest.as_bytes()[c_abs - 1] == b'\n';
+                                let c_line_start_pos = match inner_rest[..c_abs].rfind('\n') {
+                                    Some(p) => p + 1,
+                                    None => 0,
+                                };
+                                let c_line_start = inner_rest[c_line_start_pos..c_abs]
+                                    .chars()
+                                    .all(|c| c == ' ' || c == '\t');
                                 if c_line_start {
                                     let after_close = &inner_rest[c_abs + 3..];
                                     let close_len = if let Some(close_nl) = after_close.find('\n') {
-                                        if after_close[..close_nl].trim().is_empty() {
+                                        let close_line = &after_close[..close_nl];
+                                        if close_line
+                                            .trim_matches([' ', '\t', '\r', '\\'])
+                                            .is_empty()
+                                        {
                                             Some(c_abs + 3 + close_nl + 1)
                                         } else {
                                             None
                                         }
-                                    } else if after_close.trim().is_empty() {
+                                    } else if after_close
+                                        .trim_matches([' ', '\t', '\r', '\\'])
+                                        .is_empty()
+                                    {
                                         Some(inner_rest.len())
                                     } else {
                                         None
                                     };
 
                                     if let Some(total_close_end) = close_len {
-                                        let mut content_end = content_start + c_abs;
+                                        let mut content_end = content_start + c_line_start_pos;
                                         if content_end > content_start
                                             && remaining.as_bytes()[content_end - 1] == b'\n'
                                         {
@@ -106,8 +124,12 @@ pub fn split_inline_reply(markdown: &str) -> Vec<MarkdownSegment<'_>> {
                                             }
                                         }
                                         let block_end = content_start + total_close_end;
-                                        best_match =
-                                            Some((abs_rel, content_start, content_end, block_end));
+                                        best_match = Some((
+                                            line_start_pos,
+                                            content_start,
+                                            content_end,
+                                            block_end,
+                                        ));
                                         break;
                                     }
                                 }
@@ -198,8 +220,9 @@ pub fn render_with_inline_reply(markdown: &str, unlocked: bool) -> String {
                 }
             }
             MarkdownSegment::ReplyHidden(inner) => {
+                let clean_inner = inner.trim().trim_end_matches('\\').trim_end();
                 if unlocked {
-                    let rendered_inner = super::render_and_sanitize(inner.trim());
+                    let rendered_inner = super::render_and_sanitize(clean_inner);
                     out.push_str(&format!(
                         r##"<div class="topic-unlocked topic-unlocked--inline restricted-unlocked" role="region" aria-label="回复可见内容已解锁"><div class="topic-unlocked__header"><span class="topic-unlocked__icon"><svg class="icon icon-unlock" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg></span><div class="topic-unlocked__meta"><span class="topic-unlocked__title">回复可见内容已解锁</span><span class="topic-unlocked__desc">以下为解锁后的隐藏内容</span></div><span class="topic-unlocked__badge"><svg class="icon icon-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"></path></svg><span>已解锁</span></span></div><div class="topic-unlocked__divider"></div><div class="prose topic-unlocked__prose">{rendered_inner}</div></div>"##
                     ));
@@ -285,5 +308,44 @@ mod tests {
         assert!(unlocked.contains("第一段"));
         assert!(unlocked.contains("第二段"));
         assert!(unlocked.contains("第三段"));
+    }
+
+    #[test]
+    fn test_trailing_backslash_and_whitespace_variants() {
+        // Tiptap-markdown with breaks: true produces trailing backslashes at hard breaks
+        let md = ":::reply\\\n此处填写回复后可见的内容\\\n:::";
+        assert!(has_inline_reply(md));
+        let segs = split_inline_reply(md);
+        assert_eq!(segs.len(), 1);
+        match &segs[0] {
+            MarkdownSegment::ReplyHidden(inner) => {
+                let clean = inner.trim().trim_end_matches('\\').trim_end();
+                assert_eq!(clean, "此处填写回复后可见的内容");
+            }
+            _ => panic!("expected ReplyHidden"),
+        }
+        let locked = render_with_inline_reply(md, false);
+        assert!(!locked.contains("此处填写回复后可见的内容"));
+        assert!(locked.contains("topic-restricted--inline"));
+        assert!(locked.contains("此处内容回复后可见"));
+
+        let unlocked = render_with_inline_reply(md, true);
+        assert!(unlocked.contains("此处填写回复后可见的内容"));
+        assert!(unlocked.contains("topic-unlocked--inline"));
+        assert!(unlocked.contains("回复可见内容已解锁"));
+
+        // Windows CRLF
+        let crlf = ":::reply\r\nCRLF隐藏\r\n:::";
+        assert!(has_inline_reply(crlf));
+        let crlf_locked = render_with_inline_reply(crlf, false);
+        assert!(!crlf_locked.contains("CRLF隐藏"));
+        let crlf_unlocked = render_with_inline_reply(crlf, true);
+        assert!(crlf_unlocked.contains("CRLF隐藏"));
+
+        // Space before tag or indented closing fence
+        let spaces = "  :::reply \n缩进隐藏\n  ::: \n";
+        assert!(has_inline_reply(spaces));
+        let spaces_unlocked = render_with_inline_reply(spaces, true);
+        assert!(spaces_unlocked.contains("缩进隐藏"));
     }
 }

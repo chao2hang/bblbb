@@ -24,11 +24,11 @@ use crate::{
     },
     ratelimit::RateLimiter,
     routes::{
-        achievements, admin, admin_ext, ai, apikeys, auth, boards, comments, conversations,
-        download, drafts, economy, economy_ext, favorites, feature_flags, feeds, follows,
-        health::healthz, marketplace, metrics::metrics, mfa, moderation, oidc, openapi::openapi,
-        passkey, posts, reactions, ready, recommendations, search, shop, site, storage, themes,
-        trust, users, video,
+        achievements, admin, admin_batch, admin_ext, ai, apikeys, auth, boards, comments,
+        conversations, download, drafts, economy, economy_ext, favorites, feature_flags, feeds,
+        follows, health::healthz, marketplace, metrics::metrics, mfa, moderation, oidc,
+        openapi::openapi, passkey, posts, reactions, ready, recommendations, search, shop, site,
+        storage, themes, trust, users, video,
     },
 };
 
@@ -171,6 +171,7 @@ pub fn build_router_full(
         .merge(marketplace::router())
         .merge(admin::router())
         .merge(admin_ext::router())
+        .merge(admin_batch::router())
         .merge(feature_flags::router())
         .merge(feeds::router())
         .merge(search::router())

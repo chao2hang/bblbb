@@ -21,6 +21,7 @@
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import BatchBar from '$lib/components/admin/BatchBar.svelte';
   import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
+  import TablePagination from '$lib/components/admin/TablePagination.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { adminStateLabel } from '$lib/admin';
   import ExportButton from '$lib/components/admin/ExportButton.svelte';
@@ -41,6 +42,17 @@
     { value: 'banned', label: '封禁 (banned)' },
     { value: 'pending', label: '待审 (pending)' }
   ];
+
+  /** 角色 Chip 本地化（未收录时原样显示）。 */
+  const ROLE_LABELS: Record<string, string> = {
+    administrator: '管理员',
+    global_moderator: '全站版主',
+    board_moderator: '板块版主',
+    member: '成员'
+  };
+  function roleLabel(name: string): string {
+    return ROLE_LABELS[name] ?? name;
+  }
 
   const loadState = $derived(data.state);
   const items = $derived(data.items ?? []);
@@ -75,6 +87,7 @@
 
   let searchQ = $state(untrack(() => getUrlParam('q')));
   let statusFilter = $state(untrack(() => getUrlParam('status')));
+  let roleFilter = $state(untrack(() => getUrlParam('role')));
   let selectedIds = $state<string[]>([]);
 
   const filteredItems = $derived.by(() => {
@@ -91,15 +104,37 @@
     if (statusFilter) {
       list = list.filter((u) => u.status === statusFilter);
     }
+    if (roleFilter) {
+      list = list.filter((u) => u.roles?.includes(roleFilter));
+    }
     return list;
   });
 
+  let currentPage = $state(1);
+  let pageSize = $state(10);
+
+  $effect(() => {
+    void searchQ;
+    void statusFilter;
+    void roleFilter;
+    currentPage = 1;
+  });
+
+  const pagedItems = $derived(
+    filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  );
+
   let allSelected = $derived(
-    filteredItems.length > 0 && selectedIds.length === filteredItems.length
+    pagedItems.length > 0 && pagedItems.every((u) => selectedIds.includes(u.id))
   );
   function toggleAll() {
-    if (allSelected) selectedIds = [];
-    else selectedIds = filteredItems.map((u) => u.id);
+    if (allSelected) {
+      const pagedSet = new Set(pagedItems.map((u) => u.id));
+      selectedIds = selectedIds.filter((id) => !pagedSet.has(id));
+    } else {
+      const set = new Set([...selectedIds, ...pagedItems.map((u) => u.id)]);
+      selectedIds = Array.from(set);
+    }
   }
   function toggleRow(id: string) {
     if (selectedIds.includes(id)) selectedIds = selectedIds.filter((x) => x !== id);
@@ -157,9 +192,42 @@
     );
   });
 
-  /** 行「⋯」菜单项（约定 D）：设置用户状态 / 一键随机昵称 / 信任等级 / 详情 / 调整积分（GET 导航收进菜单）。 */
+  /** 角色授权弹层 */
+  let roleTarget: AdminUserItem | null = $state(null);
+  let grantRoleName = $state('');
+  let grantReason = $state('');
+  let isGranting = $state(false);
+  let revokeTargetRole: string | null = $state(null);
+  let revokeReason = $state('');
+  let isRevoking = $state(false);
+
+  const availableGrantRoles = $derived.by(() => {
+    const target = roleTarget;
+    if (!target) return [];
+    return (data.rolesList ?? []).filter((r) => !target.roles?.includes(r.name));
+  });
+
+  function updateGrantRoleDefault(item: AdminUserItem): void {
+    const list = data.rolesList ?? [];
+    const available = list.filter((r) => !item.roles?.includes(r.name));
+    grantRoleName = available[0]?.name ?? list[0]?.name ?? 'administrator';
+  }
+
+  function openRoleDialog(item: AdminUserItem): void {
+    roleTarget = item;
+    grantReason = '';
+    revokeTargetRole = null;
+    revokeReason = '';
+    updateGrantRoleDefault(item);
+  }
+
+  /** 行「⋯」菜单项（约定 D）：角色授权 / 设置用户状态 / 一键随机昵称 / 信任等级 / 详情 / 调整积分（GET 导航收进菜单）。 */
   function rowActions(item: AdminUserItem) {
     return [
+      {
+        label: '角色授权',
+        run: () => openRoleDialog(item)
+      },
       {
         label: '设置用户状态',
         run: () => openStatus(item)
@@ -324,22 +392,29 @@
             class="app-field"
             placeholder="搜索用户名、显示名或邮箱"
             aria-label="按用户名过滤"
+            style="width:240px;max-width:320px;flex:1 1 200px;min-width:180px;"
           />
-          <select class="app-select" name="status" bind:value={statusFilter} aria-label="状态筛选">
+          <select class="app-select" name="status" bind:value={statusFilter} aria-label="状态筛选" style="width:130px;flex:0 0 130px;">
             <option value="">全部状态</option>
             <option value="active">正常</option>
             <option value="banned">封禁</option>
             <option value="pending">待验证</option>
             <option value="restricted">受限</option>
           </select>
-          <span class="admin-filter-bar__summary">共 {filteredItems.length} 名成员</span>
-          {#if searchQ || statusFilter}
-            <a class="btn ghost sm" href="/admin/users">清除筛选</a>
-          {/if}
-          <button type="submit" class="btn secondary sm">
+          <select class="app-select" name="role" bind:value={roleFilter} aria-label="角色筛选" style="width:140px;flex:0 0 140px;">
+            <option value="">全部角色</option>
+            {#each (data.rolesList ?? []) as r (r.id || r.name)}
+              <option value={r.name}>{roleLabel(r.name)}（{r.name}）</option>
+            {/each}
+          </select>
+          <button type="submit" class="btn secondary" style="flex:0 0 auto;white-space:nowrap;">
             <Icon name="search" size={14} />
             应用筛选
           </button>
+          {#if searchQ || statusFilter || roleFilter}
+            <a class="btn ghost" href="/admin/users" style="flex:0 0 auto;white-space:nowrap;">清除筛选</a>
+          {/if}
+          <span class="admin-filter-bar__summary" style="margin-left:auto;white-space:nowrap;">共 {filteredItems.length} 名成员</span>
         </form>
 
         <!-- 批量工具条（选中 > 0 时渲染；批量参数在 Dialog 内填写） -->
@@ -379,7 +454,7 @@
                   </td>
                 </tr>
               {:else}
-                {#each filteredItems as item (item.id)}
+                {#each pagedItems as item (item.id)}
                 <tr>
                   <td style="text-align:center;">
                     <input
@@ -413,9 +488,28 @@
                     <span style="display:none;">{item.status}</span>
                   </td>
                   <td>
-                    <span class="text-secondary" style="font-size:13px;">
-                      {item.roles.join('、') || 'member'}
-                    </span>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+                      {#if !item.roles || item.roles.length === 0}
+                        <span class="tag-chip" style="font-size:12px;opacity:0.75;" title="member">成员<span style="display:none;">member</span></span>
+                      {:else}
+                        {#each item.roles as r (r)}
+                          <span class="tag-chip" style="font-size:12px;font-weight:500;" title={r}>
+                            <Icon name="shield-check" size={11} />
+                            {roleLabel(r)}
+                            <span style="display:none;">{r}</span>
+                          </span>
+                        {/each}
+                      {/if}
+                      <button
+                        type="button"
+                        class="btn ghost sm"
+                        style="padding:2px 6px;height:22px;font-size:11px;margin-left:2px;"
+                        title="角色授权与管理"
+                        onclick={() => openRoleDialog(item)}
+                      >
+                        <Icon name="edit-3" size={12} />
+                      </button>
+                    </div>
                   </td>
                   <td>
                     <span class="text-secondary" style="font-size:12px;white-space:nowrap;">{lastActiveLabel(item.last_login_at)}</span>
@@ -435,6 +529,15 @@
           </tbody>
           </table>
         </div>
+
+        {#if filteredItems.length > 0}
+          <TablePagination
+            bind:currentPage
+            bind:pageSize
+            totalItems={filteredItems.length}
+            noun="名成员"
+          />
+        {/if}
       {/if}
     {/if}
   </div>
@@ -749,4 +852,163 @@
       <button type="button" class="btn ghost sm" onclick={() => (reauthCancelled = true)}>取消</button>
     </div>
   </form>
+</Dialog>
+
+<!-- 角色授权与管理 Dialog：当前角色列表（可撤销）+ 授予新角色表单 -->
+<Dialog
+  open={roleTarget !== null}
+  title="角色授权与管理"
+  description={roleTarget
+    ? `管理「${roleTarget.display_name || roleTarget.username}」(@${roleTarget.username}) 的系统角色权限；所有授权与撤销写入审计日志。`
+    : ''}
+  onclose={() => {
+    roleTarget = null;
+    revokeTargetRole = null;
+  }}
+>
+  {#if roleTarget}
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <!-- 当前拥有角色 -->
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--color-text);">
+          当前拥有角色
+        </div>
+        {#if !roleTarget.roles || roleTarget.roles.length === 0}
+          <div style="font-size:13px;color:var(--color-text-secondary);padding:10px 12px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
+            该用户当前仅具备普通成员（member）基础权限，未分配额外角色。
+          </div>
+        {:else}
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            {#each roleTarget.roles as r (r)}
+              <div
+                style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--color-bg-subtle);border:1px solid var(--color-border);border-radius:var(--radius-sm);"
+              >
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <Icon name="shield-check" size={15} />
+                  <span style="font-weight:600;font-size:13px;">{roleLabel(r)}</span>
+                  <code style="font-size:11px;padding:2px 6px;background:var(--color-bg-card);border-radius:3px;color:var(--color-text-secondary);">{r}</code>
+                </div>
+                {#if revokeTargetRole === r}
+                  <!-- 撤销原因确认内联表单 -->
+                  <form
+                    method="POST"
+                    action="?/revokeRole"
+                    style="display:flex;gap:6px;align-items:center;"
+                    use:enhance={() => {
+                      isRevoking = true;
+                      return async ({ result, update }) => {
+                        isRevoking = false;
+                        toastActionResult(result);
+                        await update();
+                        if (result.type === 'success' && roleTarget) {
+                          roleTarget.roles = roleTarget.roles.filter((x) => x !== r);
+                          revokeTargetRole = null;
+                          revokeReason = '';
+                          updateGrantRoleDefault(roleTarget);
+                        }
+                      };
+                    }}
+                  >
+                    <input type="hidden" name="user_id" value={roleTarget.id} />
+                    <input type="hidden" name="role_name" value={r} />
+                    <input
+                      type="text"
+                      name="reason"
+                      class="input-field"
+                      style="padding:4px 8px;font-size:12px;width:150px;"
+                      placeholder="撤销原因（必填）"
+                      bind:value={revokeReason}
+                      required
+                    />
+                    <Button text={isRevoking ? '撤销中' : '确认撤销'} variant="danger" size="sm" type="submit" disabled={isRevoking} />
+                    <button
+                      type="button"
+                      class="btn ghost sm"
+                      onclick={() => {
+                        revokeTargetRole = null;
+                        revokeReason = '';
+                      }}
+                    >取消</button>
+                  </form>
+                {:else}
+                  <button
+                    type="button"
+                    class="btn ghost sm"
+                    style="color:var(--color-danger);font-size:12px;"
+                    onclick={() => {
+                      revokeTargetRole = r;
+                      revokeReason = '';
+                    }}
+                  >
+                    <Icon name="trash-2" size={12} />
+                    撤销
+                  </button>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--color-border);margin:0;" />
+
+      <!-- 授予新角色 -->
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--color-text);">
+          授予新角色
+        </div>
+        {#if availableGrantRoles.length === 0}
+          <div style="font-size:13px;color:var(--color-text-secondary);padding:10px 12px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);">
+            该用户已拥有所有可用角色，无需授予新角色。
+          </div>
+        {:else}
+          <form
+            method="POST"
+            action="?/grantRole"
+            use:enhance={() => {
+              isGranting = true;
+              return async ({ result, update }) => {
+                isGranting = false;
+                toastActionResult(result);
+                await update();
+                if (result.type === 'success' && roleTarget) {
+                  if (!roleTarget.roles) roleTarget.roles = [];
+                  if (!roleTarget.roles.includes(grantRoleName)) {
+                    roleTarget.roles.push(grantRoleName);
+                  }
+                  grantReason = '';
+                  updateGrantRoleDefault(roleTarget);
+                }
+              };
+            }}
+            style="display:flex;flex-direction:column;gap:12px;"
+          >
+            <input type="hidden" name="user_id" value={roleTarget.id} />
+            <div class="input-wrapper" style="margin-bottom:0;">
+              <label class="input-label" for="grant-role-select">选择角色</label>
+              <select id="grant-role-select" name="role_name" class="input-field" bind:value={grantRoleName} required>
+                {#each availableGrantRoles as r (r.id || r.name)}
+                  <option value={r.name}>{roleLabel(r.name)}（{r.name}）</option>
+                {/each}
+              </select>
+            </div>
+            <div class="input-wrapper" style="margin-bottom:0;">
+              <label class="input-label" for="grant-role-reason">操作原因（写入审计日志）</label>
+              <input
+                id="grant-role-reason"
+                name="reason"
+                class="input-field"
+                required
+                bind:value={grantReason}
+                placeholder="如：委派全站管理职责"
+              />
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
+              <Button text={isGranting ? '授予中...' : '确认授予'} variant="primary" size="sm" type="submit" disabled={isGranting} />
+            </div>
+          </form>
+        {/if}
+      </div>
+    </div>
+  {/if}
 </Dialog>
