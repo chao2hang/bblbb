@@ -1256,7 +1256,10 @@ pub async fn complete_attachment(
     let mut last_read_err = None;
     let mut bytes = Vec::new();
     for attempt in 1..=4 {
-        match adapter.read_object_bounded(&staging_key, max_read_bytes).await {
+        match adapter
+            .read_object_bounded(&staging_key, max_read_bytes)
+            .await
+        {
             Ok(b) => {
                 bytes = b;
                 last_read_err = None;

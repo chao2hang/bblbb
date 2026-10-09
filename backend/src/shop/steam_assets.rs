@@ -1050,7 +1050,11 @@ pub async fn download_all_frame_assets(
             let _permit = permit;
             let key = format!("{KEY_PREFIX}/{KIND_FRAMES}/{image}");
             let exists = if let Ok(adapter) = storage.adapter(storage.default_backend()) {
-                adapter.head_object(&key).await.map(|h| h.exists).unwrap_or(false)
+                adapter
+                    .head_object(&key)
+                    .await
+                    .map(|h| h.exists)
+                    .unwrap_or(false)
             } else {
                 false
             };
