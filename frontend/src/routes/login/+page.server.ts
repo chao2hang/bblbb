@@ -66,8 +66,10 @@ export const actions: Actions = {
   mfa: async ({ request, cookies, url }) => {
     const form = await request.formData();
     const challengeToken = String(form.get('challenge_token') ?? '').trim();
-    const totpCode = String(form.get('totp_code') ?? '').trim();
-    const recoveryCode = String(form.get('recovery_code') ?? '').trim();
+    const totpRaw = String(form.get('totp_code') ?? '').trim();
+    const totpCode = totpRaw.replace(/[-\s]/g, '');
+    const recoveryRaw = String(form.get('recovery_code') ?? '').trim();
+    const recoveryCode = recoveryRaw.replace(/[-\s]/g, '');
     // Passkey 断言：客户端 JS 把浏览器凭据 JSON 写入隐藏字段（M02-MFA-PK）
     const passkeyRaw = String(form.get('passkey_assertion') ?? '').trim();
     let passkeyAssertion: unknown;
@@ -85,7 +87,7 @@ export const actions: Actions = {
     if (!challengeToken) {
       return fail(422, { message: '登录状态已失效，请重新登录' } satisfies LoginActionData);
     }
-    const methodCount = [totpCode, recoveryCode, passkeyRaw].filter((v) => v).length;
+    const methodCount = [totpRaw, recoveryRaw, passkeyRaw].filter((v) => v).length;
     if (methodCount !== 1) {
       return fail(422, {
         mfa_required: true,
@@ -93,6 +95,42 @@ export const actions: Actions = {
         passkey_available: form.get('passkey_available') === '1',
         message: '验证码、恢复码或 Passkey 请任选一种'
       } satisfies LoginActionData);
+    }
+    if (totpRaw) {
+      if (totpCode.length < 6) {
+        return fail(422, {
+          mfa_required: true,
+          challenge_token: challengeToken,
+          passkey_available: form.get('passkey_available') === '1',
+          message: `验证码长度不足，请输入 6 位数字验证码（当前 ${totpCode.length} 位）`
+        } satisfies LoginActionData);
+      }
+      if (!/^[0-9]{6}$/.test(totpCode)) {
+        return fail(422, {
+          mfa_required: true,
+          challenge_token: challengeToken,
+          passkey_available: form.get('passkey_available') === '1',
+          message: '请输入 6 位数字验证码'
+        } satisfies LoginActionData);
+      }
+    }
+    if (recoveryRaw) {
+      if (recoveryCode.length < 16) {
+        return fail(422, {
+          mfa_required: true,
+          challenge_token: challengeToken,
+          passkey_available: form.get('passkey_available') === '1',
+          message: `恢复码长度不足，请输入 16 位恢复码（当前 ${recoveryCode.length} 位）`
+        } satisfies LoginActionData);
+      }
+      if (recoveryCode.length > 16 || !/^[A-Za-z0-9]{16}$/.test(recoveryCode)) {
+        return fail(422, {
+          mfa_required: true,
+          challenge_token: challengeToken,
+          passkey_available: form.get('passkey_available') === '1',
+          message: '请输入 16 位恢复码'
+        } satisfies LoginActionData);
+      }
     }
     try {
       const result = await loginMfaViaServer(

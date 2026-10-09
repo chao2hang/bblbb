@@ -6,7 +6,8 @@
   // 单动作确认 Dialog（启停 ?/toggle If-Match；上传图标 ?/uploadIcon file input；
   // 移除图标 ?/removeIcon；手工授予 ?/grant username+reason；删除 ?/delete reason
   // ——危险 danger 提交按钮）。
-  // 批量启用/停用（BatchBar + ?/bulk）与页头「新建成就」表单保持不变。
+  // 批量启用/停用（BatchBar + ?/bulk）与行操作保持弹层化交互。
+  // 约定 A（按钮→弹层）：新建成就收进 Dialog（?/create），页头提供「新建成就」入口按钮。
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import BatchBar from '$lib/components/admin/BatchBar.svelte';
   import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
@@ -55,6 +56,17 @@
   $effect(() => {
     hasJs = true;
   });
+
+  /** 新建成就 Dialog（约定 A：按钮打开弹层，?/create）。 */
+  let createOpen = $state(false);
+
+  function openCreate(): void {
+    createOpen = true;
+  }
+
+  function closeCreate(): void {
+    createOpen = false;
+  }
 
   /** 行操作「⋮」菜单 + 弹层（约定 D：菜单项决定动作，弹层内单动作确认）。
    *  按 opsAction 渲染对应表单节：启停（?/toggle If-Match）/
@@ -232,80 +244,6 @@
     <p class="input-hint is-error" role="alert">成就版本已变化（If-Match 乐观锁冲突），请刷新后重试。</p>
   {/if}
 
-  <div class="app-card" style="margin-bottom:var(--space-4);">
-    <div class="app-card__head"><h2>新建成就</h2></div>
-    <div class="app-card__body">
-      <form
-        method="POST"
-        action="?/create"
-        use:enhance={() => {
-          return async ({ result, update }) => {
-            // 结果 message 走全局 Toast（兜底文案与原先一致）
-            toastActionResult(result, {
-              message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '创建成功' : '创建失败')
-            });
-            await update();
-          };
-        }}
-      >
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-3);">
-          <div class="input-wrapper">
-            <label class="input-label" for="ac-code">code（唯一）</label>
-            <input id="ac-code" name="code" class="input-field" required pattern="[a-z0-9_-]&#123;1,64&#125;" placeholder="first_post" />
-          </div>
-          <div class="input-wrapper">
-            <label class="input-label" for="ac-name">名称（1-120 字）</label>
-            <input id="ac-name" name="name" class="input-field" required maxlength="120" />
-          </div>
-          <div class="input-wrapper">
-            <label class="input-label" for="ac-category">分类（1-32 字）</label>
-            <input id="ac-category" name="category" class="input-field" required maxlength="32" placeholder="community" />
-          </div>
-          <div class="input-wrapper">
-            <label class="input-label" for="ac-condition-type">条件类型</label>
-            <select id="ac-condition-type" name="condition_type" class="input-field">
-              {#each CONDITION_TYPES as ct (ct.value)}
-                <option value={ct.value}>{ct.label}（{ct.value}）</option>
-              {/each}
-            </select>
-          </div>
-          <div class="input-wrapper">
-            <label class="input-label" for="ac-threshold">条件阈值</label>
-            <input id="ac-threshold" name="condition_threshold" type="number" min="0" step="1" class="input-field" required value="1" />
-          </div>
-          <div class="input-wrapper">
-            <label class="input-label" for="ac-reward-coin">奖励 {currencyName}</label>
-            <input id="ac-reward-coin" name="reward_coin" type="number" min="0" step="1" class="input-field" value="0" />
-          </div>
-          <div class="input-wrapper">
-            <label class="input-label" for="ac-sort">排序</label>
-            <input id="ac-sort" name="sort_order" type="number" step="1" class="input-field" value="0" />
-          </div>
-        </div>
-        <div class="input-wrapper" style="margin-top:var(--space-3);">
-          <label class="input-label" for="ac-description">描述（1-500 字）</label>
-          <textarea id="ac-description" name="description" class="input-field" required maxlength="500" rows="2"></textarea>
-        </div>
-        <div style="display:flex;gap:var(--space-4);align-items:center;margin-top:var(--space-3);flex-wrap:wrap;">
-          <label class="input-label" style="display:flex;align-items:center;gap:var(--space-1);">
-            <input type="checkbox" name="is_hidden" /> 隐藏成就（条件仅管理端可见）
-          </label>
-          <label class="input-label" style="display:flex;align-items:center;gap:var(--space-1);">
-            <input type="checkbox" name="is_enabled" checked /> 立即启用
-          </label>
-          <div class="input-wrapper" style="flex:1;min-width:200px;">
-            <label class="input-label" for="ac-reason">操作原因（写审计）</label>
-            <input id="ac-reason" name="reason" class="input-field" required placeholder="必填" />
-          </div>
-          <Button text="创建成就" variant="primary" size="sm" type="submit" />
-        </div>
-        <p class="input-hint" style="margin-top:var(--space-2);">
-          成就创建后可在下方列表「图标」列上传成就图片（png/jpeg/webp/gif，≤2MB；存储在站点本地磁盘，不经 S3）。
-        </p>
-      </form>
-    </div>
-  </div>
-
   <!-- 统计卡（原型 achievement-stats 四项） -->
   <div class="app-stat-grid">
     <StatCard value={stats.total} label="成就总数" icon="trophy" />
@@ -315,9 +253,14 @@
   </div>
 
   <div class="app-card" style="margin-top:14px;">
-    <div class="app-card__head">
-      <h2>成就定义</h2>
-      <span class="text-secondary" style="font-size:12px;">共 {items.length} 项 · 支持按名称、分类和状态查找</span>
+    <div class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h2>成就定义</h2>
+        <span class="text-secondary" style="font-size:12px;">共 {items.length} 项 · 支持按名称、分类和状态查找</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <Button text="新建成就" variant="primary" size="sm" onclick={openCreate} />
+      </div>
     </div>
     <div class="card-body" style="padding:0;">
       {#if items.length > 0}
@@ -635,6 +578,90 @@
         <input id="ach-batch-reason" name="reason" class="input-field" required bind:value={batchReason} placeholder="必填" />
       </div>
       <Button text="确认{batchNextEnabled ? '启用' : '停用'} {selected.size} 项" variant="primary" size="sm" type="submit" />
+    </form>
+  </Dialog>
+
+  <!-- 新建成就 Dialog（约定 A：按钮打开弹层，?/create，创建原因写审计）。 -->
+  <Dialog
+    open={createOpen}
+    title="新建成就"
+    description="配置解锁条件、奖励与前台展示规则；创建原因写入审计日志。"
+    onclose={closeCreate}
+  >
+    <form
+      method="POST"
+      action="?/create"
+      use:enhance={() => {
+        return async ({ result, update }) => {
+          // 结果 message 走全局 Toast（兜底文案与原先一致）
+          toastActionResult(result, {
+            message: (d) => (d?.message as string | null) ?? (result.type === 'success' ? '创建成功' : '创建失败')
+          });
+          if (result.type === 'success') {
+            closeCreate();
+          }
+          await update();
+        };
+      }}
+      style="display:flex;flex-direction:column;gap:var(--space-3);"
+    >
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-3);">
+        <div class="input-wrapper">
+          <label class="input-label" for="ac-code">code（唯一）</label>
+          <input id="ac-code" name="code" class="input-field" required pattern="[a-z0-9_-]&#123;1,64&#125;" placeholder="first_post" />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="ac-name">名称（1-120 字）</label>
+          <input id="ac-name" name="name" class="input-field" required maxlength="120" />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="ac-category">分类（1-32 字）</label>
+          <input id="ac-category" name="category" class="input-field" required maxlength="32" placeholder="community" />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="ac-condition-type">条件类型</label>
+          <select id="ac-condition-type" name="condition_type" class="input-field">
+            {#each CONDITION_TYPES as ct (ct.value)}
+              <option value={ct.value}>{ct.label}（{ct.value}）</option>
+            {/each}
+          </select>
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="ac-threshold">条件阈值</label>
+          <input id="ac-threshold" name="condition_threshold" type="number" min="0" step="1" class="input-field" required value="1" />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="ac-reward-coin">奖励 {currencyName}</label>
+          <input id="ac-reward-coin" name="reward_coin" type="number" min="0" step="1" class="input-field" value="0" />
+        </div>
+        <div class="input-wrapper">
+          <label class="input-label" for="ac-sort">排序</label>
+          <input id="ac-sort" name="sort_order" type="number" step="1" class="input-field" value="0" />
+        </div>
+      </div>
+      <div class="input-wrapper">
+        <label class="input-label" for="ac-description">描述（1-500 字）</label>
+        <textarea id="ac-description" name="description" class="input-field" required maxlength="500" rows="3"></textarea>
+      </div>
+      <div style="display:flex;gap:var(--space-4);align-items:center;flex-wrap:wrap;">
+        <label class="input-label" style="display:flex;align-items:center;gap:var(--space-1);">
+          <input type="checkbox" name="is_hidden" /> 隐藏成就（条件仅管理端可见）
+        </label>
+        <label class="input-label" style="display:flex;align-items:center;gap:var(--space-1);">
+          <input type="checkbox" name="is_enabled" checked /> 立即启用
+        </label>
+      </div>
+      <div class="input-wrapper">
+        <label class="input-label" for="ac-reason">操作原因（写审计）</label>
+        <input id="ac-reason" name="reason" class="input-field" required placeholder="必填" />
+      </div>
+      <p class="input-hint" style="margin:0;">
+        成就创建后可在下方列表「图标」列上传成就图片（png/jpeg/webp/gif，≤2MB；存储在站点本地磁盘，不经 S3）。
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:var(--space-2);">
+        <button type="button" class="btn ghost sm" onclick={closeCreate}>取消</button>
+        <Button text="创建成就" variant="primary" size="sm" type="submit" />
+      </div>
     </form>
   </Dialog>
 

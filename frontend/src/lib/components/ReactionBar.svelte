@@ -686,7 +686,7 @@
     border-radius: var(--radius-sm, 6px);
     border: none;
     background: transparent;
-    color: var(--color-text-secondary, #545C68);
+    color: var(--color-text-secondary);
     font-size: 13px;
     font-weight: var(--weight-medium, 500);
     cursor: pointer;
@@ -695,11 +695,11 @@
 
   .rx-pill:hover,
   .rx-pill.is-open {
-    background: var(--color-surface-hover, #F1F3F5);
+    background: var(--color-surface-hover);
   }
 
   .rx-pill:focus-visible {
-    outline: 2px solid var(--color-brand, #2C4BD8);
+    outline: 2px solid var(--color-brand);
     outline-offset: 1px;
   }
 
@@ -712,7 +712,7 @@
   .rx-pill-count {
     font-size: 12px;
     font-weight: 600;
-    color: var(--color-text-secondary, #545C68);
+    color: var(--color-text-secondary);
   }
 
   /* 参考截图的表情详情弹窗（portal 到 body + fixed 定位，left/top 由 JS 按触发元素写入）。
@@ -724,10 +724,10 @@
     top: 0;
     width: 290px;
     max-width: 90vw;
-    background: var(--color-bg-raised, #FFFFFF);
-    border: 1px solid var(--color-border, #DFE3E7);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 10px);
-    box-shadow: var(--shadow-pop, 0 12px 32px rgba(0, 0, 0, 0.16));
+    box-shadow: var(--shadow-pop);
     z-index: var(--z-dropdown, 100);
     padding: 8px 0;
     display: flex;
@@ -752,7 +752,7 @@
     align-items: center;
     gap: 4px;
     padding: 2px 8px 8px 8px;
-    border-bottom: 1px solid var(--color-border-muted, #E7EAEE);
+    border-bottom: 1px solid var(--color-border-muted);
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -769,7 +769,7 @@
     border-radius: var(--radius-sm, 6px);
     border: none;
     background: transparent;
-    color: var(--color-text-secondary, #545C68);
+    color: var(--color-text-secondary);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -778,14 +778,14 @@
   }
 
   .rx-popover-tab:hover {
-    background: var(--color-surface-hover, #F1F3F5);
-    color: var(--color-text-primary, #10141A);
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
   }
 
   /* 选中 Tab：品牌色当前态（双模式自适应——亮底深强调白字 / 深底浅强调深字） */
   .rx-popover-tab.is-active {
-    background: var(--color-brand, #2C4BD8);
-    color: var(--color-text-on-brand, #FFFFFF);
+    background: var(--color-brand);
+    color: var(--color-text-on-brand);
   }
 
   .rx-tab-count {
@@ -803,7 +803,7 @@
   .rx-popover-status {
     padding: 16px;
     text-align: center;
-    color: var(--color-text-tertiary, #737373);
+    color: var(--color-text-tertiary);
     font-size: 12px;
   }
 
@@ -817,7 +817,7 @@
   }
 
   .rx-user-row:hover {
-    background: var(--color-surface-hover, #F1F3F5);
+    background: var(--color-surface-hover);
   }
 
   .rx-user-meta {
@@ -837,7 +837,7 @@
   .rx-user-display-name {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color-text-primary, #10141A);
+    color: var(--color-text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -845,7 +845,7 @@
 
   .rx-user-handle {
     font-size: 11px;
-    color: var(--color-text-tertiary, #737373);
+    color: var(--color-text-tertiary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -877,7 +877,7 @@
     border: none;
     border-radius: var(--radius-sm, 6px);
     background: transparent;
-    color: var(--color-text-secondary, #545C68);
+    color: var(--color-text-secondary);
     cursor: pointer;
     font-size: 13px;
     transition: all 0.15s;
@@ -885,8 +885,8 @@
 
   .reaction-add-btn:hover,
   .reaction-add-btn.is-open {
-    color: var(--color-brand, #2C4BD8);
-    background: var(--color-surface-hover, #F1F3F5);
+    color: var(--color-brand);
+    background: var(--color-surface-hover);
   }
 
   .reaction-add-label {
@@ -901,10 +901,10 @@
     top: 0;
     width: 290px;
     max-width: 90vw;
-    background: var(--color-bg-raised, #FFFFFF);
-    border: 1px solid var(--color-border, #DFE3E7);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 8px);
-    box-shadow: var(--shadow-pop, 0 10px 25px rgba(0, 0, 0, 0.16));
+    box-shadow: var(--shadow-pop);
     z-index: var(--z-dropdown, 100);
     padding: 10px;
     animation: popoverFadeIn 0.15s ease-out;
@@ -913,13 +913,13 @@
   .reaction-picker-header {
     padding-bottom: 6px;
     margin-bottom: 6px;
-    border-bottom: 1px solid var(--color-border-muted, #E7EAEE);
+    border-bottom: 1px solid var(--color-border-muted);
   }
 
   .reaction-picker-title {
     font-size: 12px;
     font-weight: 600;
-    color: var(--color-text-secondary, #545C68);
+    color: var(--color-text-secondary);
   }
 
   .reaction-picker-grid {
@@ -943,14 +943,14 @@
   }
 
   .reaction-picker-item:hover {
-    background: var(--color-surface-hover, #F1F3F5);
-    border-color: var(--color-border, #DFE3E7);
+    background: var(--color-surface-hover);
+    border-color: var(--color-border);
     transform: translateY(-1px);
   }
 
   .reaction-picker-item.is-active {
-    background: var(--color-brand-soft, #F1F3F5);
-    border-color: var(--color-brand, #2C4BD8);
+    background: var(--color-brand-soft);
+    border-color: var(--color-brand);
   }
 
   .reaction-picker-icon {
@@ -968,17 +968,17 @@
 
   .reaction-picker-name {
     font-size: 11px;
-    color: var(--color-text-secondary, #545C68);
+    color: var(--color-text-secondary);
     white-space: nowrap;
   }
 
   .input-hint {
     margin-top: 6px;
     font-size: 12px;
-    color: var(--color-text-tertiary, #737373);
+    color: var(--color-text-tertiary);
   }
 
   .input-hint.is-error {
-    color: var(--color-danger, #cf222e);
+    color: var(--color-danger);
   }
 </style>

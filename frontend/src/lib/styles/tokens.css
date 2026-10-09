@@ -48,6 +48,7 @@
   --aui-danger: #C9363E;
   --aui-warning: #9B6500;
   --aui-info: #2C4BD8;
+  --aui-overlay: rgb(24 24 27 / 42%);
   --aui-font-ui: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
   --aui-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
@@ -62,7 +63,7 @@
   --color-bg-inset: var(--aui-header, #18181b);
   --color-surface-hover: var(--aui-control-bg-hover, #18181b);
   --color-surface-selected: var(--aui-table-row-hover, rgb(39 39 42 / 50%));
-  --color-overlay: var(--aui-overlay, rgb(0 0 0 / 78%));
+  --color-overlay: var(--aui-overlay, rgba(16, 20, 26, 0.44));
 
   /* ---- Colors: Text (来自 blbui --aui-text-*) ---- */
   --color-text-primary: var(--aui-text-primary, #ffffff);
@@ -118,6 +119,15 @@
   --color-code-inline-bg: #EFF2F5;
   --color-code-inline-border: #D8DEE4;
   --color-code-inline-text: #0969DA;
+  --color-code-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --token-comment: #6E7781;
+  --token-punctuation: #57606A;
+  --token-number: #953800;
+  --token-string: #0A3069;
+  --token-operator: #0550AE;
+  --token-keyword: #CF222E;
+  --token-function: #8250DF;
+  --token-variable: #953800;
   --color-focus-ring: var(--aui-focus-ring, 0 0 0 2px rgb(161 161 170 / 28%));
   --color-visited: var(--aui-text-secondary, #737373);
   --color-highlight-soft: color-mix(in srgb, var(--aui-warning, #f59e0b) 14%, var(--aui-surface, #0f0f0f));
@@ -215,6 +225,38 @@
   --reading-max: 740px;
   --side-col: 300px;
   --header-h: 56px;
+
+  /* ============================================================
+     历史与组件语义别名桥（Alias Bridge）：
+     兼容历史类名（.app-*、原型层、局部组件）消费的旧变量名，
+     统一映射到底层标准语义 Token，保证主题切换时全站统一生效。
+     ============================================================ */
+  --title: var(--color-text-primary);
+  --muted: var(--color-text-secondary);
+  --faint: var(--color-text-tertiary);
+  --on-brand: var(--color-text-on-brand);
+  --color-on-brand: var(--color-text-on-brand);
+  --color-text: var(--color-text-primary);
+  --color-text-muted: var(--color-text-tertiary);
+  --color-primary: var(--color-brand);
+  --color-primary-rgb: 44, 75, 216;
+  --color-primary-subtle: var(--color-brand-soft);
+  --color-brand-rgb: 44, 75, 216;
+  --color-bg: var(--color-bg-page);
+  --color-bg-secondary: var(--color-bg-subtle);
+  --color-bg-subtle-hover: var(--color-surface-hover);
+  --color-surface-muted: var(--color-bg-subtle);
+  --color-danger-subtle: var(--color-danger-soft);
+  --color-danger-border: color-mix(in srgb, var(--color-danger) 40%, transparent);
+  --color-border-subtle: var(--color-border-muted);
+  --font-mono: var(--font-family-mono);
+  --shadow-sm: var(--shadow-control, 0 1px 2px rgb(0 0 0 / 6%));
+  --shadow-card: var(--shadow-control);
+  --line-strong: var(--color-border-strong);
+  --backdrop: var(--color-overlay);
+  --transition-fast: var(--duration-fast) var(--ease-out);
+  --weight-bold: 700;
+  --line-height-relaxed: 1.6;
 }
 
 /* ============================================================
@@ -251,6 +293,7 @@ html.dark {
   --aui-danger: #F2585B;
   --aui-warning: #D2A02F;
   --aui-info: #7B92FF;
+  --aui-overlay: rgba(3, 5, 8, 0.7);
 
   --color-bg-page: #0D1014;
   --color-bg-card: #14181E;
@@ -297,6 +340,15 @@ html.dark {
   --color-code-inline-bg: rgba(255, 255, 255, 0.07);
   --color-code-inline-border: rgba(255, 255, 255, 0.14);
   --color-code-inline-text: #79C0FF;
+  --color-code-shadow: 0 4px 18px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --token-comment: #8B949E;
+  --token-punctuation: #8B949E;
+  --token-number: #F0883E;
+  --token-string: #7EE787;
+  --token-operator: #79C0FF;
+  --token-keyword: #FF7B72;
+  --token-function: #D2A8FF;
+  --token-variable: #FFA657;
   --color-focus-ring: rgba(123, 146, 255, 0.7);
   --color-visited: #79818D;
   --color-highlight-soft: #33280F;
@@ -305,6 +357,9 @@ html.dark {
   --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.6), 0 3px 10px rgba(0, 0, 0, 0.4);
   --shadow-modal: 0 32px 80px rgba(0, 0, 0, 0.78), 0 8px 24px rgba(0, 0, 0, 0.5);
   --shadow-header: none;
+  --color-primary-rgb: 123, 146, 255;
+  --color-brand-rgb: 123, 146, 255;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 
 /* System-level dark fallback (no-JS) — default off, follows OS only when
@@ -334,6 +389,7 @@ html.dark {
     --aui-accent-content: #071B18;
     --aui-neutral: #262C35;
     --aui-neutral-content: #EDEFF2;
+    --aui-color-scheme: dark;
     --aui-control-bg: #0C0C0C;
     --aui-control-bg-hover: #18181B;
     --aui-control-border-hover: #52525B;
@@ -341,6 +397,7 @@ html.dark {
     --aui-danger: #F2585B;
     --aui-warning: #D2A02F;
     --aui-info: #7B92FF;
+    --aui-overlay: rgba(3, 5, 8, 0.7);
 
     --color-bg-page: #0D1014;
     --color-bg-card: #14181E;
@@ -381,6 +438,15 @@ html.dark {
     --color-code-inline-bg: rgba(255, 255, 255, 0.07);
     --color-code-inline-border: rgba(255, 255, 255, 0.14);
     --color-code-inline-text: #79C0FF;
+    --color-code-shadow: 0 4px 18px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --token-comment: #8B949E;
+    --token-punctuation: #8B949E;
+    --token-number: #F0883E;
+    --token-string: #7EE787;
+    --token-operator: #79C0FF;
+    --token-keyword: #FF7B72;
+    --token-function: #D2A8FF;
+    --token-variable: #FFA657;
     --color-focus-ring: rgba(123, 146, 255, 0.7);
     --color-visited: #79818D;
     --color-highlight-soft: #33280F;
@@ -388,6 +454,9 @@ html.dark {
     --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.6), 0 3px 10px rgba(0, 0, 0, 0.4);
     --shadow-modal: 0 32px 80px rgba(0, 0, 0, 0.78), 0 8px 24px rgba(0, 0, 0, 0.5);
     --shadow-header: none;
+    --color-primary-rgb: 123, 146, 255;
+    --color-brand-rgb: 123, 146, 255;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
   }
 }
 

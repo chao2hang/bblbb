@@ -109,7 +109,7 @@
   </header>
   <div class="app-card__body">
     <!-- 工具栏：单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
-    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+    <div class="admin-filter-bar">
       <input
         type="search"
         bind:value={q}
@@ -129,7 +129,7 @@
         <option value="rejected">已拒绝</option>
       </select>
       {#if q || statusFilter || objFilter}
-        <button type="button" class="btn ghost sm" style="flex:0 0 auto;" onclick={() => { q = ''; statusFilter = ''; objFilter = ''; }}>
+        <button type="button" class="btn ghost" style="flex:0 0 auto;" onclick={() => { q = ''; statusFilter = ''; objFilter = ''; }}>
           清除
         </button>
       {/if}

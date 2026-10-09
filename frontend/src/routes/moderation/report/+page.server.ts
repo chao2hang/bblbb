@@ -17,18 +17,21 @@ export interface ReportPageData {
 
 export const load: PageServerLoad = async ({ cookies, request, url }): Promise<ReportPageData> => {
   const requestId = request.headers.get('x-request-id');
+  const postParam = url.searchParams.get('post')?.trim();
   const me = await getAuthed<unknown>(cookies, '/api/v1/me', requestId);
   if (!me.ok && me.status === 401) {
-    const nextPath = url.pathname + url.search;
+    const nextPath = postParam
+      ? `/posts/${encodeURIComponent(postParam)}?report=1`
+      : url.pathname + url.search;
     throw redirect(303, `/login?next=${encodeURIComponent(nextPath)}`);
+  }
+  // 举报弹窗优化：?post={id} 直接重定向到帖子页并弹出举报弹窗，无需独立页面
+  if (postParam) {
+    throw redirect(303, `/posts/${encodeURIComponent(postParam)}?report=1`);
   }
   const result = await getAuthed<{ items: ReportItem[] }>(cookies, '/api/v1/reports', requestId);
   const items = result.ok ? result.data.items : [];
-  // ?post={id} 预填（帖子详情「举报」入口）：目标类型固定 post，ID 校验
-  // 仅去空白（存在性由后端提交时裁决，M05-UI-05 不在前端猜测）。
-  const postParam = url.searchParams.get('post')?.trim();
-  const prefill = postParam ? { target_type: 'post', target_id: postParam } : null;
-  return { items, submitted: null, prefill } satisfies ReportPageData;
+  return { items, submitted: null, prefill: null } satisfies ReportPageData;
 };
 
 export const actions: Actions = {

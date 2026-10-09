@@ -4,13 +4,19 @@
 // PATCH /api/v1/admin/users/{id}（versions 与 ids 一一对应作 If-Match）。
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedDelete, authedPatch, authedPost, getAuthed } from '$lib/api/server';
+import { authedDelete, authedDeleteBody, authedPatch, authedPost, getAuthed } from '$lib/api/server';
 import {
   batchResult,
   emptyBatchSelection,
-  parseBatchEntries,
+  parseBatchIds,
   type BatchOutcome
 } from '$lib/admin-batch';
+
+export interface AdminRoleOption {
+  id: string;
+  name: string;
+  is_system?: boolean;
+}
 
 export interface AdminUserItem {
   id: string;
@@ -48,6 +54,7 @@ export interface AdminUsersPageData {
   error: string | null;
   blacklist?: BlacklistEntry[];
   blacklistTotal?: number;
+  rolesList?: AdminRoleOption[];
 }
 
 export interface AdminUsersActionData {
@@ -74,12 +81,12 @@ export const load: PageServerLoad = async ({ cookies, request, url }): Promise<A
   if (!result.ok) {
     if (result.status === 401) throw redirect(303, '/login');
     if (result.status === 403) {
-      return { state: 'forbidden', items: null, error: result.message, blacklist: [], blacklistTotal: 0 };
+      return { state: 'forbidden', items: null, error: result.message, blacklist: [], blacklistTotal: 0, rolesList: [] };
     }
     if (result.status === 501) {
-      return { state: 'not_implemented', items: null, error: result.message, blacklist: [], blacklistTotal: 0 };
+      return { state: 'not_implemented', items: null, error: result.message, blacklist: [], blacklistTotal: 0, rolesList: [] };
     }
-    return { state: 'error', items: null, error: result.message, blacklist: [], blacklistTotal: 0 };
+    return { state: 'error', items: null, error: result.message, blacklist: [], blacklistTotal: 0, rolesList: [] };
   }
 
   let blacklist: BlacklistEntry[] = [];
@@ -94,7 +101,17 @@ export const load: PageServerLoad = async ({ cookies, request, url }): Promise<A
     blacklistTotal = blResult.data.total;
   }
 
-  return { state: 'ok', items: result.data.items, error: null, blacklist, blacklistTotal };
+  let rolesList: AdminRoleOption[] = [];
+  const rolesResult = await getAuthed<{ items: AdminRoleOption[] }>(
+    cookies,
+    '/api/v1/admin/roles',
+    requestId
+  );
+  if (rolesResult.ok && Array.isArray(rolesResult.data.items)) {
+    rolesList = rolesResult.data.items;
+  }
+
+  return { state: 'ok', items: result.data.items, error: null, blacklist, blacklistTotal, rolesList };
 };
 
 export const actions: Actions = {
@@ -179,47 +196,36 @@ export const actions: Actions = {
    * PATCH /api/v1/admin/users/{id}（status/reason + If-Match 乐观锁），
    * versions 与 ids 顺序一一对应；逐条 try/catch 汇总成败。
    */
+  /**
+   * 批量设置状态（M18-ADMIN-BATCH-01）：对接后端原生 POST /api/v1/admin/users/batch 单事务原子接口。
+   */
   batchUpdate: async ({ request, cookies }) => {
     const form = await request.formData();
-    const entries = parseBatchEntries(form);
+    const ids = parseBatchIds(form);
     const status = String(form.get('status') ?? '').trim();
     const reason = String(form.get('reason') ?? '').trim();
     if (!reason) return fail(422, { message: '操作原因必填（写审计）' });
     if (!['pending', 'active', 'restricted', 'banned'].includes(status)) {
       return fail(422, { message: '无效状态' });
     }
-    if (entries.length === 0) {
+    if (ids.length === 0) {
       const empty = batchResult(emptyBatchSelection(), '批量设置状态');
       return fail(empty.status, { message: empty.message });
     }
-    const outcome: BatchOutcome = { okCount: 0, failures: [] };
-    for (const entry of entries) {
-      try {
-        const result = await authedPatch<AdminUserItem>(
-          cookies,
-          `/api/v1/admin/users/${encodeURIComponent(entry.id)}`,
-          { status, reason },
-          entry.version ? { 'If-Match': entry.version } : {},
-          request.headers.get('x-request-id')
-        );
-        if (result.ok) {
-          outcome.okCount++;
-        } else if (result.code === 'step_up_required') {
-          return fail(403, {
-            message: '此操作需要重新验证身份，请输入密码重新验证后重试',
-            stepUpRequired: true
-          } satisfies AdminUsersActionData);
-        } else if (result.status === 409) {
-          outcome.failures.push({ id: entry.id, message: `版本冲突：${result.message}` });
-        } else {
-          outcome.failures.push({ id: entry.id, message: result.message });
-        }
-      } catch {
-        outcome.failures.push({ id: entry.id, message: '网络错误' });
+    try {
+      const result = await authedPost<{ ok: boolean; affected: number; ids: string[] }>(
+        cookies,
+        '/api/v1/admin/users/batch',
+        { ids, status, reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `批量更新成功：已设置 ${result.data.affected} 位用户状态为 ${status}` };
       }
+      return fail(result.status, { message: result.message });
+    } catch {
+      return fail(503, { message: '网络错误，批量操作失败' });
     }
-    const summary = batchResult(outcome, '批量设置状态');
-    return summary.ok ? { message: summary.message } : fail(summary.status, { message: summary.message });
   },
 
   /**
@@ -350,6 +356,76 @@ export const actions: Actions = {
       return fail(503, {
         message: '验证失败，请稍后重试'
       } satisfies AdminUsersActionData);
+    }
+  },
+
+  /** 授予角色：POST /admin/users/{id}/roles {role_name, reason}。 */
+  grantRole: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const userId = String(form.get('user_id') ?? '').trim();
+    const roleName = String(form.get('role_name') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!userId || !roleName) {
+      return fail(422, { message: '缺少用户或角色' } satisfies AdminUsersActionData);
+    }
+    if (!reason) {
+      return fail(422, { message: '操作原因必填（写入审计日志）' } satisfies AdminUsersActionData);
+    }
+    try {
+      const result = await authedPost<{ roles?: string[] }>(
+        cookies,
+        `/api/v1/admin/users/${encodeURIComponent(userId)}/roles`,
+        { role_name: roleName, reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `已成功为用户授予角色「${roleName}」` } satisfies AdminUsersActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminUsersActionData);
+      }
+      return fail(result.status, { message: result.message } satisfies AdminUsersActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '授予失败，请稍后重试' } satisfies AdminUsersActionData);
+    }
+  },
+
+  /** 撤销角色：DELETE /admin/users/{id}/roles/{role_name}（body {reason}）。 */
+  revokeRole: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const userId = String(form.get('user_id') ?? '').trim();
+    const roleName = String(form.get('role_name') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!userId || !roleName) {
+      return fail(422, { message: '缺少用户或角色' } satisfies AdminUsersActionData);
+    }
+    if (!reason) {
+      return fail(422, { message: '操作原因必填（写入审计日志）' } satisfies AdminUsersActionData);
+    }
+    try {
+      const result = await authedDeleteBody<{ roles?: string[] }>(
+        cookies,
+        `/api/v1/admin/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleName)}`,
+        { reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        return { message: `已成功撤销用户的角色「${roleName}」` } satisfies AdminUsersActionData;
+      }
+      if (result.code === 'step_up_required') {
+        return fail(403, {
+          message: '此操作需要重新验证身份，请输入密码重新验证后重试',
+          stepUpRequired: true
+        } satisfies AdminUsersActionData);
+      }
+      return fail(result.status, { message: result.message } satisfies AdminUsersActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '撤销失败，请稍后重试' } satisfies AdminUsersActionData);
     }
   }
 };

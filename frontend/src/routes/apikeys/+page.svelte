@@ -72,7 +72,7 @@
       <div class="card-header"><span class="card-title">创建密钥</span></div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4);">
         <!-- M18-MISC-04：信息横幅（对齐原型同款提示） -->
-        <div class="app-notice" role="note" style="padding:10px 14px;border-radius:var(--radius-md);background:var(--color-bg-subtle, rgba(0,0,0,0.04));border-left:3px solid var(--color-brand);">
+        <div class="app-notice" role="note" style="padding:10px 14px;border-radius:var(--radius-md);background:var(--color-bg-subtle);border-left:3px solid var(--color-brand);">
           <p style="margin:0;font-size:var(--text-sm);color:var(--color-text-secondary);">
             密钥只在创建时显示一次；撤销会立即使旧密钥失效。
           </p>

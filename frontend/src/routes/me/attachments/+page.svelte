@@ -23,7 +23,9 @@
     $props();
 
   const items = $derived(data.items);
+  const deletedItems = $derived(data.deletedItems);
   const quota = $derived(data.quota);
+  let activeTab = $state<'active' | 'trash'>('active');
 
   // action 返回后 toast 反馈（成功/失败均提示），并刷新列表与容量。
   $effect(() => {
@@ -114,85 +116,185 @@
     </div>
   </section>
 
-  <section class="app-card" aria-label="已上传附件">
-    <header class="app-card__head">
-      <h2 style="margin:0;font-size:var(--text-base);">已上传附件（{items.length}）</h2>
+  <section class="app-card" aria-label="附件管理">
+    <header class="app-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap;">
+      <div class="tabs-list" role="tablist">
+        <button
+          type="button"
+          class="tab-btn"
+          class:is-active={activeTab === 'active'}
+          onclick={() => (activeTab = 'active')}
+        >
+          正常附件（{items.length}）
+        </button>
+        <button
+          type="button"
+          class="tab-btn"
+          class:is-active={activeTab === 'trash'}
+          onclick={() => (activeTab = 'trash')}
+        >
+          保留期中 / 回收站（{deletedItems.length}）
+        </button>
+      </div>
+
+      {#if activeTab === 'trash' && deletedItems.length > 0}
+        <form
+          method="POST"
+          action="?/purgeAll"
+          use:enhance={deleteEnhance}
+          onsubmit={(e) => {
+            if (!confirm('确定要清空保留期中的所有附件吗？此操作将立即物理删除文件并释放占用空间，不可恢复！')) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <button type="submit" class="btn danger sm">一键清空回收站并释放空间</button>
+        </form>
+      {/if}
     </header>
+
     <div class="app-card__body">
-      {#if items.length === 0}
-        <EmptyState
-          icon="paperclip"
-          title="还没有附件"
-          desc="上传第一个文件后，它会出现在这里。"
-        />
-      {:else}
-        <div class="app-table-wrap">
-          <table class="app-table" aria-label="附件列表">
-            <thead>
-              <tr>
-                <th style="width:64px;">预览</th>
-                <th>文件名</th>
-                <th style="width:110px;">大小</th>
-                <th style="width:110px;">状态</th>
-                <th style="width:170px;">上传时间</th>
-                <th style="width:90px;">引用</th>
-                <th style="width:90px;">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each items as attachment (attachment.id)}
+      {#if activeTab === 'active'}
+        {#if items.length === 0}
+          <EmptyState
+            icon="paperclip"
+            title="还没有正常附件"
+            desc="上传第一个文件后，它会出现在这里。"
+          />
+        {:else}
+          <div class="app-table-wrap">
+            <table class="app-table" aria-label="附件列表">
+              <thead>
                 <tr>
-                  <td>
-                    {#if isImage(attachment)}
-                      <img
-                        class="att-thumb"
-                        src={attachmentContentUrl(attachment.id)}
-                        alt={attachment.original_name ?? '附件预览'}
-                        loading="lazy"
-                      />
-                    {:else}
-                      <span class="att-thumb att-thumb--file"><Icon name="file-text" size={18} /></span>
-                    {/if}
-                  </td>
-                  <td>
-                    <a
-                      class="text-link"
-                      href={attachmentContentUrl(attachment.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {attachment.original_name ?? '未命名附件'}
-                    </a>
-                    <div style="font-size:var(--text-xs);color:var(--color-text-secondary);">
-                      {attachment.media_type}
-                    </div>
-                  </td>
-                  <td>{formatBytes(attachment.size_bytes)}</td>
-                  <td>
-                    <span class="badge {statusBadgeClass(attachment.status)}" style="font-size:11px;">
-                      {statusLabel(attachment.status)}
-                    </span>
-                  </td>
-                  <td style="font-size:var(--text-xs);color:var(--color-text-secondary);">
-                    {formatTs(attachment.created_at)}
-                  </td>
-                  <td style="font-size:var(--text-xs);">{attachment.ref_count ?? 0} 处</td>
-                  <td>
-                    <form
-                      method="POST"
-                      action="?/remove"
-                      use:enhance={deleteEnhance}
-                      style="display:inline;"
-                    >
-                      <input type="hidden" name="id" value={attachment.id} />
-                      <button type="submit" class="btn ghost sm">删除</button>
-                    </form>
-                  </td>
+                  <th style="width:64px;">预览</th>
+                  <th>文件名</th>
+                  <th style="width:110px;">大小</th>
+                  <th style="width:110px;">状态</th>
+                  <th style="width:170px;">上传时间</th>
+                  <th style="width:90px;">引用</th>
+                  <th style="width:90px;">操作</th>
                 </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {#each items as attachment (attachment.id)}
+                  <tr>
+                    <td>
+                      {#if isImage(attachment)}
+                        <img
+                          class="att-thumb"
+                          src={attachmentContentUrl(attachment.id)}
+                          alt={attachment.original_name ?? '附件预览'}
+                          loading="lazy"
+                        />
+                      {:else}
+                        <span class="att-thumb att-thumb--file"><Icon name="file-text" size={18} /></span>
+                      {/if}
+                    </td>
+                    <td>
+                      <a
+                        class="text-link"
+                        href={attachmentContentUrl(attachment.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {attachment.original_name ?? '未命名附件'}
+                      </a>
+                      <div style="font-size:var(--text-xs);color:var(--color-text-secondary);">
+                        {attachment.media_type}
+                      </div>
+                    </td>
+                    <td>{formatBytes(attachment.size_bytes)}</td>
+                    <td>
+                      <span class="badge {statusBadgeClass(attachment.status)}" style="font-size:11px;">
+                        {statusLabel(attachment.status)}
+                      </span>
+                    </td>
+                    <td style="font-size:var(--text-xs);color:var(--color-text-secondary);">
+                      {formatTs(attachment.created_at)}
+                    </td>
+                    <td style="font-size:var(--text-xs);">{attachment.ref_count ?? 0} 处</td>
+                    <td>
+                      <form
+                        method="POST"
+                        action="?/remove"
+                        use:enhance={deleteEnhance}
+                        style="display:inline;"
+                      >
+                        <input type="hidden" name="id" value={attachment.id} />
+                        <button type="submit" class="btn ghost sm">删除</button>
+                      </form>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      {:else}
+        {#if deletedItems.length === 0}
+          <EmptyState
+            icon="paperclip"
+            title="保留期内暂无附件"
+            desc="被删除的附件会在保留期内暂存，到期或手动彻底清理后将释放空间。"
+          />
+        {:else}
+          <div class="app-table-wrap">
+            <table class="app-table" aria-label="保留期附件列表">
+              <thead>
+                <tr>
+                  <th style="width:64px;">预览</th>
+                  <th>文件名</th>
+                  <th style="width:110px;">占用大小</th>
+                  <th style="width:110px;">状态</th>
+                  <th style="width:170px;">删除时间</th>
+                  <th style="width:110px;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each deletedItems as attachment (attachment.id)}
+                  <tr>
+                    <td>
+                      <span class="att-thumb att-thumb--file"><Icon name="file-text" size={18} /></span>
+                    </td>
+                    <td>
+                      <span style="color:var(--color-text-secondary);text-decoration:line-through;">
+                        {attachment.original_name ?? '未命名附件'}
+                      </span>
+                      <div style="font-size:var(--text-xs);color:var(--color-text-tertiary);">
+                        {attachment.media_type}
+                      </div>
+                    </td>
+                    <td>{formatBytes(attachment.size_bytes)}</td>
+                    <td>
+                      <span class="badge badge-warning" style="font-size:11px;">
+                        保留期中
+                      </span>
+                    </td>
+                    <td style="font-size:var(--text-xs);color:var(--color-text-secondary);">
+                      {formatTs(attachment.created_at)}
+                    </td>
+                    <td>
+                      <form
+                        method="POST"
+                        action="?/purge"
+                        use:enhance={deleteEnhance}
+                        onsubmit={(e) => {
+                          if (!confirm(`确定彻底删除「${attachment.original_name ?? '此附件'}」？此操作将立即释放占用空间且不可恢复！`)) {
+                            e.preventDefault();
+                          }
+                        }}
+                        style="display:inline;"
+                      >
+                        <input type="hidden" name="id" value={attachment.id} />
+                        <button type="submit" class="btn danger sm">彻底删除</button>
+                      </form>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
       {/if}
     </div>
   </section>
@@ -204,11 +306,44 @@
     height: 48px;
     object-fit: cover;
     border-radius: var(--radius-sm, 6px);
-    border: 1px solid var(--color-border, #d0d7de);
+    border: 1px solid var(--color-border);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-bg-subtle, #f6f8fa);
+    background: var(--color-bg-subtle);
     color: var(--color-text-secondary);
+  }
+
+  .tabs-list {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    background: var(--color-bg-subtle);
+    padding: 3px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+  }
+
+  .tab-btn {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+  }
+
+  .tab-btn:hover {
+    color: var(--color-text-primary);
+  }
+
+  .tab-btn.is-active {
+    background: var(--color-bg-card);
+    color: var(--color-text-primary);
+    font-weight: 600;
+    box-shadow: var(--shadow-control);
   }
 </style>

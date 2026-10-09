@@ -11,6 +11,7 @@
   import type { PublicPresentationTokens, ShopProduct, User } from '$lib/api/types';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import steamBackgrounds from '$lib/data/steam-profile-backgrounds.json';
+import steamFrames from '$lib/data/steam-avatar-frames.json';
 
   let { data, form }: { data: ShopProductPageData & { user?: User | null }; form?: ShopActionData | null } = $props();
 
@@ -73,6 +74,41 @@
         if (matched) {
           projected.avatar_frame_name = matched.name;
           projected.avatar_frame_style = matched.style;
+          if (matched.style?.url) {
+            projected.avatar_frame_url = matched.style.url;
+          } else if (matched.style?.image) {
+            projected.avatar_frame_url = `/api/v1/steam-assets/frames/${matched.style.image}`;
+          }
+        }
+      }
+    }
+    if (!projected.avatar_frame_style && (p.slot === 'avatar_frame' || (p.kind as string) === 'cosmetic_avatar' || (p.kind as string) === 'avatar_frame')) {
+      const byName = data.cosmetics?.find((c) => c.kind === 'avatar_frame' && (c.name === p.title || p.title.includes(c.name) || c.name.includes(p.title)));
+      if (byName) {
+        projected.avatar_frame = byName.id;
+        projected.avatar_frame_name = byName.name;
+        projected.avatar_frame_style = byName.style;
+        if (byName.style?.url) {
+          projected.avatar_frame_url = byName.style.url;
+        } else if (byName.style?.image) {
+          projected.avatar_frame_url = `/api/v1/steam-assets/frames/${byName.style.image}`;
+        }
+      } else {
+        const steamItem = (steamFrames as Array<{ id: string; name: string; image: string; appid: number; shape?: string; scale?: number }>).find(
+          (s) => s.name.toLowerCase() === p.title.toLowerCase() || p.title.toLowerCase().includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(p.title.toLowerCase())
+        );
+        if (steamItem) {
+          projected.avatar_frame = steamItem.id;
+          projected.avatar_frame_name = steamItem.name;
+          projected.avatar_frame_style = {
+            mode: 'steam_frame',
+            image: steamItem.image,
+            appid: steamItem.appid,
+            shape: (steamItem.shape as 'circle' | 'rounded') || 'rounded',
+            frameScale: steamItem.scale || 120,
+            url: `/api/v1/steam-assets/frames/${steamItem.image}`,
+          };
+          projected.avatar_frame_url = `/api/v1/steam-assets/frames/${steamItem.image}`;
         }
       }
     }
@@ -377,7 +413,7 @@
     max-width: 320px;
     margin: var(--space-4) auto var(--space-3);
     z-index: 1;
-    filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.28));
+    filter: drop-shadow(0 10px 24px var(--color-overlay));
   }
   .stage-card-wrap :global(.user-hover-card) {
     text-align: left;

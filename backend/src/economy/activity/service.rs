@@ -667,7 +667,7 @@ pub async fn claim_rule(
     }
 
     let claim_id = uuid::Uuid::now_v7().to_string();
-    let pending_op = format!("pending:{claim_id}");
+    let pending_op = format!("pending:{}", &claim_id[..28]);
     let inserted = insert_claim_ignore(
         pool,
         &claim_id,
@@ -848,9 +848,23 @@ async fn grant_via_ledger(
     if rule.amount <= 0 {
         return Ok(format!("zero:{fallback_id}"));
     }
+    let memo = match rule.kind.as_str() {
+        "check_in" => "签到奖励".to_string(),
+        "task" => "任务奖励".to_string(),
+        "reaction" => "点赞互动奖励".to_string(),
+        "post" => "发帖奖励".to_string(),
+        "comment" => "评论奖励".to_string(),
+        "leaderboard" => "排行榜奖励".to_string(),
+        other => format!("{other} 奖励"),
+    };
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(format!("{user_id}:{}:{deduplication_key}", rule.id).as_bytes());
+    let idempotency_key = hex::encode(hasher.finalize());
+
     let cmd = LedgerCommand {
         idempotency_scope: LEDGER_SCOPE.to_string(),
-        idempotency_key: format!("{user_id}:{}:{deduplication_key}", rule.id),
+        idempotency_key,
         kind: LedgerKind::Award,
         actor_id: None,
         user_id: user_id.to_string(),
@@ -859,7 +873,7 @@ async fn grant_via_ledger(
         delta_frozen: 0,
         source_type: Some("activity".to_string()),
         source_id: Some(rule.id.clone()),
-        memo: format!("{} 奖励", rule.kind),
+        memo,
         reverses_operation_id: None,
     };
     let result = apply_operation(pool, cmd, now).await?;

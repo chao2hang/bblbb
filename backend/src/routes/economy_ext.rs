@@ -370,9 +370,9 @@ async fn list_admin_points_ledger(
         }
     }
     if let Some(k) = &kind {
-        if LedgerKind::parse(k).is_none() {
+        if LedgerKind::parse(k).is_none() && k != "credit" && k != "debit" {
             return Err(AppError::bad_request(
-                format!("kind must be a ledger operation kind, got: {k}"),
+                format!("kind must be a ledger operation kind or 'credit'/'debit', got: {k}"),
                 request_id,
                 None,
             ));
@@ -396,8 +396,14 @@ async fn list_admin_points_ledger(
     if asset.is_some() {
         sql.push_str(" AND c.code = ?");
     }
-    if kind.is_some() {
-        sql.push_str(" AND op.kind = ?");
+    if let Some(k) = &kind {
+        if k == "credit" {
+            sql.push_str(" AND t.delta_balance > 0");
+        } else if k == "debit" {
+            sql.push_str(" AND t.delta_balance < 0");
+        } else {
+            sql.push_str(" AND op.kind = ?");
+        }
     }
     if from.is_some() {
         sql.push_str(" AND t.created_at >= ?");
@@ -421,7 +427,9 @@ async fn list_admin_points_ledger(
                 q = q.bind(v);
             }
             if let Some(v) = &kind {
-                q = q.bind(v);
+                if v != "credit" && v != "debit" {
+                    q = q.bind(v);
+                }
             }
             if let Some(v) = from {
                 q = q.bind(v);
@@ -443,7 +451,9 @@ async fn list_admin_points_ledger(
                 q = q.bind(v);
             }
             if let Some(v) = &kind {
-                q = q.bind(v);
+                if v != "credit" && v != "debit" {
+                    q = q.bind(v);
+                }
             }
             if let Some(v) = from {
                 q = q.bind(v);
@@ -2106,7 +2116,7 @@ async fn unlock_post(
                             delta_frozen: 0,
                             source_type: Some("post_unlock".to_string()),
                             source_id: Some(post.id.clone()),
-                            memo: format!("unlock paid post {}", post.id),
+                            memo: format!("解锁付费帖子 {}", post.id),
                             reverses_operation_id: None,
                         };
                         let op = apply_operation_in_sqlite_tx(&mut conn, cmd, now)
@@ -2175,7 +2185,7 @@ async fn unlock_post(
                             delta_frozen: 0,
                             source_type: Some("post_unlock".to_string()),
                             source_id: Some(post.id.clone()),
-                            memo: format!("unlock paid post {}", post.id),
+                            memo: format!("解锁付费帖子 {}", post.id),
                             reverses_operation_id: None,
                         };
                         let op = apply_operation_in_mysql_tx(&mut tx, cmd, now)

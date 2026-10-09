@@ -998,3 +998,93 @@ pub async fn lookup_appid_by_image(
     };
     row.and_then(|(appid,)| u64::try_from(appid).ok())
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SteamFramesDownloadReport {
+    pub total: usize,
+    pub downloaded: usize,
+    pub skipped: usize,
+    pub failed: usize,
+}
+
+/// 批量并发下载所有 Steam 头像框资源到存储（M07-SHOP-ASSETS）
+pub async fn download_all_frame_assets(
+    pool: &crate::db::pool::DatabasePool,
+    storage: &StorageService,
+) -> Result<SteamFramesDownloadReport, ShopError> {
+    ensure_catalog_seeded(pool).await?;
+    use sqlx::Either;
+    let rows: Vec<(i64, String)> = match pool {
+        Either::Left(p) => sqlx::query_as(
+            "SELECT appid, image FROM steam_catalog_items WHERE kind = 'frames' AND image IS NOT NULL AND image != ''"
+        )
+        .fetch_all(p)
+        .await
+        .map_err(|e| ShopError::Invalid(format!("query steam catalog items: {e}")))?,
+        Either::Right(p) => sqlx::query_as(
+            "SELECT appid, image FROM steam_catalog_items WHERE kind = 'frames' AND image IS NOT NULL AND image != ''"
+        )
+        .fetch_all(p)
+        .await
+        .map_err(|e| ShopError::Invalid(format!("query steam catalog items: {e}")))?,
+    };
+
+    let total = rows.len();
+    let downloaded = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let skipped = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let failed = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(25));
+
+    let mut handles = Vec::with_capacity(rows.len());
+    for (appid, image) in rows {
+        let permit = sem
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| ShopError::Invalid(e.to_string()))?;
+        let storage = storage.clone();
+        let dl = downloaded.clone();
+        let sk = skipped.clone();
+        let fl = failed.clone();
+        handles.push(tokio::spawn(async move {
+            let _permit = permit;
+            let key = format!("{KEY_PREFIX}/{KIND_FRAMES}/{image}");
+            let exists = if let Ok(adapter) = storage.adapter(storage.default_backend()) {
+                adapter
+                    .head_object(&key)
+                    .await
+                    .map(|h| h.exists)
+                    .unwrap_or(false)
+            } else {
+                false
+            };
+            if exists {
+                sk.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                return;
+            }
+            let appid_u64 = u64::try_from(appid).ok();
+            match ensure_object(&storage, KIND_FRAMES, &image, appid_u64).await {
+                Ok(_) => {
+                    dl.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                Err(e) => {
+                    tracing::warn!(image = %image, error = %e, "download frame failed");
+                    fl.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+        }));
+    }
+
+    for h in handles {
+        let _ = h.await;
+    }
+
+    let report = SteamFramesDownloadReport {
+        total,
+        downloaded: downloaded.load(std::sync::atomic::Ordering::Relaxed),
+        skipped: skipped.load(std::sync::atomic::Ordering::Relaxed),
+        failed: failed.load(std::sync::atomic::Ordering::Relaxed),
+    };
+    tracing::info!(?report, "steam avatar frames download complete");
+    Ok(report)
+}

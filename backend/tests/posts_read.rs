@@ -558,3 +558,128 @@ async fn list_posts_projects_equipped_avatar_frame_tokens() {
     close_pool(&pool).await;
     cleanup(&dir);
 }
+
+#[tokio::test]
+async fn get_post_detail_inline_reply_visibility() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let app = app_with(pool.clone());
+    let author_id = insert_author(&pool, "inline_author").await;
+    let replier_id = insert_author(&pool, "inline_replier").await;
+    let other_id = insert_author(&pool, "inline_other").await;
+
+    let author_token = bblbb_backend::auth::session::create_session(&pool, &author_id, None, false)
+        .await
+        .unwrap();
+    let replier_token =
+        bblbb_backend::auth::session::create_session(&pool, &replier_id, None, false)
+            .await
+            .unwrap();
+    let other_token = bblbb_backend::auth::session::create_session(&pool, &other_id, None, false)
+        .await
+        .unwrap();
+
+    let cmd = validate_post_create(
+        CreatePostInput {
+            post_type: "discussion".to_string(),
+            title: "内嵌回复可见测试帖".to_string(),
+            markdown: "公开段落\n\n:::reply\\\n隐藏密码888\\\n:::\n\n结尾".to_string(),
+            board_id: BOARD_ID.to_string(),
+            visibility_level: None,
+            access_policy: "public".to_string(),
+            scheduled_at: None,
+            client_request_id: format!("inline-{}", uuid::Uuid::now_v7().simple()),
+        },
+        5,
+        now_millis(),
+    )
+    .unwrap();
+    let published = publish_new_post(&pool, &cmd, &author_id, now_millis())
+        .await
+        .unwrap();
+    let post_id = published.post.id;
+
+    // 1. 匿名用户：未回复，隐藏段落不泄露
+    let (status, body, headers) = get(&app, &format!("/api/v1/posts/{post_id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    let html = body["body_html"].as_str().unwrap();
+    assert!(
+        !html.contains("隐藏密码888"),
+        "匿名请求绝不泄漏回复可见内容"
+    );
+    assert!(
+        html.contains("topic-restricted--inline"),
+        "匿名请求渲染受限占位"
+    );
+    assert_eq!(
+        headers.get("cache-control").unwrap(),
+        "private, no-store",
+        "含 inline reply 的帖子响应私有且不缓存"
+    );
+
+    // 2. 其它登录用户（未回复）：隐藏段落不泄露
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/api/v1/posts/{post_id}"))
+                .header("cookie", format!("__Host-bblbb_session={other_token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let val: Value = serde_json::from_slice(&bytes).unwrap();
+    let html = val["body_html"].as_str().unwrap();
+    assert!(
+        !html.contains("隐藏密码888"),
+        "未回复的登录用户绝不泄漏回复可见内容"
+    );
+    assert!(html.contains("topic-restricted--inline"));
+
+    // 3. 作者本人：直接可见解锁卡片
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/api/v1/posts/{post_id}"))
+                .header("cookie", format!("__Host-bblbb_session={author_token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let val: Value = serde_json::from_slice(&bytes).unwrap();
+    let html = val["body_html"].as_str().unwrap();
+    assert!(html.contains("隐藏密码888"), "作者本人可见已解锁内容");
+    assert!(html.contains("topic-unlocked--inline"));
+
+    // 4. 回复者回复后：解锁可见
+    insert_comment(&pool, &post_id, &replier_id, 1, "published").await;
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/api/v1/posts/{post_id}"))
+                .header("cookie", format!("__Host-bblbb_session={replier_token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let val: Value = serde_json::from_slice(&bytes).unwrap();
+    let html = val["body_html"].as_str().unwrap();
+    assert!(html.contains("隐藏密码888"), "回复者已解锁内容可见");
+    assert!(html.contains("topic-unlocked--inline"));
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}

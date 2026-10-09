@@ -140,6 +140,22 @@
 
 <PageHeader title="积分规则配置" />
 
+<!-- 顶部业务分区导航 -->
+<nav class="tabs" aria-label="积分功能分区" style="margin-bottom:16px;">
+  <a href="/admin/points" class="tab">
+    <Icon name="coins" size={15} />
+    <span>用户积分</span>
+  </a>
+  <a href="/admin/points/logs" class="tab">
+    <Icon name="file-text" size={15} />
+    <span>积分日志</span>
+  </a>
+  <a href="/admin/points/rules" class="tab is-active" aria-current="page">
+    <Icon name="list" size={15} />
+    <span>积分规则</span>
+  </a>
+</nav>
+
 {#if form?.message && !hasJs}
   <div class="alert alert-info" role="status" style="margin-bottom:12px;padding:10px 14px;background:var(--color-bg-subtle);border-radius:var(--radius-sm);font-size:13px;">
     {form.message}

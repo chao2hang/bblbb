@@ -521,6 +521,23 @@ async fn admin_points_ledger_filters_and_pagination() {
     assert_eq!(items.len(), 3);
     assert!(items.iter().all(|i| i["currency"] == json!("coin")));
 
+    // kind=credit (amount > 0) / kind=debit (amount < 0) 过滤。
+    let (status, body) = authed(
+        &app,
+        "GET",
+        &format!("/api/v1/admin/points/ledger?username={u1}&kind=credit"),
+        &admin_session,
+        &admin_csrf,
+        Value::Null,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let credit_items = body["items"].as_array().unwrap();
+    assert!(credit_items
+        .iter()
+        .all(|i| i["amount"].as_i64().unwrap_or(0) > 0));
+
     // 非法 kind → 400。
     let (status, _) = authed(
         &app,

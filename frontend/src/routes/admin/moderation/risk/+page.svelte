@@ -7,20 +7,55 @@
   import PageHeader from '$lib/components/admin/PageHeader.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
   import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminRiskPageData, AdminRiskActionData } from './+page.server';
+  import { tick } from 'svelte';
 
   let { data, form }: { data: AdminRiskPageData; form?: AdminRiskActionData | null } = $props();
 
   let hasJs = $state(false);
   let isSubmitting = $state(false);
+  let saveDialogOpen = $state(false);
+  let reason = $state('');
+  let formEl: HTMLFormElement | undefined = $state();
+  let reasonInputEl: HTMLInputElement | undefined = $state();
+
   $effect(() => {
     hasJs = true;
+  });
+
+  $effect(() => {
+    if (saveDialogOpen) {
+      void tick().then(() => {
+        reasonInputEl?.focus();
+      });
+    }
   });
 
   const message = $derived(form?.message ?? null);
   const conflict = $derived(form?.conflict === true);
   const t = $derived(data.thresholds);
+
+  function openSaveDialog() {
+    if (formEl && !formEl.checkValidity()) {
+      formEl.reportValidity();
+      return;
+    }
+    reason = '';
+    saveDialogOpen = true;
+  }
+
+  function closeSaveDialog() {
+    if (isSubmitting) return;
+    saveDialogOpen = false;
+  }
+
+  function confirmSave(e: SubmitEvent) {
+    e.preventDefault();
+    if (!reason.trim() || isSubmitting) return;
+    formEl?.requestSubmit();
+  }
 </script>
 
 <svelte:head>
@@ -42,14 +77,33 @@
 
 {#if data.state === 'ok' && t}
   <form
+    bind:this={formEl}
     method="POST"
     action="?/save"
-    use:enhance={() => {
+    onsubmit={(e) => {
+      if (hasJs && !saveDialogOpen) {
+        e.preventDefault();
+        openSaveDialog();
+      }
+    }}
+    use:enhance={({ formData, cancel }) => {
+      if (hasJs) {
+        if (!reason.trim()) {
+          cancel();
+          return;
+        }
+        formData.set('reason', reason.trim());
+      }
       isSubmitting = true;
       return async ({ result, update }) => {
         isSubmitting = false;
         toastActionResult(result);
+        if (result.type === 'success') {
+          saveDialogOpen = false;
+          reason = '';
+        }
         if (result.type === 'failure' && (result.data as any)?.conflict) {
+          saveDialogOpen = false;
           await invalidateAll();
         } else {
           await update();
@@ -101,14 +155,63 @@
         </p>
       </div>
       <footer class="app-card__foot" style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 16px;">
-        <label style="flex:1;min-width:220px;">
-          <span class="app-muted" style="display:block;font-size:11px;margin-bottom:4px;">操作原因（写入审计日志，必填）</span>
-          <input type="text" name="reason" class="input-field" required placeholder="如：收紧垃圾广告规则" />
-        </label>
-        <Button text={isSubmitting ? '保存中...' : '保存策略'} variant="primary" size="sm" type="submit" disabled={isSubmitting} />
+        {#if !hasJs}
+          <label style="flex:1;min-width:220px;">
+            <span class="app-muted" style="display:block;font-size:11px;margin-bottom:4px;">操作原因（写入审计日志，必填）</span>
+            <input type="text" name="reason" class="input-field" required placeholder="如：收紧垃圾广告规则" />
+          </label>
+          <Button text="保存策略" variant="primary" size="sm" type="submit" />
+        {:else}
+          <Button text={isSubmitting ? '保存中...' : '保存策略'} variant="primary" size="sm" type="button" onclick={openSaveDialog} disabled={isSubmitting} />
+        {/if}
       </footer>
     </section>
   </form>
+
+  {#if hasJs}
+    <Dialog
+      open={saveDialogOpen}
+      title="保存风控策略"
+      description="修改风控策略将生成新版本并立即生效。请填写操作原因以记录审计日志。"
+      size="sm"
+      onclose={closeSaveDialog}
+    >
+      <form onsubmit={confirmSave} class="stack" style="gap:14px;">
+        <label>
+          <span class="field-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">
+            操作原因 <span style="color:var(--color-danger);">*</span>
+          </span>
+          <input
+            bind:this={reasonInputEl}
+            type="text"
+            class="input-field"
+            bind:value={reason}
+            required
+            placeholder="如：收紧垃圾广告规则"
+            style="width:100%;"
+            disabled={isSubmitting}
+          />
+        </label>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button
+            type="button"
+            class="btn ghost sm"
+            onclick={closeSaveDialog}
+            disabled={isSubmitting}
+          >
+            取消
+          </button>
+          <Button
+            text={isSubmitting ? '保存中...' : '确认保存'}
+            variant="primary"
+            size="sm"
+            type="submit"
+            disabled={isSubmitting || !reason.trim()}
+          />
+        </div>
+      </form>
+    </Dialog>
+  {/if}
 {:else if data.state === 'forbidden'}
   <section class="app-card">
     <div class="app-card__body">

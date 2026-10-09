@@ -151,6 +151,7 @@ export interface CosmeticDefStyle {
   /** Steam / 外部图片资源 URL 或文件名 */
   url?: string;
   image?: string;
+  appid?: number;
   webm?: string;
   mp4?: string;
   /** 光晕扩散大小（px） */

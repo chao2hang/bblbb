@@ -1,6 +1,4 @@
 <script lang="ts">
-  // 真实渲染 blbui StatusTag；custom elements 由根布局一次性注册。
-
   let {
     name,
     count = null,
@@ -16,12 +14,12 @@
 
 {#if href}
   <a href={href} class="tag">
-    <aui-status-tag status="default">{name}</aui-status-tag>
+    <span class="tag-name">{name}</span>
     {#if count !== null}<span class="tag-count">{count}</span>{/if}
   </a>
 {:else if onremove}
   <span class="tag tag--removable tag-chip">
-    <aui-status-tag status="default">{name}</aui-status-tag>
+    <span class="tag-name">{name}</span>
     {#if count !== null}<span class="tag-count">{count}</span>{/if}
     <button
       type="button"
@@ -37,7 +35,7 @@
   </span>
 {:else}
   <span class="tag">
-    <aui-status-tag status="default">{name}</aui-status-tag>
+    <span class="tag-name">{name}</span>
     {#if count !== null}<span class="tag-count">{count}</span>{/if}
   </span>
 {/if}

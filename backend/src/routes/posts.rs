@@ -1275,46 +1275,36 @@ async fn get_post(
         .is_some_and(crate::content::markdown::inline_reply::has_inline_reply);
 
     let is_inline_unlocked = if has_inline {
-        if grant.unlocked {
+        if requester_is_author || is_moderator {
             true
+        } else if let Some(u) = auth.user.as_ref() {
+            let has_replied: bool = match pool {
+                Either::Left(p) => {
+                    sqlx::query_scalar::<_, i64>(
+                        "SELECT 1 FROM comments WHERE post_id = ? AND author_id = ? AND status = 'published' LIMIT 1",
+                    )
+                    .bind(&id)
+                    .bind(&u.id)
+                    .fetch_optional(p)
+                    .await
+                    .unwrap_or(None)
+                    .is_some()
+                }
+                Either::Right(p) => {
+                    sqlx::query_scalar::<_, i64>(
+                        "SELECT 1 FROM comments WHERE post_id = ? AND author_id = ? AND status = 'published' LIMIT 1",
+                    )
+                    .bind(&id)
+                    .bind(&u.id)
+                    .fetch_optional(p)
+                    .await
+                    .unwrap_or(None)
+                    .is_some()
+                }
+            };
+            has_replied
         } else {
-            let is_author = auth.user.as_ref().is_some_and(|u| u.id == r.author_id);
-            let is_mod = auth.user.as_ref().is_some_and(|u| {
-                u.roles
-                    .iter()
-                    .any(|role| role == "admin" || role == "moderator" || role == "administrator")
-            });
-            if is_author || is_mod {
-                true
-            } else if let Some(u) = auth.user.as_ref() {
-                let has_replied: bool = match pool {
-                    Either::Left(p) => {
-                        sqlx::query_scalar::<_, i64>(
-                            "SELECT 1 FROM comments WHERE post_id = ? AND author_id = ? AND status = 'published' LIMIT 1",
-                        )
-                        .bind(&id)
-                        .bind(&u.id)
-                        .fetch_optional(p)
-                        .await
-                        .unwrap_or(None)
-                        .is_some()
-                    }
-                    Either::Right(p) => {
-                        sqlx::query_scalar::<_, i64>(
-                            "SELECT 1 FROM comments WHERE post_id = ? AND author_id = ? AND status = 'published' LIMIT 1",
-                        )
-                        .bind(&id)
-                        .bind(&u.id)
-                        .fetch_optional(p)
-                        .await
-                        .unwrap_or(None)
-                        .is_some()
-                    }
-                };
-                has_replied
-            } else {
-                false
-            }
+            false
         }
     } else {
         false

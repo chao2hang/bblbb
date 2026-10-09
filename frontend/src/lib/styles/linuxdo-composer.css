@@ -18,7 +18,7 @@ html:has(#page-publish) {
   overflow: hidden;
   --composer-accent: var(--color-brand);
   --composer-accent-soft: var(--color-brand-soft, color-mix(in srgb, var(--color-brand) 12%, transparent));
-  --composer-stage: var(--color-overlay, rgba(0, 0, 0, 0.65));
+  --composer-stage: var(--color-overlay, rgba(0, 0, 0, 0.45));
   --composer-surface: var(--color-bg-card);
   --composer-panel: var(--color-bg-page);
   --composer-line: var(--color-border);
@@ -46,7 +46,7 @@ html:has(#page-publish) {
   min-height: 0;
   padding: 0 24px;
   overflow: hidden;
-  background: var(--composer-stage);
+  background: transparent;
   pointer-events: auto;
   cursor: pointer;
 }
@@ -57,6 +57,8 @@ html:has(#page-publish) {
   inset: 0;
   z-index: -1;
   background: var(--composer-stage);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   pointer-events: none;
 }
 
@@ -94,6 +96,10 @@ html:has(#page-publish) {
   justify-content: stretch !important;
   height: 100% !important;
   cursor: default;
+}
+
+#page-publish.is-fullscreen .composer-stage::before {
+  display: none;
 }
 
 #page-publish.is-fullscreen .composer-window {
@@ -511,6 +517,11 @@ html:has(#page-publish) {
   border-radius: 3px;
   padding: 1px 4px 1px 6px;
   font-size: 12px;
+  color: var(--composer-accent);
+}
+
+#page-publish .composer-tag-input-box .tag .tag-name {
+  color: var(--composer-accent);
 }
 
 #page-publish .composer-tag-input-box .tag aui-status-tag {

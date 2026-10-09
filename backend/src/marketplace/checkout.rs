@@ -782,7 +782,7 @@ async fn execute_purchase(
                     delta_frozen: 0,
                     source_type: Some("marketplace_purchase".to_string()),
                     source_id: Some(purchase_id.clone()),
-                    memo: format!("marketplace purchase {purchase_id}"),
+                    memo: format!("应用市场购买 {purchase_id}"),
                     reverses_operation_id: None,
                 };
                 let buyer_op = ledger::apply_operation_in_sqlite_tx(&mut conn, buyer_cmd, now).await?;
@@ -799,7 +799,7 @@ async fn execute_purchase(
                     delta_frozen: 0,
                     source_type: Some("marketplace_purchase".to_string()),
                     source_id: Some(purchase_id.clone()),
-                    memo: format!("marketplace merchant credit {purchase_id}"),
+                    memo: format!("应用市场商户结算 {purchase_id}"),
                     reverses_operation_id: None,
                 };
                 let merchant_op = ledger::apply_operation_in_sqlite_tx(&mut conn, merchant_cmd, now).await?;
@@ -817,7 +817,7 @@ async fn execute_purchase(
                         delta_frozen: 0,
                         source_type: Some("marketplace_purchase".to_string()),
                         source_id: Some(purchase_id.clone()),
-                        memo: format!("marketplace platform fee {purchase_id}"),
+                        memo: format!("应用市场平台手续费 {purchase_id}"),
                         reverses_operation_id: None,
                     };
                     Some(ledger::apply_operation_in_sqlite_tx(&mut conn, fee_cmd, now).await?)
@@ -990,7 +990,7 @@ async fn execute_purchase(
                     delta_frozen: 0,
                     source_type: Some("marketplace_purchase".to_string()),
                     source_id: Some(purchase_id.clone()),
-                    memo: format!("marketplace purchase {purchase_id}"),
+                    memo: format!("应用市场购买 {purchase_id}"),
                     reverses_operation_id: None,
                 };
                 let buyer_op = ledger::apply_operation_in_mysql_tx(&mut tx, buyer_cmd, now).await?;
@@ -1006,7 +1006,7 @@ async fn execute_purchase(
                     delta_frozen: 0,
                     source_type: Some("marketplace_purchase".to_string()),
                     source_id: Some(purchase_id.clone()),
-                    memo: format!("marketplace merchant credit {purchase_id}"),
+                    memo: format!("应用市场商户结算 {purchase_id}"),
                     reverses_operation_id: None,
                 };
                 let merchant_op = ledger::apply_operation_in_mysql_tx(&mut tx, merchant_cmd, now).await?;
@@ -1023,7 +1023,7 @@ async fn execute_purchase(
                         delta_frozen: 0,
                         source_type: Some("marketplace_purchase".to_string()),
                         source_id: Some(purchase_id.clone()),
-                        memo: format!("marketplace platform fee {purchase_id}"),
+                        memo: format!("应用市场平台手续费 {purchase_id}"),
                         reverses_operation_id: None,
                     };
                     Some(ledger::apply_operation_in_mysql_tx(&mut tx, fee_cmd, now).await?)

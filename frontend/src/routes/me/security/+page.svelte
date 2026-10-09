@@ -11,6 +11,8 @@
   import type { SecurityActionData, SecurityPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import SettingsNav from '$lib/components/SettingsNav.svelte';
+  import MeSectionTabs from '$lib/components/MeSectionTabs.svelte';
+  import MeIdentityBar from '$lib/components/MeIdentityBar.svelte';
 
   let { data, form }: { data: SecurityPageData; form?: SecurityActionData } = $props();
 
@@ -45,6 +47,20 @@
 
 <div class="container page-content app-page app-settings-page" id="page-me-security">
   <h1 class="u-visually-hidden">账号与安全</h1>
+
+  {#if user}
+    <!-- 固定身份条（≤767px 吸顶）：与 /me、/me/level 共用，身份恒定可见 -->
+    <MeIdentityBar
+      name={user.display_name || user.username}
+      username={user.username}
+      level={user.level ?? 0}
+      avatarAttachmentId={user.avatar_attachment_id}
+      seed={user.username ?? user.id}
+    />
+  {/if}
+
+  <!-- 分区 tag 栏（tag = 独立路由页面）：本页为「账号安全」tag -->
+  <MeSectionTabs />
 
   <div class="app-settings-layout">
     <SettingsNav active="devices" />

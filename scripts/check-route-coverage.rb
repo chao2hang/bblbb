@@ -93,6 +93,16 @@ DOCUMENTED_NON_CONTRACT = {
   "admin/achievements" => %w[GET POST],
   "admin/achievements/{p}" => %w[PATCH DELETE],
   "admin/achievements/{p}/grant" => %w[POST],
+  # M18 批量管理与流式 CSV 导出端点（M18-ADMIN-BATCH-01/02）：
+  "admin/posts/batch" => %w[POST],
+  "admin/boards/batch" => %w[POST],
+  "admin/tags/batch" => %w[POST],
+  "admin/users/batch" => %w[POST],
+  "admin/posts/export.csv" => %w[GET],
+  "admin/boards/export.csv" => %w[GET],
+  "admin/tags/export.csv" => %w[GET],
+  "admin/users/export.csv" => %w[GET],
+  "admin/audit/export.csv" => %w[GET],
   # 成就图标（不走 S3）：管理侧上传/移除（直写 storage_dir/achievements/ 本地
   # 磁盘）与公开读取端点；同上先例不进入冻结契约，记录于 docs/OPERATIONS.md
   # §19.8 与 docs/API.md §21.4。
@@ -136,6 +146,7 @@ DOCUMENTED_NON_CONTRACT = {
   # M07-SHOP-ASSETS / Steam Catalog：Steam 装扮资产与目录同步。
   # 资产静态服务与管理侧目录同步，记录于 docs/INTERNAL-MARKETPLACE.md。
   "admin/shop/steam-catalog/sync" => %w[POST],
+  "admin/shop/steam-assets/download-frames" => %w[POST],
   "shop/steam-catalog" => %w[GET],
   "steam-assets/{p}/{p}" => %w[GET]
 }.freeze

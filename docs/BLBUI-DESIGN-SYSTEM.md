@@ -40,7 +40,7 @@ registerAdminElements();
 | 组件 | BBLBB 用法 | 约束 |
 |---|---|---|
 | `aui-card` | `ui/Card.svelte`、`ui/Panel.svelte` 的 L1 模块容器 | 只承载一个模块，不嵌套另一个 L1 |
-| `aui-status-tag` | `Badge.svelte`、`Tag.svelte`、导航搜索结果状态 | 状态要有文字，不得只显示颜色 |
+| `aui-status-tag` | `Badge.svelte`、导航搜索结果状态 | 状态要有文字，不得只显示颜色；内容标签（`Tag.svelte`）属于话题业务属性非运维状态，不嵌套 `aui-status-tag` 避免双重边框与强制大写 |
 | `aui-table` | `Table.svelte` 的可见外壳 | 内容仍为原生 `<table>`，保留 `caption`、`scope` 和无 JS |
 | `aui-page-header` | 管理后台 `PageHeader.svelte` | SSR/no-JS 由 `noscript` fallback 提供标题 |
 | `aui-spinner` | 全局搜索加载提示 | 不传未声明的 `size` 属性；尺寸由 token/上下文决定 |

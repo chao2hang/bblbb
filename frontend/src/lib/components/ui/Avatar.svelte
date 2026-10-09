@@ -102,7 +102,7 @@
   role="img"
   aria-label={name}
   aria-busy={isLoading ? 'true' : undefined}
-  style="position:relative;width:{px}px;height:{px}px;font-size:{fontSize}px;border-radius:{radius ? radius : 'var(--avatar-radius,50%)'} !important;background:{isLoading || hasValidImage ? 'var(--color-bg-subtle, #f1f5f9)' : gradientBg} !important;color:{isLoading || hasValidImage ? 'transparent' : '#ffffff'} !important;--avatar-bg:{gradientBg};--avatar-color:#ffffff;overflow:hidden;display:inline-grid;place-items:center;vertical-align:middle;font-weight:600;line-height:1;user-select:none;"
+  style="position:relative;width:{px}px;height:{px}px;font-size:{fontSize}px;border-radius:{radius ? radius : 'var(--avatar-radius,50%)'} !important;background:{isLoading || hasValidImage ? 'var(--color-bg-subtle)' : gradientBg} !important;color:{isLoading || hasValidImage ? 'transparent' : 'var(--color-text-on-solid)'} !important;--avatar-bg:{gradientBg};--avatar-color:var(--color-text-on-solid);overflow:hidden;display:inline-grid;place-items:center;vertical-align:middle;font-weight:600;line-height:1;user-select:none;"
 >
   {#if hasValidImage}
     <img
@@ -156,9 +156,9 @@
     justify-content: center;
     background: linear-gradient(
       90deg,
-      var(--color-bg-subtle, #f1f5f9) 25%,
-      var(--color-bg-inset, #e2e8f0) 50%,
-      var(--color-bg-subtle, #f1f5f9) 75%
+      var(--color-bg-subtle) 25%,
+      var(--color-bg-inset) 50%,
+      var(--color-bg-subtle) 75%
     );
     background-size: 200% 100%;
     animation: avatar-shimmer 1.5s ease-in-out infinite;
@@ -178,14 +178,14 @@
   @media (prefers-reduced-motion: reduce) {
     .avatar-placeholder {
       animation: none;
-      background: var(--color-bg-subtle, #f1f5f9);
+      background: var(--color-bg-subtle);
     }
   }
 
   .avatar-placeholder-icon {
     width: 56%;
     height: 56%;
-    color: var(--color-text-secondary, #94a3b8);
+    color: var(--color-text-secondary);
     opacity: 0.42;
     flex-shrink: 0;
   }

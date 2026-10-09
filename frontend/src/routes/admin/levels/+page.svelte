@@ -600,7 +600,7 @@
             max="3650"
             step="1"
             required
-            value={policy ? policy.retention_days : 30}
+            value={policy ? policy.retention_days : 7}
             aria-label="信任等级 {quotaTarget} 删除保留期（天）"
           />
         </label>
@@ -777,7 +777,7 @@
       </label>
       <label class="quota-field">
         <span>删除保留期（天）</span>
-        <input type="number" name="retention_days" min="0" max="3650" step="1" required value={30} aria-label="批量删除保留期（天）" />
+        <input type="number" name="retention_days" min="0" max="3650" step="1" required value={7} aria-label="批量删除保留期（天）" />
       </label>
     </div>
     <label class="quota-field">

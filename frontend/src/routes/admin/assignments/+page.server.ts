@@ -59,50 +59,15 @@ async function fetchUser(
   return { user: null, status: result.status, message: result.message };
 }
 
-export const load: PageServerLoad = async ({ cookies, request, url }) => {
-  const requestId = request.headers.get('x-request-id');
+export const load: PageServerLoad = async ({ url }) => {
   const q = (url.searchParams.get('q') ?? '').trim();
   const userId = (url.searchParams.get('user') ?? '').trim();
-
-  const rolesResult = await getAuthed<{ items: AdminRoleItem[] }>(
-    cookies,
-    '/api/v1/admin/roles',
-    requestId
-  );
-  if (!rolesResult.ok && rolesResult.status === 401) throw redirect(303, '/login');
-  const loadState = adminListState(rolesResult);
-
-  let users: AdminAssignmentsUser[] | null = null;
-  let selectedUser: AdminAssignmentsUser | null = null;
-  let userError: string | null = null;
-
-  if (q) {
-    const params = new URLSearchParams({ q, limit: '20' });
-    const result = await getAuthed<{ items: AdminAssignmentsUser[] }>(
-      cookies,
-      `/api/v1/admin/users?${params.toString()}`,
-      requestId
-    );
-    if (result.ok) {
-      users = result.data.items;
-    } else if (result.status === 401) {
-      throw redirect(303, '/login');
-    } else {
-      userError = result.message;
-    }
-  }
-
-  if (userId) {
-    const fetched = await fetchUser(cookies, requestId, userId);
-    if (fetched.status === 401) throw redirect(303, '/login');
-    if (fetched.user) {
-      selectedUser = fetched.user;
-    } else {
-      userError = fetched.message ?? '用户不存在';
-    }
-  }
-
-  return { loadState, q, users, selectedUser, userError } satisfies AdminAssignmentsPageData;
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (userId) params.set('q', userId);
+  const qs = params.toString();
+  // 角色授权已整合进「用户管理」(/admin/users) 与「角色与权限」(/admin/roles)，取消单独页面。
+  throw redirect(308, `/admin/users${qs ? `?${qs}` : ''}`);
 };
 
 export const actions: Actions = {

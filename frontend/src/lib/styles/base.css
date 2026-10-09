@@ -62,6 +62,15 @@ canvas {
   max-width: 100%;
 }
 
+head,
+link,
+meta,
+script,
+style,
+title {
+  display: none !important;
+}
+
 input,
 button,
 textarea,

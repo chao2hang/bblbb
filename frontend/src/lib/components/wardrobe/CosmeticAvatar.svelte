@@ -33,6 +33,7 @@
 
   let avatarEl: HTMLSpanElement | null = $state(null);
   let frameFailed = $state(false);
+  let frameDirectFailed = $state(false);
   function resolveTokens(
     input: PublicPresentationTokens | { presentation_tokens?: PublicPresentationTokens | null } | null
   ): PublicPresentationTokens {
@@ -154,7 +155,7 @@
   });
 
   const hasFrame = $derived(
-    Boolean(frameDirectUrl || (frameAssetId && !frameFailed) || builtinApng || frameClass || frameRing || frameCustom)
+    Boolean((frameDirectUrl && !frameDirectFailed) || (frameAssetId && !frameFailed) || builtinApng || frameClass || frameRing || frameCustom)
   );
 
   const inlineStyle = $derived(
@@ -177,7 +178,7 @@
 </script>
 
 {#if frameCustom?.css}
-  <svelte:element this={'style'}>
+  <svelte:element this={'style'} style="display:none;">
     {frameCustom.css}
   </svelte:element>
 {/if}
@@ -201,8 +202,8 @@
   {#if avatarAttachment}
     <span class="cosmetic-avatar__attachment" aria-hidden="true">{avatarAttachment}</span>
   {/if}
-  {#if frameDirectUrl}
-    <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={frameDirectUrl} alt="" aria-hidden="true" />
+  {#if frameDirectUrl && !frameDirectFailed}
+    <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={frameDirectUrl} alt="" aria-hidden="true" onerror={() => (frameDirectFailed = true)} />
   {:else if frameAssetId && !frameFailed}
     <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={attachmentContentUrl(frameAssetId)} alt="" aria-hidden="true" onerror={() => (frameFailed = true)} />
   {:else if builtinApng}
@@ -228,6 +229,9 @@
 </span>
 
 <style>
+  :global(style) {
+    display: none !important;
+  }
   .cosmetic-avatar { position: relative; display: inline-flex; flex: 0 0 auto; width: max-content; height: max-content; vertical-align: middle; }
   /* 头像与头像边框圆角联动：
      1. 若明确标记为圆形框，头像裁切为 50% 完美正圆；

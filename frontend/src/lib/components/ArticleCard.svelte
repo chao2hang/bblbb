@@ -10,7 +10,7 @@
     author_name = '',
     author_avatar_attachment_id = null,
     view_count = 0,
-    color = '#0969DA'
+    color = 'var(--color-brand)'
   }: {
     id: string;
     title: string;
@@ -25,7 +25,7 @@
 <a href="/posts/{id}" class="article-card">
   <div
     class="article-card-cover"
-    style="background:linear-gradient(135deg, {color} 0%, {color}cc 55%, var(--color-ink) 130%);"
+    style="background:linear-gradient(135deg, {color} 0%, color-mix(in srgb, {color} 80%, transparent) 55%, var(--color-ink) 130%);"
   >
     <Icon name="file-text" size={36} />
   </div>

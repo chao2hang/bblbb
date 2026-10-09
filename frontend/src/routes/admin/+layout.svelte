@@ -98,7 +98,6 @@
       icon: 'layers',
       items: [
         { label: '帖子与文章', href: '/admin/posts', icon: 'file-text' },
-        { label: '内容审核', href: '/admin/content', icon: 'clipboard-check' },
         { label: '板块管理', href: '/admin/boards', icon: 'workflow' },
         { label: '标签管理', href: '/admin/tags', icon: 'tag' },
         { label: '附件管理', href: '/admin/attachments', icon: 'paperclip' }
@@ -111,7 +110,7 @@
         { label: '用户管理', href: '/admin/users', icon: 'users', adminOnly: true },
         { label: '角色委派', href: '/admin/assignments', icon: 'user-check', adminOnly: true },
         { label: '角色与权限', href: '/admin/roles', icon: 'shield', adminOnly: true },
-        { label: '举报与审核', href: '/admin/moderation/cases', icon: 'flag' },
+        { label: '审核中心', href: '/admin/moderation', icon: 'shield-check' },
         { label: '风控策略', href: '/admin/moderation/risk', icon: 'shield-alert' }
       ]
     },
@@ -172,6 +171,9 @@
 
   function isItemActive(item: { href: string; exact?: boolean }): boolean {
     if (item.exact) return path === item.href;
+    if (item.href === '/admin/moderation') {
+      return path === '/admin/moderation' || path.startsWith('/admin/moderation/') || path === '/admin/content';
+    }
     return path === item.href || path.startsWith(item.href + '/');
   }
 

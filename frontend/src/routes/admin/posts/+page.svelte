@@ -432,7 +432,7 @@
 
     <div class="app-card__body">
       <!-- 原型对齐工具条：搜索 + 状态筛选 + 每页数量 + 清除，单行 flex（窄屏自动换行；修复全宽 select 挤压清除按钮的问题） -->
-      <form method="GET" action="/admin/posts" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+      <form method="GET" action="/admin/posts" class="admin-filter-bar">
         <input
           type="search"
           name="q"
@@ -468,7 +468,7 @@
           {/each}
         </select>
         {#if data.q || data.status || (data.limit && data.limit !== 20)}
-          <a href="/admin/posts" class="btn ghost sm" style="flex:0 0 auto;">清除</a>
+          <a href="/admin/posts" class="btn ghost" style="flex:0 0 auto;">清除</a>
         {/if}
       </form>
 

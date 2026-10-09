@@ -65,7 +65,7 @@
             label: '待审举报',
             icon: 'flag',
             value: stats.reports_pending,
-             href: '/admin/moderation/cases',
+             href: '/admin/moderation?tab=cases',
             tone: (stats.reports_pending > 0 ? 'warning' : 'default') as 'warning' | 'default',
             note: stats.reports_pending > 0 ? '需要处理' : '暂无待处理',
             note_tone: (stats.reports_pending > 0 ? 'warning' : 'default') as 'warning' | 'default'
@@ -231,8 +231,8 @@
         <header class="app-card__head"><h2>关键入口</h2></header>
         <div class="app-card__body">
           <div class="admin-action-row">
-            <a class="btn primary sm" href="/admin/moderation/cases">处理举报</a>
-            <a class="btn secondary sm" href="/admin/content">内容审核</a>
+            <a class="btn primary sm" href="/admin/moderation">审核中心</a>
+            <a class="btn secondary sm" href="/admin/moderation/risk">风控策略</a>
             <a class="text-link dash-inline-action" href="/admin/settings">系统设置</a>
           </div>
         </div>

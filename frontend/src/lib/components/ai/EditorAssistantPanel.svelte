@@ -368,7 +368,7 @@
               </span>
             </div>
             {#if field.field === 'content' || field.field === 'markdown'}
-              <pre class="ai-diff" style="margin:0;max-height:240px;overflow:auto;font-size:var(--text-sm);white-space:pre-wrap;background:var(--color-bg-subtle, rgba(0,0,0,0.04));border-radius:var(--radius-md);padding:var(--space-2);">
+              <pre class="ai-diff" style="margin:0;max-height:240px;overflow:auto;font-size:var(--text-sm);white-space:pre-wrap;background:var(--color-bg-subtle);border-radius:var(--radius-md);padding:var(--space-2);">
 {#each diffLines(field) as line (line.text + line.type)}
 {line.type === 'removed' ? '-' : line.type === 'added' ? '+' : ' '} {line.text}{/each}</pre>
             {:else}

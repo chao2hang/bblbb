@@ -390,7 +390,7 @@ pub async fn admin_compensate(
         delta_frozen: 0,
         source_type: Some("marketplace_compensation".to_string()),
         source_id: Some(client_id.to_string()),
-        memo: format!("merchant compensation: {reason}"),
+        memo: format!("商户补偿: {reason}"),
         reverses_operation_id: None,
     };
     let op = ledger::apply_operation(pool, cmd, now).await?;

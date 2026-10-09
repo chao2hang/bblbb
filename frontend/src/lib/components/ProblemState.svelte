@@ -129,7 +129,7 @@
     padding: var(--space-1) var(--space-2);
     border: var(--border-default);
     border-radius: var(--radius-sm);
-    background: var(--color-surface-muted, #f5f5f4);
+    background: var(--color-bg-subtle);
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
     user-select: all;

@@ -16,6 +16,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import RowActionsMenu from '$lib/components/admin/RowActionsMenu.svelte';
   import GitDiffViewer from '$lib/components/admin/GitDiffViewer.svelte';
+  import TablePagination from '$lib/components/admin/TablePagination.svelte';
   import SafeHtml from '$lib/components/SafeHtml.svelte';
   import { toastActionResult } from '$lib/ui/action-toast';
   import type { AdminContentActionData, AdminContentPageData, AdminContentPost } from './+page.server';
@@ -25,6 +26,18 @@
   const posts = $derived(data.posts);
   const currentPost = $derived(data.current);
   const diff = $derived(data.diff);
+
+  let hasJs = $state(false);
+  $effect(() => {
+    hasJs = true;
+  });
+
+  let currentPage = $state(1);
+  let pageSize = $state(10);
+
+  const pagedPosts = $derived(
+    posts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  );
 
   // 审核大弹窗状态
   let modalOpen = $state(false);
@@ -48,9 +61,9 @@
     '包含违规或不适宜公开内容'
   ];
 
-  /** 点击列表行/标题/「审核」按钮：打开审核大弹窗 */
-  async function openReviewModal(post: AdminContentPost): Promise<void> {
-    activeView = 'content';
+  /** 点击列表行/标题/「处理」按钮：打开审核管理大弹窗 */
+  async function openReviewModal(post: AdminContentPost, initialView: 'content' | 'diff' = 'content'): Promise<void> {
+    activeView = initialView;
     rejecting = false;
     rejectReason = '';
     modalOpen = true;
@@ -105,11 +118,6 @@
     ];
   }
 
-  let hasJs = $state(false);
-  $effect(() => {
-    hasJs = true;
-  });
-
   // 确定性格式（UTC）：YYYY-MM-DD HH:mm
   const stampOf = (ms: number) => new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
 
@@ -131,7 +139,27 @@
   <title>内容审核 — BBLBB Admin</title>
 </svelte:head>
 
-<div style="margin-bottom:12px;">
+<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+  <div class="tabs" role="tablist" aria-label="审核工作台" style="background:var(--color-bg-subtle);border-radius:var(--radius-sm);padding:2px;">
+    <a
+      role="tab"
+      aria-selected={true}
+      href="/admin/content"
+      class="tab is-active"
+      style="padding:6px 14px;font-size:13px;text-decoration:none;"
+    >
+      待发内容审核 {posts.length > 0 ? `(${posts.length})` : ''}
+    </a>
+    <a
+      role="tab"
+      aria-selected={false}
+      href="/admin/moderation?tab=cases"
+      class="tab"
+      style="padding:6px 14px;font-size:13px;text-decoration:none;"
+    >
+      用户举报案件
+    </a>
+  </div>
   <a href="/admin/posts" class="text-link" style="font-size:13px;display:inline-flex;align-items:center;gap:4px;">
     返回内容列表
   </a>
@@ -166,7 +194,7 @@
       <h2>
         待审队列
         <span class="app-muted" style="font-size:12px;font-weight:400;">
-          （共 {posts.length} 篇 · 点击列表项直接弹窗审核）
+          （共 {posts.length} 篇 · 点击列表项或「处理」进入审核管理）
         </span>
       </h2>
     </header>
@@ -183,7 +211,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each posts as p (p.id)}
+            {#each pagedPosts as p (p.id)}
               {@const isCurrent = p.id === currentPost.id}
               <tr
                 class="review-row"
@@ -211,13 +239,13 @@
                 <td class="adm-acts">
                   <button
                     type="button"
-                    class="btn ghost sm review-action-btn"
+                    class="btn secondary sm review-action-btn"
                     onclick={(e) => {
                       e.stopPropagation();
                       openReviewModal(p);
                     }}
                   >
-                    审核
+                    处理
                   </button>
                 </td>
               </tr>
@@ -225,116 +253,124 @@
           </tbody>
         </table>
       </div>
+      <TablePagination
+        bind:currentPage
+        bind:pageSize
+        totalItems={posts.length}
+        noun="篇"
+      />
     </div>
   </section>
 
-  <!-- 2) 页面内详情区（支持无 JS 锚点浏览与 SSR 渲染） -->
-  <section class="app-card" id="review-detail">
-    <header class="app-card__head" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-      <h2 style="margin:0;font-size:17px;font-weight:700;line-height:1.4;">
-        版本对比 · {currentPost.title}
-      </h2>
-      <button
-        type="button"
-        class="btn primary sm"
-        onclick={() => openReviewModal(currentPost)}
-      >
-        <Icon name="maximize-2" size={14} />
-        <span>弹窗全屏管理</span>
-      </button>
-    </header>
+  <!-- 2) 页面内详情区（无 JS 降级与 SSR 快照，交互环境下收拢至「处理」审核弹窗） -->
+  {#if !hasJs}
+    <section class="app-card no-js-only" id="review-detail">
+      <header class="app-card__head" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin:0;font-size:17px;font-weight:700;line-height:1.4;">
+          版本对比 · {currentPost.title}
+        </h2>
+        <button
+          type="button"
+          class="btn primary sm"
+          onclick={() => openReviewModal(currentPost)}
+        >
+          <Icon name="maximize-2" size={14} />
+          <span>弹窗全屏管理</span>
+        </button>
+      </header>
 
-    <div class="app-card__body" style="padding:16px 20px;">
-      {#if diff}
-        <!-- 发帖人信息展示栏 -->
-        <div class="author-info-card" style="margin-bottom:16px;">
-          <div class="author-avatar">{authorInitial}</div>
-          <div class="author-meta-block">
-            <div class="author-primary-row">
-              <span class="author-name">{currentPost.author_username ?? '未知作者'}</span>
-              <span class="author-role-tag">发帖人</span>
-              {#if currentPost.board_name}
-                <span class="author-board-tag">
-                  <Icon name="folder" size={12} />
-                  {currentPost.board_name}
-                </span>
-              {/if}
-            </div>
-            <div class="author-secondary-row">
-              <span>提交时间：{stampOf(currentPost.created_at)}</span>
-              <span>·</span>
-              <span>状态：<span class="status-badge-pending">待审核</span></span>
-              <span>·</span>
-              {#if detailType}
-                <span class={detailType.cls} style="padding:1px 6px;border-radius:4px;font-size:11px;">{detailType.label}</span>
-              {/if}
+      <div class="app-card__body" style="padding:16px 20px;">
+        {#if diff}
+          <!-- 发帖人信息展示栏 -->
+          <div class="author-info-card" style="margin-bottom:16px;">
+            <div class="author-avatar">{authorInitial}</div>
+            <div class="author-meta-block">
+              <div class="author-primary-row">
+                <span class="author-name">{currentPost.author_username ?? '未知作者'}</span>
+                <span class="author-role-tag">发帖人</span>
+                {#if currentPost.board_name}
+                  <span class="author-board-tag">
+                    <Icon name="folder" size={12} />
+                    {currentPost.board_name}
+                  </span>
+                {/if}
+              </div>
+              <div class="author-secondary-row">
+                <span>提交时间：{stampOf(currentPost.created_at)}</span>
+                <span>·</span>
+                <span>状态：<span class="status-badge-pending">待审核</span></span>
+                <span>·</span>
+                {#if detailType}
+                  <span class={detailType.cls} style="padding:1px 6px;border-radius:4px;font-size:11px;">{detailType.label}</span>
+                {/if}
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 图例与版本说明 -->
-        <div class="review-diff__legend">
-          {#if detailType}
-            <span class={detailType.cls} style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:var(--weight-semibold);">{detailType.label}</span>
-          {/if}
-          <span class="diff-chip diff-chip--added">新增</span>
-          <span class="diff-chip diff-chip--removed">删除</span>
-          <span class="diff-chip diff-chip--changed">变更</span>
-          <span class="review-diff__versions">
-            {diff.from_version === null ? '首次提交' : `v${diff.from_version} → v${diff.to_version}`}
-          </span>
-        </div>
-
-        {#if diff.reason}
-          <p class="review-diff__reason">修订说明：{diff.reason}</p>
-        {/if}
-
-        <!-- Git 风格差异查看器 -->
-        <div style="margin-bottom:var(--space-4);">
-          <GitDiffViewer
-            beforeBody={diff.before_body}
-            afterBody={diff.after_body}
-            fromVersion={diff.from_version}
-            toVersion={diff.to_version}
-            reason={diff.reason}
-            defaultMode="split"
-          />
-        </div>
-
-        <!-- 兼容 SSR 测试的文本对比语义块 -->
-        <div class="review-diff__grid review-diff__grid--ssr" aria-label="SSR快照对比">
-          <section class="review-diff__pane review-diff__pane--before">
-            <h3>修改前{diff.from_version === null ? '（首次提交，无先前版本）' : ` · v${diff.from_version}`}</h3>
-            {#if diff.before_body !== null}
-              <pre class="review-diff__text">{diff.before_body}</pre>
-            {:else}
-              <p class="review-diff__empty">—（无先前版本，全部内容为新增）</p>
+          <!-- 图例与版本说明 -->
+          <div class="review-diff__legend">
+            {#if detailType}
+              <span class={detailType.cls} style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:var(--weight-semibold);">{detailType.label}</span>
             {/if}
-          </section>
-          <section class="review-diff__pane review-diff__pane--after">
-            <h3>修改后 · v{diff.to_version}</h3>
-            <pre class="review-diff__text">{diff.after_body}</pre>
-          </section>
-        </div>
-      {:else}
-        <!-- 对比数据不可用：禁用审核操作 -->
-        <div class="review-data-warning" role="alert">
-          <strong>当前无法进行版本对比</strong>
-          <span>
-            {data.diff_error ?? '没有可用的修订快照数据。为避免按错误内容审批，审核操作暂时禁用。'}
-          </span>
-        </div>
-      {/if}
+            <span class="diff-chip diff-chip--added">新增</span>
+            <span class="diff-chip diff-chip--removed">删除</span>
+            <span class="diff-chip diff-chip--changed">变更</span>
+            <span class="review-diff__versions">
+              {diff.from_version === null ? '首次提交' : `v${diff.from_version} → v${diff.to_version}`}
+            </span>
+          </div>
 
-      <!-- 审核操作菜单 -->
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;">
-        <RowActionsMenu label="更多操作：待审帖 {currentPost.title}" actions={reviewMenuActions()} />
-        {#if !diff}
-          <span class="review-entry--disabled" title="需要真实版本对比数据后才能审核">审核暂不可用</span>
+          {#if diff.reason}
+            <p class="review-diff__reason">修订说明：{diff.reason}</p>
+          {/if}
+
+          <!-- Git 风格差异查看器 -->
+          <div style="margin-bottom:var(--space-4);">
+            <GitDiffViewer
+              beforeBody={diff.before_body}
+              afterBody={diff.after_body}
+              fromVersion={diff.from_version}
+              toVersion={diff.to_version}
+              reason={diff.reason}
+              defaultMode="split"
+            />
+          </div>
+
+          <!-- 兼容 SSR 测试的文本对比语义块 -->
+          <div class="review-diff__grid review-diff__grid--ssr" aria-label="SSR快照对比">
+            <section class="review-diff__pane review-diff__pane--before">
+              <h3>修改前{diff.from_version === null ? '（首次提交，无先前版本）' : ` · v${diff.from_version}`}</h3>
+              {#if diff.before_body !== null}
+                <pre class="review-diff__text">{diff.before_body}</pre>
+              {:else}
+                <p class="review-diff__empty">—（无先前版本，全部内容为新增）</p>
+              {/if}
+            </section>
+            <section class="review-diff__pane review-diff__pane--after">
+              <h3>修改后 · v{diff.to_version}</h3>
+              <pre class="review-diff__text">{diff.after_body}</pre>
+            </section>
+          </div>
+        {:else}
+          <!-- 对比数据不可用：禁用审核操作 -->
+          <div class="review-data-warning" role="alert">
+            <strong>当前无法进行版本对比</strong>
+            <span>
+              {data.diff_error ?? '没有可用的修订快照数据。为避免按错误内容审批，审核操作暂时禁用。'}
+            </span>
+          </div>
         {/if}
+
+        <!-- 审核操作菜单 -->
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;">
+          <RowActionsMenu label="更多操作：待审帖 {currentPost.title}" actions={reviewMenuActions()} />
+          {#if !diff}
+            <span class="review-entry--disabled" title="需要真实版本对比数据后才能审核">审核暂不可用</span>
+          {/if}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  {/if}
 
   <!-- 3) 审核管理大弹窗（重构：显示发帖人信息、帖子正文、下方通过/不通过并输入理由） -->
   <Dialog
@@ -392,7 +428,7 @@
             <div class="post-header-left">
               <h3 class="post-title-display">{currentPost.title}</h3>
             </div>
-            {#if diff.from_version !== null}
+            {#if diff}
               <div class="view-switcher" role="tablist">
                 <button
                   type="button"
@@ -414,14 +450,14 @@
                   onclick={() => (activeView = 'diff')}
                 >
                   <Icon name="git-commit" size={13} />
-                  <span>版本比对 (Diff)</span>
+                  <span>版本管理 (版本比对)</span>
                 </button>
               </div>
             {/if}
           </div>
 
           <!-- 内容展示 -->
-          {#if activeView === 'content' || diff.from_version === null}
+          {#if activeView === 'content'}
             <div class="post-reading-view">
               {#if diff.after_html}
                 <SafeHtml html={diff.after_html} />
@@ -433,6 +469,20 @@
             </div>
           {:else}
             <div class="post-diff-wrapper">
+              <div class="review-diff__legend" style="margin-bottom:12px;">
+                {#if detailType}
+                  <span class={detailType.cls} style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:var(--weight-semibold);">{detailType.label}</span>
+                {/if}
+                <span class="diff-chip diff-chip--added">新增</span>
+                <span class="diff-chip diff-chip--removed">删除</span>
+                <span class="diff-chip diff-chip--changed">变更</span>
+                <span class="review-diff__versions">
+                  {diff.from_version === null ? '首次提交 · v1' : `v${diff.from_version} → v${diff.to_version}`}
+                </span>
+              </div>
+              {#if diff.reason}
+                <p class="review-diff__reason" style="margin-bottom:12px;">修订说明：{diff.reason}</p>
+              {/if}
               <GitDiffViewer
                 beforeBody={diff.before_body}
                 afterBody={diff.after_body}

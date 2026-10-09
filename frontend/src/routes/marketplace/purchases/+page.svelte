@@ -64,7 +64,7 @@
       <div class="card-body">
         <ul class="purchase-list" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3);">
           {#each purchases as p (p.id)}
-            <li class="purchase-item" style="border:1px solid var(--color-border,#d0d7de);border-radius:var(--radius-md,8px);padding:var(--space-3);display:grid;gap:var(--space-1);">
+            <li class="purchase-item" style="border:1px solid var(--color-border);border-radius:var(--radius-md,8px);padding:var(--space-3);display:grid;gap:var(--space-1);">
               <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2);">
                 <strong>{p.amount} {currencyLabel(p.currency_id, currencyName)} · {formatTs(p.created_at)}</strong>
                 <span class="badge {p.status === 'succeeded' ? 'badge-neutral' : 'badge-warning'}">{statusLabel(p.status)}</span>

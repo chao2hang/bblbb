@@ -332,10 +332,10 @@
   .view-mode-toggle {
     display: inline-flex;
     align-items: center;
-    border: 1px solid var(--border-default, #2e323b);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm, 6px);
     overflow: hidden;
-    background: var(--color-bg-subtle, rgba(0, 0, 0, 0.2));
+    background: var(--color-bg-subtle);
   }
 
   .view-mode-btn {
@@ -345,7 +345,7 @@
     padding: 6px 12px;
     border: none;
     background: transparent;
-    color: var(--color-text-secondary, #94a3b8);
+    color: var(--color-text-secondary);
     font-size: var(--text-xs, 12px);
     font-weight: 500;
     cursor: pointer;
@@ -353,12 +353,12 @@
   }
 
   .view-mode-btn:hover {
-    color: var(--color-text-primary, #ffffff);
+    color: var(--color-text-primary);
   }
 
   .view-mode-btn.is-active {
-    background: var(--color-brand, #8b5cf6);
-    color: var(--on-brand, #ffffff);
+    background: var(--color-brand);
+    color: var(--color-text-on-brand);
     font-weight: 600;
   }
 

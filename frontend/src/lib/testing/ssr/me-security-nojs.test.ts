@@ -2,10 +2,20 @@
 // 两步验证/OAuth/设备各行的状态与唯一入口）+ 设备管理原生 form
 // （?/revoke 隐藏 session_id、?/logoutall），且不输出任何会话 token；
 // 当前设备有标记且不可撤销。自 me-nojs.test.ts 平移（功能拆分）。
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import SecurityPage from '../../../routes/me/security/+page.svelte';
 import type { SecurityPageData } from '../../../routes/me/security/+page.server';
+
+// 页内渲染 MeSectionTabs（分区 tag 栏）需 SvelteKit page 状态。
+vi.mock('$app/state', () => ({
+  page: {
+    url: { pathname: '/me/security', searchParams: new URLSearchParams() },
+    params: {},
+    data: {},
+    route: { id: '/me/security' }
+  }
+}));
 
 const user = {
   id: 'u-1',

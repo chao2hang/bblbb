@@ -1,4 +1,4 @@
-// M18-ADMIN-POINTS 测试：全站流水查询、B币归一化与调账 action。
+// 积分与货币管理测试：用户积分列表拉取、筛选与调账 action。
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { load, actions, type AdminPointsPageData } from './+page.server';
 import { authedPost, getAuthed } from '$lib/api/server';
@@ -22,20 +22,71 @@ function createLoadEvent(queryString = '') {
 
 afterEach(() => vi.clearAllMocks());
 
-describe('M18-ADMIN-POINTS: 积分管理', () => {
-  it('load: 资产类型 asset=b_coin 自动归一化为 coin 传给后端', async () => {
-    getAuthedMock
-      .mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: null } })
-      .mockResolvedValueOnce({ ok: true, data: {} });
+describe('积分与货币管理（用户列表与调账）', () => {
+  it('load: 成功获取用户列表与对应积分', async () => {
+    getAuthedMock.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        items: [
+          {
+            id: 'u-1',
+            username: 'chaos',
+            email: 'chaos@example.com',
+            email_verified: true,
+            status: 'active',
+            display_name: 'Chaos',
+            level: 3,
+            roles: ['administrator'],
+            coin_balance: 500,
+            created_at: 1700000000000,
+            updated_at: 1700000000000,
+            last_login_at: 1700001000000,
+            version: 1
+          }
+        ],
+        next_cursor: 'cursor-abc'
+      }
+    });
 
-    const event = createLoadEvent('asset=b_coin');
+    const event = createLoadEvent();
     const data = (await load(event)) as AdminPointsPageData;
 
-    expect(data.ledger.state).toBe('ok');
-    expect(data.ledger.filters.asset).toBe('coin');
-    const ledgerApiCall = getAuthedMock.mock.calls[0][1] as string;
-    expect(ledgerApiCall).toContain('asset=coin');
-    expect(ledgerApiCall).not.toContain('asset=b_coin');
+    expect(data.state).toBe('ok');
+    expect(data.items).toHaveLength(1);
+    expect(data.items[0].coin_balance).toBe(500);
+    expect(data.nextCursor).toBe('cursor-abc');
+  });
+
+  it('load: 透传搜索关键词 q (或兼容 username) 与 status', async () => {
+    getAuthedMock.mockResolvedValueOnce({
+      ok: true,
+      data: { items: [], next_cursor: null }
+    });
+
+    const event = createLoadEvent('username=alice&status=active');
+    const data = (await load(event)) as AdminPointsPageData;
+
+    expect(data.state).toBe('ok');
+    expect(data.filters.q).toBe('alice');
+    expect(data.filters.status).toBe('active');
+    const apiCall = getAuthedMock.mock.calls[0][1] as string;
+    expect(apiCall).toContain('q=alice');
+    expect(apiCall).toContain('status=active');
+  });
+
+  it('load: 403 权限不足返回 forbidden 状态', async () => {
+    getAuthedMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      message: '无权限访问'
+    });
+
+    const event = createLoadEvent();
+    const data = (await load(event)) as AdminPointsPageData;
+
+    expect(data.state).toBe('forbidden');
+    expect(data.items).toEqual([]);
+    expect(data.error).toBe('无权限访问');
   });
 
   it('adjust action: 仅接受 coin 并成功调账', async () => {
@@ -122,5 +173,36 @@ describe('M18-ADMIN-POINTS: 积分管理', () => {
 
     expect(result.status).toBe(422);
     expect(authedPostMock).not.toHaveBeenCalled();
+  });
+
+  it('adjust action: 处理 step_up_required', async () => {
+    authedPostMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      code: 'step_up_required',
+      message: 'Step-up required'
+    });
+
+    const formData = new FormData();
+    formData.set('username', 'chaos');
+    formData.set('currency', 'coin');
+    formData.set('amount', '100');
+    formData.set('reason', '奖励');
+
+    const request = new Request('http://localhost/admin/points?/adjust', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = (await actions.adjust({
+      request,
+      cookies: {} as any,
+      params: {},
+      url: new URL('http://localhost/admin/points?/adjust'),
+      route: { id: '/admin/points' }
+    } as any)) as any;
+
+    expect(result.status).toBe(403);
+    expect(result.data.stepUpRequired).toBe(true);
   });
 });

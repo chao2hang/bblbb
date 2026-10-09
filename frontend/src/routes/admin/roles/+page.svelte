@@ -183,6 +183,18 @@
   let isSavingProfile = $state(false);
   let isSavingPerms = $state(false);
 
+  // —— 授权用户 ——
+  let assignUserOpen = $state(false);
+  let assignUsername = $state('');
+  let assignReason = $state('');
+  let isAssigning = $state(false);
+
+  function openAssignUser(): void {
+    assignUsername = '';
+    assignReason = '';
+    assignUserOpen = true;
+  }
+
   function openEditProfile(): void {
     if (!currentRole) return;
     editDisplayName = currentRole.name;
@@ -492,7 +504,12 @@
             {Object.values(enabledPerms).filter(Boolean).length} / {allPermissions.length} 已启用
           </span>
           <button type="button" class="btn secondary sm" onclick={openEditProfile}>编辑资料</button>
-          <a class="btn secondary sm" href="/admin/assignments" title="在角色委派页为用户授予或撤销该角色">管理成员</a>
+          <button type="button" class="btn secondary sm" onclick={openAssignUser} title="为用户分配此角色">
+            <Icon name="user-check" size={14} /> 授权用户
+          </button>
+          <a class="btn secondary sm" href={`/admin/users?role=${encodeURIComponent(currentRole.name)}`} title="在用户管理中查看并管理该角色的所有成员">
+            <Icon name="users" size={14} /> 成员列表
+          </a>
         </div>
       </header>
 
@@ -685,3 +702,60 @@
     </div>
   </form>
 </Dialog>
+
+<!-- 授权用户弹层：在角色管理内直接为用户授予此角色 -->
+{#if currentRole}
+  <Dialog
+    open={assignUserOpen}
+    title={`授权用户 · ${currentRole.name}`}
+    description={`将角色「${currentRole.name}」直接授予指定用户；操作写入审计日志。`}
+    onclose={() => (assignUserOpen = false)}
+  >
+    <form
+      method="POST"
+      action="?/assignUserRole"
+      use:enhance={() => {
+        isAssigning = true;
+        return async ({ result, update }) => {
+          isAssigning = false;
+          toastActionResult(result);
+          await update();
+          if (result.type === 'success') {
+            assignUserOpen = false;
+            assignUsername = '';
+            assignReason = '';
+          }
+        };
+      }}
+      style="display:flex;flex-direction:column;gap:12px;"
+    >
+      <input type="hidden" name="role_name" value={currentRole.name} />
+      <div class="input-wrapper" style="margin-bottom:0;">
+        <label class="input-label" for="assign-target-username">目标用户名（username）</label>
+        <input
+          id="assign-target-username"
+          name="username"
+          class="input-field"
+          required
+          bind:value={assignUsername}
+          placeholder="如：alice"
+        />
+      </div>
+      <div class="input-wrapper" style="margin-bottom:0;">
+        <label class="input-label" for="assign-user-reason">操作原因（写入审计日志）</label>
+        <input
+          id="assign-user-reason"
+          name="reason"
+          class="input-field"
+          required
+          bind:value={assignReason}
+          placeholder="如：委派社区版主职责"
+        />
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
+        <button type="button" class="btn ghost sm" onclick={() => (assignUserOpen = false)} disabled={isAssigning}>取消</button>
+        <Button text={isAssigning ? '授予中...' : '确认授予'} variant="primary" size="sm" type="submit" disabled={isAssigning} />
+      </div>
+    </form>
+  </Dialog>
+{/if}

@@ -601,7 +601,7 @@
     line-height: 18px;
     text-align: center;
     border-radius: 9px;
-    box-shadow: 0 0 0 2px var(--color-bg-card, #fff);
+    box-shadow: 0 0 0 2px var(--color-bg-card);
   }
 
   .messages-item-main {
@@ -750,33 +750,19 @@
   .msg-quote-card {
     margin-bottom: 6px;
     padding: 4px 8px;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.06);
-    border-left: 3px solid rgba(0, 0, 0, 0.25);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--color-bg-subtle);
+    border-left: 3px solid var(--color-border-strong);
     font-size: 12px;
     line-height: 1.35;
-    color: rgba(0, 0, 0, 0.7);
+    color: var(--color-text-secondary);
     word-break: break-word;
   }
 
   .msg-quote-card.is-own {
-    background: rgba(0, 0, 0, 0.08);
-    border-left-color: rgba(0, 0, 0, 0.35);
-    color: rgba(0, 0, 0, 0.75);
-  }
-
-  :global(html.dark) .msg-quote-card,
-  :global(html[data-theme='dark']) .msg-quote-card {
-    background: rgba(255, 255, 255, 0.08);
-    border-left-color: rgba(255, 255, 255, 0.35);
-    color: rgba(255, 255, 255, 0.75);
-  }
-
-  :global(html.dark) .msg-quote-card.is-own,
-  :global(html[data-theme='dark']) .msg-quote-card.is-own {
-    background: rgba(0, 0, 0, 0.3);
-    border-left-color: #95ec69;
-    color: #e5e7eb;
+    background: color-mix(in srgb, var(--color-brand) 12%, var(--color-bg-subtle));
+    border-left-color: var(--color-brand);
+    color: var(--color-text-primary);
   }
 
   .msg-actions {
@@ -787,10 +773,11 @@
     align-items: center;
     gap: 2px;
     padding: 3px;
-    border-radius: 6px;
-    background: #2b2b2b;
-    color: #ffffff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+    border-radius: var(--radius-md, 6px);
+    background: var(--color-bg-raised);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-pop);
     white-space: nowrap;
     animation: popIn 0.15s ease-out;
   }
@@ -819,9 +806,9 @@
     gap: 4px;
     padding: 4px 8px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm, 4px);
     background: transparent;
-    color: #ffffff;
+    color: var(--color-text-primary);
     font-size: 12px;
     line-height: 1;
     cursor: pointer;
@@ -830,11 +817,12 @@
 
   .msg-action-btn:hover,
   .msg-action-btn:active {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--color-surface-hover);
   }
 
   .msg-action-btn.is-danger:hover {
-    background: rgba(239, 68, 68, 0.4);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
   }
 
   .messages-quote-bar {
@@ -844,9 +832,9 @@
     gap: 8px;
     padding: 6px 10px;
     margin-bottom: 6px;
-    border-radius: 6px;
+    border-radius: var(--radius-md, 6px);
     background: var(--color-bg-subtle);
-    border-left: 3px solid var(--color-brand, #2b6c38);
+    border-left: 3px solid var(--color-brand);
     font-size: 13px;
   }
 
@@ -864,14 +852,14 @@
   .messages-quote-bar-tag {
     font-size: 11px;
     padding: 1px 5px;
-    border-radius: 3px;
-    background: rgba(0, 0, 0, 0.08);
+    border-radius: var(--radius-sm, 3px);
+    background: var(--color-bg-inset);
     color: var(--color-text-secondary);
   }
 
   .messages-quote-bar-sender {
     font-weight: 500;
-    color: var(--color-text);
+    color: var(--color-text-primary);
   }
 
   .messages-quote-bar-text {
@@ -891,12 +879,12 @@
     background: transparent;
     color: var(--color-text-tertiary);
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-sm, 4px);
   }
 
   .messages-quote-bar-close:hover {
-    color: var(--color-text);
-    background: rgba(0, 0, 0, 0.06);
+    color: var(--color-text-primary);
+    background: var(--color-surface-hover);
   }
 
   .chat-recalled-notice {
@@ -911,7 +899,7 @@
   .chat-reedit-btn {
     border: none;
     background: transparent;
-    color: var(--color-brand, #0969da);
+    color: var(--color-brand);
     font-size: 12px;
     padding: 0;
     cursor: pointer;
@@ -942,55 +930,27 @@
     position: relative;
     max-width: 100%;
     padding: 9px 12px;
-    border-radius: 6px;
-    background: #ffffff;
+    border-radius: var(--radius-md, 6px);
+    background: var(--color-bg-card);
     font-family: var(--font-family-base);
     font-size: 15px;
-    white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.45;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-    color: #111827;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-control);
+    color: var(--color-text-primary);
+  }
+
+  .msg-text {
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .msg.is-own {
-    background: #95ec69;
-    color: #000000;
-    border: none;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  }
-
-  /* 微信深色模式标准气泡配色：自发生信采用清爽温润的深森林绿，收件气泡采用现代深灰 */
-  :global(html.dark) .msg.is-own,
-  :global(html[data-theme='dark']) .msg.is-own {
-    background: #2e6a38;
-    color: #f3f4f6;
-    border: none;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
-
-  :global(html.dark) .msg:not(.is-own),
-  :global(html[data-theme='dark']) .msg:not(.is-own) {
-    background: #25292e;
-    color: #e5e7eb;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :global(html:not(.light):not([data-theme='light'])) .msg.is-own {
-      background: #2e6a38;
-      color: #f3f4f6;
-      border: none;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    }
-    :global(html:not(.light):not([data-theme='light'])) .msg:not(.is-own) {
-      background: #25292e;
-      color: #e5e7eb;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    }
+    background: var(--color-brand-soft);
+    color: var(--color-text-primary);
+    border: 1px solid color-mix(in srgb, var(--color-brand) 30%, transparent);
+    box-shadow: var(--shadow-control);
   }
 
   .chat-time {

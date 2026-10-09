@@ -225,5 +225,57 @@ export const actions: Actions = {
         message: '验证失败，请稍后重试'
       } satisfies AdminRolesActionData);
     }
+  },
+
+  /** 在角色管理内为用户授权此角色：POST /admin/users/{id}/roles */
+  assignUserRole: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const username = String(form.get('username') ?? '').trim();
+    const roleName = String(form.get('role_name') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+
+    if (!username || !roleName) {
+      return fail(422, { loadState: await reloadRoles(cookies, null), message: '缺少用户名或角色标识' } satisfies AdminRolesActionData);
+    }
+    if (!reason) {
+      return fail(422, { loadState: await reloadRoles(cookies, null), message: '操作原因必填（写入审计日志）' } satisfies AdminRolesActionData);
+    }
+
+    try {
+      // 1. 查询用户获得 user_id
+      const userRes = await getAuthed<{ items: Array<{ id: string; username: string }> }>(
+        cookies,
+        `/api/v1/admin/users?q=${encodeURIComponent(username)}&limit=10`,
+        request.headers.get('x-request-id')
+      );
+      if (!userRes.ok || !userRes.data?.items?.length) {
+        return fail(404, { loadState: await reloadRoles(cookies, null), message: `未找到用户「${username}」` } satisfies AdminRolesActionData);
+      }
+      const matchedUser = userRes.data.items.find(
+        (u) => u.username.toLowerCase() === username.toLowerCase()
+      ) ?? userRes.data.items[0];
+
+      // 2. 授予角色
+      const result = await authedPost<{ roles?: string[] }>(
+        cookies,
+        `/api/v1/admin/users/${encodeURIComponent(matchedUser.id)}/roles`,
+        { role_name: roleName, reason },
+        request.headers.get('x-request-id')
+      );
+
+      if (result.ok) {
+        return {
+          loadState: await reloadRoles(cookies, request.headers.get('x-request-id')),
+          message: `已成功为用户 @${matchedUser.username} 授予角色「${roleName}」`
+        } satisfies AdminRolesActionData;
+      }
+      return fail(result.status, {
+        loadState: await reloadRoles(cookies, request.headers.get('x-request-id')),
+        message: result.message
+      } satisfies AdminRolesActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { loadState: await reloadRoles(cookies, null), message: '授权失败，请稍后重试' } satisfies AdminRolesActionData);
+    }
   }
 };

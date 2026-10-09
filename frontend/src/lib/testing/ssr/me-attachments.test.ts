@@ -45,6 +45,7 @@ describe('GAP-FIX: /me/attachments 我的附件页', () => {
       props: {
         data: {
           items: [imageAttachment, fileAttachment],
+          deletedItems: [],
           quota,
           error: null
         }
@@ -68,17 +69,17 @@ describe('GAP-FIX: /me/attachments 我的附件页', () => {
     expect(() => {
       const { body } = render(MeAttachmentsPage, {
         props: {
-          data: { items: [], quota: null, error: null }
+          data: { items: [], deletedItems: [], quota: null, error: null }
         }
       });
-      expect(body).toContain('还没有附件');
+      expect(body).toContain('还没有正常附件');
     }).not.toThrow();
   });
 
   it('加载失败时展示错误提示（列表与容量降级）', () => {
     const { body } = render(MeAttachmentsPage, {
       props: {
-        data: { items: [], quota: null, error: '后端不可用' }
+        data: { items: [], deletedItems: [], quota: null, error: '后端不可用' }
       }
     });
     expect(body).toContain('附件信息加载失败');

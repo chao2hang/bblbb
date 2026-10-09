@@ -42,7 +42,7 @@
 </script>
 
 {#if href}
-  <a href={href} class={classes} aria-disabled={disabled || undefined}>
+  <a href={href} class={classes} aria-disabled={disabled || undefined} onclick={onclick}>
     {#if icon}<Icon name={icon} size={size === 'sm' ? 14 : 16} />{/if}
     {#if text}<span>{text}</span>{/if}
     {@render children?.()}

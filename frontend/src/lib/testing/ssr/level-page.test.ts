@@ -1,8 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import { LINUXDO_TRUST_LEVELS } from '$lib/api/types';
 import LevelPage from '../../../routes/me/level/+page.svelte';
 import BalancePage from '../../../routes/me/balance/+page.svelte';
+
+// 等级页内渲染 MeSectionTabs（分区 tag 栏）需 SvelteKit page 状态。
+vi.mock('$app/state', () => ({
+  page: {
+    url: { pathname: '/me/level', searchParams: new URLSearchParams() },
+    params: {},
+    data: {},
+    route: { id: '/me/level' }
+  }
+}));
 
 describe('全站统一社区信任等级体系（TL0–TL4）', () => {
   describe('LINUXDO_TRUST_LEVELS 5 级信任标准元数据', () => {
@@ -67,6 +77,7 @@ describe('全站统一社区信任等级体系（TL0–TL4）', () => {
         props: {
           data: {
             trust,
+            user: null,
             error: null
           }
         }
@@ -100,6 +111,7 @@ describe('全站统一社区信任等级体系（TL0–TL4）', () => {
         props: {
           data: {
             trust: null,
+            user: null,
             error: null
           }
         }
