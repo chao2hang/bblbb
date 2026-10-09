@@ -11,12 +11,17 @@ import urllib.request
 import urllib.parse
 import json
 import os
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-JSON_PATH = os.path.join(BASE_DIR, 'frontend', 'src', 'lib', 'data', 'steam-avatar-frames.json')
-OUT_DIR = os.path.join(BASE_DIR, 'uploads', 'steam-assets', 'frames')
+JSON_PATH = os.environ.get('STEAM_FRAMES_JSON_PATH') or os.path.join(BASE_DIR, 'frontend', 'src', 'lib', 'data', 'steam-avatar-frames.json')
+OUT_DIR = (
+    sys.argv[1]
+    if len(sys.argv) > 1 and not sys.argv[1].startswith('-')
+    else (os.environ.get('STEAM_FRAMES_OUT_DIR') or os.path.join(BASE_DIR, 'uploads', 'steam-assets', 'frames'))
+)
 
 os.makedirs(OUT_DIR, exist_ok=True)
 

@@ -146,6 +146,7 @@ DOCUMENTED_NON_CONTRACT = {
   # M07-SHOP-ASSETS / Steam Catalog：Steam 装扮资产与目录同步。
   # 资产静态服务与管理侧目录同步，记录于 docs/INTERNAL-MARKETPLACE.md。
   "admin/shop/steam-catalog/sync" => %w[POST],
+  "admin/shop/steam-assets/download-frames" => %w[POST],
   "shop/steam-catalog" => %w[GET],
   "steam-assets/{p}/{p}" => %w[GET]
 }.freeze

@@ -44,6 +44,7 @@
   let customLimit = $state<number>(1);
   let customLevel = $state<number>(1);
   let submitting = $state(false);
+  let downloadingFrames = $state(false);
 
   let framesData = $state<SteamFrameItem[]>(framesFallback as SteamFrameItem[]);
 
@@ -226,6 +227,30 @@
           </button>
         {/each}
       </div>
+
+      <form
+        method="POST"
+        action="?/downloadSteamFrames"
+        use:enhance={async (opts) => {
+          downloadingFrames = true;
+          const fn = await enhanceHandler(opts);
+          return async (ctx) => {
+            downloadingFrames = false;
+            if (typeof fn === 'function') await fn(ctx);
+          };
+        }}
+        style="margin-left:auto;display:flex;align-items:center;"
+      >
+        <button
+          type="submit"
+          class="sf-download-btn"
+          disabled={downloadingFrames}
+          title="全量补齐/重新下载 2088 款 Steam 动效头像框透明 PNG 素材到服务器本地存储"
+        >
+          <Icon name="download" size={14} />
+          <span>{downloadingFrames ? '正在下载头像框素材…' : '重新下载头像框素材'}</span>
+        </button>
+      </form>
     </div>
 
     <div class="sf-body">
@@ -235,7 +260,17 @@
           <div class="sf-pricing-preview">
             <div class="sf-card__preview" style="width: 100px; height: 100px;">
               <div class="sf-card__avatar-mock" style="width: 72px; height: 72px;"></div>
-              <img class="sf-card__frame-img" src={getFrameUrl(activeItem)} alt={activeItem.name} />
+              <img
+                class="sf-card__frame-img"
+                src={getFrameUrl(activeItem)}
+                alt={activeItem.name}
+                onerror={(e) => {
+                  const target = e.currentTarget as HTMLImageElement;
+                  if (target && activeItem && !target.src.includes('steamstatic')) {
+                    target.src = getFallbackCdnUrl(activeItem);
+                  }
+                }}
+              />
             </div>
             <span style="font-size: 13px; font-weight: 600; color: #66c0f4;">Steam 原画 APNG 动图</span>
           </div>
@@ -484,6 +519,28 @@
     color: #66c0f4;
     border-color: #171a21;
     font-weight: 600;
+  }
+  .sf-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(102, 192, 244, 0.12);
+    border: 1px solid rgba(102, 192, 244, 0.35);
+    border-radius: var(--radius-sm, 6px);
+    color: #66c0f4;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .sf-download-btn:hover:not(:disabled) {
+    background: rgba(102, 192, 244, 0.22);
+    border-color: #66c0f4;
+  }
+  .sf-download-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   .sf-body {
     flex: 1;

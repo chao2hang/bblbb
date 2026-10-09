@@ -66,6 +66,18 @@
     }
   }
 
+  let clientError = $state<string | null>(null);
+  let mfaFieldError = $state<string | null>(null);
+  let identifierError = $state<string | null>(null);
+  let passwordError = $state<string | null>(null);
+  let serverMessageDismissed = $state(false);
+
+  $effect(() => {
+    if (form) {
+      serverMessageDismissed = false;
+    }
+  });
+
   const oauthErrorParam = $derived(page.url.searchParams.get('error'));
   const oauthErrorMessage = $derived.by(() => {
     switch (oauthErrorParam) {
@@ -86,11 +98,15 @@
   });
 
   const topMessage = $derived(
-    oauthErrorMessage
-      ? oauthErrorMessage
-      : form?.message
-        ? (form.requestId ? `${form.message}（请求号 ${form.requestId}）` : form.message)
-        : null
+    clientError
+      ? clientError
+      : oauthErrorMessage
+        ? oauthErrorMessage
+        : !serverMessageDismissed && form?.message
+          ? form.requestId
+            ? `${form.message}（请求号 ${form.requestId}）`
+            : form.message
+          : null
   );
 
   $effect(() => {
@@ -100,6 +116,115 @@
       showToast(topMessage ?? form.message, 'danger');
     }
   });
+
+  function clearErrors() {
+    clientError = null;
+    mfaFieldError = null;
+    identifierError = null;
+    passwordError = null;
+    serverMessageDismissed = true;
+  }
+
+  function handleTotpPaste(e: ClipboardEvent) {
+    const pasteText = e.clipboardData?.getData('text') ?? '';
+    // 如果粘贴内容包含空格或短横线（例如从身份验证器复制的 "123 456"），自动清洗为纯数字填入
+    const digits = pasteText.replace(/\D/g, '').slice(0, 6);
+    if (digits) {
+      e.preventDefault();
+      const input = e.currentTarget as HTMLInputElement;
+      input.value = digits;
+      clearErrors();
+    }
+  }
+
+  function handleLoginEnhance({ formData, cancel }: { formData: FormData; cancel: () => void }) {
+    clearErrors();
+    const identifier = String(formData.get('identifier') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+    if (!identifier) {
+      identifierError = '请输入用户名或邮箱';
+      clientError = identifierError;
+      showToast(clientError, 'danger');
+      cancel();
+      return;
+    }
+    if (!password) {
+      passwordError = '请输入密码';
+      clientError = passwordError;
+      showToast(clientError, 'danger');
+      cancel();
+      return;
+    }
+    return async ({ update }: { update: () => Promise<void> }) => {
+      await update();
+    };
+  }
+
+  function handleMfaEnhance({ formData, cancel }: { formData: FormData; cancel: () => void }) {
+    clearErrors();
+
+    if (formData.get('passkey_assertion')) {
+      return async ({ update }: { update: () => Promise<void> }) => {
+        await update();
+      };
+    }
+
+    if (useRecovery) {
+      const raw = String(formData.get('recovery_code') ?? '').trim();
+      const code = raw.replace(/[-\s]/g, '');
+      if (!raw) {
+        mfaFieldError = '请输入 16 位恢复码';
+        clientError = mfaFieldError;
+        showToast(mfaFieldError, 'danger');
+        cancel();
+        return;
+      }
+      if (code.length < 16) {
+        mfaFieldError = `恢复码长度不足，请输入 16 位恢复码（当前 ${code.length} 位）`;
+        clientError = mfaFieldError;
+        showToast(mfaFieldError, 'danger');
+        cancel();
+        return;
+      }
+      if (code.length > 16 || !/^[A-Za-z0-9]{16}$/.test(code)) {
+        mfaFieldError = '恢复码格式不正确，请输入 16 位恢复码';
+        clientError = mfaFieldError;
+        showToast(mfaFieldError, 'danger');
+        cancel();
+        return;
+      }
+      formData.set('recovery_code', code);
+    } else {
+      const raw = String(formData.get('totp_code') ?? '').trim();
+      const code = raw.replace(/[-\s]/g, '');
+      if (!raw) {
+        mfaFieldError = '请输入 6 位动态验证码';
+        clientError = mfaFieldError;
+        showToast(mfaFieldError, 'danger');
+        cancel();
+        return;
+      }
+      if (code.length < 6) {
+        mfaFieldError = `验证码长度不足，请输入 6 位数字验证码（当前 ${code.length} 位）`;
+        clientError = mfaFieldError;
+        showToast(mfaFieldError, 'danger');
+        cancel();
+        return;
+      }
+      if (!/^\d{6}$/.test(code)) {
+        mfaFieldError = '验证码格式不正确，请输入 6 位数字验证码';
+        clientError = mfaFieldError;
+        showToast(mfaFieldError, 'danger');
+        cancel();
+        return;
+      }
+      formData.set('totp_code', code);
+    }
+
+    return async ({ update }: { update: () => Promise<void> }) => {
+      await update();
+    };
+  }
 
   // 登录后回跳目标（?next=，仅本站相对路径）：表单 action="?/xxx" 会替换
   // 整个查询串，POST 时 URL 上的 next 丢失，故经隐藏字段携带（action 端
@@ -111,6 +236,7 @@
 
   function toggleRecovery() {
     useRecovery = !useRecovery;
+    clearErrors();
   }
 </script>
 
@@ -169,7 +295,7 @@
             id="login-mfa-form"
             method="POST"
             action="?/mfa"
-            use:enhance
+            use:enhance={handleMfaEnhance}
             novalidate
             class="login-form"
           >
@@ -187,13 +313,20 @@
                   <input
                     type="text"
                     class="input-field recovery-input"
+                    class:is-invalid={!!mfaFieldError || (!!form?.message && !serverMessageDismissed)}
                     id="login-recovery"
                     name="recovery_code"
                     placeholder="16 位恢复码"
                     autocomplete="one-time-code"
                     spellcheck="false"
+                    aria-invalid={mfaFieldError ? 'true' : undefined}
+                    aria-describedby={mfaFieldError ? 'login-recovery-error' : undefined}
+                    oninput={clearErrors}
                   />
                 </div>
+                {#if mfaFieldError}
+                  <p class="input-hint is-error" id="login-recovery-error" role="alert">{mfaFieldError}</p>
+                {/if}
               </div>
               <div class="mfa-switch-row">
                 <button type="button" class="link-btn" onclick={toggleRecovery}>
@@ -208,6 +341,7 @@
                   <input
                     type="text"
                     class="input-field totp-input"
+                    class:is-invalid={!!mfaFieldError || (!!form?.message && !serverMessageDismissed)}
                     id="login-totp"
                     name="totp_code"
                     placeholder="6 位验证码"
@@ -215,8 +349,15 @@
                     pattern="[0-9]{6}"
                     maxlength="6"
                     autocomplete="one-time-code"
+                    aria-invalid={mfaFieldError ? 'true' : undefined}
+                    aria-describedby={mfaFieldError ? 'login-totp-error' : undefined}
+                    oninput={clearErrors}
+                    onpaste={handleTotpPaste}
                   />
                 </div>
+                {#if mfaFieldError}
+                  <p class="input-hint is-error" id="login-totp-error" role="alert">{mfaFieldError}</p>
+                {/if}
                 <div class="totp-tip-box">
                   <Icon name="clock" size={13} />
                   <span>动态验证码每 30 秒自动更新，请以 App 实时值为准</span>
@@ -243,7 +384,7 @@
           </form>
         {:else}
           <!-- M14-A11Y-08 修复：显式 action="?/login" -->
-          <form method="POST" action="?/login" use:enhance novalidate class="login-form">
+          <form method="POST" action="?/login" use:enhance={handleLoginEnhance} novalidate class="login-form">
             <input type="hidden" name="next" value={nextParam} />
             <div class="input-wrapper">
               <label class="input-label" for="login-identifier">用户名或邮箱</label>
@@ -254,14 +395,21 @@
                 <input
                   type="text"
                   class="input-field"
+                  class:is-invalid={!!identifierError}
                   id="login-identifier"
                   name="identifier"
                   placeholder="用户名或邮箱"
                   autocomplete="username"
                   autocapitalize="none"
                   spellcheck="false"
+                  aria-invalid={identifierError ? 'true' : undefined}
+                  aria-describedby={identifierError ? 'login-identifier-error' : undefined}
+                  oninput={clearErrors}
                 />
               </div>
+              {#if identifierError}
+                <p class="input-hint is-error" id="login-identifier-error" role="alert">{identifierError}</p>
+              {/if}
             </div>
             <div class="input-wrapper">
               <label class="input-label" for="login-password">密码</label>
@@ -272,10 +420,14 @@
                 <input
                   type={showPassword ? 'text' : 'password'}
                   class="input-field password-input"
+                  class:is-invalid={!!passwordError}
                   id="login-password"
                   name="password"
                   placeholder="输入密码"
                   autocomplete="current-password"
+                  aria-invalid={passwordError ? 'true' : undefined}
+                  aria-describedby={passwordError ? 'login-password-error' : undefined}
+                  oninput={clearErrors}
                 />
                 <button
                   type="button"
@@ -288,6 +440,9 @@
                   <Icon name={showPassword ? 'eye-off' : 'eye'} size={18} />
                 </button>
               </div>
+              {#if passwordError}
+                <p class="input-hint is-error" id="login-password-error" role="alert">{passwordError}</p>
+              {/if}
             </div>
             <div class="login-options">
               <label class="remember-label">
@@ -635,6 +790,21 @@
     background: var(--color-bg-card);
     border-color: var(--color-brand);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 20%, transparent);
+  }
+
+  .input-field.is-invalid {
+    border-color: var(--color-danger);
+  }
+
+  .input-field.is-invalid:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 20%, transparent);
+  }
+
+  .input-hint.is-error {
+    font-size: 12px;
+    color: var(--color-danger);
+    margin: 5px 0 0;
+    line-height: 1.35;
   }
 
   .toggle-pwd-btn {

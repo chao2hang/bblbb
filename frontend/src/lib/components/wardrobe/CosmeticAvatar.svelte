@@ -33,6 +33,7 @@
 
   let avatarEl: HTMLSpanElement | null = $state(null);
   let frameFailed = $state(false);
+  let frameDirectFailed = $state(false);
   function resolveTokens(
     input: PublicPresentationTokens | { presentation_tokens?: PublicPresentationTokens | null } | null
   ): PublicPresentationTokens {
@@ -154,7 +155,7 @@
   });
 
   const hasFrame = $derived(
-    Boolean(frameDirectUrl || (frameAssetId && !frameFailed) || builtinApng || frameClass || frameRing || frameCustom)
+    Boolean((frameDirectUrl && !frameDirectFailed) || (frameAssetId && !frameFailed) || builtinApng || frameClass || frameRing || frameCustom)
   );
 
   const inlineStyle = $derived(
@@ -201,8 +202,8 @@
   {#if avatarAttachment}
     <span class="cosmetic-avatar__attachment" aria-hidden="true">{avatarAttachment}</span>
   {/if}
-  {#if frameDirectUrl}
-    <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={frameDirectUrl} alt="" aria-hidden="true" />
+  {#if frameDirectUrl && !frameDirectFailed}
+    <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={frameDirectUrl} alt="" aria-hidden="true" onerror={() => (frameDirectFailed = true)} />
   {:else if frameAssetId && !frameFailed}
     <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={attachmentContentUrl(frameAssetId)} alt="" aria-hidden="true" onerror={() => (frameFailed = true)} />
   {:else if builtinApng}

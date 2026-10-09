@@ -25,6 +25,16 @@
     return new Date(ms).toLocaleString();
   }
 
+  function handleCodePaste(e: ClipboardEvent) {
+    const pasteText = e.clipboardData?.getData('text') ?? '';
+    const digits = pasteText.replace(/\D/g, '').slice(0, 6);
+    if (digits) {
+      e.preventDefault();
+      const input = e.currentTarget as HTMLInputElement;
+      input.value = digits;
+    }
+  }
+
   async function addPasskey() {
     if (passkeyBusy) return;
     if (!passkeySupported()) {
@@ -122,7 +132,34 @@
             </details>
           </div>
 
-          <form method="POST" action="?/confirm" use:enhance class="mfa-steps__item">
+          <form
+            method="POST"
+            action="?/confirm"
+            use:enhance={({ formData, cancel }) => {
+              const raw = String(formData.get('code') ?? '').trim();
+              const code = raw.replace(/[-\s]/g, '');
+              if (!raw) {
+                showToast('请输入 6 位验证码', 'danger');
+                cancel();
+                return;
+              }
+              if (code.length < 6) {
+                showToast(`验证码长度不足，请输入 6 位验证码（当前 ${code.length} 位）`, 'danger');
+                cancel();
+                return;
+              }
+              if (!/^[0-9]{6}$/.test(code)) {
+                showToast('请输入 6 位验证码', 'danger');
+                cancel();
+                return;
+              }
+              formData.set('code', code);
+              return async ({ update }) => {
+                await update();
+              };
+            }}
+            class="mfa-steps__item"
+          >
             <p class="mfa-steps__title"><span class="mfa-steps__num">2</span>输入 6 位动态验证码确认</p>
             <p class="text-secondary" style="margin:0 0 var(--space-3);font-size:var(--text-sm);">
               扫码后，认证器会为该账号生成 6 位动态验证码（每 30 秒刷新），输入下方完成启用。
@@ -139,6 +176,7 @@
                 required
                 autocomplete="one-time-code"
                 aria-label="6 位动态验证码"
+                onpaste={handleCodePaste}
               />
               <Button text="验证并启用" variant="primary" type="submit" />
             </div>

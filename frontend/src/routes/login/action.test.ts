@@ -167,4 +167,61 @@ describe('mfa action（第二步）', () => {
     expect(result.status).toBe(401);
     expect(result.data.message).toContain('验证码');
   });
+
+  it('验证码长度不足（如 123）→ 422 且不调用后端代理', async () => {
+    const result = (await actions.mfa(
+      actionEvent({ challenge_token: 'ch-1', totp_code: '123' })
+    )) as { status: number; data: LoginActionData };
+    expect(result.status).toBe(422);
+    expect(result.data.message).toBe('验证码长度不足，请输入 6 位数字验证码（当前 3 位）');
+    expect(result.data.challenge_token).toBe('ch-1');
+    expect(loginMfaMock).not.toHaveBeenCalled();
+  });
+
+  it('验证码非数字 → 422 且不调用后端代理', async () => {
+    const result = (await actions.mfa(
+      actionEvent({ challenge_token: 'ch-1', totp_code: 'abcdef' })
+    )) as { status: number; data: LoginActionData };
+    expect(result.status).toBe(422);
+    expect(result.data.message).toBe('请输入 6 位数字验证码');
+    expect(loginMfaMock).not.toHaveBeenCalled();
+  });
+
+  it('恢复码长度不足 → 422 且不调用后端代理', async () => {
+    const result = (await actions.mfa(
+      actionEvent({ challenge_token: 'ch-1', recovery_code: '123' })
+    )) as { status: number; data: LoginActionData };
+    expect(result.status).toBe(422);
+    expect(result.data.message).toBe('恢复码长度不足，请输入 16 位恢复码（当前 3 位）');
+    expect(loginMfaMock).not.toHaveBeenCalled();
+  });
+
+  it('恢复码非法字符 → 422 且不调用后端代理', async () => {
+    const result = (await actions.mfa(
+      actionEvent({ challenge_token: 'ch-1', recovery_code: 'ABCDEF!@#$%^&*()' })
+    )) as { status: number; data: LoginActionData };
+    expect(result.status).toBe(422);
+    expect(result.data.message).toBe('请输入 16 位恢复码');
+    expect(loginMfaMock).not.toHaveBeenCalled();
+  });
+
+  it('TOTP 包含空格/短横线清洗后成功 → redirect', async () => {
+    loginMfaMock.mockResolvedValueOnce({ ok: true });
+    const result = await runAction(() =>
+      actions.mfa(actionEvent({ challenge_token: 'ch-1', totp_code: ' 123-456 ' }, 'req-mfa-clean'))
+    );
+    expect(isRedirectResult(result)).toBe(true);
+    const [, input] = loginMfaMock.mock.calls[0];
+    expect(input.totp_code).toBe('123456');
+  });
+
+  it('恢复码包含空格/短横线清洗后成功 → redirect', async () => {
+    loginMfaMock.mockResolvedValueOnce({ ok: true });
+    const result = await runAction(() =>
+      actions.mfa(actionEvent({ challenge_token: 'ch-1', recovery_code: ' ABCD-EFGH-IJKL-MNOP ' }))
+    );
+    expect(isRedirectResult(result)).toBe(true);
+    const [, input] = loginMfaMock.mock.calls[0];
+    expect(input.recovery_code).toBe('ABCDEFGHIJKLMNOP');
+  });
 });

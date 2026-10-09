@@ -28,6 +28,10 @@ pub fn router() -> Router<AppState> {
             post(sync_steam_catalog),
         )
         .route(
+            "/api/v1/admin/shop/steam-assets/download-frames",
+            post(download_steam_frames),
+        )
+        .route(
             "/api/v1/admin/shop/products",
             get(list_admin_products).post(create_admin_product),
         )
@@ -639,6 +643,38 @@ async fn sync_steam_catalog(
             "added": report.backgrounds.added,
             "updated": report.backgrounds.updated
         }
+    })))
+}
+
+/// POST /api/v1/admin/shop/steam-assets/download-frames — 批量下载/补全 Steam 头像框全量素材到存储
+async fn download_steam_frames(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "download_steam_frames";
+    let user = auth.require_auth(request_id)?;
+    admin_authorize(&state, &auth, "shop.manage", request_id).await?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    let storage = state
+        .storage
+        .as_deref()
+        .ok_or_else(|| AppError::internal("storage not configured", request_id))?;
+    let report = crate::shop::steam_assets::download_all_frame_assets(pool, storage)
+        .await
+        .map_err(|e| shop_error_to_app(e, request_id))?;
+    AuditEntry::user_action(&user.id, "shop.steam_frames.download")
+        .with_reason("download all steam avatar frame assets")
+        .with_policy_version(AUTHZ_POLICY_VERSION)
+        .with_metadata(serde_json::to_value(&report).unwrap_or_default())
+        .record(pool)
+        .await
+        .map_err(|e| AppError::internal(e.to_string(), request_id))?;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "report": report
     })))
 }
 

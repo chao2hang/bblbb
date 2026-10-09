@@ -366,5 +366,26 @@ export const actions: Actions = {
       if (isRedirect(e)) throw e;
       return fail(503, { message: '上架失败，请稍后重试' } satisfies AdminShopActionData);
     }
+  },
+  /** 重新下载 Steam 头像框全量元素到服务器存储。 */
+  downloadSteamFrames: async ({ request, cookies }) => {
+    try {
+      const result = await authedPost<{ ok: boolean; report: { total: number; downloaded: number; skipped: number; failed: number } }>(
+        cookies,
+        '/api/v1/admin/shop/steam-assets/download-frames',
+        {},
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) {
+        const r = result.data.report;
+        return {
+          message: `头像框素材下载完成：共 ${r.total} 款，新增下载 ${r.downloaded} 款，已有 ${r.skipped} 款，失败 ${r.failed} 款`
+        } satisfies AdminShopActionData;
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminShopActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '下载头像框素材失败，请稍后重试' } satisfies AdminShopActionData);
+    }
   }
 };

@@ -121,7 +121,11 @@ export const actions: Actions = {
   },
   confirm: async ({ request, cookies }) => {
     const form = await request.formData();
-    const code = String(form.get('code') ?? '').trim();
+    const raw = String(form.get('code') ?? '').trim();
+    const code = raw.replace(/[-\s]/g, '');
+    if (code.length < 6) {
+      return fail(422, { message: `验证码长度不足，请输入 6 位验证码（当前 ${code.length} 位）` } satisfies MfaActionData);
+    }
     if (!/^[0-9]{6}$/.test(code)) {
       return fail(422, { message: '请输入 6 位验证码' } satisfies MfaActionData);
     }

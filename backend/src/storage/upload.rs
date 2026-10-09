@@ -1251,17 +1251,42 @@ pub async fn complete_attachment(
 
     // 有界读取：S3 staging URL 在 TTL 内可重放 PUT，HEAD 不能作为 GET 的内存
     // 安全边界。adapter 必须在缓冲超过声明大小前停止读取；扫描/final 写入共用快照。
-    let bytes = match adapter
-        .read_object_bounded(&staging_key, attachment.size_bytes.max(0) as u64)
-        .await
-    {
-        Ok(bytes) => bytes,
-        Err(error @ StorageError::Verification(_)) => {
-            quarantine_attachment(pool, storage, &attachment, &error.to_string(), now).await?;
-            return Err(error);
+    // 在云存储网关/CDN 回源场景下，读取可能因网络抖动或边缘网关抖动瞬时失败，此处带退避重试 3 次。
+    let max_read_bytes = attachment.size_bytes.max(0) as u64;
+    let mut last_read_err = None;
+    let mut bytes = Vec::new();
+    for attempt in 1..=4 {
+        match adapter.read_object_bounded(&staging_key, max_read_bytes).await {
+            Ok(b) => {
+                bytes = b;
+                last_read_err = None;
+                break;
+            }
+            Err(error @ StorageError::Verification(_)) => {
+                quarantine_attachment(pool, storage, &attachment, &error.to_string(), now).await?;
+                return Err(error);
+            }
+            Err(error @ StorageError::NotFound(_)) => {
+                quarantine_attachment(pool, storage, &attachment, &error.to_string(), now).await?;
+                return Err(error);
+            }
+            Err(error) => {
+                tracing::warn!(
+                    attachment_id = %attachment.id,
+                    attempt,
+                    error = %error,
+                    "read staging object attempt failed, retrying"
+                );
+                last_read_err = Some(error);
+                if attempt < 4 {
+                    tokio::time::sleep(std::time::Duration::from_millis(500 * attempt)).await;
+                }
+            }
         }
-        Err(error) => return Err(error),
-    };
+    }
+    if let Some(err) = last_read_err {
+        return Err(err);
+    }
     if bytes.len() as i64 != attachment.size_bytes {
         let error = StorageError::Verification(format!(
             "object body size {} does not match declared {}",
@@ -1293,7 +1318,7 @@ pub async fn complete_attachment(
     let final_key = if attachment.storage_backend == StorageBackend::S3 {
         let key = generate_object_key(&attachment.owner_id, attachment.original_name.as_deref());
         tokio::time::timeout(
-            std::time::Duration::from_secs(20),
+            std::time::Duration::from_secs(45),
             adapter.write_object(&key, &outcome.scrubbed, Some(&attachment.media_type)),
         )
         .await
