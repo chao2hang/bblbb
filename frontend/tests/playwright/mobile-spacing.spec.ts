@@ -194,11 +194,16 @@ test.describe('mobile spacing visual contracts', () => {
   test('member pages keep the viewport and main canvas aligned at phone widths', async ({ page }) => {
     await loginAs(page, 'alice');
 
-    for (const width of [360, 390, 430]) {
-      await page.setViewportSize({ width, height: 844 });
-      for (const route of MEMBER_ROUTES) {
-        await page.goto(route, { waitUntil: 'domcontentloaded' });
-        await expect(page.locator('#main-content')).toBeVisible();
+    for (const route of MEMBER_ROUTES) {
+      await page.setViewportSize({ width: 360, height: 844 });
+      await page.goto(route, { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('#main-content')).toBeVisible();
+
+      // Resize the same rendered route instead of reloading all 18 pages at each
+      // width. This still exercises responsive CSS while avoiding repeated
+      // authenticated API requests that can trigger the real anti-abuse challenge.
+      for (const width of [360, 390, 430]) {
+        await page.setViewportSize({ width, height: 844 });
         const layout = await page.evaluate(() => {
           const main = document.querySelector<HTMLElement>('#main-content');
           const pageCanvas = main?.querySelector<HTMLElement>('[id^="page-"]');
@@ -223,6 +228,7 @@ test.describe('mobile spacing visual contracts', () => {
         }
 
         if (width === 390 && route === '/me/balance') {
+          await expect(page.locator('.credits-overview-grid > [data-slot="card"]').first()).toBeVisible();
           await expect(page.locator('.credits-primary-section')).toBeVisible();
           const gaps = await page.evaluate(() => {
             const chart = document.querySelector('.credits-chart-column');

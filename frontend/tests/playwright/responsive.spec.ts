@@ -45,10 +45,11 @@ test.describe('触屏（touch）', () => {
     });
     const page = await context.newPage();
     await page.goto('/login');
+    await page.getByLabel('用户名或邮箱').fill('alice');
     const loginButton = page.getByRole('button', { name: /登录/ });
     await loginButton.tap();
-    // 表单缺字段 → 422 错误提示（触屏提交生效）。
-    await expect(page.getByRole('alert')).toBeVisible();
+    // 缺少密码走服务端校验；字段级 aria-alert 可能同时存在，故定位摘要提示。
+    await expect(page.locator('.auth-alert')).toBeVisible();
     await context.close();
   });
 });
