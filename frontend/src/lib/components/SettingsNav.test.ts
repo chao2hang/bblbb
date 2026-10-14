@@ -8,7 +8,7 @@ describe('SettingsNav', () => {
     const nav = container.querySelector('nav.app-settings-nav');
     expect(nav).not.toBeNull();
 
-    const links = container.querySelectorAll('a');
+    const links = nav!.querySelectorAll('a');
     expect(links.length).toBe(7);
 
     const labels = Array.from(links).map((a) => a.textContent?.trim());
@@ -22,7 +22,7 @@ describe('SettingsNav', () => {
       '隐私设置'
     ]);
 
-    const activeLink = container.querySelector('a.is-active');
+    const activeLink = nav!.querySelector('a.is-active');
     expect(activeLink).not.toBeNull();
     expect(activeLink?.textContent?.trim()).toBe('登录设备');
     expect(activeLink?.getAttribute('href')).toBe('/me/security');
@@ -37,10 +37,10 @@ describe('SettingsNav', () => {
     const tablist = container.querySelector('div.app-settings-nav[role="tablist"]');
     expect(tablist).not.toBeNull();
 
-    const buttons = container.querySelectorAll('button[role="tab"]');
+    const buttons = tablist!.querySelectorAll('button[role="tab"]');
     expect(buttons.length).toBe(5); // profile, appearance, security, notifications, oauth
 
-    const links = container.querySelectorAll('a');
+    const links = tablist!.querySelectorAll('a');
     expect(links.length).toBe(2); // devices, privacy
 
     const profileBtn = buttons[0];
@@ -51,11 +51,25 @@ describe('SettingsNav', () => {
     expect(onSelectTab).toHaveBeenCalledWith('appearance');
   });
 
-  it('支持自定义 profileLabel', () => {
+  it('移动端支持 Flarum/NoPJ 样式的顶栏下拉选择器', async () => {
+    const onSelectTab = vi.fn();
     const { container } = render(SettingsNav, {
-      props: { active: 'security', profileLabel: '编辑资料' }
+      props: { active: 'appearance', onSelectTab }
     });
-    const firstLink = container.querySelector('a');
-    expect(firstLink?.textContent?.trim()).toBe('编辑资料');
+
+    const titleBtn = container.querySelector('.settings-title-btn') as HTMLButtonElement | null;
+    expect(titleBtn).not.toBeNull();
+    expect(titleBtn?.textContent?.trim()).toContain('外观与主题');
+
+    // 点击展开下拉
+    await fireEvent.click(titleBtn!);
+    const dropdownMenu = container.querySelector('.settings-dropdown-menu');
+    expect(dropdownMenu).not.toBeNull();
+
+    // 选中个人资料
+    const profileItem = dropdownMenu?.querySelector('button') as HTMLButtonElement | null;
+    expect(profileItem).not.toBeNull();
+    await fireEvent.click(profileItem!);
+    expect(onSelectTab).toHaveBeenCalledWith('profile');
   });
 });

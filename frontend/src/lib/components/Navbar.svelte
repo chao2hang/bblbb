@@ -165,6 +165,37 @@
 
   const path = $derived(page.url.pathname);
 
+  // 移动端二级子页面判断（帖子详情、板块详情、设置、安全、用户资料等）
+  const subpageContext = $derived.by(() => {
+    if (path.startsWith('/posts/')) {
+      return { title: '帖子详情', backHref: '/' };
+    }
+    if (path.startsWith('/boards/')) {
+      return { title: '板块讨论', backHref: '/boards' };
+    }
+    if (path === '/settings' || path.startsWith('/settings/')) {
+      return { title: '账号设置', backHref: '/me' };
+    }
+    if (path === '/me/security') {
+      return { title: '账号与安全', backHref: '/me' };
+    }
+    if (path === '/me/level') {
+      return { title: '信任等级', backHref: '/me' };
+    }
+    if (path === '/me/balance') {
+      return { title: '我的积分', backHref: '/me' };
+    }
+    if (path === '/me/billing') {
+      return { title: '下载账单', backHref: '/me' };
+    }
+    if (path.startsWith('/users/') && !path.includes('/followers') && !path.includes('/following')) {
+      return { title: '用户主页', backHref: '/' };
+    }
+    return null;
+  });
+
+  const isSubpage = $derived(subpageContext !== null);
+
   // M13-ADMIN-01：按真实 Session 投影生成管理入口（菜单隐藏不是安全边界，
   // /admin 页面仍由服务端 user.manage 等权限门强制）。
   const canAdmin = $derived(Array.isArray(user?.roles) && user.roles.includes('administrator'));
@@ -293,9 +324,33 @@
 
 <svelte:window onclick={onWindowClick} onkeydown={onWindowKeydown} />
 
-<header class="navbar" class:mobile-search-open={searchOpen}>
+<header class="navbar" class:mobile-search-open={searchOpen} class:is-subpage={isSubpage}>
   <div class="container nav-container">
-    <div class="nav-left" data-nav-menu>
+    {#if isSubpage && subpageContext}
+      <!-- 移动端二级页面：统一专有单层顶栏（左返回，中标题，右搜索/占位） -->
+      <div class="navbar-mobile-subnav">
+        <a href={subpageContext.backHref} class="subnav-back-btn" aria-label="返回上一页">
+          <Icon name="chevron-left" size={20} />
+        </a>
+        <h1 class="subnav-title">{subpageContext.title}</h1>
+        <div class="subnav-right-actions">
+          <a
+            href="/search"
+            class="nav-icon-btn mobile-search-btn"
+            aria-label="搜索"
+            title="搜索"
+            onclick={(event) => {
+              event.preventDefault();
+              toggleMobileSearch();
+            }}
+          >
+            <Icon name="search" size={18} />
+          </a>
+        </div>
+      </div>
+    {/if}
+
+    <div class="nav-left" class:hide-on-mobile={isSubpage} data-nav-menu>
       <button
         type="button"
         class="mobile-menu-btn"
@@ -426,7 +481,7 @@
       {/if}
     </div>
 
-    <div class="nav-right" data-nav-menu>
+    <div class="nav-right" class:hide-on-mobile={isSubpage} data-nav-menu>
       <!-- 全站唯一搜索入口：有 JS 打开页内浮层（聚焦输入框）；
            无 JS 回退为普通链接跳 /search（渐进增强，无 JS 基线可达）。 -->
       <a
@@ -798,7 +853,59 @@
     }
   }
 
+  /* 移动端统一专有子页面顶栏（默认隐藏，≤768px 在 is-subpage 时展示） */
+  .navbar-mobile-subnav {
+    display: none;
+  }
+
   @media (max-width: 768px) {
+    .navbar.is-subpage .navbar-mobile-subnav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 100%;
+    }
+
+    .navbar.is-subpage .hide-on-mobile {
+      display: none !important;
+    }
+
+    .subnav-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .subnav-back-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      color: var(--color-text-secondary);
+      border-radius: var(--radius-sm, 4px);
+      text-decoration: none;
+    }
+
+    .subnav-back-btn:active {
+      color: var(--color-text-primary);
+      background: var(--color-bg-subtle);
+    }
+
+    .subnav-title {
+      flex: 1;
+      margin: 0;
+      padding: 0 4px;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .search-popover {
       position: fixed;
       top: 56px;

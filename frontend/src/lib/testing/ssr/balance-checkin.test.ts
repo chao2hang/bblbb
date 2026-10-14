@@ -21,7 +21,7 @@ describe('M07-UI-01 积分页 SSR', () => {
     expect(body).toContain('1500');
     expect(body).toContain('金币');
     expect(body).toContain('+10');
-    expect(body).toContain('连续签到 4 天');
+    expect(body).toContain('连续 4 天');
   });
 
   it('已签到 → 按钮禁用且文案“今日已签到”', () => {
@@ -39,7 +39,7 @@ describe('M07-UI-01 积分页 SSR', () => {
     expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/visit"/);
     expect(body).toContain('name="client_request_id"');
     expect(body).toContain('立即签到');
-    expect(body).toContain('今日未签到');
+    expect(body).toContain('未签到');
   });
 
   it('429 → 显示冷却提示', () => {

@@ -610,22 +610,22 @@
     .topic-row__mobile-footer {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
-      margin-top: 9px;
+      gap: var(--space-2);
+      margin-top: 6px;
     }
 
     .topic-row__footer-chip {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       max-width: 50%;
-      padding: 3px 9px;
+      padding: 2px 7px;
       overflow: hidden;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-sm);
       color: var(--color-text-secondary);
       font-size: 11px;
-      line-height: 1.4;
+      line-height: 1.3;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -633,9 +633,9 @@
     .topic-row__footer-stat {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
       color: var(--color-text-tertiary);
-      font: 500 12px/1.3 var(--font-family-mono);
+      font: 500 11px/1.3 var(--font-family-mono);
       font-variant-numeric: tabular-nums;
     }
   }

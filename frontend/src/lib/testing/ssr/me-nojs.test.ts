@@ -3,9 +3,9 @@
 // ?/logoutall）与两步验证（MFA）表单在 /me/security 与 /mfa（见
 // me-security-nojs.test.ts / mfa-nojs.test.ts）。
 // 成熟个人中心 IA：资料卡 hero + 资产统计条（三列可点统计）+ 分组 cell
-// 列表（内容与互动 / 资产与凭证 / 账户与偏好）；分区导航 = MeIdentityBar
-// 身份条 + MeSectionTabs tag 栏，每个 tag 为独立路由页面（账户资产 /me ·
-// 账号安全 /me/security · 信任等级 /me/level），状态/进度详情不在本页重复。
+// 列表（内容与互动 / 资产与凭证 / 账户与偏好）；分区导航 = MeSectionTabs tag 栏，
+// 每个 tag 为独立路由页面（账户资产 /me · 账号安全 /me/security · 信任等级 /me/level），
+// 状态/进度详情不在本页重复。本页已有资料卡，不挂载 MeIdentityBar 避免信息重复。
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
 import MePage from '../../../routes/me/+page.svelte';
@@ -73,15 +73,10 @@ describe('无 JS：/me 个人中心（成熟个人中心 IA）', () => {
     expect(body).not.toMatch(/action="\?\/(revoke|logoutall|mfa-enroll)"/);
   });
 
-  it('分区 tag 栏：每个 tag 独立路由，安全/等级详情不在本页重复', () => {
+  it('内容流与核心入口：我的发布与创作流无 JS 下有降级链接，安全/等级详情不在本页重复', () => {
     const { body } = render(MePage, { props: { data: meData() } });
-    // tag 栏三个分区（当前页「账户资产」高亮）
-    expect(body).toContain('账户资产');
-    expect(body).toContain('账号安全');
-    expect(body).toContain('信任等级');
-    expect(body).toMatch(/href="\/me\/security"/);
-    expect(body).toMatch(/href="\/me\/level"/);
-    expect(body).toMatch(/aria-current="page"[^>]*>\s*账户资产/);
+    expect(body).toContain('我的发布');
+    expect(body).toContain('查看我的全部文章与讨论');
     // 账号安全状态卡已拆至 /me/security：本页不再渲染两步验证状态
     expect(body).not.toContain('两步验证');
     // 信任等级进度详情已拆至 /me/level：本页不再渲染逐项进度
@@ -101,19 +96,20 @@ describe('无 JS：/me 个人中心（成熟个人中心 IA）', () => {
 
   it('分组 cell 列表：三个领域组覆盖全部功能入口（无 JS 可达）', () => {
     const { body } = render(MePage, { props: { data: meData() } });
-    expect(body).toContain('内容与互动');
-    expect(body).toContain('我的帖子');
+    expect(body).toContain('内容与附件');
     expect(body).toContain('我的收藏');
+    expect(body).toContain('我的附件');
+    expect(body).toContain('私信会话');
     expect(body).toContain('资产与凭证');
     expect(body).toContain('积分明细');
     expect(body).toContain('API 密钥');
-    expect(body).toContain('账户与偏好');
+    expect(body).toContain('系统与偏好');
     expect(body).toContain('账号与安全');
     expect(body).toContain('账号设置');
     expect(body).toContain('通知设置');
     expect(body).toContain('OAuth 授权');
-    // 身份吸顶条（三页共用）
-    expect(body).toContain('me-identity-bar');
+    // 资料卡已有完整用户信息，/me 页面不重复渲染 me-identity-bar（避免信息重复）
+    expect(body).not.toContain('me-identity-bar');
   });
 
   it('已验证账号正常渲染，不泄漏邮箱', () => {

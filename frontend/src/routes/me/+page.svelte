@@ -9,28 +9,35 @@
   // - 分组 cell 列表（内容与互动 / 资产与凭证 / 账户与偏好，全部入口）；
   // - 我的处罚区块（GET /me/sanctions，空列表不渲染；有记录时显示
   //   类型/原因/时间 + 去申诉入口）。
-  // 分区导航：MeIdentityBar 身份条 + MeSectionTabs tag 栏（每个 tag
-  // 独立路由页面）——账号安全 → /me/security，信任等级 → /me/level，
-  // 状态/进度详情在对应页面，本页不重复。
+  // 分区导航：MeSectionTabs tag 栏（每个 tag 独立路由页面）——
+  // 账号安全 → /me/security，信任等级 → /me/level，状态/进度详情在对应页面，
+  // 本页不重复。注：本页顶部已有完整资料卡，不渲染 MeIdentityBar，避免用户信息重复。
   import CosmeticAvatar from '$lib/components/wardrobe/CosmeticAvatar.svelte';
   import CosmeticName from '$lib/components/wardrobe/CosmeticName.svelte';
   import ProfileCover from '$lib/components/ui/ProfileCover.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import { formatRelative } from '$lib/utils';
+  import { formatCount, formatRelative } from '$lib/utils';
   import type { MePageData } from './+page.server';
-  import type { CosmeticDefStyle, PublicPresentationTokens } from '$lib/api/types';
+  import type { CosmeticDefStyle, PostSummary, PublicPresentationTokens, PublicProfile } from '$lib/api/types';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import steamBackgrounds from '$lib/data/steam-profile-backgrounds.json';
   import { normalizeSlot, projectEntitlementTokens } from '$lib/components/wardrobe/tokens';
   import { profileEffectClass, profileEffectStyle } from '$lib/components/wardrobe/profile-effect';
   import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
-  import MeSectionTabs from '$lib/components/MeSectionTabs.svelte';
-  import MeIdentityBar from '$lib/components/MeIdentityBar.svelte';
+
+  type PublicProfileWithStats = PublicProfile & {
+    post_count?: number | null;
+    followers?: number | null;
+    following?: number | null;
+    is_following?: boolean | null;
+  };
 
   let { data }: { data: MePageData } = $props();
 
   const user = $derived(data.user);
+  const profile = $derived<PublicProfileWithStats | null>((data.profile as PublicProfileWithStats | null) ?? null);
   const presentation = $derived(data.presentation ?? null);
   const sessions = $derived(data.sessions);
   const error = $derived(data.error);
@@ -42,18 +49,40 @@
   const trust = $derived(data.trust ?? null);
   const coinBalance = $derived((activity?.balances ?? []).find((b) => b.currency === 'coin'));
 
-  // ── 分区导航 ─────────────────────────────────────────────────────────
-  // 移动端 tag 栏（MeSectionTabs）：每个 tag 是独立路由页面
-  // （/me 账户资产 · /me/security 账号安全 · /me/level 信任等级），
-  // 账号安全与信任等级的状态/进度详情已拆至对应页面，本页不再重复。
-  // 身份条（MeIdentityBar）置于资料卡与 tag 栏之间，≤767px 吸顶：
-  // 与另两个 tag 页共用，滚动/切页时身份恒定可见。
+  // ── 我的帖子流（客户端直连获取当前用户的创作内容） ──
+  let posts = $state<PostSummary[]>([]);
+  let postsLoading = $state(false);
+  let postsLoaded = $state(false);
+  let postsError = $state<string | null>(null);
 
-  // ── 分组功能列表（成熟个人中心 IA：统计条 + 分组 cell 列表）──────────
-  // 参考淘宝/哔哩哔哩个人中心（统计条 + 分组列表）与 linux.do/GitHub
-  // （身份头 + 独立 tab 页）的通用解剖：全部功能入口按领域分组，
-  // 每行 = 图标 + 名称 + 动态值 + chevron，整行可点。高频分区走 tag 栏
-  // （独立路由页面），此处是完整清单。
+  async function fetchMyPosts(): Promise<void> {
+    if (!user?.username) return;
+    postsLoading = true;
+    postsError = null;
+    try {
+      const params = new URLSearchParams({ author_username: user.username, limit: '10' });
+      const response = await fetch(`/api/v1/posts?${params.toString()}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = (await response.json()) as { items?: PostSummary[] };
+      posts = Array.isArray(result.items) ? result.items : [];
+    } catch {
+      posts = [];
+      postsError = '帖子列表加载失败';
+    }
+    postsLoading = false;
+    postsLoaded = true;
+  }
+
+  $effect(() => {
+    if (user?.username) {
+      void fetchMyPosts();
+    }
+  });
+
+  // ── 分组功能列表（全部入口按领域分组）──────────
   interface MeCell {
     href: string;
     icon: string;
@@ -424,23 +453,28 @@
         {:else}
           <p class="me-bio is-empty">暂无个性签名</p>
         {/if}
+
+        <!-- 社区社交指标（帖子/关注/粉丝） -->
+        {#if profile && (profile.post_count !== undefined || profile.followers !== undefined || profile.following !== undefined)}
+          <div class="me-social-stats">
+            <a class="me-social-stat" href="/users/{encodeURIComponent(user.username)}?tab=posts">
+              <span class="me-social-num">{profile.post_count ?? 0}</span>
+              <span class="me-social-lbl">帖子</span>
+            </a>
+            <a class="me-social-stat" href="/users/{encodeURIComponent(user.username)}/followers">
+              <span class="me-social-num">{profile.followers ?? 0}</span>
+              <span class="me-social-lbl">关注者</span>
+            </a>
+            <a class="me-social-stat" href="/users/{encodeURIComponent(user.username)}/following">
+              <span class="me-social-num">{profile.following ?? 0}</span>
+              <span class="me-social-lbl">正在关注</span>
+            </a>
+          </div>
+        {/if}
       </div>
     </section>
 
-    <!-- 固定身份条（≤767px 吸顶）：头像/昵称/等级，与分区 tag 栏叠成连续头部 -->
-    <MeIdentityBar
-      name={user.display_name || user.username}
-      username={user.username}
-      level={trust?.level ?? user.level ?? 0}
-      avatarAttachmentId={user.avatar_attachment_id}
-      seed={user.username ?? user.id}
-    />
-
-    <!-- 分区 tag 栏：每个 tag = 独立路由页面（账户资产 /me · 账号安全
-         /me/security · 信任等级 /me/level）。桌面隐藏。 -->
-    <MeSectionTabs />
-
-    <!-- 资产统计条：三个可点统计卡（淘宝式）——余额/签到 → 积分明细，设备 → 安全 -->
+    <!-- 社区资产与状态胶囊（余额、签到、设备安全） -->
     {#if activity}
       <div class="me-stat-row" style="margin-top:10px;" role="group" aria-label="账户资产统计">
         <a class="me-stat" href="/me/balance">
@@ -458,24 +492,81 @@
       </div>
     {/if}
 
-    <!-- 分组功能列表：全部入口按领域分组（成熟个人中心 IA 的导航主体） -->
+    <!-- 个人内容与创作流（论坛核心心智：查看本人近期发表的内容） -->
+    <section class="card me-posts-section" aria-label="我的创作">
+      <div class="card-header me-posts-header">
+        <span class="card-title">我的发布</span>
+        <a class="me-posts-all" href="/users/{encodeURIComponent(user.username)}?tab=posts">
+          全部内容 <Icon name="chevron-right" size={14} />
+        </a>
+      </div>
+      <div class="card-body me-posts-body">
+        {#if postsLoading}
+          <div class="empty-state"><div class="empty-state-title">内容加载中…</div></div>
+        {:else if postsError}
+          <p class="input-hint is-error" role="alert" style="padding:var(--space-3);">{postsError}</p>
+        {:else if postsLoaded && posts.length === 0}
+          <div style="padding:var(--space-4);">
+            <EmptyState icon="file-text" title="暂未发布内容" desc="在社区分享你的观点或提问吧" />
+            <div style="display:flex;justify-content:center;margin-top:var(--space-2);">
+              <Button text="发布新帖" variant="primary" size="sm" icon="pen-line" href="/editor" />
+            </div>
+          </div>
+        {:else if posts.length > 0}
+          <div class="app-post-list" role="feed" aria-label="我发布的帖子">
+            {#each posts as post (post.id)}
+              <div class="app-post-row me-post-item" role="article" aria-label={post.title}>
+                <div class="app-post-row__main">
+                  <h3 class="me-post-title">
+                    <a href="/posts/{encodeURIComponent(post.id)}">{post.title}</a>
+                  </h3>
+                  <div class="app-post-row__meta me-post-meta">
+                    {#if post.board_name}
+                      <span class="me-post-board">{post.board_name}</span>
+                      <span>·</span>
+                    {/if}
+                    <span>{formatCount(post.reply_count)} 回复</span>
+                    <span>·</span>
+                    <span>{formatCount(post.view_count)} 浏览</span>
+                    {#if post.created_at}
+                      <span>·</span>
+                      <span>{formatRelative(toSeconds(post.created_at))}</span>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <!-- SSR / 无 JS 降级 -->
+          <div style="padding:var(--space-3) var(--space-4);">
+            <a class="text-link" href="/users/{encodeURIComponent(user.username)}?tab=posts">查看我的全部文章与讨论 &rarr;</a>
+          </div>
+        {/if}
+      </div>
+    </section>
+
+    <!-- 常用服务与偏好入口（桌面端双栏展示，移动端单列极简，不重复上方内容） -->
     <div class="content-grid" style="margin-top:10px;">
       <div class="main-col">
         <div class="card me-cell-card">
-          <div class="card-header"><span class="card-title">内容与互动</span></div>
+          <div class="card-header"><span class="card-title">内容与附件</span></div>
           <div class="card-body me-cell-list">
-            <a class="me-cell" href="/users/{encodeURIComponent(user.username)}?tab=posts">
-              <span class="me-cell-icon"><Icon name="list" size={16} /></span>
-              <span class="me-cell-label">我的帖子</span>
+            <a class="me-cell" href="/favorites">
+              <span class="me-cell-icon"><Icon name="star" size={16} /></span>
+              <span class="me-cell-label">我的收藏</span>
               <Icon class="me-cell-chevron" name="chevron-right" size={14} />
             </a>
-            {#each contentCells as cell (cell.href)}
-              <a class="me-cell" href={cell.href}>
-                <span class="me-cell-icon"><Icon name={cell.icon} size={16} /></span>
-                <span class="me-cell-label">{cell.label}</span>
-                <Icon class="me-cell-chevron" name="chevron-right" size={14} />
-              </a>
-            {/each}
+            <a class="me-cell" href="/me/attachments">
+              <span class="me-cell-icon"><Icon name="paperclip" size={16} /></span>
+              <span class="me-cell-label">我的附件</span>
+              <Icon class="me-cell-chevron" name="chevron-right" size={14} />
+            </a>
+            <a class="me-cell" href="/messages">
+              <span class="me-cell-icon"><Icon name="mail" size={16} /></span>
+              <span class="me-cell-label">私信会话</span>
+              <Icon class="me-cell-chevron" name="chevron-right" size={14} />
+            </a>
           </div>
         </div>
 
@@ -497,7 +588,7 @@
       </div>
       <div class="side-col">
         <div class="card me-cell-card">
-          <div class="card-header"><span class="card-title">账户与偏好</span></div>
+          <div class="card-header"><span class="card-title">系统与偏好</span></div>
           <div class="card-body me-cell-list">
             {#each accountCells as cell (cell.href)}
               <a class="me-cell" href={cell.href}>
@@ -596,6 +687,69 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+  }
+
+  /* ── 常用工具金刚区（4-Grid 扁平快捷卡片） ──────────────────────── */
+  .me-grid-tools {
+    display: none;
+  }
+
+  /* ── 个人内容流区块 ── */
+  .me-posts-section {
+    margin-top: 10px;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-card);
+    overflow: hidden;
+  }
+  .me-posts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 8px;
+  }
+  .me-posts-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: var(--text-xs);
+    color: var(--color-brand);
+    text-decoration: none;
+  }
+  .me-posts-body {
+    padding: 0 !important;
+  }
+  .me-post-item {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .me-post-item:last-child {
+    border-bottom: none;
+  }
+  .me-post-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium, 500);
+    line-height: 1.4;
+  }
+  .me-post-title a {
+    color: var(--color-text-primary);
+    text-decoration: none;
+  }
+  .me-post-title a:hover {
+    color: var(--color-brand);
+  }
+  .me-post-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .me-post-board {
+    color: var(--color-brand);
+    font-weight: 500;
   }
 
   /* ── 分组 cell 列表：iOS 设置式行（图标 + 名称 + 值 + chevron）──────── */
@@ -754,6 +908,36 @@
   .me-bio.is-empty {
     color: var(--color-text-tertiary);
     font-style: italic;
+  }
+  /* 社交统计指标栏（帖子 / 关注者 / 正在关注） */
+  .me-social-stats {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+  .me-social-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    text-decoration: none;
+    color: var(--color-text-secondary);
+    transition: color 0.15s ease;
+  }
+  .me-social-stat:hover {
+    color: var(--color-brand);
+  }
+  .me-social-num {
+    font-size: var(--text-base);
+    font-weight: var(--weight-bold, 700);
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .me-social-lbl {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
   @media (max-width: 767px) {
     :global(.me-cover) {

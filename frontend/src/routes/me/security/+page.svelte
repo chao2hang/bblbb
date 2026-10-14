@@ -11,8 +11,6 @@
   import type { SecurityActionData, SecurityPageData } from './+page.server';
   import PageTitle from '$lib/components/PageTitle.svelte';
   import SettingsNav from '$lib/components/SettingsNav.svelte';
-  import MeSectionTabs from '$lib/components/MeSectionTabs.svelte';
-  import MeIdentityBar from '$lib/components/MeIdentityBar.svelte';
 
   let { data, form }: { data: SecurityPageData; form?: SecurityActionData } = $props();
 
@@ -48,28 +46,10 @@
 <div class="container page-content app-page app-settings-page" id="page-me-security">
   <h1 class="u-visually-hidden">账号与安全</h1>
 
-  {#if user}
-    <!-- 固定身份条（≤767px 吸顶）：与 /me、/me/level 共用，身份恒定可见 -->
-    <MeIdentityBar
-      name={user.display_name || user.username}
-      username={user.username}
-      level={user.level ?? 0}
-      avatarAttachmentId={user.avatar_attachment_id}
-      seed={user.username ?? user.id}
-    />
-  {/if}
-
-  <!-- 分区 tag 栏（tag = 独立路由页面）：本页为「账号安全」tag -->
-  <MeSectionTabs />
-
   <div class="app-settings-layout">
     <SettingsNav active="devices" />
 
     <div class="settings-content">
-      <nav class="sec-back" aria-label="页面路径">
-        <a href="/me"><Icon name="chevron-left" size={14} />返回个人主页</a>
-      </nav>
-
       {#if error}
         <div class="app-notice is-danger" role="alert">
           <span>{error}</span>
@@ -196,22 +176,6 @@
 </div>
 
 <style>
-  /* 返回个人主页的路径入口 */
-  .sec-back {
-    margin-top: 0;
-    margin-bottom: var(--space-2);
-  }
-  .sec-back a {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-    text-decoration: none;
-  }
-  .sec-back a:hover {
-    color: var(--color-brand);
-  }
   /* 安全清单：状态行（图标 / 名称与说明 / 状态徽标 / 管理入口） */
   .sec-list {
     list-style: none;
@@ -237,7 +201,7 @@
     width: 32px;
     height: 32px;
     flex-shrink: 0;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--color-bg-subtle);
     color: var(--color-text-secondary);
   }

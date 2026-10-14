@@ -254,7 +254,7 @@
 </script>
 
 <Seo
-  title={board?.name ?? slug}
+  title={board?.name ? `${board.name} 板块` : slug}
   description={board?.description ?? '板块：' + (board?.name ?? slug)}
   noindex={!indexable}
   og={{ type: 'website' }}
@@ -281,44 +281,33 @@
   {#if board}
     <h1 class="sr-only">{board.name}</h1>
 
-      <div class="board-mobile-context" aria-label="当前板块">
-        <a href="/boards" class="board-mobile-context__back" aria-label="返回板块列表">
-          <Icon name="chevron-left" size={17} />
-          <span>板块</span>
-        </a>
-        <div class="board-mobile-context__identity">
-          <strong>{board.name}</strong>
-          <span>{typeof board.post_count === 'number' ? `${formatCount(board.post_count)} 个主题` : '讨论板块'}</span>
-        </div>
-        <a href={publishHref} class="board-mobile-context__action" aria-label="发布内容">
-          <Icon name="plus" size={16} />
-        </a>
+    <!-- 移动端板块专属信息条（板块名 + 关注/发帖操作） -->
+    <div class="board-header-strip">
+      <div class="board-header-strip__main">
+        <h2 class="board-header-strip__title">{board.name}</h2>
+        {#if board.description}
+          <p class="board-header-strip__desc">{board.description}</p>
+        {/if}
       </div>
-
-      <!-- 小屏板块快捷滑动条（与首页 home-category-bar 同款：<1000px 展示，
-           大屏由左栏分类卡承接）。「全部」→ 首页全部信息流（与左栏同语义）。 -->
-      <nav class="board-category-bar" aria-label="板块快捷导航">
-        <a href="/" class="board-cat-chip" class:active={!slug} aria-current={!slug ? 'page' : undefined}>
-          <span>全部</span>
-        </a>
-        {#each navBoards as chipBoard (chipBoard.id)}
-          {@const chipVisuals = boardVisuals(chipBoard.slug, chipBoard.icon)}
-          <a
-            href="/boards/{chipBoard.slug}"
-            class="board-cat-chip"
-            class:active={chipBoard.slug === slug}
-            aria-current={chipBoard.slug === slug ? 'page' : undefined}
+      <div class="board-header-strip__actions">
+        {#if authed}
+          <form
+            method="POST"
+            action={data.following ? '?/unfollow' : '?/follow'}
+            use:enhance={followEnhance}
           >
-            <span class="board-cat-chip__icon" style="color:{chipVisuals.color};" aria-hidden="true">
-              <Icon name={chipVisuals.icon || 'workflow'} size={13} />
-            </span>
-            <span>{chipBoard.name}</span>
-            {#if typeof chipBoard.post_count === 'number'}
-              <em class="board-cat-chip__count">{formatCount(chipBoard.post_count)}</em>
-            {/if}
+            <button type="submit" class="btn {data.following ? 'secondary' : 'primary'} sm">
+              <Icon name={data.following ? 'check' : 'plus'} size={14} />
+              {data.following ? '已关注' : '关注'}
+            </button>
+          </form>
+        {:else}
+          <a href={`/login?next=${encodeURIComponent(`${feedBase}`)}`} class="btn primary sm">
+            关注
           </a>
-        {/each}
-      </nav>
+        {/if}
+      </div>
+    </div>
 
       <!-- 三栏骨架（与首页 proto-home 完全同构）：左栏分类导航 | 信息流 | 推荐位 -->
       <div class="proto-home">
@@ -469,10 +458,6 @@
     padding-inline: 10px;
   }
 
-  .board-mobile-context {
-    display: none;
-  }
-
   /* ===== 三栏骨架（与首页 proto-home 保持一致：260px | 1fr | 300px，gap 20）===== */
   .proto-home {
     display: grid;
@@ -484,66 +469,6 @@
 
   .proto-home > * {
     min-width: 0;
-  }
-
-  /* ===== 小屏板块快捷滑动条（与首页 home-category-bar 同款）=====
-     大屏由左栏分类卡承接，默认隐藏；≤999px 与左栏互换。 */
-  .board-category-bar {
-    display: none;
-    align-items: center;
-    gap: var(--space-2);
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    padding: var(--space-2) 0;
-    margin-bottom: var(--space-3);
-  }
-
-  .board-category-bar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .board-cat-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 12px;
-    border-radius: var(--radius-full);
-    background: var(--color-bg-subtle);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    text-decoration: none;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: all 0.15s ease;
-  }
-
-  .board-cat-chip:hover {
-    background: var(--color-surface-hover);
-    color: var(--color-text-primary);
-  }
-
-  .board-cat-chip.active {
-    background: var(--color-brand);
-    color: var(--color-text-on-brand);
-    font-weight: 600;
-  }
-
-  .board-cat-chip__count {
-    font-style: normal;
-    font-size: 11px;
-    opacity: 0.8;
-  }
-
-  .board-cat-chip__icon {
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .board-cat-chip__icon :global(svg) {
-    flex: 0 0 auto;
   }
 
   /* ===== 中栏工具条（逐字对齐首页 .feed-toolbar；关注板块为本页保留项）==== */
@@ -793,9 +718,46 @@
     line-height: 1.8;
   }
 
+  .board-header-strip {
+    display: none;
+  }
+
   @media (max-width: 999px) {
-    .board-category-bar {
+    .board-header-strip {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: 12px 14px;
+      margin-bottom: var(--space-2);
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md, 6px);
+    }
+
+    .board-header-strip__main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .board-header-strip__title {
+      margin: 0;
+      font-size: var(--text-base, 16px);
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+
+    .board-header-strip__desc {
+      margin: 2px 0 0;
+      font-size: var(--text-xs);
+      color: var(--color-text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .board-header-strip__actions {
+      flex-shrink: 0;
     }
 
     .proto-home {
@@ -814,6 +776,14 @@
   }
 
   @media (max-width: 767px) {
+    .board-header-strip {
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+      margin-inline: -12px;
+      padding-inline: 16px;
+    }
+
     .container {
       padding-inline: var(--space-3);
     }
