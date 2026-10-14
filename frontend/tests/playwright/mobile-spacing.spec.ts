@@ -26,12 +26,16 @@ test.describe('mobile spacing visual contracts', () => {
   test('mobile topic replies do not get pushed away by the empty state', async ({ page }) => {
     await loginAs(page, 'alice');
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const postHref = await page.locator('a[href^="/posts/"]').first().getAttribute('href');
+    await page.goto('/boards/tech', { waitUntil: 'domcontentloaded' });
+    const postLink = page.locator('a[href^="/posts/"]').filter({ hasText: 'E2E 移动端间距测试：空回复区' }).first();
+    await expect(postLink).toBeVisible();
+    const postHref = await postLink.getAttribute('href');
     expect(postHref).toBeTruthy();
     await page.goto(postHref!, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.topic-comments__head')).toBeVisible();
-    await expect(page.locator('.topic-comments > .app-empty')).toBeVisible();
+    const emptyState = page.locator('.topic-comments > .app-empty');
+    await expect(emptyState).toContainText('暂无回复');
+    await expect(page.locator('.topic-editor')).toBeVisible();
     await expect(page.locator('.side-col')).toBeHidden();
     await expect(page.locator('.topic-side-board-nav')).toBeHidden();
 

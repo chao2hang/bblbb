@@ -84,6 +84,14 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      # npm build output is .svelte-kit/output/client with adapter-node; expose the
+      # immutable assets at the stable path consumed by the SEO budget test.
+      - name: Build frontend for performance budget test
+        working-directory: frontend
+        run: |
+          npm run build
+          mkdir -p build/client
+          cp -R .svelte-kit/output/client/. build/client/
       # vite dev 的 https 由 dev/certs/{dev.crt,dev.key} 提供（.gitignore，
       # 仓库不含私钥）；CI checkout 后缺失会使 vite 退回 HTTP，而
       # playwright webServer 以 https://localhost:4173 探测 → 120s 超时。
