@@ -802,13 +802,14 @@
 }
 
 .linuxdo-credits .credits-primary-grid {
-  align-items: start;
+  align-items: stretch;
   gap: clamp(2rem, 4.5vw, 4.5rem) !important;
 }
 
 .linuxdo-credits .credits-chart-column,
 .linuxdo-credits .credits-metrics-column {
   min-width: 0;
+  width: 100%;
 }
 
 .linuxdo-credits .credits-chart-header {
@@ -1124,7 +1125,9 @@
 
 @media (max-width: 767px) {
   .linuxdo-credits.credits-page {
-    --credits-section-gap: 2.75rem;
+    /* Keep the chart-to-ledger transition compact on a phone; 44px makes
+       this one-column page feel like two unrelated screens. */
+    --credits-section-gap: 1.75rem;
   }
 
   .linuxdo-credits .credits-section-title {
@@ -1132,7 +1135,7 @@
   }
 
   .linuxdo-credits .credits-primary-grid {
-    gap: 2rem !important;
+    gap: 1.25rem !important;
   }
 
   .linuxdo-credits .credits-chart-header {
@@ -1198,7 +1201,9 @@
   .linuxdo-credits .credits-overview-grid > [data-slot="card"],
   .linuxdo-credits .credits-overview-grid > [data-slot="card"]:first-child,
   .linuxdo-credits .credits-overview-grid > [data-slot="card"]:last-child {
-    padding: 1.25rem 0;
+    /* Keep card content inset from the mobile border; zero horizontal padding
+       made headings, values and ledger rows sit flush against the frame. */
+    padding: 1rem 14px !important;
   }
 
   .linuxdo-credits .credits-overview-grid > [data-slot="card"] + [data-slot="card"] {

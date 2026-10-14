@@ -850,20 +850,6 @@
     {#if loadError && !post}
       <p class="input-hint is-error" role="alert">{loadError}</p>
     {:else if post}
-      <nav class="topic-mobile-context" aria-label="帖子导航">
-        <a
-          href={boardCard ? `/boards/${encodeURIComponent(boardCard.slug)}` : '/'}
-          class="topic-mobile-context__back"
-        >
-          <Icon name="chevron-left" size={17} />
-          <span>{boardCard?.name ?? '返回'}</span>
-        </a>
-        <span class="topic-mobile-context__label">帖子</span>
-        <a href={replyHref} class="topic-mobile-context__reply">
-          <Icon name="message-circle" size={15} />
-          <span>{locked ? '查看回复' : '回复'}</span>
-        </a>
-      </nav>
       <article class="topic-head-card topic-reading-card">
           {#if post.status === 'deleted' || post.deleted_at}
             <div
@@ -1557,7 +1543,7 @@
       <!-- 板块导航（共享 BoardNav）：帖子所在板块高亮，读帖时可直接跳转
            其他板块/全部板块；数据与「所在板块」同源（GET /boards 反查），
            无 board_id/拉取失败 → 空列表，整卡不渲染。 -->
-      <div style="margin-top:var(--space-4);">
+      <div class="topic-side-board-nav" style="margin-top:var(--space-4);">
         <BoardNav boards={navBoards} activeSlug={boardCard?.slug ?? null} />
       </div>
     </div>

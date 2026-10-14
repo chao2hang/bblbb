@@ -18,12 +18,19 @@ html {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  scrollbar-gutter: stable;
 }
 
-@supports not (scrollbar-gutter: stable) {
+/* Reserve scrollbar space only where classic desktop scrollbars are common;
+   mobile overlay scrollbars should never steal width from the content canvas. */
+@media (min-width: 1024px) {
   html {
-    overflow-y: scroll;
+    scrollbar-gutter: stable;
+  }
+
+  @supports not (scrollbar-gutter: stable) {
+    html {
+      overflow-y: scroll;
+    }
   }
 }
 

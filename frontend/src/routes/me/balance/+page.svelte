@@ -6,6 +6,7 @@
   import { enhance } from '$app/forms';
   import { newClientRequestId } from '$lib/api/client';
   import PageTitle from '$lib/components/PageTitle.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import type { BalanceActionData, BalancePageData } from './+page.server';
   import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
   import { formatLedgerAction } from '$lib/points/format';
@@ -293,7 +294,6 @@
     <div class="linuxdo-credits credits-page py-6 space-y-10">
       <!-- 今天与积分趋势 -->
       <section class="credits-section credits-primary-section" aria-labelledby="balance-today-title">
-        <h1 id="balance-today-title" class="credits-section-title text-2xl font-semibold border-b pb-2 mb-6">今天</h1>
         <div class="credits-primary-grid flex flex-col md:grid md:grid-cols-3 gap-8 md:gap-12">
           <!-- 积分趋势图表 -->
           <div class="credits-chart-column md:col-span-2 order-1 md:order-none">
@@ -432,74 +432,51 @@
           <!-- 右侧三大核心指标与签到操作 -->
           <aside class="credits-metrics-column md:col-span-1 order-2 md:order-none flex flex-col divide-y divide-border/70 md:divide-y-0 md:pt-px" aria-label="账户概览">
             <!-- 1. 可用 B 币 / COIN -->
-            <div class="py-2.5 first:pt-0 md:border-b md:pb-3 md:pt-0">
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
-                  <span class="min-[400px]:hidden">可用余额</span>
-                  <span class="hidden min-[400px]:inline">可用{currencyName}</span>
-                  <button
-                    type="button"
-                    aria-label="查看详情"
-                    class="inline-flex shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer rounded-full p-0.5"
-                    onclick={() => (showBalanceInfo = !showBalanceInfo)}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
-                  </button>
-                </div>
-                <a href="/shop" class="text-xs text-blue-600 hover:text-blue-500 hover:underline inline-flex items-center gap-0.5 font-medium transition-colors">去商城 &rarr;</a>
+            <div class="balance-metric-item">
+              <div class="balance-metric-top">
+                <span class="balance-metric-label">可用{currencyName}</span>
+                <a href="/shop" class="balance-metric-link">去商城 &rarr;</a>
               </div>
-              <div class="mt-1 flex items-baseline gap-1.5">
-                <span data-slot="counting-number" class="font-mono text-2xl font-bold tracking-tight text-foreground">{coinBalance?.amount ?? 0}</span>
-                <span class="text-xs text-muted-foreground font-normal ml-0.5">{currencyName}</span>
+              <div class="balance-metric-main">
+                <span data-slot="counting-number" class="balance-metric-value">{coinBalance?.amount ?? 0}</span>
+                <span class="balance-metric-unit">{currencyName}</span>
               </div>
-              {#if showBalanceInfo}
-                <p class="text-xs text-muted-foreground mt-2 bg-muted/60 border border-border/40 p-2.5 rounded-lg leading-relaxed">
-                  当前可自由消费的{currencyName}余额，可用于社区商城道具兑换、付费资源下载与内容解锁。
-                </p>
-              {/if}
             </div>
 
             <!-- 2. 社区信任等级 -->
-            <div class="py-2.5 md:border-b md:py-3">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-sm text-muted-foreground font-medium">社区信任等级</span>
-                <a href="/me/level" class="text-xs text-blue-600 hover:text-blue-500 hover:underline inline-flex items-center gap-0.5 font-medium transition-colors" title="行为信任标准体系">
-                  行为信任标准体系 &rarr;
-                </a>
+            <div class="balance-metric-item">
+              <div class="balance-metric-top">
+                <span class="balance-metric-label">社区信任等级</span>
+                <a href="/me/level" class="balance-metric-link" title="行为信任标准体系">信任规则 &rarr;</a>
               </div>
-              <div class="mt-1 flex items-baseline gap-2">
-                <span class="text-blue-600 dark:text-blue-400 font-mono tracking-tight font-bold text-2xl">TL{trustLevel}</span>
-                <span class="text-base font-semibold text-foreground">{trustName}</span>
+              <div class="balance-metric-main">
+                <span class="balance-metric-value text-blue-500">TL{trustLevel}</span>
+                <span class="balance-metric-subname">{trustName}</span>
               </div>
-              <div class="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="size-1.5 rounded-full bg-blue-500/70 inline-block"></span>
-                  {#if trustNextLevel}
-                    下一等级：TL{trustNextLevel.level} {trustNextLevel.name}
-                  {:else}
-                    行为信任体系评定状态
-                  {/if}
-                </span>
-                <a href="/me/level" class="text-xs text-muted-foreground hover:text-blue-600 transition-colors inline-flex items-center gap-0.5">查看要求 &rarr;</a>
+              <div class="balance-metric-subtext">
+                {#if trustNextLevel}
+                  <span>下一等级：TL{trustNextLevel.level} {trustNextLevel.name}</span>
+                {:else}
+                  <span>行为信任评定状态</span>
+                {/if}
+                <a href="/me/level" class="balance-metric-link">要求 &rarr;</a>
               </div>
             </div>
 
             <!-- 3. 今日签到奖励与签到 -->
-            <div class="py-2.5 last:pb-0 md:pt-3 md:pb-0">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-sm text-muted-foreground font-medium">今日签到奖励</span>
+            <div class="balance-metric-item last:border-b-0">
+              <div class="balance-metric-top">
+                <span class="balance-metric-label">今日签到奖励</span>
                 {#if checkInEnabled}
-                  <span class="text-xs text-muted-foreground inline-flex items-center gap-1">
-                    连续签到 {streak} 天
-                  </span>
+                  <span class="balance-metric-extra">连续 {streak} 天</span>
                 {/if}
               </div>
-              <div class="mt-1 flex items-center justify-between gap-3">
+              <div class="balance-metric-main justify-between">
                 <div class="flex items-baseline gap-1">
-                  <span data-slot="counting-number" class={todayEarnedTotal > 0 ? 'text-green-700 dark:text-green-300 font-mono text-2xl font-bold tracking-tight' : 'font-mono text-2xl font-bold tracking-tight text-foreground'}>
+                  <span data-slot="counting-number" class="balance-metric-value {todayEarnedTotal > 0 ? 'text-green-500' : ''}">
                     {todayEarnedTotal > 0 ? `+${todayEarnedTotal}` : '0'}
                   </span>
-                  <span class="text-xs text-muted-foreground font-normal ml-0.5">{currencyName}</span>
+                  <span class="balance-metric-unit">{currencyName}</span>
                 </div>
 
                 <form
@@ -520,26 +497,25 @@
                       disabled
                       class="badge badge-neutral text-xs cursor-not-allowed"
                     >
-                      签到未开启
+                      未开启
                     </button>
                   {:else if checkedIn}
                     <button
                       type="button"
                       disabled
-                      class="badge badge-success text-xs inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full border border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-300 font-medium cursor-default disabled:opacity-100"
+                      class="balance-checkin-btn is-done"
                     >
-                      <span class="size-1.5 rounded-full bg-green-500 dark:bg-green-400"></span>
+                      <span class="balance-checkin-dot"></span>
                       <span>今日已签到</span>
                     </button>
                   {:else}
                     <div class="flex items-center gap-2">
-                      <span class="badge badge-warning text-xs inline-flex items-center gap-1 py-0.5 px-2 rounded-full border border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                        <span class="size-1.5 rounded-full bg-amber-500 dark:bg-amber-400"></span>
-                        今日未签到
+                      <span class="balance-checkin-status">
+                        未签到
                       </span>
                       <button
                         type="submit"
-                        class="btn btn-primary h-7 px-3 rounded-md font-medium text-xs shadow-sm hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                        class="balance-checkin-btn is-action"
                       >
                         <span>立即签到</span>
                       </button>
@@ -549,18 +525,8 @@
               </div>
 
               {#if retryAfter}
-                <p class="input-hint is-error text-xs mt-1.5" role="alert">操作过于频繁，请约 {retryAfter} 秒后再试。</p>
+                <p class="input-hint is-error text-xs mt-1" role="alert">请约 {retryAfter} 秒后再试。</p>
               {/if}
-
-              <p class="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
-                {#if !checkInEnabled}
-                  全站签到功能目前暂未开放。
-                {:else if autoCheckInEnabled}
-                  每日首次访问或登录社区会自动签到；按每日重置时间结算。
-                {:else}
-                  当前为手动签到模式，请点击上方按钮完成今日签到。
-                {/if}
-              </p>
             </div>
           </aside>
         </div>
@@ -744,3 +710,121 @@
     <p class="input-hint" role="status">加载中…</p>
   {/if}
 </div>
+
+<style>
+  .balance-metric-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .balance-metric-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .balance-metric-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+
+  .balance-metric-extra {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+  }
+
+  .balance-metric-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-brand);
+    text-decoration: none;
+    transition: opacity 0.15s ease;
+  }
+
+  .balance-metric-link:hover {
+    text-decoration: underline;
+  }
+
+  .balance-metric-main {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .balance-metric-value {
+    font-family: var(--font-family-mono);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .balance-metric-unit {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+
+  .balance-metric-subname {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .balance-metric-subtext {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+  }
+
+  .balance-checkin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: var(--radius-sm, 4px);
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+
+  .balance-checkin-btn.is-action {
+    background: var(--color-brand);
+    color: var(--on-brand);
+    border: none;
+  }
+
+  .balance-checkin-btn.is-action:hover {
+    filter: brightness(1.1);
+  }
+
+  .balance-checkin-btn.is-done {
+    background: var(--color-success-soft);
+    color: var(--color-success);
+    border: 1px solid color-mix(in srgb, var(--color-success) 25%, transparent);
+    cursor: default;
+  }
+
+  .balance-checkin-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .balance-checkin-status {
+    font-size: 11px;
+    color: var(--color-warning);
+  }
+</style>

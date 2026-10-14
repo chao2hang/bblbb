@@ -16,11 +16,13 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getAuthed } from '$lib/api/server';
-import type { ActivitySummary, CosmeticDef, Entitlement, Presentation, SanctionItem, TrustLevelProgress, User } from '$lib/api/types';
+import type { ActivitySummary, CosmeticDef, Entitlement, Presentation, PublicProfile, SanctionItem, TrustLevelProgress, User } from '$lib/api/types';
 import type { DeviceSession } from '$lib/api/generated/v1';
 
 export interface MePageData {
   user: User | null;
+  /** 公开资料社交统计投影（post_count / followers / following） */
+  profile?: PublicProfile | null;
   sessions: DeviceSession[];
   error: string | null;
   /** GAP-FIX 账户卡：等级/经验/站点消费货币（GET /activity/summary，失败降级 null）。
@@ -76,7 +78,7 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
   // - GET /activity/summary：等级/经验/站点消费货币（economy.rs 已落地）；
   // - GET /me/sanctions：本人处罚记录；失败时降级为空列表。
   // M20-TRUST：GET /me/trust-level 信任等级进度（失败降级 null，卡片隐藏）。
-  const [activityResult, sanctionsResult, trustResult, presentationResult, cosmeticsResult, entitlementsResult, coverResult] = await Promise.all([
+  const [activityResult, sanctionsResult, trustResult, presentationResult, cosmeticsResult, entitlementsResult, coverResult, profileResult] = await Promise.all([
     getAuthed<ActivitySummary>(cookies, '/api/v1/activity/summary', requestId),
     getAuthed<{ items?: SanctionItem[] }>(cookies, '/api/v1/me/sanctions', requestId),
     getAuthed<TrustLevelProgress>(cookies, '/api/v1/me/trust-level', requestId),
@@ -94,6 +96,9 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
           position?: string;
           content_url?: string;
         }>(cookies, `/api/v1/users/${meResult.data.id}/profile-cover`, requestId)
+      : Promise.resolve({ ok: false as const, status: 404, message: '', requestId: null, retryAfterSecs: null, code: null }),
+    meResult.data?.username
+      ? getAuthed<PublicProfile>(cookies, `/api/v1/users/${encodeURIComponent(meResult.data.username)}`, requestId)
       : Promise.resolve({ ok: false as const, status: 404, message: '', requestId: null, retryAfterSecs: null, code: null })
   ]);
   const activity = activityResult.ok ? activityResult.data : null;
@@ -112,10 +117,12 @@ export const load: PageServerLoad = async ({ cookies, request }) => {
           : []
     : [];
   const cover = coverResult.ok && coverResult.data?.attachment_id ? coverResult.data : null;
+  const profile = profileResult.ok ? profileResult.data : null;
 
   const sessions = sessionsResult.data;
   return {
     user: meResult.data,
+    profile,
     sessions,
     error: null,
     activity,

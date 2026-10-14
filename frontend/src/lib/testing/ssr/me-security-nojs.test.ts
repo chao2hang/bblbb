@@ -85,6 +85,15 @@ describe('无 JS：/me/security 安全清单（M02-UX-SEC）', () => {
     const { body } = renderPage(secData({ user: { ...user, mfa_enabled: true } }));
     expect(body).toContain('已启用');
   });
+
+  it('子页面标准返回导航：渲染返回个人中心链接，避免多层 Tab 堆叠', () => {
+    const { body } = renderPage(secData());
+    expect(body).toContain('settings-back-btn');
+    expect(body).toMatch(/href="\/me"/);
+    // 不再渲染冗余的 me-identity-bar 与 me-tabs
+    expect(body).not.toContain('me-identity-bar');
+    expect(body).not.toContain('me-tabs');
+  });
 });
 
 describe('无 JS：/me/security 设备管理（M02-UX-05 平移）', () => {

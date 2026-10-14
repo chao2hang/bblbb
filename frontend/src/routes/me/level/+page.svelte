@@ -2,8 +2,6 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import PageTitle from '$lib/components/PageTitle.svelte';
-  import MeSectionTabs from '$lib/components/MeSectionTabs.svelte';
-  import MeIdentityBar from '$lib/components/MeIdentityBar.svelte';
   import { LINUXDO_TRUST_LEVELS, type TrustLevelProgress, type TrustLevelMeta } from '$lib/api/types';
   import type { LevelPageData } from './+page.server';
   import { getCurrencyNameContext } from '$lib/site/currency-context.svelte';
@@ -12,7 +10,6 @@
 
   const trust = $derived(data.trust);
   const error = $derived(data.error);
-  const barUser = $derived(data.user);
   const currencyName = $derived(getCurrencyNameContext()?.currencyName ?? '金币');
 
   // 当前信任等级与下一级元数据
@@ -98,7 +95,7 @@
     <div class="header-breadcrumbs">
       <a href="/me" class="breadcrumb-link">
         <Icon name="chevron-left" size={16} />
-        <span>个人中心</span>
+        <span>我的</span>
       </a>
       <span class="breadcrumb-sep">/</span>
       <span class="breadcrumb-current">信任等级</span>
@@ -117,20 +114,6 @@
       </div>
     </div>
   </div>
-
-  {#if barUser}
-    <!-- 固定身份条（≤767px 吸顶）：与 /me、/me/security 共用，身份恒定可见 -->
-    <MeIdentityBar
-      name={barUser.display_name || barUser.username}
-      username={barUser.username}
-      level={trust?.level ?? barUser.level ?? 0}
-      avatarAttachmentId={barUser.avatar_attachment_id}
-      seed={barUser.username ?? barUser.id}
-    />
-  {/if}
-
-  <!-- 分区 tag 栏（tag = 独立路由页面）：本页为「信任等级」tag -->
-  <MeSectionTabs />
 
   {#if error}
     <p class="input-hint is-error" role="alert">{error}</p>

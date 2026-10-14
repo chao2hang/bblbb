@@ -1,8 +1,9 @@
 <script lang="ts">
   // M02-UX-05：个人中心固定身份条（≤767px 吸顶，桌面不渲染）。
-  // 三个 tag 页（/me · /me/security · /me/level）共用：44px 头像 + 昵称
+  // 安全页与等级页（/me/security · /me/level）共用：44px 头像 + 昵称
   // + @用户名 + 信任等级徽标，in-flow sticky 吸附在顶栏正下方，与分区
   // tag 栏叠成一条连续头部——切页与长列表滚动时身份恒定可见。
+  // （/me 概览页自身已有通栏资料卡，不挂载此条以避免用户信息重复）。
   // 纯展示（无交互元素），无 JS 依赖。
   import Avatar from '$lib/components/ui/Avatar.svelte';
 
