@@ -91,7 +91,7 @@ GIT_COMMIT_SHORT="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo "u
 RUST_VERSION="$(rustc --version 2>/dev/null || echo "unknown")"
 (
   cd "$ROOT/backend"
-  cargo tree --locked --prefix depth 0 > "$BUILD_DIR/deps-cargo.txt"
+  cargo tree --locked --prefix depth > "$BUILD_DIR/deps-cargo.txt"
 )
 (
   cd "$BUILD_DIR/frontend"
