@@ -8,6 +8,7 @@
 
 | Release | 迁移兼容性 | API 兼容性 | 前后端发布顺序 | 回滚 | 状态 |
 |---|---|---|---|---|---|
+| v1.1.0-rc.3 | 无新增迁移（沿用当前迁移集） | 无 OpenAPI 契约变更；仅商城管理前端增加素材修复入口 | 仅前端：重建并部署前端即可；复用 rc.2 已有素材补拉 API | 无 schema/API 变化；回退前端应用代码即可 | 候选准备中；需 Release-RC workflow 全绿后再评估发布 |
 | v1.1.0-rc.2 | 无新增迁移（沿用当前迁移集） | 无 OpenAPI 契约变更；Steam 头像框资源读取增加 CDN 兜底，不改变 API 契约 | backend → worker → frontend；后端素材补拉逻辑先部署，前端随后发布 | 无 schema 变更；按发布前备份恢复流程回退应用代码 | 候选准备中；需 Release-RC workflow 全绿后再评估发布 |
 | v1.1.0-rc.1 | 无新增迁移（沿用当前迁移集；自 v1.0.0-rc.13 无 migration 变更） | 无 OpenAPI 契约变更；个人中心新增公开用户资料读取，/me 页面失败时降级隐藏统计 | backend → worker → frontend；后端依赖以 #41 为准，前端随后发布 | 无 schema 变更；按发布前备份恢复流程回退应用代码 | 候选准备中；需 Release-RC workflow 全绿后再评估发布 |
 | v1.0.0-rc.11 | 无新增迁移（当前迁移集 1..81） | 商城快速上架增加有效期、库存、限购与等级门槛；兼容新增 | backend → worker → frontend（确认本次实际二进制组合） | 需基于发布前备份；执行实测迁移/回滚演练 | 已打 tag；bundle/checksum/生产演练证据未归档 |
