@@ -26,9 +26,9 @@ test.describe('匿名浏览（public read，SSR）', () => {
 
   test('/boards/tech 板块详情展示帖子列表', async ({ page }) => {
     await page.goto('/boards/tech');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('技术分享');
+    await expect(page.getByRole('heading', { level: 1, name: '技术分享', exact: true })).toBeVisible();
     // 板块详情渲染帖子（SSR 列表）。
-    await expect(page.getByRole('main')).toContainText(/E2E 公开文章|暂无帖子|Rust/);
+    await expect(page.getByRole('main')).toContainText('E2E 移动端间距测试：空回复区');
   });
 
   test('/users/alice 用户主页显示公开投影', async ({ page }) => {

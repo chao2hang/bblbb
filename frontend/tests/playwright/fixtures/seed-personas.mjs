@@ -307,6 +307,12 @@ async function main() {
     markdown: '我最近在学 Rust，最喜欢模式匹配。',
     boardSlug: 'general'
   });
+  await createPostAs(personas.alice.user_id, {
+    type: 'discussion',
+    title: 'E2E 移动端间距测试：空回复区',
+    markdown: '用于验证移动端帖子回复空态与编辑器间距。',
+    boardSlug: 'tech'
+  });
   // hidden 帖子：详情对非作者 404（SEO 隐藏内容场景）。
   db.prepare("UPDATE posts SET status = 'hidden' WHERE id = ?").run(articleId);
   personas.alice.hidden_post_id = articleId;

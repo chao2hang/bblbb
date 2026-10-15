@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 import CosmeticAvatar from './CosmeticAvatar.svelte';
 
 describe('CosmeticAvatar 头像框几何契约（跟随主题头像样式联动）', () => {
@@ -47,6 +47,34 @@ describe('CosmeticAvatar 头像框几何契约（跟随主题头像样式联动�
     const imgFrame = container.querySelector('img.cosmetic-avatar__frame');
     expect(imgFrame).not.toBeNull();
     expect(imgFrame?.getAttribute('src')).toContain('/attachments/att-frame-999');
+  });
+
+  it('Steam 资源路由加载失败后回退到 CDN，CDN 也失败时不再显示破图', async () => {
+    const filename = 'c86dd4a0d864ec3735b2d44b9c604fe61fb18b33.png';
+    const { container } = render(CosmeticAvatar, {
+      name: 'Steam frame',
+      presentation: {
+        avatar_frame: 'steam-frame',
+        avatar_frame_style: {
+          mode: 'steam_frame',
+          color: '#f59e0b',
+          appid: 2349820,
+          image: filename,
+          url: `/api/v1/steam-assets/frames/${filename}`
+        }
+      }
+    });
+
+    const image = container.querySelector('img.cosmetic-avatar__frame') as HTMLImageElement;
+    expect(image.getAttribute('src')).toBe(`/api/v1/steam-assets/frames/${filename}`);
+    await fireEvent.error(image);
+    expect(image.getAttribute('src')).toBe(
+      `https://shared.fastly.steamstatic.com/community_assets/images/items/2349820/${filename}`
+    );
+    await fireEvent.error(image);
+    expect(container.querySelector('img.cosmetic-avatar__frame')).toBeNull();
+    expect(container.querySelector('.cosmetic-avatar__fallback-frame')).not.toBeNull();
+    expect(container.querySelector('.cosmetic-avatar')?.classList.contains('has-frame')).toBe(true);
   });
 
   it('自定义样式边框使用 var(--avatar-radius, 50%)，不写死固定圆角，跟随主题头像样式', () => {

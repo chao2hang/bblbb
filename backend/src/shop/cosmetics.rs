@@ -262,6 +262,9 @@ pub fn validate_style(kind: &str, style: &Value) -> Result<Value, ShopError> {
             if let Some(img) = map.get("image").and_then(Value::as_str) {
                 obj["image"] = json!(img.trim());
             }
+            if let Some(appid) = map.get("appid").and_then(Value::as_u64) {
+                obj["appid"] = json!(appid);
+            }
             Ok(obj)
         }
         "profile_effect" => {
@@ -297,6 +300,9 @@ pub fn validate_style(kind: &str, style: &Value) -> Result<Value, ShopError> {
             }
             if let Some(mp4) = map.get("mp4").and_then(Value::as_str) {
                 obj["mp4"] = json!(mp4.trim());
+            }
+            if let Some(appid) = map.get("appid").and_then(Value::as_u64) {
+                obj["appid"] = json!(appid);
             }
             Ok(obj)
         }
@@ -611,11 +617,12 @@ mod tests {
 
         let f = validate_style(
             "avatar_frame",
-            &json!({ "color": "#8B5CF6", "shape": "rounded", "frameScale": 120 }),
+            &json!({ "color": "#8B5CF6", "shape": "rounded", "frameScale": 120, "appid": 2349820 }),
         )
         .unwrap();
         assert_eq!(f["frameScale"], 120);
         assert_eq!(f["shape"], "rounded");
+        assert_eq!(f["appid"], 2349820);
     }
 
     #[test]

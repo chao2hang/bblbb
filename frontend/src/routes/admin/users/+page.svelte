@@ -490,7 +490,7 @@
                   <td>
                     <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
                       {#if !item.roles || item.roles.length === 0}
-                        <span class="tag-chip" style="font-size:12px;opacity:0.75;" title="member">成员<span style="display:none;">member</span></span>
+                        <span class="tag-chip" style="font-size:12px;font-weight:500;" title="member">成员<span style="display:none;">member</span></span>
                       {:else}
                         {#each item.roles as r (r)}
                           <span class="tag-chip" style="font-size:12px;font-weight:500;" title={r}>

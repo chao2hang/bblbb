@@ -65,7 +65,7 @@ echo "  Cargo.lock 行数: ${SBOM_LINES}；npm 顶层依赖: ${NPM_DEPS}"
 echo "==> 摘要 manifest（写入 deploy/RELEASES.md 的发布记录）"
 VERSION="$(python3 -c "import json;print(json.load(open('$WORK/METADATA.json'))['version'])")"
 COMMIT="$(python3 -c "import json;print(json.load(open('$WORK/METADATA.json'))['build_commit_short'])")"
-SUM="$(cat "$WORK/METADATA.json" >/dev/null && grep -v '^$' "$WORK/SHA256SUMS" | head -1 | awk '{print $1}')"
+SUM="$(awk 'NF { print $1; exit }' "$WORK/SHA256SUMS")"
 
 cat <<EOF
 | $VERSION | \`$COMMIT\` | \`$(basename "$BUNDLE")\` | \`$SUM\` |

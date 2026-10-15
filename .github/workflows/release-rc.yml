@@ -100,8 +100,8 @@ jobs:
           tar -xzf "dist/${VERSION}.tar.gz" -C "$bundle_dir"
           database_url="sqlite://$db"
           "$bundle_dir/backend/bblbb-migrate" apply --db-url "$database_url" --migrations-dir "$GITHUB_WORKSPACE/migrations/sqlite"
-          ops/restore/verify.sh --db "$db" --migrations-dir "$GITHUB_WORKSPACE/migrations/sqlite"
-          ops/restore/verify-attachments.sh --db "$db" --storage "$storage"
+          bash ops/restore/verify.sh --db "$db" --migrations-dir "$GITHUB_WORKSPACE/migrations/sqlite"
+          bash ops/restore/verify-attachments.sh --db "$db" --storage "$storage"
           oidc_keys=$(sqlite3 "$db" "SELECT COUNT(*) FROM oauth_signing_keys WHERE status='active';")
           if [ "$oidc_keys" -gt 0 ]; then
             ops/restore/verify-oidc-keys.sh --db "$db"
@@ -127,7 +127,7 @@ jobs:
             sleep 1
           done
           test "$ready" = 1 || { cat "$RUNNER_TEMP/release-backend.log"; echo "::error::Bundled backend did not become ready"; exit 1; }
-          BBLBB_SMOKE_BASE_URL="http://127.0.0.1:${port}" BBLBB_SMOKE_DB="$db" ops/smoke/smoke.sh
+          BBLBB_SMOKE_BASE_URL="http://127.0.0.1:${port}" BBLBB_SMOKE_DB="$db" bash ops/smoke/smoke.sh
       - name: Alerts drill + log sanitization scan
         run: |
           bash deploy/monitoring/alerts-drill.sh

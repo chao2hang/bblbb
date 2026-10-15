@@ -81,6 +81,15 @@
     return `https://shared.fastly.steamstatic.com/community_assets/images/items/${item.appid}/${item.image}`;
   }
 
+  function handleFrameImageError(event: Event, fallbackUrl: string) {
+    const image = event.currentTarget as HTMLImageElement;
+    if (!image.src.includes('steamstatic')) {
+      image.src = fallbackUrl;
+      return;
+    }
+    image.style.display = 'none';
+  }
+
   const filteredItems = $derived.by(() => {
     const kw = searchKeyword.trim().toLowerCase();
     return framesData.filter((item) => {
@@ -264,12 +273,7 @@
                 class="sf-card__frame-img"
                 src={getFrameUrl(activeItem)}
                 alt={activeItem.name}
-                onerror={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  if (target && activeItem && !target.src.includes('steamstatic')) {
-                    target.src = getFallbackCdnUrl(activeItem);
-                  }
-                }}
+                onerror={(e) => activeItem && handleFrameImageError(e, getFallbackCdnUrl(activeItem))}
               />
             </div>
             <span style="font-size: 13px; font-weight: 600; color: #66c0f4;">Steam 原画 APNG 动图</span>
@@ -360,12 +364,7 @@
                 <img
                   class="sf-card__frame-img"
                   src={localUrl}
-                  onerror={(e) => {
-                    const target = e.currentTarget as HTMLImageElement;
-                    if (target && !target.src.includes('steamstatic')) {
-                      target.src = fallbackUrl;
-                    }
-                  }}
+                  onerror={(e) => handleFrameImageError(e, fallbackUrl)}
                   alt={item.name}
                   loading="lazy"
                 />
