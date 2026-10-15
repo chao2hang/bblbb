@@ -132,6 +132,24 @@ function createPageData() {
 }
 
 describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', () => {
+  it('在商城管理页面常驻显示 Steam 头像框素材重新下载按钮', async () => {
+    const { container } = render(AdminShopPage, {
+      props: { data: createPageData() as any, form: null }
+    });
+
+    const maintenance = container.querySelector('.steam-assets-maintenance');
+    expect(maintenance?.textContent).toContain('缺失或损坏的文件');
+    const form = maintenance?.querySelector('form');
+    expect(form?.getAttribute('action')).toBe('?/downloadSteamFrames');
+    expect(form?.querySelector('button[type="submit"]')?.textContent).toContain('重新下载 Steam 头像框素材');
+
+    const orderTab = Array.from(container.querySelectorAll('.shop-main-tabs .tab')).find((tab) =>
+      tab.textContent?.includes('订单记录')
+    ) as HTMLButtonElement;
+    await fireEvent.click(orderTab);
+    expect(container.querySelector('.steam-assets-maintenance')).toBeTruthy();
+  });
+
   it('渲染分类 Tag 标签栏与展示视图切换按钮', () => {
     const { container } = render(AdminShopPage, {
       props: { data: createPageData() as any, form: null }

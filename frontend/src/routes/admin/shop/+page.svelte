@@ -349,6 +349,7 @@
   let nicknameModalOpen = $state(false);
   let steamFrameModalOpen = $state(false);
   let steamBgModalOpen = $state(false);
+  let downloadingSteamFrames = $state(false);
 
   function cosmeticKindLabel(kind: string): string {
     const labels: Record<string, string> = {
@@ -416,6 +417,34 @@
 </svelte:head>
 
 <PageHeader title="商城管理" />
+
+<div class="steam-assets-maintenance app-card" aria-labelledby="steam-assets-title">
+  <div class="steam-assets-maintenance__copy">
+    <h2 id="steam-assets-title">Steam 头像框静态素材</h2>
+    <p>素材加载失败时可在此重新补齐：系统会扫描头像框目录，重新下载缺失或损坏的文件，正常素材会跳过。</p>
+  </div>
+  <form
+    method="POST"
+    action="?/downloadSteamFrames"
+    use:enhance={() => {
+      downloadingSteamFrames = true;
+      return async ({ result, update }) => {
+        downloadingSteamFrames = false;
+        toastActionResult(result);
+        await update();
+      };
+    }}
+  >
+    <Button
+      text={downloadingSteamFrames ? '正在检查并下载 Steam 素材…' : '重新下载 Steam 头像框素材'}
+      variant="primary"
+      size="sm"
+      icon="download"
+      type="submit"
+      disabled={downloadingSteamFrames}
+    />
+  </form>
+</div>
 
   {#if message && !hasJs}
     <p class="input-hint is-error" role="alert">{message}</p>
@@ -1054,6 +1083,35 @@
   <SteamBackgroundPricingModal bind:open={steamBgModalOpen} enhanceHandler={dialogEnhance(() => (steamBgModalOpen = false))} />
 
 <style>
+  .steam-assets-maintenance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4, 16px);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-4, 16px);
+    padding: var(--space-4, 16px);
+    border: 1px solid color-mix(in srgb, var(--color-brand, #8b5cf6) 28%, var(--border-default, #2e323b));
+  }
+  .steam-assets-maintenance__copy {
+    display: grid;
+    gap: var(--space-1, 4px);
+    max-width: 720px;
+  }
+  .steam-assets-maintenance__copy h2 {
+    margin: 0;
+    font-size: var(--text-sm, 14px);
+    color: var(--color-text-primary, #fff);
+  }
+  .steam-assets-maintenance__copy p {
+    margin: 0;
+    color: var(--color-text-secondary, #94a3b8);
+    font-size: var(--text-xs, 12px);
+    line-height: 1.5;
+  }
+  .steam-assets-maintenance form {
+    margin-left: auto;
+  }
   .studio-readonly {
     margin-top: var(--space-2);
     padding: var(--space-2) var(--space-3);
