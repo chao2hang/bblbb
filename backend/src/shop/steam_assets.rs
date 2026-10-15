@@ -14,6 +14,7 @@
 //!   样式缺 `appid`（目录外文件）时只复用已存在对象，不做下载。
 
 use serde_json::Value;
+use sha1::{Digest, Sha1};
 use std::time::Duration;
 
 use super::service::ShopError;
@@ -29,7 +30,7 @@ fn valid_filename(name: &str) -> bool {
     let Some((stem, ext)) = name.rsplit_once('.') else {
         return false;
     };
-    if !matches!(ext, "png" | "jpg" | "jpeg" | "webm" | "mp4") {
+    if !matches!(ext, "png" | "apng" | "jpg" | "jpeg" | "webm" | "mp4") {
         return false;
     }
     stem.len() == 40 && stem.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
@@ -49,110 +50,178 @@ pub fn asset_url(kind: &str, filename: &str) -> String {
 fn content_type_of(filename: &str) -> &'static str {
     match filename.rsplit_once('.').map(|(_, e)| e) {
         Some("png") => "image/png",
+        Some("apng") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("webm") => "video/webm",
         _ => "video/mp4",
     }
 }
 
+/// Steam 文件名的主体是素材内容 SHA-1；以内容校验拒绝/修复空文件、截断文件与坏缓存。
+fn bytes_match_filename(filename: &str, data: &[u8]) -> bool {
+    let Some((expected, _)) = filename.rsplit_once('.') else {
+        return false;
+    };
+    hex::encode(Sha1::digest(data)) == expected
+}
+
 fn storage_err(e: impl std::fmt::Display) -> ShopError {
     ShopError::Invalid(format!("steam assets storage: {e}"))
 }
 
-/// 确保素材存在于「本地仓库 + 配置的默认后端」：
-/// - 本地仓库（storage_dir/steam-assets/…）是公开路由的首选服务源
-///   （读穿缓存，字节精确，不受对象存储网关缺陷影响）；
-/// - 默认后端（local 或 S3）承载持久化/分发语义；
-/// - 缺失且知道 appid 时从 Steam CDN 实时补拉；下载失败仅告警不阻断。
+async fn fetch_cdn_asset(filename: &str, appid: u64) -> Result<Option<Vec<u8>>, ShopError> {
+    let url = format!("{CDN_BASE}/{appid}/{filename}");
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|e| ShopError::Invalid(format!("steam assets http client: {e}")))?;
+    let resp = match client
+        .get(&url)
+        .header("User-Agent", "Mozilla/5.0")
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(file = %filename, appid, url = %url, error = %e, "steam asset download failed");
+            return Ok(None);
+        }
+    };
+    if !resp.status().is_success() {
+        tracing::warn!(file = %filename, appid, url = %url, status = %resp.status(), "steam asset download non-success");
+        return Ok(None);
+    }
+    if resp.content_length().is_some_and(|n| n > MAX_ASSET_BYTES) {
+        tracing::warn!(file = %filename, appid, url = %url, "steam asset download exceeds size limit");
+        return Ok(None);
+    }
+    match resp.bytes().await {
+        Ok(bytes)
+            if !bytes.is_empty()
+                && (bytes.len() as u64) <= MAX_ASSET_BYTES
+                && bytes_match_filename(filename, &bytes) =>
+        {
+            Ok(Some(bytes.to_vec()))
+        }
+        Ok(bytes) => {
+            tracing::warn!(file = %filename, appid, bytes = bytes.len(), "Steam asset response failed filename hash validation");
+            Ok(None)
+        }
+        Err(e) => {
+            tracing::warn!(file = %filename, appid, error = %e, "steam asset download body failed");
+            Ok(None)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EnsureOutcome {
+    Present,
+    Repaired,
+}
+
+/// 确保素材存在于「本地仓库 + 配置的默认后端」。
+/// 返回 None 表示 CDN 拉取失败或缺少 appid；调用方可记录失败并稍后重试。
 async fn ensure_object(
     storage: &StorageService,
     kind: &str,
     filename: &str,
     appid: Option<u64>,
-) -> Result<(), ShopError> {
+) -> Result<Option<EnsureOutcome>, ShopError> {
     if !valid_filename(filename) {
-        return Ok(());
+        return Ok(None);
     }
     let key = format!("{KEY_PREFIX}/{kind}/{filename}");
     let content_type = content_type_of(filename);
     let local = storage.adapter(crate::storage::StorageBackend::Local).ok();
-    let local_head = match &local {
-        Some(l) => l.head_object(&key).await.ok(),
-        None => None,
-    };
-    let local_missing = !local_head.as_ref().map(|h| h.exists).unwrap_or(false);
     let adapter = storage
         .adapter(storage.default_backend())
         .map_err(storage_err)?;
-    let _default_is_local = matches!(adapter, crate::storage::adapter::DynamicAdapter::Local(_));
+    let default_is_local = matches!(adapter, crate::storage::adapter::DynamicAdapter::Local(_));
     let default_head = adapter.head_object(&key).await.ok();
-    let default_missing = !default_head.as_ref().map(|h| h.exists).unwrap_or(false);
-    if !local_missing && !default_missing {
-        return Ok(());
-    }
-
-    let mut data: Option<Vec<u8>> = None;
-    // 默认后端已有 → 拉回本地缓存（仅当返回长度与对象一致时可信）。
-    if local_missing && !default_missing {
+    let local_head = match &local {
+        Some(l) if !default_is_local => l.head_object(&key).await.ok(),
+        _ => default_head.clone(),
+    };
+    let head_is_readable = |head: Option<&crate::storage::ObjectHead>| {
+        head.is_some_and(|h| {
+            h.exists && h.size_bytes > 0 && (h.size_bytes as u64) <= MAX_ASSET_BYTES
+        })
+    };
+    // Validate existing copies by both advertised length and content hash. A truncated or
+    // corrupted object must not be treated as already downloaded (nor permanently skipped).
+    let mut default_data = None;
+    if head_is_readable(default_head.as_ref()) {
         if let Some(head) = &default_head {
-            if let Ok(d) = adapter
-                .read_object_bounded(&key, head.size_bytes.max(0) as u64)
+            match adapter
+                .read_object_bounded(&key, head.size_bytes as u64)
                 .await
             {
-                if d.len() as i64 == head.size_bytes {
-                    data = Some(d);
-                } else {
-                    tracing::warn!(key = %key, expected = head.size_bytes, got = d.len(), "steam asset backend read length mismatch; falling back to CDN");
+                Ok(d)
+                    if d.len() as i64 == head.size_bytes && bytes_match_filename(filename, &d) =>
+                {
+                    default_data = Some(d)
+                }
+                Ok(d) => {
+                    tracing::warn!(key = %key, expected = head.size_bytes, got = d.len(), "steam asset backend object is invalid; falling back to repair")
+                }
+                Err(e) => {
+                    tracing::warn!(key = %key, error = %e, "steam asset backend read failed; falling back to repair")
                 }
             }
         }
     }
-    // CDN 实时补拉（Steam CDN 无截断问题）。
-    if data.is_none() && (default_missing || local_missing) {
-        let Some(appid) = appid else {
-            tracing::warn!(key = %key, "steam asset missing and style has no appid; skip download");
-            return Ok(());
-        };
-        let url = format!("{CDN_BASE}/{appid}/{filename}");
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()
-            .map_err(|e| ShopError::Invalid(format!("steam assets http client: {e}")))?;
-        let resp = match client
-            .get(&url)
-            .header("User-Agent", "Mozilla/5.0")
-            .send()
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::warn!(key = %key, url = %url, error = %e, "steam asset download failed");
-                return Ok(());
-            }
-        };
-        if !resp.status().is_success() {
-            tracing::warn!(key = %key, url = %url, status = %resp.status(), "steam asset download non-success");
-            return Ok(());
-        }
-        match resp.bytes().await {
-            Ok(b) if !b.is_empty() => data = Some(b.to_vec()),
-            Ok(_) => return Ok(()),
-            Err(e) => {
-                tracing::warn!(key = %key, error = %e, "steam asset download body failed");
-                return Ok(());
+    let mut local_data = None;
+    if !default_is_local && head_is_readable(local_head.as_ref()) {
+        if let (Some(l), Some(head)) = (&local, &local_head) {
+            match l.read_object_bounded(&key, head.size_bytes as u64).await {
+                Ok(d)
+                    if d.len() as i64 == head.size_bytes && bytes_match_filename(filename, &d) =>
+                {
+                    local_data = Some(d)
+                }
+                Ok(d) => {
+                    tracing::warn!(key = %key, expected = head.size_bytes, got = d.len(), "steam local cache object is invalid; falling back to repair")
+                }
+                Err(e) => {
+                    tracing::warn!(key = %key, error = %e, "steam local cache read failed; falling back to repair")
+                }
             }
         }
     }
+    let need_default = default_data.is_none();
+    let need_local = local.is_some() && !default_is_local && local_data.is_none();
+    if !need_default && !need_local {
+        return Ok(Some(EnsureOutcome::Present));
+    }
+
+    // 从任一已验证副本修复另一副本，避免不必要地依赖 CDN。
+    let mut data = default_data.or(local_data);
+    // CDN 实时补拉；失败时明确返回未完成，供管理端重试及准确统计。
+    if data.is_none() {
+        let Some(appid) = appid else {
+            tracing::warn!(key = %key, "steam asset missing and style has no appid; skip download");
+            return Ok(None);
+        };
+        data = fetch_cdn_asset(filename, appid).await?;
+        if data.is_none() {
+            return Ok(None);
+        }
+    }
     let Some(data) = data else {
-        return Ok(());
+        return Ok(None);
     };
-    if default_missing {
+    if !bytes_match_filename(filename, &data) {
+        tracing::warn!(key = %key, bytes = data.len(), "Steam asset repair source failed filename hash validation");
+        return Ok(None);
+    }
+    if need_default {
         adapter
             .write_object(&key, &data, Some(content_type))
             .await
             .map_err(storage_err)?;
     }
-    if local_missing {
+    if need_local {
         if let Some(l) = &local {
             l.write_object(&key, &data, Some(content_type))
                 .await
@@ -160,7 +229,7 @@ async fn ensure_object(
         }
     }
     tracing::info!(key = %key, bytes = data.len(), "steam asset ensured (local+backend)");
-    Ok(())
+    Ok(Some(EnsureOutcome::Repaired))
 }
 /// 上架钩子：确保样式引用的 Steam 素材已入库，并把样式内 URL 统一改写为
 /// 稳定资产路由。`storage = None`（存储未配置/配置关闭下载）时仅改写 URL。
@@ -198,23 +267,28 @@ pub async fn apply_to_cosmetic_style(
 
     if let Some(storage) = storage {
         for file in &files {
-            if let Err(e) = ensure_object(storage, asset_kind, file, appid).await {
-                tracing::warn!(kind = kind, file = %file, error = %e, "steam asset ensure failed");
+            match ensure_object(storage, asset_kind, file, appid).await {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    tracing::warn!(kind = kind, file = %file, "steam asset is still unavailable after publish attempt")
+                }
+                Err(e) => {
+                    tracing::warn!(kind = kind, file = %file, error = %e, "steam asset ensure failed")
+                }
             }
         }
     }
 
     if let Some(raw) = obj.get("image").and_then(Value::as_str) {
         if let Some(name) = basename_of(raw) {
+            obj.insert("image".into(), Value::String(name.clone()));
             obj.insert("url".into(), Value::String(asset_url(asset_kind, &name)));
         }
     }
     for field in ["webm", "mp4"] {
         if let Some(raw) = obj.get(field).and_then(Value::as_str) {
-            if raw.starts_with("http") {
-                if let Some(name) = basename_of(raw) {
-                    obj.insert(field.into(), Value::String(asset_url(asset_kind, &name)));
-                }
+            if let Some(name) = basename_of(raw) {
+                obj.insert(field.into(), Value::String(asset_url(asset_kind, &name)));
             }
         }
     }
@@ -349,7 +423,9 @@ async fn read_served(storage: &StorageService, _kind: &str, key: &str) -> Option
         if let Ok(head) = local.head_object(key).await {
             if head.exists && head.size_bytes > 0 && (head.size_bytes as u64) <= MAX_ASSET_BYTES {
                 if let Ok(data) = local.read_object_bounded(key, head.size_bytes as u64).await {
-                    return Some(data);
+                    if data.len() as i64 == head.size_bytes {
+                        return Some(data);
+                    }
                 }
             }
         }
@@ -362,7 +438,17 @@ async fn read_served(storage: &StorageService, _kind: &str, key: &str) -> Option
     }
     let size = head.size_bytes as u64;
     if matches!(adapter, crate::storage::adapter::DynamicAdapter::Local(_)) {
-        return adapter.read_object_bounded(key, size).await.ok();
+        return match adapter.read_object_bounded(key, size).await {
+            Ok(data) if data.len() as u64 == size => Some(data),
+            Ok(data) => {
+                tracing::warn!(key = %key, size, got = data.len(), "steam asset local read length mismatch");
+                None
+            }
+            Err(e) => {
+                tracing::warn!(key = %key, error = %e, "steam asset local read failed");
+                None
+            }
+        };
     }
     // 对象存储：实测部分网关整段 GET 在 1MiB 处截断、SDK 流式 Range 不稳，
     // 但「预签名 URL + 自发 HTTP Range 分段」可靠（已验证尾部字节吻合）。
@@ -458,33 +544,50 @@ pub async fn load_asset(
     let not_found = |_| ShopError::NotFound(format!("steam asset {kind}/{filename}"));
 
     if let Some(data) = read_served(storage, kind, &key).await {
-        return Ok(SteamAsset {
-            content_type: content_type_of(filename),
-            data,
-        });
+        if bytes_match_filename(filename, &data) {
+            return Ok(SteamAsset {
+                content_type: content_type_of(filename),
+                data,
+            });
+        }
+        tracing::warn!(kind = kind, file = %filename, "stored Steam asset failed filename hash validation; attempting repair");
     }
 
-    // 实时补拉：目录反查 appid → Steam CDN → 当前存储后端 → 重读。
+    // 实时补拉：先确保内置目录基线可用，再反查 appid → Steam CDN → 存储后端。
     if let Some(pool) = pool {
+        if let Err(e) = ensure_catalog_seeded(pool).await {
+            tracing::warn!(kind = kind, file = %filename, error = %e, "Steam asset catalog seeding failed");
+        }
         if let Some(appid) = lookup_appid_by_image(pool, kind, filename).await {
-            if let Err(e) = ensure_object(storage, kind, filename, Some(appid)).await {
-                let err_str = e.to_string();
-                if err_str.contains("Permission denied") || err_str.contains("storage forbidden") {
-                    tracing::error!(
-                        kind = kind,
-                        file = %filename,
-                        error = %e,
-                        "Steam 资产写入失败（存储目录权限不足）。请在宿主机检查目录属主与权限：sudo chown -R 10001:999 uploads && sudo chmod -R 775 uploads"
-                    );
-                } else {
-                    tracing::warn!(kind = kind, file = %filename, error = %e, "steam asset lazy fetch failed");
+            match ensure_object(storage, kind, filename, Some(appid)).await {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    tracing::warn!(kind = kind, file = %filename, "steam asset lazy fetch is still unavailable")
+                }
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if err_str.contains("Permission denied")
+                        || err_str.contains("storage forbidden")
+                    {
+                        tracing::error!(
+                            kind = kind,
+                            file = %filename,
+                            error = %e,
+                            "Steam 资产写入失败（存储目录权限不足）。请在宿主机检查目录属主与权限：sudo chown -R 10001:999 uploads && sudo chmod -R 775 uploads"
+                        );
+                    } else {
+                        tracing::warn!(kind = kind, file = %filename, error = %e, "steam asset lazy fetch failed");
+                    }
                 }
             }
             if let Some(data) = read_served(storage, kind, &key).await {
-                return Ok(SteamAsset {
-                    content_type: content_type_of(filename),
-                    data,
-                });
+                if bytes_match_filename(filename, &data) {
+                    return Ok(SteamAsset {
+                        content_type: content_type_of(filename),
+                        data,
+                    });
+                }
+                tracing::warn!(kind = kind, file = %filename, "repaired Steam asset failed filename hash validation");
             }
         }
     }
@@ -940,6 +1043,9 @@ fn tuple_to_item(row: CatalogRow) -> SteamCatalogItem {
     } else {
         KIND_FRAMES
     };
+    let image = basename_of(&image).unwrap_or(image);
+    let webm = webm.map(|raw| basename_of(&raw).unwrap_or(raw));
+    let mp4 = mp4.map(|raw| basename_of(&raw).unwrap_or(raw));
     SteamCatalogItem {
         id,
         kind,
@@ -976,22 +1082,30 @@ pub async fn lookup_appid_by_image(
     use sqlx::Either;
     let row: Option<(i64,)> = match pool {
         Either::Left(p) => sqlx::query_as(
-            "SELECT appid FROM steam_catalog_items WHERE kind = ? AND (image = ? OR webm = ? OR mp4 = ?)",
+            "SELECT appid FROM steam_catalog_items WHERE kind = ? AND
+             (image = ? OR image LIKE ? OR webm = ? OR webm LIKE ? OR mp4 = ? OR mp4 LIKE ?) LIMIT 1",
         )
         .bind(kind)
         .bind(filename)
+        .bind(format!("%/{filename}"))
         .bind(filename)
+        .bind(format!("%/{filename}"))
         .bind(filename)
+        .bind(format!("%/{filename}"))
         .fetch_optional(p)
         .await
         .ok()?,
         Either::Right(p) => sqlx::query_as(
-            "SELECT appid FROM steam_catalog_items WHERE kind = ? AND (image = ? OR webm = ? OR mp4 = ?)",
+            "SELECT appid FROM steam_catalog_items WHERE kind = ? AND
+             (image = ? OR image LIKE ? OR webm = ? OR webm LIKE ? OR mp4 = ? OR mp4 LIKE ?) LIMIT 1",
         )
         .bind(kind)
         .bind(filename)
+        .bind(format!("%/{filename}"))
         .bind(filename)
+        .bind(format!("%/{filename}"))
         .bind(filename)
+        .bind(format!("%/{filename}"))
         .fetch_optional(p)
         .await
         .ok()?,
@@ -1048,27 +1162,25 @@ pub async fn download_all_frame_assets(
         let fl = failed.clone();
         handles.push(tokio::spawn(async move {
             let _permit = permit;
-            let key = format!("{KEY_PREFIX}/{KIND_FRAMES}/{image}");
-            let exists = if let Ok(adapter) = storage.adapter(storage.default_backend()) {
-                adapter
-                    .head_object(&key)
-                    .await
-                    .map(|h| h.exists)
-                    .unwrap_or(false)
-            } else {
-                false
-            };
-            if exists {
-                sk.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let Some(filename) = basename_of(&image) else {
+                tracing::warn!(image = %image, "invalid Steam frame image filename");
+                fl.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return;
-            }
+            };
             let appid_u64 = u64::try_from(appid).ok();
-            match ensure_object(&storage, KIND_FRAMES, &image, appid_u64).await {
-                Ok(_) => {
+            match ensure_object(&storage, KIND_FRAMES, &filename, appid_u64).await {
+                Ok(Some(EnsureOutcome::Present)) => {
+                    sk.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                Ok(Some(EnsureOutcome::Repaired)) => {
                     dl.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
+                Ok(None) => {
+                    tracing::warn!(image = %filename, "download frame unavailable; eligible for retry");
+                    fl.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
                 Err(e) => {
-                    tracing::warn!(image = %image, error = %e, "download frame failed");
+                    tracing::warn!(image = %filename, error = %e, "download frame failed");
                     fl.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
             }
@@ -1087,4 +1199,57 @@ pub async fn download_all_frame_assets(
     };
     tracing::info!(?report, "steam avatar frames download complete");
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_apng_assets_and_steam_content_hash() {
+        let data = b"steam-frame-data";
+        let filename = format!("{}.apng", hex::encode(Sha1::digest(data)));
+        assert!(valid_filename(&filename));
+        assert_eq!(
+            basename_of(&format!("https://steam.example/{filename}")),
+            Some(filename.clone())
+        );
+        assert_eq!(content_type_of(&filename), "image/png");
+        assert!(bytes_match_filename(&filename, data));
+        assert!(!bytes_match_filename(&filename, b"truncated"));
+    }
+
+    #[test]
+    fn normalizes_catalog_asset_urls_for_routes_and_retry_lookup() {
+        let filename = "c86dd4a0d864ec3735b2d44b9c604fe61fb18b33.png";
+        let item = tuple_to_item((
+            "steam_1".into(),
+            1,
+            2349820,
+            "Steam frame".into(),
+            format!("{CDN_BASE}/2349820/{filename}"),
+            Some(format!("{CDN_BASE}/2349820/{}.webm", "a".repeat(40))),
+            None,
+            2000,
+            None,
+        ));
+        assert_eq!(item.image, filename);
+        assert_eq!(
+            item.webm.as_deref(),
+            Some(format!("{}.webm", "a".repeat(40)).as_str())
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_asset_extensions_and_hashes() {
+        assert!(!valid_filename(
+            "../e3b0c44298fc1c149afbf4c8996fb92427ae41e4.png"
+        ));
+        assert!(!valid_filename(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4.gif"
+        ));
+        assert!(!valid_filename(
+            "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4.png"
+        ));
+    }
 }

@@ -34,6 +34,7 @@
   let avatarEl: HTMLSpanElement | null = $state(null);
   let frameFailed = $state(false);
   let frameDirectFailed = $state(false);
+  let frameFallbackActive = $state(false);
   function resolveTokens(
     input: PublicPresentationTokens | { presentation_tokens?: PublicPresentationTokens | null } | null
   ): PublicPresentationTokens {
@@ -108,6 +109,31 @@
     }
     return null;
   });
+  const frameSteamCdnUrl = $derived.by(() => {
+    const style = tokens.avatar_frame_style as Record<string, unknown> | undefined;
+    const appid = style?.appid;
+    const image = style?.image;
+    if (typeof appid !== 'number' || !Number.isSafeInteger(appid) || appid <= 0 || typeof image !== 'string') return null;
+    if (!/^[a-f0-9]{40}\.(?:png|apng|jpe?g)$/.test(image)) return null;
+    return `https://shared.fastly.steamstatic.com/community_assets/images/items/${appid}/${image}`;
+  });
+  const frameDisplayUrl = $derived(frameFallbackActive && frameSteamCdnUrl ? frameSteamCdnUrl : frameDirectUrl);
+  const frameIdentity = $derived(`${frameDirectUrl ?? ''}|${frameSteamCdnUrl ?? ''}`);
+
+  $effect(() => {
+    frameIdentity;
+    frameFailed = false;
+    frameDirectFailed = false;
+    frameFallbackActive = false;
+  });
+
+  function handleDirectFrameError() {
+    if (!frameFallbackActive && frameSteamCdnUrl && frameDirectUrl !== frameSteamCdnUrl) {
+      frameFallbackActive = true;
+      return;
+    }
+    frameDirectFailed = true;
+  }
   // 内置 Steam APNG 动效头像框资源
   const builtinApng = $derived(
     frameToken && frameToken in BUILTIN_APNG_FRAMES ? BUILTIN_APNG_FRAMES[frameToken] : null
@@ -202,8 +228,8 @@
   {#if avatarAttachment}
     <span class="cosmetic-avatar__attachment" aria-hidden="true">{avatarAttachment}</span>
   {/if}
-  {#if frameDirectUrl && !frameDirectFailed}
-    <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={frameDirectUrl} alt="" aria-hidden="true" onerror={() => (frameDirectFailed = true)} />
+  {#if frameDisplayUrl && !frameDirectFailed}
+    <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={frameDisplayUrl} alt="" aria-hidden="true" onerror={handleDirectFrameError} />
   {:else if frameAssetId && !frameFailed}
     <img class="cosmetic-avatar__asset cosmetic-avatar__frame" src={attachmentContentUrl(frameAssetId)} alt="" aria-hidden="true" onerror={() => (frameFailed = true)} />
   {:else if builtinApng}
