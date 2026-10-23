@@ -13,7 +13,8 @@ pub mod steam_assets;
 pub mod studio;
 
 pub use service::{
-    buy_product, create_product, disable_product, equip, get_order, get_presentation, get_product,
-    list_admin_orders, list_admin_products, list_my_entitlements, list_products, publish_product,
-    refund_order, unequip, update_product, validate_tokens, ShopError,
+    buy_product, create_product, delete_product, disable_product, equip, get_order,
+    get_presentation, get_product, list_admin_orders, list_admin_products, list_my_entitlements,
+    list_products, publish_product, refund_order, unequip, update_product, validate_tokens,
+    ShopError,
 };

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "openapi_file": "openapi/openapi.yaml",
-  "expected_operations": 245,
+  "expected_operations": 246,
   "operations": [
     {
       "operation_id": "getHealth",
@@ -2757,6 +2757,24 @@
         "backend/tests/shop/core.rs"
       ],
       "evidence": "cargo test --test shop_core 12 pass; contract=商品/库存/订单/退款管理(admin.manage + reason + 审计 + 版本); commit=3a46751; review=publish_disable_and_admin_list + refund_respects_policy_and_revokes_entitlement；M17 gate：cargo test --all-features 0 fail；clippy -D warnings 0；migration_equivalence 4 passed；contract scripts green（2026-08-08）"
+    },
+    {
+      "operation_id": "deleteAdminShopProduct",
+      "method": "DELETE",
+      "path": "/api/v1/admin/shop/products/{id}",
+      "primary_tag": "Shop",
+      "milestone": "M7",
+      "work_package": "M07-SHOP",
+      "priority": "P1",
+      "contract_status": "frozen",
+      "implementation_status": "implemented",
+      "owner": "backend-shop",
+      "handler": "backend/src/routes/admin_shop.rs::delete_admin_product",
+      "tests": [
+        "backend/tests/shop/core.rs::delete_product_only_when_disabled_and_without_history",
+        "frontend/src/routes/admin/shop/admin-shop-view.test.ts"
+      ],
+      "evidence": "DELETE /admin/shop/products/{id}: shop.manage + recent-auth + CSRF; 仅允许非在售且无订单/权益引用的商品，精确 slug + If-Match 版本确认；reason 审计与删除同事务。"
     },
     {
       "operation_id": "updateAdminShopProduct",

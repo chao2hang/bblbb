@@ -6291,6 +6291,61 @@ paths:
             schema:
               "$ref": "#/components/schemas/GenericRequest"
   "/api/v1/admin/shop/products/{id}":
+    delete:
+      tags:
+      - Shop
+      operationId: deleteAdminShopProduct
+      summary: Permanently delete a shop product without purchase or entitlement history
+      description: Requires recent authentication and an exact slug confirmation. Products with orders or entitlements must remain for audit history and can only be disabled.
+      security: *3
+      x-permission: shop.manage
+      x-csrf: true
+      parameters:
+      - "$ref": "#/components/parameters/Id"
+      responses:
+        '200':
+          headers:
+            Cache-Control:
+              description: private, no-store
+              schema:
+                type: string
+                example: private, no-store
+          description: Product permanently deleted
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericSuccess"
+        '400':
+          "$ref": "#/components/responses/ProblemResponse"
+        '401':
+          "$ref": "#/components/responses/AuthenticationRequired"
+        '403':
+          "$ref": "#/components/responses/StepUpRequired"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, confirmation_slug, reason]
+              properties:
+                version:
+                  type: integer
+                  minimum: 1
+                confirmation_slug:
+                  type: string
+                  minLength: 1
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
     patch:
       tags:
       - Shop

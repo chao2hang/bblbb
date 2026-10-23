@@ -5,10 +5,10 @@
 
 ## 汇总
 
-- 契约操作：**245**
-- 唯一 operationId：**245**
-- 实现状态：`implemented` 35；`verified` 210
-- 里程碑分配：`M0` 1；`M2` 30；`M3` 34；`M4` 21；`M5` 24；`M6` 20；`M7` 41；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 11；`M17` 6
+- 契约操作：**246**
+- 唯一 operationId：**246**
+- 实现状态：`implemented` 36；`verified` 210
+- 里程碑分配：`M0` 1；`M2` 30；`M3` 34；`M4` 21；`M5` 24；`M6` 20；`M7` 42；`M8` 3；`M9` 16；`M10` 10；`M11` 16；`M12` 12；`M13` 11；`M17` 6
 
 ## 状态规则
 
@@ -181,6 +181,7 @@
 | `refundAdminShopOrder` | `POST` | `/api/v1/admin/shop/orders/{id}/refund` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `listAdminShopProducts` | `GET` | `/api/v1/admin/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `createAdminShopProduct` | `POST` | `/api/v1/admin/shop/products` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
+| `deleteAdminShopProduct` | `DELETE` | `/api/v1/admin/shop/products/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `implemented` | `backend-shop` |
 | `updateAdminShopProduct` | `PATCH` | `/api/v1/admin/shop/products/{id}` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `disableAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/disable` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |
 | `publishAdminShopProduct` | `POST` | `/api/v1/admin/shop/products/{id}/publish` | Shop | `M7` / `M07-SHOP` | `P1` | `verified` | `backend-shop` |

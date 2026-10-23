@@ -242,7 +242,7 @@
    * reason 必填）——不同端点 → Dialog 按 tab 渲染对应表单节。
    */
   let opsTarget = $state<ShopProduct | null>(null);
-  let opsTab = $state<'edit' | 'publish' | 'disable'>('edit');
+  let opsTab = $state<'edit' | 'publish' | 'disable' | 'delete'>('edit');
 
   /** 编辑分节表单草稿（?/update：If-Match version + reason）。 */
   let editTarget = $state<ShopProduct | null>(null);
@@ -254,10 +254,12 @@
   let editValidity = $state('');
   let editReason = $state('');
 
-  /** 下架分节表单（?/disable：reason 必填写审计）。 */
+  /** 下架/删除分节表单（原因均写入审计）。 */
   let disableReason = $state('');
+  let deleteConfirmationSlug = $state('');
+  let deleteReason = $state('');
 
-  function openOps(p: ShopProduct, tab: 'edit' | 'publish' | 'disable'): void {
+  function openOps(p: ShopProduct, tab: 'edit' | 'publish' | 'disable' | 'delete'): void {
     opsTarget = p;
     opsTab = tab;
     // 预填编辑草稿（沿用既有 openEdit 预填逻辑）
@@ -269,10 +271,14 @@
     editLimit = String(p.quantity_limit ?? 1);
     editValidity = p.validity_seconds == null ? '' : String(p.validity_seconds);
     editReason = '';
+    deleteConfirmationSlug = '';
+    deleteReason = '';
   }
 
   function closeOps(): void {
     opsTarget = null;
+    deleteConfirmationSlug = '';
+    deleteReason = '';
   }
 
   /** 行「⋮」菜单项（约定 D）：编辑 + 上架|下架（按商品状态二选一）。 */
@@ -282,6 +288,7 @@
     ];
     if (p.status !== 'published') actions.push({ label: '上架', run: () => openOps(p, 'publish') });
     else actions.push({ label: '下架', danger: true, run: () => openOps(p, 'disable') });
+    if (p.status !== 'published') actions.push({ label: '永久删除', danger: true, run: () => openOps(p, 'delete') });
     return actions;
   }
 
@@ -290,6 +297,7 @@
     if (!opsTarget) return '';
     if (opsTab === 'publish') return `将「${opsTarget.title}」上架发布；发布后用户可见可购买。`;
     if (opsTab === 'disable') return `将「${opsTarget.title}」下架停售；停售原因写入审计日志。`;
+    if (opsTab === 'delete') return `永久删除「${opsTarget.title}」。此操作不可撤销，且仅无订单/用户权益记录的商品可删除；需近期重新认证。`;
     return `编辑「${opsTarget.title}」（${opsTarget.slug}，v${opsTarget.version}）；保存走 If-Match 乐观锁，操作原因写审计。`;
   });
 
@@ -903,7 +911,7 @@
 
 
   <!-- 行操作 Dialog（约定 D）：动作由「⋮」菜单项决定，弹层内单动作确认——
-       编辑（?/update）/ 上架（?/publish）/ 下架（?/disable）按 opsTab 渲染对应表单节 -->
+       编辑（?/update）/ 上架（?/publish）/ 下架（?/disable）/ 永久删除（?/deleteProduct）按 opsTab 渲染对应表单节 -->
   <Dialog
     open={opsTarget !== null}
     title={opsTarget ? `商品操作：${opsTarget.title}` : '商品操作'}
@@ -969,7 +977,7 @@
           <input type="hidden" name="id" value={opsTarget?.id ?? ''} />
           <Button text="确认上架" variant="primary" size="sm" type="submit" />
         </form>
-      {:else}
+      {:else if opsTab === 'disable'}
         <!-- 下架（?/disable：reason 必填写审计） -->
         <form method="POST" action="?/disable" use:enhance={dialogEnhance(closeOps)}>
           <input type="hidden" name="id" value={opsTarget?.id ?? ''} />
@@ -978,6 +986,27 @@
             <input id="sp-disable-reason" name="reason" class="input-field" required bind:value={disableReason} placeholder="必填" />
           </div>
           <Button text="确认下架" variant="danger" size="sm" type="submit" />
+        </form>
+      {:else}
+        <!-- 永久删除：需输入 slug 确认、原因审计及近期重新认证。 -->
+        <form method="POST" action="?/deleteProduct" use:enhance={dialogEnhance(closeOps)}>
+          <input type="hidden" name="id" value={opsTarget?.id ?? ''} />
+          <input type="hidden" name="version" value={opsTarget?.version ?? ''} />
+          <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+            <label class="input-label" for="sp-delete-slug">输入商品 slug「{opsTarget.slug}」确认</label>
+            <input id="sp-delete-slug" name="confirmation_slug" class="input-field" required autocomplete="off" bind:value={deleteConfirmationSlug} />
+          </div>
+          <div class="input-wrapper" style="margin-bottom:var(--space-3);">
+            <label class="input-label" for="sp-delete-reason">删除原因（写入审计，最多 500 字）</label>
+            <input id="sp-delete-reason" name="reason" class="input-field" required maxlength="500" bind:value={deleteReason} placeholder="必填" />
+          </div>
+          <Button
+            text="永久删除商品"
+            variant="danger"
+            size="sm"
+            type="submit"
+            disabled={deleteConfirmationSlug !== opsTarget.slug || !deleteReason.trim()}
+          />
         </form>
       {/if}
     {/if}

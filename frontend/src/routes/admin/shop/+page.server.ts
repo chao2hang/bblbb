@@ -7,7 +7,7 @@
 // - publish/disable：状态切换；refund：补偿退款（reason 必填）。
 import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authedPost, authedPatch, getAuthed } from '$lib/api/server';
+import { authedPost, authedPatch, authedDeleteBody, getAuthed } from '$lib/api/server';
 import { adminListStateKeyed, type AdminLoadState } from '$lib/admin';
 import { parseBatchIds, batchResult, type BatchOutcome } from '$lib/admin-batch';
 import type { ShopConfig, ShopOrder, ShopProduct, Money, CosmeticDef } from '$lib/api/types';
@@ -219,6 +219,39 @@ export const actions: Actions = {
     return r.ok
       ? { message: r.message } satisfies AdminShopActionData
       : fail(r.status, { message: r.message } satisfies AdminShopActionData);
+  },
+  deleteProduct: async ({ request, cookies }) => {
+    const form = await request.formData();
+    const id = String(form.get('id') ?? '').trim();
+    const version = Number(form.get('version') ?? 0);
+    const confirmationSlug = String(form.get('confirmation_slug') ?? '').trim();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!id) return fail(422, { message: '缺少商品标识' } satisfies AdminShopActionData);
+    if (!Number.isInteger(version) || version < 1) {
+      return fail(422, { message: '商品版本缺失或无效，请刷新后重试' } satisfies AdminShopActionData);
+    }
+    if (!confirmationSlug) {
+      return fail(422, { message: '请输入商品 slug 确认删除' } satisfies AdminShopActionData);
+    }
+    if (!reason || reason.length > 500) {
+      return fail(422, { message: '删除原因必填（最多 500 字）' } satisfies AdminShopActionData);
+    }
+    try {
+      const result = await authedDeleteBody<{ deleted: boolean }>(
+        cookies,
+        `/api/v1/admin/shop/products/${encodeURIComponent(id)}`,
+        { version, confirmation_slug: confirmationSlug, reason },
+        request.headers.get('x-request-id')
+      );
+      if (result.ok) return { message: '商品已永久删除' } satisfies AdminShopActionData;
+      if (result.status === 409) {
+        return fail(409, { message: `${result.message}；请刷新商品列表后重试` } satisfies AdminShopActionData);
+      }
+      return fail(result.status, { message: result.message, requestId: result.requestId } satisfies AdminShopActionData);
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      return fail(503, { message: '删除失败，请稍后重试' } satisfies AdminShopActionData);
+    }
   },
   disable: async ({ request, cookies }) => {
     const form = await request.formData();

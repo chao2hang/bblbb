@@ -44,7 +44,9 @@ pub enum ShopError {
     IdempotencyConflict,
     /// 展示版本冲突。
     VersionConflict,
-    /// 权益不属于本人或不可装备。
+    /// 商品仍在售或已有交易/权益引用，不能永久删除。
+    Conflict(String),
+    /// 权益不属于本人或不可装备.
     EntitlementNotOwned,
     /// 装备槽冲突（slot 互斥 / 徽章超过 3 个）。
     SlotConflict,
@@ -84,6 +86,7 @@ impl std::fmt::Display for ShopError {
             Self::PurchaseLimitExceeded => write!(f, "purchase limit exceeded"),
             Self::IdempotencyConflict => write!(f, "idempotency key reused"),
             Self::VersionConflict => write!(f, "presentation version conflict"),
+            Self::Conflict(msg) => write!(f, "shop conflict: {msg}"),
             Self::EntitlementNotOwned => write!(f, "entitlement not owned or invalid"),
             Self::SlotConflict => write!(f, "equipment slot conflict"),
             Self::NotRefundable => write!(f, "order is not refundable"),
@@ -108,6 +111,7 @@ impl ShopError {
             Self::PurchaseLimitExceeded => "shop_purchase_limit_exceeded",
             Self::IdempotencyConflict => "idempotency_conflict",
             Self::VersionConflict => "version_conflict",
+            Self::Conflict(_) => "conflict",
             Self::EntitlementNotOwned => "entitlement_not_usable",
             Self::SlotConflict => "presentation_slot_conflict",
             Self::NotRefundable => "refund_not_allowed",
@@ -2398,6 +2402,148 @@ pub async fn disable_product(pool: &DatabasePool, id: &str) -> Result<Value, Sho
     set_product_status(pool, id, "disabled").await
 }
 
+/// 永久删除从未产生订单或用户权益的商品。
+///
+/// SQLite 的 BEGIN IMMEDIATE 与 MySQL 的商品行锁/父行 DELETE 锁保证购买和删除
+/// 不能越过历史检查竞态；历史订单和权益保留，已有引用时以冲突拒绝删除。
+pub async fn delete_product(
+    pool: &DatabasePool,
+    id: &str,
+    expected_version: i64,
+    confirmation_slug: &str,
+    actor_id: &str,
+    reason: &str,
+) -> Result<Value, ShopError> {
+    let reason = reason.trim();
+    if reason.is_empty() || reason.len() > 500 {
+        return Err(ShopError::Invalid(
+            "delete reason must be 1-500 characters".into(),
+        ));
+    }
+    let mut tx = match pool {
+        Either::Left(p) => Either::Left(p.begin_with("BEGIN IMMEDIATE").await?),
+        Either::Right(p) => Either::Right(p.begin().await?),
+    };
+
+    let outcome: Result<Value, ShopError> = async {
+        let product: Option<(String, String, i64)> = match &mut tx {
+            Either::Left(t) => {
+                sqlx::query_as("SELECT status, slug, version FROM shop_products WHERE id = ?")
+                    .bind(id)
+                    .fetch_optional(&mut **t)
+                    .await?
+            }
+            Either::Right(t) => {
+                sqlx::query_as(
+                    "SELECT status, slug, version FROM shop_products WHERE id = ? FOR UPDATE",
+                )
+                .bind(id)
+                .fetch_optional(&mut **t)
+                .await?
+            }
+        };
+        let Some((status, slug, version)) = product else {
+            return Err(ShopError::NotFound(format!("product {id}")));
+        };
+        if version != expected_version {
+            return Err(ShopError::VersionConflict);
+        }
+        if slug != confirmation_slug {
+            return Err(ShopError::Invalid(
+                "confirmation slug does not match product".into(),
+            ));
+        }
+        if status == "published" {
+            return Err(ShopError::Conflict("在售商品请先下架，再执行删除".into()));
+        }
+
+        let has_history: bool = match &mut tx {
+            Either::Left(t) => {
+                sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM shop_orders WHERE product_id = ?) \
+                     OR EXISTS(SELECT 1 FROM user_entitlements WHERE product_id = ?)",
+                )
+                .bind(id)
+                .bind(id)
+                .fetch_one(&mut **t)
+                .await?
+            }
+            Either::Right(t) => {
+                sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM shop_orders WHERE product_id = ?) \
+                     OR EXISTS(SELECT 1 FROM user_entitlements WHERE product_id = ?)",
+                )
+                .bind(id)
+                .bind(id)
+                .fetch_one(&mut **t)
+                .await?
+            }
+        };
+        if has_history {
+            return Err(ShopError::Conflict(
+                "该商品已有订单或用户权益，保留历史记录，只能下架".into(),
+            ));
+        }
+
+        let affected = match &mut tx {
+            Either::Left(t) => {
+                sqlx::query("DELETE FROM shop_products WHERE id = ? AND status <> 'published'")
+                    .bind(id)
+                    .execute(&mut **t)
+                    .await?
+                    .rows_affected()
+            }
+            Either::Right(t) => {
+                sqlx::query("DELETE FROM shop_products WHERE id = ? AND status <> 'published'")
+                    .bind(id)
+                    .execute(&mut **t)
+                    .await?
+                    .rows_affected()
+            }
+        };
+        if affected != 1 {
+            return Err(ShopError::Conflict("商品状态已变化，请刷新后重试".into()));
+        }
+        match &mut tx {
+            Either::Left(t) => {
+                AuditEntry::user_action(actor_id, "shop.product.delete")
+                    .with_target("product", id)
+                    .with_reason(reason)
+                    .with_policy_version(AUTHZ_POLICY_VERSION)
+                    .record_into_sqlite(t)
+                    .await?
+            }
+            Either::Right(t) => {
+                AuditEntry::user_action(actor_id, "shop.product.delete")
+                    .with_target("product", id)
+                    .with_reason(reason)
+                    .with_policy_version(AUTHZ_POLICY_VERSION)
+                    .record_into_mysql(t)
+                    .await?
+            }
+        }
+        Ok(json!({ "id": id, "deleted": true }))
+    }
+    .await;
+
+    match outcome {
+        Ok(value) => {
+            match tx {
+                Either::Left(t) => t.commit().await?,
+                Either::Right(t) => t.commit().await?,
+            }
+            Ok(value)
+        }
+        Err(error) => {
+            match tx {
+                Either::Left(t) => t.rollback().await?,
+                Either::Right(t) => t.rollback().await?,
+            }
+            Err(error)
+        }
+    }
+}
+
 async fn set_product_status(
     pool: &DatabasePool,
     id: &str,
@@ -2778,6 +2924,7 @@ pub fn shop_error_to_app(e: ShopError, request_id: &str) -> AppError {
         | ShopError::PurchaseLimitExceeded
         | ShopError::IdempotencyConflict
         | ShopError::VersionConflict
+        | ShopError::Conflict(_)
         | ShopError::EntitlementNotOwned
         | ShopError::SlotConflict
         | ShopError::NotRefundable => (StatusCode::CONFLICT, "Conflict"),

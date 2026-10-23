@@ -1,9 +1,10 @@
 use axum::{
     extract::{Path, State},
     response::Json,
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
+use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Either;
@@ -37,7 +38,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/v1/admin/shop/products/{id}",
-            patch(update_admin_product),
+            delete(delete_admin_product).patch(update_admin_product),
         )
         .route(
             "/api/v1/admin/shop/products/{id}/disable",
@@ -65,6 +66,14 @@ pub fn router() -> Router<AppState> {
 #[derive(Deserialize)]
 struct ReasonBody {
     reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeleteProductBody {
+    reason: Option<String>,
+    confirmation_slug: Option<String>,
+    version: Option<i64>,
 }
 
 async fn admin_authorize(
@@ -392,6 +401,46 @@ async fn update_admin_product(
         }
         Err(e) => Err(shop_error_to_app(e, request_id)),
     }
+}
+
+async fn delete_admin_product(
+    State(state): State<AppState>,
+    auth: AuthSession,
+    jar: CookieJar,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<DeleteProductBody>,
+) -> Result<Json<Value>, AppError> {
+    let request_id = "delete_admin_shop_product";
+    let user = auth.require_auth(request_id)?;
+    admin_authorize(&state, &auth, "shop.manage", request_id).await?;
+    let pool = state
+        .db
+        .as_deref()
+        .ok_or_else(|| AppError::internal("database not configured", request_id))?;
+    crate::routes::admin::require_recent_auth(&state, &jar, request_id).await?;
+    let reason = body
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 500)
+        .ok_or_else(|| {
+            AppError::bad_request("有效的删除原因必填（最多 500 字）", request_id, None)
+        })?;
+    let version = body
+        .version
+        .filter(|value| *value > 0)
+        .ok_or_else(|| AppError::bad_request("缺少有效的商品版本", request_id, None))?;
+    let confirmation_slug = body
+        .confirmation_slug
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::bad_request("请输入商品 slug 确认删除", request_id, None))?;
+
+    crate::shop::service::delete_product(pool, &id, version, confirmation_slug, &user.id, reason)
+        .await
+        .map(Json)
+        .map_err(|error| shop_error_to_app(error, request_id))
 }
 
 async fn disable_product(

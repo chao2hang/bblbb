@@ -14,9 +14,9 @@ use bblbb_backend::economy::ledger::service::{LedgerKind, CURRENCY_COIN};
 use bblbb_backend::outbox::now_millis;
 use bblbb_backend::shop::cosmetics::{create_def, update_def};
 use bblbb_backend::shop::service::{
-    buy_product, create_product, disable_product, equip, get_order, get_presentation,
-    list_my_entitlements, list_products, publish_product, refund_order, unequip, validate_tokens,
-    ShopError,
+    buy_product, create_product, delete_product, disable_product, equip, get_order,
+    get_presentation, list_my_entitlements, list_products, publish_product, refund_order, unequip,
+    validate_tokens, ShopError,
 };
 use serde_json::json;
 use sqlx::Either;
@@ -682,6 +682,130 @@ async fn publish_disable_and_admin_list() {
     assert_eq!(admin_list["products"].as_array().unwrap().len(), 1);
     close_pool(&pool).await;
     cleanup(&dir);
+}
+
+#[tokio::test]
+async fn delete_product_only_when_disabled_and_without_history() {
+    let (pool, dir) = sqlite_pool_with_migrations().await;
+    let admin = insert_user(&pool, "admin").await;
+    let buyer = insert_user(&pool, "buyer").await;
+    let never_sold = insert_product(
+        &pool,
+        &admin,
+        Some(5),
+        100,
+        1,
+        "utility",
+        "utility",
+        "non_refundable",
+        None,
+    )
+    .await;
+
+    let slug = product_slug(&pool, &never_sold).await;
+    let bad_confirmation = delete_product(
+        &pool,
+        &never_sold,
+        1,
+        "not-the-current-slug",
+        &admin,
+        "cleanup test",
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(bad_confirmation, ShopError::Invalid(_)));
+    let published_error = delete_product(&pool, &never_sold, 1, &slug, &admin, "cleanup test")
+        .await
+        .unwrap_err();
+    assert!(matches!(published_error, ShopError::Conflict(_)));
+
+    disable_product(&pool, &never_sold).await.unwrap();
+    let slug = product_slug(&pool, &never_sold).await;
+    let result = delete_product(&pool, &never_sold, 2, &slug, &admin, "unused draft cleanup")
+        .await
+        .unwrap();
+    assert_eq!(result["deleted"], true);
+    let deleted: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM shop_products WHERE id = ?")
+            .bind(&never_sold)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(p) => sqlx::query_scalar("SELECT COUNT(*) FROM shop_products WHERE id = ?")
+            .bind(&never_sold)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+    };
+    assert_eq!(deleted, 0);
+
+    let purchased = insert_product(
+        &pool,
+        &admin,
+        Some(5),
+        100,
+        1,
+        "utility",
+        "utility",
+        "non_refundable",
+        None,
+    )
+    .await;
+    credit_user(&pool, &buyer, 1000).await;
+    buy_product(&pool, &buyer, &purchased, 1, "delete-history-check")
+        .await
+        .unwrap();
+    disable_product(&pool, &purchased).await.unwrap();
+    let slug = product_slug(&pool, &purchased).await;
+    let error = delete_product(
+        &pool,
+        &purchased,
+        2,
+        &slug,
+        &admin,
+        "test history protection",
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(error, ShopError::Conflict(_)));
+    let remains: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM shop_products WHERE id = ?")
+            .bind(&purchased)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(p) => sqlx::query_scalar("SELECT COUNT(*) FROM shop_products WHERE id = ?")
+            .bind(&purchased)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+    };
+    assert_eq!(remains, 1, "历史商品必须保留");
+
+    let audit_count: i64 = match &pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT COUNT(*) FROM audit_logs WHERE action = 'shop.product.delete' AND target_id = ?")
+            .bind(&never_sold).fetch_one(p).await.unwrap(),
+        Either::Right(p) => sqlx::query_scalar("SELECT COUNT(*) FROM audit_logs WHERE action = 'shop.product.delete' AND target_id = ?")
+            .bind(&never_sold).fetch_one(p).await.unwrap(),
+    };
+    assert_eq!(audit_count, 1, "删除应原子写入审计");
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+async fn product_slug(pool: &DatabasePool, product_id: &str) -> String {
+    match pool {
+        Either::Left(p) => sqlx::query_scalar("SELECT slug FROM shop_products WHERE id = ?")
+            .bind(product_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        Either::Right(p) => sqlx::query_scalar("SELECT slug FROM shop_products WHERE id = ?")
+            .bind(product_id)
+            .fetch_one(p)
+            .await
+            .unwrap(),
+    }
 }
 
 #[tokio::test]

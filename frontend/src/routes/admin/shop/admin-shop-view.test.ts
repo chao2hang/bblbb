@@ -192,6 +192,46 @@ describe('商城管理 卡片展示 / 列表展示 切换与分类 Tag 筛选', 
     expect(activePanel?.textContent).toContain('已停售');
   });
 
+  it('仅对非在售商品显示永久删除，并要求输入 slug 与删除原因', async () => {
+    const { container } = render(AdminShopPage, {
+      props: { data: createPageData() as any, form: null }
+    });
+
+    const publishedMenuTrigger = container.querySelector(
+      '.shop-admin-card button[aria-label="更多操作：商品 雷霆动效头像框"]'
+    ) as HTMLButtonElement;
+    expect(publishedMenuTrigger).toBeTruthy();
+    await fireEvent.click(publishedMenuTrigger);
+    expect(document.body.querySelector('[role="menu"]')?.textContent).not.toContain('永久删除');
+
+    const disabledMenuTrigger = container.querySelector(
+      '.shop-admin-card button[aria-label="更多操作：商品 极光渐变"]'
+    ) as HTMLButtonElement;
+    expect(disabledMenuTrigger).toBeTruthy();
+    await fireEvent.click(disabledMenuTrigger);
+    const menu = document.body.querySelector('[role="menu"]');
+    const deleteItem = Array.from(menu?.querySelectorAll('[role="menuitem"]') ?? []).find((item) =>
+      item.textContent?.includes('永久删除')
+    ) as HTMLButtonElement | undefined;
+    expect(deleteItem).toBeTruthy();
+    await fireEvent.click(deleteItem!);
+
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain('近期重新认证');
+    expect(dialog?.textContent).toContain('aurora-nick');
+    expect(dialog?.querySelector('form')?.getAttribute('action')).toBe('?/deleteProduct');
+    const confirmationInput = dialog?.querySelector('#sp-delete-slug') as HTMLInputElement;
+    const reasonInput = dialog?.querySelector('#sp-delete-reason') as HTMLInputElement;
+    const submit = dialog?.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(confirmationInput).toBeTruthy();
+    expect(reasonInput).toBeTruthy();
+    expect(submit.disabled).toBe(true);
+    await fireEvent.input(confirmationInput, { target: { value: 'aurora-nick' } });
+    await fireEvent.input(reasonInput, { target: { value: '测试清理无用商品' } });
+    expect(submit.disabled).toBe(false);
+    expect(dialog?.textContent).toContain('不可撤销');
+  });
+
   it('点击「列表展示」切换为表格行列表展示', async () => {
     const { container } = render(AdminShopPage, {
       props: { data: createPageData() as any, form: null }
