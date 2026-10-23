@@ -8,6 +8,9 @@
 .env
 .env.*
 !.env.example
+# Named production overlays are credentials too; never stage from a worktree.
+/production.env
+*.production.env
 *.pem
 *.key
 *.crt

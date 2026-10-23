@@ -9,6 +9,8 @@ backend/.cargo
 **/.env
 **/.env.*
 !**/.env.example
+**/production.env
+**/*.production.env
 **/*.db
 **/*.sqlite
 **/*.sqlite*
