@@ -38,6 +38,40 @@ pub struct AppError {
 /// 集中清理错误详情中的敏感信息（供领域层复用，如 theme/plugins 的告警与
 /// Problem detail）。独立于 `AppError::sanitize_detail`，纯字符串变换。
 pub fn sanitize(detail: &str) -> String {
+    // Fail closed: replacing only a credential marker leaves the value itself in
+    // the response (e.g. `token=abc` -> `[redacted]abc`). If a credential-like
+    // marker occurs, redact the complete detail rather than trying to parse
+    // arbitrary database/HTTP/provider error formats.
+    const SECRET_MARKERS: &[&str] = &[
+        "password=",
+        "password :",
+        "\"password\":",
+        "token=",
+        "\"token\":",
+        "access_token=",
+        "refresh_token=",
+        "secret=",
+        "\"secret\":",
+        "client_secret",
+        "api_key",
+        "apikey",
+        "authorization: bearer ",
+        "x-amz-signature",
+        "x-amz-credential",
+        "x-amz-security-token",
+        "x-goog-signature",
+        "x-goog-credential",
+        "signature=",
+        "begin rsa private key",
+        "begin ec private key",
+        "begin openssh private key",
+        "begin private key",
+    ];
+    let lower = detail.to_ascii_lowercase();
+    if SECRET_MARKERS.iter().any(|marker| lower.contains(marker)) {
+        return "sensitive detail redacted".to_owned();
+    }
+
     let patterns = [
         // 认证/授权凭据
         ("password=", "[redacted]"),
@@ -386,23 +420,30 @@ mod tests {
             "req-1",
         );
         let detail = error.sanitize_detail();
-        assert!(!detail.contains("password="), "password leaked: {detail}");
-        assert!(!detail.contains("token="), "token leaked: {detail}");
-        assert!(!detail.contains("SELECT "), "sql leaked: {detail}");
-        assert!(!detail.contains("FROM "), "sql leaked: {detail}");
-        assert!(!detail.contains("client_secret"), "secret leaked: {detail}");
-        assert!(
-            !detail.contains("X-Amz-Signature"),
-            "signed url leaked: {detail}"
-        );
-        assert!(
-            !detail.contains("BEGIN RSA PRIVATE KEY"),
-            "private key leaked: {detail}"
-        );
-        assert!(
-            !detail.contains("stack backtrace:"),
-            "stack leaked: {detail}"
-        );
+        assert_eq!(detail, "sensitive detail redacted");
+        for secret in ["abc123", "supersecret", "deadbeef", "abcdef"] {
+            assert!(!detail.contains(secret), "secret value leaked: {detail}");
+        }
+    }
+
+    #[test]
+    fn sanitize_removes_values_not_only_credential_markers() {
+        for input in [
+            "Authorization: Bearer abc.def.secret",
+            "token=abc123",
+            "access_token=opaque-token",
+            "X-Amz-Signature=deadbeef",
+            "X-Goog-Credential=private-account",
+            "signature=signing-secret",
+        ] {
+            let safe = sanitize(input);
+            assert!(!safe.contains("abc.def.secret"), "{safe}");
+            assert!(!safe.contains("abc123"), "{safe}");
+            assert!(!safe.contains("opaque-token"), "{safe}");
+            assert!(!safe.contains("deadbeef"), "{safe}");
+            assert!(!safe.contains("private-account"), "{safe}");
+            assert!(!safe.contains("signing-secret"), "{safe}");
+        }
     }
 
     #[test]
