@@ -10,6 +10,10 @@
       "page": "pages/board/board"
     },
     {
+      "action": "allow",
+      "page": "pages/community-rules/community-rules"
+    },
+    {
       "action": "disallow",
       "page": "*"
     }

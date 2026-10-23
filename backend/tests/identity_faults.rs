@@ -136,6 +136,7 @@ fn valid_reg(
         username: username.to_string(),
         email: email.to_string(),
         password: "passw0rd9".to_string(),
+        accepted_community_rules: true,
     })
     .unwrap()
 }

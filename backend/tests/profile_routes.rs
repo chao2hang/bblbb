@@ -116,7 +116,7 @@ async fn register_and_login(app: &Router, tag: &str) -> (String, String) {
         &preauth,
         &preauth_csrf,
         None,
-        Some(json!({ "username": username, "email": email, "password": PASSWORD })),
+        Some(json!({ "username": username, "email": email, "password": PASSWORD, "accepted_community_rules": true })),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "注册必须 201");

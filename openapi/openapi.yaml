@@ -5653,7 +5653,8 @@ paths:
           application/json:
             schema:
               type: object
-              required: [token, username, email, password]
+              additionalProperties: false
+              required: [token, username, email, password, accepted_community_rules]
               properties:
                 token:
                   type: string
@@ -5666,6 +5667,9 @@ paths:
                 password:
                   type: string
                   format: password
+                accepted_community_rules:
+                  type: boolean
+                  const: true
   "/api/v1/admin/feature-flags":
     get:
       tags:
@@ -8541,6 +8545,7 @@ components:
       - username
       - email
       - password
+      - accepted_community_rules
       properties:
         username:
           type: string
@@ -8550,6 +8555,10 @@ components:
         password:
           type: string
           writeOnly: true
+        accepted_community_rules:
+          type: boolean
+          const: true
+          description: Explicitly confirm acceptance of the current community rules.
     AttachmentCreate:
       type: object
       additionalProperties: false

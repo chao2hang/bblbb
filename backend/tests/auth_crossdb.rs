@@ -259,7 +259,7 @@ async fn auth_crossdb_flow(pool: &DatabasePool, app: &Router) {
         "/api/v1/auth/register",
         &preauth,
         &preauth_csrf,
-        json!({ "username": username, "email": email, "password": PASSWORD }),
+        json!({ "username": username, "email": email, "password": PASSWORD, "accepted_community_rules": true }),
         IP,
     )
     .await;
@@ -272,7 +272,7 @@ async fn auth_crossdb_flow(pool: &DatabasePool, app: &Router) {
         "/api/v1/auth/register",
         &preauth,
         &preauth_csrf,
-        json!({ "username": format!("{}_2", username), "email": email, "password": PASSWORD }),
+        json!({ "username": format!("{}_2", username), "email": email, "password": PASSWORD, "accepted_community_rules": true }),
         IP,
     )
     .await;

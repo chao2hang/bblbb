@@ -89,7 +89,7 @@ async function register(username, email) {
   const resp = await api('POST', '/api/v1/auth/register', {
     jar,
     token,
-    body: { username, email, password: PASSWORD }
+    body: { username, email, password: PASSWORD, accepted_community_rules: true }
   });
   if (resp.status !== 201 && resp.status !== 200) {
     throw new Error(`register ${username} failed: ${resp.status} ${JSON.stringify(resp.body)}`);

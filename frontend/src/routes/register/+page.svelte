@@ -32,7 +32,7 @@
   let showConfirmPassword = $state(false);
 
   /** M18-MISC-01：同意社区规则（对齐原型表单控件）。 */
-  let agreed = $state(true);
+  let agreed = $state(false);
 
   $effect(() => {
     if (form?.message) {
@@ -222,9 +222,12 @@
             <!-- M18-MISC-01：对齐原型注册页「我已阅读并同意 社区规则」 -->
             <div class="agreement-wrapper">
               <label class="agreement-label" for="reg-agree">
-                <input type="checkbox" id="reg-agree" name="agree" bind:checked={agreed} class="agreement-checkbox" />
-                <span>我已阅读并同意 <a href="/posts/rules" class="rules-link" target="_blank" rel="noopener">社区规则</a></span>
+                <input type="checkbox" id="reg-agree" name="agree" bind:checked={agreed} class="agreement-checkbox" aria-invalid={form?.fieldErrors?.agree ? 'true' : undefined} aria-describedby={form?.fieldErrors?.agree ? 'reg-agree-error' : undefined} />
+                <span>我已阅读并同意 <a href="/community-rules" class="rules-link" target="_blank" rel="noopener">社区规则</a></span>
               </label>
+              {#if form?.fieldErrors?.agree}
+                <p class="input-hint is-error" id="reg-agree-error" role="alert">{form.fieldErrors.agree}</p>
+              {/if}
             </div>
 
             <div class="submit-wrap">

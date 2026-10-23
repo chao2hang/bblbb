@@ -77,7 +77,7 @@ else
   CSRF="$(req GET /api/v1/auth/csrf | json_field "['token']")"
   [[ -n "$CSRF" ]] && ok "预认证 CSRF token" || bad "CSRF token 获取失败"
   REG_HTTP="$(http_status POST "$BASE_URL/api/v1/auth/register" -H "X-CSRF-Token: $CSRF" -H "Content-Type: application/json" \
-    --data "{\"username\":\"$USERNAME\",\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")"
+    --data "{\"username\":\"$USERNAME\",\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"accepted_community_rules\":true}")"
   [[ "$REG_HTTP" == "201" || "$REG_HTTP" == "200" ]] && ok "注册 $USERNAME → $REG_HTTP" || bad "注册 → $REG_HTTP"
 fi
 # 登录（预认证 CSRF 在 cookie jar 中；无 DB 时也先取 CSRF）

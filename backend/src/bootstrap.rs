@@ -483,7 +483,10 @@ async fn run_in_tx(
         .with_effective_role("administrator")
         .with_reason("bootstrap first administrator")
         .with_policy_version(AUTHZ_POLICY_VERSION)
-        .with_metadata(json!({ "username": input.username }))
+        .with_metadata(json!({
+            "username": input.username,
+            "community_rules_version": "v1"
+        }))
         .record_in_tx(tx)
         .await
         .map_err(|e| e.to_string())?;

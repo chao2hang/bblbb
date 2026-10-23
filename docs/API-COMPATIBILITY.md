@@ -47,6 +47,10 @@ v1 TS 类型并保持 `--check` 可复现。
 
 - v1 契约的任何破坏性变更需要：变更提案（改动点、影响面、迁移计划）+
   主代理/契约 owner 批准，批准记录写入 CHANGELOG 与 coverage evidence。
+- 本审计获得的单项批准：`/api/v1/auth/register` 与 `/api/v1/auth/bootstrap`
+  新增必填 `accepted_community_rules: true`；旧客户端若不提交同意将收到验证失败。
+  必须先升级调用端/页面并告知用户，再部署启用该要求的服务版本；这项批准不自动豁免
+  其他冻结规则，也不表示已通过发布验证。
 - 错误码、权限、状态机的增删必须与本文件 §2/§3 一致，并同步
   `ERROR-CODES.md`、`PERMISSION-MATRIX.md`、`STATE-MACHINES.md` 三份注册表。
 - 未经批准的语义差异会让 CI 中的 `check-openapi.rb`、

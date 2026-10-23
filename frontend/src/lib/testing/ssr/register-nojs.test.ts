@@ -23,6 +23,9 @@ describe('无 JS：注册页服务端表单（M02-UX-01）', () => {
     expect(body).toContain('name="email"');
     expect(body).toContain('name="password"');
     expect(body).toContain('name="confirm"');
+    const agreeInput = body.match(/<input\b[^>]*>/g)?.find((tag) => tag.includes('id="reg-agree"'));
+    expect(agreeInput).toContain('type="checkbox"');
+    expect(agreeInput).not.toMatch(/\schecked(?:\s|=|>)/);
   });
 
   it('SSR HTML 不渲染成功面板（初始无 ok 状态）', () => {

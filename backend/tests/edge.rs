@@ -233,7 +233,7 @@ async fn problem_response_carries_request_id_and_instance() {
                 .header(header::CONTENT_TYPE, "application/json")
                 .header("x-request-id", "edge-test-001")
                 .body(Body::from(
-                    br#"{"username":"alice_test","email":"a@b.com","password":"password123"}"#
+                    br#"{"username":"alice_test","email":"a@b.com","password":"password123","accepted_community_rules":true}"#
                         .to_vec(),
                 ))
                 .unwrap(),

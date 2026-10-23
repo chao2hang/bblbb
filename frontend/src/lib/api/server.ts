@@ -24,6 +24,7 @@ export interface RegisterViaServerInput {
   username: string;
   email: string;
   password: string;
+  accepted_community_rules: true;
 }
 
 export type RegisterServerResult =
@@ -192,7 +193,7 @@ async function postWithCsrf(
 
 /**
  * POST /api/v1/auth/register（M02-UX-01）。
- *
+ * The accepted rules version is explicit and validated by the backend.
  * 后端对“用户名/邮箱已存在”返回与成功一致的 201 {ok:true}（防枚举，
  * M02-IDENTITY-05），因此冲突时同样返回 ok:true——统一账号冲突提示。
  */

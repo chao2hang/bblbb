@@ -2,6 +2,29 @@
   padding-top: 32rpx;
 }
 
+.agreement {
+  margin-top: 24rpx;
+}
+
+.agreement-row {
+  display: flex;
+  align-items: center;
+}
+
+.agreement-label {
+  display: flex;
+  align-items: center;
+  color: var(--ink-2);
+  font-size: 26rpx;
+}
+
+.rules-link {
+  margin-left: 8rpx;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 4rpx;
+}
+
 .reg-login {
   text-align: center;
   margin-top: 28rpx;

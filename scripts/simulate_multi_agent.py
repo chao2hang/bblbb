@@ -183,7 +183,8 @@ class SimulationSuiteRound2:
             res = client.request("POST", "/api/v1/auth/register", json={
                 "username": reserved,
                 "email": f"{reserved}@example.com",
-                "password": UNIFIED_PASSWORD
+                "password": UNIFIED_PASSWORD,
+                "accepted_community_rules": True
             })
             self.assert_true(
                 res.status_code in [400, 422],
@@ -196,7 +197,8 @@ class SimulationSuiteRound2:
         res_weak = client.request("POST", "/api/v1/auth/register", json={
             "username": f"user_{uuid.uuid4().hex[:8]}",
             "email": f"test_{uuid.uuid4().hex[:8]}@example.com",
-            "password": "123"
+            "password": "123",
+            "accepted_community_rules": True
         })
         self.assert_true(
             res_weak.status_code in [400, 422],
@@ -211,7 +213,8 @@ class SimulationSuiteRound2:
         res_reg = client.request("POST", "/api/v1/auth/register", json={
             "username": test_uname,
             "email": test_email,
-            "password": UNIFIED_PASSWORD
+            "password": UNIFIED_PASSWORD,
+            "accepted_community_rules": True
         })
         self.assert_true(
             res_reg.status_code == 201,
@@ -224,7 +227,8 @@ class SimulationSuiteRound2:
         res_dup = client.request("POST", "/api/v1/auth/register", json={
             "username": test_uname,
             "email": f"other_{test_email}",
-            "password": UNIFIED_PASSWORD
+            "password": UNIFIED_PASSWORD,
+            "accepted_community_rules": True
         })
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
@@ -824,7 +828,8 @@ class SimulationSuiteRound2:
             return client.request("POST", "/api/v1/auth/register", json={
                 "username": shared_username,
                 "email": shared_email,
-                "password": UNIFIED_PASSWORD
+                "password": UNIFIED_PASSWORD,
+                "accepted_community_rules": True
             })
 
         with ThreadPoolExecutor(max_workers=5) as executor:

@@ -12,13 +12,13 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { registerViaServer } from '$lib/api/server';
-import { validateRegistration } from '$lib/validation';
+import { validateRegistration, type RegistrationActionField } from '$lib/validation';
 
 export interface RegisterActionData {
   ok?: boolean;
   message?: string;
   requestId?: string | null;
-  fieldErrors?: Partial<Record<'username' | 'email' | 'password' | 'confirm', string>>;
+  fieldErrors?: Partial<Record<RegistrationActionField, string>>;
   values?: { username: string; email: string };
 }
 
@@ -29,8 +29,10 @@ export const actions: Actions = {
     const email = String(form.get('email') ?? '').trim();
     const password = String(form.get('password') ?? '');
     const confirm = String(form.get('confirm') ?? '');
+    const agreed = form.get('agree') === 'on';
 
-    const fieldErrors = validateRegistration({ username, email, password, confirm });
+    const fieldErrors: Partial<Record<RegistrationActionField, string>> = validateRegistration({ username, email, password, confirm });
+    if (!agreed) fieldErrors.agree = '请先阅读并同意社区规则';
     if (Object.keys(fieldErrors).length > 0) {
       return fail(422, {
         message: '请修正表单中标红的字段',
@@ -42,7 +44,7 @@ export const actions: Actions = {
     try {
       const result = await registerViaServer(
         cookies,
-        { username, email, password },
+        { username, email, password, accepted_community_rules: true },
         request.headers.get('x-request-id')
       );
       if (result.ok) return { ok: true } satisfies RegisterActionData;

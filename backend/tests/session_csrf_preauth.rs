@@ -322,6 +322,7 @@ async fn register_requires_preauth_csrf() {
         "username": "grace",
         "email": "grace@example.com",
         "password": "passw0rd9",
+        "accepted_community_rules": true,
     });
     let plain = app
         .clone()
@@ -358,6 +359,68 @@ async fn register_requires_preauth_csrf() {
         .await
         .unwrap();
     assert_eq!(with_csrf.status(), StatusCode::CREATED);
+
+    close_pool(&pool).await;
+    cleanup(&dir);
+}
+
+#[tokio::test]
+async fn register_requires_explicit_community_rules_consent() {
+    let (pool, dir) = pool_with_migrations().await;
+    let app = build_router(AppConfig::default(), Some(pool.clone()));
+
+    for (email, consent) in [
+        ("missing@example.com", None),
+        ("declined@example.com", Some(false)),
+    ] {
+        let (cookie, csrf) = common::fetch_preauth(&app).await;
+        let mut body = json!({
+            "username": format!("consent{}", email.split('@').next().unwrap()),
+            "email": email,
+            "password": "passw0rd9"
+        });
+        if let Some(value) = consent {
+            body["accepted_community_rules"] = json!(value);
+        }
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/register")
+                    .header("content-type", "application/json")
+                    .header("cookie", cookie.split(';').next().unwrap())
+                    .header("x-csrf-token", csrf)
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let (cookie, csrf) = common::fetch_preauth(&app).await;
+    let accepted = json!({
+        "username": "consent-accepted",
+        "email": "accepted@example.com",
+        "password": "passw0rd9",
+        "accepted_community_rules": true
+    });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/register")
+                .header("content-type", "application/json")
+                .header("cookie", cookie.split(';').next().unwrap())
+                .header("x-csrf-token", csrf)
+                .body(Body::from(accepted.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     close_pool(&pool).await;
     cleanup(&dir);

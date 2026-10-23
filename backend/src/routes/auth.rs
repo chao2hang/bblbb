@@ -269,10 +269,16 @@ async fn register(
 ) -> Result<(StatusCode, Json<Value>), AppError> {
     let request_id = "register";
 
+    // 服务端权威要求明确的社区规则版本同意（不能信任客户端 disabled 按钮）。
+    let validation = if req.accepted_community_rules {
+        validate_register(&req)
+    } else {
+        Err(crate::domain::registration::RegisterValidationError::CommunityRulesRequired)
+    };
     // 领域校验（M02-IDENTITY-03）→ 422 `validation_failed` + 字段级
     // errors[]（field/message_key），前端按字段渲染中文提示（契约
     // /auth/register 仅声明 201/422/429，不再返回 400 bad_request）。
-    let registration = validate_register(&req).map_err(|e| {
+    let registration = validation.map_err(|e| {
         AppError::with_code(
             StatusCode::UNPROCESSABLE_ENTITY,
             "validation_failed",
@@ -370,6 +376,8 @@ pub struct BootstrapRequest {
     pub username: String,
     pub email: String,
     pub password: String,
+    #[serde(default)]
+    pub accepted_community_rules: bool,
 }
 
 /// bootstrap 端点限流：每 IP 5 次 / 小时（防 token 暴力猜测）。
@@ -430,11 +438,12 @@ async fn bootstrap_admin(
         ));
     }
 
-    // 注册形状校验 + 规范化（与 /auth/register 同规则同错误形状）。
+    // 注册形状与同意校验 + 规范化（与 /auth/register 同规则同错误形状）。
     let registration = validate_register(&RegisterRequest {
         username: req.username.clone(),
         email: req.email.clone(),
         password: req.password.clone(),
+        accepted_community_rules: req.accepted_community_rules,
     })
     .map_err(|e| {
         AppError::with_code(

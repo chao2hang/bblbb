@@ -5,6 +5,7 @@
 // 后端英文 detail 直接展示给用户。规则漂移时以后端为准并同步本文件。
 
 export type RegisterField = 'username' | 'email' | 'password' | 'confirm';
+export type RegistrationActionField = RegisterField | 'agree';
 
 export interface RegistrationInput {
   username: string;

@@ -21,6 +21,7 @@ export interface RegisterRequest {
   username: string;
   email: string;
   password: string;
+  accepted_community_rules: true;
 }
 export interface AttachmentCreate {
   filename: string;
@@ -130,7 +131,7 @@ export interface LoginRequest {
   remember?: boolean;
 }
 export interface LoginMfaChallenge {
-  mfa_required: boolean;
+  mfa_required: true;
   challenge_token: string;
   passkey_available: boolean;
 }
@@ -406,7 +407,7 @@ export interface ReAuthRequest {
 }
 export interface RecoveryCodesResult {
   codes: Array<string>;
-  only_shown_once: boolean;
+  only_shown_once: true;
 }
 export interface CsrfToken {
   token: string;

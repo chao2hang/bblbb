@@ -27,6 +27,24 @@ afterEach(() => {
 });
 
 describe('字段校验（与后端规则一致，$lib/validation）', () => {
+  it('缺少社区规则同意 → 422 且不调用注册服务', async () => {
+    const result = (await actions.default(
+      actionEvent({ username: 'alice', email: 'a@example.com', password: 'secret99', confirm: 'secret99' })
+    )) as { status: number; data: RegisterActionData };
+    expect(result.status).toBe(422);
+    expect(result.data.fieldErrors?.agree).toBe('请先阅读并同意社区规则');
+    expect(registerViaServerMock).not.toHaveBeenCalled();
+  });
+
+  it('明确同意社区规则后才调用注册服务', async () => {
+    registerViaServerMock.mockResolvedValueOnce({ ok: true });
+    const result = await actions.default(
+      actionEvent({ username: 'alice', email: 'a@example.com', password: 'secret99', confirm: 'secret99', agree: 'on' })
+    );
+    expect(result).toEqual({ ok: true });
+    expect(registerViaServerMock).toHaveBeenCalledTimes(1);
+  });
+
   it('两次密码不一致 → 422 且 confirm 字段错误', async () => {
     const result = (await actions.default(
       actionEvent({ username: 'alice', email: 'a@example.com', password: 'secret99', confirm: 'different9' })
@@ -52,12 +70,12 @@ describe('代理调用与错误映射', () => {
   it('有效表单 → 调 registerViaServer（转发 X-Request-ID）→ ok', async () => {
     registerViaServerMock.mockResolvedValueOnce({ ok: true });
     const result = await actions.default(
-      actionEvent({ username: 'alice', email: 'a@example.com', password: 'secret99', confirm: 'secret99' }, 'req-1')
+      actionEvent({ username: 'alice', email: 'a@example.com', password: 'secret99', confirm: 'secret99', agree: 'on' }, 'req-1')
     );
     expect(result).toEqual({ ok: true });
     expect(registerViaServerMock).toHaveBeenCalledTimes(1);
     const [cookies, input, requestId] = registerViaServerMock.mock.calls[0];
-    expect(input).toEqual({ username: 'alice', email: 'a@example.com', password: 'secret99' });
+    expect(input).toEqual({ username: 'alice', email: 'a@example.com', password: 'secret99', accepted_community_rules: true });
     expect(requestId).toBe('req-1');
     expect(cookies.get).toBeTypeOf('function');
   });
@@ -70,7 +88,7 @@ describe('代理调用与错误映射', () => {
       requestId: 'rid-9'
     });
     const result = (await actions.default(
-      actionEvent({ username: 'bob', email: 'b@example.com', password: 'secret99', confirm: 'secret99' })
+      actionEvent({ username: 'bob', email: 'b@example.com', password: 'secret99', confirm: 'secret99', agree: 'on' })
     )) as { status: number; data: RegisterActionData };
     expect(result.status).toBe(429);
     expect(result.data.message).toContain('操作过于频繁');
@@ -81,7 +99,7 @@ describe('代理调用与错误映射', () => {
   it('代理抛错（后端不可达）→ fail(503) 统一文案', async () => {
     registerViaServerMock.mockRejectedValueOnce(new Error('connect refused'));
     const result = (await actions.default(
-      actionEvent({ username: 'carol', email: 'c@example.com', password: 'secret99', confirm: 'secret99' })
+      actionEvent({ username: 'carol', email: 'c@example.com', password: 'secret99', confirm: 'secret99', agree: 'on' })
     )) as { status: number; data: RegisterActionData };
     expect(result.status).toBe(503);
     expect(result.data.message).toBe('注册服务暂时不可用，请稍后重试');

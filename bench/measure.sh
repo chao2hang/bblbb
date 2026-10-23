@@ -89,7 +89,7 @@ if ! sqlite3 "$DB" "SELECT 1 FROM users WHERE username_normalized='$LOGIN_USER';
   PRE_COOKIE="$(awk '/csrf/{print $7}' "$PID_DIR/pre.jar" | head -1)"
   PRE_TOKEN="$(printf '%s' "$PRE" | ruby -rjson -e 'puts JSON.parse(STDIN.read)["token"]')"
   curl -s -b "$PID_DIR/pre.jar" -H "Content-Type: application/json" -H "X-CSRF-Token: $PRE_TOKEN" \
-    -d "{\"username\":\"$LOGIN_USER\",\"email\":\"$LOGIN_USER@example.com\",\"password\":\"benchmark-password-123\"}" \
+    -d "{\"username\":\"$LOGIN_USER\",\"email\":\"$LOGIN_USER@example.com\",\"password\":\"benchmark-password-123\",\"accepted_community_rules\":true}" \
     -X POST "http://127.0.0.1:$BACKEND_PORT/api/v1/auth/register" >/dev/null || true
   VERIFY_TOKEN="$(sqlite3 "$DB" "SELECT token_hash FROM email_verification_tokens WHERE user_id=(SELECT id FROM users WHERE username_normalized='$LOGIN_USER') ORDER BY created_at DESC LIMIT 1;")"
   # verify-email 需要原始 token（DB 存哈希）——改用直接置为已验证。

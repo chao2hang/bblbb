@@ -222,7 +222,8 @@ async fn test_randomize_nickname_and_blacklist_enforcement() {
             json!({
                 "username": "涉政违规昵称_999",
                 "email": "another_bad@example.com",
-                "password": "Password1234"
+                "password": "Password1234",
+                "accepted_community_rules": true
             })
             .to_string(),
         ))

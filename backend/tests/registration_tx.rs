@@ -71,6 +71,7 @@ fn valid_reg(
         username: username.to_string(),
         email: email.to_string(),
         password: "passw0rd9".to_string(),
+        accepted_community_rules: true,
     })
     .unwrap()
 }
@@ -88,6 +89,7 @@ async fn post_register(
         "username": username,
         "email": email,
         "password": "passw0rd9",
+        "accepted_community_rules": true,
     });
     app.clone()
         .oneshot(

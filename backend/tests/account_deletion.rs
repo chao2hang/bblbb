@@ -80,7 +80,7 @@ async fn setup_user(app: &Router, pool: &DatabasePool, tag: &str) -> (String, St
                 .header("x-csrf-token", preauth_csrf)
                 .header("cookie", preauth)
                 .body(Body::from(
-                    json!({ "username": username, "email": email, "password": PASSWORD })
+                    json!({ "username": username, "email": email, "password": PASSWORD, "accepted_community_rules": true })
                         .to_string(),
                 ))
                 .unwrap(),

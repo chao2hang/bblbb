@@ -151,7 +151,7 @@ async fn post_register(
 ) -> axum::response::Response {
     // M02-SESSION-08：注册属预认证写路径，必须先获取匿名预认证 CSRF 状态
     let (cookie, csrf) = common::fetch_preauth(app).await;
-    let body = json!({ "username": username, "email": email, "password": "passw0rd9" });
+    let body = json!({ "username": username, "email": email, "password": "passw0rd9", "accepted_community_rules": true });
     app.clone()
         .oneshot(
             Request::builder()

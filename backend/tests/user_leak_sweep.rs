@@ -112,7 +112,7 @@ async fn register_user(app: &Router, tag: &str, password: &str) -> (String, Stri
         "/api/v1/auth/register",
         Some(&preauth),
         Some(&csrf),
-        Some(json!({ "username": username, "email": email, "password": password })),
+        Some(json!({ "username": username, "email": email, "password": password, "accepted_community_rules": true })),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "注册失败: {body}");

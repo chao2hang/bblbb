@@ -228,14 +228,16 @@ async fn bootstrap_token_creates_first_admin_then_locks() {
             "token": "bogus-token-value",
             "username": "rootuser",
             "email": "root@example.com",
-            "password": "password-123"
+            "password": "password-123",
+            "accepted_community_rules": true
         }),
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
-    // 3) 携带有效 token 创建首个 administrator。
-    let (status, body) = anon_post(
+    // Consent is required at the handler boundary and rejection must not consume
+    // a valid bootstrap token.
+    let (status, _) = anon_post(
         &app,
         "/api/v1/auth/bootstrap",
         json!({
@@ -243,6 +245,21 @@ async fn bootstrap_token_creates_first_admin_then_locks() {
             "username": "firstadmin",
             "email": "first-admin@example.com",
             "password": "password-123"
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 3) 携带有效 token 并明确接受规则后创建首个 administrator。
+    let (status, body) = anon_post(
+        &app,
+        "/api/v1/auth/bootstrap",
+        json!({
+            "token": token,
+            "username": "firstadmin",
+            "email": "first-admin@example.com",
+            "password": "password-123",
+            "accepted_community_rules": true
         }),
     )
     .await;
@@ -258,7 +275,8 @@ async fn bootstrap_token_creates_first_admin_then_locks() {
             "token": token,
             "username": "secondadmin",
             "email": "second@example.com",
-            "password": "password-123"
+            "password": "password-123",
+            "accepted_community_rules": true
         }),
     )
     .await;
@@ -563,7 +581,8 @@ async fn anon_post(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) 
     let value: Value = if bytes.is_empty() {
         Value::Null
     } else {
-        serde_json::from_slice(&bytes).unwrap()
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()))
     };
     (status, value)
 }

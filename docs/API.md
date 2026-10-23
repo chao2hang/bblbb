@@ -541,7 +541,7 @@ POST /api/v1/auth/bootstrap    使用一次性 Token 创建首个系统管理员
 ```
 
 - 权限：`public`（免登录）；`x-csrf: false`；支持 `Idempotency-Key`。
-- 请求体：`{ token, username, email, password }`。
+- 请求体：`{ token, username, email, password, accepted_community_rules: true }`；首管理员需明确接受当前社区规则。
 - 仅当系统通过 `bblbb-backend --bootstrap` 离线生成一次性 token（库内仅存 SHA-256 哈希，24h 有效）且当前库内尚无 active administrator 时允许调用。
 - 校验顺序：限流（每 IP 5 次/小时防爆破）→ Token 校验（哈希比对、有效性、未消费）→ 系统管理员唯一性检查 → 单事务创建用户并分配 administrator 角色、消费 Token 并写入审计。
 - 重复初始化或已有管理员返回 409 `conflict`；Token 无效/过期返回 422 `validation_failed`。

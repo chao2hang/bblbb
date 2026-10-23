@@ -17,6 +17,9 @@ pub struct RegisterRequest {
     pub username: String,
     pub email: String,
     pub password: String,
+    /// Explicit assent is required for public self-service registration.
+    #[serde(default)]
+    pub accepted_community_rules: bool,
 }
 
 /// 保留用户名（规范化后大小写不敏感匹配，禁止注册）。
@@ -67,6 +70,8 @@ pub enum RegisterValidationError {
     EmailTooLong,
     /// 邮箱格式非法。
     EmailInvalid,
+    /// 未明确同意社区规则。
+    CommunityRulesRequired,
     /// 密码长度 8..=128。
     PasswordLength,
     /// 密码必须同时包含字母与数字。
@@ -94,6 +99,9 @@ impl std::fmt::Display for RegisterValidationError {
             RegisterValidationError::PasswordLength => {
                 write!(f, "password must be 8..=128 characters")
             }
+            RegisterValidationError::CommunityRulesRequired => {
+                write!(f, "community rules must be accepted")
+            }
             RegisterValidationError::PasswordComplexity => {
                 write!(f, "password must contain both letters and digits")
             }
@@ -115,6 +123,7 @@ impl RegisterValidationError {
             }
             RegisterValidationError::PasswordLength
             | RegisterValidationError::PasswordComplexity => "password",
+            RegisterValidationError::CommunityRulesRequired => "accepted_community_rules",
         }
     }
 
@@ -128,6 +137,7 @@ impl RegisterValidationError {
             RegisterValidationError::EmailInvalid => "email_invalid",
             RegisterValidationError::PasswordLength => "password_length",
             RegisterValidationError::PasswordComplexity => "password_complexity",
+            RegisterValidationError::CommunityRulesRequired => "community_rules_required",
         }
     }
 }
@@ -166,6 +176,10 @@ pub fn validate_register(
     }
     if !valid_email(&email_normalized) {
         return Err(RegisterValidationError::EmailInvalid);
+    }
+
+    if !req.accepted_community_rules {
+        return Err(RegisterValidationError::CommunityRulesRequired);
     }
 
     let password = req.password.as_str();
@@ -212,6 +226,7 @@ mod tests {
             "username": username,
             "email": email,
             "password": password,
+            "accepted_community_rules": true,
         }))
         .unwrap()
     }
@@ -317,9 +332,26 @@ mod tests {
             "username": "alice",
             "email": "a@b.co",
             "password": "passw0rd9",
-            "extra_field": true
+            "extra_field": true,
+            "accepted_community_rules": true
         }));
         assert!(result.is_err(), "未知请求体字段必须使反序列化失败");
+    }
+
+    #[test]
+    fn community_rules_consent_is_required_by_domain_validation() {
+        let mut request: RegisterRequest = serde_json::from_value(json!({
+            "username": "alice",
+            "email": "a@example.com",
+            "password": "secret99"
+        }))
+        .unwrap();
+        assert!(matches!(
+            validate_register(&request),
+            Err(RegisterValidationError::CommunityRulesRequired)
+        ));
+        request.accepted_community_rules = true;
+        assert!(validate_register(&request).is_ok());
     }
 
     #[test]

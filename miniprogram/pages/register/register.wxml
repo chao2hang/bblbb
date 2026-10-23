@@ -28,7 +28,19 @@
           bindconfirm="onSubmit" />
       </view>
 
-      <button class="btn btn-primary btn-block mt-24" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">
+      <view class="agreement">
+        <view class="agreement-row">
+          <checkbox-group bindchange="onRulesConsent">
+            <label class="agreement-label">
+              <checkbox value="accepted_community_rules" checked="{{acceptedCommunityRules}}" color="#E45735" />
+              <text>我已阅读并同意</text>
+            </label>
+          </checkbox-group>
+          <navigator class="rules-link" url="/pages/community-rules/community-rules">《社区规则》</navigator>
+        </view>
+      </view>
+
+      <button class="btn btn-primary btn-block mt-24" loading="{{submitting}}" disabled="{{submitting || !acceptedCommunityRules}}" bindtap="onSubmit">
         注册
       </button>
 

@@ -30,8 +30,13 @@ function loginMfa(challengeToken, { totpCode, recoveryCode }) {
 }
 
 /** 注册（成功 201 {ok:true}；邮箱是否已存在不泄漏） */
-function register(username, password, email) {
-  return post('/api/v1/auth/register', { username, password, email });
+function register(username, password, email, acceptedCommunityRules) {
+  return post('/api/v1/auth/register', {
+    username,
+    password,
+    email,
+    accepted_community_rules: acceptedCommunityRules,
+  });
 }
 
 /** 请求找回密码（统一 202，不泄漏邮箱是否注册） */

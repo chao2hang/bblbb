@@ -1,0 +1,17 @@
+<view class="page">
+  <view class="container">
+    <view class="rules-head">
+      <text class="rules-kicker">BBLBB COMMUNITY</text>
+      <view class="title">社区规则</view>
+      <view class="subtitle mt-16">让讨论有分歧但不失尊重，让内容有价值也有边界。</view>
+      <view class="rules-version">适用于注册与社区参与 · 版本 {{version}}</view>
+    </view>
+
+    <view class="rules-section" wx:for="{{sections}}" wx:key="title">
+      <view class="rules-section-title">{{item.title}}</view>
+      <view class="rules-item" wx:for="{{item.items}}" wx:for-item="rule" wx:key="*this">{{rule}}</view>
+    </view>
+
+    <view class="rules-note">注册即表示你确认已阅读并同意本版本社区规则。规则版本或内容有重要变化时，平台应在产品内告知用户。</view>
+  </view>
+</view>

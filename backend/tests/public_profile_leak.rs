@@ -77,7 +77,7 @@ async fn register_user(app: &Router, username: &str, email: &str) {
                 .header("cookie", preauth)
                 .header("x-forwarded-for", "203.0.113.99")
                 .body(Body::from(
-                    json!({ "username": username, "email": email, "password": PASSWORD })
+                    json!({ "username": username, "email": email, "password": PASSWORD, "accepted_community_rules": true })
                         .to_string(),
                 ))
                 .unwrap(),

@@ -92,7 +92,7 @@ def render_schema(node, schemas, level)
          when "integer", "number"
            "number"
          when "boolean"
-           "boolean"
+           node.key?("const") ? render_const(node["const"]) : "boolean"
          when "null", nil
            "null"
          else
@@ -245,7 +245,7 @@ INDEX
 readme_md = <<~README
   # Frozen v1 API client types
 
-  > 冻结基线：`openapi/openapi.yaml` v1.0.0（2026-08-04 冻结）。
+  > 原始冻结基线：`openapi/openapi.yaml` v1.0.0（2026-08-04 冻结）。2026-10-17 按用户明确批准，对注册/bootstrap 同意字段作单项兼容性破坏变更；批准及迁移要求见 `docs/API-COMPATIBILITY.md` 与 `docs/CHANGELOG.md`。
 
   ## 内容
 
@@ -258,8 +258,8 @@ readme_md = <<~README
   - **禁止手工修改**：这些文件只能由
     `ruby scripts/generate-ts-types.rb` 重新生成；`--check` 模式在 CI 校验
     无漂移（可复现 diff 检查）。
-  - **v1 为冻结版本**：本目录永远对应上一正式发布契约，不做就地变更。
-    破坏性契约变更进入 v2 时必须生成新的
+  - **v1 为冻结版本**：除 CHANGELOG / API-COMPATIBILITY.md 明确批准的单项例外外，本目录对应已发布契约，不得就地变更。
+    未经批准的破坏性契约变更必须进入 v2 并生成新的
     `frontend/src/lib/api/generated/v2/`，保留 v1 目录供向后兼容编译与
     Fixture 测试。
   - 生成文件当前不被 hand-written client（`frontend/src/lib/api/client.ts`）

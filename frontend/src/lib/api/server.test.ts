@@ -111,7 +111,7 @@ describe('registerViaServer（预认证 CSRF + 转发 + 复制）', () => {
 
     const result = await registerViaServer(
       cookies,
-      { username: 'alice', email: 'alice@example.com', password: 'secret9' },
+      { username: 'alice', email: 'alice@example.com', password: 'secret9', accepted_community_rules: true },
       'req-xyz'
     );
 
@@ -133,7 +133,8 @@ describe('registerViaServer（预认证 CSRF + 转发 + 复制）', () => {
     expect(JSON.parse(regInit.body as string)).toEqual({
       username: 'alice',
       email: 'alice@example.com',
-      password: 'secret9'
+      password: 'secret9',
+      accepted_community_rules: true
     });
 
     // 预认证 CSRF Set-Cookie 已复制到浏览器
@@ -151,7 +152,7 @@ describe('registerViaServer（预认证 CSRF + 转发 + 复制）', () => {
 
     const result = await registerViaServer(
       cookies,
-      { username: 'bob', email: 'bob@example.com', password: 'secret9' }
+      { username: 'bob', email: 'bob@example.com', password: 'secret9', accepted_community_rules: true }
     );
     expect(result).toEqual({ ok: true });
 
@@ -187,7 +188,7 @@ describe('registerViaServer（预认证 CSRF + 转发 + 复制）', () => {
 
     const result = await registerViaServer(
       cookies,
-      { username: 'carol', email: 'carol@example.com', password: 'secret9' }
+      { username: 'carol', email: 'carol@example.com', password: 'secret9', accepted_community_rules: true }
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {

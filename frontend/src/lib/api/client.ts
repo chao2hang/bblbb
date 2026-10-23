@@ -294,11 +294,12 @@ export async function register(
   fetchFn: typeof fetch,
   username: string,
   email: string,
-  password: string
+  password: string,
+  acceptedCommunityRules: boolean
 ): Promise<{ ok: boolean }> {
   return request(fetchFn, '/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ username, email, password }),
+    body: JSON.stringify({ username, email, password, accepted_community_rules: acceptedCommunityRules }),
   });
 }
 

@@ -152,7 +152,7 @@ async function main() {
     if (r.status === 401) {
       // 账号不存在（首次运行）→ 注册 + dev 激活
       const reg = await req(jar, 'POST', '/api/v1/auth/register', {
-        body: { username: user, password, email: `${user}@example.com` },
+        body: { username: user, password, email: `${user}@example.com`, accepted_community_rules: true },
         headers: { 'x-csrf-token': csrf, ...wechatHeaders('pages/register/register') },
         expect: 201,
       });
@@ -370,13 +370,8 @@ async function main() {
     const j2 = new Jar();
     await req(j2, 'GET', '/api/v1/auth/csrf');
     const t = (await req(j2, 'GET', '/api/v1/auth/csrf')).data.token;
-    await req(j2, 'POST', '/api/v1/auth/register', {
-      body: { username: 'badorigin_user', password: 'Smoke12345', email: 'badorigin@example.com' },
-      headers: { 'x-csrf-token': t, referer: 'https://evil.example.com/' },
-      expect: 400,
-    });
     const r = await req(j2, 'POST', '/api/v1/auth/register', {
-      body: { username: 'badorigin_user2', password: 'Smoke12345', email: 'badorigin2@example.com' },
+      body: { username: 'badorigin_user2', password: 'Smoke12345', email: 'badorigin2@example.com', accepted_community_rules: true },
       headers: { 'x-csrf-token': t, referer: 'https://evil.example.com/' },
       expect: 400,
     });

@@ -19,6 +19,7 @@ Page({
     email: '',
     password: '',
     confirm: '',
+    acceptedCommunityRules: false,
     submitting: false,
     error: '',
   },
@@ -27,8 +28,13 @@ Page({
     this.setData({ [e.currentTarget.dataset.field]: e.detail.value, error: '' });
   },
 
+  onRulesConsent(e) {
+    const values = e.detail.value || [];
+    this.setData({ acceptedCommunityRules: values.includes('accepted_community_rules'), error: '' });
+  },
+
   validate() {
-    const { username, email, password, confirm } = this.data;
+    const { username, email, password, confirm, acceptedCommunityRules } = this.data;
     const u = username.trim();
     if (!/^[A-Za-z0-9_-]{3,20}$/.test(u)) {
       return '用户名需 3-20 位字母/数字/_/-';
@@ -45,6 +51,9 @@ Page({
     if (password !== confirm) {
       return '两次输入的密码不一致';
     }
+    if (!acceptedCommunityRules) {
+      return '请先阅读并同意社区规则';
+    }
     return '';
   },
 
@@ -57,7 +66,12 @@ Page({
     }
     this.setData({ submitting: true, error: '' });
     try {
-      await api.register(this.data.username.trim(), this.data.password, this.data.email.trim());
+      await api.register(
+        this.data.username.trim(),
+        this.data.password,
+        this.data.email.trim(),
+        this.data.acceptedCommunityRules
+      );
       wx.showModal({
         title: '注册成功',
         content: '账号已创建。若服务器配置了邮件服务，请按验证邮件完成邮箱验证后即可发帖评论。现在去登录吧。',

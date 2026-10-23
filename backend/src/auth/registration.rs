@@ -113,6 +113,7 @@ pub async fn register_user(
     AuditEntry::user_action(&user_id, "auth.register")
         .with_target("user", &user_id)
         .with_request_id(request_id)
+        .with_metadata(json!({ "community_rules_version": "v1" }))
         .record_in_tx(&mut tx)
         .await
         .map_err(RegisterUserError::Database)?;
