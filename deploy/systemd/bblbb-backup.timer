@@ -4,7 +4,6 @@
 # journald，配合「备份失败/超时未成功」告警（deploy/monitoring/alerts.md）。
 [Unit]
 Description=BBLBB daily backup timer
-Requires=bblbb-backup.service
 
 [Timer]
 OnCalendar=*-*-* 02:30:00

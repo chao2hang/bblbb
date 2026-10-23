@@ -10,6 +10,8 @@ Description=BBLBB backend HTTP server
 Documentation=https://github.com/bblbb/bblbb/blob/main/docs/OPERATIONS.md
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -19,14 +21,18 @@ Group=bblbb
 WorkingDirectory=/opt/bblbb/current
 ExecStart=/opt/bblbb/current/backend/bblbb-backend
 EnvironmentFile=/etc/bblbb/backend.env
-# Secret 只经 systemd credentials 注入，不写入 EnvironmentFile
-LoadCredential=bbllbb-master-key:/etc/bblbb/secrets/master-key
-LoadCredential=oidc-key-encryption:/etc/bblbb/secrets/oidc-key-encryption
-LoadCredential=mfa-encryption:/etc/bblbb/secrets/mfa-encryption
-LoadCredential=marketplace-webhook-encryption:/etc/bblbb/secrets/marketplace-webhook-encryption
-LoadCredential=smtp-pass:/etc/bblbb/secrets/smtp-pass
-LoadCredential=s3-access-key:/etc/bblbb/secrets/s3-access-key
-LoadCredential=s3-secret-key:/etc/bblbb/secrets/s3-secret-key
+Environment=BBLBB__SECRETS_SYSTEMD_UNIT=bblbb-backend
+# Secret 只经 systemd credentials 注入，不写入 EnvironmentFile。
+# credential 名称与 AppConfig secret 字段保持一致。
+LoadCredential=settings_encryption_key:/etc/bblbb/secrets/settings_encryption_key
+# Optional credentials use the leading '-' before the credential name.
+LoadCredential=-oidc_key_encryption_key:/etc/bblbb/secrets/oidc_key_encryption_key
+LoadCredential=-mfa_encryption_key:/etc/bblbb/secrets/mfa_encryption_key
+LoadCredential=-marketplace_webhook_encryption_key:/etc/bblbb/secrets/marketplace_webhook_encryption_key
+LoadCredential=-s3_access_key_id:/etc/bblbb/secrets/s3_access_key_id
+LoadCredential=-s3_secret_access_key:/etc/bblbb/secrets/s3_secret_access_key
+LoadCredential=-s3_session_token:/etc/bblbb/secrets/s3_session_token
+LoadCredential=-mail_relay_token:/etc/bblbb/secrets/mail_relay_token
 
 # ── 加固 ────────────────────────────────────────────────────
 NoNewPrivileges=true
@@ -41,7 +47,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictRealtime=true
 MemoryDenyWriteExecute=true
 # Secret 目录只读
-BindReadOnlyPaths=/etc/bblbb
+BindReadOnlyPaths=/etc/bblbb/backend.env
 
 # ── 优雅停机（M15-UPGRADE-06）──────────────────────────────
 TimeoutStopSec=30
@@ -49,8 +55,6 @@ KillSignal=SIGTERM
 # 重启策略：崩溃自动拉起；反复崩溃进入 failed 由监控告警
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

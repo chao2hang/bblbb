@@ -10,11 +10,13 @@ Description=BBLBB SvelteKit frontend SSR server
 Documentation=https://github.com/bblbb/bblbb/blob/main/docs/OPERATIONS.md
 After=network-online.target bblbb-backend.service
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
-User=bblbb
-Group=bblbb
+User=bblbb-frontend
+Group=bblbb-frontend
 WorkingDirectory=/opt/bblbb/current/frontend
 EnvironmentFile=/etc/bblbb/frontend.env
 # adapter-node 默认读取 PORT/HOST；生产强制 loopback
@@ -28,22 +30,22 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/bblbb
+StateDirectory=bblbb-frontend
+StateDirectoryMode=0700
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictRealtime=true
-# 前端不需要读 Secret 目录（只读挂载排除）
-BindReadOnlyPaths=/etc/bblbb
+# 仅 bind 明确的非 Secret 配置文件；Secret 目录不暴露给前端进程。
+BindReadOnlyPaths=/etc/bblbb/frontend.env
+InaccessiblePaths=/etc/bblbb/backend.env /etc/bblbb/secrets
 
 # ── 优雅停机 ───────────────────────────────────────────────
 TimeoutStopSec=15
 KillSignal=SIGTERM
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

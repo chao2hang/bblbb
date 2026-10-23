@@ -1,6 +1,8 @@
 # bblbb-backup.service — 每日备份（M15-BACKUP-05）
 #
 # root 执行（备份产物应用账号 bblbb 不可删除）；不定义 User=
+# 此 SQLite/local-storage timer 不支持 S3 对象数据备份；S3 部署必须禁用此 unit，直至对象级备份落地。
+# 必须配置外部 retention job 标识并确认容量告警，否则 daily.sh 会拒绝执行。
 [Unit]
 Description=BBLBB daily backup (sqlite + manifest + attachments)
 After=network-online.target
@@ -8,6 +10,10 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+UMask=0077
+# Backend environment is non-secret config only; loading it makes the timer reject S3 mode below.
+EnvironmentFile=/etc/bblbb/backend.env
+EnvironmentFile=/etc/bblbb/backup.env
 ExecStart=/opt/bblbb/current/ops/backup/daily.sh \
   --db /var/lib/bblbb/database/bblbb.db \
   --storage /var/lib/bblbb/uploads \
