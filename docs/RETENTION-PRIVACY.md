@@ -44,7 +44,7 @@ AI Provider、视频来源、S3、SMTP 的外部请求必须按来源策略记�
 
 - 命令级隐私生命周期流程见 `ops/runbooks/privacy-lifecycle.md`
   （数据导出、注销匿名化、30 天删除、法律保留、恢复误删）。
-- 备份保留策略：`ops/backup/daily.sh` 默认保留 14 天；备份/恢复不影响
+- `ops/backup/daily.sh` 暂停自动备份清理（`--keep-days` 目前仅兼容并提示）；容量管理需由操作员评估完整备份集。备份/恢复不影响
   legal_hold（`users.legal_hold_at` 在备份恢复后保留，30 天 hard delete
   对 legal hold 用户跳过）。
 - 备份内容（`ops/backup/manifest.sh`）不含 Secret 值；OIDC 主密钥与数据库

@@ -199,7 +199,11 @@ community.example.com {
 
 ### MySQL/MariaDB
 
-使用一致性 dump/物理备份和 binlog 策略，记录工具版本；MariaDB 与 MySQL 恢复分别测试。
+业务代码支持 MySQL/MariaDB，但当前 `deploy/scripts/release.sh` 的发布前备份与迁移编排仅允许 SQLite DSN，且 `ops/backup/daily.sh` 只实现 SQLite。MySQL/MariaDB 部署不得使用此发布/定时备份路径；需先提供并验证一致性 dump/物理备份、binlog 策略和独立迁移演练，记录工具版本，并分别在隔离环境完成恢复测试。
+
+`ops/backup/daily.sh` 当前保留 `--keep-days` / `BBLBB_BACKUP_KEEP_DAYS` 参数以兼容既有调用，但自动清理已暂停；该参数暂时仅作为提示，不会删除备份。此举避免对历史 root-level 同名文件或不完整备份集误删。由于定时任务会持续生成 DB 与附件完整集，systemd timer 必须配置 `/etc/bblbb/backup.env` 中的 `BBLBB_BACKUP_RETENTION_POLICY=<external-policy-id>`，并在启用 timer 前验证外部策略按完整集合清理且磁盘容量告警有效。该标识只代表责任方声明，不会由脚本证明外部策略真实有效；无外部清理/告警证据时不得启用 timer。
+
+本地附件归档预检默认限制 100,000 个普通文件及 10 GiB 未压缩字节；可通过 `BBLBB_BACKUP_MAX_ATTACHMENT_FILES`、`BBLBB_BACKUP_MAX_ATTACHMENT_BYTES` 调整。备份卷默认要求至少保留 256 MiB 空闲空间，可通过 `BBLBB_BACKUP_MIN_ATTACHMENT_FREE_BYTES` 设置阈值。扫描不跟随符号链接。每日任务使用 `flock` 防止并发执行，附件归档以同目录硬链接 no-clobber 发布，并逐对象比对 SQLite 快照 manifest 的 size/hash；若存储在生成 manifest 与归档期间变化，该次备份失败而不发布不匹配的 archive。存储相对于数据库快照仍可能包含新增对象（比如未被快照引用的上传），一致性校验只保证归档和 manifest 相符，不代替数据库/存储系统级原子快照。磁盘容量和实际 tar/gzip 压缩后大小仍需由监控/运维预算保证。
 
 ## 11. 恢复流程
 
