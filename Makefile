@@ -166,7 +166,17 @@ check-roadmap: ## 路线图校验
 	fi
 
 ##@ 测试
-test: test-backend test-frontend test-prototype ## 运行全部测试
+test: test-backend test-frontend test-prototype test-ops-safety ## 运行全部测试
+
+test-ops-safety: ## 隔离运行备份/恢复/发布/systemd 守卫合成测试（需要 sqlite3、Python 3、GNU tar/gzip、flock、systemd-analyze）
+	@printf "$(GREEN)>>> [test-ops-safety] synthetic backup/release safety suite$(RESET)\n"
+	@bash ops/tests/test-backup-restore.sh
+	@bash ops/tests/test-daily-backup-safety.sh
+	@PYTHONDONTWRITEBYTECODE=1 python3 -B ops/tests/test-attachment-archive-race.py ops/backup/archive-attachments.py
+	@bash ops/tests/test-release-digest-guard.sh
+	@bash deploy/tests/test-release-service-state.sh
+	@bash deploy/tests/test-safe-release-archive.sh
+	@bash deploy/tests/test-systemd-units.sh
 
 test-backend: ## 后端测试
 	@printf "$(GREEN)>>> [test-backend] cargo test --all-features$(RESET)\n"
@@ -195,27 +205,33 @@ build-frontend: ## 前端构建
 ##@ 数据库迁移
 migrate: migrate-sqlite ## 应用迁移（默认 SQLite）
 
-migrate-sqlite: ## 应用 SQLite 迁移到空库
+migrate-sqlite: ## 应用 SQLite 迁移到新库（拒绝覆盖已有文件）
 	@printf "$(GREEN)>>> [migrate-sqlite] 应用 SQLite 迁移$(RESET)\n"
 	@DB=$${BBLBB_DB:-/tmp/bblbb.sqlite}; \
-		rm -f $$DB; \
+		DB_DIR=$$(dirname "$$DB"); \
+		mkdir -p "$$DB_DIR"; \
+		if [ -e "$$DB" ] || [ -L "$$DB" ]; then echo "拒绝覆盖已有数据库路径: $$DB" >&2; exit 1; fi; \
+		( set -o noclobber; : > "$$DB" ) || { echo "无法独占创建数据库: $$DB" >&2; exit 1; }; \
 		for f in $(MIGRATIONS_DIR)/sqlite/*.sql; do \
 			echo "  applying: $$f"; \
-			sqlite3 -bail $$DB < $$f || { printf "$(RED)FAILED: $$f$(RESET)\n"; exit 1; }; \
+			sqlite3 -bail "$$DB" < "$$f" || { printf "$(RED)FAILED: $$f$(RESET)\n"; exit 1; }; \
 		done; \
 		echo "  foreign key check:"; \
-		sqlite3 $$DB 'PRAGMA foreign_key_check;'; \
+		sqlite3 "$$DB" 'PRAGMA foreign_key_check;'; \
 		printf "$(GREEN)  SQLite 迁移完成: $$DB$(RESET)\n"
 
-migrate-check-sqlite: ## 检查 SQLite 迁移（不应用）
+migrate-check-sqlite: ## 检查 SQLite 迁移（使用独立临时库，不触碰 BBLBB_DB）
 	@printf "$(GREEN)>>> [migrate-check-sqlite] 检查迁移$(RESET)\n"
-	@DB=$${BBLBB_DB:-/tmp/bblbb-check.sqlite}; \
-		rm -f $$DB; \
+	@TMP_PARENT=$${TMPDIR:-/tmp}; \
+		DB_DIR=$$(mktemp -d "$$TMP_PARENT/bblbb-migrate-check.XXXXXX") || exit 1; \
+		case "$$DB_DIR" in "$$TMP_PARENT"/bblbb-migrate-check.*) ;; *) echo "拒绝清理非预期临时目录" >&2; exit 1;; esac; \
+		DB="$$DB_DIR/check.sqlite"; \
+		cleanup() { case "$$DB_DIR" in "$$TMP_PARENT"/bblbb-migrate-check.*) rm -f "$$DB" && rmdir "$$DB_DIR";; *) echo "拒绝清理非预期临时目录: $$DB_DIR" >&2; return 1;; esac; }; \
+		trap cleanup EXIT; \
 		for f in $(MIGRATIONS_DIR)/sqlite/*.sql; do \
-			sqlite3 -bail $$DB < $$f || { printf "$(RED)FAILED: $$f$(RESET)\n"; exit 1; }; \
+			sqlite3 -bail "$$DB" < "$$f" || { printf "$(RED)FAILED: $$f$(RESET)\n"; exit 1; }; \
 		done; \
-		test -z "$$(sqlite3 $$DB 'PRAGMA foreign_key_check;')" && echo "  OK" || { printf "$(RED)FK check failed$(RESET)\n"; exit 1; }; \
-		rm -f $$DB
+		test -z "$$(sqlite3 "$$DB" 'PRAGMA foreign_key_check;')" && echo "  OK" || { printf "$(RED)FK check failed$(RESET)\n"; exit 1; }
 
 ##@ 清理
 clean: ## 清理前端构建产物（保留昂贵的 Rust 增量缓存）

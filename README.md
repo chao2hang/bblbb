@@ -148,8 +148,10 @@ make dev           # 启动前端开发服务器
 # 1. 安装依赖（Rust 工具链由 rust-toolchain.toml 自动固定，Node 版本见 .nvmrc）
 make install            # 安装前端 / 原型依赖
 
-# 2. 初始化数据库（SQLite，默认写 /tmp/bblbb.sqlite；可用 BBLBB_DB 覆盖）
+# 2. 初始化数据库（仅用于空的本地开发库；会覆盖目标路径）
 make migrate
+# 迁移检查使用独立临时库，不读取/删除 BBLBB_DB
+make migrate-check-sqlite
 
 # 3. （可选）需要两步验证（TOTP/MFA）时配置 secret 加密密钥：
 #    复制 backend/.env.example 为 backend/.env（已被 .gitignore 忽略），并填入

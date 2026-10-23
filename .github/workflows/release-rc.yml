@@ -39,6 +39,10 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: Install synthetic operations test prerequisites
+        run: sudo apt-get update && sudo apt-get install -y sqlite3 python3 tar gzip util-linux systemd
+      - name: Run isolated operations safety suite
+        run: make test-ops-safety
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy

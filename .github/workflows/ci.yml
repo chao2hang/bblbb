@@ -18,6 +18,16 @@ env:
   CARGO_TARGET_DIR: ${{ github.workspace }}/target
 
 jobs:
+  ops-safety:
+    name: Synthetic operations safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install synthetic test prerequisites
+        run: sudo apt-get update && sudo apt-get install -y sqlite3 python3 tar gzip util-linux systemd
+      - name: Run isolated backup and release safety suites
+        run: make test-ops-safety
+
   contracts:
     name: Documentation and OpenAPI
     runs-on: ubuntu-latest
@@ -55,6 +65,7 @@ jobs:
           ruby scripts/check-state-machine-matrix.rb
           ruby scripts/check-client-compat.rb
           ruby scripts/check-secrets.rb
+          ruby scripts/check-event-catalog.rb
           ruby scripts/check-write-contract.rb
           ruby scripts/check-route-coverage.rb
           ruby scripts/check-permission-matrix.rb
