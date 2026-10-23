@@ -71,7 +71,7 @@ mkdir -p "$FRONTEND_BUILD_DIR"
 )
 
 echo "==> 组装 bundle"
-mkdir -p "$BUILD_DIR/backend" "$BUILD_DIR/frontend" "$BUILD_DIR/migrations" "$BUILD_DIR/openapi"
+mkdir -p "$BUILD_DIR/backend" "$BUILD_DIR/frontend" "$BUILD_DIR/migrations" "$BUILD_DIR/openapi" "$BUILD_DIR/ops/backup" "$BUILD_DIR/ops/restore"
 cp "$TARGET_DIR/release/bblbb-backend" "$BUILD_DIR/backend/bblbb-backend"
 cp "$TARGET_DIR/release/bblbb-migrate" "$BUILD_DIR/backend/bblbb-migrate"
 cp -R "$FRONTEND_BUILD_DIR/build" "$BUILD_DIR/frontend/build"
@@ -81,6 +81,10 @@ cp "$FRONTEND_BUILD_DIR/package.json" "$FRONTEND_BUILD_DIR/package-lock.json" "$
 rm -rf "$FRONTEND_BUILD_DIR"
 cp -R "$ROOT/migrations/sqlite" "$ROOT/migrations/mysql" "$ROOT/migrations/mariadb" "$BUILD_DIR/migrations/"
 cp -R "$ROOT/openapi/." "$BUILD_DIR/openapi/"
+cp "$ROOT/ops/backup/daily.sh" "$ROOT/ops/backup/sqlite.sh" "$ROOT/ops/backup/manifest.sh" "$ROOT/ops/backup/archive-attachments.py" "$BUILD_DIR/ops/backup/"
+chmod 0755 "$BUILD_DIR/ops/backup/"*.sh
+cp "$ROOT/ops/restore/verify.sh" "$ROOT/ops/restore/verify-attachments.sh" "$ROOT/ops/restore/sqlite.sh" "$BUILD_DIR/ops/restore/"
+chmod 0755 "$BUILD_DIR/ops/restore/"*.sh
 echo "$VERSION" > "$BUILD_DIR/VERSION"
 
 mkdir -p "$OUT_DIR"

@@ -48,6 +48,8 @@ else
   test -d "$WORK/frontend/node_modules" && ok "frontend production node_modules 存在" || bad "frontend production node_modules 缺失"
   test -f "$WORK/openapi/openapi.yaml" && ok "OpenAPI 契约存在" || bad "OpenAPI 契约缺失"
   test -f "$WORK/SBOM.json" && ok "SBOM.json 存在" || bad "SBOM.json 缺失"
+  test -x "$WORK/ops/backup/daily.sh" && ok "每日备份脚本包含在 bundle" || bad "ops/backup/daily.sh 缺失"
+  test -x "$WORK/ops/restore/sqlite.sh" && ok "SQLite 恢复脚本包含在 bundle" || bad "ops/restore/sqlite.sh 缺失"
   for d in sqlite mysql mariadb; do
     test -d "$WORK/migrations/$d" && ok "迁移 $d 存在" || bad "迁移 $d 缺失"
   done
@@ -59,7 +61,9 @@ else
 
   # 最小权限：release 目录对「服务用户」只读
   if command -v chroot >/dev/null && id -u nobody >/dev/null 2>&1; then
-    chmod -R a+rX "$WORK" 2>/dev/null || true
+    chmod -R a+rX,a-w,a-s,-t "$WORK" 2>/dev/null || true
+    WRITABLE_ENTRIES="$(find "$WORK" -perm /0222 -print -quit)"
+    if [[ -z "$WRITABLE_ENTRIES" ]]; then ok "release tree has no write bits after normalization"; else bad "release tree contains write bits after normalization: $WRITABLE_ENTRIES"; fi
     if su nobody -s /bin/sh -c "test -w '$WORK'" 2>/dev/null; then
       bad "release 目录对非 root 用户可写"
     else
@@ -168,7 +172,7 @@ echo "    3) bblbb-migrate apply（发布脚本执行）"
 echo "    4) 切换 current 符号链接"
 ln -sfn "$SIM/releases/v1" "$SIM/current"
 echo "    5) 启动 + /readyz + 冒烟（ops/smoke/smoke.sh）"
-echo "    6) 失败时回滚 current 到上一版本（release.sh --rollback）"
+echo "    6) 失败时按迁移策略回滚；代码回滚必须显式传 release 版本（release.sh --rollback --target <version>）"
 test "$(readlink "$SIM/current")" = "$SIM/releases/v1" && ok "current 符号链接切换" || bad "符号链接切换失败"
 rm -rf "$SIM"
 

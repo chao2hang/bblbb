@@ -30,11 +30,24 @@ if [[ -z "$BUNDLE" || ! -f "$BUNDLE" ]]; then
   usage
 fi
 
-WORK="$(mktemp -d)"
-tar -xzf "$BUNDLE" -C "$WORK"
+[[ ! -L "$BUNDLE" ]] || { echo "错误: 不接受符号链接 bundle" >&2; exit 1; }
+TMP_PARENT="${TMPDIR:-/tmp}"
+[[ "$TMP_PARENT" == /* && -d "$TMP_PARENT" && ! -L "$TMP_PARENT" ]] || { echo "错误: TMPDIR 必须是存在的绝对普通目录" >&2; exit 1; }
+WORK_ROOT="$(mktemp -d "$TMP_PARENT/bblbb-release-metadata.XXXXXX")"
+WORK="$WORK_ROOT/extract"
+cleanup() {
+  case "${WORK_ROOT:-}" in "$TMP_PARENT"/bblbb-release-metadata.*) [[ ! -d "$WORK_ROOT" || -L "$WORK_ROOT" ]] || rm -rf -- "$WORK_ROOT" ;; esac
+}
+trap cleanup EXIT
+mkdir -m 0700 "$WORK"
+python3 "$ROOT/deploy/scripts/safe-extract-release-bundle.py" --archive "$BUNDLE" --destination "$WORK"
 
 echo "==> 校验 bundle 完整性（SHA256SUMS）"
-( cd "$WORK" && shasum -a 256 -c SHA256SUMS >/dev/null )
+if command -v sha256sum >/dev/null 2>&1; then
+  ( cd "$WORK" && sha256sum -c SHA256SUMS >/dev/null )
+else
+  ( cd "$WORK" && shasum -a 256 -c SHA256SUMS >/dev/null )
+fi
 
 echo "==> 校验 METADATA.json 必需字段"
 python3 - "$WORK/METADATA.json" <<'PYEOF'
@@ -65,11 +78,14 @@ echo "  Cargo.lock 行数: ${SBOM_LINES}；npm 顶层依赖: ${NPM_DEPS}"
 echo "==> 摘要 manifest（写入 deploy/RELEASES.md 的发布记录）"
 VERSION="$(python3 -c "import json;print(json.load(open('$WORK/METADATA.json'))['version'])")"
 COMMIT="$(python3 -c "import json;print(json.load(open('$WORK/METADATA.json'))['build_commit_short'])")"
-SUM="$(awk 'NF { print $1; exit }' "$WORK/SHA256SUMS")"
+if command -v sha256sum >/dev/null 2>&1; then
+  SUM="$(sha256sum "$BUNDLE" | awk '{print $1}')"
+else
+  SUM="$(shasum -a 256 "$BUNDLE" | awk '{print $1}')"
+fi
 
 cat <<EOF
 | $VERSION | \`$COMMIT\` | \`$(basename "$BUNDLE")\` | \`$SUM\` |
 EOF
 
-rm -rf "$WORK"
 echo "==> OK"

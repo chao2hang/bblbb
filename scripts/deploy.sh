@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 #
-# deploy.sh — 构建 BBLBB 并部署到生产服务器
+# deploy.sh — legacy deployment entry point (deployment mode retired).
 #
+# --deploy and the default build+deploy path are intentionally disabled: the
+# legacy units conflict with the separate frontend identity and hardened release
+# bundle contract. Use deploy/scripts/release.sh from a reviewed runbook instead.
 # 注意：本脚本只包含占位符（SERVER_IP、example.com），不得提交真实生产 IP/域名。
 # 部署前请将下方 SERVER 与域名替换为真实环境。
 #
 # 用法：
-#   ./scripts/deploy.sh           # 完整构建 + 部署
-#   ./scripts/deploy.sh --check   # 只检查服务器连通性和现有状态
+#   ./scripts/deploy.sh --check   # （legacy）检查服务器连通性和现有状态
 #   ./scripts/deploy.sh --build   # 只构建不部署
-#   ./scripts/deploy.sh --deploy  # 跳过构建，直接部署已构建的产物
+#   ./scripts/deploy.sh --deploy  # 已退役：拒绝调用，使用 deploy/scripts/release.sh
 #
 # 服务器环境：
 #   - Debian 6.1 (x86_64)
@@ -266,19 +268,24 @@ main() {
   cd "$PROJECT_ROOT"
 
   if [[ "${1:-}" == "--check" ]]; then
+    [[ $# -eq 1 ]] || error "--check 不接受额外参数"
     check_server
     exit 0
   fi
 
   if [[ "${1:-}" == "--build" ]]; then
+    [[ $# -eq 1 ]] || error "--build 不接受额外参数"
     build_backend
     build_frontend
     exit 0
   fi
 
   if [[ "${1:-}" == "--deploy" ]]; then
-    deploy
-    exit 0
+    error "legacy deployment path is retired; use reviewed deploy/scripts/release.sh per docs/OPERATIONS.md"
+  fi
+
+  if [[ $# -eq 0 ]]; then
+    error "default build+deploy path is retired; use --build for build-only or deploy/scripts/release.sh for deployment"
   fi
 
   # 先检查服务器

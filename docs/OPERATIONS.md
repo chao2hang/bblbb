@@ -169,7 +169,7 @@ community.example.com {
 
 ## 9. 升级与回滚
 
-代码回滚只有在数据库迁移向后兼容时安全。
+代码回滚只有在数据库迁移向后兼容时安全。`release.sh --rollback --target <version>` 只切换 current 链接并重启服务；它不会自动备份数据库，也不会撤销迁移。运行前操作者必须核对迁移兼容性和最近可恢复备份，并按 runbook 处理不可逆 schema/data 变化。
 
 - 每个 release note 标记 migration compatibility。
 - expand 阶段旧/新代码都能运行；contract 迁移延后到确认无回滚需求。
@@ -433,8 +433,8 @@ deploy/scripts/build-release-bundle.sh --version <v>   # 构建不可变 bundle
 deploy/scripts/record-release-metadata.sh --bundle ...  # SBOM/checksum/commit
 deploy/tests/test-release-bundle.sh --bundle ...        # 布局/权限/Caddy/错误配置
 deploy/scripts/startup-checks.sh                        # 启动检查
-deploy/scripts/release.sh --bundle ...                  # 备份→迁移→切换→验证
-deploy/scripts/release.sh --rollback                    # 回滚（current 切换）
+BBLBB_RELEASE_EXPECTED_SHA256=<可信带外SHA256> deploy/scripts/release.sh --bundle <bundle.tar.gz> # 备份→迁移→切换→验证（必填）
+deploy/scripts/release.sh --rollback --target <version> # 指定版本回滚（不猜目录排序）
 deploy/scripts/drill-migration-upgrade.sh               # 上一版本→当前迁移演练
 ops/test-graceful-shutdown.sh                           # SIGTERM 优雅停机实测
 ops/smoke/smoke.sh                                      # 发布后冒烟
@@ -576,15 +576,15 @@ DOCUMENTED_NON_CONTRACT 登记为准），权限均为相应 `*.manage`/`post.mo
 deploy/scripts/build-release-bundle.sh --version <v>   # 产出不可变 dist/<v>.tar.gz
 ```
 
+旧入口 `scripts/deploy.sh` 的默认部署与 `--deploy` 路径已退役并会拒绝执行；它创建的旧服务定义不满足独立 `bblbb-frontend` 身份与只读 release 约束。仅可用 `--build` 做本地构建，发布应按本章审批/演练流程使用 `deploy/scripts/release.sh`。
+
 产物布局、版本固定与校验命令见 `deploy/RELEASE-BUNDLE.md`；发布元数据
 （SBOM/checksum/commit）由 `deploy/scripts/record-release-metadata.sh` 登记。
 
 ### 20.3 服务器准备
 
-1. 创建 `bblbb` 服务用户；目录布局按 §2 与 `deploy/RELEASE-BUNDLE.md`：
-   `/opt/bblbb/releases/<version>`（bblbb 只读）、`/var/lib/bblbb`（可写）、
-   `/etc/bblbb/`（配置与 Secret）。
-2. 编写 `/etc/bblbb/backend.env`（非 Secret 配置：`PUBLIC_ORIGIN`、
+1. 创建 `bblbb` 与独立的 `bblbb-frontend` system user（两者均不可交互登录；frontend 不属于 `bblbb` 组）；目录布局按 §2 与 `deploy/RELEASE-BUNDLE.md`。backend 数据目录 `/var/lib/bblbb` 仅 `bblbb` 可访问；frontend 的 `/var/lib/bblbb-frontend` 由 systemd StateDirectory 自动创建。创建 root 管理的 `/etc/bblbb`，配置 backend.env、frontend.env（必需、仅非 Secret）和 secrets 目录。
+2. 编写 `/etc/bblbb/backend.env`（`root:bblbb 0640`）和 `/etc/bblbb/frontend.env`（`root:bblbb-frontend 0640`；可为空但文件必须存在）；frontend 配置禁止包含 Secret。backend env 非 Secret 配置：`PUBLIC_ORIGIN`、
    `BBLBB__BIND_ADDRESS=127.0.0.1:8080`、DB URL 等，见 §3 与
    `docs/CONFIGURATION.md`）。
 3. Secret 只经 systemd credentials 注入，不进 env 文件：master-key、
@@ -605,9 +605,13 @@ deploy/scripts/build-release-bundle.sh --version <v>   # 产出不可变 dist/<v
 
 ```sh
 # 1) 启动检查（origin/DB/目录权限/迁移状态/OIDC 密钥）
-deploy/scripts/startup-checks.sh --env-file /etc/bblbb/backend.env
-# 2) 显式迁移（backend 默认不自动迁移）
-BBLBB__AUTO_MIGRATE=true /opt/bblbb/current/backend/bblbb-backend --migrate
+deploy/scripts/startup-checks.sh /etc/bblbb/backend.env
+# 2) 显式迁移（当前 release 编排仅支持 SQLite；迁移器读取导出的 BBLBB__DATABASE_URL）
+set -a
+. /etc/bblbb/backend.env
+set +a
+/opt/bblbb/current/backend/bblbb-migrate apply \
+  --migrations-dir /opt/bblbb/current/migrations/sqlite
 # 3) 首个管理员 bootstrap token（一次性输出，见 §15）
 # 4) 按依赖顺序启动：backend → worker → frontend
 systemctl start bblbb-backend bblbb-worker bblbb-frontend
@@ -639,8 +643,8 @@ ops/smoke/smoke.sh                                  # 端到端冒烟（PASS 计
 按序重启 → 验证；失败自动停止切流）：
 
 ```sh
-deploy/scripts/release.sh --bundle dist/<v>.tar.gz
-deploy/scripts/release.sh --rollback
+BBLBB_RELEASE_EXPECTED_SHA256=<trusted-sha256-from-independent-channel> deploy/scripts/release.sh --bundle dist/<v>.tar.gz
+deploy/scripts/release.sh --rollback --target <version>
 ```
 
 发布顺序固定为 backend → worker → frontend（前端依赖新 API）；每版本在

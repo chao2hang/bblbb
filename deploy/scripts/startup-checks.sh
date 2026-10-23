@@ -5,10 +5,24 @@
 # 检查项：origin / Cookie 配置 / 数据库可达 / 目录权限 / 迁移状态 /
 # OIDC 密钥 / 外部配置。
 #
-# 用法：deploy/scripts/startup-checks.sh [--env-file /etc/bblbb/backend.env]
+# 用法：deploy/scripts/startup-checks.sh [--env-file] [/etc/bblbb/backend.env]
 set -euo pipefail
 
-ENV_FILE="${1:-/etc/bblbb/backend.env}"
+ENV_FILE="/etc/bblbb/backend.env"
+CLI_MIGRATIONS_DIR=""
+CLI_MIGRATE_BIN=""
+if [[ $# -eq 1 && "$1" != "--env-file" && "$1" != "--migrations-dir" && "$1" != "--migrate-bin" ]]; then
+  ENV_FILE="$1"
+else
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --env-file) [[ $# -ge 2 ]] || { echo "--env-file 需要路径" >&2; exit 2; }; ENV_FILE="$2"; shift 2 ;;
+      --migrations-dir) [[ $# -ge 2 ]] || { echo "--migrations-dir 需要路径" >&2; exit 2; }; CLI_MIGRATIONS_DIR="$2"; shift 2 ;;
+      --migrate-bin) [[ $# -ge 2 ]] || { echo "--migrate-bin 需要路径" >&2; exit 2; }; CLI_MIGRATE_BIN="$2"; shift 2 ;;
+      *) echo "未知参数: $1" >&2; exit 2 ;;
+    esac
+  done
+fi
 DB_URL=""
 MIGRATIONS_DIR=""
 STORAGE_DIR=""
@@ -25,7 +39,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 DB_URL="${BBLBB__DATABASE_URL:-$DB_URL}"
-MIGRATIONS_DIR="${BBLBB__MIGRATIONS_DIR:-$MIGRATIONS_DIR}"
+MIGRATIONS_DIR="${CLI_MIGRATIONS_DIR:-${BBLBB__MIGRATIONS_DIR:-$MIGRATIONS_DIR}}"
 STORAGE_DIR="${BBLBB__STORAGE_DIR:-$STORAGE_DIR}"
 PUBLIC_ORIGIN="${BBLBB__PUBLIC_ORIGIN:-$PUBLIC_ORIGIN}"
 
@@ -62,8 +76,12 @@ else
         note "数据库目录存在: $DB_DIR"
       fi
       if [[ -f "$DB_PATH" ]]; then
-        sqlite3 "$DB_PATH" "PRAGMA quick_check;" >/dev/null 2>&1 \
-          && note "SQLite quick_check OK" || fail "SQLite quick_check 失败"
+        QUICK_CHECK="$(sqlite3 "$DB_PATH" "PRAGMA quick_check;" 2>/dev/null || true)"
+        if [[ "$QUICK_CHECK" == "ok" ]]; then
+          note "SQLite quick_check OK"
+        else
+          fail "SQLite quick_check 失败"
+        fi
       fi
       ;;
     mysql://*|mariadb://*)
@@ -84,8 +102,10 @@ done
 
 note "==> 5/7 迁移状态（bblbb-migrate --check，只读）"
 if [[ -n "$MIGRATIONS_DIR" && -d "$MIGRATIONS_DIR" ]]; then
-  MIGRATE_BIN="/opt/bblbb/current/backend/bblbb-migrate"
-  if [[ -x "$MIGRATE_BIN" ]]; then
+  MIGRATE_BIN="${CLI_MIGRATE_BIN:-/opt/bblbb/current/backend/bblbb-migrate}"
+  if [[ -n "$CLI_MIGRATE_BIN" && ! -x "$CLI_MIGRATE_BIN" ]]; then
+    fail "指定的 candidate bblbb-migrate 不存在或不可执行: $CLI_MIGRATE_BIN"
+  elif [[ -x "$MIGRATE_BIN" ]]; then
     if BBLBB__MIGRATIONS_DIR="$MIGRATIONS_DIR" BBLBB__DATABASE_URL="$DB_URL" "$MIGRATE_BIN" --check; then
       note "迁移状态一致（或仅有待应用迁移，由发布脚本显式 apply）"
     else
