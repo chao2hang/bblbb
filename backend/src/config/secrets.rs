@@ -107,8 +107,8 @@ pub trait SecretProvider: Send + Sync {
     fn get(&self, name: &str) -> Result<Option<SecretValue>, SecretError>;
 
     /// 读取元数据（M01-CONFIG-04）：只返回 configured/source_class/version/
-    /// updated_at，不读取值。默认实现基于 `get`（会读取内容）；文件类来源
-    /// 覆盖为 stat-only。
+    /// updated_at，不读取值。默认实现基于 `get`（会读取内容）；持久文件来源
+    /// 覆盖为 stat-only。systemd credential 暂不提供可配置列表/元数据。
     fn metadata(&self, name: &str) -> Result<Option<SecretMetadata>, SecretError> {
         Ok(self.get(name)?.map(|value| SecretMetadata {
             configured: true,
@@ -222,6 +222,9 @@ impl SecretProvider for FileSecretProvider {
     }
 
     fn get(&self, name: &str) -> Result<Option<SecretValue>, SecretError> {
+        if !is_safe_name(name) {
+            return Err(SecretError::InvalidName(name.to_owned()));
+        }
         if !self.base_dir.is_dir() {
             return Ok(None);
         }
@@ -253,6 +256,9 @@ impl SecretProvider for FileSecretProvider {
 
     /// stat-only 元数据：只读文件系统元信息，不读取内容。
     fn metadata(&self, name: &str) -> Result<Option<SecretMetadata>, SecretError> {
+        if !is_safe_name(name) {
+            return Err(SecretError::InvalidName(name.to_owned()));
+        }
         if !self.base_dir.is_dir() {
             return Ok(None);
         }
@@ -294,6 +300,15 @@ pub struct SystemdCredentialProvider {
 }
 
 impl SystemdCredentialProvider {
+    /// 从 systemd 自动注入的 `CREDENTIALS_DIRECTORY` 构造；生产服务应优先用此方式。
+    pub fn from_environment() -> Option<Self> {
+        Self::from_credentials_directory(std::env::var_os("CREDENTIALS_DIRECTORY"))
+    }
+
+    fn from_credentials_directory(value: Option<std::ffi::OsString>) -> Option<Self> {
+        value.map(Self::with_base_dir)
+    }
+
     /// 以指定 unit 构造；读取 `/run/credentials/<unit>/`。
     pub fn for_unit(unit: &str) -> Self {
         Self {
@@ -315,6 +330,9 @@ impl SecretProvider for SystemdCredentialProvider {
     }
 
     fn get(&self, name: &str) -> Result<Option<SecretValue>, SecretError> {
+        if !is_safe_name(name) {
+            return Err(SecretError::InvalidName(name.to_owned()));
+        }
         let path = self.base_dir.join(name);
         if !path.is_file() {
             return Ok(None);
@@ -340,6 +358,9 @@ impl SecretProvider for SystemdCredentialProvider {
 
     /// stat-only 元数据：不读取内容。
     fn metadata(&self, name: &str) -> Result<Option<SecretMetadata>, SecretError> {
+        if !is_safe_name(name) {
+            return Err(SecretError::InvalidName(name.to_owned()));
+        }
         let path = self.base_dir.join(name);
         if !path.is_file() {
             return Ok(None);
@@ -462,18 +483,16 @@ impl SecretProvider for ChainProvider {
     }
 
     fn get(&self, name: &str) -> Result<Option<SecretValue>, SecretError> {
-        let mut last_error: Option<SecretError> = None;
         for provider in &self.providers {
             match provider.get(name) {
                 Ok(Some(value)) => return Ok(Some(value)),
                 Ok(None) => continue,
-                Err(e) => last_error = Some(e),
+                // Misconfigured or unreadable earlier sources must not be hidden by
+                // a later source that happens to contain a value.
+                Err(error) => return Err(error),
             }
         }
-        match last_error {
-            Some(e) => Err(e),
-            None => Ok(None),
-        }
+        Ok(None)
     }
 }
 
@@ -535,6 +554,39 @@ mod tests {
     }
 
     #[test]
+    fn systemd_credentials_directory_environment_is_respected() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("settings_encryption_key"), b"systemd-key").unwrap();
+        let provider =
+            SystemdCredentialProvider::from_credentials_directory(Some(dir.clone().into()))
+                .expect("environment directory should configure provider");
+        let value = provider
+            .get("settings_encryption_key")
+            .unwrap()
+            .expect("credential exists");
+        assert_eq!(value.as_str().unwrap(), "systemd-key");
+        assert!(SystemdCredentialProvider::from_credentials_directory(None).is_none());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn systemd_provider_rejects_unsafe_names_for_value_and_metadata() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let provider = SystemdCredentialProvider::with_base_dir(&dir);
+        assert!(matches!(
+            provider.get("../outside"),
+            Err(SecretError::InvalidName(_))
+        ));
+        assert!(matches!(
+            provider.metadata("../outside"),
+            Err(SecretError::InvalidName(_))
+        ));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn systemd_provider_reads_from_run_credentials_layout() {
         let dir = temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
@@ -547,6 +599,30 @@ mod tests {
         assert!(provider.get("absent").unwrap().is_none());
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    struct FailingProvider;
+
+    impl SecretProvider for FailingProvider {
+        fn source_class(&self) -> &'static str {
+            "failing_test"
+        }
+
+        fn get(&self, _: &str) -> Result<Option<SecretValue>, SecretError> {
+            Err(SecretError::InsecurePermissions("denied-test-file".into()))
+        }
+    }
+
+    #[test]
+    fn chain_provider_does_not_hide_earlier_source_errors() {
+        let fallback = EnvProvider::new("BBLBB_TEST_CHAIN_ERROR_");
+        std::env::set_var("BBLBB_TEST_CHAIN_ERROR_KEY", "fallback-value");
+        let chain = ChainProvider::new(vec![Box::new(FailingProvider), Box::new(fallback)]);
+        assert!(matches!(
+            chain.get("key"),
+            Err(SecretError::InsecurePermissions(_))
+        ));
+        std::env::remove_var("BBLBB_TEST_CHAIN_ERROR_KEY");
     }
 
     #[test]

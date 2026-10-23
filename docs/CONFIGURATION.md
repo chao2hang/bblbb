@@ -92,8 +92,8 @@
 |---|---|---|
 | `FileSecretProvider` | `BBLBB__SECRETS_DIR` | 一个 Secret 一个文件，文件名 = 名称；生产强制 owner-only 权限（0600/0400），目录建议 0700 |
 | `SystemdCredentialProvider` | `BBLBB__SECRETS_SYSTEMD_UNIT` | 读取 `/run/credentials/<unit>/<name>`（`LoadCredential=`/`SetCredential=`） |
-| `EnvProvider` | 环境变量 | 兜底/测试用；生产不建议作为 Secret 主来源 |
-| `ChainProvider` | 多来源 | 按注册顺序尝试，第一个命中即返回；文件优先于 systemd |
+| `EnvProvider` | 环境变量 | 通用 SecretProvider 的兜底/测试实现 |
+| `ChainProvider` | 多来源 | 按注册顺序尝试，第一个命中即返回；AppConfig 的默认顺序为文件优先于 systemd credential |
 
 约定：
 
@@ -102,7 +102,7 @@
 - 托管 Secret（Vault / 云 Secret Manager）扩展点：实现 `SecretProvider`
   注册进 `ChainProvider` 即可，调用方不感知来源。
 - `SecretValue` 的 `Debug` 不输出内容，防止误入日志。
-- `AppConfig::secret_provider()` 按配置构建链；生产模式自动开启文件权限校验。
+- `AppConfig::load()` 先从常规配置源读取 `BBLBB__*`，再由命中的 Secret provider 覆盖对应运行时字段；未提供文件/credential 时保留常规配置值。systemd 优先读取 `CREDENTIALS_DIRECTORY`，文件来源按生产模式校验权限。
 
 ## 1.4 Secret 写接口（M01-CONFIG-04）
 

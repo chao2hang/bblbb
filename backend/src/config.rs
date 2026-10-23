@@ -534,7 +534,11 @@ impl AppConfig {
             reject_unknown_keys(&config)?;
         }
 
-        config.try_deserialize()
+        let mut app_config: Self = config.try_deserialize()?;
+        app_config.apply_secret_overrides().map_err(|error| {
+            ConfigError::Message(format!("failed to load configured secrets: {error}"))
+        })?;
+        Ok(app_config)
     }
 
     /// 是否生产模式（M01-CONFIG-02）。
@@ -554,6 +558,7 @@ impl AppConfig {
 
     /// 按配置构建 Secret provider 链（M01-CONFIG-03）：
     /// 先受限文件目录，再 systemd credentials；生产模式强制文件权限校验。
+    /// systemd 的 CREDENTIALS_DIRECTORY 优先于 unit 路径推导。
     pub fn secret_provider(&self) -> Option<secrets::ChainProvider> {
         let mut providers: Vec<Box<dyn secrets::SecretProvider>> = Vec::new();
         if !self.secrets_dir.as_os_str().is_empty() {
@@ -562,7 +567,9 @@ impl AppConfig {
                 self.is_production(),
             )));
         }
-        if !self.secrets_systemd_unit.is_empty() {
+        if let Some(provider) = secrets::SystemdCredentialProvider::from_environment() {
+            providers.push(Box::new(provider));
+        } else if !self.secrets_systemd_unit.is_empty() {
             providers.push(Box::new(secrets::SystemdCredentialProvider::for_unit(
                 &self.secrets_systemd_unit,
             )));
@@ -572,6 +579,49 @@ impl AppConfig {
         } else {
             Some(secrets::ChainProvider::new(providers))
         }
+    }
+
+    /// Resolve configured secret sources into their typed runtime fields. The
+    /// values stay in memory and are never included in diagnostics.
+    fn apply_secret_overrides(&mut self) -> Result<(), secrets::SecretError> {
+        let Some(provider) = self.secret_provider() else {
+            return Ok(());
+        };
+        self.apply_secret_overrides_from(&provider)
+    }
+
+    fn apply_secret_overrides_from(
+        &mut self,
+        provider: &dyn secrets::SecretProvider,
+    ) -> Result<(), secrets::SecretError> {
+        fn read_secret(
+            provider: &dyn secrets::SecretProvider,
+            name: &str,
+        ) -> Result<Option<String>, secrets::SecretError> {
+            let Some(value) = secrets::SecretProvider::get(provider, name)? else {
+                return Ok(None);
+            };
+            let text = value.as_str().map_err(|error| {
+                secrets::SecretError::Io(format!("configured secret {name} is not UTF-8: {error}"))
+            })?;
+            Ok(Some(text.trim_end_matches(['\r', '\n']).to_owned()))
+        }
+        macro_rules! apply_secret {
+            ($field:ident) => {
+                if let Some(value) = read_secret(provider, stringify!($field))? {
+                    self.$field = value;
+                }
+            };
+        }
+        apply_secret!(mfa_encryption_key);
+        apply_secret!(settings_encryption_key);
+        apply_secret!(oidc_key_encryption_key);
+        apply_secret!(marketplace_webhook_encryption_key);
+        apply_secret!(s3_access_key_id);
+        apply_secret!(s3_secret_access_key);
+        apply_secret!(s3_session_token);
+        apply_secret!(mail_relay_token);
+        Ok(())
     }
 
     /// 生产模式校验：拒绝占位 Secret、不安全 Origin、非 loopback 内部端口
@@ -1009,6 +1059,40 @@ mod tests {
         );
         std::env::remove_var("DOTENV_SELFTEST_PRECEDENCE");
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn configured_file_secret_overrides_runtime_key_field() {
+        let secret_dir = std::env::temp_dir().join(format!(
+            "bblbb-config-secret-{}-{}",
+            std::process::id(),
+            uuid::Uuid::now_v7()
+        ));
+        std::fs::create_dir_all(&secret_dir).unwrap();
+        std::fs::write(
+            secret_dir.join("settings_encryption_key"),
+            b"test-key-material\n",
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&secret_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+            std::fs::set_permissions(
+                secret_dir.join("settings_encryption_key"),
+                std::fs::Permissions::from_mode(0o600),
+            )
+            .unwrap();
+        }
+        let provider = secrets::FileSecretProvider::new(&secret_dir, true);
+        let mut config = AppConfig {
+            env: "production".to_owned(),
+            secrets_dir: secret_dir.clone(),
+            ..AppConfig::default()
+        };
+        config.apply_secret_overrides_from(&provider).unwrap();
+        assert_eq!(config.settings_encryption_key, "test-key-material");
+        std::fs::remove_dir_all(secret_dir).unwrap();
     }
 
     #[test]

@@ -29,35 +29,34 @@ SQLite 模式不需要数据库进程。MySQL/MariaDB 可同机或使用托管�
 /var/log/bblbb/（若不全交给 journald）
 ```
 
-- 服务用户不能写 release 目录。
-- 只允许 backend 写数据库、上传和任务数据目录。
-- 配置文件权限最小化，secret 不放入前端环境。
+- Release 目录由 root 持有且服务进程不可写。
+- 后端/worker 使用 `bblbb` 账户访问数据库、上传、任务与凭据；前端单独使用 `bblbb-frontend`，不加入 `bblbb` 组。
+- 前端只读取 `/etc/bblbb/frontend.env`；systemd unit 显式屏蔽 `/etc/bblbb/backend.env` 和 `/etc/bblbb/secrets`。`frontend.env` 应仅有非敏感 SSR 参数。前端状态目录由 systemd `StateDirectory=bblbb-frontend` 创建于独立顶层 `/var/lib/bblbb-frontend`，避免穿越 backend 的 0700 数据目录。
+- `backend.env` 不放 Secret；Secret 由 systemd credential 加载。文件权限与账号初始化见 `deploy/RELEASE-BUNDLE.md`。
 
 ## 3. 核心配置
 
 以下为 v0.4 冻结配置命名基线；类型、默认值、Secret 和运行时变更规则见 `CONFIGURATION.md`，实现不得静默改名：
 
 ```text
-BBLBB_ENV=production
-BBLBB_PUBLIC_ORIGIN=https://community.example.com
-BBLBB_DATABASE_URL=sqlite:///var/lib/bblbb/database/bblbb.db
-BBLBB_BIND=127.0.0.1:8080
-BBLBB_FRONTEND_ORIGIN=http://127.0.0.1:3000
-BBLBB_TRUSTED_PROXIES=127.0.0.1/32
-BBLBB_STORAGE_BACKEND=local
-BBLBB_STORAGE_LOCAL_PATH=/var/lib/bblbb/uploads
+BBLBB__ENV=production
+BBLBB__PUBLIC_ORIGIN=https://community.example.com
+BBLBB__DATABASE_URL=sqlite:///var/lib/bblbb/database/bblbb.db
+BBLBB__BIND_ADDRESS=127.0.0.1:8080
+BBLBB__STORAGE_BACKEND=local
+BBLBB__STORAGE_DIR=/var/lib/bblbb/uploads
 # S3 后端按需启用：
-# BBLBB_S3_ENDPOINT=https://s3.amazonaws.com
-# BBLBB_S3_REGION=ap-southeast-1
-# BBLBB_S3_BUCKET=bblbb-attachments
-# BBLBB_S3_ACCESS_KEY_ID=...
-# BBLBB_S3_SECRET_ACCESS_KEY=...
-# BBLBB_S3_PATH_STYLE=false
-# BBLBB_S3_SIGNED_URL_TTL_SECONDS=300
+# BBLBB__S3_ENDPOINT=https://s3.amazonaws.com
+# BBLBB__S3_REGION=ap-southeast-1
+# BBLBB__S3_BUCKET=bblbb-attachments
+# S3 凭据通过 systemd credentials 提供，不写入该文件。
+# systemd credentials 的 secrets unit 配置需与 unit 名称一致。
 # S3 presigned uploads remain blocked for production until AWS/MinIO/R2 integration evidence is recorded (M06-UPLOAD-03).
-BBLBB_UPLOAD_MAX_BYTES=20971520
-BBLBB_SECRET_KEY_FILE=/etc/bblbb/master-key
-BBLBB_SMTP_*=...
+BBLBB__SECRETS_SYSTEMD_UNIT=bblbb-backend
+# Required: /etc/bblbb/secrets/settings_encryption_key (0600).
+# Optional secret files use AppConfig field names and 0600; systemd LoadCredential
+# uses a leading '-' before the credential name for optional sources.
+# Credentials are delivered through systemd LoadCredential; do not put them here.
 ```
 
 - `PUBLIC_ORIGIN` 必须固定 HTTPS Origin，OIDC discovery 和 Cookie 依赖它。

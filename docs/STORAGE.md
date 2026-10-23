@@ -41,18 +41,17 @@ head
 
 | 配置 | 示例 | 说明 |
 |---|---|---|
-| `BBLBB_STORAGE_BACKEND` | `local` / `s3` | 安装时选择；默认 `local` |
-| `BBLBB_STORAGE_LOCAL_PATH` | `/var/lib/bblbb/uploads` | 本地目录，必须位于 Web 根目录外 |
-| `BBLBB_S3_ENDPOINT` | `https://s3.amazonaws.com` | 自定义服务必须使用 HTTPS；开发环境 MinIO 可例外 |
-| `BBLBB_S3_REGION` | `ap-southeast-1` / `auto` | R2 可使用厂商要求值 |
-| `BBLBB_S3_BUCKET` | `bblbb-attachments` | Bucket 默认私有 |
-| `BBLBB_S3_ACCESS_KEY_ID` | — | 仅服务端读取 |
-| `BBLBB_S3_SECRET_ACCESS_KEY` | — | Secret，不回显、不记录 |
-| `BBLBB_S3_PATH_STYLE` | `false` | MinIO 等兼容服务可开启 |
-| `BBLBB_S3_PUBLIC_BASE_URL` | `https://cdn.example.com` | 仅公开、不可变资源可使用 |
-| `BBLBB__STORAGE_BACKEND=s3` | `true` | 选择 S3 即启用浏览器预签名 staging PUT；未通过 M06-UPLOAD-03 真实 provider 验证前，正式环境保持 `local` |
-| `BBLBB_S3_SIGNED_URL_TTL_SECONDS` | `300` | 私有下载建议 60–3600 秒 |
-| `BBLBB_UPLOAD_MAX_BYTES` | `20971520` | 站点硬上限；用途限制仍取更小值 |
+| `BBLBB__STORAGE_BACKEND` | `local` / `s3` | 安装时选择；默认 `local` |
+| `BBLBB__STORAGE_DIR` | `/var/lib/bblbb/uploads` | 本地目录，必须位于 Web 根目录外 |
+| `BBLBB__S3_ENDPOINT` | `https://s3.amazonaws.com` | 自定义服务必须使用 HTTPS；开发环境 MinIO 可例外 |
+| `BBLBB__S3_REGION` | `ap-southeast-1` / `auto` | R2 可使用厂商要求值 |
+| `BBLBB__S3_BUCKET` | `bblbb-attachments` | Bucket 默认私有 |
+| `BBLBB__S3_ACCESS_KEY_ID` | — | 仅服务端读取；可由 Secret provider 注入 |
+| `BBLBB__S3_SECRET_ACCESS_KEY` | — | Secret，不回显、不记录；可由 Secret provider 注入 |
+| `BBLBB__S3_PATH_STYLE` | `false` | MinIO 等兼容服务可开启 |
+| `storage_s3_public_base_url` | `https://cdn.example.com` | 站点设置（`/admin/storage`）；仅公开、不可变资源可使用 |
+| `storage_s3_signed_url_ttl` | `300` | 站点设置（`/admin/storage`）；私有下载建议 60–3600 秒 |
+| `storage_upload_max_bytes` | `20971520` | 站点设置（`/admin/storage`）；用途限制仍取更小值 |
 
 生产环境优先使用实例角色、Workload Identity 或短期凭据；必须使用静态密钥时，应设置最小权限并支持轮换。后台 `/admin/storage` 只展示脱敏状态，保存 Secret 后不得再次读取明文。
 
