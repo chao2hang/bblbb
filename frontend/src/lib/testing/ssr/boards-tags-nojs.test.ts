@@ -90,7 +90,7 @@ describe('M03-UI-06 板块详情 SSR', () => {
   it('详情 + 权限提示（members + readonly）在 SSR HTML 中', () => {
     const board: Board = { ...rootBoard, visibility: 'members', posting_mode: 'readonly', post_count: 7 };
     const { body } = render(BoardDetailPage, {
-      props: { data: { board, posts: [feedRow], error: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [] } }
+      props: { data: { board, posts: [feedRow], error: null, feedError: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [] } }
     });
     expect(body).toContain('技术分享');
     expect(body).toContain('该板块仅对登录成员可见');
@@ -100,14 +100,14 @@ describe('M03-UI-06 板块详情 SSR', () => {
 
   it('无帖子 → 空状态可读', () => {
     const { body } = render(BoardDetailPage, {
-      props: { data: { board: rootBoard, posts: [], error: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [] } }
+      props: { data: { board: rootBoard, posts: [], error: null, feedError: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [] } }
     });
     expect(body).toContain('暂无帖子');
   });
 
   it('信息流与首页同构：feed 工具条 + 单一列表外框 + 右栏板块内推荐位', () => {
     const { body } = render(BoardDetailPage, {
-      props: { data: { board: rootBoard, posts: [feedRow], error: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [{ ...feedRow, id: 'p2', title: '热门帖' }], boards: [] } }
+      props: { data: { board: rootBoard, posts: [feedRow], error: null, feedError: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [{ ...feedRow, id: 'p2', title: '热门帖' }], boards: [] } }
     });
     // 首页同款工具条（筛选 tab + 发布入口）
     expect(body).toContain('feed-toolbar');
@@ -125,7 +125,7 @@ describe('M03-UI-06 板块详情 SSR', () => {
     const current: Board = { ...rootBoard, post_count: 6 };
     const other: Board = { ...rootBoard, id: 'b3', slug: 'creative', name: '创意工坊', post_count: 0 };
     const { body } = render(BoardDetailPage, {
-      props: { data: { board: current, posts: [], error: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [current, other] } }
+      props: { data: { board: current, posts: [], error: null, feedError: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [current, other] } }
     });
     // 首页同款 category-card（aria-label 标识）
     expect(body).toContain('板块分类');
@@ -140,7 +140,7 @@ describe('M03-UI-06 板块详情 SSR', () => {
     expect(body).toContain('>6</em>');
     // 导航列表为空（降级态）→ 整卡不渲染
     const empty = render(BoardDetailPage, {
-      props: { data: { board: rootBoard, posts: [], error: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [] } }
+      props: { data: { board: rootBoard, posts: [], error: null, feedError: null, sort: '', following: false, authed: true, after: null, nextCursor: null, hasMore: false, popular: [], boards: [] } }
     });
     expect(empty.body).not.toContain('板块分类');
   });

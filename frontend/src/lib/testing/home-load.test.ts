@@ -45,6 +45,7 @@ interface HomeLoadData {
   boards: unknown[];
   tags: unknown[];
   posts: unknown[];
+  feedError: string | null;
 }
 
 async function runLoad(fetchMock: typeof fetch): Promise<HomeLoadData> {
@@ -111,11 +112,20 @@ describe('首页 server load（无 JS 基线）', () => {
     });
   });
 
-  it('后端不可用时降级为空数组（页面仍渲染站点壳）', async () => {
-    const fetchMock = vi.fn(async () => new Response('boom', { status: 500 }));
+  it('信息流接口失败会与合法空结果区分', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('/api/v1/posts')) return new Response('boom', { status: 500 });
+      return jsonResponse({ items: [] });
+    });
     const data = await runLoad(fetchMock as typeof fetch);
-    expect(data.boards).toEqual([]);
-    expect(data.tags).toEqual([]);
     expect(data.posts).toEqual([]);
+    expect(data.feedError).toBe('信息流暂时无法加载，请稍后重试');
+  });
+
+  it('成功返回空列表时没有错误状态', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ items: [], page: { next_cursor: null, has_more: false } }));
+    const data = await runLoad(fetchMock as typeof fetch);
+    expect(data.posts).toEqual([]);
+    expect(data.feedError).toBeNull();
   });
 });

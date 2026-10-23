@@ -145,7 +145,18 @@ describe('M03-UI-06 板块详情 load', () => {
     expect(data.boards).toEqual([boardsListRow]);
   });
 
-  it('信息流接口失败 → 板块照常返回，posts 空数组（静默降级，同首页）', async () => {
+  it('following 请求失败时返回 false，不把 rejected 状态对象传给页面', async () => {
+    getAuthedMock.mockImplementation(async (_cookies: unknown, path: string) => {
+      if (path === '/api/v1/boards/tech') return { ok: true, data: board };
+      if (path === '/api/v1/me/following') throw new Error('network down');
+      if (path === '/api/v1/boards') return { ok: true, data: { items: [] } };
+      return { ok: false, status: 500, message: 'x', requestId: null, retryAfterSecs: null, code: null };
+    });
+    const data = (await load(loadEvent('tech', { authed: true }))) as BoardDetailData;
+    expect(data.following).toBe(false);
+  });
+
+  it('信息流接口失败 → 板块照常返回，但明确保留错误状态', async () => {
     getPublicMock.mockImplementation(async (path: string) => {
       if (path === '/api/v1/boards') return { ok: true, data: { items: [] } };
       if (path === '/api/v1/boards/tech') return { ok: true, data: board };
@@ -157,5 +168,6 @@ describe('M03-UI-06 板块详情 load', () => {
     expect(data.posts).toEqual([]);
     expect(data.popular).toEqual([]);
     expect(data.error).toBeNull();
+    expect(data.feedError).toBe('信息流暂时无法加载，请稍后重试');
   });
 });

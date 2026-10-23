@@ -113,19 +113,15 @@ export async function fetchPostsPage(
   if (opts.boardId) params.set('board_id', opts.boardId);
   if (opts.tag) params.set('tag', opts.tag);
   if (opts.after) params.set('after', opts.after);
-  try {
-    const response = await fetchFn(`/api/v1/posts?${params.toString()}`, {
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' }
-    });
-    if (!response.ok) throw new Error(`posts page ${response.status}`);
-    const data = (await response.json()) as PostsPage;
-    return {
-      rows: (data.items ?? []).map(pickPostRow),
-      nextCursor: data.page?.next_cursor ?? data.next_cursor ?? null,
-      hasMore: data.page?.has_more ?? data.has_more ?? false
-    };
-  } catch {
-    return { rows: [], nextCursor: null, hasMore: false };
-  }
+  const response = await fetchFn(`/api/v1/posts?${params.toString()}`, {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' }
+  });
+  if (!response.ok) throw new Error(`posts page ${response.status}`);
+  const data = (await response.json()) as PostsPage;
+  return {
+    rows: (data.items ?? []).map(pickPostRow),
+    nextCursor: data.page?.next_cursor ?? data.next_cursor ?? null,
+    hasMore: data.page?.has_more ?? data.has_more ?? false
+  };
 }

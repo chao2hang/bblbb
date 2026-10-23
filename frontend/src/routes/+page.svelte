@@ -326,6 +326,12 @@
         </a>
       </div>
 
+      {#if data.feedError}
+        <div class="app-notice is-danger" role="alert" style="margin:var(--space-3) 0;">
+          <span>{data.feedError}</span>
+          <a href={page.url.href} class="text-link">重新加载</a>
+        </div>
+      {:else}
       <TopicList
         rows={listRows}
         {emptyTitle}
@@ -352,6 +358,7 @@
         </a>
       {:else if posts.length > 0}
         <div class="feed-end">— 已经到底了 —</div>
+      {/if}
       {/if}
     </section>
 

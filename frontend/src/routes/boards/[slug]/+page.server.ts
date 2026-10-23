@@ -29,6 +29,8 @@ export interface BoardDetailData {
   /** 信息流行（首页同款白名单投影，board_id 恒为当前板块）。 */
   posts: FeedRow[];
   error: string | null;
+  /** 信息流读取错误（不同于合法的空列表）。 */
+  feedError: string | null;
   /** 当前排序（'' 最新默认 | featured 精华 | following 已关注 | popular 热门）。 */
   sort: BoardFeedSort;
   /** viewer 是否已关注该板块（匿名/拉取失败 → false）。 */
@@ -75,6 +77,7 @@ export const load: PageServerLoad = async ({ params, cookies, request, url, fetc
       board: null,
       posts: [],
       error: boardResult.message,
+      feedError: null,
       sort,
       following: false,
       authed,
@@ -90,7 +93,7 @@ export const load: PageServerLoad = async ({ params, cookies, request, url, fetc
   // 信息流 + 右栏推荐位：与首页同一取页层（相对 /api/v1/posts，同源 Cookie
   // 透传），按板块过滤——feed 为本板块内容，推荐位为本板块热门前 3。
   // 关注态（authed）与其并发；失败静默降级 false。
-  const [postsPage, popularPage, following] = await Promise.all([
+  const [postsPage, popularPage, following] = await Promise.allSettled([
     fetchPostsPage(fetch, { sort, limit: 8, after, boardId }),
     fetchPostsPage(fetch, { sort: 'popular', limit: 3, boardId }),
     (async () => {
@@ -118,17 +121,20 @@ export const load: PageServerLoad = async ({ params, cookies, request, url, fetc
     // 静默降级：导航是辅助内容，失败不阻塞板块页
   }
 
+  const posts = postsPage.status === 'fulfilled' ? postsPage.value : { rows: [], nextCursor: null, hasMore: false };
+  const popular = popularPage.status === 'fulfilled' ? popularPage.value.rows : [];
   return {
     board: boardResult.data,
-    posts: postsPage.rows,
+    posts: posts.rows,
     error: null,
+    feedError: postsPage.status === 'rejected' ? '信息流暂时无法加载，请稍后重试' : null,
     sort,
-    following,
+    following: following.status === 'fulfilled' && following.value,
     authed,
     after,
-    nextCursor: postsPage.nextCursor,
-    hasMore: postsPage.hasMore,
-    popular: popularPage.rows,
+    nextCursor: posts.nextCursor,
+    hasMore: posts.hasMore,
+    popular,
     boards
   } satisfies BoardDetailData;
 };

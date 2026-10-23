@@ -45,6 +45,8 @@ export interface HomePageData {
   boards: Array<Pick<Board, (typeof BOARD_PUBLIC)[number]>>;
   tags: Array<Pick<Tag, (typeof TAG_PUBLIC)[number]>>;
   posts: FeedRow[];
+  /** 信息流读取错误（不同于合法的空列表）。 */
+  feedError: string | null;
   /** 当前筛选（'' | featured | following | popular）。 */
   sort: HomeSort;
   /** 当前板块/标签过滤（首页 bottom sheet 选择后仍留在首页）。 */
@@ -80,6 +82,7 @@ export const load: PageServerLoad = async ({ fetch, url }): Promise<HomePageData
   ]);
 
   const page = postsPage.status === 'fulfilled' ? postsPage.value : { rows: [], nextCursor: null, hasMore: false };
+  const feedError = postsPage.status === 'rejected' ? '信息流暂时无法加载，请稍后重试' : null;
   const popular = popularPage.status === 'fulfilled' ? popularPage.value.rows : [];
   const statsRaw = statsResult.status === 'fulfilled' ? statsResult.value : null;
   const stats: HomeStats | null =
@@ -103,6 +106,7 @@ export const load: PageServerLoad = async ({ fetch, url }): Promise<HomePageData
         ? tags.value.items.map((t: Tag) => pick(t, TAG_PUBLIC))
         : [],
     posts: page.rows,
+    feedError,
     sort,
     boardId,
     tag,
