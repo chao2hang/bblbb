@@ -494,13 +494,18 @@ export async function deleteDraft(fetchFn: typeof fetch, id: string): Promise<vo
 
 export async function listComments(
   fetchFn: typeof fetch,
-  postId: string
+  postId: string,
+  opts: { after?: string | null; limit?: number } = {}
 ): Promise<PageResult<Comment>> {
   // 契约 CommentPage 为 {items, page{next_cursor,has_more}}；实现曾返回平面
   // {items,next_cursor,has_more}，此处归一化以容忍两种形状。
+  const params = new URLSearchParams();
+  if (opts.limit != null) params.set('limit', String(opts.limit));
+  if (opts.after) params.set('after', opts.after);
+  const query = params.size ? `?${params.toString()}` : '';
   const data = await request<
     { items?: Comment[] } & Partial<PageResult<Comment>> & { page?: { next_cursor: string | null; has_more: boolean } }
-  >(fetchFn, `/posts/${encodeURIComponent(postId)}/comments`);
+  >(fetchFn, `/posts/${encodeURIComponent(postId)}/comments${query}`);
   return {
     items: data.items ?? [],
     next_cursor: data.next_cursor ?? data.page?.next_cursor ?? null,

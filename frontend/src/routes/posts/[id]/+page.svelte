@@ -145,6 +145,10 @@
   let comments = $state<Comment[]>([]);
   let commentsLoaded = $state(false);
   let commentsProblem = $state<Problem | null>(null);
+  let commentsNextCursor = $state<string | null>(null);
+  let commentsHasMore = $state(false);
+  let commentsLoadingMore = $state(false);
+  let commentsMoreProblem = $state<Problem | null>(null);
   /** 本次会话内新增/删除的回复数（对服务端 reply_count 的增量修正）。 */
   let replyDelta = $state(0);
   const replyCount = $derived((post?.reply_count ?? 0) + replyDelta);
@@ -353,7 +357,7 @@
   type CommentSort = 'latest' | 'earliest' | 'author';
   let commentSort = $state<CommentSort>('latest');
   const commentSortOptions: Array<{ value: CommentSort; label: string }> = [
-    { value: 'latest', label: '最新' },
+    { value: 'latest', label: '最新（已加载）' },
     { value: 'earliest', label: '最早' },
     { value: 'author', label: '只看作者' }
   ];
@@ -623,11 +627,32 @@
     try {
       const result = await listComments(fetch, post.id);
       comments = result.items;
+      commentsNextCursor = result.next_cursor;
+      commentsHasMore = result.has_more;
     } catch (err: unknown) {
       comments = [];
+      commentsNextCursor = null;
+      commentsHasMore = false;
       commentsProblem = err as Problem;
     } finally {
       commentsLoaded = true;
+    }
+  }
+
+  async function loadMoreComments() {
+    if (!post || !commentsNextCursor || commentsLoadingMore) return;
+    commentsLoadingMore = true;
+    commentsMoreProblem = null;
+    try {
+      const result = await listComments(fetch, post.id, { after: commentsNextCursor });
+      const seen = new Set(comments.map((comment) => comment.id));
+      comments = [...comments, ...result.items.filter((comment) => !seen.has(comment.id))];
+      commentsNextCursor = result.next_cursor;
+      commentsHasMore = result.has_more;
+    } catch (err: unknown) {
+      commentsMoreProblem = err as Problem;
+    } finally {
+      commentsLoadingMore = false;
     }
   }
 
@@ -1152,7 +1177,7 @@
 
       <section class="topic-comments app-card" style="margin-top:14px;" aria-labelledby="comments-title">
         <div class="topic-comments__head" style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;margin-bottom:10px;">
-          <h2 id="comments-title" style="font-size:18px;margin:0;">回复 · {commentsLoaded ? comments.length : ''} 条</h2>
+          <h2 id="comments-title" style="font-size:18px;margin:0;">回复 · {commentsLoaded ? `${comments.length}${commentsHasMore ? '+' : ''}` : ''} 条</h2>
           {#if commentsLoaded}
             <!-- 评论排序（M18-MISC-02 对齐原型）：最新 / 最早 / 只看作者。 -->
             <div class="tabs" role="tablist" aria-label="评论排序" style="padding:0;border-bottom:var(--border-default);">
@@ -1330,6 +1355,20 @@
                   </div>
                 </div>
               {/each}
+            </div>
+          {/if}
+          {#if commentsHasMore || commentsMoreProblem}
+            <div style="display:flex;align-items:center;justify-content:center;gap:var(--space-2);margin-top:var(--space-4);flex-wrap:wrap;">
+              {#if commentsMoreProblem}
+                <span class="input-hint is-error" role="alert">{problemMessage(commentsMoreProblem) || '加载更多回复失败'}</span>
+              {/if}
+              <Button
+                text={commentsLoadingMore ? '加载中…' : commentsMoreProblem ? '重试加载回复' : '加载更多回复'}
+                variant="secondary"
+                size="sm"
+                onclick={() => void loadMoreComments()}
+                disabled={commentsLoadingMore}
+              />
             </div>
           {/if}
         {:else}
